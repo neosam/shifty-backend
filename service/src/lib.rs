@@ -19,6 +19,8 @@ pub trait PermissionService {
         &self,
         privilege: &str,
     ) -> impl Future<Output = Result<(), ServiceError>> + Send;
+}
 
+pub trait UserService {
     fn current_user(&self) -> impl Future<Output = Result<Arc<str>, ServiceError>> + Send;
 }
