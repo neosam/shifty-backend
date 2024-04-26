@@ -1,0 +1,2 @@
+[workspace]
+members = ["rest", "service", "service_impl", "app", "dao", "dao_impl"]
