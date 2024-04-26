@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+use mockall::automock;
 use std::{future::Future, sync::Arc};
 use thiserror::Error;
 
@@ -10,17 +12,19 @@ pub enum ServiceError {
     Forbidden,
 }
 
+#[automock]
 pub trait HelloService {
     fn hello(&self) -> impl Future<Output = Result<Arc<str>, ServiceError>> + Send;
 }
 
+#[automock]
+#[async_trait]
 pub trait PermissionService {
-    fn check_permission(
-        &self,
-        privilege: &str,
-    ) -> impl Future<Output = Result<(), ServiceError>> + Send;
+    async fn check_permission(&self, privilege: &str) -> Result<(), ServiceError>;
 }
 
+#[automock]
+#[async_trait]
 pub trait UserService {
-    fn current_user(&self) -> impl Future<Output = Result<Arc<str>, ServiceError>> + Send;
+    async fn current_user(&self) -> Result<Arc<str>, ServiceError>;
 }

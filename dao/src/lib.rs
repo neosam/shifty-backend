@@ -1,5 +1,7 @@
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 
+use async_trait::async_trait;
+use mockall::automock;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -8,14 +10,14 @@ pub enum DaoError {
     DatabaseQueryError(#[from] Box<dyn std::error::Error>),
 }
 
+#[automock]
+#[async_trait]
 pub trait HelloDao {
-    fn get_hello(&self) -> impl Future<Output = Result<Arc<str>, DaoError>> + Send;
+    async fn get_hello(&self) -> Result<Arc<str>, DaoError>;
 }
 
+#[automock]
+#[async_trait]
 pub trait PermissionDao {
-    fn has_privilege(
-        &self,
-        user: &str,
-        privilege: &str,
-    ) -> impl Future<Output = Result<bool, DaoError>> + Send;
+    async fn has_privilege(&self, user: &str, privilege: &str) -> Result<bool, DaoError>;
 }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use dao::DaoError;
 use sqlx::{query, SqlitePool};
 
@@ -13,6 +14,7 @@ impl HelloDaoImpl {
     }
 }
 
+#[async_trait]
 impl dao::HelloDao for HelloDaoImpl {
     async fn get_hello(&self) -> Result<Arc<str>, dao::DaoError> {
         let result = query!(r"SELECT 'Hello, world!' as message")
@@ -32,6 +34,7 @@ impl PermissionDaoImpl {
         Self { pool }
     }
 }
+#[async_trait]
 impl dao::PermissionDao for PermissionDaoImpl {
     async fn has_privilege(&self, user: &str, privilege: &str) -> Result<bool, dao::DaoError> {
         let result = query!(
