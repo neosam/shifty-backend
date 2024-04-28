@@ -1,14 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::{convert::Infallible, sync::Arc};
-use uuid::Uuid;
 
-use axum::{
-    body::Body,
-    extract::State,
-    response::Response,
-    routing::{get, post},
-    Json, Router,
-};
+mod hello;
+mod permission;
+
+use axum::{body::Body, response::Response, routing::get, Router};
 
 pub struct RoString(Arc<str>, bool);
 impl http_body::Body for RoString {
@@ -57,38 +52,19 @@ fn error_handler(result: Result<Response, service::ServiceError>) -> Response {
     }
 }
 
-async fn root<HelloService: service::HelloService>(
-    State(hello_service): State<Arc<HelloService>>,
-) -> Response {
-    error_handler(
-        (async {
-            let string = hello_service.hello().await?;
-            Ok(RoString::from(string).into())
-        })
-        .await,
-    )
+pub trait RestStateDef: Clone + Send + Sync + 'static {
+    type HelloService: service::HelloService + Send + Sync + 'static;
+    type PermissionService: service::PermissionService + Send + Sync + 'static;
+
+    fn hello_service(&self) -> Arc<Self::HelloService>;
+    fn permission_service(&self) -> Arc<Self::PermissionService>;
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct User {
-    #[serde(default)]
-    pub id: Uuid,
-    pub name: String,
-}
-
-async fn add_user(Json(user): Json<User>) -> Response {
-    println!("Adding user: {:?}", user);
-    Response::builder().status(200).body(Body::empty()).unwrap()
-}
-
-pub async fn start_server<HelloService>(hello_service: HelloService)
-where
-    HelloService: service::HelloService + Send + Sync + 'static,
-{
+pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new()
-        .route("/", get(root))
-        .route("/user", post(add_user))
-        .with_state(Arc::new(hello_service));
+        .route("/", get(hello::hello::<RestState>))
+        .nest("/permission", permission::generate_route())
+        .with_state(rest_state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
         .expect("Could not bind server");
