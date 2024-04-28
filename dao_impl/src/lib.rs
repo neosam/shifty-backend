@@ -2,7 +2,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use dao::DaoError;
-use sqlx::{query, SqlitePool};
+use sqlx::{query, query_as, SqlitePool};
+
+pub trait ResultDbErrorExt<T, E> {
+    fn map_db_error(self) -> Result<T, DaoError>;
+}
+impl<T, E: std::error::Error + 'static> ResultDbErrorExt<T, E> for Result<T, E> {
+    fn map_db_error(self) -> Result<T, DaoError> {
+        self.map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))
+    }
+}
 
 pub struct HelloDaoImpl {
     pool: Arc<SqlitePool>,
@@ -48,7 +57,145 @@ impl dao::PermissionDao for PermissionDaoImpl {
         )
         .fetch_all(self.pool.as_ref())
         .await
-        .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
+        .map_db_error()?;
         Ok(result[0].results > 0)
+    }
+
+    async fn create_user(&self, user: &dao::UserEntity, process: &str) -> Result<(), DaoError> {
+        let name = user.name.as_ref();
+        query!(
+            r"INSERT INTO user (name, update_process) VALUES (?, ?)",
+            name,
+            process
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
+    }
+    async fn all_users(&self) -> Result<Arc<[dao::UserEntity]>, DaoError> {
+        Ok(query_as!(dao::UserEntity, r"SELECT name FROM user")
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map(Arc::<[dao::UserEntity]>::from)
+            .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?)
+    }
+    async fn delete_user(&self, username: &str) -> Result<(), DaoError> {
+        query!(r"DELETE FROM user WHERE name = ?", username)
+            .execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
+    }
+
+    async fn create_role(&self, role: &dao::RoleEntity, process: &str) -> Result<(), DaoError> {
+        let name = role.name.as_ref();
+        query!(
+            "INSERT INTO role (name, update_process) VALUES (?, ?)",
+            name,
+            process
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
+    }
+    async fn all_roles(&self) -> Result<Arc<[dao::RoleEntity]>, DaoError> {
+        Ok(query_as!(dao::RoleEntity, r"SELECT name FROM role")
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map(Arc::<[dao::RoleEntity]>::from)
+            .map_db_error()?)
+    }
+    async fn delete_role(&self, rolename: &str) -> Result<(), DaoError> {
+        query!(r"DELETE FROM role WHERE name = ?", rolename)
+            .execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
+    }
+
+    async fn create_privilege(
+        &self,
+        privilege: &dao::PrivilegeEntity,
+        process: &str,
+    ) -> Result<(), DaoError> {
+        let name = privilege.name.as_ref();
+        query!(
+            r"INSERT INTO privilege (name, update_process) VALUES (?, ?)",
+            name,
+            process,
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
+    }
+    async fn all_privileges(&self) -> Result<Arc<[dao::PrivilegeEntity]>, DaoError> {
+        Ok(
+            query_as!(dao::PrivilegeEntity, r"SELECT name FROM privilege")
+                .fetch_all(self.pool.as_ref())
+                .await
+                .map(Arc::<[dao::PrivilegeEntity]>::from)
+                .map_db_error()?,
+        )
+    }
+    async fn delete_privilege(&self, privilege: &str) -> Result<(), DaoError> {
+        query!(r"DELETE FROM privilege WHERE name = ?", privilege)
+            .execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
+    }
+
+    async fn add_user_role(&self, user: &str, role: &str, process: &str) -> Result<(), DaoError> {
+        query!(
+            r"INSERT INTO user_role (user_name, role_name, update_process) VALUES (?, ?, ?)",
+            user,
+            role,
+            process,
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
+    }
+    async fn add_role_privilege(
+        &self,
+        role: &str,
+        privilege: &str,
+        process: &str,
+    ) -> Result<(), DaoError> {
+        query!(
+            r"INSERT INTO role_privilege (role_name, privilege_name, update_process) VALUES (?, ?, ?)",
+            role,
+            privilege,
+            process,
+        ).execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
+    }
+    async fn delete_role_privilege(&self, role: &str, privilege: &str) -> Result<(), DaoError> {
+        query!(
+            r"DELETE FROM role_privilege WHERE role_name = ? AND privilege_name = ?",
+            role,
+            privilege
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
+    }
+    async fn delete_user_role(&self, user: &str, role: &str) -> Result<(), DaoError> {
+        query!(
+            r"DELETE FROM user_role WHERE user_name = ? AND role_name = ?",
+            user,
+            role,
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
     }
 }
