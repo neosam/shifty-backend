@@ -100,7 +100,7 @@ where
             .permission_dao
             .all_users()
             .await?
-            .into_iter()
+            .iter()
             .map(service::User::from)
             .collect())
     }
