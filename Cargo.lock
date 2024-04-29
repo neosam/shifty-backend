@@ -1112,6 +1112,7 @@ dependencies = [
  "bytes",
  "http-body",
  "serde",
+ "serde_json",
  "service",
  "tokio",
  "uuid",
