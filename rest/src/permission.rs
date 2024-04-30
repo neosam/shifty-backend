@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use axum::{
@@ -7,7 +8,6 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{error_handler, RestStateDef};
 use service::PermissionService;
@@ -243,7 +243,7 @@ pub async fn get_all_users<RestState: RestStateDef>(rest_state: State<RestState>
                 .get_all_users()
                 .await?
                 .iter()
-                .map(|u| User::from(u))
+                .map(User::from)
                 .collect();
             Ok(Response::builder()
                 .status(200)
@@ -262,7 +262,7 @@ pub async fn get_all_roles<RestState: RestStateDef>(rest_state: State<RestState>
                 .get_all_roles()
                 .await?
                 .iter()
-                .map(|u| Role::from(u))
+                .map(Role::from)
                 .collect();
             Ok(Response::builder()
                 .status(200)
@@ -281,7 +281,7 @@ pub async fn get_all_privileges<RestState: RestStateDef>(rest_state: State<RestS
                 .get_all_privileges()
                 .await?
                 .iter()
-                .map(|u| Privilege::from(u))
+                .map(Privilege::from)
                 .collect();
             Ok(Response::builder()
                 .status(200)

@@ -49,6 +49,30 @@ impl RestStateImpl {
     }
 }
 
+async fn create_dev_admin_user(pool: Arc<SqlitePool>) {
+    use dao::PermissionDao;
+    // On development create the DEVUSER and give it admin permissions.
+    let permission_dao = dao_impl::PermissionDaoImpl::new(pool);
+
+    let users = permission_dao.all_users().await.expect("Expected users");
+    let contains_admin_user = users.iter().any(|user| user.name.as_ref() == "DEVUSER");
+    if !contains_admin_user {
+        permission_dao
+            .create_user(
+                &dao::UserEntity {
+                    name: "DEVUSER".into(),
+                },
+                "dev-first-start",
+            )
+            .await
+            .expect("Expected being able to create the DEVUSER");
+        permission_dao
+            .add_user_role("DEVUSER", "admin", "dev-first-start")
+            .await
+            .expect("Expected being able to make DEVUSER an admin");
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let pool = Arc::new(
@@ -56,6 +80,8 @@ async fn main() {
             .await
             .expect("Could not connect to database"),
     );
-    let rest_state = RestStateImpl::new(pool);
+
+    let rest_state = RestStateImpl::new(pool.clone());
+    create_dev_admin_user(pool.clone()).await;
     rest::start_server(rest_state).await
 }

@@ -8,11 +8,14 @@ edition = "2021"
 [dependencies.rest]
 path = "../rest"
 
-[dependencies.service_impl]
-path = "../service_impl"
-
 [dependencies.dao_impl]
 path = "../dao_impl"
+
+[dependencies.dao]
+path = "../dao"
+
+[dependencies.service_impl]
+path = "../service_impl"
 
 [dependencies.tokio]
 version = "1.37.0"
