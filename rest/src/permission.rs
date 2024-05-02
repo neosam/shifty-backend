@@ -13,10 +13,10 @@ use crate::{error_handler, RestStateDef};
 use service::PermissionService;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct User {
+pub struct UserTO {
     pub name: String,
 }
-impl From<&service::User> for User {
+impl From<&service::User> for UserTO {
     fn from(user: &service::User) -> Self {
         Self {
             name: user.name.to_string(),
@@ -25,10 +25,10 @@ impl From<&service::User> for User {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Role {
+pub struct RoleTO {
     pub name: String,
 }
-impl From<&service::Role> for Role {
+impl From<&service::Role> for RoleTO {
     fn from(role: &service::Role) -> Self {
         Self {
             name: role.name.to_string(),
@@ -37,10 +37,10 @@ impl From<&service::Role> for Role {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Privilege {
+pub struct PrivilegeTO {
     pub name: String,
 }
-impl From<&service::Privilege> for Privilege {
+impl From<&service::Privilege> for PrivilegeTO {
     fn from(privilege: &service::Privilege) -> Self {
         Self {
             name: privilege.name.to_string(),
@@ -80,7 +80,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
 
 pub async fn add_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
-    Json(user): Json<User>,
+    Json(user): Json<UserTO>,
 ) -> Response {
     println!("Adding user: {:?}", user);
     error_handler(
@@ -117,7 +117,7 @@ pub async fn remove_user<RestState: RestStateDef>(
 
 pub async fn add_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
-    Json(role): Json<Role>,
+    Json(role): Json<RoleTO>,
 ) -> Response {
     error_handler(
         (async {
@@ -238,12 +238,12 @@ pub async fn remove_role_privilege<RestState: RestStateDef>(
 pub async fn get_all_users<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
     error_handler(
         (async {
-            let users: Arc<[User]> = rest_state
+            let users: Arc<[UserTO]> = rest_state
                 .permission_service()
                 .get_all_users()
                 .await?
                 .iter()
-                .map(User::from)
+                .map(UserTO::from)
                 .collect();
             Ok(Response::builder()
                 .status(200)
@@ -257,12 +257,12 @@ pub async fn get_all_users<RestState: RestStateDef>(rest_state: State<RestState>
 pub async fn get_all_roles<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
     error_handler(
         (async {
-            let roles: Arc<[Role]> = rest_state
+            let roles: Arc<[RoleTO]> = rest_state
                 .permission_service()
                 .get_all_roles()
                 .await?
                 .iter()
-                .map(Role::from)
+                .map(RoleTO::from)
                 .collect();
             Ok(Response::builder()
                 .status(200)
@@ -276,12 +276,12 @@ pub async fn get_all_roles<RestState: RestStateDef>(rest_state: State<RestState>
 pub async fn get_all_privileges<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
     error_handler(
         (async {
-            let privileges: Arc<[Privilege]> = rest_state
+            let privileges: Arc<[PrivilegeTO]> = rest_state
                 .permission_service()
                 .get_all_privileges()
                 .await?
                 .iter()
-                .map(Privilege::from)
+                .map(PrivilegeTO::from)
                 .collect();
             Ok(Response::builder()
                 .status(200)

@@ -2,8 +2,11 @@ use std::{convert::Infallible, sync::Arc};
 
 mod hello;
 mod permission;
+mod slot;
 
 use axum::{body::Body, response::Response, routing::get, Router};
+use thiserror::Error;
+use uuid::Uuid;
 
 pub struct RoString(Arc<str>, bool);
 impl http_body::Body for RoString {
@@ -39,31 +42,103 @@ impl From<RoString> for Response {
     }
 }
 
-fn error_handler(result: Result<Response, service::ServiceError>) -> Response {
+#[derive(Debug, Error)]
+pub enum RestError {
+    #[error("Service error")]
+    ServiceError(#[from] service::ServiceError),
+
+    #[error("Inconsistent id. Got {0} in path but {1} in body")]
+    InconsistentId(Uuid, Uuid),
+}
+
+fn error_handler(result: Result<Response, RestError>) -> Response {
     match result {
         Ok(response) => response,
-        Err(service::ServiceError::Forbidden) => {
+        Err(err @ RestError::InconsistentId(_, _)) => Response::builder()
+            .status(400)
+            .body(Body::new(err.to_string()))
+            .unwrap(),
+        Err(RestError::ServiceError(service::ServiceError::Forbidden)) => {
             Response::builder().status(403).body(Body::empty()).unwrap()
         }
-        Err(service::ServiceError::DatabaseQueryError(e)) => Response::builder()
-            .status(500)
-            .body(Body::new(e.to_string()))
-            .unwrap(),
+        Err(RestError::ServiceError(service::ServiceError::DatabaseQueryError(e))) => {
+            Response::builder()
+                .status(500)
+                .body(Body::new(e.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(service::ServiceError::EntityAlreadyExists(id))) => {
+            Response::builder()
+                .status(409)
+                .body(Body::new(id.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(service::ServiceError::EntityNotFound(id))) => {
+            Response::builder()
+                .status(404)
+                .body(Body::new(id.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::EntityConflicts(_, _, _))) => {
+            Response::builder()
+                .status(409)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::ValidationError(_))) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::IdSetOnCreate)) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::VersionSetOnCreate)) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::OverlappingTimeRange)) => {
+            Response::builder()
+                .status(409)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::TimeOrderWrong(_, _))) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::DateOrderWrong(_, _))) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
     }
 }
 
 pub trait RestStateDef: Clone + Send + Sync + 'static {
     type HelloService: service::HelloService + Send + Sync + 'static;
     type PermissionService: service::PermissionService + Send + Sync + 'static;
+    type SlotService: service::slot::SlotService + Send + Sync + 'static;
 
     fn hello_service(&self) -> Arc<Self::HelloService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
+    fn slot_service(&self) -> Arc<Self::SlotService>;
 }
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new()
         .route("/", get(hello::hello::<RestState>))
         .nest("/permission", permission::generate_route())
+        .nest("/slot", slot::generate_route())
         .with_state(rest_state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await

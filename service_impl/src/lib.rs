@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-mod permission;
-#[cfg(test)]
+pub mod clock;
+pub mod permission;
+pub mod slot;
 mod test;
+pub mod uuid_service;
 
 pub use permission::PermissionServiceImpl;
 

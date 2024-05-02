@@ -4,10 +4,12 @@ use async_trait::async_trait;
 use dao::DaoError;
 use sqlx::{query, query_as, SqlitePool};
 
+pub mod slot;
+
 pub trait ResultDbErrorExt<T, E> {
     fn map_db_error(self) -> Result<T, DaoError>;
 }
-impl<T, E: std::error::Error + 'static> ResultDbErrorExt<T, E> for Result<T, E> {
+impl<T, E: std::error::Error + Send + Sync + 'static> ResultDbErrorExt<T, E> for Result<T, E> {
     fn map_db_error(self) -> Result<T, DaoError> {
         self.map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))
     }

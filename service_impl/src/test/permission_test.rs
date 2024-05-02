@@ -20,7 +20,7 @@ fn generate_dependencies_mocks_permission(
     (permission_dao, user_service)
 }
 
-fn test_forbidden<T>(result: &Result<T, service::ServiceError>) {
+pub fn test_forbidden<T>(result: &Result<T, service::ServiceError>) {
     if let Err(service::ServiceError::Forbidden) = result {
         // All good
     } else {

@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.80"
 mockall = "0.12.1"
+tokio = "1.37.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,6 +15,14 @@ path = "../service"
 
 [dependencies.dao]
 path = "../dao"
+
+[dependencies.time]
+version = "0.3.36"
+features = ["std"]
+
+[dependencies.uuid]
+version = "1.8.0"
+features = ["v4"]
 
 [dev-dependencies.tokio]
 version = "1.37.0"

@@ -10,3 +10,7 @@ async-trait = "0.1.80"
 mockall = "0.12.1"
 thiserror = "1.0.59"
 uuid = "1.8"
+
+[dependencies.time]
+version = "0.3.36"
+features = ["parsing"]
