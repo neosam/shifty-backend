@@ -1,6 +1,4 @@
-use async_trait::async_trait;
-use mockall::automock;
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 use time::Date;
 use time::Time;
@@ -9,6 +7,7 @@ use uuid::Uuid;
 pub mod clock;
 pub mod permission;
 pub mod slot;
+pub mod user_service;
 pub mod uuid_service;
 
 pub use permission::MockPermissionService;
@@ -56,15 +55,4 @@ pub enum ServiceError {
 
     #[error("Date order wrong. {0} must is not smaller or equal to {1}")]
     DateOrderWrong(Date, Date),
-}
-
-#[automock]
-pub trait HelloService {
-    fn hello(&self) -> impl Future<Output = Result<Arc<str>, ServiceError>> + Send;
-}
-
-#[automock]
-#[async_trait]
-pub trait UserService {
-    async fn current_user(&self) -> Result<Arc<str>, ServiceError>;
 }

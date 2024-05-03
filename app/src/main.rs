@@ -4,7 +4,6 @@ use sqlx::SqlitePool;
 
 type PermissionService =
     service_impl::PermissionServiceImpl<dao_impl::PermissionDaoImpl, service_impl::UserServiceDev>;
-type HelloService = service_impl::HelloServiceImpl<dao_impl::HelloDaoImpl, PermissionService>;
 type ClockService = service_impl::clock::ClockServiceImpl;
 type UuidService = service_impl::uuid_service::UuidServiceImpl;
 type SlotService = service_impl::slot::SlotServiceImpl<
@@ -16,18 +15,13 @@ type SlotService = service_impl::slot::SlotServiceImpl<
 
 #[derive(Clone)]
 pub struct RestStateImpl {
-    hello_service: Arc<HelloService>,
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
 }
 impl rest::RestStateDef for RestStateImpl {
-    type HelloService = HelloService;
     type PermissionService = PermissionService;
     type SlotService = SlotService;
 
-    fn hello_service(&self) -> Arc<Self::HelloService> {
-        self.hello_service.clone()
-    }
     fn permission_service(&self) -> Arc<Self::PermissionService> {
         self.permission_service.clone()
     }
@@ -37,7 +31,6 @@ impl rest::RestStateDef for RestStateImpl {
 }
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
-        let hello_dao = dao_impl::HelloDaoImpl::new(pool.clone());
         let permission_dao = dao_impl::PermissionDaoImpl::new(pool.clone());
         let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool);
 
@@ -52,10 +45,6 @@ impl RestStateImpl {
             permission_dao.into(),
             user_service.into(),
         ));
-        let hello_service = Arc::new(service_impl::HelloServiceImpl::new(
-            hello_dao.into(),
-            permission_service.clone(),
-        ));
         let clock_service = Arc::new(service_impl::clock::ClockServiceImpl);
         let uuid_service = Arc::new(service_impl::uuid_service::UuidServiceImpl);
         let slot_service = Arc::new(service_impl::slot::SlotServiceImpl::new(
@@ -65,7 +54,6 @@ impl RestStateImpl {
             uuid_service,
         ));
         Self {
-            hello_service,
             permission_service,
             slot_service,
         }

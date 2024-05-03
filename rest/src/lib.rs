@@ -1,12 +1,14 @@
 use std::{convert::Infallible, sync::Arc};
 
-mod hello;
 mod permission;
 mod slot;
 
-use axum::{body::Body, response::Response, routing::get, Router};
+use axum::{body::Body, response::Response, Router};
 use thiserror::Error;
 use uuid::Uuid;
+
+// TODO: In prod, it must be a different type than in dev mode.
+type Context = ();
 
 pub struct RoString(Arc<str>, bool);
 impl http_body::Body for RoString {
@@ -125,18 +127,15 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
 }
 
 pub trait RestStateDef: Clone + Send + Sync + 'static {
-    type HelloService: service::HelloService + Send + Sync + 'static;
-    type PermissionService: service::PermissionService + Send + Sync + 'static;
-    type SlotService: service::slot::SlotService + Send + Sync + 'static;
+    type PermissionService: service::PermissionService<Context = Context> + Send + Sync + 'static;
+    type SlotService: service::slot::SlotService<Context = Context> + Send + Sync + 'static;
 
-    fn hello_service(&self) -> Arc<Self::HelloService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
 }
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new()
-        .route("/", get(hello::hello::<RestState>))
         .nest("/permission", permission::generate_route())
         .nest("/slot", slot::generate_route())
         .with_state(rest_state);

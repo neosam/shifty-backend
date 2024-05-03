@@ -58,10 +58,13 @@ where
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
-    async fn get_slots(&self) -> Result<Arc<[Slot]>, ServiceError> {
+    type Context = PermissionService::Context;
+
+    async fn get_slots(&self, context: Self::Context) -> Result<Arc<[Slot]>, ServiceError> {
         let (hr_permission, sales_permission) = join!(
-            self.permission_service.check_permission("hr"),
-            self.permission_service.check_permission("sales"),
+            self.permission_service
+                .check_permission("hr", context.clone()),
+            self.permission_service.check_permission("sales", context),
         );
         hr_permission.or(sales_permission)?;
 
@@ -73,10 +76,11 @@ where
             .map(Slot::from)
             .collect())
     }
-    async fn get_slot(&self, id: &Uuid) -> Result<Slot, ServiceError> {
+    async fn get_slot(&self, id: &Uuid, context: Self::Context) -> Result<Slot, ServiceError> {
         let (hr_permission, sales_permission) = join!(
-            self.permission_service.check_permission("hr"),
-            self.permission_service.check_permission("sales"),
+            self.permission_service
+                .check_permission("hr", context.clone()),
+            self.permission_service.check_permission("sales", context),
         );
         hr_permission.or(sales_permission)?;
 
@@ -87,8 +91,10 @@ where
             .ok_or_else(move || ServiceError::EntityNotFound(*id))?;
         Ok(slot)
     }
-    async fn create_slot(&self, slot: &Slot) -> Result<Slot, ServiceError> {
-        self.permission_service.check_permission("hr").await?;
+    async fn create_slot(&self, slot: &Slot, context: Self::Context) -> Result<Slot, ServiceError> {
+        self.permission_service
+            .check_permission("hr", context.clone())
+            .await?;
 
         if slot.id != Uuid::nil() {
             return Err(ServiceError::IdSetOnCreate);
@@ -107,7 +113,7 @@ where
         }
 
         if self
-            .get_slots()
+            .get_slots(context)
             .await?
             .iter()
             .any(|s| test_overlapping_slots(slot, s))
@@ -126,8 +132,10 @@ where
         Ok(slot)
     }
 
-    async fn delete_slot(&self, id: &Uuid) -> Result<(), ServiceError> {
-        self.permission_service.check_permission("hr").await?;
+    async fn delete_slot(&self, id: &Uuid, context: Self::Context) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission("hr", context)
+            .await?;
         let mut slot = self
             .slot_dao
             .get_slot(id)
@@ -139,8 +147,10 @@ where
             .await?;
         Ok(())
     }
-    async fn update_slot(&self, slot: &Slot) -> Result<(), ServiceError> {
-        self.permission_service.check_permission("hr").await?;
+    async fn update_slot(&self, slot: &Slot, context: Self::Context) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission("hr", context)
+            .await?;
         let persisted_slot = self
             .slot_dao
             .get_slot(&slot.id)

@@ -107,7 +107,7 @@ pub async fn get_all_slots<RestState: RestStateDef>(rest_state: State<RestState>
         (async {
             let slots: Arc<[SlotTO]> = rest_state
                 .slot_service()
-                .get_slots()
+                .get_slots(())
                 .await?
                 .iter()
                 .map(SlotTO::from)
@@ -127,7 +127,7 @@ pub async fn get_slot<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let slot = SlotTO::from(&rest_state.slot_service().get_slot(&slot_id).await?.into());
+            let slot = SlotTO::from(&rest_state.slot_service().get_slot(&slot_id, ()).await?);
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(serde_json::to_string(&slot).unwrap()))
@@ -146,7 +146,7 @@ pub async fn create_slot<RestState: RestStateDef>(
             let slot = SlotTO::from(
                 &rest_state
                     .slot_service()
-                    .create_slot(&(&slot).into())
+                    .create_slot(&(&slot).into(), ())
                     .await?,
             );
             Ok(Response::builder()
@@ -170,7 +170,7 @@ pub async fn update_slot<RestState: RestStateDef>(
             }
             rest_state
                 .slot_service()
-                .update_slot(&(&slot).into())
+                .update_slot(&(&slot).into(), ())
                 .await?;
             Ok(Response::builder()
                 .status(200)

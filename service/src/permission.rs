@@ -41,25 +41,62 @@ impl From<&dao::PrivilegeEntity> for Privilege {
     }
 }
 
-#[automock]
+#[automock(type Context=();)]
 #[async_trait]
 pub trait PermissionService {
-    async fn check_permission(&self, privilege: &str) -> Result<(), ServiceError>;
+    type Context: Clone + Send + Sync + 'static;
 
-    async fn create_user(&self, user: &str) -> Result<(), ServiceError>;
-    async fn delete_user(&self, user: &str) -> Result<(), ServiceError>;
-    async fn get_all_users(&self) -> Result<Arc<[User]>, ServiceError>;
+    async fn check_permission(
+        &self,
+        privilege: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
 
-    async fn create_role(&self, role: &str) -> Result<(), ServiceError>;
-    async fn delete_role(&self, role: &str) -> Result<(), ServiceError>;
-    async fn get_all_roles(&self) -> Result<Arc<[Role]>, ServiceError>;
+    async fn create_user(&self, user: &str, context: Self::Context) -> Result<(), ServiceError>;
+    async fn delete_user(&self, user: &str, context: Self::Context) -> Result<(), ServiceError>;
+    async fn get_all_users(&self, context: Self::Context) -> Result<Arc<[User]>, ServiceError>;
 
-    async fn create_privilege(&self, privilege: &str) -> Result<(), ServiceError>;
-    async fn delete_privilege(&self, privilege: &str) -> Result<(), ServiceError>;
-    async fn get_all_privileges(&self) -> Result<Arc<[Privilege]>, ServiceError>;
+    async fn create_role(&self, role: &str, context: Self::Context) -> Result<(), ServiceError>;
+    async fn delete_role(&self, role: &str, context: Self::Context) -> Result<(), ServiceError>;
+    async fn get_all_roles(&self, context: Self::Context) -> Result<Arc<[Role]>, ServiceError>;
 
-    async fn add_user_role(&self, user: &str, role: &str) -> Result<(), ServiceError>;
-    async fn add_role_privilege(&self, role: &str, privilege: &str) -> Result<(), ServiceError>;
-    async fn delete_role_privilege(&self, role: &str, privilege: &str) -> Result<(), ServiceError>;
-    async fn delete_user_role(&self, user: &str, role: &str) -> Result<(), ServiceError>;
+    async fn create_privilege(
+        &self,
+        privilege: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
+    async fn delete_privilege(
+        &self,
+        privilege: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
+    async fn get_all_privileges(
+        &self,
+        context: Self::Context,
+    ) -> Result<Arc<[Privilege]>, ServiceError>;
+
+    async fn add_user_role(
+        &self,
+        user: &str,
+        role: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
+    async fn add_role_privilege(
+        &self,
+        role: &str,
+        privilege: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
+    async fn delete_role_privilege(
+        &self,
+        role: &str,
+        privilege: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
+    async fn delete_user_role(
+        &self,
+        user: &str,
+        role: &str,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
 }

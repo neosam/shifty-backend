@@ -72,8 +72,8 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SlotServiceDe
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
-        .with(eq(role))
-        .returning(move |_| {
+        .with(eq(role), eq(()))
+        .returning(move |_, _| {
             if permission {
                 Ok(())
             } else {
@@ -82,7 +82,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SlotServiceDe
         });
     permission_service
         .expect_check_permission()
-        .returning(move |_| Err(service::ServiceError::Forbidden));
+        .returning(move |_, _| Err(service::ServiceError::Forbidden));
     let mut clock_service = MockClockService::new();
     clock_service
         .expect_time_now()
@@ -122,7 +122,7 @@ async fn test_get_slots() {
 
     let slot_service = dependencies.build_service();
 
-    let result = slot_service.get_slots().await;
+    let result = slot_service.get_slots(()).await;
     assert!(result.is_ok());
     let result = result.unwrap();
 
@@ -146,7 +146,7 @@ async fn test_get_slots_sales_role() {
         .expect_get_slots()
         .returning(|| Ok(Arc::new([])));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slots().await;
+    let result = slot_service.get_slots(()).await;
     assert!(result.is_ok());
 }
 
@@ -158,7 +158,7 @@ async fn test_get_slots_no_permission() {
         .expect_get_slots()
         .returning(|| Ok(Arc::new([])));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slots().await;
+    let result = slot_service.get_slots(()).await;
     test_forbidden(&result);
 }
 
@@ -172,7 +172,7 @@ async fn test_get_slot() {
         .times(1)
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id()).await;
+    let result = slot_service.get_slot(&default_id(), ()).await;
     assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result, generate_default_slot());
@@ -188,7 +188,7 @@ async fn test_get_slot_sales_role() {
         .times(1)
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id()).await;
+    let result = slot_service.get_slot(&default_id(), ()).await;
     assert!(result.is_ok());
 }
 
@@ -202,7 +202,7 @@ async fn test_get_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id()).await;
+    let result = slot_service.get_slot(&default_id(), ()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -210,7 +210,7 @@ async fn test_get_slot_not_found() {
 async fn test_get_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id()).await;
+    let result = slot_service.get_slot(&default_id(), ()).await;
     test_forbidden(&result);
 }
 
@@ -240,11 +240,14 @@ async fn test_create_slot() {
 
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), generate_default_slot());
@@ -254,7 +257,7 @@ async fn test_create_slot() {
 async fn test_create_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.create_slot(&generate_default_slot()).await;
+    let result = slot_service.create_slot(&generate_default_slot(), ()).await;
     test_forbidden(&result);
 }
 
@@ -273,10 +276,13 @@ async fn test_create_slot_non_zero_id() {
         .returning(|_| default_version());
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .create_slot(&Slot {
-            version: Uuid::nil(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                version: Uuid::nil(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_zero_id_error(&result);
 }
@@ -296,10 +302,13 @@ async fn test_create_slot_non_zero_version() {
         .returning(|_| default_version());
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_zero_version_error(&result);
 }
@@ -343,85 +352,106 @@ async fn test_create_slot_intersects() {
 
     // Test successful case, directly between two existing slots.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(11, 0, 0).unwrap(),
-            to: Time::from_hms(12, 0, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(11, 0, 0).unwrap(),
+                to: Time::from_hms(12, 0, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     assert!(result.is_ok());
 
     // Test case where it is exactly on an existing slot.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(10, 0, 0).unwrap(),
-            to: Time::from_hms(11, 0, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(10, 0, 0).unwrap(),
+                to: Time::from_hms(11, 0, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_overlapping_time_range_error(&result);
 
     // Test case where from is inside an existing slot.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(10, 30, 0).unwrap(),
-            to: Time::from_hms(11, 30, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(10, 30, 0).unwrap(),
+                to: Time::from_hms(11, 30, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_overlapping_time_range_error(&result);
 
     // Test case where to is inside an existing slot.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(11, 30, 0).unwrap(),
-            to: Time::from_hms(12, 30, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(11, 30, 0).unwrap(),
+                to: Time::from_hms(12, 30, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_overlapping_time_range_error(&result);
 
     // Test case where is completely inside an existing slot.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(10, 15, 0).unwrap(),
-            to: Time::from_hms(10, 45, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(10, 15, 0).unwrap(),
+                to: Time::from_hms(10, 45, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_overlapping_time_range_error(&result);
 
     // Test case where is completely outside of an existing slot.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(9, 0, 0).unwrap(),
-            to: Time::from_hms(11, 0, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(9, 0, 0).unwrap(),
+                to: Time::from_hms(11, 0, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_overlapping_time_range_error(&result);
 
     // Test case where is would intersect on monday but not on tuesday.
     // Test case where is completely outside of an existing slot.
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            day_of_week: DayOfWeek::Tuesday.into(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                day_of_week: DayOfWeek::Tuesday.into(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     assert!(result.is_ok());
 }
@@ -440,13 +470,16 @@ async fn test_create_slot_time_order() {
 
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            from: Time::from_hms(12, 00, 0).unwrap(),
-            to: Time::from_hms(11, 00, 00).unwrap(),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                from: Time::from_hms(12, 00, 0).unwrap(),
+                to: Time::from_hms(11, 00, 00).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_time_order_wrong(&result);
 }
@@ -465,13 +498,16 @@ async fn test_create_slot_date_order() {
 
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .create_slot(&Slot {
-            id: Uuid::nil(),
-            version: Uuid::nil(),
-            valid_from: Date::from_calendar_date(2022, Month::January, 2).unwrap(),
-            valid_to: Some(Date::from_calendar_date(2022, Month::January, 1).unwrap()),
-            ..generate_default_slot()
-        })
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                valid_from: Date::from_calendar_date(2022, Month::January, 2).unwrap(),
+                valid_to: Some(Date::from_calendar_date(2022, Month::January, 1).unwrap()),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_date_order_wrong(&result);
 }
@@ -502,7 +538,7 @@ async fn test_delete_slot() {
         .returning(|_, _| Ok(()));
 
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id()).await;
+    let result = slot_service.delete_slot(&default_id(), ()).await;
     assert!(result.is_ok());
 }
 
@@ -510,7 +546,7 @@ async fn test_delete_slot() {
 async fn test_delete_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id()).await;
+    let result = slot_service.delete_slot(&default_id(), ()).await;
     test_forbidden(&result);
 }
 
@@ -524,7 +560,7 @@ async fn test_delete_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id()).await;
+    let result = slot_service.delete_slot(&default_id(), ()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -532,7 +568,7 @@ async fn test_delete_slot_not_found() {
 async fn test_update_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.update_slot(&generate_default_slot()).await;
+    let result = slot_service.update_slot(&generate_default_slot(), ()).await;
     test_forbidden(&result);
 }
 
@@ -546,7 +582,7 @@ async fn test_update_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.update_slot(&generate_default_slot()).await;
+    let result = slot_service.update_slot(&generate_default_slot(), ()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -560,10 +596,13 @@ async fn test_update_slot_version_mismatch() {
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            version: uuid!("86DE856C-D176-4F1F-A4FE-0D9844C02C04"),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                version: uuid!("86DE856C-D176-4F1F-A4FE-0D9844C02C04"),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_conflicts(
         &result,
@@ -605,12 +644,15 @@ async fn test_update_slot_valid_to() {
 
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            valid_to: Some(
-                time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 10).unwrap(),
-            ),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                valid_to: Some(
+                    time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 10).unwrap(),
+                ),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     dbg!(&result);
     assert!(result.is_ok());
@@ -627,12 +669,15 @@ async fn test_update_slot_valid_to_before_valid_from() {
 
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            valid_to: Some(
-                time::Date::from_calendar_date(2021, 1.try_into().unwrap(), 10).unwrap(),
-            ),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                valid_to: Some(
+                    time::Date::from_calendar_date(2021, 1.try_into().unwrap(), 10).unwrap(),
+                ),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_date_order_wrong(&result);
 }
@@ -669,13 +714,16 @@ async fn test_update_slot_deleted() {
 
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&Slot {
-            deleted: Some(time::PrimitiveDateTime::new(
-                Date::from_calendar_date(2022, 1.try_into().unwrap(), 10).unwrap(),
-                Time::from_hms(0, 0, 0).unwrap(),
-            )),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &Slot {
+                deleted: Some(time::PrimitiveDateTime::new(
+                    Date::from_calendar_date(2022, 1.try_into().unwrap(), 10).unwrap(),
+                    Time::from_hms(0, 0, 0).unwrap(),
+                )),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     assert!(result.is_ok());
 }
@@ -690,10 +738,13 @@ async fn test_update_slot_day_of_week_forbidden() {
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            day_of_week: service::slot::DayOfWeek::Friday,
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                day_of_week: service::slot::DayOfWeek::Friday,
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_validation_error(
         &result,
@@ -719,10 +770,15 @@ async fn test_update_to_forbidden_when_not_none() {
         });
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            valid_to: Some(time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 4).unwrap()),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                valid_to: Some(
+                    time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 4).unwrap(),
+                ),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_validation_error(
         &result,
@@ -741,10 +797,13 @@ async fn test_update_from_forbidden() {
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            from: time::Time::from_hms(14, 0, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                from: time::Time::from_hms(14, 0, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_validation_error(
         &result,
@@ -763,10 +822,13 @@ async fn test_update_to_forbidden() {
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            to: time::Time::from_hms(14, 0, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                to: time::Time::from_hms(14, 0, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_validation_error(
         &result,
@@ -785,10 +847,14 @@ async fn test_update_valid_from_forbidden() {
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 10).unwrap(),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 10)
+                    .unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_validation_error(
         &result,
@@ -807,11 +873,15 @@ async fn test_update_valid_multiple_forbidden_changes() {
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&service::slot::Slot {
-            valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 10).unwrap(),
-            from: time::Time::from_hms(14, 0, 0).unwrap(),
-            ..generate_default_slot()
-        })
+        .update_slot(
+            &service::slot::Slot {
+                valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 10)
+                    .unwrap(),
+                from: time::Time::from_hms(14, 0, 0).unwrap(),
+                ..generate_default_slot()
+            },
+            (),
+        )
         .await;
     test_validation_error(
         &result,

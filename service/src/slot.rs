@@ -82,12 +82,14 @@ impl From<&Slot> for dao::slot::SlotEntity {
     }
 }
 
-#[automock]
+#[automock(type Context=();)]
 #[async_trait]
 pub trait SlotService {
-    async fn get_slots(&self) -> Result<Arc<[Slot]>, ServiceError>;
-    async fn get_slot(&self, id: &Uuid) -> Result<Slot, ServiceError>;
-    async fn create_slot(&self, slot: &Slot) -> Result<Slot, ServiceError>;
-    async fn delete_slot(&self, id: &Uuid) -> Result<(), ServiceError>;
-    async fn update_slot(&self, slot: &Slot) -> Result<(), ServiceError>;
+    type Context: Clone + Send + Sync + 'static;
+
+    async fn get_slots(&self, context: Self::Context) -> Result<Arc<[Slot]>, ServiceError>;
+    async fn get_slot(&self, id: &Uuid, context: Self::Context) -> Result<Slot, ServiceError>;
+    async fn create_slot(&self, slot: &Slot, context: Self::Context) -> Result<Slot, ServiceError>;
+    async fn delete_slot(&self, id: &Uuid, context: Self::Context) -> Result<(), ServiceError>;
+    async fn update_slot(&self, slot: &Slot, context: Self::Context) -> Result<(), ServiceError>;
 }
