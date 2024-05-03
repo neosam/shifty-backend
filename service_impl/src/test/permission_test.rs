@@ -1,3 +1,4 @@
+use crate::test::error_test::*;
 use crate::*;
 use mockall::predicate::eq;
 use service::PermissionService;
@@ -18,14 +19,6 @@ fn generate_dependencies_mocks_permission(
         .expect_current_user()
         .returning(|| Ok("DEVUSER".into()));
     (permission_dao, user_service)
-}
-
-pub fn test_forbidden<T>(result: &Result<T, service::ServiceError>) {
-    if let Err(service::ServiceError::Forbidden) = result {
-        // All good
-    } else {
-        panic!("Expected forbidden error");
-    }
 }
 
 #[tokio::test]
