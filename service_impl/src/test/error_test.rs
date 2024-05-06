@@ -89,8 +89,8 @@ pub fn test_conflicts<T>(
     }
 }
 
-pub fn test_validation_error(
-    result: &Result<(), service::ServiceError>,
+pub fn test_validation_error<T>(
+    result: &Result<T, service::ServiceError>,
     validation_failure: &ValidationFailureItem,
     fail_count: usize,
 ) {

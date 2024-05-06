@@ -5,6 +5,7 @@ use mockall::automock;
 use thiserror::Error;
 
 pub mod permission;
+pub mod sales_person;
 pub mod slot;
 
 pub use permission::MockPermissionDao;

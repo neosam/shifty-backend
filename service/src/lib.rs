@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub mod clock;
 pub mod permission;
+pub mod sales_person;
 pub mod slot;
 pub mod user_service;
 pub mod uuid_service;

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 
 pub mod clock;
 pub mod permission;
+pub mod sales_person;
 pub mod slot;
 mod test;
 pub mod uuid_service;
