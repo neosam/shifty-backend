@@ -1,6 +1,7 @@
 use std::{convert::Infallible, sync::Arc};
 
 mod permission;
+mod sales_person;
 mod slot;
 
 use axum::{body::Body, response::Response, Router};
@@ -129,15 +130,21 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
 pub trait RestStateDef: Clone + Send + Sync + 'static {
     type PermissionService: service::PermissionService<Context = Context> + Send + Sync + 'static;
     type SlotService: service::slot::SlotService<Context = Context> + Send + Sync + 'static;
+    type SalesPersonService: service::sales_person::SalesPersonService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
+    fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
 }
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new()
         .nest("/permission", permission::generate_route())
         .nest("/slot", slot::generate_route())
+        .nest("/sales-person", sales_person::generate_route())
         .with_state(rest_state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use dao::DaoError;
 use sqlx::{query, query_as, SqlitePool};
 
+pub mod sales_person;
 pub mod slot;
 
 pub trait ResultDbErrorExt<T, E> {

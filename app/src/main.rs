@@ -12,15 +12,23 @@ type SlotService = service_impl::slot::SlotServiceImpl<
     ClockService,
     UuidService,
 >;
+type SalesPersonService = service_impl::sales_person::SalesPersonServiceImpl<
+    dao_impl::sales_person::SalesPersonDaoImpl,
+    PermissionService,
+    ClockService,
+    UuidService,
+>;
 
 #[derive(Clone)]
 pub struct RestStateImpl {
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
+    sales_person_service: Arc<SalesPersonService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type PermissionService = PermissionService;
     type SlotService = SlotService;
+    type SalesPersonService = SalesPersonService;
 
     fn permission_service(&self) -> Arc<Self::PermissionService> {
         self.permission_service.clone()
@@ -28,11 +36,15 @@ impl rest::RestStateDef for RestStateImpl {
     fn slot_service(&self) -> Arc<Self::SlotService> {
         self.slot_service.clone()
     }
+    fn sales_person_service(&self) -> Arc<Self::SalesPersonService> {
+        self.sales_person_service.clone()
+    }
 }
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
         let permission_dao = dao_impl::PermissionDaoImpl::new(pool.clone());
-        let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool);
+        let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool.clone());
+        let sales_person_dao = dao_impl::sales_person::SalesPersonDaoImpl::new(pool);
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -50,12 +62,20 @@ impl RestStateImpl {
         let slot_service = Arc::new(service_impl::slot::SlotServiceImpl::new(
             slot_dao.into(),
             permission_service.clone(),
-            clock_service,
-            uuid_service,
+            clock_service.clone(),
+            uuid_service.clone(),
         ));
+        let sales_person_service =
+            Arc::new(service_impl::sales_person::SalesPersonServiceImpl::new(
+                sales_person_dao.into(),
+                permission_service.clone(),
+                clock_service,
+                uuid_service,
+            ));
         Self {
             permission_service,
             slot_service,
+            sales_person_service,
         }
     }
 }
