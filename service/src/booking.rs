@@ -13,6 +13,7 @@ pub struct Booking {
     pub slot_id: Uuid,
     pub calendar_week: i32,
     pub year: u32,
+    pub created: Option<PrimitiveDateTime>,
     pub deleted: Option<PrimitiveDateTime>,
     pub version: Uuid,
 }
@@ -25,23 +26,26 @@ impl From<&dao::booking::BookingEntity> for Booking {
             slot_id: booking.slot_id,
             calendar_week: booking.calendar_week,
             year: booking.year,
+            created: Some(booking.created),
             deleted: booking.deleted,
             version: booking.version,
         }
     }
 }
 
-impl From<&Booking> for dao::booking::BookingEntity {
-    fn from(booking: &Booking) -> Self {
-        Self {
+impl TryFrom<&Booking> for dao::booking::BookingEntity {
+    type Error = ServiceError;
+    fn try_from(booking: &Booking) -> Result<Self, Self::Error> {
+        Ok(Self {
             id: booking.id,
             sales_person_id: booking.sales_person_id,
             slot_id: booking.slot_id,
             calendar_week: booking.calendar_week,
             year: booking.year,
+            created: booking.created.ok_or_else(|| ServiceError::InternalError)?,
             deleted: booking.deleted,
             version: booking.version,
-        }
+        })
     }
 }
 

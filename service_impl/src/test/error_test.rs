@@ -1,4 +1,5 @@
 use service::ValidationFailureItem;
+use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::Uuid;
 
 pub fn test_forbidden<T>(result: &Result<T, service::ServiceError>) {
@@ -105,4 +106,11 @@ pub fn test_validation_error<T>(
     } else {
         panic!("Expected validation error");
     }
+}
+
+pub fn generate_default_datetime() -> PrimitiveDateTime {
+    PrimitiveDateTime::new(
+        Date::from_calendar_date(2063, Month::April, 5).unwrap(),
+        Time::from_hms(23, 42, 0).unwrap(),
+    )
 }

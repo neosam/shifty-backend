@@ -5,6 +5,7 @@ mod sales_person;
 mod slot;
 
 use axum::{body::Body, response::Response, Router};
+use service::ServiceError;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -124,6 +125,10 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        Err(RestError::ServiceError(ServiceError::InternalError)) => Response::builder()
+            .status(500)
+            .body(Body::new("Internal server error".to_string()))
+            .unwrap(),
     }
 }
 

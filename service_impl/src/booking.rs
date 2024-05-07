@@ -1,7 +1,8 @@
 use async_trait::async_trait;
+use dao::booking;
 use service::{
     booking::{Booking, BookingService},
-    ServiceError,
+    ServiceError, ValidationFailureItem,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -95,16 +96,40 @@ where
             return Err(ServiceError::VersionSetOnCreate);
         }
 
+        let mut validation = Vec::with_capacity(8);
+        if booking.created.is_some() {
+            validation.push(ValidationFailureItem::InvalidValue("created".into()));
+        }
+        if booking.sales_person_id == Uuid::nil() {
+            validation.push(ValidationFailureItem::InvalidValue(
+                "sales_person_id".into(),
+            ));
+        }
+        if booking.slot_id == Uuid::nil() {
+            validation.push(ValidationFailureItem::InvalidValue("slot_id".into()));
+        }
+        if booking.calendar_week <= 0 {
+            validation.push(ValidationFailureItem::InvalidValue("calendar_week".into()));
+        }
+        if booking.calendar_week > 53 {
+            validation.push(ValidationFailureItem::InvalidValue("calendar_week".into()));
+        }
+
+        if !validation.is_empty() {
+            return Err(ServiceError::ValidationError(validation.into()));
+        }
+
         let new_id = self.uuid_service.new_uuid("booking-id");
         let new_version = self.uuid_service.new_uuid("booking-version");
         let new_booking = Booking {
             id: new_id,
             version: new_version,
+            created: Some(self.clock_service.date_time_now()),
             ..booking.clone()
         };
 
         self.booking_dao
-            .create(&(&new_booking).into(), BOOKING_SERVICE_PROCESS)
+            .create(&(&new_booking).try_into()?, BOOKING_SERVICE_PROCESS)
             .await?;
 
         Ok(new_booking)

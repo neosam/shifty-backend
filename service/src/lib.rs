@@ -21,6 +21,7 @@ pub use permission::User;
 #[derive(Debug, PartialEq, Eq)]
 pub enum ValidationFailureItem {
     ModificationNotAllowed(Arc<str>),
+    InvalidValue(Arc<str>),
 }
 
 #[derive(Debug, Error)]
@@ -57,4 +58,7 @@ pub enum ServiceError {
 
     #[error("Date order wrong. {0} must is not smaller or equal to {1}")]
     DateOrderWrong(Date, Date),
+
+    #[error("Internal error")]
+    InternalError,
 }

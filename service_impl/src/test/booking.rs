@@ -2,7 +2,8 @@ use crate::test::error_test::*;
 use dao::booking::{BookingEntity, MockBookingDao};
 use mockall::predicate::eq;
 use service::{
-    booking::Booking, clock::MockClockService, uuid_service::MockUuidService, MockPermissionService,
+    booking::Booking, clock::MockClockService, uuid_service::MockUuidService,
+    MockPermissionService, ValidationFailureItem,
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::{uuid, Uuid};
@@ -36,6 +37,10 @@ pub fn default_booking() -> Booking {
         slot_id: default_slot_id(),
         calendar_week: 3,
         year: 2024,
+        created: Some(PrimitiveDateTime::new(
+            Date::from_calendar_date(2024, Month::January, 1).unwrap(),
+            Time::from_hms(0, 0, 0).unwrap(),
+        )),
         deleted: None,
         version: default_version(),
     }
@@ -48,6 +53,10 @@ pub fn default_booking_entity() -> BookingEntity {
         slot_id: default_slot_id(),
         calendar_week: 3,
         year: 2024,
+        created: PrimitiveDateTime::new(
+            Date::from_calendar_date(2024, Month::January, 1).unwrap(),
+            Time::from_hms(0, 0, 0).unwrap(),
+        ),
         deleted: None,
         version: default_version(),
     }
@@ -186,7 +195,13 @@ async fn test_create() {
     let mut deps = build_dependencies(true, "hr");
     deps.booking_dao
         .expect_create()
-        .with(eq(default_booking_entity()), eq("booking-service"))
+        .with(
+            eq(BookingEntity {
+                created: generate_default_datetime(),
+                ..default_booking_entity()
+            }),
+            eq("booking-service"),
+        )
         .returning(|_, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
@@ -202,13 +217,20 @@ async fn test_create() {
             &Booking {
                 id: Uuid::nil(),
                 version: Uuid::nil(),
+                created: None,
                 ..default_booking()
             },
             (),
         )
         .await;
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), default_booking());
+    assert_eq!(
+        result.unwrap(),
+        Booking {
+            created: Some(generate_default_datetime()),
+            ..default_booking()
+        }
+    );
 }
 
 #[tokio::test]
@@ -261,6 +283,27 @@ async fn test_create_with_version() {
 }
 
 #[tokio::test]
+async fn test_create_with_created_fail() {
+    let deps = build_dependencies(true, "hr");
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                ..default_booking()
+            },
+            (),
+        )
+        .await;
+    test_validation_error(
+        &result,
+        &ValidationFailureItem::InvalidValue("created".into()),
+        1,
+    );
+}
+
+#[tokio::test]
 async fn test_delete_no_permission() {
     let deps = build_dependencies(false, "hr");
     let service = deps.build_service();
@@ -291,10 +334,7 @@ async fn test_delete() {
         .expect_update()
         .with(
             eq(BookingEntity {
-                deleted: Some(PrimitiveDateTime::new(
-                    Date::from_calendar_date(2063, Month::April, 5).unwrap(),
-                    Time::from_hms(23, 42, 0).unwrap(),
-                )),
+                deleted: Some(generate_default_datetime()),
                 version: alternate_version(),
                 ..default_booking_entity()
             }),

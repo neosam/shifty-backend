@@ -14,6 +14,7 @@ pub struct BookingEntity {
     pub slot_id: Uuid,
     pub calendar_week: i32,
     pub year: u32,
+    pub created: PrimitiveDateTime,
     pub deleted: Option<PrimitiveDateTime>,
     pub version: Uuid,
 }
