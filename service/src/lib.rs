@@ -4,6 +4,7 @@ use time::Date;
 use time::Time;
 use uuid::Uuid;
 
+pub mod booking;
 pub mod clock;
 pub mod permission;
 pub mod sales_person;

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+pub mod booking;
 pub mod clock;
 pub mod permission;
 pub mod sales_person;
