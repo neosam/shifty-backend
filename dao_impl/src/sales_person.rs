@@ -36,7 +36,7 @@ impl TryFrom<&SalesPersonDb> for SalesPersonEntity {
             deleted: sales_person
                 .deleted
                 .as_ref()
-                .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
+                .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
                 .transpose()?,
             version: Uuid::from_slice(&sales_person.update_version).unwrap(),
         })

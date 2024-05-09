@@ -24,6 +24,7 @@ pub struct BookingEntity {
 pub trait BookingDao {
     async fn all(&self) -> Result<Arc<[BookingEntity]>, DaoError>;
     async fn find_by_id(&self, id: Uuid) -> Result<Option<BookingEntity>, DaoError>;
+    async fn find_by_booking_data(&self, sales_person_id: Uuid, slot_id: Uuid, calendar_week: i32, year: u32) -> Result<Option<BookingEntity>, DaoError>;
     async fn create(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError>;
     async fn update(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError>;
 }

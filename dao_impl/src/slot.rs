@@ -90,7 +90,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let to = slot.to.to_string();
         let valid_from = slot.valid_from.to_string();
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
-        let deleted = slot.deleted.map(|deleted| deleted.to_string());
+        let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
         query!("INSERT INTO slot (id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             day_of_week,
@@ -112,7 +112,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let id_vec = slot.id.as_bytes().to_vec();
         let version_vec = slot.version.as_bytes().to_vec();
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
-        let deleted = slot.deleted.map(|deleted| deleted.to_string());
+        let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
         query!("UPDATE slot SET valid_to = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
             valid_to,
             deleted,

@@ -170,6 +170,16 @@ where
                 booking.slot_id,
             ));
         }
+        if self
+            .booking_dao
+            .find_by_booking_data(
+                booking.sales_person_id,
+                booking.slot_id,
+                booking.calendar_week,
+                booking.year,
+            ).await?.is_some() {
+            validation.push(ValidationFailureItem::Duplicate);
+        }
 
         if !validation.is_empty() {
             return Err(ServiceError::ValidationError(validation.into()));

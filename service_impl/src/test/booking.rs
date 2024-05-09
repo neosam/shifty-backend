@@ -94,7 +94,8 @@ impl BookingServiceDependencies {
 }
 
 pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServiceDependencies {
-    let booking_dao = MockBookingDao::new();
+    let mut booking_dao = MockBookingDao::new();
+    booking_dao.expect_find_by_booking_data().returning(|_, _, _, _| Ok(None));
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
@@ -349,6 +350,34 @@ async fn test_create_sales_person_does_not_exist() {
         &ValidationFailureItem::IdDoesNotExist("sales_person_id".into(), default_sales_person_id()),
         1,
     );
+}
+
+#[tokio::test]
+async fn test_create_booking_data_already_exists() {
+    let mut deps = build_dependencies(true, "hr");
+    deps.booking_dao.checkpoint();
+    deps.booking_dao
+        .expect_find_by_booking_data()
+        .with(eq(default_sales_person_id()), eq(default_slot_id()), eq(3), eq(2024))
+        .returning(|_, _, _, _| Ok(Some(default_booking_entity())));
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            (),
+        )
+        .await;
+    test_validation_error(
+        &result,
+        &ValidationFailureItem::Duplicate,
+        1,
+    );
+
 }
 
 #[tokio::test]

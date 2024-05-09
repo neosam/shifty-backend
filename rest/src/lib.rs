@@ -57,6 +57,9 @@ pub enum RestError {
 }
 
 fn error_handler(result: Result<Response, RestError>) -> Response {
+    if result.is_err() {
+        println!("REST error mapping: {:?}", result);
+    }
     match result {
         Ok(response) => response,
         Err(err @ RestError::InconsistentId(_, _)) => Response::builder()
