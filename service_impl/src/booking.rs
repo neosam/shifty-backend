@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use dao::booking;
 use service::{
     booking::{Booking, BookingService},
     ServiceError, ValidationFailureItem,

@@ -18,17 +18,26 @@ type SalesPersonService = service_impl::sales_person::SalesPersonServiceImpl<
     ClockService,
     UuidService,
 >;
+type BookingService = service_impl::booking::BookingServiceImpl<
+    dao_impl::booking::BookingDaoImpl,
+    PermissionService,
+    ClockService,
+    UuidService,
+>;
 
 #[derive(Clone)]
 pub struct RestStateImpl {
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
     sales_person_service: Arc<SalesPersonService>,
+    booking_service: Arc<BookingService>,
+
 }
 impl rest::RestStateDef for RestStateImpl {
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type SalesPersonService = SalesPersonService;
+    type BookingService = BookingService;
 
     fn permission_service(&self) -> Arc<Self::PermissionService> {
         self.permission_service.clone()
@@ -39,12 +48,16 @@ impl rest::RestStateDef for RestStateImpl {
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService> {
         self.sales_person_service.clone()
     }
+    fn booking_service(&self) -> Arc<Self::BookingService> {
+        self.booking_service.clone()
+    }
 }
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
         let permission_dao = dao_impl::PermissionDaoImpl::new(pool.clone());
         let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool.clone());
-        let sales_person_dao = dao_impl::sales_person::SalesPersonDaoImpl::new(pool);
+        let sales_person_dao = dao_impl::sales_person::SalesPersonDaoImpl::new(pool.clone());
+        let booking_dao = dao_impl::booking::BookingDaoImpl::new(pool);
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -69,13 +82,20 @@ impl RestStateImpl {
             Arc::new(service_impl::sales_person::SalesPersonServiceImpl::new(
                 sales_person_dao.into(),
                 permission_service.clone(),
-                clock_service,
-                uuid_service,
+                clock_service.clone(),
+                uuid_service.clone(),
             ));
+        let booking_service = Arc::new(service_impl::booking::BookingServiceImpl::new(
+            booking_dao.into(),
+            permission_service.clone(),
+            clock_service,
+            uuid_service,
+        ));
         Self {
             permission_service,
             slot_service,
             sales_person_service,
+            booking_service,
         }
     }
 }

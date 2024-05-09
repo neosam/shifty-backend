@@ -1,5 +1,6 @@
 use std::{convert::Infallible, sync::Arc};
 
+mod booking;
 mod permission;
 mod sales_person;
 mod slot;
@@ -139,10 +140,12 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type BookingService: service::booking::BookingService<Context = Context> + Send + Sync + 'static;
 
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
+    fn booking_service(&self) -> Arc<Self::BookingService>;
 }
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
@@ -150,6 +153,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/permission", permission::generate_route())
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
+        .nest("/booking", booking::generate_route())
         .with_state(rest_state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
