@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) as results FROM user \n                                 INNER JOIN user_role ON user.name = user_role.user_name \n                                 INNER JOIN role ON user_role.role_name = role.name \n                                 INNER JOIN role_privilege ON role.name = role_privilege.role_name \n                                 WHERE role_privilege.privilege_name = ? AND user.name = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "results",
+        "ordinal": 0,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "783782cf8e82e150eae1f83fa8cb7ec98a1a5336c5cc8c06248e44c9db81ce52"
+}

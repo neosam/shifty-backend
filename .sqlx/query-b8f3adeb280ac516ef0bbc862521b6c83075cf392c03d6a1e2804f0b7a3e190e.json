@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO role_privilege (role_name, privilege_name, update_process) VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b8f3adeb280ac516ef0bbc862521b6c83075cf392c03d6a1e2804f0b7a3e190e"
+}

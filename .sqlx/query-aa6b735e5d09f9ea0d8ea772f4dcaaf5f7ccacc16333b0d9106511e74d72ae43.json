@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM role_privilege WHERE role_name = ? AND privilege_name = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "aa6b735e5d09f9ea0d8ea772f4dcaaf5f7ccacc16333b0d9106511e74d72ae43"
+}

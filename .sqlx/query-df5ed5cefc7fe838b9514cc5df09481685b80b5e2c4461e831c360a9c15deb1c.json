@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE slot SET valid_to = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "df5ed5cefc7fe838b9514cc5df09481685b80b5e2c4461e831c360a9c15deb1c"
+}

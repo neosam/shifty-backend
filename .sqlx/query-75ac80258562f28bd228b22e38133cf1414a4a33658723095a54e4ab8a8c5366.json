@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "slot_id",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "year",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 7,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "75ac80258562f28bd228b22e38133cf1414a4a33658723095a54e4ab8a8c5366"
+}

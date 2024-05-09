@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "inactive",
+        "ordinal": 2,
+        "type_info": "Bool"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "52e826a2c6f0a64d6380dff3f4c6e8638c78b61590c8c453bc18667a26dcd90b"
+}
