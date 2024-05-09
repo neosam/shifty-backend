@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
@@ -43,11 +43,13 @@ impl From<&dao::PrivilegeEntity> for Privilege {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Authentication<Context: Clone + PartialEq + Eq + Send + Sync + Debug + 'static>{
+pub enum Authentication<Context: Clone + PartialEq + Eq + Send + Sync + Debug + 'static> {
     Full,
     Context(Context),
 }
-impl<Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static> From<Context> for Authentication<Context> {
+impl<Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static> From<Context>
+    for Authentication<Context>
+{
     fn from(context: Context) -> Self {
         Self::Context(context)
     }
@@ -64,14 +66,40 @@ pub trait PermissionService {
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError>;
 
-    async fn create_user(&self, user: &str, context: Authentication<Self::Context>) -> Result<(), ServiceError>;
-    async fn user_exists(&self, user: &str, context: Authentication<Self::Context>) -> Result<bool, ServiceError>;
-    async fn delete_user(&self, user: &str, context: Authentication<Self::Context>) -> Result<(), ServiceError>;
-    async fn get_all_users(&self, context: Authentication<Self::Context>) -> Result<Arc<[User]>, ServiceError>;
+    async fn create_user(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
+    async fn user_exists(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<bool, ServiceError>;
+    async fn delete_user(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
+    async fn get_all_users(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[User]>, ServiceError>;
 
-    async fn create_role(&self, role: &str, context: Authentication<Self::Context>) -> Result<(), ServiceError>;
-    async fn delete_role(&self, role: &str, context: Authentication<Self::Context>) -> Result<(), ServiceError>;
-    async fn get_all_roles(&self, context: Authentication<Self::Context>) -> Result<Arc<[Role]>, ServiceError>;
+    async fn create_role(
+        &self,
+        role: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
+    async fn delete_role(
+        &self,
+        role: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
+    async fn get_all_roles(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Role]>, ServiceError>;
 
     async fn create_privilege(
         &self,

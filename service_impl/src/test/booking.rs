@@ -2,14 +2,16 @@ use crate::test::error_test::*;
 use dao::booking::{BookingEntity, MockBookingDao};
 use mockall::predicate::eq;
 use service::{
-    booking::Booking, clock::MockClockService, sales_person::MockSalesPersonService, slot::MockSlotService, uuid_service::MockUuidService, MockPermissionService, ValidationFailureItem
+    booking::Booking, clock::MockClockService, sales_person::MockSalesPersonService,
+    slot::MockSlotService, uuid_service::MockUuidService, MockPermissionService,
+    ValidationFailureItem,
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::{uuid, Uuid};
 
+use super::error_test::NoneTypeExt;
 use crate::booking::BookingServiceImpl;
 use service::booking::BookingService;
-use super::error_test::NoneTypeExt;
 
 pub fn default_id() -> Uuid {
     uuid!("CEA260A0-112B-4970-936C-F7E529955BD0")
@@ -94,7 +96,9 @@ impl BookingServiceDependencies {
 
 pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServiceDependencies {
     let mut booking_dao = MockBookingDao::new();
-    booking_dao.expect_find_by_booking_data().returning(|_, _, _, _| Ok(None));
+    booking_dao
+        .expect_find_by_booking_data()
+        .returning(|_, _, _, _| Ok(None));
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
@@ -357,7 +361,12 @@ async fn test_create_booking_data_already_exists() {
     deps.booking_dao.checkpoint();
     deps.booking_dao
         .expect_find_by_booking_data()
-        .with(eq(default_sales_person_id()), eq(default_slot_id()), eq(3), eq(2024))
+        .with(
+            eq(default_sales_person_id()),
+            eq(default_slot_id()),
+            eq(3),
+            eq(2024),
+        )
         .returning(|_, _, _, _| Ok(Some(default_booking_entity())));
     let service = deps.build_service();
     let result = service
@@ -371,12 +380,7 @@ async fn test_create_booking_data_already_exists() {
             ().auth(),
         )
         .await;
-    test_validation_error(
-        &result,
-        &ValidationFailureItem::Duplicate,
-        1,
-    );
-
+    test_validation_error(&result, &ValidationFailureItem::Duplicate, 1);
 }
 
 #[tokio::test]

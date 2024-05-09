@@ -257,7 +257,9 @@ async fn test_create_slot() {
 async fn test_create_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.create_slot(&generate_default_slot(), ().auth()).await;
+    let result = slot_service
+        .create_slot(&generate_default_slot(), ().auth())
+        .await;
     test_forbidden(&result);
 }
 
@@ -568,7 +570,9 @@ async fn test_delete_slot_not_found() {
 async fn test_update_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.update_slot(&generate_default_slot(), ().auth()).await;
+    let result = slot_service
+        .update_slot(&generate_default_slot(), ().auth())
+        .await;
     test_forbidden(&result);
 }
 
@@ -582,7 +586,9 @@ async fn test_update_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.update_slot(&generate_default_slot(), ().auth()).await;
+    let result = slot_service
+        .update_slot(&generate_default_slot(), ().auth())
+        .await;
     test_not_found(&result, &default_id());
 }
 

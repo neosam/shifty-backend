@@ -24,6 +24,11 @@ pub trait SalesPersonDao {
     async fn create(&self, entity: &SalesPersonEntity, process: &str) -> Result<(), DaoError>;
     async fn update(&self, entity: &SalesPersonEntity, process: &str) -> Result<(), DaoError>;
     async fn get_assigned_user(&self, sales_person_id: Uuid) -> Result<Option<Arc<str>>, DaoError>;
-    async fn assign_to_user(&self, sales_person_id: Uuid, user_id: &str, process: &str) -> Result<(), DaoError>;
+    async fn assign_to_user(
+        &self,
+        sales_person_id: Uuid,
+        user_id: &str,
+        process: &str,
+    ) -> Result<(), DaoError>;
     async fn discard_assigned_user(&self, sales_person_id: Uuid) -> Result<(), DaoError>;
 }

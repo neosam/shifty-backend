@@ -122,5 +122,4 @@ impl NoneTypeExt for () {
     fn auth(&self) -> Authentication<()> {
         Authentication::Context(())
     }
-
 }

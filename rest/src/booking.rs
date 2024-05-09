@@ -90,7 +90,10 @@ pub async fn get_booking<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let booking = rest_state.booking_service().get(booking_id, ().into()).await?;
+            let booking = rest_state
+                .booking_service()
+                .get(booking_id, ().into())
+                .await?;
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(
@@ -129,7 +132,10 @@ pub async fn delete_booking<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            rest_state.booking_service().delete(booking_id, ().into()).await?;
+            rest_state
+                .booking_service()
+                .delete(booking_id, ().into())
+                .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
         .await,

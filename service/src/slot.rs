@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use mockall::automock;
+use std::fmt::Debug;
 use std::sync::Arc;
 use uuid::Uuid;
-use std::fmt::Debug;
 
-use crate::ServiceError;
 use crate::permission::Authentication;
+use crate::ServiceError;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DayOfWeek {
@@ -89,10 +89,33 @@ impl From<&Slot> for dao::slot::SlotEntity {
 pub trait SlotService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
 
-    async fn get_slots(&self, context: Authentication<Self::Context>) -> Result<Arc<[Slot]>, ServiceError>;
-    async fn get_slot(&self, id: &Uuid, context: Authentication<Self::Context>) -> Result<Slot, ServiceError>;
-    async fn exists(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<bool, ServiceError>;
-    async fn create_slot(&self, slot: &Slot, context: Authentication<Self::Context>) -> Result<Slot, ServiceError>;
-    async fn delete_slot(&self, id: &Uuid, context: Authentication<Self::Context>) -> Result<(), ServiceError>;
-    async fn update_slot(&self, slot: &Slot, context: Authentication<Self::Context>) -> Result<(), ServiceError>;
+    async fn get_slots(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Slot]>, ServiceError>;
+    async fn get_slot(
+        &self,
+        id: &Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<Slot, ServiceError>;
+    async fn exists(
+        &self,
+        id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<bool, ServiceError>;
+    async fn create_slot(
+        &self,
+        slot: &Slot,
+        context: Authentication<Self::Context>,
+    ) -> Result<Slot, ServiceError>;
+    async fn delete_slot(
+        &self,
+        id: &Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
+    async fn update_slot(
+        &self,
+        slot: &Slot,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
 }

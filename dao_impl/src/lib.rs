@@ -92,13 +92,10 @@ impl dao::PermissionDao for PermissionDaoImpl {
         Ok(())
     }
     async fn find_user(&self, username: &str) -> Result<Option<dao::UserEntity>, DaoError> {
-        let result = query!(
-            r"SELECT name FROM user WHERE name = ?",
-            username
-        )
-        .fetch_optional(self.pool.as_ref())
-        .await
-        .map_db_error()?;
+        let result = query!(r"SELECT name FROM user WHERE name = ?", username)
+            .fetch_optional(self.pool.as_ref())
+            .await
+            .map_db_error()?;
         Ok(result.map(|row| dao::UserEntity {
             name: row.name.clone().into(),
         }))

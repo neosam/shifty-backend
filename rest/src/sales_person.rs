@@ -162,7 +162,6 @@ pub async fn delete_sales_person<RestState: RestStateDef>(
     )
 }
 
-
 pub async fn get_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Path(sales_person_id): Path<Uuid>,

@@ -527,7 +527,10 @@ async fn test_exists() {
         .with(eq(default_id()))
         .returning(|_| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.exists(default_id(), ().auth()).await.unwrap();
+    let result = sales_person_service
+        .exists(default_id(), ().auth())
+        .await
+        .unwrap();
     assert!(result);
 
     let mut dependencies = build_dependencies(true, "hr");
@@ -537,6 +540,9 @@ async fn test_exists() {
         .expect_find_by_id()
         .with(eq(default_id()))
         .returning(|_| Ok(None));
-    let result = sales_person_service.exists(default_id(), ().auth()).await.unwrap();
+    let result = sales_person_service
+        .exists(default_id(), ().auth())
+        .await
+        .unwrap();
     assert_eq!(false, !result);
 }

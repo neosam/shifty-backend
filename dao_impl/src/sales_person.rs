@@ -112,7 +112,12 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         Ok(())
     }
 
-    async fn assign_to_user(&self, sales_person_id: Uuid, user_id: &str, process: &str) -> Result<(), DaoError> {
+    async fn assign_to_user(
+        &self,
+        sales_person_id: Uuid,
+        user_id: &str,
+        process: &str,
+    ) -> Result<(), DaoError> {
         let sales_person_id = sales_person_id.as_bytes().to_vec();
         query!("INSERT INTO sales_person_user (user_id, sales_person_id, update_process) VALUES (?, ?, ?)", user_id, sales_person_id, process)
             .execute(self.pool.as_ref())
@@ -123,10 +128,13 @@ impl SalesPersonDao for SalesPersonDaoImpl {
 
     async fn discard_assigned_user(&self, sales_person_id: Uuid) -> Result<(), DaoError> {
         let sales_person_id = sales_person_id.as_bytes().to_vec();
-        query!("DELETE FROM sales_person_user WHERE sales_person_id = ?", sales_person_id)
-            .execute(self.pool.as_ref())
-            .await
-            .map_db_error()?;
+        query!(
+            "DELETE FROM sales_person_user WHERE sales_person_id = ?",
+            sales_person_id
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
         Ok(())
     }
 

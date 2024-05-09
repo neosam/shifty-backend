@@ -30,7 +30,9 @@ async fn test_check_permission() {
 
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    let result = permission_service.check_permission("hello", ().auth()).await;
+    let result = permission_service
+        .check_permission("hello", ().auth())
+        .await;
     result.expect("Expected successful authorization");
 }
 
@@ -40,7 +42,9 @@ async fn test_check_permission_denied() {
 
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    let result = permission_service.check_permission("hello", ().auth()).await;
+    let result = permission_service
+        .check_permission("hello", ().auth())
+        .await;
     test_forbidden(&result);
 }
 

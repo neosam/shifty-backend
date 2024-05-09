@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use service::{
     booking::{Booking, BookingService},
-    ServiceError, ValidationFailureItem,
     permission::Authentication,
+    ServiceError, ValidationFailureItem,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -90,7 +90,10 @@ where
 {
     type Context = PermissionService::Context;
 
-    async fn get_all(&self, context: Authentication<Self::Context>) -> Result<Arc<[Booking]>, ServiceError> {
+    async fn get_all(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Booking]>, ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -103,7 +106,11 @@ where
             .collect())
     }
 
-    async fn get(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<Booking, ServiceError> {
+    async fn get(
+        &self,
+        id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<Booking, ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -149,22 +156,20 @@ where
         if booking.calendar_week > 53 {
             validation.push(ValidationFailureItem::InvalidValue("calendar_week".into()));
         }
-        if self
+        if !self
             .sales_person_service
             .exists(booking.sales_person_id, context.clone())
             .await?
-            == false
         {
             validation.push(ValidationFailureItem::IdDoesNotExist(
                 "sales_person_id".into(),
                 booking.sales_person_id,
             ));
         }
-        if self
+        if !self
             .slot_service
             .exists(booking.slot_id, context.clone())
             .await?
-            == false
         {
             validation.push(ValidationFailureItem::IdDoesNotExist(
                 "slot_id".into(),
@@ -178,7 +183,10 @@ where
                 booking.slot_id,
                 booking.calendar_week,
                 booking.year,
-            ).await?.is_some() {
+            )
+            .await?
+            .is_some()
+        {
             validation.push(ValidationFailureItem::Duplicate);
         }
 
@@ -202,7 +210,11 @@ where
         Ok(new_booking)
     }
 
-    async fn delete(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<(), ServiceError> {
+    async fn delete(
+        &self,
+        id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;

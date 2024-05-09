@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use service::ServiceError;
 use service::permission::Authentication;
+use service::ServiceError;
 
 pub struct PermissionServiceImpl<PermissionDao, UserService>
 where
@@ -82,9 +82,17 @@ where
         Ok(())
     }
 
-    async fn user_exists(&self, user: &str, context: Authentication<Self::Context>) -> Result<bool, ServiceError> {
+    async fn user_exists(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<bool, ServiceError> {
         self.check_permission("hr", context).await?;
-        Ok(self.permission_dao.find_user(user).await.map(|x| x.is_some())?)
+        Ok(self
+            .permission_dao
+            .find_user(user)
+            .await
+            .map(|x| x.is_some())?)
     }
 
     async fn get_all_users(

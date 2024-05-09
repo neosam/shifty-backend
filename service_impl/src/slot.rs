@@ -60,7 +60,10 @@ where
 {
     type Context = PermissionService::Context;
 
-    async fn get_slots(&self, context: Authentication<Self::Context>) -> Result<Arc<[Slot]>, ServiceError> {
+    async fn get_slots(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Slot]>, ServiceError> {
         let (hr_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission("hr", context.clone()),
@@ -76,7 +79,11 @@ where
             .map(Slot::from)
             .collect())
     }
-    async fn get_slot(&self, id: &Uuid, context: Authentication<Self::Context>) -> Result<Slot, ServiceError> {
+    async fn get_slot(
+        &self,
+        id: &Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<Slot, ServiceError> {
         let (hr_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission("hr", context.clone()),
@@ -92,11 +99,19 @@ where
         Ok(slot)
     }
 
-    async fn exists(&self, id: Uuid, _context: Authentication<Self::Context>) -> Result<bool, ServiceError> {
+    async fn exists(
+        &self,
+        id: Uuid,
+        _context: Authentication<Self::Context>,
+    ) -> Result<bool, ServiceError> {
         Ok(self.slot_dao.get_slot(&id).await.map(|s| s.is_some())?)
     }
 
-    async fn create_slot(&self, slot: &Slot, context: Authentication<Self::Context>) -> Result<Slot, ServiceError> {
+    async fn create_slot(
+        &self,
+        slot: &Slot,
+        context: Authentication<Self::Context>,
+    ) -> Result<Slot, ServiceError> {
         self.permission_service
             .check_permission("hr", context.clone())
             .await?;
@@ -137,7 +152,11 @@ where
         Ok(slot)
     }
 
-    async fn delete_slot(&self, id: &Uuid, context: Authentication<Self::Context>) -> Result<(), ServiceError> {
+    async fn delete_slot(
+        &self,
+        id: &Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -152,7 +171,11 @@ where
             .await?;
         Ok(())
     }
-    async fn update_slot(&self, slot: &Slot, context: Authentication<Self::Context>) -> Result<(), ServiceError> {
+    async fn update_slot(
+        &self,
+        slot: &Slot,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;

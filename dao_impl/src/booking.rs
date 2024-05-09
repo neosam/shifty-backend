@@ -81,7 +81,13 @@ impl BookingDao for BookingDaoImpl {
         .transpose()?)
     }
 
-    async fn find_by_booking_data(&self, sales_person_id: Uuid, slot_id: Uuid, calendar_week: i32, year: u32) -> Result<Option<BookingEntity>, DaoError> {
+    async fn find_by_booking_data(
+        &self,
+        sales_person_id: Uuid,
+        slot_id: Uuid,
+        calendar_week: i32,
+        year: u32,
+    ) -> Result<Option<BookingEntity>, DaoError> {
         let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
         let slot_id_vec = slot_id.as_bytes().to_vec();
         Ok(query_as!(
@@ -100,13 +106,17 @@ impl BookingDao for BookingDaoImpl {
         .transpose()?)
     }
 
-
     async fn create(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
         let slot_id_vec = entity.slot_id.as_bytes().to_vec();
         let created = entity.created.format(&Iso8601::DATE_TIME).map_db_error()?;
-        let deleted = entity.deleted.as_ref().map(|deleted| deleted.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
+        let deleted = entity
+            .deleted
+            .as_ref()
+            .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
+            .transpose()
+            .map_db_error()?;
         let version_vec = entity.version.as_bytes().to_vec();
         query!("INSERT INTO booking (id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec, sales_person_id_vec, slot_id_vec, entity.calendar_week, entity.year, created, deleted, version_vec, process
@@ -116,7 +126,12 @@ impl BookingDao for BookingDaoImpl {
     async fn update(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let version_vec = entity.version.as_bytes().to_vec();
-        let deleted = entity.deleted.as_ref().map(|deleted| deleted.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
+        let deleted = entity
+            .deleted
+            .as_ref()
+            .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
+            .transpose()
+            .map_db_error()?;
         query!(
             "UPDATE booking SET deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
             deleted,

@@ -127,7 +127,12 @@ pub async fn get_slot<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let slot = SlotTO::from(&rest_state.slot_service().get_slot(&slot_id, ().into()).await?);
+            let slot = SlotTO::from(
+                &rest_state
+                    .slot_service()
+                    .get_slot(&slot_id, ().into())
+                    .await?,
+            );
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(serde_json::to_string(&slot).unwrap()))

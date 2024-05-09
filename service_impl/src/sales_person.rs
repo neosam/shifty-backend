@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use dao::sales_person::SalesPersonEntity;
-use service::{permission::Authentication, sales_person::SalesPerson, ServiceError, ValidationFailureItem};
+use service::{
+    permission::Authentication, sales_person::SalesPerson, ServiceError, ValidationFailureItem,
+};
 use uuid::Uuid;
 
 pub struct SalesPersonServiceImpl<SalesPersonDao, PermissionService, ClockService, UuidService>
@@ -86,7 +88,11 @@ where
             .ok_or(ServiceError::EntityNotFound(id))
     }
 
-    async fn exists(&self, id: Uuid, _context: Authentication<Self::Context>) -> Result<bool, ServiceError> {
+    async fn exists(
+        &self,
+        id: Uuid,
+        _context: Authentication<Self::Context>,
+    ) -> Result<bool, ServiceError> {
         Ok(self
             .sales_person_dao
             .find_by_id(id)
@@ -172,7 +178,11 @@ where
         Ok(sales_person)
     }
 
-    async fn delete(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<(), ServiceError> {
+    async fn delete(
+        &self,
+        id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -197,7 +207,10 @@ where
         self.permission_service
             .check_permission("hr", context)
             .await?;
-        Ok(self.sales_person_dao.get_assigned_user(sales_person_id).await?)
+        Ok(self
+            .sales_person_dao
+            .get_assigned_user(sales_person_id)
+            .await?)
     }
 
     async fn set_user(
@@ -216,7 +229,6 @@ where
             self.sales_person_dao
                 .assign_to_user(sales_person_id, user.as_ref(), SALES_PERSON_SERVICE_PROCESS)
                 .await?;
-            
         }
         Ok(())
     }
