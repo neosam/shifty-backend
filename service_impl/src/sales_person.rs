@@ -86,6 +86,14 @@ where
             .ok_or(ServiceError::EntityNotFound(id))
     }
 
+    async fn exists(&self, id: Uuid, _context: Self::Context) -> Result<bool, ServiceError> {
+        Ok(self
+            .sales_person_dao
+            .find_by_id(id)
+            .await
+            .map(|x| x.is_some())?)
+    }
+
     async fn create(
         &self,
         sales_person: &SalesPerson,

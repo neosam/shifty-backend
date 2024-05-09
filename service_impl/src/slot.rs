@@ -91,6 +91,11 @@ where
             .ok_or_else(move || ServiceError::EntityNotFound(*id))?;
         Ok(slot)
     }
+
+    async fn exists(&self, id: Uuid, _context: Self::Context) -> Result<bool, ServiceError> {
+        Ok(self.slot_dao.get_slot(&id).await.map(|s| s.is_some())?)
+    }
+
     async fn create_slot(&self, slot: &Slot, context: Self::Context) -> Result<Slot, ServiceError> {
         self.permission_service
             .check_permission("hr", context.clone())

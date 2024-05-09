@@ -8,49 +8,84 @@ use uuid::Uuid;
 
 const BOOKING_SERVICE_PROCESS: &str = "booking-service";
 
-pub struct BookingServiceImpl<BookingDao, PermissionService, ClockService, UuidService>
-where
+pub struct BookingServiceImpl<
+    BookingDao,
+    PermissionService,
+    ClockService,
+    UuidService,
+    SalesPersonService,
+    SlotService,
+> where
     BookingDao: dao::booking::BookingDao + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
+    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
+    SlotService: service::slot::SlotService + Send + Sync,
 {
     pub booking_dao: Arc<BookingDao>,
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
     pub uuid_service: Arc<UuidService>,
+    pub sales_person_service: Arc<SalesPersonService>,
+    pub slot_service: Arc<SlotService>,
 }
-impl<BookingDao, PermissionService, ClockService, UuidService>
-    BookingServiceImpl<BookingDao, PermissionService, ClockService, UuidService>
+impl<BookingDao, PermissionService, ClockService, UuidService, SalesPersonService, SlotService>
+    BookingServiceImpl<
+        BookingDao,
+        PermissionService,
+        ClockService,
+        UuidService,
+        SalesPersonService,
+        SlotService,
+    >
 where
     BookingDao: dao::booking::BookingDao + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
+    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
+    SlotService: service::slot::SlotService + Send + Sync,
 {
     pub fn new(
         booking_dao: Arc<BookingDao>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
+        sales_person_service: Arc<SalesPersonService>,
+        slot_service: Arc<SlotService>,
     ) -> Self {
         Self {
             booking_dao,
             permission_service,
             clock_service,
             uuid_service,
+            sales_person_service,
+            slot_service,
         }
     }
 }
 
 #[async_trait]
-impl<BookingDao, PermissionService, ClockService, UuidService> BookingService
-    for BookingServiceImpl<BookingDao, PermissionService, ClockService, UuidService>
+impl<BookingDao, PermissionService, ClockService, UuidService, SalesPersonService, SlotService>
+    BookingService
+    for BookingServiceImpl<
+        BookingDao,
+        PermissionService,
+        ClockService,
+        UuidService,
+        SalesPersonService,
+        SlotService,
+    >
 where
     BookingDao: dao::booking::BookingDao + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
+    SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
+        + Send
+        + Sync,
+    SlotService: service::slot::SlotService<Context = PermissionService::Context> + Send + Sync,
 {
     type Context = PermissionService::Context;
 
@@ -85,7 +120,7 @@ where
         context: Self::Context,
     ) -> Result<Booking, ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission("hr", context.clone())
             .await?;
 
         if booking.id != Uuid::nil() {
@@ -112,6 +147,28 @@ where
         }
         if booking.calendar_week > 53 {
             validation.push(ValidationFailureItem::InvalidValue("calendar_week".into()));
+        }
+        if self
+            .sales_person_service
+            .exists(booking.sales_person_id, context.clone())
+            .await?
+            == false
+        {
+            validation.push(ValidationFailureItem::IdDoesNotExist(
+                "sales_person_id".into(),
+                booking.sales_person_id,
+            ));
+        }
+        if self
+            .slot_service
+            .exists(booking.slot_id, context.clone())
+            .await?
+            == false
+        {
+            validation.push(ValidationFailureItem::IdDoesNotExist(
+                "slot_id".into(),
+                booking.slot_id,
+            ));
         }
 
         if !validation.is_empty() {

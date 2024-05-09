@@ -23,6 +23,8 @@ type BookingService = service_impl::booking::BookingServiceImpl<
     PermissionService,
     ClockService,
     UuidService,
+    SalesPersonService,
+    SlotService,
 >;
 
 #[derive(Clone)]
@@ -31,7 +33,6 @@ pub struct RestStateImpl {
     slot_service: Arc<SlotService>,
     sales_person_service: Arc<SalesPersonService>,
     booking_service: Arc<BookingService>,
-
 }
 impl rest::RestStateDef for RestStateImpl {
     type PermissionService = PermissionService;
@@ -90,6 +91,8 @@ impl RestStateImpl {
             permission_service.clone(),
             clock_service,
             uuid_service,
+            sales_person_service.clone(),
+            slot_service.clone(),
         ));
         Self {
             permission_service,

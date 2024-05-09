@@ -517,3 +517,26 @@ async fn test_delete_not_found() {
     let result = sales_person_service.delete(default_id(), ()).await;
     test_not_found(&result, &default_id());
 }
+
+#[tokio::test]
+async fn test_exists() {
+    let mut dependencies = build_dependencies(true, "hr");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some(default_sales_person_entity())));
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.exists(default_id(), ()).await.unwrap();
+    assert!(result);
+
+    let mut dependencies = build_dependencies(true, "hr");
+    dependencies.sales_person_dao.checkpoint();
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .returning(|_| Ok(None));
+    let result = sales_person_service.exists(default_id(), ()).await.unwrap();
+    assert_eq!(false, !result);
+}

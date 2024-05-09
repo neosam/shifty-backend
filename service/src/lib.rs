@@ -22,6 +22,8 @@ pub use permission::User;
 pub enum ValidationFailureItem {
     ModificationNotAllowed(Arc<str>),
     InvalidValue(Arc<str>),
+    IdDoesNotExist(Arc<str>, Uuid),
+    Duplicate,
 }
 
 #[derive(Debug, Error)]

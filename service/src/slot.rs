@@ -89,6 +89,7 @@ pub trait SlotService {
 
     async fn get_slots(&self, context: Self::Context) -> Result<Arc<[Slot]>, ServiceError>;
     async fn get_slot(&self, id: &Uuid, context: Self::Context) -> Result<Slot, ServiceError>;
+    async fn exists(&self, id: Uuid, context: Self::Context) -> Result<bool, ServiceError>;
     async fn create_slot(&self, slot: &Slot, context: Self::Context) -> Result<Slot, ServiceError>;
     async fn delete_slot(&self, id: &Uuid, context: Self::Context) -> Result<(), ServiceError>;
     async fn update_slot(&self, slot: &Slot, context: Self::Context) -> Result<(), ServiceError>;

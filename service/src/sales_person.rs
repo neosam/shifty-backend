@@ -44,6 +44,7 @@ pub trait SalesPersonService {
 
     async fn get_all(&self, context: Self::Context) -> Result<Arc<[SalesPerson]>, ServiceError>;
     async fn get(&self, id: Uuid, context: Self::Context) -> Result<SalesPerson, ServiceError>;
+    async fn exists(&self, id: Uuid, context: Self::Context) -> Result<bool, ServiceError>;
     async fn create(
         &self,
         item: &SalesPerson,

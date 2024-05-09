@@ -2,8 +2,9 @@ use crate::test::error_test::*;
 use dao::booking::{BookingEntity, MockBookingDao};
 use mockall::predicate::eq;
 use service::{
-    booking::Booking, clock::MockClockService, uuid_service::MockUuidService,
-    MockPermissionService, ValidationFailureItem,
+    booking::Booking, clock::MockClockService, sales_person::MockSalesPersonService,
+    slot::MockSlotService, uuid_service::MockUuidService, MockPermissionService,
+    ValidationFailureItem,
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::{uuid, Uuid};
@@ -67,17 +68,27 @@ pub struct BookingServiceDependencies {
     pub permission_service: MockPermissionService,
     pub clock_service: MockClockService,
     pub uuid_service: MockUuidService,
+    pub sales_person_service: MockSalesPersonService,
+    pub slot_service: MockSlotService,
 }
 impl BookingServiceDependencies {
     pub fn build_service(
         self,
-    ) -> BookingServiceImpl<MockBookingDao, MockPermissionService, MockClockService, MockUuidService>
-    {
+    ) -> BookingServiceImpl<
+        MockBookingDao,
+        MockPermissionService,
+        MockClockService,
+        MockUuidService,
+        MockSalesPersonService,
+        MockSlotService,
+    > {
         BookingServiceImpl::new(
             self.booking_dao.into(),
             self.permission_service.into(),
             self.clock_service.into(),
             self.uuid_service.into(),
+            self.sales_person_service.into(),
+            self.slot_service.into(),
         )
     }
 }
@@ -113,11 +124,20 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
     });
     let uuid_service = MockUuidService::new();
 
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_exists()
+        .returning(|_, _| Ok(true));
+    let mut slot_service = MockSlotService::new();
+    slot_service.expect_exists().returning(|_, _| Ok(true));
+
     BookingServiceDependencies {
         booking_dao,
         permission_service,
         clock_service,
         uuid_service,
+        sales_person_service,
+        slot_service,
     }
 }
 
@@ -299,6 +319,61 @@ async fn test_create_with_created_fail() {
     test_validation_error(
         &result,
         &ValidationFailureItem::InvalidValue("created".into()),
+        1,
+    );
+}
+
+#[tokio::test]
+async fn test_create_sales_person_does_not_exist() {
+    let mut deps = build_dependencies(true, "hr");
+    deps.sales_person_service.checkpoint();
+    deps.sales_person_service
+        .expect_exists()
+        .with(eq(default_sales_person_id()), eq(()))
+        .returning(|_, _| Ok(false));
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            (),
+        )
+        .await;
+    dbg!(&result);
+    test_validation_error(
+        &result,
+        &ValidationFailureItem::IdDoesNotExist("sales_person_id".into(), default_sales_person_id()),
+        1,
+    );
+}
+
+#[tokio::test]
+async fn test_create_slot_does_not_exist() {
+    let mut deps = build_dependencies(true, "hr");
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_exists()
+        .with(eq(default_slot_id()), eq(()))
+        .returning(|_, _| Ok(false));
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            (),
+        )
+        .await;
+    test_validation_error(
+        &result,
+        &ValidationFailureItem::IdDoesNotExist("slot_id".into(), default_slot_id()),
         1,
     );
 }

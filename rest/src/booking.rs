@@ -10,7 +10,7 @@ use time::PrimitiveDateTime;
 use uuid::Uuid;
 
 use crate::{error_handler, RestStateDef};
-use service::booking::{BookingService, Booking};
+use service::booking::{Booking, BookingService};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BookingTO {
@@ -65,9 +65,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id", delete(delete_booking::<RestState>))
 }
 
-pub async fn get_all_bookings<RestState: RestStateDef>(
-    rest_state: State<RestState>,
-) -> Response {
+pub async fn get_all_bookings<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
     error_handler(
         (async {
             let bookings: Arc<[BookingTO]> = rest_state
@@ -95,7 +93,9 @@ pub async fn get_booking<RestState: RestStateDef>(
             let booking = rest_state.booking_service().get(booking_id, ()).await?;
             Ok(Response::builder()
                 .status(200)
-                .body(Body::new(serde_json::to_string(&BookingTO::from(&booking)).unwrap()))
+                .body(Body::new(
+                    serde_json::to_string(&BookingTO::from(&booking)).unwrap(),
+                ))
                 .unwrap())
         })
         .await,
@@ -108,10 +108,15 @@ pub async fn create_booking<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let booking = rest_state.booking_service().create(&Booking::from(&booking), ()).await?;
+            let booking = rest_state
+                .booking_service()
+                .create(&Booking::from(&booking), ())
+                .await?;
             Ok(Response::builder()
                 .status(200)
-                .body(Body::new(serde_json::to_string(&BookingTO::from(&booking)).unwrap()))
+                .body(Body::new(
+                    serde_json::to_string(&BookingTO::from(&booking)).unwrap(),
+                ))
                 .unwrap())
         })
         .await,
@@ -125,10 +130,7 @@ pub async fn delete_booking<RestState: RestStateDef>(
     error_handler(
         (async {
             rest_state.booking_service().delete(booking_id, ()).await?;
-            Ok(Response::builder()
-                .status(200)
-                .body(Body::empty())
-                .unwrap())
+            Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
         .await,
     )
