@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use dao::sales_person::SalesPersonEntity;
-use service::{sales_person::SalesPerson, ServiceError, ValidationFailureItem};
+use service::{permission::Authentication, sales_person::SalesPerson, ServiceError, ValidationFailureItem};
 use uuid::Uuid;
 
 pub struct SalesPersonServiceImpl<SalesPersonDao, PermissionService, ClockService, UuidService>
@@ -56,7 +56,7 @@ where
 
     async fn get_all(
         &self,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[service::sales_person::SalesPerson]>, service::ServiceError> {
         self.permission_service
             .check_permission("hr", context)
@@ -73,7 +73,7 @@ where
     async fn get(
         &self,
         id: Uuid,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<service::sales_person::SalesPerson, service::ServiceError> {
         self.permission_service
             .check_permission("hr", context)
@@ -86,7 +86,7 @@ where
             .ok_or(ServiceError::EntityNotFound(id))
     }
 
-    async fn exists(&self, id: Uuid, _context: Self::Context) -> Result<bool, ServiceError> {
+    async fn exists(&self, id: Uuid, _context: Authentication<Self::Context>) -> Result<bool, ServiceError> {
         Ok(self
             .sales_person_dao
             .find_by_id(id)
@@ -97,7 +97,7 @@ where
     async fn create(
         &self,
         sales_person: &SalesPerson,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<SalesPerson, service::ServiceError> {
         self.permission_service
             .check_permission("hr", context)
@@ -127,7 +127,7 @@ where
     async fn update(
         &self,
         sales_person: &SalesPerson,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<SalesPerson, ServiceError> {
         self.permission_service
             .check_permission("hr", context)
@@ -172,7 +172,7 @@ where
         Ok(sales_person)
     }
 
-    async fn delete(&self, id: Uuid, context: Self::Context) -> Result<(), ServiceError> {
+    async fn delete(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -192,7 +192,7 @@ where
     async fn get_assigned_user(
         &self,
         sales_person_id: Uuid,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<Option<Arc<str>>, ServiceError> {
         self.permission_service
             .check_permission("hr", context)
@@ -204,7 +204,7 @@ where
         &self,
         sales_person_id: Uuid,
         user_id: Option<Arc<str>>,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)

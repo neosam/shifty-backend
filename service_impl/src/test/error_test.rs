@@ -1,4 +1,4 @@
-use service::ValidationFailureItem;
+use service::{permission::Authentication, ValidationFailureItem};
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::Uuid;
 
@@ -113,4 +113,14 @@ pub fn generate_default_datetime() -> PrimitiveDateTime {
         Date::from_calendar_date(2063, Month::April, 5).unwrap(),
         Time::from_hms(23, 42, 0).unwrap(),
     )
+}
+
+pub trait NoneTypeExt {
+    fn auth(&self) -> Authentication<()>;
+}
+impl NoneTypeExt for () {
+    fn auth(&self) -> Authentication<()> {
+        Authentication::Context(())
+    }
+
 }

@@ -42,7 +42,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SalesPersonSe
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
-        .with(eq(role), eq(()))
+        .with(eq(role), eq(().auth()))
         .returning(move |_, _| {
             if permission {
                 Ok(())
@@ -125,7 +125,7 @@ async fn test_get_all() {
         .into())
     });
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get_all(()).await.unwrap();
+    let result = sales_person_service.get_all(().auth()).await.unwrap();
     assert_eq!(2, result.len());
     assert_eq!(default_sales_person(), result[0]);
     assert_eq!(
@@ -142,7 +142,7 @@ async fn test_get_all() {
 async fn test_get_all_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get_all(()).await;
+    let result = sales_person_service.get_all(().auth()).await;
     test_forbidden(&result);
 }
 
@@ -156,7 +156,7 @@ async fn test_get() {
         .times(1)
         .returning(|_| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ()).await;
+    let result = sales_person_service.get(default_id(), ().auth()).await;
     assert_eq!(default_sales_person(), result.unwrap());
 }
 
@@ -164,7 +164,7 @@ async fn test_get() {
 async fn test_get_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ()).await;
+    let result = sales_person_service.get(default_id(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -178,7 +178,7 @@ async fn test_get_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ()).await;
+    let result = sales_person_service.get(default_id(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -214,7 +214,7 @@ async fn test_create() {
                 version: Uuid::nil(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await
         .unwrap();
@@ -232,7 +232,7 @@ async fn test_create_no_permission() {
                 version: Uuid::nil(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_forbidden(&result);
@@ -259,7 +259,7 @@ async fn test_create_validation() {
                 version: Uuid::nil(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_zero_id_error(&result);
@@ -270,7 +270,7 @@ async fn test_create_validation() {
                 id: Uuid::nil(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_zero_version_error(&result);
@@ -286,7 +286,7 @@ async fn test_update_no_permission() {
                 name: "Jane Doe".into(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_forbidden(&result);
@@ -307,7 +307,7 @@ async fn test_update_not_found() {
                 name: "Jane Doe".into(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_not_found(&result, &default_id());
@@ -328,7 +328,7 @@ async fn test_update_conflicts() {
                 version: alternate_version(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_conflicts(
@@ -357,7 +357,7 @@ async fn test_update_deleted_no_allowed() {
                 )),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -399,7 +399,7 @@ async fn test_update_inactive() {
                 inactive: true,
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await
         .unwrap();
@@ -445,7 +445,7 @@ async fn test_update_name() {
                 name: "Jane Doe".into(),
                 ..default_sales_person()
             },
-            (),
+            ().auth(),
         )
         .await
         .unwrap();
@@ -488,7 +488,7 @@ async fn test_delete() {
         .with(eq("sales-person-version"))
         .returning(|_| alternate_version());
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.delete(default_id(), ()).await;
+    let result = sales_person_service.delete(default_id(), ().auth()).await;
     assert!(result.is_ok());
 }
 
@@ -501,7 +501,7 @@ async fn test_delete_no_permission() {
         .with(eq(default_id()))
         .returning(|_| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.delete(default_id(), ()).await;
+    let result = sales_person_service.delete(default_id(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -514,7 +514,7 @@ async fn test_delete_not_found() {
         .with(eq(default_id()))
         .returning(|_| Ok(None));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.delete(default_id(), ()).await;
+    let result = sales_person_service.delete(default_id(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -527,7 +527,7 @@ async fn test_exists() {
         .with(eq(default_id()))
         .returning(|_| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.exists(default_id(), ()).await.unwrap();
+    let result = sales_person_service.exists(default_id(), ().auth()).await.unwrap();
     assert!(result);
 
     let mut dependencies = build_dependencies(true, "hr");
@@ -537,6 +537,6 @@ async fn test_exists() {
         .expect_find_by_id()
         .with(eq(default_id()))
         .returning(|_| Ok(None));
-    let result = sales_person_service.exists(default_id(), ()).await.unwrap();
+    let result = sales_person_service.exists(default_id(), ().auth()).await.unwrap();
     assert_eq!(false, !result);
 }

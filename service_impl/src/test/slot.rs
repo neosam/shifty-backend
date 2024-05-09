@@ -72,7 +72,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SlotServiceDe
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
-        .with(eq(role), eq(()))
+        .with(eq(role), eq(().auth()))
         .returning(move |_, _| {
             if permission {
                 Ok(())
@@ -122,7 +122,7 @@ async fn test_get_slots() {
 
     let slot_service = dependencies.build_service();
 
-    let result = slot_service.get_slots(()).await;
+    let result = slot_service.get_slots(().auth()).await;
     assert!(result.is_ok());
     let result = result.unwrap();
 
@@ -146,7 +146,7 @@ async fn test_get_slots_sales_role() {
         .expect_get_slots()
         .returning(|| Ok(Arc::new([])));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slots(()).await;
+    let result = slot_service.get_slots(().auth()).await;
     assert!(result.is_ok());
 }
 
@@ -158,7 +158,7 @@ async fn test_get_slots_no_permission() {
         .expect_get_slots()
         .returning(|| Ok(Arc::new([])));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slots(()).await;
+    let result = slot_service.get_slots(().auth()).await;
     test_forbidden(&result);
 }
 
@@ -172,7 +172,7 @@ async fn test_get_slot() {
         .times(1)
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth()).await;
     assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result, generate_default_slot());
@@ -188,7 +188,7 @@ async fn test_get_slot_sales_role() {
         .times(1)
         .returning(|_| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth()).await;
     assert!(result.is_ok());
 }
 
@@ -202,7 +202,7 @@ async fn test_get_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -210,7 +210,7 @@ async fn test_get_slot_not_found() {
 async fn test_get_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -246,7 +246,7 @@ async fn test_create_slot() {
                 version: Uuid::nil(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     assert!(result.is_ok());
@@ -257,7 +257,7 @@ async fn test_create_slot() {
 async fn test_create_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.create_slot(&generate_default_slot(), ()).await;
+    let result = slot_service.create_slot(&generate_default_slot(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -281,7 +281,7 @@ async fn test_create_slot_non_zero_id() {
                 version: Uuid::nil(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_zero_id_error(&result);
@@ -307,7 +307,7 @@ async fn test_create_slot_non_zero_version() {
                 id: Uuid::nil(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_zero_version_error(&result);
@@ -360,7 +360,7 @@ async fn test_create_slot_intersects() {
                 to: Time::from_hms(12, 0, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     assert!(result.is_ok());
@@ -375,7 +375,7 @@ async fn test_create_slot_intersects() {
                 to: Time::from_hms(11, 0, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -390,7 +390,7 @@ async fn test_create_slot_intersects() {
                 to: Time::from_hms(11, 30, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -405,7 +405,7 @@ async fn test_create_slot_intersects() {
                 to: Time::from_hms(12, 30, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -420,7 +420,7 @@ async fn test_create_slot_intersects() {
                 to: Time::from_hms(10, 45, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -435,7 +435,7 @@ async fn test_create_slot_intersects() {
                 to: Time::from_hms(11, 0, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -450,7 +450,7 @@ async fn test_create_slot_intersects() {
                 day_of_week: DayOfWeek::Tuesday.into(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     assert!(result.is_ok());
@@ -478,7 +478,7 @@ async fn test_create_slot_time_order() {
                 to: Time::from_hms(11, 00, 00).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_time_order_wrong(&result);
@@ -506,7 +506,7 @@ async fn test_create_slot_date_order() {
                 valid_to: Some(Date::from_calendar_date(2022, Month::January, 1).unwrap()),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_date_order_wrong(&result);
@@ -538,7 +538,7 @@ async fn test_delete_slot() {
         .returning(|_, _| Ok(()));
 
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id(), ()).await;
+    let result = slot_service.delete_slot(&default_id(), ().auth()).await;
     assert!(result.is_ok());
 }
 
@@ -546,7 +546,7 @@ async fn test_delete_slot() {
 async fn test_delete_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id(), ()).await;
+    let result = slot_service.delete_slot(&default_id(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -560,7 +560,7 @@ async fn test_delete_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id(), ()).await;
+    let result = slot_service.delete_slot(&default_id(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -568,7 +568,7 @@ async fn test_delete_slot_not_found() {
 async fn test_update_slot_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let slot_service = dependencies.build_service();
-    let result = slot_service.update_slot(&generate_default_slot(), ()).await;
+    let result = slot_service.update_slot(&generate_default_slot(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -582,7 +582,7 @@ async fn test_update_slot_not_found() {
         .times(1)
         .returning(|_| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.update_slot(&generate_default_slot(), ()).await;
+    let result = slot_service.update_slot(&generate_default_slot(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -601,7 +601,7 @@ async fn test_update_slot_version_mismatch() {
                 version: uuid!("86DE856C-D176-4F1F-A4FE-0D9844C02C04"),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_conflicts(
@@ -651,7 +651,7 @@ async fn test_update_slot_valid_to() {
                 ),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     dbg!(&result);
@@ -676,7 +676,7 @@ async fn test_update_slot_valid_to_before_valid_from() {
                 ),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_date_order_wrong(&result);
@@ -722,7 +722,7 @@ async fn test_update_slot_deleted() {
                 )),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     assert!(result.is_ok());
@@ -743,7 +743,7 @@ async fn test_update_slot_day_of_week_forbidden() {
                 day_of_week: service::slot::DayOfWeek::Friday,
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -777,7 +777,7 @@ async fn test_update_to_forbidden_when_not_none() {
                 ),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -802,7 +802,7 @@ async fn test_update_from_forbidden() {
                 from: time::Time::from_hms(14, 0, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -827,7 +827,7 @@ async fn test_update_to_forbidden() {
                 to: time::Time::from_hms(14, 0, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -853,7 +853,7 @@ async fn test_update_valid_from_forbidden() {
                     .unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -880,7 +880,7 @@ async fn test_update_valid_multiple_forbidden_changes() {
                 from: time::Time::from_hms(14, 0, 0).unwrap(),
                 ..generate_default_slot()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(

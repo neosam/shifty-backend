@@ -87,7 +87,7 @@ pub async fn add_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .create_user(user.name.as_str(), ())
+                .create_user(user.name.as_str(), ().into())
                 .await?;
             Ok(Response::builder()
                 .status(201)
@@ -107,7 +107,7 @@ pub async fn remove_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .delete_user(&user, ())
+                .delete_user(&user, ().into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -126,7 +126,7 @@ pub async fn add_role<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .create_role(role.name.as_str(), ())
+                .create_role(role.name.as_str(), ().into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -145,7 +145,7 @@ pub async fn delete_role<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .delete_role(role.as_str(), ())
+                .delete_role(role.as_str(), ().into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -164,7 +164,7 @@ pub async fn add_user_role<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .add_user_role(user_role.user.as_str(), user_role.role.as_str(), ())
+                .add_user_role(user_role.user.as_str(), user_role.role.as_str(), ().into())
                 .await?;
             Ok(Response::builder()
                 .status(201)
@@ -183,7 +183,7 @@ pub async fn remove_user_role<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .delete_user_role(user_role.user.as_str(), user_role.role.as_str(), ())
+                .delete_user_role(user_role.user.as_str(), user_role.role.as_str(), ().into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -205,7 +205,7 @@ pub async fn add_role_privilege<RestState: RestStateDef>(
                 .add_role_privilege(
                     role_privilege.role.as_str(),
                     role_privilege.privilege.as_str(),
-                    (),
+                    ().into(),
                 )
                 .await?;
             Ok(Response::builder()
@@ -228,7 +228,7 @@ pub async fn remove_role_privilege<RestState: RestStateDef>(
                 .delete_role_privilege(
                     role_privilege.role.as_str(),
                     role_privilege.privilege.as_str(),
-                    (),
+                    ().into(),
                 )
                 .await?;
             Ok(Response::builder()
@@ -245,7 +245,7 @@ pub async fn get_all_users<RestState: RestStateDef>(rest_state: State<RestState>
         (async {
             let users: Arc<[UserTO]> = rest_state
                 .permission_service()
-                .get_all_users(())
+                .get_all_users(().into())
                 .await?
                 .iter()
                 .map(UserTO::from)
@@ -264,7 +264,7 @@ pub async fn get_all_roles<RestState: RestStateDef>(rest_state: State<RestState>
         (async {
             let roles: Arc<[RoleTO]> = rest_state
                 .permission_service()
-                .get_all_roles(())
+                .get_all_roles(().into())
                 .await?
                 .iter()
                 .map(RoleTO::from)
@@ -283,7 +283,7 @@ pub async fn get_all_privileges<RestState: RestStateDef>(rest_state: State<RestS
         (async {
             let privileges: Arc<[PrivilegeTO]> = rest_state
                 .permission_service()
-                .get_all_privileges(())
+                .get_all_privileges(().into())
                 .await?
                 .iter()
                 .map(PrivilegeTO::from)

@@ -2,15 +2,14 @@ use crate::test::error_test::*;
 use dao::booking::{BookingEntity, MockBookingDao};
 use mockall::predicate::eq;
 use service::{
-    booking::Booking, clock::MockClockService, sales_person::MockSalesPersonService,
-    slot::MockSlotService, uuid_service::MockUuidService, MockPermissionService,
-    ValidationFailureItem,
+    booking::Booking, clock::MockClockService, sales_person::MockSalesPersonService, slot::MockSlotService, uuid_service::MockUuidService, MockPermissionService, ValidationFailureItem
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::{uuid, Uuid};
 
 use crate::booking::BookingServiceImpl;
 use service::booking::BookingService;
+use super::error_test::NoneTypeExt;
 
 pub fn default_id() -> Uuid {
     uuid!("CEA260A0-112B-4970-936C-F7E529955BD0")
@@ -99,7 +98,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
-        .with(eq(role), eq(()))
+        .with(eq(role), eq(().auth()))
         .returning(move |_, _| {
             if permission {
                 Ok(())
@@ -156,7 +155,7 @@ async fn test_get_all() {
         .into())
     });
     let service = deps.build_service();
-    let result = service.get_all(()).await;
+    let result = service.get_all(().auth()).await;
     assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result.len(), 2);
@@ -174,7 +173,7 @@ async fn test_get_all() {
 async fn test_get_all_no_permission() {
     let deps = build_dependencies(false, "hr");
     let service = deps.build_service();
-    let result = service.get_all(()).await;
+    let result = service.get_all(().auth()).await;
     test_forbidden(&result);
 }
 
@@ -186,7 +185,7 @@ async fn test_get() {
         .with(eq(default_id()))
         .returning(|_| Ok(Some(default_booking_entity())));
     let service = deps.build_service();
-    let result = service.get(default_id(), ()).await;
+    let result = service.get(default_id(), ().auth()).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), default_booking());
 }
@@ -199,7 +198,7 @@ async fn test_get_not_found() {
         .with(eq(default_id()))
         .returning(|_| Ok(None));
     let service = deps.build_service();
-    let result = service.get(default_id(), ()).await;
+    let result = service.get(default_id(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -207,7 +206,7 @@ async fn test_get_not_found() {
 async fn test_get_no_permission() {
     let deps = build_dependencies(false, "hr");
     let service = deps.build_service();
-    let result = service.get(default_id(), ()).await;
+    let result = service.get(default_id(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -241,7 +240,7 @@ async fn test_create() {
                 created: None,
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     assert!(result.is_ok());
@@ -265,7 +264,7 @@ async fn test_create_no_permission() {
                 version: Uuid::nil(),
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_forbidden(&result);
@@ -281,7 +280,7 @@ async fn test_create_with_id() {
                 version: Uuid::nil(),
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_zero_id_error(&result);
@@ -297,7 +296,7 @@ async fn test_create_with_version() {
                 id: Uuid::nil(),
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_zero_version_error(&result);
@@ -314,7 +313,7 @@ async fn test_create_with_created_fail() {
                 version: Uuid::nil(),
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -330,7 +329,7 @@ async fn test_create_sales_person_does_not_exist() {
     deps.sales_person_service.checkpoint();
     deps.sales_person_service
         .expect_exists()
-        .with(eq(default_sales_person_id()), eq(()))
+        .with(eq(default_sales_person_id()), eq(().auth()))
         .returning(|_, _| Ok(false));
     let service = deps.build_service();
     let result = service
@@ -341,7 +340,7 @@ async fn test_create_sales_person_does_not_exist() {
                 created: None,
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     dbg!(&result);
@@ -369,7 +368,7 @@ async fn test_create_booking_data_already_exists() {
                 created: None,
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -386,7 +385,7 @@ async fn test_create_slot_does_not_exist() {
     deps.slot_service.checkpoint();
     deps.slot_service
         .expect_exists()
-        .with(eq(default_slot_id()), eq(()))
+        .with(eq(default_slot_id()), eq(().auth()))
         .returning(|_, _| Ok(false));
     let service = deps.build_service();
     let result = service
@@ -397,7 +396,7 @@ async fn test_create_slot_does_not_exist() {
                 created: None,
                 ..default_booking()
             },
-            (),
+            ().auth(),
         )
         .await;
     test_validation_error(
@@ -411,7 +410,7 @@ async fn test_create_slot_does_not_exist() {
 async fn test_delete_no_permission() {
     let deps = build_dependencies(false, "hr");
     let service = deps.build_service();
-    let result = service.delete(default_id(), ()).await;
+    let result = service.delete(default_id(), ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -423,7 +422,7 @@ async fn test_delete_not_found() {
         .with(eq(default_id()))
         .returning(|_| Ok(None));
     let service = deps.build_service();
-    let result = service.delete(default_id(), ()).await;
+    let result = service.delete(default_id(), ().auth()).await;
     test_not_found(&result, &default_id());
 }
 
@@ -450,7 +449,7 @@ async fn test_delete() {
         .with(eq("booking-version"))
         .returning(|_| alternate_version());
     let service = deps.build_service();
-    let result = service.delete(default_id(), ()).await;
+    let result = service.delete(default_id(), ().auth()).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), ());
 }

@@ -30,7 +30,7 @@ async fn test_check_permission() {
 
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    let result = permission_service.check_permission("hello", ()).await;
+    let result = permission_service.check_permission("hello", ().auth()).await;
     result.expect("Expected successful authorization");
 }
 
@@ -40,7 +40,7 @@ async fn test_check_permission_denied() {
 
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    let result = permission_service.check_permission("hello", ()).await;
+    let result = permission_service.check_permission("hello", ().auth()).await;
     test_forbidden(&result);
 }
 
@@ -71,7 +71,7 @@ async fn test_create_user() {
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     permission_service
-        .create_user("testuser", ())
+        .create_user("testuser", ().auth())
         .await
         .expect("Extected successful user creation");
 }
@@ -81,7 +81,7 @@ async fn test_create_user_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.create_user("testuser", ()).await);
+    test_forbidden(&permission_service.create_user("testuser", ().auth()).await);
 }
 
 #[tokio::test]
@@ -97,7 +97,7 @@ async fn test_delete_user() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .delete_user("testuser", ())
+        .delete_user("testuser", ().auth())
         .await
         .expect("Expected successful delete");
 }
@@ -106,7 +106,7 @@ async fn test_delete_user_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.delete_user("testuser", ()).await);
+    test_forbidden(&permission_service.delete_user("testuser", ().auth()).await);
 }
 
 #[tokio::test]
@@ -126,7 +126,7 @@ async fn test_create_role() {
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     permission_service
-        .create_role("testrole", ())
+        .create_role("testrole", ().auth())
         .await
         .expect("Extected successful role creation");
 }
@@ -136,7 +136,7 @@ async fn test_create_role_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.create_role("testrole", ()).await);
+    test_forbidden(&permission_service.create_role("testrole", ().auth()).await);
 }
 
 #[tokio::test]
@@ -152,7 +152,7 @@ async fn test_delete_role() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .delete_role("testrole", ())
+        .delete_role("testrole", ().auth())
         .await
         .expect("Expected successful delete");
 }
@@ -162,7 +162,7 @@ async fn test_delete_role_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.delete_role("testrole", ()).await);
+    test_forbidden(&permission_service.delete_role("testrole", ().auth()).await);
 }
 
 #[tokio::test]
@@ -183,7 +183,7 @@ async fn test_create_privilege() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .create_privilege("testprivilege", ())
+        .create_privilege("testprivilege", ().auth())
         .await
         .expect("Extected successful privilege creation");
 }
@@ -194,7 +194,7 @@ async fn test_create_privilege_without_permission() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     test_forbidden(
         &permission_service
-            .create_privilege("testprivilege", ())
+            .create_privilege("testprivilege", ().auth())
             .await,
     );
 }
@@ -212,7 +212,7 @@ async fn test_delete_privilege() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .delete_privilege("testprivilege", ())
+        .delete_privilege("testprivilege", ().auth())
         .await
         .expect("Expected successful delete");
 }
@@ -224,7 +224,7 @@ async fn test_delete_privilege_without_permission() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     test_forbidden(
         &permission_service
-            .delete_privilege("testprivilege", ())
+            .delete_privilege("testprivilege", ().auth())
             .await,
     );
 }
@@ -242,7 +242,7 @@ async fn test_add_user_role() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .add_user_role("testuser", "testrole", ())
+        .add_user_role("testuser", "testrole", ().auth())
         .await
         .expect("Extected successful user role creation");
 }
@@ -254,7 +254,7 @@ async fn test_add_user_role_without_permission() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     test_forbidden(
         &permission_service
-            .add_user_role("testuser", "testrole", ())
+            .add_user_role("testuser", "testrole", ().auth())
             .await,
     );
 }
@@ -276,7 +276,7 @@ async fn test_add_role_privilege() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .add_role_privilege("testrole", "testprivilege", ())
+        .add_role_privilege("testrole", "testprivilege", ().auth())
         .await
         .expect("Extected successful role privilege creation");
 }
@@ -288,7 +288,7 @@ async fn test_add_role_privilege_without_permission() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     test_forbidden(
         &permission_service
-            .add_role_privilege("testrole", "testprivilege", ())
+            .add_role_privilege("testrole", "testprivilege", ().auth())
             .await,
     );
 }
@@ -306,7 +306,7 @@ async fn test_delete_role_privilege() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .delete_role_privilege("testrole", "testprivilege", ())
+        .delete_role_privilege("testrole", "testprivilege", ().auth())
         .await
         .expect("Extected successful role privilege deletion");
 }
@@ -318,7 +318,7 @@ async fn test_delete_role_privilege_without_permission() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     test_forbidden(
         &permission_service
-            .delete_role_privilege("testrole", "testprivilege", ())
+            .delete_role_privilege("testrole", "testprivilege", ().auth())
             .await,
     );
 }
@@ -336,7 +336,7 @@ async fn test_delete_user_role() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     permission_service
-        .delete_user_role("testuser", "testrole", ())
+        .delete_user_role("testuser", "testrole", ().auth())
         .await
         .expect("Extected successful user role deletion");
 }
@@ -348,7 +348,7 @@ async fn test_delete_user_role_without_permission() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     test_forbidden(
         &permission_service
-            .delete_user_role("testuser", "testrole", ())
+            .delete_user_role("testuser", "testrole", ().auth())
             .await,
     );
 }
@@ -371,7 +371,7 @@ async fn test_all_roles() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     let all_roles = permission_service
-        .get_all_roles(())
+        .get_all_roles(().auth())
         .await
         .expect("Expected roles successfully");
     assert_eq!(all_roles.len(), 2);
@@ -384,7 +384,7 @@ async fn test_all_roles_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.get_all_roles(()).await);
+    test_forbidden(&permission_service.get_all_roles(().auth()).await);
 }
 
 #[tokio::test]
@@ -405,7 +405,7 @@ async fn test_all_users() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     let all_users = permission_service
-        .get_all_users(())
+        .get_all_users(().auth())
         .await
         .expect("Expected users successfully");
 
@@ -419,7 +419,7 @@ async fn test_all_users_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.get_all_users(()).await);
+    test_forbidden(&permission_service.get_all_users(().auth()).await);
 }
 
 #[tokio::test]
@@ -443,7 +443,7 @@ async fn test_all_privileges() {
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
 
     let all_privileges = permission_service
-        .get_all_privileges(())
+        .get_all_privileges(().auth())
         .await
         .expect("Expected privileges successfully");
 
@@ -457,5 +457,5 @@ async fn test_all_privileges_without_permission() {
     let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
     let permission_service =
         PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-    test_forbidden(&permission_service.get_all_privileges(()).await);
+    test_forbidden(&permission_service.get_all_privileges(().auth()).await);
 }

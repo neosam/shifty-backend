@@ -70,7 +70,7 @@ pub async fn get_all_bookings<RestState: RestStateDef>(rest_state: State<RestSta
         (async {
             let bookings: Arc<[BookingTO]> = rest_state
                 .booking_service()
-                .get_all(())
+                .get_all(().into())
                 .await?
                 .iter()
                 .map(BookingTO::from)
@@ -90,7 +90,7 @@ pub async fn get_booking<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let booking = rest_state.booking_service().get(booking_id, ()).await?;
+            let booking = rest_state.booking_service().get(booking_id, ().into()).await?;
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(
@@ -110,7 +110,7 @@ pub async fn create_booking<RestState: RestStateDef>(
         (async {
             let booking = rest_state
                 .booking_service()
-                .create(&Booking::from(&booking), ())
+                .create(&Booking::from(&booking), ().into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -129,7 +129,7 @@ pub async fn delete_booking<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            rest_state.booking_service().delete(booking_id, ()).await?;
+            rest_state.booking_service().delete(booking_id, ().into()).await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
         .await,

@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use service::{
     booking::{Booking, BookingService},
     ServiceError, ValidationFailureItem,
+    permission::Authentication,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -89,7 +90,7 @@ where
 {
     type Context = PermissionService::Context;
 
-    async fn get_all(&self, context: Self::Context) -> Result<Arc<[Booking]>, ServiceError> {
+    async fn get_all(&self, context: Authentication<Self::Context>) -> Result<Arc<[Booking]>, ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -102,7 +103,7 @@ where
             .collect())
     }
 
-    async fn get(&self, id: Uuid, context: Self::Context) -> Result<Booking, ServiceError> {
+    async fn get(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<Booking, ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;
@@ -117,7 +118,7 @@ where
     async fn create(
         &self,
         booking: &Booking,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<Booking, ServiceError> {
         self.permission_service
             .check_permission("hr", context.clone())
@@ -201,7 +202,7 @@ where
         Ok(new_booking)
     }
 
-    async fn delete(&self, id: Uuid, context: Self::Context) -> Result<(), ServiceError> {
+    async fn delete(&self, id: Uuid, context: Authentication<Self::Context>) -> Result<(), ServiceError> {
         self.permission_service
             .check_permission("hr", context)
             .await?;

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use service::ServiceError;
+use service::permission::Authentication;
 
 pub struct PermissionServiceImpl<PermissionDao, UserService>
 where
@@ -38,24 +39,29 @@ where
     async fn check_permission(
         &self,
         privilege: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
-        let current_user = self.user_service.current_user(context).await?;
-        if self
-            .permission_dao
-            .has_privilege(current_user.as_ref(), privilege)
-            .await?
-        {
-            Ok(())
-        } else {
-            Err(service::ServiceError::Forbidden)
+        match context {
+            Authentication::Full => Ok(()),
+            Authentication::Context(context) => {
+                let current_user = self.user_service.current_user(context).await?;
+                if self
+                    .permission_dao
+                    .has_privilege(current_user.as_ref(), privilege)
+                    .await?
+                {
+                    Ok(())
+                } else {
+                    Err(service::ServiceError::Forbidden)
+                }
+            }
         }
     }
 
     async fn create_user(
         &self,
         user: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao
@@ -69,21 +75,21 @@ where
     async fn delete_user(
         &self,
         user: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao.delete_user(user).await?;
         Ok(())
     }
 
-    async fn user_exists(&self, user: &str, context: Self::Context) -> Result<bool, ServiceError> {
+    async fn user_exists(&self, user: &str, context: Authentication<Self::Context>) -> Result<bool, ServiceError> {
         self.check_permission("hr", context).await?;
         Ok(self.permission_dao.find_user(user).await.map(|x| x.is_some())?)
     }
 
     async fn get_all_users(
         &self,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[service::User]>, service::ServiceError> {
         self.check_permission("admin", context).await?;
         Ok(self
@@ -98,7 +104,7 @@ where
     async fn create_role(
         &self,
         role: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao
@@ -112,7 +118,7 @@ where
     async fn delete_role(
         &self,
         role: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao.delete_role(role).await?;
@@ -120,7 +126,7 @@ where
     }
     async fn get_all_roles(
         &self,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[service::Role]>, service::ServiceError> {
         self.check_permission("admin", context).await?;
         Ok(self
@@ -135,7 +141,7 @@ where
     async fn create_privilege(
         &self,
         privilege: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao
@@ -152,7 +158,7 @@ where
     async fn delete_privilege(
         &self,
         privilege: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao.delete_privilege(privilege).await?;
@@ -160,7 +166,7 @@ where
     }
     async fn get_all_privileges(
         &self,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[service::Privilege]>, service::ServiceError> {
         self.check_permission("admin", context).await?;
         Ok(self
@@ -176,7 +182,7 @@ where
         &self,
         user: &str,
         role: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao
@@ -188,7 +194,7 @@ where
         &self,
         role: &str,
         privilege: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao
@@ -200,7 +206,7 @@ where
         &self,
         role: &str,
         privilege: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao
@@ -212,7 +218,7 @@ where
         &self,
         user: &str,
         role: &str,
-        context: Self::Context,
+        context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
         self.check_permission("admin", context).await?;
         self.permission_dao.delete_user_role(user, role).await?;
