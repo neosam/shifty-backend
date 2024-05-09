@@ -26,6 +26,7 @@ pub trait PermissionDao {
 
     async fn create_user(&self, user: &UserEntity, process: &str) -> Result<(), DaoError>;
     async fn all_users(&self) -> Result<Arc<[UserEntity]>, DaoError>;
+    async fn find_user(&self, username: &str) -> Result<Option<UserEntity>, DaoError>;
     async fn delete_user(&self, username: &str) -> Result<(), DaoError>;
 
     async fn create_role(&self, role: &RoleEntity, process: &str) -> Result<(), DaoError>;

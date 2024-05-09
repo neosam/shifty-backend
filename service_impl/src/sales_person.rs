@@ -188,4 +188,36 @@ where
             .await?;
         Ok(())
     }
+
+    async fn get_assigned_user(
+        &self,
+        sales_person_id: Uuid,
+        context: Self::Context,
+    ) -> Result<Option<Arc<str>>, ServiceError> {
+        self.permission_service
+            .check_permission("hr", context)
+            .await?;
+        Ok(self.sales_person_dao.get_assigned_user(sales_person_id).await?)
+    }
+
+    async fn set_user(
+        &self,
+        sales_person_id: Uuid,
+        user_id: Option<Arc<str>>,
+        context: Self::Context,
+    ) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission("hr", context)
+            .await?;
+        self.sales_person_dao
+            .discard_assigned_user(sales_person_id)
+            .await?;
+        if let Some(user) = user_id {
+            self.sales_person_dao
+                .assign_to_user(sales_person_id, user.as_ref(), SALES_PERSON_SERVICE_PROCESS)
+                .await?;
+            
+        }
+        Ok(())
+    }
 }

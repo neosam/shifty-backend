@@ -72,6 +72,21 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         .map(SalesPersonEntity::try_from)
         .transpose()?)
     }
+
+    async fn find_by_user(&self, user_id: &str) -> Result<Option<SalesPersonEntity>, DaoError> {
+        Ok(query_as!(
+            SalesPersonDb,
+            "SELECT sp.id, sp.name, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+            user_id
+        )
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .as_ref()
+        .map(SalesPersonEntity::try_from)
+        .transpose()?)
+    }
+
     async fn create(&self, entity: &SalesPersonEntity, process: &str) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
@@ -95,5 +110,35 @@ impl SalesPersonDao for SalesPersonDaoImpl {
             .await
             .map_db_error()?;
         Ok(())
+    }
+
+    async fn assign_to_user(&self, sales_person_id: Uuid, user_id: &str, process: &str) -> Result<(), DaoError> {
+        let sales_person_id = sales_person_id.as_bytes().to_vec();
+        query!("INSERT INTO sales_person_user (user_id, sales_person_id, update_process) VALUES (?, ?, ?)", user_id, sales_person_id, process)
+            .execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
+    }
+
+    async fn discard_assigned_user(&self, sales_person_id: Uuid) -> Result<(), DaoError> {
+        let sales_person_id = sales_person_id.as_bytes().to_vec();
+        query!("DELETE FROM sales_person_user WHERE sales_person_id = ?", sales_person_id)
+            .execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
+    }
+
+    async fn get_assigned_user(&self, sales_person_id: Uuid) -> Result<Option<Arc<str>>, DaoError> {
+        let sales_person_id = sales_person_id.as_bytes().to_vec();
+        Ok(query!(
+            "SELECT user_id FROM sales_person_user WHERE sales_person_id = ?",
+            sales_person_id
+        )
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .map(|result| result.user_id.into()))
     }
 }

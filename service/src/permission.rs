@@ -53,6 +53,7 @@ pub trait PermissionService {
     ) -> Result<(), ServiceError>;
 
     async fn create_user(&self, user: &str, context: Self::Context) -> Result<(), ServiceError>;
+    async fn user_exists(&self, user: &str, context: Self::Context) -> Result<bool, ServiceError>;
     async fn delete_user(&self, user: &str, context: Self::Context) -> Result<(), ServiceError>;
     async fn get_all_users(&self, context: Self::Context) -> Result<Arc<[User]>, ServiceError>;
 

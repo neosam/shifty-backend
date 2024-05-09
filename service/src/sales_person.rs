@@ -56,4 +56,15 @@ pub trait SalesPersonService {
         context: Self::Context,
     ) -> Result<SalesPerson, ServiceError>;
     async fn delete(&self, id: Uuid, context: Self::Context) -> Result<(), ServiceError>;
+    async fn get_assigned_user(
+        &self,
+        sales_person_id: Uuid,
+        context: Self::Context,
+    ) -> Result<Option<Arc<str>>, ServiceError>;
+    async fn set_user(
+        &self,
+        sales_person_id: Uuid,
+        user_id: Option<Arc<str>>,
+        context: Self::Context,
+    ) -> Result<(), ServiceError>;
 }

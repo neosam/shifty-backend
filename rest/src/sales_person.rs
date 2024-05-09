@@ -55,6 +55,9 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/", post(create_sales_person::<RestState>))
         .route("/:id", put(update_sales_person::<RestState>))
         .route("/:id", delete(delete_sales_person::<RestState>))
+        .route("/:id/user", get(get_sales_person_user::<RestState>))
+        .route("/:id/user", post(set_sales_person_user::<RestState>))
+        .route("/:id/user", delete(delete_sales_person_user::<RestState>))
 }
 
 pub async fn get_all_sales_persons<RestState: RestStateDef>(
@@ -152,6 +155,59 @@ pub async fn delete_sales_person<RestState: RestStateDef>(
             rest_state
                 .sales_person_service()
                 .delete(sales_person_id, ())
+                .await?;
+            Ok(Response::builder().status(204).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+
+pub async fn get_sales_person_user<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Path(sales_person_id): Path<Uuid>,
+) -> Response {
+    error_handler(
+        (async {
+            let user = rest_state
+                .sales_person_service()
+                .get_assigned_user(sales_person_id, ())
+                .await?;
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&user).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn set_sales_person_user<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Path(sales_person_id): Path<Uuid>,
+    Json(user): Json<Arc<str>>,
+) -> Response {
+    error_handler(
+        (async {
+            rest_state
+                .sales_person_service()
+                .set_user(sales_person_id, user.into(), ())
+                .await?;
+            Ok(Response::builder().status(204).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn delete_sales_person_user<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Path(sales_person_id): Path<Uuid>,
+) -> Response {
+    error_handler(
+        (async {
+            rest_state
+                .sales_person_service()
+                .set_user(sales_person_id, None, ())
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
