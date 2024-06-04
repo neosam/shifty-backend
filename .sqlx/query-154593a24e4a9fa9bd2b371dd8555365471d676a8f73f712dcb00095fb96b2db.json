@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sp.id, sp.name, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "inactive",
+        "ordinal": 2,
+        "type_info": "Bool"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "154593a24e4a9fa9bd2b371dd8555365471d676a8f73f712dcb00095fb96b2db"
+}

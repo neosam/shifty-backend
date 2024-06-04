@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM sales_person_user WHERE sales_person_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3d7110e6d0c1f85dc0a031c288ffbedb0a810a09288a1d3572d60d2f5ce97d1e"
+}
