@@ -1,2 +1,4 @@
 localdb.sqlite3*
 target
+.idea
+result

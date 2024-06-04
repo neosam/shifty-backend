@@ -30,3 +30,6 @@ version = "0.3.36"
 
 [dependencies.time-macros]
 version = "0.2.18"
+
+[dependencies.dotenvy]
+version = "0.15"

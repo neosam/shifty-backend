@@ -129,6 +129,7 @@ async fn create_dev_admin_user(pool: Arc<SqlitePool>) {
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     let pool = Arc::new(
         SqlitePool::connect("sqlite:./localdb.sqlite3")
             .await

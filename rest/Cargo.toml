@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+#default = ["oidc"]
+default = []
+oidc = ["dep:axum-oidc"]
 
 [dependencies]
 axum = "0.7.5"
@@ -29,3 +33,13 @@ features = ["derive", "std", "alloc", "rc"]
 
 [dependencies.thiserror]
 version = "1.0"
+
+[dependencies.tower]
+version = "0.4.4"
+
+[dependencies.tower-sessions]
+version = "0.12"
+
+[dependencies.axum-oidc]
+version = "0.4"
+optional = true
