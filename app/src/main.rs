@@ -33,17 +33,22 @@ type BookingService = service_impl::booking::BookingServiceImpl<
 
 #[derive(Clone)]
 pub struct RestStateImpl {
+    user_service: Arc<UserService>,
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
     sales_person_service: Arc<SalesPersonService>,
     booking_service: Arc<BookingService>,
 }
 impl rest::RestStateDef for RestStateImpl {
+    type UserService = UserService;
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type SalesPersonService = SalesPersonService;
     type BookingService = BookingService;
 
+    fn user_service(&self) -> Arc<Self::UserService> {
+        self.user_service.clone()
+    }
     fn permission_service(&self) -> Arc<Self::PermissionService> {
         self.permission_service.clone()
     }
@@ -74,9 +79,10 @@ impl RestStateImpl {
         let user_service = service_impl::UserServiceDev;
         #[cfg(feature = "oidc")]
         let user_service = service_impl::UserServiceImpl;
+        let user_service = Arc::new(user_service);
         let permission_service = Arc::new(service_impl::PermissionServiceImpl::new(
             permission_dao.into(),
-            user_service.into(),
+            user_service.clone(),
         ));
         let clock_service = Arc::new(service_impl::clock::ClockServiceImpl);
         let uuid_service = Arc::new(service_impl::uuid_service::UuidServiceImpl);
@@ -102,6 +108,7 @@ impl RestStateImpl {
             slot_service.clone(),
         ));
         Self {
+            user_service,
             permission_service,
             slot_service,
             sales_person_service,

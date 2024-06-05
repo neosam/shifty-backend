@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT privilege.name FROM user \n                                 INNER JOIN user_role ON user.name = user_role.user_name \n                                 INNER JOIN role ON user_role.role_name = role.name \n                                 INNER JOIN role_privilege ON role.name = role_privilege.role_name \n                                 INNER JOIN privilege ON role_privilege.privilege_name = privilege.name \n                                 WHERE user.name = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "88c56af867c22de3d86839e86a2f1d7b75f2527d59ee4ea594c0cab0018bcd48"
+}

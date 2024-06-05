@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use service::permission::Authentication;
-use service::ServiceError;
+use service::{Privilege, ServiceError};
 
 pub struct PermissionServiceImpl<PermissionDao, UserService>
 where
@@ -54,6 +54,27 @@ where
                 } else {
                     Err(service::ServiceError::Forbidden)
                 }
+            }
+        }
+    }
+
+    async fn get_privileges_for_current_user(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Privilege]>, ServiceError> {
+        match context {
+            Authentication::Full => Ok(Arc::new([Privilege {
+                name: "god-mode".into(),
+            }])),
+            Authentication::Context(context) => {
+                let current_user = self.user_service.current_user(context).await?;
+                Ok(self
+                    .permission_dao
+                    .privileges_for_user(current_user.as_ref())
+                    .await?
+                    .iter()
+                    .map(service::Privilege::from)
+                    .collect())
             }
         }
     }

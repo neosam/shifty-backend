@@ -5,14 +5,18 @@ mod permission;
 mod sales_person;
 mod slot;
 
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::Uri;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::get;
+use axum::Extension;
 use axum::{body::Body, error_handling::HandleErrorLayer, response::Response, Router};
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
+use serde::{Deserialize, Serialize};
+use service::user_service::UserService;
+use service::PermissionService;
 use service::ServiceError;
 use thiserror::Error;
 use time::Duration;
@@ -177,6 +181,7 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
 }
 
 pub trait RestStateDef: Clone + Send + Sync + 'static {
+    type UserService: service::user_service::UserService<Context = Context> + Send + Sync + 'static;
     type PermissionService: service::PermissionService<Context = Context> + Send + Sync + 'static;
     type SlotService: service::slot::SlotService<Context = Context> + Send + Sync + 'static;
     type SalesPersonService: service::sales_person::SalesPersonService<Context = Context>
@@ -185,6 +190,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + 'static;
     type BookingService: service::booking::BookingService<Context = Context> + Send + Sync + 'static;
 
+    fn user_service(&self) -> Arc<Self::UserService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
@@ -220,37 +226,36 @@ pub async fn login() -> Redirect {
     Redirect::to("/")
 }
 
-#[cfg(feature = "oidc")]
-pub async fn auth_info(claims: Option<OidcClaims<EmptyAdditionalClaims>>) -> Response {
-    if let Some(oidc_claims) = claims {
-        let username = oidc_claims
-            .preferred_username()
-            .map(|s| s.as_str().to_string())
-            .unwrap_or_else(|| "NoUsername".to_string());
-        let email = oidc_claims
-            .email()
-            .map(|s| s.as_str().to_string())
-            .unwrap_or_else(|| "MailNotSet".to_string());
-        let name = oidc_claims
-            .name()
-            .map(|s| {
-                s.iter()
-                    .next()
-                    .map(|s| s.1.as_str().to_string())
-                    .unwrap_or_else(|| "NoLocalizedName".to_string())
-            })
-            .unwrap_or_else(|| "NameNotSet".to_string());
-        let body = format!(
-            "Hello, {}! Your email is {} and your username is {}",
-            name, email, username
-        );
-        Response::builder()
-            .status(200)
-            .body(Body::new(body))
-            .unwrap()
-    } else {
-        Response::builder().status(401).body(Body::empty()).unwrap()
-    }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AuthInfoTO {
+    pub user: Arc<str>,
+    pub privileges: Arc<[Arc<str>]>,
+}
+
+pub async fn auth_info<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
+    let user = rest_state
+        .user_service()
+        .current_user(context.clone().into())
+        .await
+        .unwrap_or_else(|_| "NoUser".into());
+    let privileges: Arc<[Arc<str>]> = rest_state
+        .permission_service()
+        .get_privileges_for_current_user(context.into())
+        .await
+        .unwrap_or_else(|_| Arc::new([]))
+        .into_iter()
+        .map(|privilege| privilege.name.clone())
+        .collect();
+    let auth_info = AuthInfoTO { user, privileges };
+
+    let response = serde_json::to_string(&AuthInfoTO::from(auth_info)).unwrap();
+    Response::builder()
+        .status(200)
+        .body(Body::new(response))
+        .unwrap()
 }
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
@@ -269,10 +274,10 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
 
         app.route("/authenticate", get(login))
             .layer(oidc_login_service)
-            .route("/auth-info", get(auth_info))
     };
 
     let app = app
+        .route("/auth-info", get(auth_info::<RestState>))
         .nest("/permission", permission::generate_route())
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
