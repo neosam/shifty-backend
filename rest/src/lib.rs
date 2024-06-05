@@ -224,7 +224,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             );
 
         app.layer(oidc_login_service)
-            .route("authenticate", get(login))
+            .route("/authenticate", get(login))
             .layer(oidc_auth_service)
             .layer(session_layer)
     };
