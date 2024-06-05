@@ -6,7 +6,8 @@ mod sales_person;
 mod slot;
 
 use axum::http::Uri;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Redirect};
+use axum::routing::get;
 use axum::{body::Body, error_handling::HandleErrorLayer, response::Response, Router};
 use service::ServiceError;
 use thiserror::Error;
@@ -181,13 +182,12 @@ pub fn bind_address() -> Arc<str> {
         .into()
 }
 
+pub async fn login() -> Redirect {
+    Redirect::to("/")
+}
+
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
-    let app = Router::new()
-        .nest("/permission", permission::generate_route())
-        .nest("/slot", slot::generate_route())
-        .nest("/sales-person", sales_person::generate_route())
-        .nest("/booking", booking::generate_route())
-        .with_state(rest_state);
+    let app = Router::new();
 
     #[cfg(feature = "oidc")]
     let app = {
@@ -224,9 +224,17 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             );
 
         app.layer(oidc_login_service)
+            .route("authenticate", get(login))
             .layer(oidc_auth_service)
             .layer(session_layer)
     };
+
+    let app = app
+        .nest("/permission", permission::generate_route())
+        .nest("/slot", slot::generate_route())
+        .nest("/sales-person", sales_person::generate_route())
+        .nest("/booking", booking::generate_route())
+        .with_state(rest_state);
 
     let listener = tokio::net::TcpListener::bind(bind_address().as_ref())
         .await
