@@ -9,6 +9,8 @@ use axum::http::Uri;
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::get;
 use axum::{body::Body, error_handling::HandleErrorLayer, response::Response, Router};
+#[cfg(feature = "oidc")]
+use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use service::ServiceError;
 use thiserror::Error;
 use time::Duration;
@@ -186,8 +188,49 @@ pub async fn login() -> Redirect {
     Redirect::to("/")
 }
 
+#[cfg(feature = "oidc")]
+pub async fn auth_info(claims: Option<OidcClaims<EmptyAdditionalClaims>>) -> Response {
+    if let Some(oidc_claims) = claims {
+        let nickname = oidc_claims
+            .nickname()
+            .map(|s| s.iter().next().map(|s| s.1.as_str().to_string()))
+            .unwrap_or_else(|| Some("NickNotSet".to_string()))
+            .unwrap_or_else(|| "NickEmpty".to_string());
+        let body = format!("Hello, {}! ", nickname);
+        Response::builder()
+            .status(200)
+            .body(Body::new(body))
+            .unwrap()
+    } else {
+        Response::builder().status(401).body(Body::empty()).unwrap()
+    }
+}
+
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new();
+
+    #[cfg(feature = "oidc")]
+    let app = {
+        use axum_oidc::error::MiddlewareError;
+        use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
+
+        let oidc_login_service = ServiceBuilder::new()
+            .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
+                e.into_response()
+            }))
+            .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
+
+        app.route("/authenticate", get(login))
+            .layer(oidc_login_service)
+            .route("/auth-info", get(auth_info))
+    };
+
+    let app = app
+        .nest("/permission", permission::generate_route())
+        .nest("/slot", slot::generate_route())
+        .nest("/sales-person", sales_person::generate_route())
+        .nest("/booking", booking::generate_route())
+        .with_state(rest_state);
 
     #[cfg(feature = "oidc")]
     let app = {
@@ -197,15 +240,9 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         let oidc_config = oidc_config();
         let session_store = MemoryStore::default();
         let session_layer = SessionManagerLayer::new(session_store)
-            .with_secure(false)
-            .with_same_site(SameSite::Lax)
-            .with_expiry(Expiry::OnInactivity(Duration::seconds(120)));
-
-        let oidc_login_service = ServiceBuilder::new()
-            .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-                e.into_response()
-            }))
-            .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
+            .with_secure(true)
+            .with_same_site(SameSite::Strict)
+            .with_expiry(Expiry::OnSessionEnd);
 
         let oidc_auth_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
@@ -223,18 +260,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
                 .unwrap(),
             );
 
-        app.layer(oidc_login_service)
-            .route("/authenticate", get(login))
-            .layer(oidc_auth_service)
-            .layer(session_layer)
+        app.layer(oidc_auth_service).layer(session_layer)
     };
-
-    let app = app
-        .nest("/permission", permission::generate_route())
-        .nest("/slot", slot::generate_route())
-        .nest("/sales-person", sales_person::generate_route())
-        .nest("/booking", booking::generate_route())
-        .with_state(rest_state);
 
     let listener = tokio::net::TcpListener::bind(bind_address().as_ref())
         .await
