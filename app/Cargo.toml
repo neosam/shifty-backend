@@ -2,15 +2,16 @@
 name = "app"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-#default = ["mock_auth"]
+default = ["mock_auth"]
 #default = ["oidc"]
-default = []
-oidc = []
-mock_auth = []
+#default = []
+oidc = ["rest/oidc"]
+mock_auth = ["rest/mock_auth"]
 
 [dependencies.rest]
 path = "../rest"

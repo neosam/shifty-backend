@@ -2,6 +2,7 @@
 name = "dao_impl"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [dependencies]
 async-trait = "0.1.80"
