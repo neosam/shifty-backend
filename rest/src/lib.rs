@@ -191,12 +191,27 @@ pub async fn login() -> Redirect {
 #[cfg(feature = "oidc")]
 pub async fn auth_info(claims: Option<OidcClaims<EmptyAdditionalClaims>>) -> Response {
     if let Some(oidc_claims) = claims {
-        let nickname = oidc_claims
-            .nickname()
-            .map(|s| s.iter().next().map(|s| s.1.as_str().to_string()))
-            .unwrap_or_else(|| Some("NickNotSet".to_string()))
-            .unwrap_or_else(|| "NickEmpty".to_string());
-        let body = format!("Hello, {}! ", nickname);
+        let username = oidc_claims
+            .preferred_username()
+            .map(|s| s.as_str().to_string())
+            .unwrap_or_else(|| "NoUsername".to_string());
+        let email = oidc_claims
+            .email()
+            .map(|s| s.as_str().to_string())
+            .unwrap_or_else(|| "MailNotSet".to_string());
+        let name = oidc_claims
+            .name()
+            .map(|s| {
+                s.iter()
+                    .next()
+                    .map(|s| s.1.as_str().to_string())
+                    .unwrap_or_else(|| "NoLocalizedName".to_string())
+            })
+            .unwrap_or_else(|| "NameNotSet".to_string());
+        let body = format!(
+            "Hello, {}! Your email is {} and your username is {}",
+            name, email, username
+        );
         Response::builder()
             .status(200)
             .body(Body::new(body))
