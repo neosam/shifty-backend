@@ -2,8 +2,12 @@ use std::sync::Arc;
 
 use sqlx::SqlitePool;
 
+#[cfg(feature = "mock_auth")]
+type UserService = service_impl::UserServiceDev;
+#[cfg(feature = "oidc")]
+type UserService = service_impl::UserServiceImpl;
 type PermissionService =
-    service_impl::PermissionServiceImpl<dao_impl::PermissionDaoImpl, service_impl::UserServiceDev>;
+    service_impl::PermissionServiceImpl<dao_impl::PermissionDaoImpl, UserService>;
 type ClockService = service_impl::clock::ClockServiceImpl;
 type UuidService = service_impl::uuid_service::UuidServiceImpl;
 type SlotService = service_impl::slot::SlotServiceImpl<
@@ -66,7 +70,10 @@ impl RestStateImpl {
         // TODO: Implement a proper authentication service when used in produciton. Maybe
         // use differnet implementations on debug then on release.  Or control it via a
         // feature.
+        #[cfg(feature = "mock_auth")]
         let user_service = service_impl::UserServiceDev;
+        #[cfg(feature = "oidc")]
+        let user_service = service_impl::UserServiceImpl;
         let permission_service = Arc::new(service_impl::PermissionServiceImpl::new(
             permission_dao.into(),
             user_service.into(),

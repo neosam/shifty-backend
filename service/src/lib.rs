@@ -31,6 +31,9 @@ pub enum ServiceError {
     #[error("Database query error: {0}")]
     DatabaseQueryError(#[from] dao::DaoError),
 
+    #[error("Unauthorized")]
+    Unauthorized,
+
     #[error("Forbidden")]
     Forbidden,
 

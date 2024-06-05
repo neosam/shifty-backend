@@ -5,7 +5,9 @@ mod permission;
 mod sales_person;
 mod slot;
 
+use axum::extract::Request;
 use axum::http::Uri;
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::get;
 use axum::{body::Body, error_handling::HandleErrorLayer, response::Response, Router};
@@ -19,7 +21,34 @@ use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer}
 use uuid::Uuid;
 
 // TODO: In prod, it must be a different type than in dev mode.
+#[cfg(feature = "mock_auth")]
 type Context = ();
+#[cfg(feature = "oidc")]
+type Context = Option<Arc<str>>;
+
+#[cfg(feature = "oidc")]
+pub async fn context_extractor(
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let context: Context = if let Some(oidc_claims) = claims {
+        let username = oidc_claims
+            .preferred_username()
+            .map(|s| s.as_str().to_string())
+            .unwrap_or_else(|| "NoUsername".to_string());
+        Some(username.into())
+    } else {
+        None
+    };
+    request.extensions_mut().insert(context);
+    next.run(request).await
+}
+#[cfg(feature = "mock_auth")]
+pub async fn context_extractor(mut request: Request, next: Next) -> Response {
+    request.extensions_mut().insert(());
+    next.run(request).await
+}
 
 pub struct RoString(Arc<str>, bool);
 impl http_body::Body for RoString {
@@ -76,6 +105,9 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
             .unwrap(),
         Err(RestError::ServiceError(service::ServiceError::Forbidden)) => {
             Response::builder().status(403).body(Body::empty()).unwrap()
+        }
+        Err(RestError::ServiceError(service::ServiceError::Unauthorized)) => {
+            Response::builder().status(401).body(Body::empty()).unwrap()
         }
         Err(RestError::ServiceError(service::ServiceError::DatabaseQueryError(e))) => {
             Response::builder()
@@ -245,7 +277,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())
-        .with_state(rest_state);
+        .with_state(rest_state)
+        .layer(middleware::from_fn(context_extractor));
 
     #[cfg(feature = "oidc")]
     let app = {

@@ -25,3 +25,19 @@ impl service::user_service::UserService for UserServiceDev {
         Ok("DEVUSER".into())
     }
 }
+
+pub struct UserServiceImpl;
+
+#[async_trait]
+impl service::user_service::UserService for UserServiceImpl {
+    type Context = Option<Arc<str>>;
+
+    async fn current_user(
+        &self,
+        context: Self::Context,
+    ) -> Result<Arc<str>, service::ServiceError> {
+        context
+            .ok_or_else(|| service::ServiceError::Unauthorized)
+            .map(|user| user.clone())
+    }
+}

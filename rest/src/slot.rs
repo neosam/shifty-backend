@@ -5,13 +5,13 @@ use axum::{
     extract::{Path, State},
     response::Response,
     routing::{get, post, put},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use service::slot::SlotService;
 use uuid::Uuid;
 
-use crate::{error_handler, RestError, RestStateDef};
+use crate::{error_handler, Context, RestError, RestStateDef};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum DayOfWeek {
@@ -102,12 +102,15 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id", put(update_slot::<RestState>))
 }
 
-pub async fn get_all_slots<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
+pub async fn get_all_slots<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
     error_handler(
         (async {
             let slots: Arc<[SlotTO]> = rest_state
                 .slot_service()
-                .get_slots(().into())
+                .get_slots(context.into())
                 .await?
                 .iter()
                 .map(SlotTO::from)
@@ -123,6 +126,7 @@ pub async fn get_all_slots<RestState: RestStateDef>(rest_state: State<RestState>
 
 pub async fn get_slot<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(slot_id): Path<Uuid>,
 ) -> Response {
     error_handler(
@@ -130,7 +134,7 @@ pub async fn get_slot<RestState: RestStateDef>(
             let slot = SlotTO::from(
                 &rest_state
                     .slot_service()
-                    .get_slot(&slot_id, ().into())
+                    .get_slot(&slot_id, context.into())
                     .await?,
             );
             Ok(Response::builder()
@@ -144,6 +148,7 @@ pub async fn get_slot<RestState: RestStateDef>(
 
 pub async fn create_slot<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(slot): Json<SlotTO>,
 ) -> Response {
     error_handler(
@@ -151,7 +156,7 @@ pub async fn create_slot<RestState: RestStateDef>(
             let slot = SlotTO::from(
                 &rest_state
                     .slot_service()
-                    .create_slot(&(&slot).into(), ().into())
+                    .create_slot(&(&slot).into(), context.into())
                     .await?,
             );
             Ok(Response::builder()
@@ -165,6 +170,7 @@ pub async fn create_slot<RestState: RestStateDef>(
 
 pub async fn update_slot<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(slot_id): Path<Uuid>,
     Json(slot): Json<SlotTO>,
 ) -> Response {
@@ -175,7 +181,7 @@ pub async fn update_slot<RestState: RestStateDef>(
             }
             rest_state
                 .slot_service()
-                .update_slot(&(&slot).into(), ().into())
+                .update_slot(&(&slot).into(), context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)

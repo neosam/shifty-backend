@@ -4,13 +4,13 @@ use axum::body::Body;
 use axum::extract::Path;
 use axum::routing::{delete, get, post, put};
 use axum::{extract::State, response::Response};
-use axum::{Json, Router};
+use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
 use service::sales_person::SalesPerson;
 use service::sales_person::SalesPersonService;
 use uuid::Uuid;
 
-use crate::{error_handler, RestError, RestStateDef};
+use crate::{error_handler, Context, RestError, RestStateDef};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SalesPersonTO {
@@ -62,12 +62,13 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
 
 pub async fn get_all_sales_persons<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
 ) -> Response {
     error_handler(
         (async {
             let sales_persons: Arc<[SalesPersonTO]> = rest_state
                 .sales_person_service()
-                .get_all(().into())
+                .get_all(context.into())
                 .await?
                 .iter()
                 .map(SalesPersonTO::from)
@@ -83,6 +84,7 @@ pub async fn get_all_sales_persons<RestState: RestStateDef>(
 
 pub async fn get_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(sales_person_id): Path<Uuid>,
 ) -> Response {
     error_handler(
@@ -90,7 +92,7 @@ pub async fn get_sales_person<RestState: RestStateDef>(
             let sales_person = SalesPersonTO::from(
                 &rest_state
                     .sales_person_service()
-                    .get(sales_person_id, ().into())
+                    .get(sales_person_id, context.into())
                     .await?,
             );
             Ok(Response::builder()
@@ -104,6 +106,7 @@ pub async fn get_sales_person<RestState: RestStateDef>(
 
 pub async fn create_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(sales_person): Json<SalesPersonTO>,
 ) -> Response {
     error_handler(
@@ -111,7 +114,7 @@ pub async fn create_sales_person<RestState: RestStateDef>(
             let sales_person = SalesPersonTO::from(
                 &rest_state
                     .sales_person_service()
-                    .create(&(&sales_person).into(), ().into())
+                    .create(&(&sales_person).into(), context.into())
                     .await?,
             );
             Ok(Response::builder()
@@ -125,6 +128,7 @@ pub async fn create_sales_person<RestState: RestStateDef>(
 
 pub async fn update_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(sales_person_id): Path<Uuid>,
     Json(sales_person): Json<SalesPersonTO>,
 ) -> Response {
@@ -135,7 +139,7 @@ pub async fn update_sales_person<RestState: RestStateDef>(
             }
             rest_state
                 .sales_person_service()
-                .update(&(&sales_person).into(), ().into())
+                .update(&(&sales_person).into(), context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -148,13 +152,14 @@ pub async fn update_sales_person<RestState: RestStateDef>(
 
 pub async fn delete_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(sales_person_id): Path<Uuid>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .sales_person_service()
-                .delete(sales_person_id, ().into())
+                .delete(sales_person_id, context.into())
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
@@ -164,13 +169,14 @@ pub async fn delete_sales_person<RestState: RestStateDef>(
 
 pub async fn get_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(sales_person_id): Path<Uuid>,
 ) -> Response {
     error_handler(
         (async {
             let user = rest_state
                 .sales_person_service()
-                .get_assigned_user(sales_person_id, ().into())
+                .get_assigned_user(sales_person_id, context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -183,6 +189,7 @@ pub async fn get_sales_person_user<RestState: RestStateDef>(
 
 pub async fn set_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(sales_person_id): Path<Uuid>,
     Json(user): Json<Arc<str>>,
 ) -> Response {
@@ -190,7 +197,7 @@ pub async fn set_sales_person_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .sales_person_service()
-                .set_user(sales_person_id, user.into(), ().into())
+                .set_user(sales_person_id, user.into(), context.into())
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
@@ -200,13 +207,14 @@ pub async fn set_sales_person_user<RestState: RestStateDef>(
 
 pub async fn delete_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(sales_person_id): Path<Uuid>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .sales_person_service()
-                .set_user(sales_person_id, None, ().into())
+                .set_user(sales_person_id, None, context.into())
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })

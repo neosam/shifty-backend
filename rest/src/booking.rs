@@ -4,12 +4,12 @@ use axum::body::Body;
 use axum::extract::Path;
 use axum::routing::{delete, get, post};
 use axum::{extract::State, response::Response};
-use axum::{Json, Router};
+use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
 use time::PrimitiveDateTime;
 use uuid::Uuid;
 
-use crate::{error_handler, RestStateDef};
+use crate::{error_handler, Context, RestStateDef};
 use service::booking::{Booking, BookingService};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -65,12 +65,15 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id", delete(delete_booking::<RestState>))
 }
 
-pub async fn get_all_bookings<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
+pub async fn get_all_bookings<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
     error_handler(
         (async {
             let bookings: Arc<[BookingTO]> = rest_state
                 .booking_service()
-                .get_all(().into())
+                .get_all(context.into())
                 .await?
                 .iter()
                 .map(BookingTO::from)
@@ -86,13 +89,14 @@ pub async fn get_all_bookings<RestState: RestStateDef>(rest_state: State<RestSta
 
 pub async fn get_booking<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(booking_id): Path<Uuid>,
 ) -> Response {
     error_handler(
         (async {
             let booking = rest_state
                 .booking_service()
-                .get(booking_id, ().into())
+                .get(booking_id, context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -107,13 +111,14 @@ pub async fn get_booking<RestState: RestStateDef>(
 
 pub async fn create_booking<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(booking): Json<BookingTO>,
 ) -> Response {
     error_handler(
         (async {
             let booking = rest_state
                 .booking_service()
-                .create(&Booking::from(&booking), ().into())
+                .create(&Booking::from(&booking), context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -128,13 +133,14 @@ pub async fn create_booking<RestState: RestStateDef>(
 
 pub async fn delete_booking<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Path(booking_id): Path<Uuid>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .booking_service()
-                .delete(booking_id, ().into())
+                .delete(booking_id, context.into())
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })

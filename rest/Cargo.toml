@@ -5,9 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
+default = ["mock_auth"]
 #default = ["oidc"]
-default = []
 oidc = ["dep:axum-oidc"]
+mock_auth = []
 
 [dependencies]
 axum = "0.7.5"

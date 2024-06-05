@@ -6,10 +6,10 @@ use axum::{
     extract::State,
     response::Response,
     routing::{delete, get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 
-use crate::{error_handler, RestStateDef};
+use crate::{error_handler, Context, RestStateDef};
 use service::PermissionService;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -80,6 +80,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
 
 pub async fn add_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(user): Json<UserTO>,
 ) -> Response {
     println!("Adding user: {:?}", user);
@@ -87,7 +88,7 @@ pub async fn add_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .create_user(user.name.as_str(), ().into())
+                .create_user(user.name.as_str(), context.into())
                 .await?;
             Ok(Response::builder()
                 .status(201)
@@ -100,6 +101,7 @@ pub async fn add_user<RestState: RestStateDef>(
 
 pub async fn remove_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(user): Json<String>,
 ) -> Response {
     println!("Removing user: {:?}", user);
@@ -107,7 +109,7 @@ pub async fn remove_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .permission_service()
-                .delete_user(&user, ().into())
+                .delete_user(&user, context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -120,13 +122,14 @@ pub async fn remove_user<RestState: RestStateDef>(
 
 pub async fn add_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(role): Json<RoleTO>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .permission_service()
-                .create_role(role.name.as_str(), ().into())
+                .create_role(role.name.as_str(), context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -139,13 +142,14 @@ pub async fn add_role<RestState: RestStateDef>(
 
 pub async fn delete_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(role): Json<String>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .permission_service()
-                .delete_role(role.as_str(), ().into())
+                .delete_role(role.as_str(), context.into())
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -158,13 +162,18 @@ pub async fn delete_role<RestState: RestStateDef>(
 
 pub async fn add_user_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(user_role): Json<UserRole>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .permission_service()
-                .add_user_role(user_role.user.as_str(), user_role.role.as_str(), ().into())
+                .add_user_role(
+                    user_role.user.as_str(),
+                    user_role.role.as_str(),
+                    context.into(),
+                )
                 .await?;
             Ok(Response::builder()
                 .status(201)
@@ -177,13 +186,18 @@ pub async fn add_user_role<RestState: RestStateDef>(
 
 pub async fn remove_user_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(user_role): Json<UserRole>,
 ) -> Response {
     error_handler(
         (async {
             rest_state
                 .permission_service()
-                .delete_user_role(user_role.user.as_str(), user_role.role.as_str(), ().into())
+                .delete_user_role(
+                    user_role.user.as_str(),
+                    user_role.role.as_str(),
+                    context.into(),
+                )
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -196,6 +210,7 @@ pub async fn remove_user_role<RestState: RestStateDef>(
 
 pub async fn add_role_privilege<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(role_privilege): Json<RolePrivilege>,
 ) -> Response {
     error_handler(
@@ -205,7 +220,7 @@ pub async fn add_role_privilege<RestState: RestStateDef>(
                 .add_role_privilege(
                     role_privilege.role.as_str(),
                     role_privilege.privilege.as_str(),
-                    ().into(),
+                    context.into(),
                 )
                 .await?;
             Ok(Response::builder()
@@ -219,6 +234,7 @@ pub async fn add_role_privilege<RestState: RestStateDef>(
 
 pub async fn remove_role_privilege<RestState: RestStateDef>(
     rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
     Json(role_privilege): Json<RolePrivilege>,
 ) -> Response {
     error_handler(
@@ -228,7 +244,7 @@ pub async fn remove_role_privilege<RestState: RestStateDef>(
                 .delete_role_privilege(
                     role_privilege.role.as_str(),
                     role_privilege.privilege.as_str(),
-                    ().into(),
+                    context.into(),
                 )
                 .await?;
             Ok(Response::builder()
@@ -240,12 +256,15 @@ pub async fn remove_role_privilege<RestState: RestStateDef>(
     )
 }
 
-pub async fn get_all_users<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
+pub async fn get_all_users<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
     error_handler(
         (async {
             let users: Arc<[UserTO]> = rest_state
                 .permission_service()
-                .get_all_users(().into())
+                .get_all_users(context.into())
                 .await?
                 .iter()
                 .map(UserTO::from)
@@ -259,12 +278,15 @@ pub async fn get_all_users<RestState: RestStateDef>(rest_state: State<RestState>
     )
 }
 
-pub async fn get_all_roles<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
+pub async fn get_all_roles<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
     error_handler(
         (async {
             let roles: Arc<[RoleTO]> = rest_state
                 .permission_service()
-                .get_all_roles(().into())
+                .get_all_roles(context.into())
                 .await?
                 .iter()
                 .map(RoleTO::from)
@@ -278,12 +300,15 @@ pub async fn get_all_roles<RestState: RestStateDef>(rest_state: State<RestState>
     )
 }
 
-pub async fn get_all_privileges<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
+pub async fn get_all_privileges<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
     error_handler(
         (async {
             let privileges: Arc<[PrivilegeTO]> = rest_state
                 .permission_service()
-                .get_all_privileges(().into())
+                .get_all_privileges(context.into())
                 .await?
                 .iter()
                 .map(PrivilegeTO::from)
