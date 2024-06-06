@@ -5,13 +5,19 @@ mod permission;
 mod sales_person;
 mod slot;
 
+#[cfg(feature = "oidc")]
+use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Request, State};
+#[cfg(feature = "oidc")]
 use axum::http::Uri;
-use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Redirect};
+use axum::middleware::Next;
+use axum::middleware::{self};
+#[cfg(feature = "oidc")]
+use axum::response::IntoResponse;
+use axum::response::Redirect;
 use axum::routing::get;
 use axum::Extension;
-use axum::{body::Body, error_handling::HandleErrorLayer, response::Response, Router};
+use axum::{body::Body, response::Response, Router};
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use serde::{Deserialize, Serialize};
@@ -19,8 +25,9 @@ use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
 use thiserror::Error;
-use time::Duration;
+#[cfg(feature = "oidc")]
 use tower::ServiceBuilder;
+#[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer};
 use uuid::Uuid;
 
@@ -264,7 +271,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     #[cfg(feature = "oidc")]
     let app = {
         use axum_oidc::error::MiddlewareError;
-        use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
+        use axum_oidc::{EmptyAdditionalClaims, OidcLoginLayer};
 
         let oidc_login_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
@@ -288,7 +295,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     #[cfg(feature = "oidc")]
     let app = {
         use axum_oidc::error::MiddlewareError;
-        use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
+        use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer};
 
         let oidc_config = oidc_config();
         let session_store = MemoryStore::default();
