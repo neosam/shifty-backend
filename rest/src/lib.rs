@@ -21,6 +21,8 @@ use axum::{body::Body, response::Response, Router};
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "mock_auth")]
+use service::permission::MockContext;
 use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
@@ -31,9 +33,8 @@ use tower::ServiceBuilder;
 use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer};
 use uuid::Uuid;
 
-// TODO: In prod, it must be a different type than in dev mode.
 #[cfg(feature = "mock_auth")]
-type Context = ();
+type Context = MockContext;
 #[cfg(feature = "oidc")]
 type Context = Option<Arc<str>>;
 
@@ -216,9 +217,9 @@ pub fn oidc_config() -> OidcConfig {
     let client_id = std::env::var("CLIENT_ID").expect("CLIENT_ID env variable");
     let client_secret = std::env::var("CLIENT_SECRET").ok();
     OidcConfig {
-        app_url: app_url.into(),
-        issuer: issuer.into(),
-        client_id: client_id.into(),
+        app_url,
+        issuer,
+        client_id,
         client_secret: client_secret.unwrap_or_default().into(),
     }
 }
@@ -245,7 +246,7 @@ pub async fn auth_info<RestState: RestStateDef>(
 ) -> Response {
     let user = rest_state
         .user_service()
-        .current_user(context.clone().into())
+        .current_user(context.clone())
         .await
         .unwrap_or_else(|_| "NoUser".into());
     let privileges: Arc<[Arc<str>]> = rest_state
@@ -253,12 +254,12 @@ pub async fn auth_info<RestState: RestStateDef>(
         .get_privileges_for_current_user(context.into())
         .await
         .unwrap_or_else(|_| Arc::new([]))
-        .into_iter()
+        .iter()
         .map(|privilege| privilege.name.clone())
         .collect();
     let auth_info = AuthInfoTO { user, privileges };
 
-    let response = serde_json::to_string(&AuthInfoTO::from(auth_info)).unwrap();
+    let response = serde_json::to_string(&auth_info).unwrap();
     Response::builder()
         .status(200)
         .body(Body::new(response))

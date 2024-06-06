@@ -11,12 +11,13 @@ mod test;
 pub mod uuid_service;
 
 pub use permission::PermissionServiceImpl;
+use service::permission::MockContext;
 
 pub struct UserServiceDev;
 
 #[async_trait]
 impl service::user_service::UserService for UserServiceDev {
-    type Context = ();
+    type Context = MockContext;
 
     async fn current_user(
         &self,
@@ -36,8 +37,6 @@ impl service::user_service::UserService for UserServiceImpl {
         &self,
         context: Self::Context,
     ) -> Result<Arc<str>, service::ServiceError> {
-        context
-            .ok_or_else(|| service::ServiceError::Unauthorized)
-            .map(|user| user.clone())
+        context.ok_or_else(|| service::ServiceError::Unauthorized)
     }
 }

@@ -54,7 +54,11 @@ async fn test_user_service_dev() {
     let user_service = UserServiceDev;
     assert_eq!(
         "DEVUSER",
-        user_service.current_user(()).await.unwrap().as_ref()
+        user_service
+            .current_user(MockContext)
+            .await
+            .unwrap()
+            .as_ref()
     );
 }
 

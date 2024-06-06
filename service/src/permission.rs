@@ -6,6 +6,11 @@ use mockall::automock;
 
 use crate::ServiceError;
 
+/// For mocking the context locally since there is actually
+/// no context.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MockContext;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct User {
     pub name: Arc<str>,
