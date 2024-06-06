@@ -5,48 +5,11 @@ use axum::extract::Path;
 use axum::routing::{delete, get, post, put};
 use axum::{extract::State, response::Response};
 use axum::{Extension, Json, Router};
-use serde::{Deserialize, Serialize};
-use service::sales_person::SalesPerson;
+use rest_types::SalesPersonTO;
 use service::sales_person::SalesPersonService;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestError, RestStateDef};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SalesPersonTO {
-    #[serde(default)]
-    pub id: Uuid,
-    pub name: Arc<str>,
-    #[serde(default)]
-    pub inactive: bool,
-    #[serde(default)]
-    pub deleted: Option<time::PrimitiveDateTime>,
-    #[serde(rename = "$version")]
-    #[serde(default)]
-    pub version: Uuid,
-}
-impl From<&SalesPerson> for SalesPersonTO {
-    fn from(sales_person: &SalesPerson) -> Self {
-        Self {
-            id: sales_person.id,
-            name: sales_person.name.clone(),
-            inactive: sales_person.inactive,
-            deleted: sales_person.deleted,
-            version: sales_person.version,
-        }
-    }
-}
-impl From<&SalesPersonTO> for SalesPerson {
-    fn from(sales_person: &SalesPersonTO) -> Self {
-        Self {
-            id: sales_person.id,
-            name: sales_person.name.clone(),
-            inactive: sales_person.inactive,
-            deleted: sales_person.deleted,
-            version: sales_person.version,
-        }
-    }
-}
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()

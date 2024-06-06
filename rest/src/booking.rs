@@ -5,57 +5,11 @@ use axum::extract::Path;
 use axum::routing::{delete, get, post};
 use axum::{extract::State, response::Response};
 use axum::{Extension, Json, Router};
-use serde::{Deserialize, Serialize};
-use time::PrimitiveDateTime;
+use rest_types::BookingTO;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
 use service::booking::{Booking, BookingService};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BookingTO {
-    #[serde(default)]
-    pub id: Uuid,
-    pub sales_person_id: Uuid,
-    pub slot_id: Uuid,
-    pub calendar_week: i32,
-    pub year: u32,
-    #[serde(default)]
-    pub created: Option<PrimitiveDateTime>,
-    #[serde(default)]
-    pub deleted: Option<PrimitiveDateTime>,
-    #[serde(rename = "$version")]
-    #[serde(default)]
-    pub version: Uuid,
-}
-impl From<&Booking> for BookingTO {
-    fn from(booking: &Booking) -> Self {
-        Self {
-            id: booking.id,
-            sales_person_id: booking.sales_person_id,
-            slot_id: booking.slot_id,
-            calendar_week: booking.calendar_week,
-            year: booking.year,
-            created: booking.created,
-            deleted: booking.deleted,
-            version: booking.version,
-        }
-    }
-}
-impl From<&BookingTO> for Booking {
-    fn from(booking: &BookingTO) -> Self {
-        Self {
-            id: booking.id,
-            sales_person_id: booking.sales_person_id,
-            slot_id: booking.slot_id,
-            calendar_week: booking.calendar_week,
-            year: booking.year,
-            created: booking.created,
-            deleted: booking.deleted,
-            version: booking.version,
-        }
-    }
-}
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()

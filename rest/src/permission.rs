@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+use rest_types::*;
 
 use axum::{
     body::Body,
@@ -11,54 +12,6 @@ use axum::{
 
 use crate::{error_handler, Context, RestStateDef};
 use service::PermissionService;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserTO {
-    pub name: String,
-}
-impl From<&service::User> for UserTO {
-    fn from(user: &service::User) -> Self {
-        Self {
-            name: user.name.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RoleTO {
-    pub name: String,
-}
-impl From<&service::Role> for RoleTO {
-    fn from(role: &service::Role) -> Self {
-        Self {
-            name: role.name.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PrivilegeTO {
-    pub name: String,
-}
-impl From<&service::Privilege> for PrivilegeTO {
-    fn from(privilege: &service::Privilege) -> Self {
-        Self {
-            name: privilege.name.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserRole {
-    pub user: String,
-    pub role: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RolePrivilege {
-    pub role: String,
-    pub privilege: String,
-}
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()

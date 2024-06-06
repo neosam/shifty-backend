@@ -1740,6 +1740,7 @@ dependencies = [
  "axum-oidc",
  "bytes",
  "http-body 1.0.0",
+ "rest-types",
  "serde",
  "serde_json",
  "service",
@@ -1748,6 +1749,16 @@ dependencies = [
  "tokio",
  "tower",
  "tower-sessions",
+ "uuid",
+]
+
+[[package]]
+name = "rest-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "service",
+ "time",
  "uuid",
 ]
 

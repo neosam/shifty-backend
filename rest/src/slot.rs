@@ -7,92 +7,11 @@ use axum::{
     routing::{get, post, put},
     Extension, Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use rest_types::SlotTO;
 use service::slot::SlotService;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestError, RestStateDef};
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
-pub enum DayOfWeek {
-    Monday,
-    Tuesday,
-    Wednesday,
-    Thursday,
-    Friday,
-    Saturday,
-    Sunday,
-}
-impl From<service::slot::DayOfWeek> for DayOfWeek {
-    fn from(day_of_week: service::slot::DayOfWeek) -> Self {
-        match day_of_week {
-            service::slot::DayOfWeek::Monday => Self::Monday,
-            service::slot::DayOfWeek::Tuesday => Self::Tuesday,
-            service::slot::DayOfWeek::Wednesday => Self::Wednesday,
-            service::slot::DayOfWeek::Thursday => Self::Thursday,
-            service::slot::DayOfWeek::Friday => Self::Friday,
-            service::slot::DayOfWeek::Saturday => Self::Saturday,
-            service::slot::DayOfWeek::Sunday => Self::Sunday,
-        }
-    }
-}
-impl From<DayOfWeek> for service::slot::DayOfWeek {
-    fn from(day_of_week: DayOfWeek) -> Self {
-        match day_of_week {
-            DayOfWeek::Monday => Self::Monday,
-            DayOfWeek::Tuesday => Self::Tuesday,
-            DayOfWeek::Wednesday => Self::Wednesday,
-            DayOfWeek::Thursday => Self::Thursday,
-            DayOfWeek::Friday => Self::Friday,
-            DayOfWeek::Saturday => Self::Saturday,
-            DayOfWeek::Sunday => Self::Sunday,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SlotTO {
-    #[serde(default)]
-    pub id: Uuid,
-    pub day_of_week: DayOfWeek,
-    pub from: time::Time,
-    pub to: time::Time,
-    pub valid_from: time::Date,
-    pub valid_to: Option<time::Date>,
-    #[serde(default)]
-    pub deleted: Option<time::PrimitiveDateTime>,
-    #[serde(rename = "$version")]
-    #[serde(default)]
-    pub version: Uuid,
-}
-impl From<&service::slot::Slot> for SlotTO {
-    fn from(slot: &service::slot::Slot) -> Self {
-        Self {
-            id: slot.id,
-            day_of_week: slot.day_of_week.into(),
-            from: slot.from,
-            to: slot.to,
-            valid_from: slot.valid_from,
-            valid_to: slot.valid_to,
-            deleted: slot.deleted,
-            version: slot.version,
-        }
-    }
-}
-impl From<&SlotTO> for service::slot::Slot {
-    fn from(slot: &SlotTO) -> Self {
-        Self {
-            id: slot.id,
-            day_of_week: slot.day_of_week.into(),
-            from: slot.from,
-            to: slot.to,
-            valid_from: slot.valid_from,
-            valid_to: slot.valid_to,
-            deleted: slot.deleted,
-            version: slot.version,
-        }
-    }
-}
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
