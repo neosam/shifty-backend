@@ -8,6 +8,7 @@ use tracing::{info, Level};
 
 mod api;
 mod app;
+mod auth;
 mod blog;
 mod home;
 mod i18n;
@@ -24,4 +25,16 @@ fn main() {
 pub struct AuthInfo {
     pub user: Arc<str>,
     pub privileges: Arc<[Arc<str>]>,
+    #[serde(default)]
+    pub authenticated: bool,
+}
+
+impl Default for AuthInfo {
+    fn default() -> Self {
+        Self {
+            user: "n/a".into(),
+            privileges: Arc::new([]),
+            authenticated: false,
+        }
+    }
 }

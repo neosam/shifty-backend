@@ -2011,6 +2011,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "thiserror",
  "tracing",
  "web-sys",
 ]

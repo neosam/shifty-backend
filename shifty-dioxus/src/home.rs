@@ -25,7 +25,7 @@ pub fn Home() -> Element {
         div {
             h1 { "High-Five counter: {count} {backend}" }
             {
-                match &*auth_info.read_unchecked() {
+                /*match &*auth_info.read_unchecked() {
                     Some(Ok(auth_info)) => {
                             rsx! { div { "Logged in as {auth_info.user}" } }
                     }
@@ -35,7 +35,7 @@ pub fn Home() -> Element {
                     None => {
                             rsx! { div { "Fetching username..." } }
                     }
-                }
+                }*/
             }
             button { onclick: move |_| count += 1, "Up high!" }
             button { onclick: move |_| count -= 1, "Down low!" }

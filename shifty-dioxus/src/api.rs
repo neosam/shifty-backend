@@ -5,14 +5,16 @@ use tracing::info;
 
 use crate::{state::Config, AuthInfo};
 
-pub async fn fetch_auth_info(backend_url: Arc<str>) -> Result<AuthInfo, reqwest::Error> {
+pub async fn fetch_auth_info(backend_url: Arc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
     info!("Fetching username");
-    let res = reqwest::get(format!("{}/auth-info", backend_url))
-        .await?
-        .json()
-        .await?;
+    let response = reqwest::get(format!("{}/auth-info", backend_url)).await?;
+    if response.status() != 200 {
+        return Ok(None);
+    }
+    let mut res: AuthInfo = response.json().await?;
+    res.authenticated = true;
     info!("Fetched");
-    Ok(res)
+    Ok(Some(res))
 }
 
 pub async fn load_config() -> Result<Config, reqwest::Error> {
