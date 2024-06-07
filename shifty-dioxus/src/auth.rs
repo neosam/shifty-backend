@@ -20,7 +20,7 @@ pub fn Auth(props: AuthProps) -> Element {
 
     match &*auth_info.read_unchecked() {
         Some(Ok(Some(auth_info))) => {
-            if state.read().auth_info.user.is_empty() {
+            if !state.read().auth_info.authenticated {
                 state.write().auth_info = auth_info.clone();
             }
             {

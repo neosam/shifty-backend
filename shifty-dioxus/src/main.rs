@@ -12,8 +12,10 @@ mod auth;
 mod blog;
 mod home;
 mod i18n;
+mod not_authenticated;
 mod router;
 mod state;
+mod top_bar;
 
 fn main() {
     // Init logger
@@ -32,9 +34,15 @@ pub struct AuthInfo {
 impl Default for AuthInfo {
     fn default() -> Self {
         Self {
-            user: "n/a".into(),
+            user: "".into(),
             privileges: Arc::new([]),
             authenticated: false,
         }
+    }
+}
+
+impl AuthInfo {
+    pub fn has_privilege(&self, privilege: &str) -> bool {
+        self.privileges.iter().any(|p| p.as_ref() == privilege)
     }
 }

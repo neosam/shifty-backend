@@ -1,4 +1,6 @@
 use crate::auth::Auth;
+use crate::not_authenticated::NotAuthenticated;
+use crate::top_bar::TopBar;
 use crate::{api, AuthInfo};
 use crate::{i18n, router::Route, state::State};
 use dioxus::prelude::*;
@@ -18,10 +20,13 @@ pub fn App() -> Element {
                 /* Router::<Route> {} */
                 Auth {
                     authenticated: rsx! {
-                        div { "Authenticated" }
+                        div {
+                            Router::<Route> {}
+                        }
                     },
                     unauthenticated: rsx! {
-                        div { "Not authenticated" }
+                        TopBar {}
+                        NotAuthenticated {}
                     }
                 }
             }
@@ -33,7 +38,7 @@ pub fn App() -> Element {
         }
         None => {
             rsx! {
-                div { "Loading technical configuration..." }
+                div { "Loading application configuration." }
             }
         }
     }

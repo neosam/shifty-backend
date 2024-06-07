@@ -38,3 +38,13 @@ body {
 #header {
     max-width: 1200px;
 }
+
+div.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #1f1f1f;
+    width: 100%;
+    color: white;
+}
