@@ -14,8 +14,10 @@ mod home;
 mod i18n;
 mod not_authenticated;
 mod router;
+mod shiftplan;
 mod state;
 mod top_bar;
+mod week_view;
 
 fn main() {
     // Init logger

@@ -21,7 +21,7 @@ pub fn TopBar() -> Element {
                     if (state.read().auth_info.has_privilege("sales")) {
                         li {
                             Link {
-                                to: Route::Home {},
+                                to: Route::ShiftPlan {},
                                 "Shift plan"
                             }
                         }
