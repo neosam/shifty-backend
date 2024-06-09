@@ -4,7 +4,7 @@ use crate::{router::Route, state::State};
 
 #[component]
 pub fn TopBar() -> Element {
-    let mut state = use_context::<Signal<State>>();
+    let state = use_context::<Signal<State>>();
 
     rsx! {
         div {
@@ -18,7 +18,7 @@ pub fn TopBar() -> Element {
                 class: "flex grow ml-4 justify-between",
                 ul {
                     class: "flex space-x-4",
-                    if (state.read().auth_info.has_privilege("sales")) {
+                    if state.read().auth_info.has_privilege("sales") {
                         li {
                             Link {
                                 to: Route::ShiftPlan {},
@@ -26,7 +26,7 @@ pub fn TopBar() -> Element {
                             }
                         }
                     }
-                    if (state.read().auth_info.has_privilege("hr")) {
+                    if state.read().auth_info.has_privilege("hr") {
                         li {
                             Link {
                                 to: Route::Home {},

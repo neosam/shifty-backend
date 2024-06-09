@@ -4,6 +4,7 @@ pub mod en;
 
 pub use i18n::I18n;
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Locale {
     En,

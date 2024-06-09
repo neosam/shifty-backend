@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
-use dioxus::prelude::*;
+use rest_types::SlotTO;
 use tracing::info;
 
 use crate::{state::Config, AuthInfo};
 
-pub async fn fetch_auth_info(backend_url: Arc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
+pub async fn fetch_auth_info(backend_url: Rc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
     info!("Fetching username");
     let response = reqwest::get(format!("{}/auth-info", backend_url)).await?;
     if response.status() != 200 {
@@ -19,11 +19,6 @@ pub async fn fetch_auth_info(backend_url: Arc<str>) -> Result<Option<AuthInfo>, 
 
 pub async fn load_config() -> Result<Config, reqwest::Error> {
     info!("Loading config.json");
-    //let url = web_sys::window()
-    //    .expect("no window")
-    //    .location()
-    //    .href()
-    //    .expect("no href");
     let protocol = web_sys::window()
         .expect("no window")
         .location()
@@ -38,5 +33,13 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
     info!("URL: {url}");
     let res = reqwest::get(url).await?.json().await?;
     info!("Loaded");
+    Ok(res)
+}
+
+pub async fn get_slots() -> Result<Rc<[SlotTO]>, reqwest::Error> {
+    info!("Fetching slots");
+    let response = reqwest::get("http://localhost:8080/slots").await?;
+    let res = response.json().await?;
+    info!("Fetched");
     Ok(res)
 }

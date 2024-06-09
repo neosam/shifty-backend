@@ -20,3 +20,10 @@ async-recursion = "1.1.1"
 futures = "0.3.30"
 web-sys = "0.3.69"
 thiserror = "1.0.61"
+time = "0.3.36"
+
+[dependencies.rest-types]
+path = "../shifty-backend/rest-types"
+[dependencies.uuid]
+version = "*"
+features = ["v4", "js"]

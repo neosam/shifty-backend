@@ -1,43 +1,16 @@
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
-use crate::{
-    i18n::{I18n, Key, Locale},
-    state::State,
-};
+use crate::state::{Slot, State, Weekday};
 use dioxus::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Weekday {
-    Monday,
-    Tuesday,
-    Wednesday,
-    Thursday,
-    Friday,
-    Saturday,
-    Sunday,
-}
-impl Weekday {
-    pub fn i18n_string(&self, i18n: &I18n<Key, Locale>) -> Rc<str> {
-        match self {
-            Weekday::Monday => i18n.t(Key::Monday),
-            Weekday::Tuesday => i18n.t(Key::Tuesday),
-            Weekday::Wednesday => i18n.t(Key::Wednesday),
-            Weekday::Thursday => i18n.t(Key::Thursday),
-            Weekday::Friday => i18n.t(Key::Friday),
-            Weekday::Saturday => i18n.t(Key::Saturday),
-            Weekday::Sunday => i18n.t(Key::Sunday),
-        }
-    }
-}
-
 #[derive(PartialEq, Clone, Props)]
-pub struct Slot {
+pub struct ColumnViewItem {
     pub start: f32,
     pub end: f32,
     pub title: Rc<str>,
 }
 
-pub fn ColumnViewSlot(props: Slot) -> Element {
+pub fn ColumnViewSlot(props: ColumnViewItem) -> Element {
     rsx! {
         div {
             class: "w-full absolute border-solid border-black border truncate",
@@ -54,7 +27,7 @@ pub struct ColumnViewProps {
     pub height: f32,
     pub scale: f32,
     pub offset: f32,
-    pub slots: Rc<[Slot]>,
+    pub slots: Rc<[ColumnViewItem]>,
     pub title: Option<Rc<str>>,
 }
 
@@ -84,14 +57,14 @@ pub fn ColumnView(props: ColumnViewProps) -> Element {
 
 #[component]
 pub fn TimeView() -> Element {
-    let slots: Vec<Slot> = (0..24)
-        .map(|i| Slot {
+    let slots: Vec<ColumnViewItem> = (0..24)
+        .map(|i| ColumnViewItem {
             start: i as f32,
             end: i as f32 + 1.0,
             title: format!("{:02}:00-{:02}:00", i, i + 1).into(),
         })
         .collect();
-    let slots: Rc<[Slot]> = slots.into();
+    let slots: Rc<[ColumnViewItem]> = slots.into();
 
     rsx! {
         ColumnView {
@@ -106,7 +79,7 @@ pub fn TimeView() -> Element {
 #[derive(PartialEq, Clone, Props)]
 pub struct DayViewProps {
     pub weekday: Weekday,
-    pub slots: Rc<[Slot]>,
+    pub slots: Rc<[ColumnViewItem]>,
 }
 
 #[component]
@@ -124,6 +97,11 @@ pub fn DayView(props: DayViewProps) -> Element {
     }
 }
 
+#[derive(PartialEq, Clone, Props)]
+pub struct WeekViewProps {
+    pub slots: Rc<[Slot]>,
+}
+
 #[component]
 pub fn WeekView() -> Element {
     rsx! {
@@ -131,7 +109,7 @@ pub fn WeekView() -> Element {
             class: "flex flex-row",
             TimeView {}
             DayView { weekday: Weekday::Monday, slots: vec![
-                Slot {
+                ColumnViewItem {
                     start: 0.0,
                     end: 1.0,
                     title: "Test".into(),

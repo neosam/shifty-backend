@@ -1,7 +1,5 @@
 use dioxus::prelude::*;
 
-use crate::api;
-use crate::router::Route;
 use crate::state::State;
 use crate::top_bar::TopBar;
 
