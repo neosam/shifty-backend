@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
+use crate::component::TopBar;
 use crate::state::State;
-use crate::top_bar::TopBar;
 
 #[component]
 pub fn Home() -> Element {

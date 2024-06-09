@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
-use crate::top_bar::TopBar;
-use crate::week_view::WeekView;
+use crate::component::TopBar;
+use crate::component::WeekView;
 
 #[component]
 pub fn ShiftPlan() -> Element {

@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
-pub use crate::home::Home;
-pub use crate::shiftplan::ShiftPlan;
+pub use crate::page::Home;
+pub use crate::page::ShiftPlan;
 
 #[derive(Clone, Routable, Debug, PartialEq)]
 pub enum Route {

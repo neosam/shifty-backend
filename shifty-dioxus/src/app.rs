@@ -1,6 +1,6 @@
 use crate::auth::Auth;
-use crate::not_authenticated::NotAuthenticated;
-use crate::top_bar::TopBar;
+use crate::component::TopBar;
+use crate::page::NotAuthenticated;
 use crate::{api, AuthInfo};
 use crate::{i18n, router::Route, state::State};
 use dioxus::prelude::*;
