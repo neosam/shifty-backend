@@ -24,6 +24,9 @@ impl service::user_service::UserService for UserServiceDev {
         _context: Self::Context,
     ) -> Result<Arc<str>, service::ServiceError> {
         Ok("DEVUSER".into())
+
+        // Uncomment to test unauthorized response (not logged in)
+        //Err(service::ServiceError::Unauthorized)
     }
 }
 

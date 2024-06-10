@@ -20,6 +20,7 @@ use axum::Extension;
 use axum::{body::Body, response::Response, Router};
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
+use axum_util::cors::CorsLayer;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
@@ -28,7 +29,7 @@ use service::PermissionService;
 use service::ServiceError;
 use thiserror::Error;
 #[cfg(feature = "oidc")]
-use tower::ServiceBuilder;
+use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer};
 use uuid::Uuid;
@@ -58,7 +59,7 @@ pub async fn context_extractor(
 }
 #[cfg(feature = "mock_auth")]
 pub async fn context_extractor(mut request: Request, next: Next) -> Response {
-    request.extensions_mut().insert(());
+    request.extensions_mut().insert(MockContext);
     next.run(request).await
 }
 
@@ -244,26 +245,29 @@ pub async fn auth_info<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
 ) -> Response {
-    let user = rest_state
-        .user_service()
-        .current_user(context.clone())
-        .await
-        .unwrap_or_else(|_| "NoUser".into());
-    let privileges: Arc<[Arc<str>]> = rest_state
-        .permission_service()
-        .get_privileges_for_current_user(context.into())
-        .await
-        .unwrap_or_else(|_| Arc::new([]))
-        .iter()
-        .map(|privilege| privilege.name.clone())
-        .collect();
-    let auth_info = AuthInfoTO { user, privileges };
+    error_handler(
+        (async {
+            let user = rest_state
+                .user_service()
+                .current_user(context.clone())
+                .await?;
+            let privileges: Arc<[Arc<str>]> = rest_state
+                .permission_service()
+                .get_privileges_for_current_user(context.into())
+                .await?
+                .iter()
+                .map(|privilege| privilege.name.clone())
+                .collect();
+            let auth_info = AuthInfoTO { user, privileges };
 
-    let response = serde_json::to_string(&auth_info).unwrap();
-    Response::builder()
-        .status(200)
-        .body(Body::new(response))
-        .unwrap()
+            let response = serde_json::to_string(&auth_info).unwrap();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(response))
+                .unwrap())
+        })
+        .await,
+    )
 }
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
