@@ -20,7 +20,6 @@ use axum::Extension;
 use axum::{body::Body, response::Response, Router};
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-use axum_util::cors::CorsLayer;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
@@ -29,9 +28,11 @@ use service::PermissionService;
 use service::ServiceError;
 use thiserror::Error;
 #[cfg(feature = "oidc")]
+use tower::ServiceBuilder;
+#[cfg(feature = "oidc")]
 use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
-use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer};
+use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use uuid::Uuid;
 
 #[cfg(feature = "mock_auth")]
