@@ -1,6 +1,9 @@
 use std::rc::Rc;
 
-use crate::state::{Slot, State, Weekday};
+use crate::{
+    i18n,
+    state::{Slot, Weekday},
+};
 use dioxus::prelude::*;
 
 #[derive(PartialEq, Clone, Props)]
@@ -84,8 +87,7 @@ pub struct DayViewProps {
 
 #[component]
 pub fn DayView(props: DayViewProps) -> Element {
-    let state = use_context::<Signal<State>>();
-    let i18n = state.read().i18n.clone();
+    let i18n = use_context::<i18n::I18nType>();
     rsx! {
         ColumnView {
             height: 2400.0 * 3.0,

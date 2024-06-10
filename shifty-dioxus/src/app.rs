@@ -1,21 +1,24 @@
+use std::rc::Rc;
+
 use crate::auth::Auth;
 use crate::component::TopBar;
 use crate::page::NotAuthenticated;
-use crate::{api, AuthInfo};
-use crate::{i18n, router::Route, state::State};
+use crate::{api, state, state::AuthInfo};
+use crate::{i18n, router::Route};
 use dioxus::prelude::*;
+use futures_util::StreamExt;
+use tracing::info;
+
+pub enum AppAction {
+    SetConfig(state::Config),
+}
 
 pub fn App() -> Element {
-    let config = use_resource(|| api::load_config());
-    match &*config.read_unchecked() {
+    let config_resource = use_resource(|| api::load_config());
+    use_context_provider(|| i18n::generate(i18n::Locale::De));
+    match &*config_resource.read_unchecked() {
         Some(Ok(config)) => {
-            use_context_provider(|| {
-                Signal::new(State {
-                    config: config.clone(),
-                    i18n: i18n::generate(i18n::Locale::De).into(),
-                    auth_info: AuthInfo::default(),
-                })
-            });
+            use_context_provider(|| config.clone());
             rsx! {
                 /* Router::<Route> {} */
                 Auth {

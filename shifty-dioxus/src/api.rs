@@ -3,7 +3,7 @@ use std::rc::Rc;
 use rest_types::SlotTO;
 use tracing::info;
 
-use crate::{state::Config, AuthInfo};
+use crate::state::{AuthInfo, Config};
 
 pub async fn fetch_auth_info(backend_url: Rc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
     info!("Fetching username");

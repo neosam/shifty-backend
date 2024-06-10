@@ -1,9 +1,8 @@
-pub mod i18n;
 pub mod de;
 pub mod en;
+pub mod i18n;
 
 pub use i18n::I18n;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Locale {
@@ -36,3 +35,5 @@ pub fn generate(locale: Locale) -> I18n<Key, Locale> {
 
     i18n
 }
+
+pub type I18nType = I18n<Key, Locale>;

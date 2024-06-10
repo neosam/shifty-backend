@@ -2147,6 +2147,7 @@ dependencies = [
  "dioxus",
  "dioxus-logger",
  "futures",
+ "futures-util",
  "reqwest",
  "rest-types",
  "serde",

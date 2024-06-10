@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{api, state::State};
+use crate::{api, state};
 
 #[derive(PartialEq, Clone, Props)]
 pub struct AuthProps {
@@ -10,8 +10,7 @@ pub struct AuthProps {
 
 #[component]
 pub fn Auth(props: AuthProps) -> Element {
-    let mut state = use_context::<Signal<State>>();
-    let backend = state.read().config.backend.clone();
+    let backend = use_context::<state::Config>().backend;
 
     let auth_info = {
         let backend = backend.clone();
@@ -20,9 +19,7 @@ pub fn Auth(props: AuthProps) -> Element {
 
     match &*auth_info.read_unchecked() {
         Some(Ok(Some(auth_info))) => {
-            if !state.read().auth_info.authenticated {
-                state.write().auth_info = auth_info.clone();
-            }
+            use_context_provider(|| auth_info.clone());
             {
                 props.authenticated
             }

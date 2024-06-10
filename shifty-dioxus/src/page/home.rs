@@ -1,13 +1,12 @@
 use dioxus::prelude::*;
 
 use crate::component::TopBar;
-use crate::state::State;
+use crate::state;
 
 #[component]
 pub fn Home() -> Element {
     let mut count = use_signal(|| 0);
-    let state = use_context::<Signal<State>>();
-    let backend = state.read().config.backend.clone();
+    let backend = use_context::<state::Config>().backend.clone();
 
     rsx! {
         TopBar {}

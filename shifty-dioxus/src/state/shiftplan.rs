@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::{
     i18n::{self, I18n, Key, Locale},
-    AuthInfo,
+    state::AuthInfo,
 };
 use rest_types::{DayOfWeekTO, SlotTO};
 use serde::{Deserialize, Serialize};
