@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
 use crate::{
-    i18n,
+    i18n, state,
     state::{Slot, Weekday},
 };
 use dioxus::prelude::*;
+use dioxus_elements::p;
 
 #[derive(PartialEq, Clone, Props)]
 pub struct ColumnViewItem {
@@ -32,6 +33,16 @@ pub struct ColumnViewProps {
     pub offset: f32,
     pub slots: Rc<[ColumnViewItem]>,
     pub title: Option<Rc<str>>,
+}
+
+impl From<Slot> for ColumnViewItem {
+    fn from(slot: Slot) -> Self {
+        ColumnViewItem {
+            start: slot.from_hour(),
+            end: slot.to_hour(),
+            title: "".into(),
+        }
+    }
 }
 
 #[component]
@@ -82,7 +93,7 @@ pub fn TimeView() -> Element {
 #[derive(PartialEq, Clone, Props)]
 pub struct DayViewProps {
     pub weekday: Weekday,
-    pub slots: Rc<[ColumnViewItem]>,
+    pub slots: Rc<[state::Slot]>,
 }
 
 #[component]
@@ -93,7 +104,7 @@ pub fn DayView(props: DayViewProps) -> Element {
             height: 2400.0 * 3.0,
             scale: 30.0,
             offset: 30.0,
-            slots: props.slots,
+            slots: props.slots.iter().map(|slot| ColumnViewItem::from(slot.clone())).collect(),
             title: Some(props.weekday.i18n_string(&i18n)),
         }
     }
@@ -101,28 +112,22 @@ pub fn DayView(props: DayViewProps) -> Element {
 
 #[derive(PartialEq, Clone, Props)]
 pub struct WeekViewProps {
-    pub slots: Rc<[Slot]>,
+    pub shiftplan_data: state::Shiftplan,
 }
 
 #[component]
-pub fn WeekView() -> Element {
+pub fn WeekView(props: WeekViewProps) -> Element {
     rsx! {
         div {
             class: "flex flex-row",
             TimeView {}
-            DayView { weekday: Weekday::Monday, slots: vec![
-                ColumnViewItem {
-                    start: 0.0,
-                    end: 1.0,
-                    title: "Test".into(),
-                }
-            ].into()}
-            DayView { weekday: Weekday::Tuesday, slots: vec![].into()}
-            DayView { weekday: Weekday::Wednesday, slots: vec![].into()}
-            DayView { weekday: Weekday::Thursday, slots: vec![].into()}
-            DayView { weekday: Weekday::Friday, slots: vec![].into()}
-            DayView { weekday: Weekday::Saturday, slots: vec![].into()}
-            DayView { weekday: Weekday::Sunday, slots: vec![].into()}
+            DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday)}
+            DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday)}
+            DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday)}
+            DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday)}
+            DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday)}
+            DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday)}
+            DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday)}
         }
     }
 }

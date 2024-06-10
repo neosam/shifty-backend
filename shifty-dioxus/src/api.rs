@@ -38,7 +38,7 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
 
 pub async fn get_slots() -> Result<Rc<[SlotTO]>, reqwest::Error> {
     info!("Fetching slots");
-    let response = reqwest::get("http://localhost:8080/slots").await?;
+    let response = reqwest::get("http://localhost:8080/slot").await?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
