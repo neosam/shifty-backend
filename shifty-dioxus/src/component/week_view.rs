@@ -69,12 +69,18 @@ pub fn ColumnView(props: ColumnViewProps) -> Element {
     }
 }
 
+#[derive(PartialEq, Clone, Props)]
+pub struct TimeViewProps {
+    pub start: u8,
+    pub end: u8,
+}
+
 #[component]
-pub fn TimeView() -> Element {
-    let slots: Vec<ColumnViewItem> = (0..24)
+pub fn TimeView(props: TimeViewProps) -> Element {
+    let slots: Vec<ColumnViewItem> = (props.start..props.end)
         .map(|i| ColumnViewItem {
-            start: i as f32,
-            end: i as f32 + 1.0,
+            start: (i - props.start) as f32,
+            end: (i - props.start) as f32 + 1.0,
             title: format!("{:02}:00-{:02}:00", i, i + 1).into(),
         })
         .collect();
@@ -82,8 +88,8 @@ pub fn TimeView() -> Element {
 
     rsx! {
         ColumnView {
-            height: 2400.0 * 3.0,
-            scale: 30.0,
+            height: (props.end - props.start) as f32 * 60.0,
+            scale: 60.0,
             offset: 30.0,
             slots: slots,
         }
@@ -94,6 +100,8 @@ pub fn TimeView() -> Element {
 pub struct DayViewProps {
     pub weekday: Weekday,
     pub slots: Rc<[state::Slot]>,
+    pub day_start: f32,
+    pub day_end: f32,
 }
 
 #[component]
@@ -101,10 +109,17 @@ pub fn DayView(props: DayViewProps) -> Element {
     let i18n = use_context::<i18n::I18nType>();
     rsx! {
         ColumnView {
-            height: 2400.0 * 3.0,
-            scale: 30.0,
+            height: (props.day_end - props.day_start) as f32 * 60.0,
+            scale: 60.0,
             offset: 30.0,
-            slots: props.slots.iter().map(|slot| ColumnViewItem::from(slot.clone())).collect(),
+            slots: props.slots.iter()
+                .map(|slot| ColumnViewItem::from(slot.clone()))
+                .map(|column| ColumnViewItem {
+                    start: column.start - props.day_start,
+                    end: column.end - props.day_start,
+                    title: column.title,
+                })
+                .collect(),
             title: Some(props.weekday.i18n_string(&i18n)),
         }
     }
@@ -117,17 +132,19 @@ pub struct WeekViewProps {
 
 #[component]
 pub fn WeekView(props: WeekViewProps) -> Element {
+    let day_start = props.shiftplan_data.min_hour();
+    let day_end = props.shiftplan_data.max_hour();
     rsx! {
         div {
             class: "flex flex-row",
-            TimeView {}
-            DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday)}
-            DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday)}
-            DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday)}
-            DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday)}
-            DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday)}
-            DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday)}
-            DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday)}
+            TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
+            DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday), day_start, day_end}
+            DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday), day_start, day_end}
+            DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end}
+            DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end}
+            DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end}
+            DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end}
+            DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end}
         }
     }
 }

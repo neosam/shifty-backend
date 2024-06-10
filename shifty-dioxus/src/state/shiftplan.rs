@@ -87,4 +87,28 @@ impl Shiftplan {
             .cloned()
             .collect()
     }
+
+    pub fn min_hour(&self) -> f32 {
+        self.slots
+            .iter()
+            .map(|slot| slot.from_hour())
+            .fold(f32::INFINITY, f32::min)
+    }
+
+    pub fn max_hour(&self) -> f32 {
+        self.slots
+            .iter()
+            .map(|slot| slot.to_hour())
+            .fold(f32::NEG_INFINITY, f32::max)
+    }
+
+    pub fn weekdays(&self) -> Rc<[Weekday]> {
+        let mut weekdays = vec![];
+        for slot in self.slots.iter() {
+            if !weekdays.contains(&slot.day_of_week) {
+                weekdays.push(slot.day_of_week.clone());
+            }
+        }
+        weekdays.into()
+    }
 }
