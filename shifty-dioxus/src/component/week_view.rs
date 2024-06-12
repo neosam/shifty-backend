@@ -111,7 +111,7 @@ where
 {
     rsx! {
         div {
-            class: "relative w-full",
+            class: "relative min-w-44",
             style: {
                 format!("height: {}px;", props.height)
             },
@@ -218,15 +218,18 @@ pub fn WeekView(props: WeekViewProps) -> Element {
     let day_end = props.shiftplan_data.max_hour();
     rsx! {
         div {
-            class: "flex flex-row",
-            TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
-            DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday), day_start, day_end, add_event: props.add_event}
-            DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday), day_start, day_end, add_event: props.add_event}
-            DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end, add_event: props.add_event}
-            DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end, add_event: props.add_event}
-            DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end, add_event: props.add_event}
-            DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end, add_event: props.add_event}
-            DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event}
+            class: "overflow-y-scroll",
+            div {
+                class: "flex flex-row",
+                TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
+                DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday), day_start, day_end, add_event: props.add_event}
+                DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday), day_start, day_end, add_event: props.add_event}
+                DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end, add_event: props.add_event}
+                DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end, add_event: props.add_event}
+                DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end, add_event: props.add_event}
+                DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end, add_event: props.add_event}
+                DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event}
+            }
         }
     }
 }
