@@ -66,3 +66,14 @@ pub async fn get_sales_persons(config: Config) -> Result<Rc<[SalesPersonTO]>, re
     info!("Fetched");
     Ok(res)
 }
+
+pub async fn get_current_sales_person(
+    config: Config,
+) -> Result<Option<SalesPersonTO>, reqwest::Error> {
+    info!("Fetching current sales person");
+    let url = format!("{}/sales-person/current", config.backend);
+    let response = reqwest::get(url).await?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}

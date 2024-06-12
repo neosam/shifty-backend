@@ -69,3 +69,9 @@ pub async fn load_shift_plan(
 
     Ok(Shiftplan { week, year, slots })
 }
+
+pub async fn load_current_sales_person(config: Config) -> Result<Option<SalesPerson>, ShiftyError> {
+    let sales_person_to = api::get_current_sales_person(config).await?;
+    let sales_person = sales_person_to.as_ref().map(SalesPerson::from);
+    Ok(sales_person)
+}

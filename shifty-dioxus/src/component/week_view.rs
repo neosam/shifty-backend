@@ -12,6 +12,8 @@ pub struct ColumnViewItem {
     pub start: f32,
     pub end: f32,
     pub title: Rc<str>,
+    pub show_add: bool,
+    pub show_remove: bool,
 }
 
 pub fn ColumnViewSlot(props: ColumnViewItem) -> Element {
@@ -21,7 +23,25 @@ pub fn ColumnViewSlot(props: ColumnViewItem) -> Element {
             style: {
                 format!("top: {}px; height: {}px;", props.start, props.end - props.start)
             },
-            { props.title }
+            div {
+                class: "text-center truncate",
+                {props.title}
+            }
+            div {
+                class: "absolute right-0 top-0 flex flex-col",
+                if props.show_add {
+                    button {
+                        class: "border width-4",
+                        "+"
+                    }
+                }
+                if props.show_remove {
+                    button {
+                        class: "border",
+                        "-"
+                    }
+                }
+            }
         }
     }
 }
@@ -40,6 +60,8 @@ impl From<Slot> for ColumnViewItem {
         ColumnViewItem {
             start: slot.from_hour(),
             end: slot.to_hour(),
+            show_add: true,
+            show_remove: true,
             title: slot
                 .bookings
                 .iter()
@@ -62,13 +84,17 @@ pub fn ColumnView(props: ColumnViewProps) -> Element {
             ColumnViewSlot {
                 start: 0.0,
                 end: props.offset,
-                title: props.title.unwrap_or_else(|| "".into()).clone()
+                title: props.title.unwrap_or_else(|| "".into()).clone(),
+                show_add: false,
+                show_remove: false,
             }
             for slot in props.slots.iter() {
                 ColumnViewSlot {
                     start: slot.start * props.scale + props.offset,
                     end: slot.end * props.scale + props.offset,
-                    title: slot.title.clone()
+                    title: slot.title.clone(),
+                    show_add: slot.show_add,
+                    show_remove: slot.show_remove,
                 }
             }
         }
@@ -88,6 +114,8 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             start: (i - props.start) as f32,
             end: (i - props.start) as f32 + 1.0,
             title: format!("{:02}:00-{:02}:00", i, i + 1).into(),
+            show_add: false,
+            show_remove: false,
         })
         .collect();
     let slots: Rc<[ColumnViewItem]> = slots.into();
@@ -124,6 +152,8 @@ pub fn DayView(props: DayViewProps) -> Element {
                     start: column.start - props.day_start,
                     end: column.end - props.day_start,
                     title: column.title,
+                    show_add: true,
+                    show_remove: true,
                 })
                 .collect(),
             title: Some(props.weekday.i18n_string(&i18n)),
