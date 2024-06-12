@@ -84,4 +84,13 @@ pub trait SalesPersonService {
         user_id: Option<Arc<str>>,
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError>;
+    async fn get_sales_person_for_user(
+        &self,
+        user_id: Arc<str>,
+        context: Authentication<Self::Context>,
+    ) -> Result<Option<SalesPerson>, ServiceError>;
+    async fn get_sales_person_current_user(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Option<SalesPerson>, ServiceError>;
 }

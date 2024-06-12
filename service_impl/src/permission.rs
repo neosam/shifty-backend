@@ -36,6 +36,18 @@ where
 {
     type Context = UserService::Context;
 
+    async fn current_user_id(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Option<Arc<str>>, ServiceError> {
+        match context {
+            Authentication::Full => Ok(None),
+            Authentication::Context(context) => {
+                let current_user = self.user_service.current_user(context).await?;
+                Ok(Some(current_user))
+            }
+        }
+    }
     async fn check_permission(
         &self,
         privilege: &str,

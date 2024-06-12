@@ -31,4 +31,8 @@ pub trait SalesPersonDao {
         process: &str,
     ) -> Result<(), DaoError>;
     async fn discard_assigned_user(&self, sales_person_id: Uuid) -> Result<(), DaoError>;
+    async fn find_sales_person_by_user_id(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<SalesPersonEntity>, DaoError>;
 }

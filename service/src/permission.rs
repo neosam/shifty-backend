@@ -65,6 +65,10 @@ impl<Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static> From<Conte
 pub trait PermissionService {
     type Context: Clone + PartialEq + Eq + Debug + Send + Sync + 'static;
 
+    async fn current_user_id(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Option<Arc<str>>, ServiceError>;
     async fn check_permission(
         &self,
         privilege: &str,

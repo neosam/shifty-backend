@@ -108,7 +108,7 @@ impl BookingDao for BookingDaoImpl {
 
     async fn find_by_week(
         &self,
-        calendar_week: i32,
+        calendar_week: u8,
         year: u32,
     ) -> Result<Arc<[BookingEntity]>, DaoError> {
         Ok(query_as!(

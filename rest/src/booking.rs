@@ -45,7 +45,7 @@ pub async fn get_all_bookings<RestState: RestStateDef>(
 pub async fn get_by_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
-    Path((calendar_week, year)): Path<(i32, u32)>,
+    Path((year, calendar_week)): Path<(u32, u8)>,
 ) -> Response {
     error_handler(
         (async {

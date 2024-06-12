@@ -33,7 +33,7 @@ pub trait BookingDao {
     ) -> Result<Option<BookingEntity>, DaoError>;
     async fn find_by_week(
         &self,
-        calendar_week: i32,
+        calendar_week: u8,
         year: u32,
     ) -> Result<Arc<[BookingEntity]>, DaoError>;
     async fn create(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError>;

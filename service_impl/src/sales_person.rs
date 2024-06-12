@@ -232,4 +232,38 @@ where
         }
         Ok(())
     }
+
+    async fn get_sales_person_for_user(
+        &self,
+        user_id: Arc<str>,
+        context: Authentication<Self::Context>,
+    ) -> Result<Option<SalesPerson>, ServiceError> {
+        self.permission_service
+            .check_permission("hr", context)
+            .await?;
+        Ok(self
+            .sales_person_dao
+            .find_sales_person_by_user_id(&user_id)
+            .await?
+            .as_ref()
+            .map(SalesPerson::from))
+    }
+
+    async fn get_sales_person_current_user(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Option<SalesPerson>, ServiceError> {
+        let current_user = if let Some(current_user) = self
+            .permission_service
+            .current_user_id(context.clone())
+            .await?
+        {
+            current_user
+        } else {
+            return Ok(None);
+        };
+        Ok(self
+            .get_sales_person_for_user(current_user, Authentication::Full)
+            .await?)
+    }
 }

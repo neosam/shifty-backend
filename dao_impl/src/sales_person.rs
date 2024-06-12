@@ -149,4 +149,22 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         .map_db_error()?
         .map(|result| result.user_id.into()))
     }
+
+    async fn find_sales_person_by_user_id(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<SalesPersonEntity>, DaoError> {
+        Ok(query_as!(
+            SalesPersonDb,
+            "SELECT sp.id, sp.name, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+            user_id
+        )
+            .fetch_optional(self.pool.as_ref())
+            .await
+            .map_db_error()?
+            .as_ref()
+            .map(SalesPersonEntity::try_from)
+            .transpose()?
+        )
+    }
 }

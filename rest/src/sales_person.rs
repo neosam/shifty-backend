@@ -21,6 +21,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id/user", get(get_sales_person_user::<RestState>))
         .route("/:id/user", post(set_sales_person_user::<RestState>))
         .route("/:id/user", delete(delete_sales_person_user::<RestState>))
+        .route("/current", get(get_sales_person_current_user::<RestState>))
 }
 
 pub async fn get_all_sales_persons<RestState: RestStateDef>(
@@ -180,6 +181,27 @@ pub async fn delete_sales_person_user<RestState: RestStateDef>(
                 .set_user(sales_person_id, None, context.into())
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn get_sales_person_current_user<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
+    error_handler(
+        (async {
+            let sales_person = rest_state
+                .sales_person_service()
+                .get_sales_person_current_user(context.into())
+                .await?
+                .map(|sales_person| SalesPersonTO::from(&sales_person));
+
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&sales_person).unwrap()))
+                .unwrap())
         })
         .await,
     )
