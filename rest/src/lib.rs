@@ -28,6 +28,8 @@ use service::PermissionService;
 use service::ServiceError;
 use thiserror::Error;
 #[cfg(feature = "oidc")]
+use time::Duration;
+#[cfg(feature = "oidc")]
 use tower::ServiceBuilder;
 #[cfg(feature = "oidc")]
 use tower_sessions::MemoryStore;
@@ -308,7 +310,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         let session_layer = SessionManagerLayer::new(session_store)
             .with_secure(true)
             .with_same_site(SameSite::Strict)
-            .with_expiry(Expiry::OnSessionEnd);
+            .with_expiry(Expiry::OnInactivity(Duration::minutes(2)));
 
         let oidc_auth_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
