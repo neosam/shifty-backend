@@ -19,12 +19,14 @@ pub enum ShiftPlanAction {
         week: u8,
         year: u32,
     },
+    NextWeek,
+    PreviousWeek,
 }
 
 #[component]
 pub fn ShiftPlan() -> Element {
     let config = use_context::<state::Config>();
-    let week = use_signal(|| js::get_current_week());
+    let mut week = use_signal(|| js::get_current_week());
     let year = use_signal(|| js::get_current_year());
     let date =
         time::Date::from_iso_week_date(*year.read() as i32, *week.read(), time::Weekday::Monday)
@@ -78,6 +80,18 @@ pub fn ShiftPlan() -> Element {
                     .await;
                     shift_plan_context.restart();
                 }
+                ShiftPlanAction::NextWeek => {
+                    info!("Next week");
+                    let current_week = *week.read();
+                    week.set(current_week + 1);
+                    shift_plan_context.restart();
+                }
+                ShiftPlanAction::PreviousWeek => {
+                    info!("Previous week");
+                    let current_week = *week.read();
+                    week.set(current_week - 1);
+                    shift_plan_context.restart();
+                }
             }
         }
     });
@@ -87,7 +101,18 @@ pub fn ShiftPlan() -> Element {
 
         h2 {
             class: "m-4 text-lg",
-            "Week: {week.read()} Year: {year.read()} - from {date_str} - {current_sales_person}"
+            button {
+                onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
+                class: "border-2 border-solid border-black mr-2 p-2",
+                "<"
+            }
+            "Week: {week.read()} Year: {year.read()} - from {date_str}"
+            button {
+                onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
+                class: "border-2 border-solid border-black mr-2 ml-2 p-2",
+                ">"
+            }
+            " - {current_sales_person}"
         }
 
         {match &*shift_plan_context.read_unchecked() {
