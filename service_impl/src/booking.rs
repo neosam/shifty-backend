@@ -5,6 +5,7 @@ use service::{
     ServiceError, ValidationFailureItem,
 };
 use std::sync::Arc;
+use tokio::join;
 use uuid::Uuid;
 
 const BOOKING_SERVICE_PROCESS: &str = "booking-service";
@@ -120,6 +121,28 @@ where
             .map(Booking::from)
             .ok_or_else(move || ServiceError::EntityNotFound(id))?;
         Ok(booking)
+    }
+
+    async fn get_for_week(
+        &self,
+        calendar_week: i32,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Booking]>, ServiceError> {
+        let (hr_permission, sales_permission) = join!(
+            self.permission_service
+                .check_permission("hr", context.clone()),
+            self.permission_service.check_permission("sales", context),
+        );
+        hr_permission.or(sales_permission)?;
+
+        Ok(self
+            .booking_dao
+            .find_by_week(calendar_week, year)
+            .await?
+            .iter()
+            .map(Booking::from)
+            .collect())
     }
 
     async fn create(

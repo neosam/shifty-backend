@@ -215,6 +215,38 @@ async fn test_get_no_permission() {
 }
 
 #[tokio::test]
+async fn test_get_for_week() {
+    let mut deps = build_dependencies(true, "sales");
+    deps.booking_dao
+        .expect_find_by_week()
+        .with(eq(3), eq(2024))
+        .returning(|_, _| Ok([default_booking_entity()].into()));
+    let service = deps.build_service();
+    let result = service.get_for_week(3, 2024, ().auth()).await;
+    assert_eq!(result.unwrap(), [default_booking()].into());
+}
+
+#[tokio::test]
+async fn test_get_for_week_hr_role() {
+    let mut deps = build_dependencies(true, "hr");
+    deps.booking_dao
+        .expect_find_by_week()
+        .with(eq(3), eq(2024))
+        .returning(|_, _| Ok([default_booking_entity()].into()));
+    let service = deps.build_service();
+    let result = service.get_for_week(3, 2024, ().auth()).await;
+    assert_eq!(result.unwrap(), [default_booking()].into());
+}
+
+#[tokio::test]
+async fn test_get_for_week_no_permission() {
+    let deps = build_dependencies(false, "hr");
+    let service = deps.build_service();
+    let result = service.get_for_week(3, 2024, ().auth()).await;
+    test_forbidden(&result);
+}
+
+#[tokio::test]
 async fn test_create() {
     let mut deps = build_dependencies(true, "hr");
     deps.booking_dao

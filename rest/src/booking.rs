@@ -14,6 +14,7 @@ use service::booking::{Booking, BookingService};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_bookings::<RestState>))
+        .route("/week/:year/:calendar_week", get(get_by_week::<RestState>))
         .route("/:id", get(get_booking::<RestState>))
         .route("/", post(create_booking::<RestState>))
         .route("/:id", delete(delete_booking::<RestState>))
@@ -28,6 +29,29 @@ pub async fn get_all_bookings<RestState: RestStateDef>(
             let bookings: Arc<[BookingTO]> = rest_state
                 .booking_service()
                 .get_all(context.into())
+                .await?
+                .iter()
+                .map(BookingTO::from)
+                .collect();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&bookings).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn get_by_week<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path((calendar_week, year)): Path<(i32, u32)>,
+) -> Response {
+    error_handler(
+        (async {
+            let bookings: Arc<[BookingTO]> = rest_state
+                .booking_service()
+                .get_for_week(calendar_week, year, context.into())
                 .await?
                 .iter()
                 .map(BookingTO::from)

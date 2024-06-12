@@ -64,6 +64,12 @@ pub trait BookingService {
         id: Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<Booking, ServiceError>;
+    async fn get_for_week(
+        &self,
+        calendar_week: i32,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Booking]>, ServiceError>;
     async fn create(
         &self,
         booking: &Booking,

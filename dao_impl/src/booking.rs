@@ -106,6 +106,26 @@ impl BookingDao for BookingDaoImpl {
         .transpose()?)
     }
 
+    async fn find_by_week(
+        &self,
+        calendar_week: i32,
+        year: u32,
+    ) -> Result<Arc<[BookingEntity]>, DaoError> {
+        Ok(query_as!(
+            BookingDb,
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE calendar_week = ? AND year = ? AND deleted IS NULL",
+            calendar_week,
+            year,
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(BookingEntity::try_from)
+        .collect::<Result<Arc<[BookingEntity]>, DaoError>>()?
+        )
+    }
+
     async fn create(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
