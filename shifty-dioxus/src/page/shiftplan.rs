@@ -19,6 +19,12 @@ pub enum ShiftPlanAction {
         week: u8,
         year: u32,
     },
+    RemoveUserFromSlot {
+        slot_id: Uuid,
+        sales_person_id: Uuid,
+        week: u8,
+        year: u32,
+    },
     NextWeek,
     PreviousWeek,
 }
@@ -80,6 +86,24 @@ pub fn ShiftPlan() -> Element {
                     .await;
                     shift_plan_context.restart();
                 }
+                ShiftPlanAction::RemoveUserFromSlot {
+                    slot_id,
+                    sales_person_id,
+                    week,
+                    year,
+                } => {
+                    info!("Removing user from slot");
+                    if let Some(Ok(shift_plan)) = &*shift_plan_context.read_unchecked() {
+                        loader::remove_user_from_slot(
+                            config.to_owned(),
+                            slot_id,
+                            sales_person_id,
+                            shift_plan.clone(),
+                        )
+                        .await;
+                    }
+                    shift_plan_context.restart();
+                }
                 ShiftPlanAction::NextWeek => {
                     info!("Next week");
                     let current_week = *week.read();
@@ -129,7 +153,15 @@ pub fn ShiftPlan() -> Element {
                                 week: *week.read(),
                                 year: *year.read(),
                             });
-                            //loader::register_user_to_slot(config.to_owned(), slot.id, sales_id.unwrap(), *week.read(), *year.read());
+                        },
+                        remove_event: move |slot: state::Slot| {
+                            info!("Register to slot");
+                            cr.send(ShiftPlanAction::RemoveUserFromSlot {
+                                slot_id: slot.id,
+                                sales_person_id: current_sales_person_id.unwrap(),
+                                week: *week.read(),
+                                year: *year.read(),
+                            });
                         }
                     }
                 }}

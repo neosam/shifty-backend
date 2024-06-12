@@ -88,3 +88,23 @@ pub async fn register_user_to_slot(
     api::add_booking(config, user_id, slot_id, week, year).await?;
     Ok(())
 }
+
+pub async fn remove_user_from_slot(
+    config: Config,
+    slot_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+    shiftplan: Shiftplan,
+) -> Result<(), ShiftyError> {
+    info!("Remove booking");
+    let slot = shiftplan.slots.iter().find(|slot| slot.id == slot_id);
+    if let Some(slot) = slot {
+        let booking = slot
+            .bookings
+            .iter()
+            .find(|booking| booking.sales_person_id == user_id);
+        if let Some(booking) = booking {
+            api::remove_booking(config, booking.id).await?;
+        }
+    }
+    Ok(())
+}

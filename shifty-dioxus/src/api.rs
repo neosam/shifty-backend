@@ -87,6 +87,16 @@ pub async fn add_booking(
     Ok(())
 }
 
+pub async fn remove_booking(config: Config, booking_id: Uuid) -> Result<(), reqwest::Error> {
+    info!("Removing booking {booking_id}");
+    let url = format!("{}/booking/{booking_id}", config.backend,);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Removed");
+    Ok(())
+}
+
 pub async fn get_sales_persons(config: Config) -> Result<Rc<[SalesPersonTO]>, reqwest::Error> {
     info!("Fetching sales persons");
     let url = format!("{}/sales-person", config.backend);
