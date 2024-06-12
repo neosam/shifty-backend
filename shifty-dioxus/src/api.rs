@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use rest_types::SlotTO;
+use rest_types::{BookingTO, SalesPersonTO, SlotTO};
 use tracing::info;
 
 use crate::state::{AuthInfo, Config};
@@ -36,9 +36,32 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
     Ok(res)
 }
 
-pub async fn get_slots() -> Result<Rc<[SlotTO]>, reqwest::Error> {
+pub async fn get_slots(config: Config) -> Result<Rc<[SlotTO]>, reqwest::Error> {
     info!("Fetching slots");
-    let response = reqwest::get("http://localhost:8080/slot").await?;
+    let url = format!("{}/slot", config.backend);
+    let response = reqwest::get(url).await?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_bookings_for_week(
+    config: Config,
+    week: u8,
+    year: u32,
+) -> Result<Rc<[BookingTO]>, reqwest::Error> {
+    info!("Fetching bookings for week {week} in year {year}");
+    let url = format!("{}/booking/week/{year}/{week}", config.backend);
+    let response = reqwest::get(url).await?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_sales_persons(config: Config) -> Result<Rc<[SalesPersonTO]>, reqwest::Error> {
+    info!("Fetching sales persons");
+    let url = format!("{}/sales-person", config.backend);
+    let response = reqwest::get(url).await?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)

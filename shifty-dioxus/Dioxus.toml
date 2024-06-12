@@ -46,3 +46,7 @@ script = []
 backend = "http://localhost:3000/slot"
 [[web.proxy]]
 backend = "http://localhost:3000/auth-info"
+[[web.proxy]]
+backend = "http://localhost:3000/booking"
+[[web.proxy]]
+backend = "http://localhost:3000/sales-person"

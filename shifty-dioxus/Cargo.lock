@@ -2148,6 +2148,7 @@ dependencies = [
  "dioxus-logger",
  "futures",
  "futures-util",
+ "js-sys",
  "reqwest",
  "rest-types",
  "serde",

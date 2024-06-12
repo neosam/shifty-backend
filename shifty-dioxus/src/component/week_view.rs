@@ -40,7 +40,13 @@ impl From<Slot> for ColumnViewItem {
         ColumnViewItem {
             start: slot.from_hour(),
             end: slot.to_hour(),
-            title: "".into(),
+            title: slot
+                .bookings
+                .iter()
+                .map(|booking| booking.label.clone())
+                .collect::<Vec<_>>()
+                .join(", ")
+                .into(),
         }
     }
 }

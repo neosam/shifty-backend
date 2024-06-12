@@ -4,7 +4,7 @@ use crate::{
     i18n::{self, I18n, Key, Locale},
     state::AuthInfo,
 };
-use rest_types::{DayOfWeekTO, SlotTO};
+use rest_types::{BookingTO, DayOfWeekTO, SalesPersonTO, SlotTO};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -46,11 +46,48 @@ impl From<DayOfWeekTO> for Weekday {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Booking {
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub slot_id: Uuid,
+    pub week: u8,
+    pub year: u32,
+    pub label: Rc<str>,
+}
+impl From<&BookingTO> for Booking {
+    fn from(booking: &BookingTO) -> Self {
+        Self {
+            id: booking.id,
+            sales_person_id: booking.sales_person_id,
+            slot_id: booking.slot_id,
+            week: booking.calendar_week as u8,
+            year: booking.year,
+            label: "value".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SalesPerson {
+    pub id: Uuid,
+    pub name: Rc<str>,
+}
+impl From<&SalesPersonTO> for SalesPerson {
+    fn from(sales_person: &SalesPersonTO) -> Self {
+        Self {
+            id: sales_person.id,
+            name: sales_person.name.as_ref().into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Slot {
     pub id: Uuid,
     pub day_of_week: Weekday,
     pub from: time::Time,
     pub to: time::Time,
+    pub bookings: Rc<[Booking]>,
 }
 impl Slot {
     pub fn from_hour(&self) -> f32 {
@@ -68,6 +105,7 @@ impl From<&SlotTO> for Slot {
             day_of_week: slot.day_of_week.into(),
             from: slot.from,
             to: slot.to,
+            bookings: [].into(),
         }
     }
 }
@@ -75,7 +113,7 @@ impl From<&SlotTO> for Slot {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Shiftplan {
     pub week: u8,
-    pub year: u16,
+    pub year: u32,
     pub slots: Rc<[Slot]>,
 }
 

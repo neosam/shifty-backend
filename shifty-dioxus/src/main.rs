@@ -12,6 +12,7 @@ mod auth;
 mod component;
 mod error;
 mod i18n;
+mod js;
 mod loader;
 mod page;
 mod router;
