@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use rest_types::{BookingTO, SalesPersonTO, SlotTO};
 use tracing::info;
+use uuid::Uuid;
 
 use crate::state::{AuthInfo, Config};
 
@@ -56,6 +57,34 @@ pub async fn get_bookings_for_week(
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn add_booking(
+    config: Config,
+    sales_person_id: Uuid,
+    slot_id: Uuid,
+    week: u8,
+    year: u32,
+) -> Result<(), reqwest::Error> {
+    info!(
+        "Adding booking for user {sales_person_id} to slot {slot_id} in week {week} of year {year}"
+    );
+    let url: String = format!("{}/booking", config.backend,);
+    let booking_to = BookingTO {
+        id: Uuid::nil(),
+        sales_person_id,
+        slot_id,
+        calendar_week: week as i32,
+        year,
+        created: None,
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&booking_to).send().await?;
+    response.error_for_status_ref()?;
+    info!("Added");
+    Ok(())
 }
 
 pub async fn get_sales_persons(config: Config) -> Result<Rc<[SalesPersonTO]>, reqwest::Error> {

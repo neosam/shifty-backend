@@ -6,36 +6,62 @@ use crate::{
 };
 use dioxus::prelude::*;
 use dioxus_elements::p;
+use tracing::info;
+use uuid::Uuid;
 
-#[derive(PartialEq, Clone, Props)]
-pub struct ColumnViewItem {
+#[derive(PartialEq, Clone)]
+pub struct ColumnViewItem<CustomData = ()>
+where
+    CustomData: PartialEq + Clone + 'static,
+{
     pub start: f32,
     pub end: f32,
     pub title: Rc<str>,
     pub show_add: bool,
     pub show_remove: bool,
+    pub custom_data: CustomData,
 }
 
-pub fn ColumnViewSlot(props: ColumnViewItem) -> Element {
+#[derive(PartialEq, Clone, Props)]
+pub struct ColumnViewSlotProps<CustomData = ()>
+where
+    CustomData: PartialEq + Clone + 'static,
+{
+    pub item_data: ColumnViewItem<CustomData>,
+    pub add_event: Option<EventHandler<CustomData>>,
+}
+
+pub fn ColumnViewSlot<CustomData>(props: ColumnViewSlotProps<CustomData>) -> Element
+where
+    CustomData: PartialEq + Clone + 'static,
+{
     rsx! {
         div {
             class: "w-full absolute border-solid border-black border truncate",
             style: {
-                format!("top: {}px; height: {}px;", props.start, props.end - props.start)
+                format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
             },
             div {
                 class: "text-center truncate",
-                {props.title}
+                {props.item_data.title}
             }
             div {
                 class: "absolute right-0 top-0 flex flex-col",
-                if props.show_add {
+                if props.item_data.show_add {
                     button {
                         class: "border width-4",
+                        onclick: move |_| {
+                            if let Some(add_event) = props.add_event {
+                                info!("Found event handler and call it");
+                                add_event.call(props.item_data.custom_data.clone());
+                            };
+                            info!("Add event");
+                            ()
+                        },
                         "+"
                     }
                 }
-                if props.show_remove {
+                if props.item_data.show_remove {
                     button {
                         class: "border",
                         "-"
@@ -47,15 +73,19 @@ pub fn ColumnViewSlot(props: ColumnViewItem) -> Element {
 }
 
 #[derive(PartialEq, Clone, Props)]
-pub struct ColumnViewProps {
+pub struct ColumnViewProps<CustomData = ()>
+where
+    CustomData: PartialEq + Clone + 'static,
+{
     pub height: f32,
     pub scale: f32,
     pub offset: f32,
-    pub slots: Rc<[ColumnViewItem]>,
+    pub slots: Rc<[ColumnViewItem<CustomData>]>,
     pub title: Option<Rc<str>>,
+    pub add_event: Option<EventHandler<CustomData>>,
 }
 
-impl From<Slot> for ColumnViewItem {
+impl From<Slot> for ColumnViewItem<Slot> {
     fn from(slot: Slot) -> Self {
         ColumnViewItem {
             start: slot.from_hour(),
@@ -69,32 +99,43 @@ impl From<Slot> for ColumnViewItem {
                 .collect::<Vec<_>>()
                 .join(", ")
                 .into(),
+            custom_data: slot,
         }
     }
 }
 
 #[component]
-pub fn ColumnView(props: ColumnViewProps) -> Element {
+pub fn ColumnView<CustomData>(props: ColumnViewProps<CustomData>) -> Element
+where
+    CustomData: PartialEq + Clone + 'static,
+{
     rsx! {
         div {
             class: "relative w-full",
             style: {
                 format!("height: {}px;", props.height)
             },
-            ColumnViewSlot {
-                start: 0.0,
-                end: props.offset,
-                title: props.title.unwrap_or_else(|| "".into()).clone(),
-                show_add: false,
-                show_remove: false,
+            ColumnViewSlot::<()> {
+                item_data: ColumnViewItem {
+                    start: 0.0,
+                    end: props.offset,
+                    title: props.title.unwrap_or_else(|| "".into()).clone(),
+                    show_add: false,
+                    show_remove: false,
+                    custom_data: (),
+                },
             }
             for slot in props.slots.iter() {
-                ColumnViewSlot {
-                    start: slot.start * props.scale + props.offset,
-                    end: slot.end * props.scale + props.offset,
-                    title: slot.title.clone(),
-                    show_add: slot.show_add,
-                    show_remove: slot.show_remove,
+                ColumnViewSlot::<CustomData> {
+                    item_data: ColumnViewItem {
+                        start: slot.start * props.scale + props.offset,
+                        end: slot.end * props.scale + props.offset,
+                        title: slot.title.clone(),
+                        show_add: slot.show_add,
+                        show_remove: slot.show_remove,
+                        custom_data: slot.custom_data.clone(),
+                    },
+                    add_event: props.add_event,
                 }
             }
         }
@@ -116,12 +157,13 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             title: format!("{:02}:00-{:02}:00", i, i + 1).into(),
             show_add: false,
             show_remove: false,
+            custom_data: (),
         })
         .collect();
     let slots: Rc<[ColumnViewItem]> = slots.into();
 
     rsx! {
-        ColumnView {
+        ColumnView::<()> {
             height: (props.end - props.start) as f32 * 60.0,
             scale: 60.0,
             offset: 30.0,
@@ -136,13 +178,14 @@ pub struct DayViewProps {
     pub slots: Rc<[state::Slot]>,
     pub day_start: f32,
     pub day_end: f32,
+    pub add_event: EventHandler<Slot>,
 }
 
 #[component]
 pub fn DayView(props: DayViewProps) -> Element {
     let i18n = use_context::<i18n::I18nType>();
     rsx! {
-        ColumnView {
+        ColumnView::<Slot> {
             height: (props.day_end - props.day_start) as f32 * 60.0,
             scale: 60.0,
             offset: 30.0,
@@ -154,9 +197,11 @@ pub fn DayView(props: DayViewProps) -> Element {
                     title: column.title,
                     show_add: true,
                     show_remove: true,
+                    custom_data: column.custom_data,
                 })
                 .collect(),
             title: Some(props.weekday.i18n_string(&i18n)),
+            add_event: Some(props.add_event.clone()),
         }
     }
 }
@@ -164,6 +209,7 @@ pub fn DayView(props: DayViewProps) -> Element {
 #[derive(PartialEq, Clone, Props)]
 pub struct WeekViewProps {
     pub shiftplan_data: state::Shiftplan,
+    pub add_event: EventHandler<Slot>,
 }
 
 #[component]
@@ -174,13 +220,13 @@ pub fn WeekView(props: WeekViewProps) -> Element {
         div {
             class: "flex flex-row",
             TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
-            DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday), day_start, day_end}
-            DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday), day_start, day_end}
-            DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end}
-            DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end}
-            DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end}
-            DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end}
-            DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end}
+            DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday), day_start, day_end, add_event: props.add_event}
+            DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday), day_start, day_end, add_event: props.add_event}
+            DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end, add_event: props.add_event}
+            DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end, add_event: props.add_event}
+            DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end, add_event: props.add_event}
+            DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end, add_event: props.add_event}
+            DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event}
         }
     }
 }

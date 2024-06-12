@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use tracing::info;
 
 use crate::{
     api,
@@ -74,4 +75,16 @@ pub async fn load_current_sales_person(config: Config) -> Result<Option<SalesPer
     let sales_person_to = api::get_current_sales_person(config).await?;
     let sales_person = sales_person_to.as_ref().map(SalesPerson::from);
     Ok(sales_person)
+}
+
+pub async fn register_user_to_slot(
+    config: Config,
+    slot_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+    week: u8,
+    year: u32,
+) -> Result<(), ShiftyError> {
+    info!("Add booking");
+    api::add_booking(config, user_id, slot_id, week, year).await?;
+    Ok(())
 }
