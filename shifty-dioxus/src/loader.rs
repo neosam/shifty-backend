@@ -12,7 +12,10 @@ use crate::{
 
 pub async fn load_sales_persons(config: Config) -> Result<Rc<[SalesPerson]>, ShiftyError> {
     let sales_person_tos = api::get_sales_persons(config).await?;
-    let sales_persons: Rc<[SalesPerson]> = sales_person_tos.iter().map(SalesPerson::from).collect();
+    let mut sales_persons: Vec<SalesPerson> =
+        sales_person_tos.iter().map(SalesPerson::from).collect();
+    sales_persons.sort_by_key(|sales_person| sales_person.name.clone());
+    let sales_persons: Rc<[SalesPerson]> = sales_persons.into();
 
     Ok(sales_persons)
 }

@@ -11,6 +11,7 @@ use crate::component::WeekView;
 use crate::js;
 use crate::loader;
 use crate::state;
+use crate::state::shiftplan::SalesPerson;
 
 pub enum ShiftPlanAction {
     AddUserToSlot {
@@ -27,6 +28,7 @@ pub enum ShiftPlanAction {
     },
     NextWeek,
     PreviousWeek,
+    UpdateSalesPerson(Uuid),
 }
 
 #[component]
@@ -54,19 +56,31 @@ pub fn ShiftPlan() -> Element {
         let config = config.clone();
         use_resource(move || loader::load_current_sales_person(config.to_owned()))
     };
+    let sales_persons_resource = {
+        let config = config.clone();
+        use_resource(move || loader::load_sales_persons(config.to_owned()))
+    };
 
-    let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
-        match &*current_sales_person_resource.read_unchecked() {
-            Some(Ok(Some(sales_person))) => (sales_person.name.clone(), Some(sales_person.id)),
-            Some(Ok(None)) => ("No sales person".into(), None),
-            Some(Err(err)) => (
-                format!("Error while loading sales person: {err}").into(),
-                None,
-            ),
-            None => ("Loading sales person...".into(), None),
-        };
+    let mut current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
+
+    //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
+    //    match &*current_sales_person_resource.read_unchecked() {
+    //        Some(Ok(Some(sales_person))) => (sales_person.name.clone(), Some(sales_person.id)),
+    //        Some(Ok(None)) => ("No sales person".into(), None),
+    //        Some(Err(err)) => (
+    //            format!("Error while loading sales person: {err}").into(),
+    //            None,
+    //        ),
+    //        None => ("Loading sales person...".into(), None),
+    //    };
 
     let cr = use_coroutine(|mut rx: UnboundedReceiver<ShiftPlanAction>| async move {
+        let sales_person = loader::load_current_sales_person(config.to_owned())
+            .await
+            .ok()
+            .flatten();
+        *current_sales_person.write() = sales_person;
+
         while let Some(action) = rx.next().await {
             match action {
                 ShiftPlanAction::AddUserToSlot {
@@ -116,6 +130,16 @@ pub fn ShiftPlan() -> Element {
                     week.set(current_week - 1);
                     shift_plan_context.restart();
                 }
+                ShiftPlanAction::UpdateSalesPerson(uuid) => {
+                    info!("Update sales person");
+                    if let Some(Ok(sales_persons)) = &*sales_persons_resource.read_unchecked() {
+                        let new_sales_person =
+                            sales_persons.iter().find(|sp| sp.id == uuid).cloned();
+                        if let Some(new_sales_person) = new_sales_person {
+                            *current_sales_person.write() = Some(new_sales_person);
+                        }
+                    }
+                }
             }
         }
     });
@@ -136,8 +160,45 @@ pub fn ShiftPlan() -> Element {
                 class: "border-2 border-solid border-black mr-2 ml-2 p-2",
                 ">"
             }
-            " - {current_sales_person}"
+            match &*sales_persons_resource.read_unchecked() {
+                Some(Ok(sales_persons)) => {
+                    rsx!{div {
+                        class: "m-4",
+                        "Sales person:"
+                        select {
+                            onchange: move |event| {
+                                info!("Event: {:?}", event);
+                                let value = event.data.value().parse::<Uuid>().unwrap();
+                                cr.send(ShiftPlanAction::UpdateSalesPerson(value));
+                            },
+                            value: current_sales_person.read().as_ref().map(|sp| sp.id.to_string()),
+                            for sales_person in sales_persons {
+                                if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                    option {
+                                        value: sales_person.id.to_string(),
+                                        selected: sales_person.id == current_sales_person.id,
+                                        {sales_person.name.clone()}
+                                    }
+                                }
+                            }
+                        }
+                    }}
+                }
+                Some(Err(err)) => {
+                    rsx!{div {
+                        class: "m-4",
+                        "Error while loading sales persons: {err}"
+                    }}
+                }
+                _ => {
+                    rsx!{div {
+                        class: "m-4",
+                        "Loading sales persons..."
+                    }}
+                }
+            }
         }
+
 
         {match &*shift_plan_context.read_unchecked() {
             Some(Ok(shift_plan)) => {
@@ -146,22 +207,28 @@ pub fn ShiftPlan() -> Element {
                     WeekView {
                         shiftplan_data: shift_plan.clone(),
                         add_event: move |slot: state::Slot| {
+                            to_owned![current_sales_person];
                             info!("Register to slot");
-                            cr.send(ShiftPlanAction::AddUserToSlot {
-                                slot_id: slot.id,
-                                sales_person_id: current_sales_person_id.unwrap(),
-                                week: *week.read(),
-                                year: *year.read(),
-                            });
+                            if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                cr.send(ShiftPlanAction::AddUserToSlot {
+                                    slot_id: slot.id,
+                                    sales_person_id: current_sales_person.id,
+                                    week: *week.read(),
+                                    year: *year.read(),
+                                });
+                            };
                         },
                         remove_event: move |slot: state::Slot| {
+                            to_owned![current_sales_person];
                             info!("Register to slot");
-                            cr.send(ShiftPlanAction::RemoveUserFromSlot {
-                                slot_id: slot.id,
-                                sales_person_id: current_sales_person_id.unwrap(),
-                                week: *week.read(),
-                                year: *year.read(),
-                            });
+                            if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                cr.send(ShiftPlanAction::RemoveUserFromSlot {
+                                    slot_id: slot.id,
+                                    sales_person_id: current_sales_person.id,
+                                    week: *week.read(),
+                                    year: *year.read(),
+                                });
+                            };
                         }
                     }
                 }}

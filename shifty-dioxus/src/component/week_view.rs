@@ -191,8 +191,8 @@ pub struct DayViewProps {
     pub slots: Rc<[state::Slot]>,
     pub day_start: f32,
     pub day_end: f32,
-    pub add_event: EventHandler<Slot>,
-    pub remove_event: EventHandler<Slot>,
+    pub add_event: Option<EventHandler<Slot>>,
+    pub remove_event: Option<EventHandler<Slot>>,
 }
 
 #[component]
@@ -215,8 +215,8 @@ pub fn DayView(props: DayViewProps) -> Element {
                 })
                 .collect(),
             title: Some(props.weekday.i18n_string(&i18n)),
-            add_event: Some(props.add_event.clone()),
-            remove_event: Some(props.remove_event.clone()),
+            add_event: props.add_event.clone(),
+            remove_event: props.remove_event.clone(),
         }
     }
 }
@@ -224,8 +224,8 @@ pub fn DayView(props: DayViewProps) -> Element {
 #[derive(PartialEq, Clone, Props)]
 pub struct WeekViewProps {
     pub shiftplan_data: state::Shiftplan,
-    pub add_event: EventHandler<Slot>,
-    pub remove_event: EventHandler<Slot>,
+    pub add_event: Option<EventHandler<Slot>>,
+    pub remove_event: Option<EventHandler<Slot>>,
 }
 
 #[component]
