@@ -40,19 +40,19 @@ where
     let custom_data_remove = props.item_data.custom_data.clone();
     rsx! {
         div {
-            class: "w-full absolute border-solid border-black border truncate",
+            class: "w-full absolute border-solid border-black border truncate flex",
             style: {
                 format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
             },
             div {
-                class: "text-center truncate",
+                class: "text-center truncate flex-grow flex-shrink w-full",
                 {props.item_data.title}
             }
             div {
-                class: "absolute right-0 top-0 flex flex-col",
+                class: "flex flex-col flex-grow overflow-scroll",
                 if props.item_data.show_add {
                     button {
-                        class: "border width-4",
+                        class: "border w-8",
                         onclick: move |_| {
                             if let Some(add_event) = props.add_event {
                                 info!("Found event handler and call it");
@@ -66,7 +66,7 @@ where
                 }
                 if props.item_data.show_remove {
                     button {
-                        class: "border",
+                        class: "border w-8",
                         onclick: move |_| {
                             if let Some(remove_event) = props.remove_event {
                                 info!("Found event handler and call it");
@@ -200,7 +200,7 @@ pub fn DayView(props: DayViewProps) -> Element {
     let i18n = use_context::<i18n::I18nType>();
     rsx! {
         ColumnView::<Slot> {
-            height: (props.day_end - props.day_start) as f32 * 60.0,
+            height: (props.day_end - props.day_start) as f32 * 60.0 + 30.0,
             scale: 60.0,
             offset: 30.0,
             slots: props.slots.iter()
@@ -234,7 +234,8 @@ pub fn WeekView(props: WeekViewProps) -> Element {
     let day_end = props.shiftplan_data.max_hour();
     rsx! {
         div {
-            class: "overflow-y-scroll",
+            class: "overflow-y-scroll overflow-visible",
+            style: format!("height: {}px", (day_end - day_start) as f32 * 60.0 + 60.0),
             div {
                 class: "flex flex-row",
                 TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
