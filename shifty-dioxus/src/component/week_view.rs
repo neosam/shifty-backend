@@ -123,7 +123,7 @@ where
 {
     rsx! {
         div {
-            class: "relative min-w-44",
+            class: "relative min-w-44 flex-grow",
             style: {
                 format!("height: {}px;", props.height)
             },
