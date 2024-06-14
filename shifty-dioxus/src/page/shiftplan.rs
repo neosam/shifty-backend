@@ -29,6 +29,7 @@ pub enum ShiftPlanAction {
     NextWeek,
     PreviousWeek,
     UpdateSalesPerson(Uuid),
+    CopyFromPreviousWeek,
 }
 
 #[component]
@@ -140,6 +141,11 @@ pub fn ShiftPlan() -> Element {
                         }
                     }
                 }
+                ShiftPlanAction::CopyFromPreviousWeek => {
+                    loader::copy_from_previous_week(config.to_owned(), *week.read(), *year.read())
+                        .await;
+                    shift_plan_context.restart();
+                }
             }
         }
     });
@@ -159,6 +165,11 @@ pub fn ShiftPlan() -> Element {
                 onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
                 class: "border-2 border-solid border-black mr-2 ml-2 p-2",
                 ">"
+            }
+            button {
+                onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
+                class: "border-2 border-solid border-black mr-2 ml-2 p-2",
+                "Take last week"
             }
             match &*sales_persons_resource.read_unchecked() {
                 Some(Ok(sales_persons)) => {

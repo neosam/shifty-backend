@@ -97,6 +97,22 @@ pub async fn remove_booking(config: Config, booking_id: Uuid) -> Result<(), reqw
     Ok(())
 }
 
+pub async fn copy_week(
+    config: Config,
+    from_week: u8,
+    from_year: u32,
+    to_week: u8,
+    to_year: u32,
+) -> Result<(), reqwest::Error> {
+    info!("Copying week {from_week} of year {from_year} to week {to_week} of year {to_year}");
+    let url = format!("{}/booking/copy?from_year={from_year}&from_week={from_week}&to_year={to_year}&to_week={to_week}", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Copied");
+    Ok(())
+}
+
 pub async fn get_sales_persons(config: Config) -> Result<Rc<[SalesPersonTO]>, reqwest::Error> {
     info!("Fetching sales persons");
     let url = format!("{}/sales-person", config.backend);
