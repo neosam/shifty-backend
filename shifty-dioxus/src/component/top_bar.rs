@@ -6,7 +6,7 @@ use crate::{router::Route, state::auth_info};
 pub fn TopBar() -> Element {
     let auth_info = try_use_context::<crate::state::AuthInfo>();
     let show_shiftplan = if let Some(ref auth_info) = auth_info {
-        auth_info.has_privilege("sales") || auth_info.has_privilege("hr")
+        auth_info.has_privilege("sales") || auth_info.has_privilege("shiftplanner")
     } else {
         false
     };

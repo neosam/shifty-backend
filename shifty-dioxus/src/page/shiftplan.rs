@@ -35,6 +35,9 @@ pub enum ShiftPlanAction {
 #[component]
 pub fn ShiftPlan() -> Element {
     let config = use_context::<state::Config>();
+    let auth_info = use_context::<state::AuthInfo>();
+    let is_shiftplanner = auth_info.has_privilege("shiftplanner");
+
     let mut week = use_signal(|| js::get_current_week());
     let year = use_signal(|| js::get_current_year());
     let date =
@@ -166,34 +169,47 @@ pub fn ShiftPlan() -> Element {
                 class: "border-2 border-solid border-black mr-2 ml-2 p-2",
                 ">"
             }
-            button {
-                onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
-                class: "border-2 border-solid border-black mr-2 ml-2 p-2",
-                "Take last week"
+            if is_shiftplanner {
+                button {
+                    onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
+                    class: "border-2 border-solid border-black mr-2 ml-2 p-2",
+                    "Take last week"
+                }
             }
             match &*sales_persons_resource.read_unchecked() {
                 Some(Ok(sales_persons)) => {
-                    rsx!{div {
-                        class: "m-4",
-                        "Sales person:"
-                        select {
-                            onchange: move |event| {
-                                info!("Event: {:?}", event);
-                                let value = event.data.value().parse::<Uuid>().unwrap();
-                                cr.send(ShiftPlanAction::UpdateSalesPerson(value));
-                            },
-                            value: current_sales_person.read().as_ref().map(|sp| sp.id.to_string()),
-                            for sales_person in sales_persons {
-                                if let Some(ref current_sales_person) = *current_sales_person.read() {
-                                    option {
-                                        value: sales_person.id.to_string(),
-                                        selected: sales_person.id == current_sales_person.id,
-                                        {sales_person.name.clone()}
+                    if is_shiftplanner {
+                        rsx!{div {
+                            class: "m-4",
+                            "Sales person:"
+                            select {
+                                onchange: move |event| {
+                                    info!("Event: {:?}", event);
+                                    let value = event.data.value().parse::<Uuid>().unwrap();
+                                    cr.send(ShiftPlanAction::UpdateSalesPerson(value));
+                                },
+                                value: current_sales_person.read().as_ref().map(|sp| sp.id.to_string()),
+                                for sales_person in sales_persons {
+                                    if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                        option {
+                                            value: sales_person.id.to_string(),
+                                            selected: sales_person.id == current_sales_person.id,
+                                            {sales_person.name.clone()}
+                                        }
                                     }
                                 }
                             }
+                        }}
+                    } else {
+                        if let Some( ref current_sales_person) = *current_sales_person.read() {
+                            rsx!{div {
+                                class: "m-4",
+                                "You are {current_sales_person.name}"
+                            }}
+                        } else {
+                            rsx!{ "" }
                         }
-                    }}
+                    }
                 }
                 Some(Err(err)) => {
                     rsx!{div {
