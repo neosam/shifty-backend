@@ -43,7 +43,7 @@ pub fn ShiftPlan() -> Element {
     let date =
         time::Date::from_iso_week_date(*year.read() as i32, *week.read(), time::Weekday::Monday)
             .unwrap();
-    let formatter = time::format_description::parse("[day].[month].[year]").unwrap();
+    let formatter = time::format_description::parse("[day].[month]").unwrap();
     let date_str = date.format(&formatter).unwrap().to_string();
 
     let mut shift_plan_context = {
@@ -156,76 +156,86 @@ pub fn ShiftPlan() -> Element {
     rsx! {
         TopBar {}
 
-        h2 {
-            class: "m-4 text-lg",
-            button {
-                onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
-                class: "border-2 border-solid border-black mr-2 p-2",
-                "<"
-            }
-            "Week: {week.read()} Year: {year.read()} - from {date_str}"
-            button {
-                onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
-                class: "border-2 border-solid border-black mr-2 ml-2 p-2",
-                ">"
-            }
-            if is_shiftplanner {
+        div {
+            class: "flex flex-col md:flex-row md:items-center md:justify-between",
+            div {
+                class: "m-4 text-lg flex align-center justify-center width-full",
                 button {
-                    onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
-                    class: "border-2 border-solid border-black mr-2 ml-2 p-2",
-                    "Take last week"
+                    onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
+                    class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold",
+                    "<"
+                }
+                div {
+                    class: "pt-2",
+                    "{week.read()} / {year.read()} - from {date_str}."
+                }
+                button {
+                    onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
+                    class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold",
+                    ">"
                 }
             }
-            match &*sales_persons_resource.read_unchecked() {
-                Some(Ok(sales_persons)) => {
-                    if is_shiftplanner {
-                        rsx!{div {
-                            class: "m-4",
-                            "Sales person:"
-                            select {
-                                onchange: move |event| {
-                                    info!("Event: {:?}", event);
-                                    let value = event.data.value().parse::<Uuid>().unwrap();
-                                    cr.send(ShiftPlanAction::UpdateSalesPerson(value));
-                                },
-                                value: current_sales_person.read().as_ref().map(|sp| sp.id.to_string()),
-                                for sales_person in sales_persons {
-                                    if let Some(ref current_sales_person) = *current_sales_person.read() {
-                                        option {
-                                            value: sales_person.id.to_string(),
-                                            selected: sales_person.id == current_sales_person.id,
-                                            {sales_person.name.clone()}
+            div {
+                class: "flex ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4",
+                if is_shiftplanner {
+                    button {
+                        onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
+                        class: "border-2 border-solid border-black mr-2 ml-2 p-2",
+                        "Take last week"
+                    }
+                }
+                match &*sales_persons_resource.read_unchecked() {
+                    Some(Ok(sales_persons)) => {
+                        if is_shiftplanner {
+                            rsx!{div {
+                                class: "align-center",
+                                "Edit as:"
+                                select {
+                                    class: "bg-slate-200 p-1 rounded-md ml-2",
+                                    onchange: move |event| {
+                                        info!("Event: {:?}", event);
+                                        let value = event.data.value().parse::<Uuid>().unwrap();
+                                        cr.send(ShiftPlanAction::UpdateSalesPerson(value));
+                                    },
+                                    value: current_sales_person.read().as_ref().map(|sp| sp.id.to_string()),
+                                    for sales_person in sales_persons {
+                                        if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                            option {
+                                                value: sales_person.id.to_string(),
+                                                selected: sales_person.id == current_sales_person.id,
+                                                {sales_person.name.clone()}
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        }}
-                    } else {
-                        if let Some( ref current_sales_person) = *current_sales_person.read() {
-                            rsx!{div {
-                                class: "m-4",
-                                "You are {current_sales_person.name}"
                             }}
                         } else {
-                            rsx!{ "" }
+                            if let Some( ref current_sales_person) = *current_sales_person.read() {
+                                rsx!{div {
+                                    "You are "
+                                    span {
+                                        class: "bg-slate-200 p-1 rounded-md",
+                                        "{current_sales_person.name}"
+                                    }
+                                }}
+                            } else {
+                                rsx!{ "" }
+                            }
                         }
                     }
-                }
-                Some(Err(err)) => {
-                    rsx!{div {
-                        class: "m-4",
-                        "Error while loading sales persons: {err}"
-                    }}
-                }
-                _ => {
-                    rsx!{div {
-                        class: "m-4",
-                        "Loading sales persons..."
-                    }}
+                    Some(Err(err)) => {
+                        rsx!{div {
+                            "Error while loading sales persons: {err}"
+                        }}
+                    }
+                    _ => {
+                        rsx!{div {
+                            "Loading sales persons..."
+                        }}
+                    }
                 }
             }
         }
-
 
         {match &*shift_plan_context.read_unchecked() {
             Some(Ok(shift_plan)) => {
