@@ -233,6 +233,49 @@ where
         Ok(new_booking)
     }
 
+    async fn copy_week(
+        &self,
+        from_calendar_week: u8,
+        from_year: u32,
+        to_calendar_week: u8,
+        to_year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission("hr", context.clone())
+            .await?;
+        let from_week = self
+            .get_for_week(from_calendar_week, from_year, Authentication::Full)
+            .await?;
+        let to_week = self
+            .get_for_week(to_calendar_week, to_year, Authentication::Full)
+            .await?;
+
+        // Remove entries which are already in the destination week
+        let to_week_ids: Arc<[(Uuid, Uuid)]> = to_week
+            .iter()
+            .map(|b| (b.sales_person_id, b.slot_id))
+            .collect();
+        let from_week: Arc<[Booking]> = from_week
+            .iter()
+            .filter(|b| !to_week_ids.contains(&(b.sales_person_id, b.slot_id)))
+            .map(|b| {
+                let mut new_booking = b.clone();
+                new_booking.id = Uuid::nil();
+                new_booking.calendar_week = to_calendar_week as i32;
+                new_booking.year = to_year;
+                new_booking.created = None;
+                new_booking.version = Uuid::nil();
+                new_booking
+            })
+            .collect();
+
+        for booking in from_week.into_iter() {
+            self.create(booking, Authentication::Full).await?;
+        }
+        Ok(())
+    }
+
     async fn delete(
         &self,
         id: Uuid,

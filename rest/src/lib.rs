@@ -107,6 +107,12 @@ pub enum RestError {
 
     #[error("Inconsistent id. Got {0} in path but {1} in body")]
     InconsistentId(Uuid, Uuid),
+
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
+    #[error("Parse int error: {0}")]
+    ParseIntError(#[from] std::num::ParseIntError),
 }
 
 fn error_handler(result: Result<Response, RestError>) -> Response {
@@ -116,6 +122,14 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
     match result {
         Ok(response) => response,
         Err(err @ RestError::InconsistentId(_, _)) => Response::builder()
+            .status(400)
+            .body(Body::new(err.to_string()))
+            .unwrap(),
+        Err(err @ RestError::BadRequest(_)) => Response::builder()
+            .status(400)
+            .body(Body::new(err.to_string()))
+            .unwrap(),
+        Err(err @ RestError::ParseIntError(_)) => Response::builder()
             .status(400)
             .body(Body::new(err.to_string()))
             .unwrap(),

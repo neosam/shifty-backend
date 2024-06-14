@@ -75,6 +75,14 @@ pub trait BookingService {
         booking: &Booking,
         context: Authentication<Self::Context>,
     ) -> Result<Booking, ServiceError>;
+    async fn copy_week(
+        &self,
+        from_calendar_week: u8,
+        from_year: u32,
+        to_calendar_week: u8,
+        to_year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
     async fn delete(
         &self,
         id: Uuid,
