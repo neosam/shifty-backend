@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use service::{permission::Authentication, slot::Slot, ServiceError, ValidationFailureItem};
+use service::{
+    permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
+    slot::Slot,
+    ServiceError, ValidationFailureItem,
+};
 use tokio::join;
 use uuid::Uuid;
 
@@ -64,12 +68,13 @@ where
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[Slot]>, ServiceError> {
-        let (hr_permission, sales_permission) = join!(
+        let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
-                .check_permission("hr", context.clone()),
-            self.permission_service.check_permission("sales", context),
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context),
         );
-        hr_permission.or(sales_permission)?;
+        shiftplanner_permission.or(sales_permission)?;
 
         Ok(self
             .slot_dao
@@ -84,12 +89,13 @@ where
         id: &Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<Slot, ServiceError> {
-        let (hr_permission, sales_permission) = join!(
+        let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
-                .check_permission("hr", context.clone()),
-            self.permission_service.check_permission("sales", context),
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context),
         );
-        hr_permission.or(sales_permission)?;
+        shiftplanner_permission.or(sales_permission)?;
 
         let slot_entity = self.slot_dao.get_slot(id).await?;
         let slot = slot_entity
@@ -113,7 +119,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<Slot, ServiceError> {
         self.permission_service
-            .check_permission("hr", context.clone())
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
             .await?;
 
         if slot.id != Uuid::nil() {
@@ -158,7 +164,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let mut slot = self
             .slot_dao
@@ -177,7 +183,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let persisted_slot = self
             .slot_dao

@@ -70,6 +70,24 @@ where
         }
     }
 
+    async fn check_user(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        match context {
+            Authentication::Full => Ok(()),
+            Authentication::Context(context) => {
+                let current_user = self.user_service.current_user(context).await?;
+                if current_user.as_ref() == user {
+                    Ok(())
+                } else {
+                    Err(service::ServiceError::Forbidden)
+                }
+            }
+        }
+    }
+
     async fn get_privileges_for_current_user(
         &self,
         context: Authentication<Self::Context>,

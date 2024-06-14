@@ -6,6 +6,10 @@ use mockall::automock;
 
 use crate::ServiceError;
 
+pub const SALES_PRIVILEGE: &str = "sales";
+pub const HR_PRIVILEGE: &str = "hr";
+pub const SHIFTPLANNER_PRIVILEGE: &str = "shiftplanner";
+
 /// For mocking the context locally since there is actually
 /// no context.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,6 +76,11 @@ pub trait PermissionService {
     async fn check_permission(
         &self,
         privilege: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
+    async fn check_user(
+        &self,
+        user: &str,
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError>;
     async fn get_privileges_for_current_user(

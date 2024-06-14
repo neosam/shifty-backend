@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use service::{
     booking::{Booking, BookingService},
-    permission::Authentication,
+    permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
     ServiceError, ValidationFailureItem,
 };
 use std::sync::Arc;
@@ -66,6 +66,51 @@ where
             slot_service,
         }
     }
+
+    pub async fn check_booking_permission<AuthContext>(
+        &self,
+        sales_person_id: Uuid,
+        context: AuthContext,
+    ) -> Result<(), ServiceError>
+    where
+        AuthContext: Clone
+            + Send
+            + Sync
+            + std::fmt::Debug
+            + Eq
+            + 'static
+            + Into<Authentication<PermissionService::Context>>
+            + Into<Authentication<SalesPersonService::Context>>,
+    {
+        let (shiftplanner_permission, sales_permission) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone().into()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context.clone().into()),
+        );
+        shiftplanner_permission.or(sales_permission)?;
+
+        if self
+            .permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone().into())
+            .await
+            .is_err()
+        {
+            if let Some(username) = self
+                .sales_person_service
+                .get_assigned_user(sales_person_id, Authentication::Full)
+                .await?
+            {
+                self.permission_service
+                    .check_user(username.as_ref(), context.clone().into())
+                    .await?;
+            } else {
+                return Err(ServiceError::Forbidden);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -95,9 +140,13 @@ where
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[Booking]>, ServiceError> {
-        self.permission_service
-            .check_permission("hr", context)
-            .await?;
+        let (shiftplanner, sales) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context)
+        );
+        shiftplanner.or(sales)?;
         Ok(self
             .booking_dao
             .all()
@@ -112,9 +161,14 @@ where
         id: Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<Booking, ServiceError> {
-        self.permission_service
-            .check_permission("hr", context)
-            .await?;
+        let (shiftplanner, sales) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context)
+        );
+        shiftplanner.or(sales)?;
+
         let booking_entity = self.booking_dao.find_by_id(id).await?;
         let booking = booking_entity
             .as_ref()
@@ -129,12 +183,13 @@ where
         year: u32,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[Booking]>, ServiceError> {
-        let (hr_permission, sales_permission) = join!(
+        let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
-                .check_permission("hr", context.clone()),
-            self.permission_service.check_permission("sales", context),
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context),
         );
-        hr_permission.or(sales_permission)?;
+        shiftplanner_permission.or(sales_permission)?;
 
         Ok(self
             .booking_dao
@@ -150,8 +205,7 @@ where
         booking: &Booking,
         context: Authentication<Self::Context>,
     ) -> Result<Booking, ServiceError> {
-        self.permission_service
-            .check_permission("hr", context.clone())
+        self.check_booking_permission(booking.sales_person_id, context)
             .await?;
 
         if booking.id != Uuid::nil() {
@@ -181,7 +235,7 @@ where
         }
         if !self
             .sales_person_service
-            .exists(booking.sales_person_id, context.clone())
+            .exists(booking.sales_person_id, Authentication::Full)
             .await?
         {
             validation.push(ValidationFailureItem::IdDoesNotExist(
@@ -191,7 +245,7 @@ where
         }
         if !self
             .slot_service
-            .exists(booking.slot_id, context.clone())
+            .exists(booking.slot_id, Authentication::Full)
             .await?
         {
             validation.push(ValidationFailureItem::IdDoesNotExist(
@@ -242,7 +296,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
         self.permission_service
-            .check_permission("hr", context.clone())
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
             .await?;
         let from_week = self
             .get_for_week(from_calendar_week, from_year, Authentication::Full)
@@ -281,15 +335,14 @@ where
         id: Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
-        self.permission_service
-            .check_permission("hr", context)
-            .await?;
-
         let mut booking_entity = self
             .booking_dao
             .find_by_id(id)
             .await?
             .ok_or_else(move || ServiceError::EntityNotFound(id))?;
+
+        self.check_booking_permission(booking_entity.sales_person_id, context)
+            .await?;
 
         booking_entity.deleted = Some(self.clock_service.date_time_now());
         booking_entity.version = self.uuid_service.new_uuid("booking-version");

@@ -108,7 +108,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SlotServiceDe
 
 #[tokio::test]
 async fn test_get_slots() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies.slot_dao.expect_get_slots().returning(|| {
         Ok(Arc::new([
             SlotEntity {
@@ -140,7 +140,7 @@ async fn test_get_slots() {
 
 #[tokio::test]
 async fn test_get_slots_sales_role() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slots()
@@ -152,7 +152,7 @@ async fn test_get_slots_sales_role() {
 
 #[tokio::test]
 async fn test_get_slots_no_permission() {
-    let mut dependencies = build_dependencies(false, "hr");
+    let mut dependencies = build_dependencies(false, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slots()
@@ -164,7 +164,7 @@ async fn test_get_slots_no_permission() {
 
 #[tokio::test]
 async fn test_get_slot() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -194,7 +194,7 @@ async fn test_get_slot_sales_role() {
 
 #[tokio::test]
 async fn test_get_slot_not_found() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -208,7 +208,7 @@ async fn test_get_slot_not_found() {
 
 #[tokio::test]
 async fn test_get_slot_no_permission() {
-    let dependencies = build_dependencies(false, "hr");
+    let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
     let result = slot_service.get_slot(&default_id(), ().auth()).await;
     test_forbidden(&result);
@@ -216,7 +216,7 @@ async fn test_get_slot_no_permission() {
 
 #[tokio::test]
 async fn test_create_slot() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_create_slot()
@@ -255,7 +255,7 @@ async fn test_create_slot() {
 
 #[tokio::test]
 async fn test_create_slot_no_permission() {
-    let dependencies = build_dependencies(false, "hr");
+    let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
     let result = slot_service
         .create_slot(&generate_default_slot(), ().auth())
@@ -265,7 +265,7 @@ async fn test_create_slot_no_permission() {
 
 #[tokio::test]
 async fn test_create_slot_non_zero_id() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -291,7 +291,7 @@ async fn test_create_slot_non_zero_id() {
 
 #[tokio::test]
 async fn test_create_slot_non_zero_version() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -317,7 +317,7 @@ async fn test_create_slot_non_zero_version() {
 
 #[tokio::test]
 async fn test_create_slot_intersects() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies.slot_dao.expect_get_slots().returning(|| {
         Ok(Arc::new([
             generate_default_slot_entity(),
@@ -460,7 +460,7 @@ async fn test_create_slot_intersects() {
 
 #[tokio::test]
 async fn test_create_slot_time_order() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_create_slot()
@@ -488,7 +488,7 @@ async fn test_create_slot_time_order() {
 
 #[tokio::test]
 async fn test_create_slot_date_order() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_create_slot()
@@ -516,7 +516,7 @@ async fn test_create_slot_date_order() {
 
 #[tokio::test]
 async fn test_delete_slot() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -546,7 +546,7 @@ async fn test_delete_slot() {
 
 #[tokio::test]
 async fn test_delete_slot_no_permission() {
-    let dependencies = build_dependencies(false, "hr");
+    let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
     let result = slot_service.delete_slot(&default_id(), ().auth()).await;
     test_forbidden(&result);
@@ -554,7 +554,7 @@ async fn test_delete_slot_no_permission() {
 
 #[tokio::test]
 async fn test_delete_slot_not_found() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -568,7 +568,7 @@ async fn test_delete_slot_not_found() {
 
 #[tokio::test]
 async fn test_update_slot_no_permission() {
-    let dependencies = build_dependencies(false, "hr");
+    let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(&generate_default_slot(), ().auth())
@@ -578,7 +578,7 @@ async fn test_update_slot_no_permission() {
 
 #[tokio::test]
 async fn test_update_slot_not_found() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -594,7 +594,7 @@ async fn test_update_slot_not_found() {
 
 #[tokio::test]
 async fn test_update_slot_version_mismatch() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -620,7 +620,7 @@ async fn test_update_slot_version_mismatch() {
 
 #[tokio::test]
 async fn test_update_slot_valid_to() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_update_slot()
@@ -666,7 +666,7 @@ async fn test_update_slot_valid_to() {
 
 #[tokio::test]
 async fn test_update_slot_valid_to_before_valid_from() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -690,7 +690,7 @@ async fn test_update_slot_valid_to_before_valid_from() {
 
 #[tokio::test]
 async fn test_update_slot_deleted() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -736,7 +736,7 @@ async fn test_update_slot_deleted() {
 
 #[tokio::test]
 async fn test_update_slot_day_of_week_forbidden() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -761,7 +761,7 @@ async fn test_update_slot_day_of_week_forbidden() {
 
 #[tokio::test]
 async fn test_update_to_forbidden_when_not_none() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -795,7 +795,7 @@ async fn test_update_to_forbidden_when_not_none() {
 
 #[tokio::test]
 async fn test_update_from_forbidden() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -820,7 +820,7 @@ async fn test_update_from_forbidden() {
 
 #[tokio::test]
 async fn test_update_to_forbidden() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -845,7 +845,7 @@ async fn test_update_to_forbidden() {
 
 #[tokio::test]
 async fn test_update_valid_from_forbidden() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()
@@ -871,7 +871,7 @@ async fn test_update_valid_from_forbidden() {
 
 #[tokio::test]
 async fn test_update_valid_multiple_forbidden_changes() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .slot_dao
         .expect_get_slot()

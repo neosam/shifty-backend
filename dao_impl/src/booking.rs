@@ -24,7 +24,6 @@ struct BookingDb {
 impl TryFrom<&BookingDb> for BookingEntity {
     type Error = DaoError;
     fn try_from(booking: &BookingDb) -> Result<Self, Self::Error> {
-        dbg!(&booking);
         Ok(Self {
             id: Uuid::from_slice(booking.id.as_ref()).unwrap(),
             sales_person_id: Uuid::from_slice(booking.sales_person_id.as_ref()).unwrap(),

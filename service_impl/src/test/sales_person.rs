@@ -112,7 +112,35 @@ pub fn default_sales_person() -> service::sales_person::SalesPerson {
 
 #[tokio::test]
 async fn test_get_all() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    dependencies.sales_person_dao.expect_all().returning(|| {
+        Ok([
+            default_sales_person_entity(),
+            SalesPersonEntity {
+                id: alternate_id(),
+                name: "Jane Doe".into(),
+                ..default_sales_person_entity()
+            },
+        ]
+        .into())
+    });
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get_all(().auth()).await.unwrap();
+    assert_eq!(2, result.len());
+    assert_eq!(default_sales_person(), result[0]);
+    assert_eq!(
+        service::sales_person::SalesPerson {
+            id: alternate_id(),
+            name: "Jane Doe".into(),
+            ..default_sales_person()
+        },
+        result[1]
+    );
+}
+
+#[tokio::test]
+async fn test_get_all_sales_user() {
+    let mut dependencies = build_dependencies(true, "sales");
     dependencies.sales_person_dao.expect_all().returning(|| {
         Ok([
             default_sales_person_entity(),
@@ -148,7 +176,21 @@ async fn test_get_all_no_permission() {
 
 #[tokio::test]
 async fn test_get() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .times(1)
+        .returning(|_| Ok(Some(default_sales_person_entity())));
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get(default_id(), ().auth()).await;
+    assert_eq!(default_sales_person(), result.unwrap());
+}
+
+#[tokio::test]
+async fn test_get_sales_user() {
+    let mut dependencies = build_dependencies(true, "sales");
     dependencies
         .sales_person_dao
         .expect_find_by_id()
@@ -162,7 +204,7 @@ async fn test_get() {
 
 #[tokio::test]
 async fn test_get_no_permission() {
-    let dependencies = build_dependencies(false, "hr");
+    let dependencies = build_dependencies(false, "sales");
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service.get(default_id(), ().auth()).await;
     test_forbidden(&result);
@@ -170,7 +212,21 @@ async fn test_get_no_permission() {
 
 #[tokio::test]
 async fn test_get_not_found() {
-    let mut dependencies = build_dependencies(true, "hr");
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .times(1)
+        .returning(|_| Ok(None));
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get(default_id(), ().auth()).await;
+    test_not_found(&result, &default_id());
+}
+
+#[tokio::test]
+async fn test_get_not_found_sales_user() {
+    let mut dependencies = build_dependencies(true, "sales");
     dependencies
         .sales_person_dao
         .expect_find_by_id()

@@ -3,8 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::sales_person::SalesPersonEntity;
 use service::{
-    permission::Authentication, sales_person::SalesPerson, ServiceError, ValidationFailureItem,
+    permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
+    sales_person::SalesPerson,
+    ServiceError, ValidationFailureItem,
 };
+use tokio::join;
 use uuid::Uuid;
 
 pub struct SalesPersonServiceImpl<SalesPersonDao, PermissionService, ClockService, UuidService>
@@ -60,9 +63,13 @@ where
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[service::sales_person::SalesPerson]>, service::ServiceError> {
-        self.permission_service
-            .check_permission("hr", context)
-            .await?;
+        let (shiftplanner, sales) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context)
+        );
+        shiftplanner.or(sales)?;
         Ok(self
             .sales_person_dao
             .all()
@@ -77,9 +84,13 @@ where
         id: Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<service::sales_person::SalesPerson, service::ServiceError> {
-        self.permission_service
-            .check_permission("hr", context)
-            .await?;
+        let (shiftplanner, sales) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context)
+        );
+        shiftplanner.or(sales)?;
         self.sales_person_dao
             .find_by_id(id)
             .await?
