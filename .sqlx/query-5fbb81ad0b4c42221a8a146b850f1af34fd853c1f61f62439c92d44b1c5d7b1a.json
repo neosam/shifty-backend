@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE sales_person SET name = ?, background_color = ?, inactive = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "5fbb81ad0b4c42221a8a146b850f1af34fd853c1f61f62439c92d44b1c5d7b1a"
+}
