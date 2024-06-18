@@ -1,10 +1,15 @@
 use dioxus::prelude::*;
 
-use crate::{router::Route, state::auth_info};
+use crate::{
+    router::Route,
+    state::{auth_info, config},
+};
 
 #[component]
 pub fn TopBar() -> Element {
     let auth_info = try_use_context::<crate::state::AuthInfo>();
+    let config = use_context::<config::Config>();
+    let backend_url = config.backend.clone();
     let show_shiftplan = if let Some(ref auth_info) = auth_info {
         auth_info.has_privilege("sales") || auth_info.has_privilege("shiftplanner")
     } else {
@@ -53,7 +58,7 @@ pub fn TopBar() -> Element {
                         class: "flex",
                         if let Some(auth_info) = auth_info {
                             a {
-                                href: "/logout",
+                                href: "{backend_url}/logout",
                                 "Logout {auth_info.user}"
                             }
                         } else {
