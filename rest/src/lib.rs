@@ -259,7 +259,7 @@ use http::StatusCode;
 #[cfg(feature = "oidc")]
 pub async fn logout(logout_extractor: OidcRpInitiatedLogout) -> Result<Redirect, StatusCode> {
     if let Ok(logout_uri) = logout_extractor.uri() {
-        Ok(Redirect::to(&format!("{}", logout_uri.path())))
+        Ok(Redirect::to(&format!("{}", logout_uri)))
     } else {
         Err(StatusCode::BAD_REQUEST)
     }
