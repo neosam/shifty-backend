@@ -269,6 +269,11 @@ pub struct WeekViewProps {
 pub fn WeekView(props: WeekViewProps) -> Element {
     let day_start = props.shiftplan_data.min_hour();
     let day_end = props.shiftplan_data.max_hour();
+    let has_sunday = props
+        .shiftplan_data
+        .slots
+        .iter()
+        .any(|slot| slot.day_of_week == Weekday::Sunday);
     rsx! {
         div {
             class: "overflow-y-scroll overflow-visible",
@@ -282,7 +287,9 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                 DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
                 DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
                 DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
+                if has_sunday {
+                    DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
+                }
             }
         }
     }
