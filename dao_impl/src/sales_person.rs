@@ -22,6 +22,7 @@ impl SalesPersonDaoImpl {
 struct SalesPersonDb {
     id: Vec<u8>,
     name: String,
+    background_color: String,
     inactive: bool,
     deleted: Option<String>,
     update_version: Vec<u8>,
@@ -32,6 +33,7 @@ impl TryFrom<&SalesPersonDb> for SalesPersonEntity {
         Ok(Self {
             id: Uuid::from_slice(sales_person.id.as_ref()).unwrap(),
             name: sales_person.name.as_str().into(),
+            background_color: sales_person.background_color.as_str().into(),
             inactive: sales_person.inactive,
             deleted: sales_person
                 .deleted
@@ -48,7 +50,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     async fn all(&self) -> Result<Arc<[SalesPersonEntity]>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
-            "SELECT id, name, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL"
+            "SELECT id, name, background_color, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL"
         )
             .fetch_all(self.pool.as_ref())
             .await
@@ -62,7 +64,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             SalesPersonDb,
-            "SELECT id, name, inactive, deleted, update_version FROM sales_person WHERE id = ?",
+            "SELECT id, name, background_color, inactive, deleted, update_version FROM sales_person WHERE id = ?",
             id_vec
         )
         .fetch_optional(self.pool.as_ref())
@@ -76,7 +78,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     async fn find_by_user(&self, user_id: &str) -> Result<Option<SalesPersonEntity>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
-            "SELECT sp.id, sp.name, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+            "SELECT sp.id, sp.name, sp.background_color, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
             user_id
         )
         .fetch_optional(self.pool.as_ref())
@@ -91,9 +93,10 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
         let name = entity.name.as_ref();
+        let background_color = entity.background_color.as_ref();
         let inactive = entity.inactive;
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
-        query!("INSERT INTO sales_person (id, name, inactive, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?)", id, name, inactive, deleted, version, process)
+        query!("INSERT INTO sales_person (id, name, background_color, inactive, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?)", id, name, background_color, inactive, deleted, version, process)
             .execute(self.pool.as_ref())
             .await
             .map_db_error()?;
@@ -103,9 +106,10 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
         let name = entity.name.as_ref();
+        let background_color = entity.name.as_ref();
         let inactive = entity.inactive;
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
-        query!("UPDATE sales_person SET name = ?, inactive = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?", name, inactive, deleted, version, process, id)
+        query!("UPDATE sales_person SET name = ?, background_color = ?, inactive = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?", name, background_color, inactive, deleted, version, process, id)
             .execute(self.pool.as_ref())
             .await
             .map_db_error()?;
@@ -156,7 +160,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     ) -> Result<Option<SalesPersonEntity>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
-            "SELECT sp.id, sp.name, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+            "SELECT sp.id, sp.name, sp.background_color, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
             user_id
         )
             .fetch_optional(self.pool.as_ref())

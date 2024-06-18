@@ -12,6 +12,7 @@ use crate::ServiceError;
 pub struct SalesPerson {
     pub id: Uuid,
     pub name: Arc<str>,
+    pub background_color: Arc<str>,
     pub inactive: bool,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
@@ -21,6 +22,7 @@ impl From<&dao::sales_person::SalesPersonEntity> for SalesPerson {
         Self {
             id: sales_person.id,
             name: sales_person.name.clone(),
+            background_color: sales_person.background_color.clone(),
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,
@@ -32,6 +34,7 @@ impl From<&SalesPerson> for dao::sales_person::SalesPersonEntity {
         Self {
             id: sales_person.id,
             name: sales_person.name.clone(),
+            background_color: sales_person.background_color.clone(),
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,

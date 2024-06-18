@@ -94,6 +94,7 @@ pub fn default_sales_person_entity() -> dao::sales_person::SalesPersonEntity {
     dao::sales_person::SalesPersonEntity {
         id: default_id(),
         name: "John Doe".into(),
+        background_color: "#FFF".into(),
         deleted: None,
         inactive: false,
         version: default_version(),
@@ -104,6 +105,7 @@ pub fn default_sales_person() -> service::sales_person::SalesPerson {
     service::sales_person::SalesPerson {
         id: default_id(),
         name: "John Doe".into(),
+        background_color: "#FFF".into(),
         inactive: false,
         deleted: None,
         version: default_version(),
@@ -509,6 +511,52 @@ async fn test_update_name() {
         result,
         SalesPerson {
             name: "Jane Doe".into(),
+            version: alternate_version(),
+            ..default_sales_person()
+        }
+    );
+}
+
+#[tokio::test]
+async fn test_update_background_color() {
+    let mut dependencies = build_dependencies(true, "hr");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some(default_sales_person_entity())));
+    dependencies
+        .sales_person_dao
+        .expect_update()
+        .with(
+            eq(SalesPersonEntity {
+                background_color: "#000".into(),
+                version: alternate_version(),
+                ..default_sales_person_entity()
+            }),
+            eq("sales-person-service"),
+        )
+        .returning(|_, _| Ok(()));
+    dependencies
+        .uuid_service
+        .expect_new_uuid()
+        .with(eq("sales-person-version"))
+        .returning(|_| alternate_version());
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service
+        .update(
+            &SalesPerson {
+                background_color: "#000".into(),
+                ..default_sales_person()
+            },
+            ().auth(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        result,
+        SalesPerson {
+            background_color: "#000".into(),
             version: alternate_version(),
             ..default_sales_person()
         }

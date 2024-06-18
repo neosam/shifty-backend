@@ -103,6 +103,7 @@ pub struct SalesPersonTO {
     #[serde(default)]
     pub id: Uuid,
     pub name: Arc<str>,
+    pub background_color: Arc<str>,
     #[serde(default)]
     pub inactive: bool,
     #[serde(default)]
@@ -116,6 +117,7 @@ impl From<&SalesPerson> for SalesPersonTO {
         Self {
             id: sales_person.id,
             name: sales_person.name.clone(),
+            background_color: sales_person.background_color.clone(),
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,
@@ -127,6 +129,7 @@ impl From<&SalesPersonTO> for SalesPerson {
         Self {
             id: sales_person.id,
             name: sales_person.name.clone(),
+            background_color: sales_person.background_color.clone(),
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,

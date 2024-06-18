@@ -10,6 +10,7 @@ use crate::DaoError;
 pub struct SalesPersonEntity {
     pub id: Uuid,
     pub name: Arc<str>,
+    pub background_color: Arc<str>,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub inactive: bool,
     pub version: Uuid,
