@@ -30,13 +30,19 @@ pub async fn load_bookings(
     let bookings: Rc<[Booking]> = booking_tos
         .iter()
         .map(|booking_to| booking_to.into())
-        .map(|booking: Booking| Booking {
-            label: sales_persons
+        .map(|booking: Booking| {
+            let sales_person = sales_persons
                 .iter()
-                .find(|sales_person| sales_person.id == booking.sales_person_id)
-                .map(|sales_person| sales_person.name.clone())
-                .unwrap_or("".into()),
-            ..booking
+                .find(|sales_person| sales_person.id == booking.sales_person_id);
+            if let Some(sales_person) = sales_person {
+                Booking {
+                    label: sales_person.name.clone(),
+                    background_color: sales_person.background_color.clone(),
+                    ..booking
+                }
+            } else {
+                booking
+            }
         })
         .collect();
     Ok(bookings)

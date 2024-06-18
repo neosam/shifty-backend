@@ -53,6 +53,7 @@ pub struct Booking {
     pub week: u8,
     pub year: u32,
     pub label: Rc<str>,
+    pub background_color: Rc<str>,
 }
 impl From<&BookingTO> for Booking {
     fn from(booking: &BookingTO) -> Self {
@@ -63,6 +64,7 @@ impl From<&BookingTO> for Booking {
             week: booking.calendar_week as u8,
             year: booking.year,
             label: "value".into(),
+            background_color: "#FFF".into(),
         }
     }
 }
@@ -71,12 +73,14 @@ impl From<&BookingTO> for Booking {
 pub struct SalesPerson {
     pub id: Uuid,
     pub name: Rc<str>,
+    pub background_color: Rc<str>,
 }
 impl From<&SalesPersonTO> for SalesPerson {
     fn from(sales_person: &SalesPersonTO) -> Self {
         Self {
             id: sales_person.id,
             name: sales_person.name.as_ref().into(),
+            background_color: sales_person.background_color.as_ref().into(),
         }
     }
 }

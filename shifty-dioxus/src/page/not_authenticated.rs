@@ -11,8 +11,11 @@ pub fn NotAuthenticated() -> Element {
                     "Welcome to Shifty!"
                 }
                 p {
-                    class: "mt-8",
+                    class: "mt-8 mb-8",
                     "Please log in."
+                }
+                img {
+                    src: "/shifty.webp"
                 }
             }
         }

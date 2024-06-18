@@ -10,13 +10,30 @@ use tracing::info;
 use uuid::Uuid;
 
 #[derive(PartialEq, Clone)]
+pub struct ColumnViewContentItem {
+    pub title: Rc<str>,
+    pub background_color: Rc<str>,
+}
+
+#[derive(PartialEq, Clone)]
+pub enum ColumnViewContent {
+    Title(Rc<str>),
+    Items(Rc<[ColumnViewContentItem]>),
+}
+impl From<String> for ColumnViewContent {
+    fn from(title: String) -> Self {
+        ColumnViewContent::Title(title.into())
+    }
+}
+
+#[derive(PartialEq, Clone)]
 pub struct ColumnViewItem<CustomData = ()>
 where
     CustomData: PartialEq + Clone + 'static,
 {
     pub start: f32,
     pub end: f32,
-    pub title: Rc<str>,
+    pub title: ColumnViewContent,
     pub show_add: bool,
     pub show_remove: bool,
     pub custom_data: CustomData,
@@ -46,7 +63,25 @@ where
             },
             div {
                 class: "text-center truncate flex-grow flex-shrink w-full",
-                {props.item_data.title}
+                {
+                    match props.item_data.title {
+                        ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
+                        ColumnViewContent::Items(items) => {
+                            let mut items: Vec<ColumnViewContentItem> = items.iter().map(|item| item.clone()).collect();
+                            items.sort_by_key(|item| item.title.clone());
+                            rsx! { div {
+                                class: "flex flex-row overflow-scroll flex-wrap gap-1 m-1",
+                                for item in items.iter() {
+                                    p {
+                                        class: "pl-1 pr-1 rounded-md",
+                                        style: format!("background-color: {}", item.background_color),
+                                        "{item.title.clone()}"
+                                    }
+                                }
+                            } }
+                        }
+                    }
+                }
             }
             div {
                 class: "flex flex-col flex-grow overflow-scroll",
@@ -104,13 +139,15 @@ impl From<Slot> for ColumnViewItem<Slot> {
             end: slot.to_hour(),
             show_add: true,
             show_remove: true,
-            title: slot
-                .bookings
-                .iter()
-                .map(|booking| booking.label.clone())
-                .collect::<Vec<_>>()
-                .join(", ")
-                .into(),
+            title: ColumnViewContent::Items(
+                slot.bookings
+                    .iter()
+                    .map(|booking| ColumnViewContentItem {
+                        title: booking.label.clone(),
+                        background_color: booking.background_color.clone(),
+                    })
+                    .collect::<Rc<[ColumnViewContentItem]>>(),
+            ),
             custom_data: slot,
         }
     }
@@ -131,7 +168,7 @@ where
                 item_data: ColumnViewItem {
                     start: 0.0,
                     end: props.offset,
-                    title: props.title.unwrap_or_else(|| "".into()).clone(),
+                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone()),
                     show_add: false,
                     show_remove: false,
                     custom_data: (),
