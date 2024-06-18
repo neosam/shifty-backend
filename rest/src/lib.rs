@@ -252,6 +252,19 @@ pub async fn login() -> Redirect {
     Redirect::to("/")
 }
 
+#[cfg(feature = "oidc")]
+use axum_oidc::OidcRpInitiatedLogout;
+#[cfg(feature = "oidc")]
+use http::StatusCode;
+#[cfg(feature = "oidc")]
+pub async fn logout(logout_extractor: OidcRpInitiatedLogout) -> Result<Redirect, StatusCode> {
+    if let Ok(logout_uri) = logout_extractor.uri() {
+        Ok(Redirect::to(logout_uri.path()))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AuthInfoTO {
     pub user: Arc<str>,
@@ -302,6 +315,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
 
         app.route("/authenticate", get(login))
+            .route("/logout", get(logout))
             .layer(oidc_login_service)
     };
 

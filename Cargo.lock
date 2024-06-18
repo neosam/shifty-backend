@@ -1739,6 +1739,7 @@ dependencies = [
  "axum",
  "axum-oidc",
  "bytes",
+ "http 1.1.0",
  "http-body 1.0.0",
  "rest-types",
  "serde",

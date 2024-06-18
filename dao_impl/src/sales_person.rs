@@ -106,7 +106,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
         let name = entity.name.as_ref();
-        let background_color = entity.name.as_ref();
+        let background_color = entity.background_color.as_ref();
         let inactive = entity.inactive;
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
         query!("UPDATE sales_person SET name = ?, background_color = ?, inactive = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?", name, background_color, inactive, deleted, version, process, id)
