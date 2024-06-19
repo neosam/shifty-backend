@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, name, background_color, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL",
+  "query": "SELECT id, name, background_color, is_paid, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -19,18 +19,23 @@
         "type_info": "Text"
       },
       {
-        "name": "inactive",
+        "name": "is_paid",
         "ordinal": 3,
         "type_info": "Bool"
       },
       {
-        "name": "deleted",
+        "name": "inactive",
         "ordinal": 4,
+        "type_info": "Bool"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 5,
         "type_info": "Text"
       },
       {
         "name": "update_version",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Blob"
       }
     ],
@@ -42,9 +47,10 @@
       false,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "c27028718b48f9bfdd66c660d991e8ea2e99515aed0ec7a631a00dca9b9af0ff"
+  "hash": "d3def7e134106943511da197ceda13c1871840fe64557dca0ff4381cffb1093f"
 }

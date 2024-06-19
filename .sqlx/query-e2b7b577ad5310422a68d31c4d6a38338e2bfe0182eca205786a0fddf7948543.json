@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT sp.id, sp.name, sp.background_color, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+  "query": "SELECT id, name, background_color, is_paid, inactive, deleted, update_version FROM sales_person WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -19,18 +19,23 @@
         "type_info": "Text"
       },
       {
-        "name": "inactive",
+        "name": "is_paid",
         "ordinal": 3,
         "type_info": "Bool"
       },
       {
-        "name": "deleted",
+        "name": "inactive",
         "ordinal": 4,
+        "type_info": "Bool"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 5,
         "type_info": "Text"
       },
       {
         "name": "update_version",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Blob"
       }
     ],
@@ -42,9 +47,10 @@
       false,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "b5a1f9f37e2ee996d966ea0b46694cb5527e746ea847d0182f2b1a20a69c1c31"
+  "hash": "e2b7b577ad5310422a68d31c4d6a38338e2bfe0182eca205786a0fddf7948543"
 }

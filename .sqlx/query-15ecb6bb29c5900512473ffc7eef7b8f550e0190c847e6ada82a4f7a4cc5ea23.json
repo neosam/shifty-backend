@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sales_person (id, name, background_color, is_paid, inactive, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "15ecb6bb29c5900512473ffc7eef7b8f550e0190c847e6ada82a4f7a4cc5ea23"
+}
