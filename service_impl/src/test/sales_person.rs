@@ -1,8 +1,9 @@
 use super::error_test::*;
 use dao::sales_person::{MockSalesPersonDao, SalesPersonEntity};
-use mockall::predicate::eq;
+use mockall::predicate::{always, eq};
 use service::{
     clock::MockClockService,
+    permission::Authentication,
     sales_person::{SalesPerson, SalesPersonService},
     uuid_service::MockUuidService,
     MockPermissionService,
@@ -42,17 +43,19 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SalesPersonSe
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
-        .with(eq(role), eq(().auth()))
-        .returning(move |_, _| {
-            if permission {
+        .with(always(), always())
+        .returning(move |inner_role, context| {
+            if context == Authentication::Full || (permission && inner_role == role) {
+                println!("Permission granted");
                 Ok(())
             } else {
+                println!("Permission denied");
                 Err(service::ServiceError::Forbidden)
             }
         });
     permission_service
-        .expect_check_permission()
-        .returning(move |_, _| Err(service::ServiceError::Forbidden));
+        .expect_current_user_id()
+        .returning(|_| Ok(Some("TESTUSER".into())));
     let mut clock_service = MockClockService::new();
     clock_service
         .expect_time_now()
@@ -95,6 +98,7 @@ pub fn default_sales_person_entity() -> dao::sales_person::SalesPersonEntity {
         id: default_id(),
         name: "John Doe".into(),
         background_color: "#FFF".into(),
+        is_paid: false,
         deleted: None,
         inactive: false,
         version: default_version(),
@@ -106,6 +110,7 @@ pub fn default_sales_person() -> service::sales_person::SalesPerson {
         id: default_id(),
         name: "John Doe".into(),
         background_color: "#FFF".into(),
+        is_paid: Some(false),
         inactive: false,
         deleted: None,
         version: default_version(),
@@ -113,7 +118,7 @@ pub fn default_sales_person() -> service::sales_person::SalesPerson {
 }
 
 #[tokio::test]
-async fn test_get_all() {
+async fn test_get_all_shiftplanner() {
     let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies.sales_person_dao.expect_all().returning(|| {
         Ok([
@@ -129,11 +134,18 @@ async fn test_get_all() {
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service.get_all(().auth()).await.unwrap();
     assert_eq!(2, result.len());
-    assert_eq!(default_sales_person(), result[0]);
+    assert_eq!(
+        service::sales_person::SalesPerson {
+            is_paid: None,
+            ..default_sales_person()
+        },
+        result[0]
+    );
     assert_eq!(
         service::sales_person::SalesPerson {
             id: alternate_id(),
             name: "Jane Doe".into(),
+            is_paid: None,
             ..default_sales_person()
         },
         result[1]
@@ -143,6 +155,41 @@ async fn test_get_all() {
 #[tokio::test]
 async fn test_get_all_sales_user() {
     let mut dependencies = build_dependencies(true, "sales");
+    dependencies.sales_person_dao.expect_all().returning(|| {
+        Ok([
+            default_sales_person_entity(),
+            SalesPersonEntity {
+                id: alternate_id(),
+                name: "Jane Doe".into(),
+                ..default_sales_person_entity()
+            },
+        ]
+        .into())
+    });
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get_all(().auth()).await.unwrap();
+    assert_eq!(2, result.len());
+    assert_eq!(
+        service::sales_person::SalesPerson {
+            is_paid: None,
+            ..default_sales_person()
+        },
+        result[0]
+    );
+    assert_eq!(
+        service::sales_person::SalesPerson {
+            id: alternate_id(),
+            name: "Jane Doe".into(),
+            is_paid: None,
+            ..default_sales_person()
+        },
+        result[1]
+    );
+}
+
+#[tokio::test]
+async fn test_get_all_hr_user() {
+    let mut dependencies = build_dependencies(true, "hr");
     dependencies.sales_person_dao.expect_all().returning(|| {
         Ok([
             default_sales_person_entity(),
@@ -177,7 +224,26 @@ async fn test_get_all_no_permission() {
 }
 
 #[tokio::test]
-async fn test_get() {
+async fn test_get_hr_user() {
+    let mut dependencies = build_dependencies(true, "hr");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .times(1)
+        .returning(|_| Ok(Some(default_sales_person_entity())));
+    dependencies
+        .sales_person_dao
+        .expect_get_assigned_user()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some("TESTUSER".into())));
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get(default_id(), ().auth()).await;
+    assert_eq!(default_sales_person(), result.unwrap());
+}
+
+#[tokio::test]
+async fn test_get_shiftplanner_user_other_user() {
     let mut dependencies = build_dependencies(true, "shiftplanner");
     dependencies
         .sales_person_dao
@@ -185,13 +251,24 @@ async fn test_get() {
         .with(eq(default_id()))
         .times(1)
         .returning(|_| Ok(Some(default_sales_person_entity())));
+    dependencies
+        .sales_person_dao
+        .expect_get_assigned_user()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some("OTHER".into())));
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service.get(default_id(), ().auth()).await;
-    assert_eq!(default_sales_person(), result.unwrap());
+    assert_eq!(
+        SalesPerson {
+            is_paid: None,
+            ..default_sales_person()
+        },
+        result.unwrap()
+    );
 }
 
 #[tokio::test]
-async fn test_get_sales_user() {
+async fn test_get_sales_user_other_user() {
     let mut dependencies = build_dependencies(true, "sales");
     dependencies
         .sales_person_dao
@@ -199,6 +276,60 @@ async fn test_get_sales_user() {
         .with(eq(default_id()))
         .times(1)
         .returning(|_| Ok(Some(default_sales_person_entity())));
+    dependencies
+        .sales_person_dao
+        .expect_get_assigned_user()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some("OTHER".into())));
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get(default_id(), ().auth()).await;
+    assert_eq!(
+        SalesPerson {
+            is_paid: None,
+            ..default_sales_person()
+        },
+        result.unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_get_shiftplanner_user_same_user() {
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .times(1)
+        .returning(|_| Ok(Some(default_sales_person_entity())));
+    dependencies
+        .sales_person_dao
+        .expect_get_assigned_user()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some("TESTUSER".into())));
+    let sales_person_service = dependencies.build_service();
+    let result = sales_person_service.get(default_id(), ().auth()).await;
+    assert_eq!(
+        SalesPerson {
+            ..default_sales_person()
+        },
+        result.unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_get_sales_user_same_user() {
+    let mut dependencies = build_dependencies(true, "sales");
+    dependencies
+        .sales_person_dao
+        .expect_find_by_id()
+        .with(eq(default_id()))
+        .times(1)
+        .returning(|_| Ok(Some(default_sales_person_entity())));
+    dependencies
+        .sales_person_dao
+        .expect_get_assigned_user()
+        .with(eq(default_id()))
+        .returning(|_| Ok(Some("TESTUSER".into())));
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service.get(default_id(), ().auth()).await;
     assert_eq!(default_sales_person(), result.unwrap());

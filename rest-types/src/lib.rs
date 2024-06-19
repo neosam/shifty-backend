@@ -105,6 +105,8 @@ pub struct SalesPersonTO {
     pub name: Arc<str>,
     pub background_color: Arc<str>,
     #[serde(default)]
+    pub is_paid: Option<bool>,
+    #[serde(default)]
     pub inactive: bool,
     #[serde(default)]
     pub deleted: Option<time::PrimitiveDateTime>,
@@ -118,6 +120,7 @@ impl From<&SalesPerson> for SalesPersonTO {
             id: sales_person.id,
             name: sales_person.name.clone(),
             background_color: sales_person.background_color.clone(),
+            is_paid: sales_person.is_paid,
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,
@@ -130,6 +133,7 @@ impl From<&SalesPersonTO> for SalesPerson {
             id: sales_person.id,
             name: sales_person.name.clone(),
             background_color: sales_person.background_color.clone(),
+            is_paid: sales_person.is_paid,
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,

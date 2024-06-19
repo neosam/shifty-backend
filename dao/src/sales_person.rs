@@ -11,6 +11,7 @@ pub struct SalesPersonEntity {
     pub id: Uuid,
     pub name: Arc<str>,
     pub background_color: Arc<str>,
+    pub is_paid: bool,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub inactive: bool,
     pub version: Uuid,
@@ -20,6 +21,7 @@ pub struct SalesPersonEntity {
 #[async_trait]
 pub trait SalesPersonDao {
     async fn all(&self) -> Result<Arc<[SalesPersonEntity]>, DaoError>;
+    async fn all_paid(&self) -> Result<Arc<[SalesPersonEntity]>, DaoError>;
     async fn find_by_id(&self, id: Uuid) -> Result<Option<SalesPersonEntity>, DaoError>;
     async fn find_by_user(&self, user_id: &str) -> Result<Option<SalesPersonEntity>, DaoError>;
     async fn create(&self, entity: &SalesPersonEntity, process: &str) -> Result<(), DaoError>;

@@ -13,6 +13,7 @@ pub struct SalesPerson {
     pub id: Uuid,
     pub name: Arc<str>,
     pub background_color: Arc<str>,
+    pub is_paid: Option<bool>,
     pub inactive: bool,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
@@ -23,6 +24,7 @@ impl From<&dao::sales_person::SalesPersonEntity> for SalesPerson {
             id: sales_person.id,
             name: sales_person.name.clone(),
             background_color: sales_person.background_color.clone(),
+            is_paid: Some(sales_person.is_paid),
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,
@@ -35,6 +37,7 @@ impl From<&SalesPerson> for dao::sales_person::SalesPersonEntity {
             id: sales_person.id,
             name: sales_person.name.clone(),
             background_color: sales_person.background_color.clone(),
+            is_paid: sales_person.is_paid.unwrap_or(false),
             inactive: sales_person.inactive,
             deleted: sales_person.deleted,
             version: sales_person.version,
@@ -48,6 +51,10 @@ pub trait SalesPersonService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
 
     async fn get_all(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SalesPerson]>, ServiceError>;
+    async fn get_all_paid(
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[SalesPerson]>, ServiceError>;

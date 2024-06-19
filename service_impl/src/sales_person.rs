@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::sales_person::SalesPersonEntity;
 use service::{
-    permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
+    permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
     sales_person::SalesPerson,
     ServiceError, ValidationFailureItem,
 };
@@ -63,16 +63,51 @@ where
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[service::sales_person::SalesPerson]>, service::ServiceError> {
-        let (shiftplanner, sales) = join!(
+        let (shiftplanner, sales, hr) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
             self.permission_service
-                .check_permission(SALES_PRIVILEGE, context)
+                .check_permission(SALES_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone())
         );
-        shiftplanner.or(sales)?;
-        Ok(self
+        shiftplanner.or(sales).or(hr)?;
+        let mut sales_persons = self
             .sales_person_dao
             .all()
+            .await?
+            .iter()
+            .map(SalesPerson::from)
+            .collect::<Box<[SalesPerson]>>();
+
+        // Remove sensitive information if user is not a sales user.
+        if self
+            .permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await
+            .is_err()
+        {
+            println!("No HR Role - remove sensitive data");
+            sales_persons.iter_mut().for_each(|sales_person| {
+                sales_person.is_paid = None;
+            });
+        } else {
+            println!("HR ROLE - no sensitive data removal");
+        }
+
+        Ok(sales_persons.into())
+    }
+
+    async fn get_all_paid(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SalesPerson]>, ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+        Ok(self
+            .sales_person_dao
+            .all_paid()
             .await?
             .iter()
             .map(SalesPerson::from)
@@ -84,19 +119,53 @@ where
         id: Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<service::sales_person::SalesPerson, service::ServiceError> {
-        let (shiftplanner, sales) = join!(
+        let (shiftplanner, sales, hr) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
             self.permission_service
-                .check_permission(SALES_PRIVILEGE, context)
+                .check_permission(SALES_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone())
         );
-        shiftplanner.or(sales)?;
-        self.sales_person_dao
+        shiftplanner.or(sales).or(hr)?;
+        println!("Has roles");
+        let mut sales_person = self
+            .sales_person_dao
             .find_by_id(id)
             .await?
             .as_ref()
             .map(SalesPerson::from)
-            .ok_or(ServiceError::EntityNotFound(id))
+            .ok_or(ServiceError::EntityNotFound(id))?;
+
+        let remove_sensitive_data = if self
+            .permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await
+            .is_err()
+        {
+            println!("No HR Role - futher checks required");
+            if let (Some(current_user_id), Some(assigned_user)) = (
+                self.permission_service
+                    .current_user_id(context.clone())
+                    .await?,
+                self.get_assigned_user(id, Authentication::Full).await?,
+            ) {
+                println!("Check if user ID matches");
+                current_user_id != assigned_user
+            } else {
+                println!("UserID or assigned user is missing - must remove sensitive data");
+                true
+            }
+        } else {
+            println!("HR Role - no sensitive data removal");
+            false
+        };
+
+        if remove_sensitive_data {
+            sales_person.is_paid = None;
+        }
+
+        Ok(sales_person)
     }
 
     async fn exists(
@@ -117,7 +186,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<SalesPerson, service::ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(HR_PRIVILEGE, context)
             .await?;
 
         if sales_person.id != Uuid::nil() {
@@ -147,7 +216,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<SalesPerson, ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(HR_PRIVILEGE, context)
             .await?;
 
         let sales_person_entity = self
@@ -195,7 +264,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(HR_PRIVILEGE, context)
             .await?;
         let mut sales_person_entity = self
             .sales_person_dao
@@ -216,7 +285,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<Option<Arc<str>>, ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(HR_PRIVILEGE, context)
             .await?;
         Ok(self
             .sales_person_dao
@@ -231,7 +300,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(HR_PRIVILEGE, context)
             .await?;
         self.sales_person_dao
             .discard_assigned_user(sales_person_id)
@@ -250,7 +319,7 @@ where
         context: Authentication<Self::Context>,
     ) -> Result<Option<SalesPerson>, ServiceError> {
         self.permission_service
-            .check_permission("hr", context)
+            .check_permission(HR_PRIVILEGE, context)
             .await?;
         Ok(self
             .sales_person_dao

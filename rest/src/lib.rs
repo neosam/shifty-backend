@@ -302,6 +302,7 @@ pub async fn auth_info<RestState: RestStateDef>(
 
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new();
+    let app = app.route("/authenticate", get(login));
 
     #[cfg(feature = "oidc")]
     let app = {
@@ -314,9 +315,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             }))
             .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
 
-        app.route("/authenticate", get(login))
-            .route("/logout", get(logout))
-            .layer(oidc_login_service)
+        app.route("/logout", get(logout)).layer(oidc_login_service)
     };
 
     let app = app
