@@ -44,8 +44,8 @@ pub fn TopBar() -> Element {
                     if show_reports {
                         li {
                             Link {
-                                to: Route::Home {},
-                                "Reports"
+                                to: Route::Employees {},
+                                "Employees"
                             }
                         }
                     }

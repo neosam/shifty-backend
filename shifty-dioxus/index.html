@@ -11,6 +11,17 @@
 </head>
 
 <body>
+    <iframe id="silentRenewIframe" style="display:none;"></iframe>
+    <script>
+        window.oidcLoginKeepAliveURL = null;
+        setInterval(() => {
+            if (window.oidcLoginKeepAliveURL) {
+                fetch(oidcLoginKeepAliveURL, {
+                    method: "GET",
+                });
+            }
+        }, 1000 * 60 * 5);
+    </script>
     <div id="main"></div>
     <script type="module">
         import init from "/{base_path}/assets/dioxus/{app_name}.js";

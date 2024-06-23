@@ -1,5 +1,6 @@
 pub mod auth_info;
 pub mod config;
+pub mod employee;
 pub mod shiftplan;
 
 pub use auth_info::AuthInfo;

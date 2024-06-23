@@ -7,7 +7,11 @@ use crate::{api, state, state::AuthInfo};
 use crate::{i18n, router::Route};
 use dioxus::prelude::*;
 use futures_util::StreamExt;
+use js_sys::wasm_bindgen::closure::Closure;
+use js_sys::wasm_bindgen::JsValue;
+use js_sys::{Array, Reflect};
 use tracing::info;
+use web_sys::wasm_bindgen::JsCast;
 
 pub enum AppAction {
     SetConfig(state::Config),
@@ -22,10 +26,13 @@ pub fn App() -> Element {
             rsx! {
                 /* Router::<Route> {} */
                 Auth {
-                    authenticated: rsx! {
-                        div {
+                    authenticated: {
+                        eval(
+                            format!("window.oidcLoginKeepAliveURL = '{}/authenticate';", config.backend.clone()).as_str()
+                        );
+                        rsx! { div {
                             Router::<Route> {}
-                        }
+                        }}
                     },
                     unauthenticated: rsx! {
                         TopBar {}

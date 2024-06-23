@@ -5,6 +5,8 @@ use crate::{
     api,
     error::ShiftyError,
     state::{
+        self,
+        employee::Employee,
         shiftplan::{Booking, SalesPerson},
         Config, Shiftplan, Slot,
     },
@@ -126,4 +128,23 @@ pub async fn copy_from_previous_week(
     info!("Copy from previous week");
     api::copy_week(config, week - 1, year, week, year).await;
     Ok(())
+}
+
+pub async fn load_employees(
+    config: Config,
+    year: u32,
+    week_until: u8,
+) -> Result<Rc<[Employee]>, ShiftyError> {
+    let report_tos = api::get_short_reports(config, year, week_until).await?;
+    Ok(report_tos.iter().map(Employee::from).collect())
+}
+
+pub async fn load_employee_details(
+    config: Config,
+    year: u32,
+    week_until: u8,
+    employee_id: uuid::Uuid,
+) -> Result<Employee, ShiftyError> {
+    let report = api::get_employee_reports(config, employee_id, year, week_until).await?;
+    Ok(Employee::from(report.as_ref()))
 }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use rest_types::{BookingTO, SalesPersonTO, SlotTO};
+use rest_types::{BookingTO, EmployeeReportTO, SalesPersonTO, ShortEmployeeReportTO, SlotTO};
 use tracing::info;
 use uuid::Uuid;
 
@@ -127,6 +127,39 @@ pub async fn get_current_sales_person(
 ) -> Result<Option<SalesPersonTO>, reqwest::Error> {
     info!("Fetching current sales person");
     let url = format!("{}/sales-person/current", config.backend);
+    let response = reqwest::get(url).await?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_short_reports(
+    config: Config,
+    year: u32,
+    calendar_week: u8,
+) -> Result<Rc<[ShortEmployeeReportTO]>, reqwest::Error> {
+    info!("Fetching short reports");
+    let url = format!(
+        "{}/report?year={}&until_week={}",
+        config.backend, year, calendar_week
+    );
+    let response = reqwest::get(url).await?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_employee_reports(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    calendar_week: u8,
+) -> Result<Rc<EmployeeReportTO>, reqwest::Error> {
+    info!("Fetching employee reports");
+    let url = format!(
+        "{}/report/{}?year={}&until_week={}",
+        config.backend, sales_person_id, year, calendar_week
+    );
     let response = reqwest::get(url).await?;
     let res = response.json().await?;
     info!("Fetched");
