@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_calendar_week,\n                from_year,\n                to_calendar_week,\n                to_year,\n                created,\n                deleted,\n                update_version\n            FROM\n                working_hours\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "expected_hours",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "from_calendar_week",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "from_year",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "to_calendar_week",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "to_year",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 9,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "53ab5252dae2a4bbbb5f098bcdb9ee7d55b61ef54b82b80310bea94276dfb7b2"
+}

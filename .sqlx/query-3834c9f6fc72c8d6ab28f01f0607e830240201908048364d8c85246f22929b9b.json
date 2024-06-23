@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                  sales_person.id as sales_person_id,\n                  sum((STRFTIME('%H', slot.time_to) + STRFTIME('%M', slot.time_to) / 60.0) - (STRFTIME('%H', slot.time_from) + STRFTIME('%M', slot.time_from))) as hours,\n                  booking.year\n                FROM slot\n                INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)\n                INNER JOIN sales_person ON booking.sales_person_id = sales_person.id\n                WHERE booking.year = ?\n                  AND booking.calendar_week <= ?\n                GROUP BY sales_person_id, year\n                        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "sales_person_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "hours",
+        "ordinal": 1,
+        "type_info": "Float"
+      },
+      {
+        "name": "year",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "3834c9f6fc72c8d6ab28f01f0607e830240201908048364d8c85246f22929b9b"
+}

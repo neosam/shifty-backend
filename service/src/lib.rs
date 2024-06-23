@@ -6,11 +6,15 @@ use uuid::Uuid;
 
 pub mod booking;
 pub mod clock;
+pub mod datetime_utils;
+pub mod extra_hours;
 pub mod permission;
+pub mod reporting;
 pub mod sales_person;
 pub mod slot;
 pub mod user_service;
 pub mod uuid_service;
+pub mod working_hours;
 
 pub use permission::MockPermissionService;
 pub use permission::PermissionService;
@@ -63,6 +67,9 @@ pub enum ServiceError {
 
     #[error("Date order wrong. {0} must is not smaller or equal to {1}")]
     DateOrderWrong(Date, Date),
+
+    #[error("Time component range error: {0}")]
+    TimeComponentRangeError(#[from] time::error::ComponentRange),
 
     #[error("Internal error")]
     InternalError,

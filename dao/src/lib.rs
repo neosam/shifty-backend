@@ -5,9 +5,12 @@ use mockall::automock;
 use thiserror::Error;
 
 pub mod booking;
+pub mod extra_hours;
 pub mod permission;
 pub mod sales_person;
+pub mod shiftplan_report;
 pub mod slot;
+pub mod working_hours;
 
 pub use permission::MockPermissionDao;
 pub use permission::PermissionDao;
@@ -28,6 +31,12 @@ pub enum DaoError {
 
     #[error("Date/Time parse error: {0}")]
     DateTimeParseError(#[from] time::error::Parse),
+
+    #[error("Date/Time format error: {0}")]
+    DateTimeFormatError(#[from] time::error::Format),
+
+    #[error("Enum value not found: {0}")]
+    EnumValueNotFound(Arc<str>),
 }
 
 #[automock]

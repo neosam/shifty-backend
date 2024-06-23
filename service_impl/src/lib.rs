@@ -5,10 +5,12 @@ use async_trait::async_trait;
 pub mod booking;
 pub mod clock;
 pub mod permission;
+pub mod reporting;
 pub mod sales_person;
 pub mod slot;
 mod test;
 pub mod uuid_service;
+pub mod working_hours;
 
 pub use permission::PermissionServiceImpl;
 use service::permission::MockContext;

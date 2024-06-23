@@ -2,8 +2,10 @@ use std::{convert::Infallible, sync::Arc};
 
 mod booking;
 mod permission;
+mod report;
 mod sales_person;
 mod slot;
+mod working_hours;
 
 #[cfg(feature = "oidc")]
 use axum::error_handling::HandleErrorLayer;
@@ -199,6 +201,12 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        Err(RestError::ServiceError(err @ service::ServiceError::TimeComponentRangeError(_))) => {
+            Response::builder()
+                .status(500)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
         Err(RestError::ServiceError(ServiceError::InternalError)) => Response::builder()
             .status(500)
             .body(Body::new("Internal server error".to_string()))
@@ -215,12 +223,22 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
     type BookingService: service::booking::BookingService<Context = Context> + Send + Sync + 'static;
+    type ReportingService: service::reporting::ReportingService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
+    type WorkingHoursService: service::working_hours::WorkingHoursService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn user_service(&self) -> Arc<Self::UserService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
     fn booking_service(&self) -> Arc<Self::BookingService>;
+    fn reporting_service(&self) -> Arc<Self::ReportingService>;
+    fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;
 }
 
 pub struct OidcConfig {
@@ -324,6 +342,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())
+        .nest("/report", report::generate_route())
+        .nest("/working-hours", working_hours::generate_route())
         .with_state(rest_state)
         .layer(middleware::from_fn(context_extractor));
 

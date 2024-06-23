@@ -5,8 +5,11 @@ use dao::{DaoError, PrivilegeEntity};
 use sqlx::{query, query_as, SqlitePool};
 
 pub mod booking;
+pub mod extra_hours;
 pub mod sales_person;
+pub mod shiftplan_report;
 pub mod slot;
+pub mod working_hours;
 
 pub trait ResultDbErrorExt<T, E> {
     fn map_db_error(self) -> Result<T, DaoError>;

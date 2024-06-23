@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use mockall::automock;
 use std::fmt::Debug;
 use std::sync::Arc;
+use time::Weekday;
 use uuid::Uuid;
 
 use crate::permission::Authentication;
@@ -31,6 +32,32 @@ impl From<dao::slot::DayOfWeek> for DayOfWeek {
     }
 }
 impl From<DayOfWeek> for dao::slot::DayOfWeek {
+    fn from(day_of_week: DayOfWeek) -> Self {
+        match day_of_week {
+            DayOfWeek::Monday => Self::Monday,
+            DayOfWeek::Tuesday => Self::Tuesday,
+            DayOfWeek::Wednesday => Self::Wednesday,
+            DayOfWeek::Thursday => Self::Thursday,
+            DayOfWeek::Friday => Self::Friday,
+            DayOfWeek::Saturday => Self::Saturday,
+            DayOfWeek::Sunday => Self::Sunday,
+        }
+    }
+}
+impl From<Weekday> for DayOfWeek {
+    fn from(weekday: Weekday) -> Self {
+        match weekday {
+            Weekday::Monday => Self::Monday,
+            Weekday::Tuesday => Self::Tuesday,
+            Weekday::Wednesday => Self::Wednesday,
+            Weekday::Thursday => Self::Thursday,
+            Weekday::Friday => Self::Friday,
+            Weekday::Saturday => Self::Saturday,
+            Weekday::Sunday => Self::Sunday,
+        }
+    }
+}
+impl From<DayOfWeek> for Weekday {
     fn from(day_of_week: DayOfWeek) -> Self {
         match day_of_week {
             DayOfWeek::Monday => Self::Monday,

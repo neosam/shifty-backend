@@ -221,3 +221,191 @@ impl From<&SlotTO> for service::slot::Slot {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShortEmployeeReportTO {
+    pub sales_person: SalesPersonTO,
+    pub balance_hours: f32,
+}
+
+impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
+    fn from(report: &service::reporting::ShortEmployeeReport) -> Self {
+        Self {
+            sales_person: SalesPersonTO::from(report.sales_person.as_ref()),
+            balance_hours: report.balance_hours,
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ExtraHoursCategoryTO {
+    Shiftplan,
+    ExtraWork,
+    Vacation,
+    SickLeave,
+    Holiday,
+}
+impl From<&service::reporting::ExtraHoursCategory> for ExtraHoursCategoryTO {
+    fn from(category: &service::reporting::ExtraHoursCategory) -> Self {
+        match category {
+            service::reporting::ExtraHoursCategory::Shiftplan => Self::Shiftplan,
+            service::reporting::ExtraHoursCategory::ExtraWork => Self::ExtraWork,
+            service::reporting::ExtraHoursCategory::Vacation => Self::Vacation,
+            service::reporting::ExtraHoursCategory::SickLeave => Self::SickLeave,
+            service::reporting::ExtraHoursCategory::Holiday => Self::Holiday,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkingHoursDayTO {
+    pub date: time::Date,
+    pub hours: f32,
+    pub category: ExtraHoursCategoryTO,
+}
+impl From<&service::reporting::WorkingHoursDay> for WorkingHoursDayTO {
+    fn from(day: &service::reporting::WorkingHoursDay) -> Self {
+        Self {
+            date: day.date,
+            hours: day.hours,
+            category: (&day.category).into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkingHoursReportTO {
+    pub from: time::Date,
+    pub to: time::Date,
+    pub expected_hours: f32,
+    pub overall_hours: f32,
+    pub balance: f32,
+
+    pub shiftplan_hours: f32,
+    pub extra_work_hours: f32,
+    pub vacation_hours: f32,
+    pub sick_leave_hours: f32,
+    pub holiday_hours: f32,
+
+    pub days: Arc<[WorkingHoursDayTO]>,
+}
+
+impl From<&service::reporting::WorkingHours> for WorkingHoursReportTO {
+    fn from(hours: &service::reporting::WorkingHours) -> Self {
+        Self {
+            from: hours.from,
+            to: hours.to,
+            expected_hours: hours.expected_hours,
+            overall_hours: hours.overall_hours,
+            balance: hours.balance,
+            shiftplan_hours: hours.shiftplan_hours,
+            extra_work_hours: hours.extra_work_hours,
+            vacation_hours: hours.vacation_hours,
+            sick_leave_hours: hours.sick_leave_hours,
+            holiday_hours: hours.holiday_hours,
+            days: hours
+                .days
+                .iter()
+                .map(|day| WorkingHoursDayTO::from(day))
+                .collect::<Vec<_>>()
+                .into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EmployeeReportTO {
+    pub sales_person: Arc<SalesPersonTO>,
+
+    pub balance_hours: f32,
+    pub overall_hours: f32,
+    pub expected_hours: f32,
+
+    pub shiftplan_hours: f32,
+    pub extra_work_hours: f32,
+    pub vacation_hours: f32,
+    pub sick_leave_hours: f32,
+    pub holiday_hours: f32,
+
+    pub by_week: Arc<[WorkingHoursReportTO]>,
+    pub by_month: Arc<[WorkingHoursReportTO]>,
+}
+
+impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
+    fn from(report: &service::reporting::EmployeeReport) -> Self {
+        Self {
+            sales_person: Arc::new(SalesPersonTO::from(report.sales_person.as_ref())),
+            balance_hours: report.balance_hours,
+            overall_hours: report.overall_hours,
+            expected_hours: report.expected_hours,
+            shiftplan_hours: report.shiftplan_hours,
+            extra_work_hours: report.extra_work_hours,
+            vacation_hours: report.vacation_hours,
+            sick_leave_hours: report.sick_leave_hours,
+            holiday_hours: report.holiday_hours,
+            by_week: report
+                .by_week
+                .iter()
+                .map(|hours| WorkingHoursReportTO::from(hours))
+                .collect::<Vec<_>>()
+                .into(),
+            by_month: report
+                .by_month
+                .iter()
+                .map(|hours| WorkingHoursReportTO::from(hours))
+                .collect::<Vec<_>>()
+                .into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkingHoursTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub expected_hours: f32,
+    pub from_calendar_week: u8,
+    pub from_year: u32,
+    pub to_calendar_week: u8,
+    pub to_year: u32,
+    #[serde(default)]
+    pub created: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<time::PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+impl From<&service::working_hours::WorkingHours> for WorkingHoursTO {
+    fn from(working_hours: &service::working_hours::WorkingHours) -> Self {
+        Self {
+            id: working_hours.id,
+            sales_person_id: working_hours.sales_person_id,
+            expected_hours: working_hours.expected_hours,
+            from_calendar_week: working_hours.from_calendar_week,
+            from_year: working_hours.from_year,
+            to_calendar_week: working_hours.to_calendar_week,
+            to_year: working_hours.to_year,
+            created: working_hours.created,
+            deleted: working_hours.deleted,
+            version: working_hours.version,
+        }
+    }
+}
+
+impl From<&WorkingHoursTO> for service::working_hours::WorkingHours {
+    fn from(working_hours: &WorkingHoursTO) -> Self {
+        Self {
+            id: working_hours.id,
+            sales_person_id: working_hours.sales_person_id,
+            expected_hours: working_hours.expected_hours,
+            from_calendar_week: working_hours.from_calendar_week,
+            from_year: working_hours.from_year,
+            to_calendar_week: working_hours.to_calendar_week,
+            to_year: working_hours.to_year,
+            created: working_hours.created,
+            deleted: working_hours.deleted,
+            version: working_hours.version,
+        }
+    }
+}
