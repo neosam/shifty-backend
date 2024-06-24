@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, sales_person_id, amount, category, description, date_time, deleted FROM extra_hours WHERE sales_person_id = ? AND strftime('%Y', date_time) = ? AND strftime('%m', date_time) <= ?",
+  "query": "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND CAST(strftime('%m', date_time) AS INTEGER) <= ?",
   "describe": {
     "columns": [
       {
@@ -34,9 +34,19 @@
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 6,
         "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 8,
+        "type_info": "Blob"
       }
     ],
     "parameters": {
@@ -49,8 +59,10 @@
       false,
       true,
       false,
-      true
+      false,
+      true,
+      false
     ]
   },
-  "hash": "0bae9db9d14012e1b614e2f63b3704cac2c8c030fd05637d5d877060f7f59912"
+  "hash": "053634754e0b3678d61c7dd5f89a894bc5619fa2f94cdbcc6dfd59bcc3aa123f"
 }
