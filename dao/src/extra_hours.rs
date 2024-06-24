@@ -20,7 +20,9 @@ pub struct ExtraHoursEntity {
     pub category: ExtraHoursCategoryEntity,
     pub description: Arc<str>,
     pub date_time: time::PrimitiveDateTime,
+    pub created: time::PrimitiveDateTime,
     pub deleted: Option<time::PrimitiveDateTime>,
+    pub version: Uuid,
 }
 
 #[automock]

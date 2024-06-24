@@ -6,7 +6,7 @@ use dao::{
     extra_hours::{ExtraHoursCategoryEntity, ExtraHoursDao, ExtraHoursEntity},
     DaoError,
 };
-use sqlx::query_as;
+use sqlx::{query, query_as};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;
 
@@ -18,15 +18,17 @@ struct ExtraHoursDb {
     category: String,
     description: Option<String>,
     date_time: String,
+    created: String,
     deleted: Option<String>,
+    update_version: Vec<u8>,
 }
 impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
     type Error = DaoError;
 
     fn try_from(extra_hours: &ExtraHoursDb) -> Result<Self, DaoError> {
         Ok(Self {
-            id: Uuid::from_slice(extra_hours.id.as_ref()).unwrap(),
-            sales_person_id: Uuid::from_slice(extra_hours.sales_person_id.as_ref()).unwrap(),
+            id: Uuid::from_slice(extra_hours.id.as_ref())?,
+            sales_person_id: Uuid::from_slice(extra_hours.sales_person_id.as_ref())?,
             amount: extra_hours.amount as f32,
             category: match extra_hours.category.as_str() {
                 "ExtraWork" => ExtraHoursCategoryEntity::ExtraWork,
@@ -44,14 +46,14 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
             date_time: PrimitiveDateTime::parse(
                 extra_hours.date_time.as_str(),
                 &Iso8601::DATE_TIME,
-            )
-            .unwrap(),
+            )?,
+            created: PrimitiveDateTime::parse(extra_hours.created.as_str(), &Iso8601::DATE_TIME)?,
             deleted: extra_hours
                 .deleted
                 .as_ref()
                 .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
-                .transpose()
-                .unwrap(),
+                .transpose()?,
+            version: Uuid::from_slice(&extra_hours.update_version)?,
         })
     }
 }
@@ -76,7 +78,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, deleted FROM extra_hours WHERE sales_person_id = ? AND strftime('%Y', date_time) = ? AND strftime('%m', date_time) <= ?",
+            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND CAST(strftime('%m', date_time) AS INTEGER) <= ?",
             id_vec,
             year,
             until_week,
@@ -90,10 +92,41 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
     }
     async fn create(
         &self,
-        _entity: &ExtraHoursEntity,
-        _process: &str,
+        entity: &ExtraHoursEntity,
+        process: &str,
     ) -> Result<(), crate::DaoError> {
-        unimplemented!()
+        let id_vec = entity.id.as_bytes().to_vec();
+        let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
+        let category = match entity.category {
+            ExtraHoursCategoryEntity::ExtraWork => "ExtraWork",
+            ExtraHoursCategoryEntity::Vacation => "Vacation",
+            ExtraHoursCategoryEntity::SickLeave => "SickLeave",
+            ExtraHoursCategoryEntity::Holiday => "Holiday",
+        };
+        let description = entity.description.as_ref();
+        let date_time = entity.date_time.format(&Iso8601::DATE_TIME)?;
+        let created = entity.created.format(&Iso8601::DATE_TIME)?;
+        let deleted = entity
+            .deleted
+            .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
+            .transpose()?;
+        let version_vec = entity.version.as_bytes().to_vec();
+        query!(
+            "INSERT INTO extra_hours (id, sales_person_id, amount, category, description, date_time, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            id_vec,
+            sales_person_id_vec,
+            entity.amount,
+            category,
+            description,
+            date_time,
+            created,
+            deleted,
+            process,
+            version_vec,
+        ).execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
     }
     async fn update(
         &self,

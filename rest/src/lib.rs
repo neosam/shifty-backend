@@ -1,6 +1,7 @@
 use std::{convert::Infallible, sync::Arc};
 
 mod booking;
+mod extra_hours;
 mod permission;
 mod report;
 mod sales_person;
@@ -231,6 +232,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type ExtraHoursService: service::extra_hours::ExtraHoursService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn user_service(&self) -> Arc<Self::UserService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
@@ -239,6 +244,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn booking_service(&self) -> Arc<Self::BookingService>;
     fn reporting_service(&self) -> Arc<Self::ReportingService>;
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;
+    fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService>;
 }
 
 pub struct OidcConfig {
@@ -344,6 +350,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/booking", booking::generate_route())
         .nest("/report", report::generate_route())
         .nest("/working-hours", working_hours::generate_route())
+        .nest("/extra-hours", extra_hours::generate_route())
         .with_state(rest_state)
         .layer(middleware::from_fn(context_extractor));
 

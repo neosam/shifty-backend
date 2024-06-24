@@ -87,14 +87,10 @@ where
             .await
             .is_err()
         {
-            println!("No HR Role - remove sensitive data");
             sales_persons.iter_mut().for_each(|sales_person| {
                 sales_person.is_paid = None;
             });
-        } else {
-            println!("HR ROLE - no sensitive data removal");
         }
-
         Ok(sales_persons.into())
     }
 
@@ -128,7 +124,6 @@ where
                 .check_permission(HR_PRIVILEGE, context.clone())
         );
         shiftplanner.or(sales).or(hr)?;
-        println!("Has roles");
         let mut sales_person = self
             .sales_person_dao
             .find_by_id(id)
@@ -143,21 +138,17 @@ where
             .await
             .is_err()
         {
-            println!("No HR Role - futher checks required");
             if let (Some(current_user_id), Some(assigned_user)) = (
                 self.permission_service
                     .current_user_id(context.clone())
                     .await?,
                 self.get_assigned_user(id, Authentication::Full).await?,
             ) {
-                println!("Check if user ID matches");
                 current_user_id != assigned_user
             } else {
-                println!("UserID or assigned user is missing - must remove sensitive data");
                 true
             }
         } else {
-            println!("HR Role - no sensitive data removal");
             false
         };
 

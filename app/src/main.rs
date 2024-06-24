@@ -49,6 +49,12 @@ type WorkingHoursService = service_impl::working_hours::WorkingHoursServiceImpl<
     ClockService,
     UuidService,
 >;
+type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
+    dao_impl::extra_hours::ExtraHoursDaoImpl,
+    PermissionService,
+    ClockService,
+    UuidService,
+>;
 
 #[derive(Clone)]
 pub struct RestStateImpl {
@@ -59,6 +65,7 @@ pub struct RestStateImpl {
     booking_service: Arc<BookingService>,
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
+    extra_hours_service: Arc<ExtraHoursService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -68,6 +75,7 @@ impl rest::RestStateDef for RestStateImpl {
     type BookingService = BookingService;
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
+    type ExtraHoursService = ExtraHoursService;
 
     fn user_service(&self) -> Arc<Self::UserService> {
         self.user_service.clone()
@@ -89,6 +97,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService> {
         self.working_hours_service.clone()
+    }
+    fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService> {
+        self.extra_hours_service.clone()
     }
 }
 impl RestStateImpl {
@@ -140,7 +151,7 @@ impl RestStateImpl {
             slot_service.clone(),
         ));
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
-            extra_hours_dao,
+            extra_hours_dao.clone(),
             shiftplan_report_dao,
             working_hours_dao.clone(),
             sales_person_service.clone(),
@@ -152,9 +163,15 @@ impl RestStateImpl {
             Arc::new(service_impl::working_hours::WorkingHoursServiceImpl::new(
                 working_hours_dao,
                 permission_service.clone(),
-                clock_service,
-                uuid_service,
+                clock_service.clone(),
+                uuid_service.clone(),
             ));
+        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
+            extra_hours_dao,
+            permission_service.clone(),
+            clock_service,
+            uuid_service,
+        ));
         Self {
             user_service,
             permission_service,
@@ -163,6 +180,7 @@ impl RestStateImpl {
             booking_service,
             reporting_service,
             working_hours_service,
+            extra_hours_service,
         }
     }
 }

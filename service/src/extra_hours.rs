@@ -1,10 +1,11 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
 use uuid::Uuid;
 
-use dao::DaoError;
+use crate::{permission::Authentication, ServiceError};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExtraHoursCategory {
@@ -42,7 +43,9 @@ pub struct ExtraHours {
     pub category: ExtraHoursCategory,
     pub description: Arc<str>,
     pub date_time: time::PrimitiveDateTime,
+    pub created: Option<time::PrimitiveDateTime>,
     pub deleted: Option<time::PrimitiveDateTime>,
+    pub version: Uuid,
 }
 impl From<&dao::extra_hours::ExtraHoursEntity> for ExtraHours {
     fn from(extra_hours: &dao::extra_hours::ExtraHoursEntity) -> Self {
@@ -53,34 +56,56 @@ impl From<&dao::extra_hours::ExtraHoursEntity> for ExtraHours {
             category: (&extra_hours.category).into(),
             description: extra_hours.description.clone(),
             date_time: extra_hours.date_time,
+            created: Some(extra_hours.created),
             deleted: extra_hours.deleted,
+            version: extra_hours.version,
         }
     }
 }
-impl From<&ExtraHours> for dao::extra_hours::ExtraHoursEntity {
-    fn from(extra_hours: &ExtraHours) -> Self {
-        Self {
+impl TryFrom<&ExtraHours> for dao::extra_hours::ExtraHoursEntity {
+    type Error = ServiceError;
+    fn try_from(extra_hours: &ExtraHours) -> Result<Self, Self::Error> {
+        Ok(Self {
             id: extra_hours.id,
             sales_person_id: extra_hours.sales_person_id,
             amount: extra_hours.amount,
             category: (&extra_hours.category).into(),
             description: extra_hours.description.clone(),
             date_time: extra_hours.date_time,
+            created: extra_hours
+                .created
+                .ok_or_else(|| ServiceError::InternalError)?,
             deleted: extra_hours.deleted,
-        }
+            version: extra_hours.version,
+        })
     }
 }
 
-#[automock]
+#[automock(type Context=();)]
 #[async_trait]
 pub trait ExtraHoursService {
-    fn find_by_sales_person_id_and_year(
+    type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+
+    async fn find_by_sales_person_id_and_year(
         &self,
         sales_person_id: Uuid,
         year: u32,
         until_week: u8,
-    ) -> Result<Arc<[ExtraHours]>, DaoError>;
-    fn create(&self, entity: &ExtraHours, process: &str) -> Result<(), DaoError>;
-    fn update(&self, entity: &ExtraHours, process: &str) -> Result<(), DaoError>;
-    fn delete(&self, id: Uuid, process: &str) -> Result<(), DaoError>;
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[ExtraHours]>, ServiceError>;
+    async fn create(
+        &self,
+        entity: &ExtraHours,
+        context: Authentication<Self::Context>,
+    ) -> Result<ExtraHours, ServiceError>;
+    async fn update(
+        &self,
+        entity: &ExtraHours,
+        context: Authentication<Self::Context>,
+    ) -> Result<ExtraHours, ServiceError>;
+    async fn delete(
+        &self,
+        id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<ExtraHours, ServiceError>;
 }

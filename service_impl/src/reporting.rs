@@ -124,7 +124,6 @@ pub fn find_working_hours_for_calendar_week(
     year: u32,
     week: u8,
 ) -> Option<&WorkingHoursEntity> {
-    dbg!((year, week));
     working_hours.iter().find(|wh| {
         (year, week) >= (wh.from_year, wh.from_calendar_week)
             && (year, week) <= (wh.to_year, wh.to_calendar_week)

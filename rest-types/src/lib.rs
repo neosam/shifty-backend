@@ -237,14 +237,14 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ExtraHoursCategoryTO {
+pub enum ExtraHoursReportCategoryTO {
     Shiftplan,
     ExtraWork,
     Vacation,
     SickLeave,
     Holiday,
 }
-impl From<&service::reporting::ExtraHoursCategory> for ExtraHoursCategoryTO {
+impl From<&service::reporting::ExtraHoursCategory> for ExtraHoursReportCategoryTO {
     fn from(category: &service::reporting::ExtraHoursCategory) -> Self {
         match category {
             service::reporting::ExtraHoursCategory::Shiftplan => Self::Shiftplan,
@@ -260,7 +260,7 @@ impl From<&service::reporting::ExtraHoursCategory> for ExtraHoursCategoryTO {
 pub struct WorkingHoursDayTO {
     pub date: time::Date,
     pub hours: f32,
-    pub category: ExtraHoursCategoryTO,
+    pub category: ExtraHoursReportCategoryTO,
 }
 impl From<&service::reporting::WorkingHoursDay> for WorkingHoursDayTO {
     fn from(day: &service::reporting::WorkingHoursDay) -> Self {
@@ -406,6 +406,82 @@ impl From<&WorkingHoursTO> for service::working_hours::WorkingHours {
             created: working_hours.created,
             deleted: working_hours.deleted,
             version: working_hours.version,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ExtraHoursCategoryTO {
+    ExtraWork,
+    Vacation,
+    SickLeave,
+    Holiday,
+}
+impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
+    fn from(category: &service::extra_hours::ExtraHoursCategory) -> Self {
+        match category {
+            service::extra_hours::ExtraHoursCategory::ExtraWork => Self::ExtraWork,
+            service::extra_hours::ExtraHoursCategory::Vacation => Self::Vacation,
+            service::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
+            service::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
+        }
+    }
+}
+impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
+    fn from(category: &ExtraHoursCategoryTO) -> Self {
+        match category {
+            ExtraHoursCategoryTO::ExtraWork => Self::ExtraWork,
+            ExtraHoursCategoryTO::Vacation => Self::Vacation,
+            ExtraHoursCategoryTO::SickLeave => Self::SickLeave,
+            ExtraHoursCategoryTO::Holiday => Self::Holiday,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExtraHoursTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub amount: f32,
+    pub category: ExtraHoursCategoryTO,
+    pub description: Arc<str>,
+    pub date_time: time::PrimitiveDateTime,
+    #[serde(default)]
+    pub created: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<time::PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+impl From<&service::extra_hours::ExtraHours> for ExtraHoursTO {
+    fn from(extra_hours: &service::extra_hours::ExtraHours) -> Self {
+        Self {
+            id: extra_hours.id,
+            sales_person_id: extra_hours.sales_person_id,
+            amount: extra_hours.amount,
+            category: (&extra_hours.category).into(),
+            description: extra_hours.description.clone(),
+            date_time: extra_hours.date_time,
+            created: extra_hours.created,
+            deleted: extra_hours.deleted,
+            version: extra_hours.version,
+        }
+    }
+}
+impl From<&ExtraHoursTO> for service::extra_hours::ExtraHours {
+    fn from(extra_hours: &ExtraHoursTO) -> Self {
+        Self {
+            id: extra_hours.id,
+            sales_person_id: extra_hours.sales_person_id,
+            amount: extra_hours.amount,
+            category: (&extra_hours.category).into(),
+            description: extra_hours.description.clone(),
+            date_time: extra_hours.date_time,
+            created: extra_hours.created,
+            deleted: extra_hours.deleted,
+            version: extra_hours.version,
         }
     }
 }
