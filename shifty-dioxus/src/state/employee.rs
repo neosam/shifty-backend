@@ -5,7 +5,7 @@ use std::{
 };
 
 use rest_types::{
-    EmployeeReportTO, ExtraHoursCategoryTO, ShortEmployeeReportTO, WorkingHoursReportTO,
+    EmployeeReportTO, ExtraHoursReportCategoryTO, ShortEmployeeReportTO, WorkingHoursReportTO,
     WorkingHoursTO,
 };
 use time::Month;
@@ -43,14 +43,14 @@ impl Display for WorkingHoursCategory {
     }
 }
 
-impl From<&ExtraHoursCategoryTO> for WorkingHoursCategory {
-    fn from(category: &ExtraHoursCategoryTO) -> Self {
+impl From<&ExtraHoursReportCategoryTO> for WorkingHoursCategory {
+    fn from(category: &ExtraHoursReportCategoryTO) -> Self {
         match category {
-            ExtraHoursCategoryTO::Shiftplan => WorkingHoursCategory::Shiftplan,
-            ExtraHoursCategoryTO::ExtraWork => WorkingHoursCategory::ExtraWork("-".into()),
-            ExtraHoursCategoryTO::Vacation => WorkingHoursCategory::Vacation,
-            ExtraHoursCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
-            ExtraHoursCategoryTO::Holiday => WorkingHoursCategory::Holiday,
+            ExtraHoursReportCategoryTO::Shiftplan => WorkingHoursCategory::Shiftplan,
+            ExtraHoursReportCategoryTO::ExtraWork => WorkingHoursCategory::ExtraWork("-".into()),
+            ExtraHoursReportCategoryTO::Vacation => WorkingHoursCategory::Vacation,
+            ExtraHoursReportCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
+            ExtraHoursReportCategoryTO::Holiday => WorkingHoursCategory::Holiday,
         }
     }
 }
