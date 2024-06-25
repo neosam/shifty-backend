@@ -25,7 +25,7 @@ jobs:
     # - name: Formatting
     #   run: cargo fmt --all -- --check
     - name: Run tailwindcss
-      run: tailwindcss -i ./input.css -o assets/tailwind.css
+      run: npx tailwindcss -i ./input.css -o assets/tailwind.css
     - name: Build release 
       run: dx build --release
     - name: Package dist as dist.tgz
