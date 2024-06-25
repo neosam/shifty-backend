@@ -4,9 +4,13 @@ use dioxus::prelude::*;
 
 use crate::state::employee::{Employee, WorkingHours};
 
+use crate::component::AddExtraHoursForm;
+use crate::component::Modal;
+
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewProps {
     pub employee: Employee,
+    pub onupdate: EventHandler<()>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -221,11 +225,37 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let mut expand_weeks = use_signal(|| false);
     let mut expand_months = use_signal(|| false);
     let mut expand_details = use_signal(|| false);
+    let mut show_add_entry_dialog = use_signal(|| false);
 
     rsx! {
-        h1 {
-            class: "text-2xl font-bold",
-            {props.employee.sales_person.name.clone()}
+        if *show_add_entry_dialog.read() {
+            Modal {
+                AddExtraHoursForm {
+                    sales_person_id: props.employee.sales_person.id,
+                    onabort: move |_| {
+                        *show_add_entry_dialog.write() = false;
+                    },
+                    onsaved: move |_| {
+                        props.onupdate.call(());
+                        *show_add_entry_dialog.write() = false;
+                    }
+                }
+            }
+        }
+
+        div {
+            class: "flex justify-between",
+            h1 {
+                class: "text-2xl font-bold",
+                {props.employee.sales_person.name.clone()}
+            }
+            button {
+                class: "border-2 border-gray-200 p-2",
+                onclick: move |_| {
+                    *show_add_entry_dialog.write() = true;
+                },
+                "Add entry"
+            }
         }
         div {
             class: "flex flex-col lg:flex-row lg:justify-between lg:gap-4",

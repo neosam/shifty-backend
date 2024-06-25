@@ -5,8 +5,8 @@ use std::{
 };
 
 use rest_types::{
-    EmployeeReportTO, ExtraHoursReportCategoryTO, ShortEmployeeReportTO, WorkingHoursReportTO,
-    WorkingHoursTO,
+    EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursReportCategoryTO, ShortEmployeeReportTO,
+    WorkingHoursReportTO, WorkingHoursTO,
 };
 use time::Month;
 use uuid::uuid;
@@ -30,6 +30,39 @@ pub enum WorkingHoursCategory {
     SickLeave,
     Holiday,
 }
+impl WorkingHoursCategory {
+    pub fn is_extra_work(&self) -> bool {
+        matches!(self, WorkingHoursCategory::ExtraWork(_))
+    }
+    pub fn is_vacation(&self) -> bool {
+        matches!(self, WorkingHoursCategory::Vacation)
+    }
+    pub fn is_sick_leave(&self) -> bool {
+        matches!(self, WorkingHoursCategory::SickLeave)
+    }
+    pub fn is_holiday(&self) -> bool {
+        matches!(self, WorkingHoursCategory::Holiday)
+    }
+    pub fn identifier(&self) -> Rc<str> {
+        match self {
+            WorkingHoursCategory::Shiftplan => "shiftplan".into(),
+            WorkingHoursCategory::ExtraWork(_) => "extra_work".into(),
+            WorkingHoursCategory::Vacation => "vacation".into(),
+            WorkingHoursCategory::SickLeave => "sick_leave".into(),
+            WorkingHoursCategory::Holiday => "holiday".into(),
+        }
+    }
+    pub fn from_identifier(identifier: &str) -> Self {
+        match identifier {
+            "shiftplan" => WorkingHoursCategory::Shiftplan,
+            "extra_work" => WorkingHoursCategory::ExtraWork("".into()),
+            "vacation" => WorkingHoursCategory::Vacation,
+            "sick_leave" => WorkingHoursCategory::SickLeave,
+            "holiday" => WorkingHoursCategory::Holiday,
+            _ => panic!("Unknown working hours category: {}", identifier),
+        }
+    }
+}
 
 impl Display for WorkingHoursCategory {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -51,6 +84,20 @@ impl From<&ExtraHoursReportCategoryTO> for WorkingHoursCategory {
             ExtraHoursReportCategoryTO::Vacation => WorkingHoursCategory::Vacation,
             ExtraHoursReportCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursReportCategoryTO::Holiday => WorkingHoursCategory::Holiday,
+        }
+    }
+}
+impl From<&WorkingHoursCategory> for ExtraHoursCategoryTO {
+    fn from(category: &WorkingHoursCategory) -> Self {
+        match category {
+            WorkingHoursCategory::ExtraWork(_) => ExtraHoursCategoryTO::ExtraWork,
+            WorkingHoursCategory::Vacation => ExtraHoursCategoryTO::Vacation,
+            WorkingHoursCategory::SickLeave => ExtraHoursCategoryTO::SickLeave,
+            WorkingHoursCategory::Holiday => ExtraHoursCategoryTO::Holiday,
+            _ => panic!(
+                "Cannot convert working hours category to extra hours category: {:?}",
+                category
+            ),
         }
     }
 }

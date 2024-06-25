@@ -1,7 +1,9 @@
+use futures_util::StreamExt;
 use std::rc::Rc;
 
 use crate::{
     component::{EmployeeShort, EmployeeView, TopBar},
+    error::ShiftyError,
     js, loader,
     state::{
         self,
@@ -10,6 +12,10 @@ use crate::{
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
+
+pub enum EmployeeDetailsAction {
+    Update,
+}
 
 #[derive(Clone, PartialEq, Props)]
 pub struct EmployeeDetailsProps {
@@ -31,20 +37,52 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             return rsx! { "Invalid employee id: {err}" };
         }
     };
-    let employee = use_resource(move || {
-        loader::load_employee_details(config.to_owned(), *year.read(), week_until, employee_id)
-    });
+    //let employee_resource = use_resource(move || {
+    //    loader::load_employee_details(config.to_owned(), *year.read(), week_until, employee_id)
+    //});
+    let mut employee_resource: Signal<Option<Result<Employee, ShiftyError>>> = use_signal(|| None);
+
+    let cr = use_coroutine(
+        move |mut rx: UnboundedReceiver<EmployeeDetailsAction>| async move {
+            to_owned![employee_resource];
+            *employee_resource.write() = Some(
+                loader::load_employee_details(
+                    config.to_owned(),
+                    *year.read(),
+                    week_until,
+                    employee_id,
+                )
+                .await,
+            );
+            while let Some(action) = rx.next().await {
+                match action {
+                    EmployeeDetailsAction::Update => {
+                        *employee_resource.write() = Some(
+                            loader::load_employee_details(
+                                config.to_owned(),
+                                *year.read(),
+                                week_until,
+                                employee_id,
+                            )
+                            .await,
+                        )
+                    }
+                }
+            }
+        },
+    );
 
     rsx! {
         TopBar {}
 
         div {
             class: "ml-1 mr-1 pt-4 md:m-8",
-            match &*employee.read_unchecked() {
+            match &*employee_resource.read_unchecked() {
                 Some(Ok(employee)) => {
                     rsx! {
                         EmployeeView {
-                            employee: employee.clone()
+                            employee: employee.clone(),
+                            onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
                         }
                     }
                 },

@@ -1,6 +1,10 @@
 use std::rc::Rc;
 
-use rest_types::{BookingTO, EmployeeReportTO, SalesPersonTO, ShortEmployeeReportTO, SlotTO};
+use rest_types::{
+    BookingTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, SalesPersonTO,
+    ShortEmployeeReportTO, SlotTO,
+};
+use time::{macros::format_description, PrimitiveDateTime};
 use tracing::info;
 use uuid::Uuid;
 
@@ -164,4 +168,36 @@ pub async fn get_employee_reports(
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn add_extra_hour(
+    config: Config,
+    sales_person_id: Uuid,
+    amount: f32,
+    category: ExtraHoursCategoryTO,
+    description: String,
+    date_time: String,
+) -> Result<(), reqwest::Error> {
+    let url: String = format!("{}/extra-hours", config.backend,);
+    let format = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
+    info!("Parsing datetime");
+    info!("Datetime: {}", date_time);
+    let date_time = PrimitiveDateTime::parse(&date_time, &format).unwrap();
+    info!("Datetime: {}", date_time);
+    let booking_to = ExtraHoursTO {
+        id: Uuid::nil(),
+        sales_person_id,
+        amount,
+        description: description.into(),
+        date_time,
+        category,
+        created: None,
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&booking_to).send().await?;
+    response.error_for_status_ref()?;
+    info!("Added");
+    Ok(())
 }

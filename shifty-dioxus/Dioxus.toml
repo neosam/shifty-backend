@@ -54,3 +54,5 @@ backend = "http://localhost:3000/sales-person"
 backend = "http://localhost:3000/authenticate"
 [[web.proxy]]
 backend = "http://localhost:3000/report"
+[[web.proxy]]
+backend = "http://localhost:3000/extra-hours"
