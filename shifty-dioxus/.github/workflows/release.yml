@@ -5,19 +5,36 @@ on:
     tags:
      - 'v*.*.*'
 
+env:
+  add_binaries_to_github_release: true
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - uses: olegtarasov/get-tag@v2.1.2
+        id: get_version
     - name: Install dioxus
       run: cargo install dioxus-cli
     # - name: Formatting
     #   run: cargo fmt --all -- --check
     - name: Build local version
       run: dx build --release
+    - name: Package dist as dist.tgz
+      run: tar -czf dist.tgz dist/
     - name: Upload dist directory as artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: dist-artifact
-        path: dist/
+        name: dist.tgz
+        path: dist.tgz
+        retention-days: 1
+    - name: Upload binaries to release
+        if: ${{ env.add_binaries_to_github_release == 'true' }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist.tgz
+          asset_name: shifty-frontend-${{ steps.get_version.outputs.tag }}.zip
+          tag: ${{ github.ref }}
+          overwrite: true
