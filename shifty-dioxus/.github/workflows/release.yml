@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    tags:
+     - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dioxus
+      run: cargo install dioxus-cli
+    # - name: Formatting
+    #   run: cargo fmt --all -- --check
+    - name: Build local version
+      run: dx build --release
+    - name: Upload dist directory as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist-artifact
+          path: dist/
