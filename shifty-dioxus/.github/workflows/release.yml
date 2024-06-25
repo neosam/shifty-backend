@@ -17,7 +17,7 @@ jobs:
     - name: Build local version
       run: dx build --release
     - name: Upload dist directory as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: dist-artifact
-          path: dist/
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-artifact
+        path: dist/
