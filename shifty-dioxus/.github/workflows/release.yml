@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: olegtarasov/get-tag@v2.1.2
-        id: get_version
+      id: get_version
     - name: Install dioxus
       run: cargo install dioxus-cli
     # - name: Formatting
