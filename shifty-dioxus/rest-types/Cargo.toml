@@ -1,0 +1,26 @@
+[package]
+name = "rest-types"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[features]
+#default = ["service-impl"]
+default = []
+service-impl = ["dep:service"]
+
+[dependencies.service]
+path = "../service"
+optional = true
+
+[dependencies.serde]
+version = "1.0.198"
+features = ["derive", "std", "alloc", "rc"]
+
+[dependencies.uuid]
+version = "1.8.0"
+features = ["v4", "serde"]
+
+[dependencies.time]
+version = "0.3.36"
+features = ["serde-human-readable"]

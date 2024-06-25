@@ -24,7 +24,7 @@ futures-util = "0.3.30"
 js-sys = "0.3.69"
 
 [dependencies.rest-types]
-path = "../shifty-backend/rest-types"
+path = "rest-types"
 [dependencies.uuid]
 version = "*"
 features = ["v4", "js"]
