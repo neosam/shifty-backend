@@ -4,9 +4,14 @@ version = "0.1.0"
 edition = "2021"
 resolver = "2"
 
+[features]
+#default = ["service-impl"]
+default = []
+service-impl = ["dep:service"]
 
 [dependencies.service]
 path = "../service"
+optional = true
 
 [dependencies.serde]
 version = "1.0.198"

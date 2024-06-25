@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 use time::PrimitiveDateTime;
 use uuid::Uuid;
@@ -9,6 +10,7 @@ use uuid::Uuid;
 pub struct UserTO {
     pub name: String,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::User> for UserTO {
     fn from(user: &service::User) -> Self {
         Self {
@@ -21,6 +23,7 @@ impl From<&service::User> for UserTO {
 pub struct RoleTO {
     pub name: String,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::Role> for RoleTO {
     fn from(role: &service::Role) -> Self {
         Self {
@@ -33,6 +36,7 @@ impl From<&service::Role> for RoleTO {
 pub struct PrivilegeTO {
     pub name: String,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::Privilege> for PrivilegeTO {
     fn from(privilege: &service::Privilege) -> Self {
         Self {
@@ -69,6 +73,7 @@ pub struct BookingTO {
     #[serde(default)]
     pub version: Uuid,
 }
+#[cfg(feature = "service-impl")]
 impl From<&Booking> for BookingTO {
     fn from(booking: &Booking) -> Self {
         Self {
@@ -83,6 +88,7 @@ impl From<&Booking> for BookingTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<&BookingTO> for Booking {
     fn from(booking: &BookingTO) -> Self {
         Self {
@@ -114,6 +120,7 @@ pub struct SalesPersonTO {
     #[serde(default)]
     pub version: Uuid,
 }
+#[cfg(feature = "service-impl")]
 impl From<&SalesPerson> for SalesPersonTO {
     fn from(sales_person: &SalesPerson) -> Self {
         Self {
@@ -127,6 +134,7 @@ impl From<&SalesPerson> for SalesPersonTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<&SalesPersonTO> for SalesPerson {
     fn from(sales_person: &SalesPersonTO) -> Self {
         Self {
@@ -151,6 +159,7 @@ pub enum DayOfWeekTO {
     Saturday,
     Sunday,
 }
+#[cfg(feature = "service-impl")]
 impl From<service::slot::DayOfWeek> for DayOfWeekTO {
     fn from(day_of_week: service::slot::DayOfWeek) -> Self {
         match day_of_week {
@@ -164,6 +173,7 @@ impl From<service::slot::DayOfWeek> for DayOfWeekTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<DayOfWeekTO> for service::slot::DayOfWeek {
     fn from(day_of_week: DayOfWeekTO) -> Self {
         match day_of_week {
@@ -193,6 +203,7 @@ pub struct SlotTO {
     #[serde(default)]
     pub version: Uuid,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::slot::Slot> for SlotTO {
     fn from(slot: &service::slot::Slot) -> Self {
         Self {
@@ -207,6 +218,7 @@ impl From<&service::slot::Slot> for SlotTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<&SlotTO> for service::slot::Slot {
     fn from(slot: &SlotTO) -> Self {
         Self {
@@ -228,6 +240,7 @@ pub struct ShortEmployeeReportTO {
     pub balance_hours: f32,
 }
 
+#[cfg(feature = "service-impl")]
 impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
     fn from(report: &service::reporting::ShortEmployeeReport) -> Self {
         Self {
@@ -244,6 +257,7 @@ pub enum ExtraHoursReportCategoryTO {
     SickLeave,
     Holiday,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::reporting::ExtraHoursCategory> for ExtraHoursReportCategoryTO {
     fn from(category: &service::reporting::ExtraHoursCategory) -> Self {
         match category {
@@ -262,6 +276,7 @@ pub struct WorkingHoursDayTO {
     pub hours: f32,
     pub category: ExtraHoursReportCategoryTO,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::reporting::WorkingHoursDay> for WorkingHoursDayTO {
     fn from(day: &service::reporting::WorkingHoursDay) -> Self {
         Self {
@@ -289,6 +304,7 @@ pub struct WorkingHoursReportTO {
     pub days: Arc<[WorkingHoursDayTO]>,
 }
 
+#[cfg(feature = "service-impl")]
 impl From<&service::reporting::WorkingHours> for WorkingHoursReportTO {
     fn from(hours: &service::reporting::WorkingHours) -> Self {
         Self {
@@ -329,6 +345,7 @@ pub struct EmployeeReportTO {
     pub by_week: Arc<[WorkingHoursReportTO]>,
     pub by_month: Arc<[WorkingHoursReportTO]>,
 }
+#[cfg(feature = "service-impl")]
 
 impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
     fn from(report: &service::reporting::EmployeeReport) -> Self {
@@ -376,6 +393,7 @@ pub struct WorkingHoursTO {
     #[serde(default)]
     pub version: Uuid,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::working_hours::WorkingHours> for WorkingHoursTO {
     fn from(working_hours: &service::working_hours::WorkingHours) -> Self {
         Self {
@@ -393,6 +411,7 @@ impl From<&service::working_hours::WorkingHours> for WorkingHoursTO {
     }
 }
 
+#[cfg(feature = "service-impl")]
 impl From<&WorkingHoursTO> for service::working_hours::WorkingHours {
     fn from(working_hours: &WorkingHoursTO) -> Self {
         Self {
@@ -417,6 +436,7 @@ pub enum ExtraHoursCategoryTO {
     SickLeave,
     Holiday,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
     fn from(category: &service::extra_hours::ExtraHoursCategory) -> Self {
         match category {
@@ -427,6 +447,7 @@ impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
     fn from(category: &ExtraHoursCategoryTO) -> Self {
         match category {
@@ -455,6 +476,7 @@ pub struct ExtraHoursTO {
     #[serde(default)]
     pub version: Uuid,
 }
+#[cfg(feature = "service-impl")]
 impl From<&service::extra_hours::ExtraHours> for ExtraHoursTO {
     fn from(extra_hours: &service::extra_hours::ExtraHours) -> Self {
         Self {
@@ -470,6 +492,7 @@ impl From<&service::extra_hours::ExtraHours> for ExtraHoursTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<&ExtraHoursTO> for service::extra_hours::ExtraHours {
     fn from(extra_hours: &ExtraHoursTO) -> Self {
         Self {

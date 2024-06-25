@@ -29,6 +29,7 @@ path = "../service"
 
 [dependencies.rest-types]
 path = "../rest-types"
+features = ["service-impl"]
 
 [dependencies.uuid]
 version = "1.8.0"
