@@ -17,7 +17,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
+    - name: Formatting
+      run: cargo fmt --all -- --check
+    - name: Build local version
       run: cargo build --verbose
+    - name: Build OIDC version
+      run: cargo build --verbose --no-default-features --features oidc
     - name: Run tests
       run: cargo test --verbose
