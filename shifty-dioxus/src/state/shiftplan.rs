@@ -70,6 +70,7 @@ pub struct SalesPerson {
     pub id: Uuid,
     pub name: Rc<str>,
     pub background_color: Rc<str>,
+    pub is_paid: bool,
 }
 impl From<&SalesPersonTO> for SalesPerson {
     fn from(sales_person: &SalesPersonTO) -> Self {
@@ -77,6 +78,7 @@ impl From<&SalesPersonTO> for SalesPerson {
             id: sales_person.id,
             name: sales_person.name.as_ref().into(),
             background_color: sales_person.background_color.as_ref().into(),
+            is_paid: sales_person.is_paid.unwrap_or(false),
         }
     }
 }

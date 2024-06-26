@@ -1,12 +1,13 @@
 use dioxus::prelude::*;
 
-use crate::{router::Route, state::config};
+use crate::{loader, router::Route, state::config};
 
 #[component]
 pub fn TopBar() -> Element {
     let auth_info = try_use_context::<crate::state::AuthInfo>();
     let config = use_context::<config::Config>();
     let backend_url = config.backend.clone();
+    let employee = use_resource(move || loader::load_current_sales_person(config.clone()));
     let show_shiftplan = if let Some(ref auth_info) = auth_info {
         auth_info.has_privilege("sales") || auth_info.has_privilege("shiftplanner")
     } else {
@@ -14,6 +15,11 @@ pub fn TopBar() -> Element {
     };
     let show_reports = if let Some(ref auth_info) = auth_info {
         auth_info.has_privilege("hr")
+    } else {
+        false
+    };
+    let is_paid = if let Some(Ok(Some(employee))) = &*employee.read_unchecked() {
+        employee.is_paid
     } else {
         false
     };
@@ -46,8 +52,13 @@ pub fn TopBar() -> Element {
                             }
                         }
                     }
-                    li {
-
+                    if is_paid && !show_reports {
+                        li {
+                            Link {
+                                to: Route::MyEmployeeDetails {},
+                                "My time"
+                            }
+                        }
                     }
                 }
                 ul {
