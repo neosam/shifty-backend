@@ -223,7 +223,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
 #[component]
 pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let mut expand_weeks = use_signal(|| false);
-    let mut expand_months = use_signal(|| false);
+    //let mut expand_months = use_signal(|| false);
     let mut expand_details = use_signal(|| false);
     let mut show_add_entry_dialog = use_signal(|| false);
 
@@ -260,7 +260,6 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
         div {
             class: "flex flex-col lg:flex-row lg:justify-between lg:gap-4",
             div {
-
                 div {
                     class: "flex flex-col",
                     h2 {
@@ -375,42 +374,6 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
 
                 if *expand_weeks.read() {
                     for working_hours in props.employee.working_hours_by_week.iter() {
-                        WorkingHoursView {
-                            working_hours: working_hours.clone()
-                        }
-                    }
-                }
-            }
-
-            div {
-                class: "border-t-2 border-gray-200 border-solid mt-8 lg:pl-4 lg:flex-grow lg:ml-4 lg:border-t-0 lg:border-l-2 lg:mt-0",
-                div {
-                    class: "flex flex-row mt-8 justify-between",
-                    h2 {
-                        class: "text-lg font-bold",
-                        "Working hours per month"
-                    }
-                    if !*expand_months.read() {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_months.write() = true;
-                            },
-                            "Show"
-                        }
-                    } else {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_months.write() = false;
-                            },
-                            "Hide"
-                        }
-                    }
-                }
-
-                if *expand_months.read() {
-                    for working_hours in props.employee.working_hours_by_month.iter() {
                         WorkingHoursView {
                             working_hours: working_hours.clone()
                         }
