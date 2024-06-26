@@ -1,9 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{
-    router::Route,
-    state::{config},
-};
+use crate::{router::Route, state::config};
 
 #[component]
 pub fn TopBar() -> Element {
