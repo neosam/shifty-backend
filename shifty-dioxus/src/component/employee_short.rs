@@ -22,7 +22,7 @@ pub fn EmployeeShort(props: EmployeeShortProps) -> Element {
                     }
                     div {
                         class: "text-sm text-gray-500",
-                        "{props.employee.balance} hours"
+                        {format!("{:.1} hours", props.employee.balance)}
                     }
                 }
             }

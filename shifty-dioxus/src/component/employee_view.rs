@@ -83,7 +83,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                     "{props.working_hours.from} - {props.working_hours.to}"
                 }
                 div {
-                    "{props.working_hours.balance} hours"
+                    { format!("{:.1} hours", props.working_hours.balance) }
                 }
                     if *expand_details.read() {
                        div {
@@ -108,50 +108,50 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                     li {
                         TupleView {
                             label: "Balance".into(),
-                            value: format!("{:.2} hours", props.working_hours.balance).into()
+                            value: format!("{:.1} hours", props.working_hours.balance).into()
                         }
                     }
                     li {
                         TupleView {
                             label: "Overall".into(),
-                            value: format!("{} hours", props.working_hours.overall_hours).into()
+                            value: format!("{:.1} hours", props.working_hours.overall_hours).into()
                         }
                     }
                     li {
                         TupleView {
                             label: "Required".into(),
-                            value: format!("{} hours", props.working_hours.expected_hours).into()
+                            value: format!("{:.1} hours", props.working_hours.expected_hours).into()
                         }
                     }
                     li {
                         class: "mt-2",
                         TupleView {
                             label: "Shiftplan".into(),
-                            value: format!("{} hours", props.working_hours.shiftplan_hours).into()
+                            value: format!("{:.1} hours", props.working_hours.shiftplan_hours).into()
                         }
                     }
                     li {
                         TupleView {
                             label: "Extra work".into(),
-                            value: format!("{} hours", props.working_hours.extra_work_hours).into()
+                            value: format!("{:.1} hours", props.working_hours.extra_work_hours).into()
                         }
                     }
                     li {
                         TupleView {
                             label: "Vacation".into(),
-                            value: format!("{} hours = {} days", props.working_hours.vacation_hours, props.working_hours.vacation_hours / 8.0).into()
+                            value: format!("{:.1} hours", props.working_hours.vacation_hours).into()
                         }
                     }
                     li {
                         TupleView {
                             label: "Sick leave".into(),
-                            value: format!("{} hours = {} days", props.working_hours.sick_leave_hours, props.working_hours.sick_leave_hours / 8.0).into()
+                            value: format!("{:.1} hours", props.working_hours.sick_leave_hours).into()
                         }
                     }
                     li {
                         TupleView {
                             label: "Holidays".into(),
-                            value: format!("{} hours = {} days", props.working_hours.holiday_hours, props.working_hours.holiday_hours / 8.0).into()
+                            value: format!("{:.1} hours", props.working_hours.holiday_hours).into()
                         }
                     }
                 }
@@ -272,7 +272,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                         li {
                             TupleView {
                                 label: "Balance".into(),
-                                value: format!("{:.2} hours", props.employee.balance).into()
+                                value: format!("{:.1} hours", props.employee.balance).into()
                             }
                         }
                         if *expand_details.read() {
@@ -280,44 +280,44 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                             li {
                                 TupleView {
                                     label: "Overall".into(),
-                                    value: format!("{} hours", props.employee.overall_working_hours).into()
+                                    value: format!("{:.1} hours", props.employee.overall_working_hours).into()
                                 }
                             }
                             li {
                                 TupleView {
                                     label: "Required".into(),
-                                    value: format!("{} hours", props.employee.expected_working_hours).into()
+                                    value: format!("{:.1} hours", props.employee.expected_working_hours).into()
                                 }
                             }
                             li {
                                 class: "mt-2",
                                 TupleView {
                                     label: "Shiftplan".into(),
-                                    value: format!("{} hours", props.employee.shiftplan_hours).into()
+                                    value: format!("{:.1} hours", props.employee.shiftplan_hours).into()
                                 }
                             }
                             li {
                                 TupleView {
                                     label: "Extra work".into(),
-                                    value: format!("{} hours", props.employee.extra_work_hours).into()
+                                    value: format!("{:.1} hours", props.employee.extra_work_hours).into()
                                 }
                             }
                             li {
                                 TupleView {
                                     label: "Vacation".into(),
-                                    value: format!("{} hours = {} days", props.employee.vacation_hours, props.employee.vacation_hours / 8.0).into()
+                                    value: format!("{:.1} hours", props.employee.vacation_hours).into()
                                 }
                             }
                             li {
                                 TupleView {
                                     label: "Sick leave".into(),
-                                    value: format!("{} hours = {} days", props.employee.sick_leave_hours, props.employee.sick_leave_hours / 8.0).into()
+                                    value: format!("{:.1} hours", props.employee.sick_leave_hours).into()
                                 }
                             }
                             li {
                                 TupleView {
                                     label: "Holidays".into(),
-                                    value: format!("{} hours = {} days", props.employee.holiday_hours, props.employee.holiday_hours / 8.0).into()
+                                    value: format!("{:.1} hours", props.employee.holiday_hours).into()
                                 }
                             }
                         }

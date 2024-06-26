@@ -115,6 +115,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                         *amount.write() = value;
                     },
                     "type": "number",
+                    "step": "0.001"
                 }
             }
 
