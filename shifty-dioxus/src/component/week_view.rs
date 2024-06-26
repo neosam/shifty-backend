@@ -5,9 +5,7 @@ use crate::{
     state::{Slot, Weekday},
 };
 use dioxus::prelude::*;
-use dioxus_elements::p;
 use tracing::info;
-use uuid::Uuid;
 
 #[derive(PartialEq, Clone)]
 pub struct ColumnViewContentItem {

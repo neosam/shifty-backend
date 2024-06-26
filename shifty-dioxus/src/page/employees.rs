@@ -1,10 +1,8 @@
-use std::rc::Rc;
-
 use crate::{
-    component::{EmployeeShort, EmployeeView, TopBar},
+    component::{EmployeeShort, TopBar},
     js, loader,
     router::Route,
-    state::{self, employee::Employee},
+    state,
 };
 use dioxus::prelude::*;
 

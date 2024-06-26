@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 use crate::{
     router::Route,
-    state::{auth_info, config},
+    state::{config},
 };
 
 #[component]

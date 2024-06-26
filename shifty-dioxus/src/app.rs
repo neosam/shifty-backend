@@ -1,21 +1,9 @@
-use std::rc::Rc;
-
+use crate::api;
 use crate::auth::Auth;
 use crate::component::TopBar;
 use crate::page::NotAuthenticated;
-use crate::{api, state, state::AuthInfo};
 use crate::{i18n, router::Route};
 use dioxus::prelude::*;
-use futures_util::StreamExt;
-use js_sys::wasm_bindgen::closure::Closure;
-use js_sys::wasm_bindgen::JsValue;
-use js_sys::{Array, Reflect};
-use tracing::info;
-use web_sys::wasm_bindgen::JsCast;
-
-pub enum AppAction {
-    SetConfig(state::Config),
-}
 
 pub fn App() -> Element {
     let config_resource = use_resource(|| api::load_config());

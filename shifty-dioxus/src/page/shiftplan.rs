@@ -1,13 +1,11 @@
-use std::rc::Rc;
-
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 use tracing::info;
-use uuid::timestamp::context;
 use uuid::Uuid;
 
 use crate::component::TopBar;
 use crate::component::WeekView;
+use crate::error::result_handler;
 use crate::js;
 use crate::loader;
 use crate::state;
@@ -23,8 +21,6 @@ pub enum ShiftPlanAction {
     RemoveUserFromSlot {
         slot_id: Uuid,
         sales_person_id: Uuid,
-        week: u8,
-        year: u32,
     },
     NextWeek,
     PreviousWeek,
@@ -55,10 +51,6 @@ pub fn ShiftPlan() -> Element {
                 *year.to_owned().read(),
             )
         })
-    };
-    let current_sales_person_resource = {
-        let config = config.clone();
-        use_resource(move || loader::load_current_sales_person(config.to_owned()))
     };
     let sales_persons_resource = {
         let config = config.clone();
@@ -94,31 +86,33 @@ pub fn ShiftPlan() -> Element {
                     year,
                 } => {
                     info!("Registering user to slot");
-                    loader::register_user_to_slot(
-                        config.to_owned(),
-                        slot_id,
-                        sales_person_id,
-                        week,
-                        year,
-                    )
-                    .await;
+                    result_handler(
+                        loader::register_user_to_slot(
+                            config.to_owned(),
+                            slot_id,
+                            sales_person_id,
+                            week,
+                            year,
+                        )
+                        .await,
+                    );
                     shift_plan_context.restart();
                 }
                 ShiftPlanAction::RemoveUserFromSlot {
                     slot_id,
                     sales_person_id,
-                    week,
-                    year,
                 } => {
                     info!("Removing user from slot");
                     if let Some(Ok(shift_plan)) = &*shift_plan_context.read_unchecked() {
-                        loader::remove_user_from_slot(
-                            config.to_owned(),
-                            slot_id,
-                            sales_person_id,
-                            shift_plan.clone(),
-                        )
-                        .await;
+                        result_handler(
+                            loader::remove_user_from_slot(
+                                config.to_owned(),
+                                slot_id,
+                                sales_person_id,
+                                shift_plan.clone(),
+                            )
+                            .await,
+                        );
                     }
                     shift_plan_context.restart();
                 }
@@ -145,8 +139,14 @@ pub fn ShiftPlan() -> Element {
                     }
                 }
                 ShiftPlanAction::CopyFromPreviousWeek => {
-                    loader::copy_from_previous_week(config.to_owned(), *week.read(), *year.read())
-                        .await;
+                    result_handler(
+                        loader::copy_from_previous_week(
+                            config.to_owned(),
+                            *week.read(),
+                            *year.read(),
+                        )
+                        .await,
+                    );
                     shift_plan_context.restart();
                 }
             }
@@ -262,8 +262,6 @@ pub fn ShiftPlan() -> Element {
                                 cr.send(ShiftPlanAction::RemoveUserFromSlot {
                                     slot_id: slot.id,
                                     sales_person_id: current_sales_person.id,
-                                    week: *week.read(),
-                                    year: *year.read(),
                                 });
                             };
                         }

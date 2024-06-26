@@ -1,9 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::rc::Rc;
-
 use dioxus::prelude::*;
-use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 mod api;

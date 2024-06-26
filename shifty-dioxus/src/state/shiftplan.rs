@@ -1,11 +1,7 @@
 use std::rc::Rc;
 
-use crate::{
-    i18n::{self, I18n, Key, Locale},
-    state::AuthInfo,
-};
+use crate::i18n::{I18n, Key, Locale};
 use rest_types::{BookingTO, DayOfWeekTO, SalesPersonTO, SlotTO};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,15 +138,5 @@ impl Shiftplan {
             .iter()
             .map(|slot| slot.to_hour())
             .fold(f32::NEG_INFINITY, f32::max)
-    }
-
-    pub fn weekdays(&self) -> Rc<[Weekday]> {
-        let mut weekdays = vec![];
-        for slot in self.slots.iter() {
-            if !weekdays.contains(&slot.day_of_week) {
-                weekdays.push(slot.day_of_week.clone());
-            }
-        }
-        weekdays.into()
     }
 }

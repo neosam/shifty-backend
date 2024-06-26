@@ -1,14 +1,10 @@
 use futures_util::StreamExt;
-use std::rc::Rc;
 
 use crate::{
-    component::{EmployeeShort, EmployeeView, TopBar},
+    component::{EmployeeView, TopBar},
     error::ShiftyError,
     js, loader,
-    state::{
-        self,
-        employee::{self, Employee},
-    },
+    state::{self, employee::Employee},
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
@@ -37,10 +33,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             return rsx! { "Invalid employee id: {err}" };
         }
     };
-    //let employee_resource = use_resource(move || {
-    //    loader::load_employee_details(config.to_owned(), *year.read(), week_until, employee_id)
-    //});
-    let mut employee_resource: Signal<Option<Result<Employee, ShiftyError>>> = use_signal(|| None);
+    let employee_resource: Signal<Option<Result<Employee, ShiftyError>>> = use_signal(|| None);
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeDetailsAction>| async move {

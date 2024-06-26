@@ -8,7 +8,10 @@ use time::{macros::format_description, PrimitiveDateTime};
 use tracing::info;
 use uuid::Uuid;
 
-use crate::state::{AuthInfo, Config};
+use crate::{
+    error::ShiftyError,
+    state::{AuthInfo, Config},
+};
 
 pub async fn fetch_auth_info(backend_url: Rc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
     info!("Fetching username");
@@ -36,7 +39,9 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
         .expect("no host");
     let url = format!("{protocol}//{host}/config.json");
     info!("URL: {url}");
-    let res = reqwest::get(url).await?.json().await?;
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res: Config = response.json().await?;
     info!("Loaded");
     Ok(res)
 }
@@ -45,6 +50,7 @@ pub async fn get_slots(config: Config) -> Result<Rc<[SlotTO]>, reqwest::Error> {
     info!("Fetching slots");
     let url = format!("{}/slot", config.backend);
     let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
@@ -58,6 +64,7 @@ pub async fn get_bookings_for_week(
     info!("Fetching bookings for week {week} in year {year}");
     let url = format!("{}/booking/week/{year}/{week}", config.backend);
     let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
@@ -121,6 +128,7 @@ pub async fn get_sales_persons(config: Config) -> Result<Rc<[SalesPersonTO]>, re
     info!("Fetching sales persons");
     let url = format!("{}/sales-person", config.backend);
     let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
@@ -132,6 +140,7 @@ pub async fn get_current_sales_person(
     info!("Fetching current sales person");
     let url = format!("{}/sales-person/current", config.backend);
     let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
@@ -148,6 +157,7 @@ pub async fn get_short_reports(
         config.backend, year, calendar_week
     );
     let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
@@ -165,6 +175,7 @@ pub async fn get_employee_reports(
         config.backend, sales_person_id, year, calendar_week
     );
     let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
@@ -177,7 +188,7 @@ pub async fn add_extra_hour(
     category: ExtraHoursCategoryTO,
     description: String,
     date_time: String,
-) -> Result<(), reqwest::Error> {
+) -> Result<(), ShiftyError> {
     let url: String = format!("{}/extra-hours", config.backend,);
     let format = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
     info!("Parsing datetime");

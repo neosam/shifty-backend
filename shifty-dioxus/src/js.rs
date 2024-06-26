@@ -16,15 +16,9 @@ pub fn get_current_week() -> u8 {
         + 1;
 
     // Calculate ISO week number
-    let week_number = ((day_of_year + 6 - (start_of_year.get_day() as u32)) / 7);
+    let week_number = (day_of_year + 6 - (start_of_year.get_day() as u32)) / 7;
 
     week_number as u8
-}
-
-// Function to get the date of the first day of the week
-pub fn get_first_day_of_week(week: u8, year: u32) -> time::Date {
-    let date = time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap();
-    date
 }
 
 pub fn current_datetime() -> time::PrimitiveDateTime {

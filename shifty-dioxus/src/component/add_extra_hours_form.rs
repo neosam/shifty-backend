@@ -2,10 +2,11 @@ use dioxus::prelude::*;
 use futures_util::StreamExt;
 use time::macros::format_description;
 use uuid::Uuid;
-use web_sys::console;
 
 use crate::{
-    api, js,
+    api,
+    error::result_handler,
+    js,
     state::{employee::WorkingHoursCategory, Config},
 };
 
@@ -42,15 +43,17 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                         let description = (*description.read()).clone();
                         let when = (*when.read()).clone();
 
-                        api::add_extra_hour(
-                            config.to_owned(),
-                            sales_person_id,
-                            amount,
-                            (&category).into(),
-                            description,
-                            when,
-                        )
-                        .await;
+                        result_handler(
+                            api::add_extra_hour(
+                                config.to_owned(),
+                                sales_person_id,
+                                amount,
+                                (&category).into(),
+                                description,
+                                when,
+                            )
+                            .await,
+                        );
 
                         props.onsaved.call(());
                     }
