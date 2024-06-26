@@ -88,35 +88,6 @@ where
             uuid_service,
         }
     }
-
-    pub async fn check_user_is_sales_person<AuthContext>(
-        &self,
-        sales_person_id: Uuid,
-        context: AuthContext,
-    ) -> Result<(), ServiceError>
-    where
-        AuthContext: Clone
-            + Send
-            + Sync
-            + std::fmt::Debug
-            + Eq
-            + 'static
-            + Into<Authentication<SalesPersonService::Context>>,
-    {
-        if let Some(sales_person) = self
-            .sales_person_service
-            .get_sales_person_current_user(context.into())
-            .await?
-        {
-            if sales_person.id == sales_person_id {
-                Ok(())
-            } else {
-                Err(ServiceError::Forbidden)
-            }
-        } else {
-            Err(ServiceError::Forbidden)
-        }
-    }
 }
 
 pub fn find_working_hours_for_calendar_week(
@@ -231,7 +202,8 @@ where
         let (hr_permission, user_permission) = join!(
             self.permission_service
                 .check_permission(HR_PRIVILEGE, context.clone()),
-            self.check_user_is_sales_person(*sales_person_id, context.clone())
+            self.sales_person_service
+                .verify_user_is_sales_person(*sales_person_id, context.clone())
         );
         hr_permission.or(user_permission)?;
 
