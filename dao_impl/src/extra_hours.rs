@@ -73,15 +73,13 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         &self,
         sales_person_id: Uuid,
         year: u32,
-        until_week: u8,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND CAST(strftime('%m', date_time) AS INTEGER) <= ?",
+            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ?",
             id_vec,
             year,
-            until_week,
         ).fetch_all(self.pool.as_ref())
             .await
             .map_db_error()?

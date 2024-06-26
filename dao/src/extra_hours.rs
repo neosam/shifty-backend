@@ -32,7 +32,6 @@ pub trait ExtraHoursDao {
         &self,
         sales_person_id: Uuid,
         year: u32,
-        until_week: u8,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
     async fn create(&self, entity: &ExtraHoursEntity, process: &str)
         -> Result<(), crate::DaoError>;

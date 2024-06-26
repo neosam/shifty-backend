@@ -178,9 +178,10 @@ where
                 .sum();
             let extra_hours = self
                 .extra_hours_dao
-                .find_by_sales_person_id_and_year(paid_employee.id, year, until_week)
+                .find_by_sales_person_id_and_year(paid_employee.id, year)
                 .await?
                 .iter()
+                .filter(|eh| eh.date_time.iso_week() <= until_week)
                 .map(|eh| eh.amount)
                 .sum::<f32>();
             let balance_hours = shiftplan_hours + extra_hours - planned_hours;
@@ -221,7 +222,7 @@ where
             .await?;
         let extra_hours = self
             .extra_hours_dao
-            .find_by_sales_person_id_and_year(*sales_person_id, year, until_week)
+            .find_by_sales_person_id_and_year(*sales_person_id, year)
             .await?;
 
         let planned_hours: f32 = (1..=until_week)
@@ -232,7 +233,11 @@ where
             })
             .sum();
         let shiftplan_hours = shiftplan_report.iter().map(|r| r.hours).sum::<f32>() as f32;
-        let overall_extra_hours = extra_hours.iter().map(|eh| eh.amount).sum::<f32>();
+        let overall_extra_hours = extra_hours
+            .iter()
+            .filter(|eh| eh.date_time.iso_week() <= until_week)
+            .map(|eh| eh.amount)
+            .sum::<f32>();
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
