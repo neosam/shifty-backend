@@ -1,6 +1,6 @@
 use crate::api;
 use crate::auth::Auth;
-use crate::component::TopBar;
+use crate::component::{Footer, TopBar};
 use crate::page::NotAuthenticated;
 use crate::{i18n, router::Route};
 use dioxus::prelude::*;
@@ -13,19 +13,23 @@ pub fn App() -> Element {
             use_context_provider(|| config.clone());
             rsx! {
                 /* Router::<Route> {} */
-                Auth {
-                    authenticated: {
-                        eval(
-                            format!("window.oidcLoginKeepAliveURL = '{}/authenticate';", config.backend.clone()).as_str()
-                        );
-                        rsx! { div {
-                            Router::<Route> {}
-                        }}
-                    },
-                    unauthenticated: rsx! {
-                        TopBar {}
-                        NotAuthenticated {}
+                div {
+                    class: "flex flex-col",
+                    Auth {
+                        authenticated: {
+                            eval(
+                                format!("window.oidcLoginKeepAliveURL = '{}/authenticate';", config.backend.clone()).as_str()
+                            );
+                            rsx! { div {
+                                Router::<Route> {}
+                            }}
+                        },
+                        unauthenticated: rsx! {
+                            TopBar {}
+                            NotAuthenticated {}
+                        }
                     }
+                    Footer {}
                 }
             }
         }
