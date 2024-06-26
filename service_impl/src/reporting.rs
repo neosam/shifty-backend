@@ -283,6 +283,10 @@ fn hours_per_week(
 ) -> Result<Arc<[WorkingHours]>, ServiceError> {
     let mut weeks: Vec<WorkingHours> = Vec::new();
     for week in 1..=week_until {
+        let filtered_extra_hours_list = extra_hours_list
+            .iter()
+            .filter(|eh| eh.date_time.iso_week() == week && eh.date_time.year() == year as i32)
+            .collect::<Vec<_>>();
         let shiftplan_hours = shiftplan_hours_list
             .iter()
             .filter(|r| r.calendar_week == week)
@@ -293,9 +297,8 @@ fn hours_per_week(
             .filter(|wh| wh.from_calendar_week <= week && wh.to_calendar_week >= week)
             .map(|wh| wh.expected_hours)
             .sum::<f32>();
-        let extra_hours = extra_hours_list
+        let extra_hours = filtered_extra_hours_list
             .iter()
-            .filter(|eh| eh.date_time.iso_week() == week)
             .map(|eh| eh.amount)
             .sum::<f32>();
 
@@ -329,22 +332,22 @@ fn hours_per_week(
             overall_hours: shiftplan_hours + extra_hours,
             balance: shiftplan_hours + extra_hours - working_hours,
             shiftplan_hours,
-            extra_work_hours: extra_hours_list
+            extra_work_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategoryEntity::ExtraWork)
                 .map(|eh| eh.amount)
                 .sum(),
-            vacation_hours: extra_hours_list
+            vacation_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategoryEntity::Vacation)
                 .map(|eh| eh.amount)
                 .sum(),
-            sick_leave_hours: extra_hours_list
+            sick_leave_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategoryEntity::SickLeave)
                 .map(|eh| eh.amount)
                 .sum(),
-            holiday_hours: extra_hours_list
+            holiday_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategoryEntity::Holiday)
                 .map(|eh| eh.amount)
