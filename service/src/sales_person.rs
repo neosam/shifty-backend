@@ -103,4 +103,9 @@ pub trait SalesPersonService {
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Option<SalesPerson>, ServiceError>;
+    async fn verify_user_is_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
 }

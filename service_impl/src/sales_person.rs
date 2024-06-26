@@ -337,4 +337,23 @@ where
             .get_sales_person_for_user(current_user, Authentication::Full)
             .await?)
     }
+
+    async fn verify_user_is_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        let (Some(username), Some(sales_person_username)) = (
+            self.permission_service.current_user_id(context).await?,
+            self.get_assigned_user(sales_person_id, Authentication::Full)
+                .await?,
+        ) else {
+            return Err(ServiceError::Forbidden);
+        };
+        if username == sales_person_username {
+            Ok(())
+        } else {
+            Err(ServiceError::Forbidden)
+        }
+    }
 }

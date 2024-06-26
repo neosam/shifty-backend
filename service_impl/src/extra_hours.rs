@@ -7,37 +7,49 @@ use service::{
     permission::{Authentication, HR_PRIVILEGE},
     ServiceError,
 };
+use tokio::join;
 use uuid::Uuid;
 
 pub struct ExtraHoursServiceImpl<
     ExtraHoursDao: dao::extra_hours::ExtraHoursDao,
     PermissionService: service::PermissionService,
+    SalesPersonService: service::sales_person::SalesPersonService,
     ClockService: service::clock::ClockService,
     UuidService: service::uuid_service::UuidService,
 > {
     extra_hours_dao: Arc<ExtraHoursDao>,
     permission_service: Arc<PermissionService>,
+    sales_person_service: Arc<SalesPersonService>,
     clock_service: Arc<ClockService>,
     uuid_service: Arc<UuidService>,
 }
 
-impl<ExtraHoursDao, PermissionService, ClockService, UuidService>
-    ExtraHoursServiceImpl<ExtraHoursDao, PermissionService, ClockService, UuidService>
+impl<ExtraHoursDao, PermissionService, SalesPersonService, ClockService, UuidService>
+    ExtraHoursServiceImpl<
+        ExtraHoursDao,
+        PermissionService,
+        SalesPersonService,
+        ClockService,
+        UuidService,
+    >
 where
     ExtraHoursDao: dao::extra_hours::ExtraHoursDao + Sync + Send,
     PermissionService: service::PermissionService + Sync + Send,
+    SalesPersonService: service::sales_person::SalesPersonService + Sync + Send,
     ClockService: service::clock::ClockService + Sync + Send,
     UuidService: service::uuid_service::UuidService + Sync + Send,
 {
     pub fn new(
         extra_hours_dao: Arc<ExtraHoursDao>,
         permission_service: Arc<PermissionService>,
+        sales_person_service: Arc<SalesPersonService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
     ) -> Self {
         Self {
             extra_hours_dao,
             permission_service,
+            sales_person_service,
             clock_service,
             uuid_service,
         }
@@ -48,10 +60,19 @@ where
 impl<
         ExtraHoursDao: dao::extra_hours::ExtraHoursDao + Sync + Send,
         PermissionService: service::PermissionService + Sync + Send,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
+            + Sync
+            + Send,
         ClockService: service::clock::ClockService + Sync + Send,
         UuidService: service::uuid_service::UuidService + Sync + Send,
     > service::extra_hours::ExtraHoursService
-    for ExtraHoursServiceImpl<ExtraHoursDao, PermissionService, ClockService, UuidService>
+    for ExtraHoursServiceImpl<
+        ExtraHoursDao,
+        PermissionService,
+        SalesPersonService,
+        ClockService,
+        UuidService,
+    >
 {
     type Context = PermissionService::Context;
 
@@ -64,14 +85,19 @@ impl<
     ) -> Result<Arc<[ExtraHours]>, ServiceError> {
         unimplemented!()
     }
+
     async fn create(
         &self,
         extra_hours: &ExtraHours,
         context: Authentication<Self::Context>,
     ) -> Result<ExtraHours, ServiceError> {
-        self.permission_service
-            .check_permission(HR_PRIVILEGE, context)
-            .await?;
+        let (hr_permission, sales_person_permission) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service
+                .verify_user_is_sales_person(extra_hours.sales_person_id, context),
+        );
+        hr_permission.or(sales_person_permission)?;
 
         let mut extra_hours = extra_hours.to_owned();
         if !extra_hours.id.is_nil() {

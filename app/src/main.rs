@@ -52,6 +52,7 @@ type WorkingHoursService = service_impl::working_hours::WorkingHoursServiceImpl<
 type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
     dao_impl::extra_hours::ExtraHoursDaoImpl,
     PermissionService,
+    SalesPersonService,
     ClockService,
     UuidService,
 >;
@@ -173,6 +174,7 @@ impl RestStateImpl {
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
             extra_hours_dao,
             permission_service.clone(),
+            sales_person_service.clone(),
             clock_service,
             uuid_service,
         ));
