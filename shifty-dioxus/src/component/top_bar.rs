@@ -6,6 +6,7 @@ use crate::{loader, router::Route, state::config};
 pub fn TopBar() -> Element {
     let auth_info = try_use_context::<crate::state::AuthInfo>();
     let config = use_context::<config::Config>();
+    let show_my_time = config.show_my_time.unwrap_or(false);
     let backend_url = config.backend.clone();
     let employee = use_resource(move || loader::load_current_sales_person(config.clone()));
     let show_shiftplan = if let Some(ref auth_info) = auth_info {
@@ -52,7 +53,7 @@ pub fn TopBar() -> Element {
                             }
                         }
                     }
-                    if is_paid && !show_reports {
+                    if is_paid && !show_reports && show_my_time {
                         li {
                             Link {
                                 to: Route::MyEmployeeDetails {},
