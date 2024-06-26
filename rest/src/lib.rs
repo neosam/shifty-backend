@@ -237,6 +237,8 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
 
+    fn backend_version(&self) -> Arc<str>;
+
     fn user_service(&self) -> Arc<Self::UserService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
@@ -274,6 +276,13 @@ pub fn bind_address() -> Arc<str> {
 
 pub async fn login() -> Redirect {
     Redirect::to("/")
+}
+
+pub async fn get_version<RestState: RestStateDef>(rest_state: State<RestState>) -> Response {
+    Response::builder()
+        .status(200)
+        .body(Body::new(rest_state.backend_version().to_string()))
+        .unwrap()
 }
 
 #[cfg(feature = "oidc")]
@@ -344,6 +353,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
 
     let app = app
         .route("/auth-info", get(auth_info::<RestState>))
+        .route("/version", get(get_version::<RestState>))
         .nest("/permission", permission::generate_route())
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())

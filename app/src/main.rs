@@ -77,6 +77,10 @@ impl rest::RestStateDef for RestStateImpl {
     type WorkingHoursService = WorkingHoursService;
     type ExtraHoursService = ExtraHoursService;
 
+    fn backend_version(&self) -> Arc<str> {
+        Arc::from(env!("CARGO_PKG_VERSION"))
+    }
+
     fn user_service(&self) -> Arc<Self::UserService> {
         self.user_service.clone()
     }
