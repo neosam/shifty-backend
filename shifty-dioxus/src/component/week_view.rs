@@ -6,9 +6,11 @@ use crate::{
 };
 use dioxus::prelude::*;
 use tracing::info;
+use uuid::Uuid;
 
 #[derive(PartialEq, Clone)]
 pub struct ColumnViewContentItem {
+    pub id: Uuid,
     pub title: Rc<str>,
     pub background_color: Rc<str>,
 }
@@ -45,6 +47,7 @@ where
     pub item_data: ColumnViewItem<CustomData>,
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
+    pub item_clicked: Option<EventHandler<Uuid>>,
 }
 
 pub fn ColumnViewSlot<CustomData>(props: ColumnViewSlotProps<CustomData>) -> Element
@@ -66,14 +69,27 @@ where
                         ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
                         ColumnViewContent::Items(items) => {
                             let mut items: Vec<ColumnViewContentItem> = items.iter().map(|item| item.clone()).collect();
+                            let item_clicked = props.item_clicked.clone();
                             items.sort_by_key(|item| item.title.clone());
                             rsx! { div {
                                 class: "flex flex-row overflow-scroll flex-wrap gap-1 m-1",
                                 for item in items.iter() {
-                                    p {
-                                        class: "pl-1 pr-1 rounded-md",
-                                        style: format!("background-color: {}", item.background_color),
-                                        "{item.title.clone()}"
+                                    {
+                                        let item_id = item.id;
+                                        rsx! { p {
+                                            class: "pl-1 pr-1 rounded-md",
+                                            onclick: move |_| {
+                                                let id = item_id;
+                                                if let Some(item_clicked) = item_clicked {
+                                                    info!("Found event handler and call it");
+                                                    item_clicked.call(id);
+                                                };
+                                                info!("Item clicked");
+                                                ()
+                                            },
+                                            style: format!("background-color: {}", item.background_color),
+                                            "{item.title.clone()}"
+                                        } }
                                     }
                                 }
                             } }
@@ -128,6 +144,7 @@ where
     pub title: Option<Rc<str>>,
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
+    pub item_clicked: Option<EventHandler<Uuid>>,
 }
 
 impl From<Slot> for ColumnViewItem<Slot> {
@@ -141,6 +158,7 @@ impl From<Slot> for ColumnViewItem<Slot> {
                 slot.bookings
                     .iter()
                     .map(|booking| ColumnViewContentItem {
+                        id: booking.sales_person_id,
                         title: booking.label.clone(),
                         background_color: booking.background_color.clone(),
                     })
@@ -184,6 +202,7 @@ where
                     },
                     add_event: props.add_event,
                     remove_event: props.remove_event,
+                    item_clicked: props.item_clicked.clone(),
                 }
             }
         }
@@ -228,6 +247,7 @@ pub struct DayViewProps {
     pub day_end: f32,
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
+    pub item_clicked: Option<EventHandler<Uuid>>,
 }
 
 #[component]
@@ -252,6 +272,7 @@ pub fn DayView(props: DayViewProps) -> Element {
             title: Some(props.weekday.i18n_string(&i18n)),
             add_event: props.add_event.clone(),
             remove_event: props.remove_event.clone(),
+            item_clicked: props.item_clicked.clone(),
         }
     }
 }
@@ -261,6 +282,7 @@ pub struct WeekViewProps {
     pub shiftplan_data: state::Shiftplan,
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
+    pub item_clicked: Option<EventHandler<Uuid>>,
 }
 
 #[component]
@@ -279,15 +301,40 @@ pub fn WeekView(props: WeekViewProps) -> Element {
             div {
                 class: "flex flex-row",
                 TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
-                DayView { weekday: Weekday::Monday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                DayView { weekday: Weekday::Tuesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
+                for weekday in [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday, Weekday::Saturday, Weekday::Sunday].iter() {
+                    if !(*weekday == Weekday::Sunday && !has_sunday) {
+                        DayView {
+                            weekday: weekday.clone(),
+                            slots: props.shiftplan_data.slots_by_weekday(weekday.clone()),
+                            day_start, day_end,
+                            add_event: props.add_event.clone(),
+                            remove_event: props.remove_event.clone(),
+                            item_clicked: props.item_clicked.clone(),
+                        }
+                    }
+                }
+                /*DayView {
+                    weekday: Weekday::Monday,
+                    slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday),
+                    day_start, day_end,
+                    add_event: props.add_event,
+                    remove_event: props.remove_event,
+                    item_clicked: props.item_clicked.clone(),
+                }
+                DayView {
+                    weekday: Weekday::Tuesday,
+                    slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday),
+                    day_start, day_end,
+                    add_event: props.add_event,
+                    remove_event: props.remove_event
+                }
                 DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
                 DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
                 DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
                 DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
                 if has_sunday {
                     DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                }
+                } */
             }
         }
     }

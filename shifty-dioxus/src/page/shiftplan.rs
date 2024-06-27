@@ -264,7 +264,12 @@ pub fn ShiftPlan() -> Element {
                                     sales_person_id: current_sales_person.id,
                                 });
                             };
-                        }
+                        },
+                        item_clicked: move |sales_person_id: Uuid| {
+                            if is_shiftplanner {
+                                cr.send(ShiftPlanAction::UpdateSalesPerson(sales_person_id));
+                            }
+                        },
                     }
                 }}
             }
