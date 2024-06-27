@@ -80,8 +80,8 @@ where
                                     {
                                         let item_id = item.id;
                                         rsx! { p {
-                                            class: format!("pl-1 pr-1 rounded-md {}", if Some(item_id) == props.highlight_item_id { "font-bold" } else { "" }),
-                                            onclick: move |_| {
+                                            class: format!("select-none pl-1 pr-1 rounded-md {}", if Some(item_id) == props.highlight_item_id { "font-bold" } else { "" }),
+                                            ondoubleclick: move |_| {
                                                 let id = item_id;
                                                 if let Some(item_clicked) = item_clicked {
                                                     info!("Found event handler and call it");
