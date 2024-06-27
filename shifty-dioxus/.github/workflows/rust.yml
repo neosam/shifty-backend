@@ -17,6 +17,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Cache Dioxus CLI
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/dx
+        key: ${{ runner.os }}-dioxus-v0.6.5
+        restore-keys: |
+          ${{ runner.os }}-dioxus-v0.6.5
     - name: Install dioxus
       run: cargo install dioxus-cli
     # - name: Formatting
