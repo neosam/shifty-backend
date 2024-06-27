@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
+use uuid::Uuid;
 
-use crate::state::employee::{Employee, ExtraHours, WorkingHours, WorkingHoursCategory};
+use crate::state::employee::{Employee, ExtraHours, WorkingHours};
 
 use crate::component::AddExtraHoursForm;
 use crate::component::Modal;
@@ -12,6 +13,7 @@ pub struct EmployeeViewProps {
     pub employee: Employee,
     pub extra_hours: Rc<[ExtraHours]>,
     pub onupdate: EventHandler<()>,
+    pub on_extra_hour_delete: EventHandler<Uuid>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -23,6 +25,7 @@ pub struct WorkingHoursViewProps {
 pub struct TupleViewProps {
     pub label: Rc<str>,
     pub value: Rc<str>,
+    pub ondelete: Option<EventHandler<()>>,
 }
 #[component]
 pub fn TupleView(props: TupleViewProps) -> Element {
@@ -33,7 +36,19 @@ pub fn TupleView(props: TupleViewProps) -> Element {
                 "{props.label}"
             }
             div {
-                "{props.value}"
+                class: "flex flow-row gap-2",
+                div {
+                    "{props.value}"
+                }
+                if let Some(ondelete) = props.ondelete {
+                    button {
+                        class: "border-2 border-gray-200 pl-1 pr-1 shrink h-6 font-small",
+                        onclick: move |_| {
+                            ondelete.call(());
+                        },
+                        "🗑️"
+                    }
+                }
             }
         }
     }
@@ -44,6 +59,7 @@ pub struct TripleViewProps {
     pub label: Rc<str>,
     pub value: Rc<str>,
     pub description: Rc<str>,
+    pub ondelete: Option<EventHandler<()>>,
 }
 #[component]
 pub fn TripleView(props: TripleViewProps) -> Element {
@@ -61,9 +77,21 @@ pub fn TripleView(props: TripleViewProps) -> Element {
                 }
             }
             div {
-                class: "flex flex-col",
+                class: "flex flow-row gap-2",
                 div {
-                    "{props.value}"
+                    class: "flex flex-col",
+                    div {
+                        "{props.value}"
+                    }
+                }
+                if let Some(ondelete) = props.ondelete {
+                    button {
+                        class: "border-2 border-gray-200 pl-1 pr-1 shrink h-6 font-small",
+                        onclick: move |_| {
+                            ondelete.call(());
+                        },
+                        "🗑️"
+                    }
                 }
             }
         }
@@ -73,6 +101,7 @@ pub fn TripleView(props: TripleViewProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct ExtraHoursViewProps {
     pub extra_hours: Rc<[ExtraHours]>,
+    pub ondelete: EventHandler<Uuid>,
 }
 
 #[component]
@@ -86,14 +115,18 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
             }
 
             ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category == WorkingHoursCategory::Vacation) {
-                    li {
-                        TupleView {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_vacation()) { {
+                    let extra_hours_id = extra_hours.id;
+                    rsx! { li {
+                        class: "mb-1",
+                        TripleView {
                             label: format!("{}", extra_hours.date_time.date()).into(),
-                            value: format!("{:.1} hours", extra_hours.amount).into()
+                            value: format!("{:.1} hours", extra_hours.amount).into(),
+                            description: format!("{}", extra_hours.description).into(),
+                            ondelete: move |_| props.ondelete.call(extra_hours_id),
                         }
-                    }
-                }
+                    } }
+                } }
             }
 
             h2 {
@@ -102,14 +135,18 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
             }
 
             ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category == WorkingHoursCategory::Holiday) {
-                    li {
-                        TupleView {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_holiday()) { {
+                    let extra_hours_id = extra_hours.id;
+                    rsx! { li {
+                        class: "mb-1",
+                        TripleView {
                             label: format!("{}", extra_hours.date_time.date()).into(),
-                            value: format!("{:.1} hours", extra_hours.amount).into()
+                            value: format!("{:.1} hours", extra_hours.amount).into(),
+                            description: format!("{}", extra_hours.description).into(),
+                            ondelete: move |_| props.ondelete.call(extra_hours_id),
                         }
-                    }
-                }
+                    } }
+                } }
             }
 
             h2 {
@@ -118,14 +155,18 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
             }
 
             ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category == WorkingHoursCategory::SickLeave) {
-                    li {
-                        TupleView {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_sick_leave()) { {
+                    let extra_hours_id = extra_hours.id;
+                    rsx! { li {
+                        class: "mb-1",
+                        TripleView {
                             label: format!("{}", extra_hours.date_time.date()).into(),
-                            value: format!("{:.1} hours", extra_hours.amount).into()
+                            value: format!("{:.1} hours", extra_hours.amount).into(),
+                            description: format!("{}", extra_hours.description).into(),
+                            ondelete: move |_| props.ondelete.call(extra_hours_id),
                         }
-                    }
-                }
+                    } }
+                } }
             }
 
             h2 {
@@ -138,14 +179,19 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
             }
 
             ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_extra_work()) {
-                    li {
-                        TupleView {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_extra_work()) { {
+                    let extra_hours_id = extra_hours.id;
+                    rsx! { li {
+                        key: "{extra_hours_id}",
+                        class: "mb-1",
+                        TripleView {
                             label: format!("{}", extra_hours.date_time.date()).into(),
-                            value: format!("{:.1} hours", extra_hours.amount).into()
+                            value: format!("{:.1} hours", extra_hours.amount).into(),
+                            description: format!("{}", extra_hours.description).into(),
+                            ondelete: move |_| props.ondelete.call(extra_hours_id),
                         }
-                    }
-                }
+                    } }
+                } }
             }
 
         }
@@ -473,7 +519,11 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                 }
 
                 ExtraHoursView {
-                    extra_hours: props.extra_hours.clone()
+                    extra_hours: props.extra_hours.clone(),
+                    ondelete: move |uuid| {
+                        props.on_extra_hour_delete.call(uuid);
+                        props.onupdate.call(());
+                    }
                 }
             }
         }

@@ -230,3 +230,13 @@ pub async fn get_extra_hours_for_year(
     info!("Fetched");
     Ok(res)
 }
+
+pub async fn delete_extra_hour(config: Config, extra_hour_id: Uuid) -> Result<(), reqwest::Error> {
+    info!("Deleting extra hour {extra_hour_id}");
+    let url = format!("{}/extra-hours/{}", config.backend, extra_hour_id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
+}

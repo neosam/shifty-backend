@@ -3,8 +3,9 @@ use std::rc::Rc;
 use futures_util::StreamExt;
 
 use crate::{
+    api,
     component::{EmployeeView, TopBar},
-    error::ShiftyError,
+    error::{result_handler, ShiftyError},
     js, loader,
     state::{
         self,
@@ -16,6 +17,7 @@ use uuid::Uuid;
 
 pub enum EmployeeDetailsAction {
     Update,
+    DeleteExtraHour(Uuid),
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -79,6 +81,13 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             .await,
                         );
                     }
+                    EmployeeDetailsAction::DeleteExtraHour(extra_hour_id) => {
+                        result_handler(
+                            api::delete_extra_hour(config.to_owned(), extra_hour_id)
+                                .await
+                                .map_err(|err| err.into()),
+                        );
+                    }
                 }
             }
         },
@@ -96,6 +105,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             employee: employee.clone(),
                             extra_hours: extra_hours.clone(),
                             onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
+                            on_extra_hour_delete: move |id| cr.send(EmployeeDetailsAction::DeleteExtraHour(id)),
                         }
                     }
                 },
