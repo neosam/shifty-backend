@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 
-use crate::state::employee::{Employee, WorkingHours};
+use crate::state::employee::{Employee, ExtraHours, WorkingHours, WorkingHoursCategory};
 
 use crate::component::AddExtraHoursForm;
 use crate::component::Modal;
@@ -10,6 +10,7 @@ use crate::component::Modal;
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewProps {
     pub employee: Employee,
+    pub extra_hours: Rc<[ExtraHours]>,
     pub onupdate: EventHandler<()>,
 }
 
@@ -65,6 +66,88 @@ pub fn TripleView(props: TripleViewProps) -> Element {
                     "{props.value}"
                 }
             }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct ExtraHoursViewProps {
+    pub extra_hours: Rc<[ExtraHours]>,
+}
+
+#[component]
+pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
+    rsx! {
+        div {
+            class: "flex flex-col",
+            h2 {
+                class: "text-lg font-bold mt-8",
+                "Vacation"
+            }
+
+            ul {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category == WorkingHoursCategory::Vacation) {
+                    li {
+                        TupleView {
+                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            value: format!("{:.1} hours", extra_hours.amount).into()
+                        }
+                    }
+                }
+            }
+
+            h2 {
+                class: "text-lg font-bold mt-8",
+                "Holiday"
+            }
+
+            ul {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category == WorkingHoursCategory::Holiday) {
+                    li {
+                        TupleView {
+                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            value: format!("{:.1} hours", extra_hours.amount).into()
+                        }
+                    }
+                }
+            }
+
+            h2 {
+                class: "text-lg font-bold mt-8",
+                "Sick leave"
+            }
+
+            ul {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category == WorkingHoursCategory::SickLeave) {
+                    li {
+                        TupleView {
+                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            value: format!("{:.1} hours", extra_hours.amount).into()
+                        }
+                    }
+                }
+            }
+
+            h2 {
+                class: "text-lg font-bold mt-8",
+                "Extra Work"
+            }
+            p {
+                class: "text-sm text-gray-500 mb-4",
+                "(work hours which are not covered by the shiftplan)"
+            }
+
+            ul {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_extra_work()) {
+                    li {
+                        TupleView {
+                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            value: format!("{:.1} hours", extra_hours.amount).into()
+                        }
+                    }
+                }
+            }
+
         }
     }
 }
@@ -378,6 +461,19 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                             working_hours: working_hours.clone()
                         }
                     }
+                }
+            }
+
+            div {
+                class: "border-t-2 border-gray-200 border-double mt-8 lg:pl-4 lg:flex-grow lg:ml-4 lg:border-t-0 lg:border-l-2 lg:mt-0",
+
+                h2 {
+                    class: "text-lg font-bold mt-8",
+                    "Extra hours"
+                }
+
+                ExtraHoursView {
+                    extra_hours: props.extra_hours.clone()
                 }
             }
         }

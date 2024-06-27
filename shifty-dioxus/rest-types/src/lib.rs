@@ -429,7 +429,7 @@ impl From<&WorkingHoursTO> for service::working_hours::WorkingHours {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ExtraHoursCategoryTO {
     ExtraWork,
     Vacation,
@@ -459,7 +459,7 @@ impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExtraHoursTO {
     #[serde(default)]
     pub id: Uuid,

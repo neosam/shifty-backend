@@ -1,3 +1,4 @@
+use rest_types::ExtraHoursTO;
 use std::rc::Rc;
 use tracing::info;
 
@@ -5,7 +6,7 @@ use crate::{
     api,
     error::ShiftyError,
     state::{
-        employee::Employee,
+        employee::{Employee, ExtraHours},
         shiftplan::{Booking, SalesPerson},
         Config, Shiftplan, Slot,
     },
@@ -146,4 +147,19 @@ pub async fn load_employee_details(
 ) -> Result<Employee, ShiftyError> {
     let report = api::get_employee_reports(config, employee_id, year, week_until).await?;
     Ok(Employee::from(report.as_ref()))
+}
+
+pub async fn load_extra_hours_per_year(
+    config: Config,
+    year: u32,
+    employee_id: uuid::Uuid,
+) -> Result<Rc<[ExtraHours]>, ShiftyError> {
+    let mut extra_hours: Vec<ExtraHoursTO> =
+        api::get_extra_hours_for_year(config, employee_id, year, 53)
+            .await?
+            .iter()
+            .cloned()
+            .collect();
+    extra_hours.sort_by_key(|extra_hours| extra_hours.date_time.clone());
+    Ok(extra_hours.iter().map(ExtraHours::from).collect())
 }

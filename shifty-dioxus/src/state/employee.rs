@@ -5,9 +5,10 @@ use std::{
 };
 
 use rest_types::{
-    EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursReportCategoryTO, ShortEmployeeReportTO,
-    WorkingHoursReportTO,
+    EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursReportCategoryTO, ExtraHoursTO,
+    ShortEmployeeReportTO, WorkingHoursReportTO,
 };
+use uuid::Uuid;
 
 use super::shiftplan::SalesPerson;
 
@@ -96,6 +97,16 @@ impl From<&WorkingHoursCategory> for ExtraHoursCategoryTO {
                 "Cannot convert working hours category to extra hours category: {:?}",
                 category
             ),
+        }
+    }
+}
+impl From<&ExtraHoursCategoryTO> for WorkingHoursCategory {
+    fn from(category: &ExtraHoursCategoryTO) -> Self {
+        match category {
+            ExtraHoursCategoryTO::ExtraWork => WorkingHoursCategory::ExtraWork("-".into()),
+            ExtraHoursCategoryTO::Vacation => WorkingHoursCategory::Vacation,
+            ExtraHoursCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
+            ExtraHoursCategoryTO::Holiday => WorkingHoursCategory::Holiday,
         }
     }
 }
@@ -205,6 +216,30 @@ impl From<&EmployeeReportTO> for Employee {
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
             holiday_hours: report.holiday_hours,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtraHours {
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub amount: f32,
+    pub category: WorkingHoursCategory,
+    pub description: Rc<str>,
+    pub date_time: time::PrimitiveDateTime,
+    pub version: Uuid,
+}
+impl From<&ExtraHoursTO> for ExtraHours {
+    fn from(extra_hours: &ExtraHoursTO) -> Self {
+        ExtraHours {
+            id: extra_hours.id,
+            sales_person_id: extra_hours.sales_person_id,
+            amount: extra_hours.amount,
+            category: (&extra_hours.category).into(),
+            description: extra_hours.description.as_ref().into(),
+            date_time: extra_hours.date_time,
+            version: extra_hours.version,
         }
     }
 }

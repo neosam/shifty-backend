@@ -212,3 +212,21 @@ pub async fn add_extra_hour(
     info!("Added");
     Ok(())
 }
+
+pub async fn get_extra_hours_for_year(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    until_week: u8,
+) -> Result<Rc<[ExtraHoursTO]>, reqwest::Error> {
+    info!("Fetching extra hours");
+    let url = format!(
+        "{}/extra-hours/by-sales-person/{}?year={}&until_week={}",
+        config.backend, sales_person_id, year, until_week,
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
