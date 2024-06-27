@@ -25,7 +25,12 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-dioxus-v0.6.5
     - name: Install dioxus
-      run: cargo install dioxus-cli
+      run: |
+        if which dx > /dev/null; then
+          echo "dioxus is already installed"
+        else
+          cargo install dioxus-cli
+        fi
     # - name: Formatting
     #   run: cargo fmt --all -- --check
     - name: Build local version
