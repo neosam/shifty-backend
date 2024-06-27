@@ -243,6 +243,7 @@ pub fn ShiftPlan() -> Element {
                     class: "m-4",
                     WeekView {
                         shiftplan_data: shift_plan.clone(),
+                        highlight_item_id: current_sales_person.read().as_ref().map(|sp| sp.id),
                         add_event: move |slot: state::Slot| {
                             to_owned![current_sales_person];
                             info!("Register to slot");

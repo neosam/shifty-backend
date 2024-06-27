@@ -46,6 +46,7 @@ pub struct ColumnViewSlotProps<CustomData = ()>
 where
     CustomData: PartialEq + Clone + 'static,
 {
+    pub highlight_item_id: Option<Uuid>,
     pub item_data: ColumnViewItem<CustomData>,
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
@@ -79,7 +80,7 @@ where
                                     {
                                         let item_id = item.id;
                                         rsx! { p {
-                                            class: "pl-1 pr-1 rounded-md",
+                                            class: format!("pl-1 pr-1 rounded-md {}", if Some(item_id) == props.highlight_item_id { "font-bold" } else { "" }),
                                             onclick: move |_| {
                                                 let id = item_id;
                                                 if let Some(item_clicked) = item_clicked {
@@ -144,6 +145,7 @@ where
     pub offset: f32,
     pub slots: Rc<[ColumnViewItem<CustomData>]>,
     pub title: Option<Rc<str>>,
+    pub highlight_item_id: Option<Uuid>,
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
@@ -194,6 +196,7 @@ where
             }
             for slot in props.slots.iter() {
                 ColumnViewSlot::<CustomData> {
+                    highlight_item_id: props.highlight_item_id,
                     item_data: ColumnViewItem {
                         start: slot.start * props.scale + props.offset,
                         end: slot.end * props.scale + props.offset,
@@ -247,6 +250,7 @@ pub struct DayViewProps {
     pub slots: Rc<[state::Slot]>,
     pub day_start: f32,
     pub day_end: f32,
+    pub highlight_item_id: Option<Uuid>,
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
@@ -272,6 +276,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                 })
                 .collect(),
             title: Some(props.weekday.i18n_string(&i18n)),
+            highlight_item_id: props.highlight_item_id,
             add_event: props.add_event.clone(),
             remove_event: props.remove_event.clone(),
             item_clicked: props.item_clicked.clone(),
@@ -282,6 +287,7 @@ pub fn DayView(props: DayViewProps) -> Element {
 #[derive(PartialEq, Clone, Props)]
 pub struct WeekViewProps {
     pub shiftplan_data: state::Shiftplan,
+    pub highlight_item_id: Option<Uuid>,
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
@@ -309,6 +315,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             weekday: weekday.clone(),
                             slots: props.shiftplan_data.slots_by_weekday(weekday.clone()),
                             day_start, day_end,
+                            highlight_item_id: props.highlight_item_id,
                             add_event: props.add_event.clone(),
                             remove_event: props.remove_event.clone(),
                             item_clicked: props.item_clicked.clone(),
