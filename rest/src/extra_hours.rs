@@ -4,7 +4,7 @@ use axum::{
     body::Body,
     extract::{Path, Query, State},
     response::Response,
-    routing::{get, post},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use rest_types::ExtraHoursTO;
@@ -18,7 +18,7 @@ use crate::{error_handler, Context, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", post(create_extra_hours::<RestState>))
-        .route("/:id", post(delete_extra_hours::<RestState>))
+        .route("/:id", delete(delete_extra_hours::<RestState>))
         .route(
             "/by-sales-person/:id",
             get(get_extra_hours_for_sales_person::<RestState>),

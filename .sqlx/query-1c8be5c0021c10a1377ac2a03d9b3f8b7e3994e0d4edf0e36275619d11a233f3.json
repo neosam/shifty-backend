@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ?",
+  "query": "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -50,7 +50,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -64,5 +64,5 @@
       false
     ]
   },
-  "hash": "1adc3ff219a135b40566e2a0a94ff507b51f6a71163a404e12b2cab65376e187"
+  "hash": "1c8be5c0021c10a1377ac2a03d9b3f8b7e3994e0d4edf0e36275619d11a233f3"
 }

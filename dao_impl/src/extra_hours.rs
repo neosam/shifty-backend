@@ -73,7 +73,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ?",
+            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
             id_vec,
         ).fetch_optional(self.pool.as_ref())
             .await
@@ -91,7 +91,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ?",
+            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND deleted IS NULL",
             id_vec,
             year,
         ).fetch_all(self.pool.as_ref())
@@ -142,10 +142,26 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
     }
     async fn update(
         &self,
-        _entity: &ExtraHoursEntity,
-        _process: &str,
+        entity: &ExtraHoursEntity,
+        process: &str,
     ) -> Result<(), crate::DaoError> {
-        unimplemented!()
+        let id_vec = entity.id.as_bytes().to_vec();
+        let version_vec = entity.version.as_bytes().to_vec();
+        let delete = entity
+            .deleted
+            .map(|date_time| date_time.format(&Iso8601::DATE_TIME))
+            .transpose()?;
+        query!(
+            "UPDATE extra_hours SET deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
+            delete,
+            version_vec,
+            process,
+            id_vec,
+        )
+            .execute(self.pool.as_ref())
+            .await
+            .map_db_error()?;
+        Ok(())
     }
     async fn delete(&self, _id: Uuid, _process: &str) -> Result<(), crate::DaoError> {
         unimplemented!()

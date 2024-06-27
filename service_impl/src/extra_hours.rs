@@ -164,11 +164,19 @@ impl<
             .await?
             .ok_or(ServiceError::EntityNotFound(extra_hours_id))?;
 
-        self.sales_person_service
-            .verify_user_is_sales_person(extra_hours_entity.sales_person_id, context)
-            .await?;
+        let (hr_permission, user_permission) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service
+                .verify_user_is_sales_person(extra_hours_entity.sales_person_id, context),
+        );
+        hr_permission.or(user_permission)?;
 
         extra_hours_entity.deleted = Some(self.clock_service.date_time_now());
+
+        self.extra_hours_dao
+            .update(&extra_hours_entity, "extra_hours_service::delete")
+            .await?;
 
         Ok(())
     }
