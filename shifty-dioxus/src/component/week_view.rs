@@ -8,6 +8,8 @@ use dioxus::prelude::*;
 use tracing::info;
 use uuid::Uuid;
 
+const SCALING: f32 = 75.0;
+
 #[derive(PartialEq, Clone)]
 pub struct ColumnViewContentItem {
     pub id: Uuid,
@@ -58,12 +60,12 @@ where
     let custom_data_remove = props.item_data.custom_data.clone();
     rsx! {
         div {
-            class: "w-full absolute border-solid border-black border truncate flex",
+            class: "w-full absolute border-solid border-black border truncate flex text-ellipsis",
             style: {
                 format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
             },
             div {
-                class: "text-center truncate flex-grow flex-shrink w-full",
+                class: "text-center flex-grow flex-shrink w-full overflow-auto",
                 {
                     match props.item_data.title {
                         ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
@@ -231,9 +233,9 @@ pub fn TimeView(props: TimeViewProps) -> Element {
 
     rsx! {
         ColumnView::<()> {
-            height: (props.end - props.start) as f32 * 60.0,
-            scale: 60.0,
-            offset: 30.0,
+            height: (props.end - props.start) as f32 * SCALING,
+            scale: SCALING,
+            offset: SCALING / 2.0,
             slots: slots,
         }
     }
@@ -255,9 +257,9 @@ pub fn DayView(props: DayViewProps) -> Element {
     let i18n = use_context::<i18n::I18nType>();
     rsx! {
         ColumnView::<Slot> {
-            height: (props.day_end - props.day_start) as f32 * 60.0 + 30.0,
-            scale: 60.0,
-            offset: 30.0,
+            height: (props.day_end - props.day_start) as f32 * SCALING + SCALING / 2.0,
+            scale: SCALING,
+            offset: SCALING / 2.0,
             slots: props.slots.iter()
                 .map(|slot| ColumnViewItem::from(slot.clone()))
                 .map(|column| ColumnViewItem {
@@ -297,7 +299,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
     rsx! {
         div {
             class: "overflow-y-scroll overflow-visible",
-            style: format!("height: {}px", (day_end - day_start) as f32 * 60.0 + 60.0),
+            style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
             div {
                 class: "flex flex-row",
                 TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
@@ -313,28 +315,6 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                         }
                     }
                 }
-                /*DayView {
-                    weekday: Weekday::Monday,
-                    slots: props.shiftplan_data.slots_by_weekday(Weekday::Monday),
-                    day_start, day_end,
-                    add_event: props.add_event,
-                    remove_event: props.remove_event,
-                    item_clicked: props.item_clicked.clone(),
-                }
-                DayView {
-                    weekday: Weekday::Tuesday,
-                    slots: props.shiftplan_data.slots_by_weekday(Weekday::Tuesday),
-                    day_start, day_end,
-                    add_event: props.add_event,
-                    remove_event: props.remove_event
-                }
-                DayView { weekday: Weekday::Wednesday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Wednesday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                DayView { weekday: Weekday::Thursday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Thursday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                DayView { weekday: Weekday::Friday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Friday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                DayView { weekday: Weekday::Saturday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Saturday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                if has_sunday {
-                    DayView { weekday: Weekday::Sunday, slots: props.shiftplan_data.slots_by_weekday(Weekday::Sunday), day_start, day_end, add_event: props.add_event, remove_event: props.remove_event}
-                } */
             }
         }
     }
