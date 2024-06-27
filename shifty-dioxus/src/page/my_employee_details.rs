@@ -56,20 +56,27 @@ pub fn MyEmployeeDetails() -> Element {
             while let Some(action) = rx.next().await {
                 match action {
                     MyEmployeeDetailsAction::Update => {
-                        *employee_resource.write() = if let Ok(Some(sales_person)) =
+                        if let Ok(Some(sales_person)) =
                             loader::load_current_sales_person(config.clone()).await
                         {
-                            let employee = loader::load_employee_details(
-                                config.to_owned(),
-                                *year.read(),
-                                week_until,
-                                sales_person.id,
+                            *employee_resource.write() = Some(
+                                loader::load_employee_details(
+                                    config.to_owned(),
+                                    *year.read(),
+                                    week_until,
+                                    sales_person.id,
+                                )
+                                .await,
+                            );
+                            *extra_hours_resource.write() = Some(
+                                loader::load_extra_hours_per_year(
+                                    config.to_owned(),
+                                    *year.read(),
+                                    sales_person.id,
+                                )
+                                .await,
                             )
-                            .await;
-                            Some(employee)
-                        } else {
-                            None
-                        };
+                        }
                     }
                 }
             }

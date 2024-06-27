@@ -69,7 +69,15 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                                 employee_id,
                             )
                             .await,
-                        )
+                        );
+                        *extra_hours_resource.write() = Some(
+                            loader::load_extra_hours_per_year(
+                                config.to_owned(),
+                                *year.read(),
+                                employee_id,
+                            )
+                            .await,
+                        );
                     }
                 }
             }
