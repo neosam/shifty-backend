@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "amount",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "category",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "date_time",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 8,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "1adc3ff219a135b40566e2a0a94ff507b51f6a71163a404e12b2cab65376e187"
+}

@@ -69,6 +69,20 @@ impl ExtraHoursDaoImpl {
 
 #[async_trait]
 impl ExtraHoursDao for ExtraHoursDaoImpl {
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<ExtraHoursEntity>, crate::DaoError> {
+        let id_vec = id.as_bytes().to_vec();
+        Ok(query_as!(
+            ExtraHoursDb,
+            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ?",
+            id_vec,
+        ).fetch_optional(self.pool.as_ref())
+            .await
+            .map_db_error()?
+            .as_ref()
+            .map(ExtraHoursEntity::try_from)
+            .transpose()?)
+    }
+
     async fn find_by_sales_person_id_and_year(
         &self,
         sales_person_id: Uuid,

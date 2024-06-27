@@ -107,5 +107,5 @@ pub trait ExtraHoursService {
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
-    ) -> Result<ExtraHours, ServiceError>;
+    ) -> Result<(), ServiceError>;
 }

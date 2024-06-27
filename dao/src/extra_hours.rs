@@ -28,6 +28,7 @@ pub struct ExtraHoursEntity {
 #[automock]
 #[async_trait]
 pub trait ExtraHoursDao {
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<ExtraHoursEntity>, crate::DaoError>;
     async fn find_by_sales_person_id_and_year(
         &self,
         sales_person_id: Uuid,

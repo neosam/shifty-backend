@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use dao::extra_hours;
 use service::{
     extra_hours::ExtraHours,
-    permission::{Authentication, HR_PRIVILEGE},
+    permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE},
     ServiceError,
 };
 use tokio::join;
@@ -78,12 +78,29 @@ impl<
 
     async fn find_by_sales_person_id_and_year(
         &self,
-        _sales_person_id: Uuid,
-        _year: u32,
-        _until_week: u8,
-        _context: Authentication<Self::Context>,
+        sales_person_id: Uuid,
+        year: u32,
+        until_week: u8,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError> {
-        unimplemented!()
+        let (hr_permission, sales_person_permission) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service
+                .verify_user_is_sales_person(sales_person_id, context),
+        );
+        hr_permission.or(sales_person_permission)?;
+
+        let extra_hours_entities = self
+            .extra_hours_dao
+            .find_by_sales_person_id_and_year(sales_person_id, year)
+            .await?;
+        let extra_hours = extra_hours_entities
+            .iter()
+            .filter(|extra_hours| extra_hours.date_time.iso_week() <= until_week)
+            .map(ExtraHours::from)
+            .collect::<Vec<ExtraHours>>();
+        Ok(extra_hours.into())
     }
 
     async fn create(
@@ -127,11 +144,32 @@ impl<
     ) -> Result<ExtraHours, ServiceError> {
         unimplemented!()
     }
+
     async fn delete(
         &self,
-        _id: Uuid,
-        _context: Authentication<Self::Context>,
-    ) -> Result<ExtraHours, ServiceError> {
-        unimplemented!()
+        extra_hours_id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        let (hr_permission, sales_person_permission) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context.clone()),
+        );
+        hr_permission.or(sales_person_permission)?;
+
+        let mut extra_hours_entity = self
+            .extra_hours_dao
+            .find_by_id(extra_hours_id)
+            .await?
+            .ok_or(ServiceError::EntityNotFound(extra_hours_id))?;
+
+        self.sales_person_service
+            .verify_user_is_sales_person(extra_hours_entity.sales_person_id, context)
+            .await?;
+
+        extra_hours_entity.deleted = Some(self.clock_service.date_time_now());
+
+        Ok(())
     }
 }
