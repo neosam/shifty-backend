@@ -56,3 +56,5 @@ backend = "http://localhost:3000/authenticate"
 backend = "http://localhost:3000/report"
 [[web.proxy]]
 backend = "http://localhost:3000/extra-hours"
+[[web.proxy]]
+backend = "http://localhost:3000/version"

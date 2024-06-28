@@ -240,3 +240,13 @@ pub async fn delete_extra_hour(config: Config, extra_hour_id: Uuid) -> Result<()
     info!("Deleted");
     Ok(())
 }
+
+pub async fn get_version(config: Config) -> Result<Rc<str>, reqwest::Error> {
+    info!("Fetching version");
+    let url = format!("{}/version", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.text().await?;
+    info!("Fetched");
+    Ok(res.into())
+}
