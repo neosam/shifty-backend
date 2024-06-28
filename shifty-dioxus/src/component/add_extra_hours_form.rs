@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 use time::macros::format_description;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -160,6 +161,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     value: "{*when.read()}",
                     onchange: move |event| {
                         let value = event.data.value();
+                        info!("Setting when to: {value}");
                         *when.write() = value;
                     },
                     "type": "datetime-local",
