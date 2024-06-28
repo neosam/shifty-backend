@@ -191,7 +191,7 @@ pub fn ShiftPlan() -> Element {
                 }
             }
             div {
-                class: "flex ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4",
+                class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4",
                 if is_shiftplanner {
                     button {
                         onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
