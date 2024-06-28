@@ -377,7 +377,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
     let mut expand_weeks = use_signal(|| false);
     //let mut expand_months = use_signal(|| false);
-    let mut expand_details = use_signal(|| false);
+    //let mut expand_details = use_signal(|| false);
     let mut show_add_entry_dialog = use_signal(|| false);
 
     let overall_header_str = i18n.t(Key::OverallHeading);
@@ -443,71 +443,48 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                                 value: format!("{:.1} {}", props.employee.balance, hours_str.clone()).into()
                             }
                         }
-                        if *expand_details.read() {
 
-                            li {
-                                TupleView {
-                                    label: overall_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.overall_working_hours, hours_str.clone()).into()
-                                }
-                            }
-                            li {
-                                TupleView {
-                                    label: required_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.expected_working_hours, hours_str.clone()).into()
-                                }
-                            }
-                            li {
-                                class: "mt-2",
-                                TupleView {
-                                    label: shiftplan_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.shiftplan_hours, hours_str.clone()).into()
-                                }
-                            }
-                            li {
-                                TupleView {
-                                    label: extra_work_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.extra_work_hours, hours_str.clone()).into()
-                                }
-                            }
-                            li {
-                                TupleView {
-                                    label: vacation_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.vacation_hours, hours_str.clone()).into()
-                                }
-                            }
-                            li {
-                                TupleView {
-                                    label: sick_leave_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.sick_leave_hours, hours_str.clone()).into()
-                                }
-                            }
-                            li {
-                                TupleView {
-                                    label: holidays_str.clone(),
-                                    value: format!("{:.1} {}", props.employee.holiday_hours, hours_str.clone()).into()
-                                }
+                        li {
+                            TupleView {
+                                label: overall_str.clone(),
+                                value: format!("{:.1} {}", props.employee.overall_working_hours, hours_str.clone()).into()
                             }
                         }
                         li {
-                            class: "mt-4",
-                            if *expand_details.read() {
-                               div {
-                                    class: "cursor-pointer underline",
-                                    onclick: move |_| {
-                                        *expand_details.write() = false;
-                                    },
-                                    "{hide_details_str}"
-                                }
-                            } else {
-                                div {
-                                    class: "cursor-pointer underline",
-                                    onclick: move |_| {
-                                        *expand_details.write() = true;
-                                    },
-                                    "{show_details_str}"
-                                }
-
+                            TupleView {
+                                label: required_str.clone(),
+                                value: format!("{:.1} {}", props.employee.expected_working_hours, hours_str.clone()).into()
+                            }
+                        }
+                        li {
+                            class: "mt-2",
+                            TupleView {
+                                label: shiftplan_str.clone(),
+                                value: format!("{:.1} {}", props.employee.shiftplan_hours, hours_str.clone()).into()
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: extra_work_str.clone(),
+                                value: format!("{:.1} {}", props.employee.extra_work_hours, hours_str.clone()).into()
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: vacation_str.clone(),
+                                value: format!("{:.1} {}", props.employee.vacation_hours, hours_str.clone()).into()
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: sick_leave_str.clone(),
+                                value: format!("{:.1} {}", props.employee.sick_leave_hours, hours_str.clone()).into()
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: holidays_str.clone(),
+                                value: format!("{:.1} {}", props.employee.holiday_hours, hours_str.clone()).into()
                             }
                         }
                     }
