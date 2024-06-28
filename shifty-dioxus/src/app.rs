@@ -7,7 +7,11 @@ use dioxus::prelude::*;
 
 pub fn App() -> Element {
     let config_resource = use_resource(|| api::load_config());
-    use_context_provider(|| i18n::generate(i18n::Locale::De));
+    let language = web_sys::window()
+        .map(|w| w.navigator())
+        .and_then(|n| n.language())
+        .unwrap_or_else(|| "en".to_string());
+    use_context_provider(|| i18n::generate(i18n::Locale::from_str(&language)));
     match &*config_resource.read_unchecked() {
         Some(Ok(config)) => {
             use_context_provider(|| config.clone());

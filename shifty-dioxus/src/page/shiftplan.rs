@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::component::TopBar;
 use crate::component::WeekView;
 use crate::error::result_handler;
+use crate::i18n::{self, Key};
 use crate::js;
 use crate::loader;
 use crate::state;
@@ -31,6 +32,7 @@ pub enum ShiftPlanAction {
 #[component]
 pub fn ShiftPlan() -> Element {
     let config = use_context::<state::Config>();
+    let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
     let auth_info = use_context::<state::AuthInfo>();
     let is_shiftplanner = auth_info.has_privilege("shiftplanner");
 
@@ -41,6 +43,19 @@ pub fn ShiftPlan() -> Element {
             .unwrap();
     let formatter = time::format_description::parse("[day].[month]").unwrap();
     let date_str = date.format(&formatter).unwrap().to_string();
+
+    let calendar_week_str = i18n.t_m(
+        Key::ShiftplanCalendarWeek,
+        [
+            ("week", week.read().to_string().as_str()),
+            ("year", &year.read().to_string().as_str()),
+            ("date", date_str.as_str()),
+        ]
+        .into(),
+    );
+    let take_last_week_str = i18n.t(Key::ShiftplanTakeLastWeek);
+    let edit_as_str = i18n.t(Key::ShiftplanEditAs);
+    let you_are_str = i18n.t(Key::ShiftplanYouAre);
 
     let mut shift_plan_context = {
         let config = config.clone();
@@ -167,7 +182,7 @@ pub fn ShiftPlan() -> Element {
                 }
                 div {
                     class: "pt-2",
-                    "{week.read()} / {year.read()} - from {date_str}."
+                    "{calendar_week_str}"
                 }
                 button {
                     onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
@@ -181,7 +196,7 @@ pub fn ShiftPlan() -> Element {
                     button {
                         onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
                         class: "border-2 border-solid border-black mr-2 ml-2 p-2",
-                        "Take last week"
+                        "{take_last_week_str}"
                     }
                 }
                 match &*sales_persons_resource.read_unchecked() {
@@ -189,7 +204,7 @@ pub fn ShiftPlan() -> Element {
                         if is_shiftplanner {
                             rsx!{div {
                                 class: "align-center",
-                                "Edit as:"
+                                "{edit_as_str}"
                                 select {
                                     class: "bg-slate-200 p-1 rounded-md ml-2",
                                     onchange: move |event| {
@@ -212,7 +227,7 @@ pub fn ShiftPlan() -> Element {
                         } else {
                             if let Some( ref current_sales_person) = *current_sales_person.read() {
                                 rsx!{div {
-                                    "You are "
+                                    "{you_are_str}"
                                     span {
                                         class: "bg-slate-200 p-1 rounded-md",
                                         "{current_sales_person.name}"

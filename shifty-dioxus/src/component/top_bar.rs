@@ -1,9 +1,15 @@
 use dioxus::prelude::*;
 
-use crate::{loader, router::Route, state::config};
+use crate::{
+    i18n::{self, Key},
+    loader,
+    router::Route,
+    state::config,
+};
 
 #[component]
 pub fn TopBar() -> Element {
+    let i18n = use_context::<i18n::I18nType>();
     let auth_info = try_use_context::<crate::state::AuthInfo>();
     let config = use_context::<config::Config>();
     let show_my_time = config.show_my_time.unwrap_or(false);
@@ -41,7 +47,7 @@ pub fn TopBar() -> Element {
                         li {
                             Link {
                                 to: Route::ShiftPlan {},
-                                "Shift plan"
+                                {i18n.t(Key::Shiftplan)}
                             }
                         }
                     }
@@ -49,7 +55,7 @@ pub fn TopBar() -> Element {
                         li {
                             Link {
                                 to: Route::Employees {},
-                                "Employees"
+                                {i18n.t(Key::Employees)}
                             }
                         }
                     }
@@ -57,7 +63,7 @@ pub fn TopBar() -> Element {
                         li {
                             Link {
                                 to: Route::MyEmployeeDetails {},
-                                "My time"
+                                {i18n.t(Key::MyTime)}
                             }
                         }
                     }

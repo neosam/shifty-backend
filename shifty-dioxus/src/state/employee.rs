@@ -10,6 +10,8 @@ use rest_types::{
 };
 use uuid::Uuid;
 
+use crate::i18n;
+
 use super::shiftplan::SalesPerson;
 
 /// The expected amount of time an employee should work in a given time period.
@@ -59,6 +61,15 @@ impl WorkingHoursCategory {
             "sick_leave" => WorkingHoursCategory::SickLeave,
             "holiday" => WorkingHoursCategory::Holiday,
             _ => panic!("Unknown working hours category: {}", identifier),
+        }
+    }
+    pub fn to_i18n_key(&self) -> i18n::Key {
+        match self {
+            WorkingHoursCategory::Shiftplan => i18n::Key::CategoryShiftplan,
+            WorkingHoursCategory::ExtraWork(_) => i18n::Key::CategoryExtraWork,
+            WorkingHoursCategory::Vacation => i18n::Key::CategoryVacation,
+            WorkingHoursCategory::SickLeave => i18n::Key::CategorySickLeave,
+            WorkingHoursCategory::Holiday => i18n::Key::CategoryHolidays,
         }
     }
 }

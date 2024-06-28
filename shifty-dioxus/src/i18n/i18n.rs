@@ -59,4 +59,12 @@ impl<Key: Copy + PartialEq + Eq + Hash, Locale: Copy + PartialEq + Eq + Hash> I1
     pub fn t(&self, key: Key) -> Rc<str> {
         self.get_text(key)
     }
+
+    pub fn t_m(&self, key: Key, values_map: HashMap<&str, &str>) -> Rc<str> {
+        let mut text = self.get_text(key).to_string();
+        for (key, value) in values_map {
+            text = text.replace(&format!("{{{}}}", key), value);
+        }
+        text.into()
+    }
 }

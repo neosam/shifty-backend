@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::{
     api,
     error::result_handler,
+    i18n::{self, Key},
     js,
     state::{employee::WorkingHoursCategory, Config},
 };
@@ -31,6 +32,19 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
 
     let config = use_context::<Config>();
     let sales_person_id = props.sales_person_id;
+
+    let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
+    let form_title = i18n.t(Key::AddExtraHoursFormTitle);
+    let category_str = i18n.t(Key::Category);
+    let amount_of_hours_str = i18n.t(Key::AmountOfHours);
+    let description_str = i18n.t(Key::Description);
+    let when_str = i18n.t(Key::When);
+    let submit_str = i18n.t(Key::Submit);
+    let cancel_str = i18n.t(Key::Cancel);
+    let extra_work_str = i18n.t(Key::CategoryExtraWork);
+    let vacation_str = i18n.t(Key::CategoryVacation);
+    let sick_leave_str = i18n.t(Key::CategorySickLeave);
+    let holidays_str = i18n.t(Key::CategoryHolidays);
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<AddExtraHoursFormAction>| async move {
@@ -66,14 +80,14 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
         form {
             h1 {
                 class: "text-2xl font-bold",
-                "Add extra hours"
+                "{form_title}"
             }
 
             div {
                 class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
                 label {
                     class: "block mt-4 mr-4 grow",
-                    "Category"
+                    "{category_str}"
                 }
                 select {
                     class: "block mt-2 pl-2 pr-2 w-full md:w-1/2",
@@ -84,19 +98,19 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     },
                     option {
                         value: "extra_work",
-                        "Extra Work"
+                        "{extra_work_str}"
                     }
                     option {
                         value: "holiday",
-                        "Holiday"
+                        "{holidays_str}"
                     }
                     option {
                         value: "sick_leave",
-                        "Sick"
+                        "{sick_leave_str}"
                     }
                     option {
                         value: "vacation",
-                        "Vacation"
+                        "{vacation_str}"
                     }
                 }
             }
@@ -105,7 +119,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
                 label {
                     class: "block mt-4 mr-4 grow",
-                    "Amount of hours"
+                    "{amount_of_hours_str}"
                 }
                 input {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
@@ -123,7 +137,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
                 label {
                     class: "block mt-4 mr-4 grow",
-                    "Description"
+                    "{description_str}"
                 }
                 input {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
@@ -139,7 +153,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
                 label {
                     class: "block mt-4 mr-4 grow",
-                    "When"
+                    "{when_str}"
                 }
                 input {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
@@ -157,12 +171,12 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 button {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     onclick: move |_| props.onabort.call(()),
-                    "Abort"
+                    "{cancel_str}"
                 }
                 button {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     onclick: move |_| cr.send(AddExtraHoursFormAction::Submit),
-                    "Submit"
+                    "{submit_str}"
                 }
             }
         }
