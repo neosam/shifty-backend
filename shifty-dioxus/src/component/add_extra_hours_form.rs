@@ -177,7 +177,11 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 }
                 button {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
-                    onclick: move |_| cr.send(AddExtraHoursFormAction::Submit),
+                    prevent_default: "onclick",
+                    onclick: move |event| {
+                        event.stop_propagation();
+                        cr.send(AddExtraHoursFormAction::Submit)
+                    },
                     "{submit_str}"
                 }
             }

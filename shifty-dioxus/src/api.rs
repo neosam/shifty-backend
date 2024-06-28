@@ -212,6 +212,7 @@ pub async fn add_extra_hour(
     let client = reqwest::Client::new();
     let response = client.post(url).json(&booking_to).send().await?;
     response.error_for_status_ref()?;
+    response.json().await?;
     info!("Added");
     Ok(())
 }
