@@ -9,7 +9,9 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::{
+    api,
     error::ShiftyError,
+    js,
     state::{AuthInfo, Config},
 };
 
@@ -193,7 +195,8 @@ pub async fn add_extra_hour(
     let format = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
     info!("Parsing datetime");
     info!("Datetime: {}", date_time);
-    let date_time = PrimitiveDateTime::parse(&date_time, &format).unwrap();
+    //let date_time = PrimitiveDateTime::parse(&date_time, &format).unwrap();
+    let date_time = js::date_time_str_to_primitive_date_time(&date_time);
     info!("Datetime: {}", date_time);
     let booking_to = ExtraHoursTO {
         id: Uuid::nil(),
