@@ -10,6 +10,7 @@ pub fn App() -> Element {
     let language = web_sys::window()
         .map(|w| w.navigator())
         .and_then(|n| n.language())
+        .map(|locale| locale[..2].to_string())
         .unwrap_or_else(|| "en".to_string());
     use_context_provider(|| i18n::generate(i18n::Locale::from_str(&language)));
     match &*config_resource.read_unchecked() {
