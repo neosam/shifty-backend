@@ -319,7 +319,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
             class: "overflow-y-scroll overflow-visible no-scrollbar",
             style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
             div {
-                class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md",
+                class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md 2xl:hidden",
                 label {
                     "Zoom: "
                 }
