@@ -66,7 +66,7 @@ where
                 format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
             },
             div {
-                class: "text-center flex-grow flex-shrink w-full overflow-auto",
+                class: "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar",
                 {
                     match props.item_data.title {
                         ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
@@ -75,7 +75,7 @@ where
                             let item_clicked = props.item_clicked.clone();
                             items.sort_by_key(|item| item.title.clone());
                             rsx! { div {
-                                class: "flex flex-row overflow-scroll flex-wrap gap-1 m-1",
+                                class: "flex flex-row overflow-scroll no-scrollbar flex-wrap gap-1 m-1",
                                 for item in items.iter() {
                                     {
                                         let item_id = item.id;
@@ -101,7 +101,7 @@ where
                 }
             }
             div {
-                class: "flex flex-col flex-grow overflow-scroll",
+                class: "flex flex-col flex-grow overflow-scroll no-scrollbar",
                 if props.item_data.show_add {
                     button {
                         class: "border w-8",
@@ -304,7 +304,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
         .any(|slot| slot.day_of_week == Weekday::Sunday);
     rsx! {
         div {
-            class: "overflow-y-scroll overflow-visible",
+            class: "overflow-y-scroll overflow-visible no-scrollbar",
             style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
             div {
                 class: "flex flex-row",
