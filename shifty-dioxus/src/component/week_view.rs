@@ -61,7 +61,7 @@ where
     let custom_data_remove = props.item_data.custom_data.clone();
     rsx! {
         div {
-            class: "w-full absolute border-solid border-black border truncate flex text-ellipsis",
+            class: "w-full absolute border-solid border-black border truncate flex text-ellipsis touch-auto",
             style: {
                 format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
             },
