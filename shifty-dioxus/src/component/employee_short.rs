@@ -28,7 +28,7 @@ pub fn EmployeeShort(props: EmployeeShortProps) -> Element {
                     }
                     div {
                         class: "text-sm text-gray-500",
-                        {format!("{:.1} {hours_str}", props.employee.balance)}
+                        {format!("{:.2} {hours_str}", props.employee.balance)}
                     }
                 }
             }
