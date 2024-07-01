@@ -180,7 +180,7 @@ where
 {
     rsx! {
         div {
-            class: "relative min-w-44 flex-grow",
+            class: "relative min-w-48 flex-grow",
             style: {
                 format!("height: {}px;", props.height)
             },
@@ -293,6 +293,12 @@ pub struct WeekViewProps {
     pub item_clicked: Option<EventHandler<Uuid>>,
 }
 
+enum Zoom {
+    Full,
+    Half,
+    Quarter,
+}
+
 #[component]
 pub fn WeekView(props: WeekViewProps) -> Element {
     let day_start = props.shiftplan_data.min_hour();
@@ -302,12 +308,48 @@ pub fn WeekView(props: WeekViewProps) -> Element {
         .slots
         .iter()
         .any(|slot| slot.day_of_week == Weekday::Sunday);
+    let mut zoom = use_signal(|| Zoom::Full);
+    let zoom_class = match *zoom.read() {
+        Zoom::Full => "scale-down-100",
+        Zoom::Half => "scale-down-50",
+        Zoom::Quarter => "scale-down-75",
+    };
     rsx! {
         div {
             class: "overflow-y-scroll overflow-visible no-scrollbar",
             style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
             div {
-                class: "flex flex-row",
+                class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md",
+                label {
+                    "Zoom: "
+                }
+                select {
+                    onchange: move |event| {
+                        let value = event.data.value();
+                        match value.as_str() {
+                            "full" => *zoom.write() = Zoom::Full,
+                            "half" => *zoom.write() = Zoom::Half,
+                            "quarter" => *zoom.write() = Zoom::Quarter,
+                            _ => (),
+                        }
+                    },
+                    option {
+                        value: "full",
+                        "100%"
+                    }
+                    option {
+                        value: "quarter",
+                        "75%"
+                    }
+                    option {
+                        value: "half",
+                        "50%"
+                    }
+
+                }
+            }
+            div {
+                class: format!("flex flex-row {}", zoom_class),
                 TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
                 for weekday in [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday, Weekday::Saturday, Weekday::Sunday].iter() {
                     if !(*weekday == Weekday::Sunday && !has_sunday) {

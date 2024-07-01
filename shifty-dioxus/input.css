@@ -11,4 +11,22 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
     }
+
+    .scale-down-50 {
+        transform-origin: top left;
+        transform: scale(0.50);
+        transition: transform 0.25s ease;
+    }
+
+    .scale-down-75 {
+        transform-origin: top left;
+        transform: scale(0.75);
+        transition: transform 0.25s ease;
+    }
+
+    .scale-down-100 {
+        transform-origin: top left;
+        transform: scale(1.0);
+        transition: transform 0.25s ease;
+    }
 }
