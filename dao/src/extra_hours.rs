@@ -5,11 +5,27 @@ use mockall::automock;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReportType {
+    WorkingHours,
+    AbsenceHours,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExtraHoursCategoryEntity {
     ExtraWork,
     Vacation,
     SickLeave,
     Holiday,
+}
+impl ExtraHoursCategoryEntity {
+    pub fn as_report_type(&self) -> ReportType {
+        match self {
+            Self::ExtraWork => ReportType::WorkingHours,
+            Self::Vacation => ReportType::AbsenceHours,
+            Self::SickLeave => ReportType::AbsenceHours,
+            Self::Holiday => ReportType::AbsenceHours,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

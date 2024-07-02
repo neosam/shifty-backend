@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use dao::{
-    extra_hours::{ExtraHoursCategoryEntity, ExtraHoursEntity},
+    extra_hours::{ExtraHoursCategoryEntity, ExtraHoursEntity, ReportType},
     shiftplan_report::ShiftplanReportEntity,
     working_hours::WorkingHoursEntity,
 };
@@ -233,17 +233,29 @@ where
             })
             .sum();
         let shiftplan_hours = shiftplan_report.iter().map(|r| r.hours).sum::<f32>() as f32;
-        let overall_extra_hours = extra_hours
+        let overall_extra_work_hours = extra_hours
             .iter()
-            .filter(|eh| eh.date_time.iso_week() <= until_week)
+            .filter(|eh| {
+                eh.date_time.iso_week() <= until_week
+                    && eh.category.as_report_type() == ReportType::WorkingHours
+            })
+            .map(|eh| eh.amount)
+            .sum::<f32>();
+        let overall_absense_hours = extra_hours
+            .iter()
+            .filter(|eh| {
+                eh.date_time.iso_week() <= until_week
+                    && eh.category.as_report_type() == ReportType::AbsenceHours
+            })
             .map(|eh| eh.amount)
             .sum::<f32>();
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
-            balance_hours: shiftplan_hours + overall_extra_hours - planned_hours,
-            overall_hours: shiftplan_hours + overall_extra_hours,
-            expected_hours: planned_hours,
+            balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours
+                + overall_absense_hours,
+            overall_hours: shiftplan_hours + overall_extra_work_hours,
+            expected_hours: planned_hours - overall_absense_hours,
             shiftplan_hours,
             extra_work_hours: extra_hours
                 .iter()
@@ -302,8 +314,14 @@ fn hours_per_week(
             .filter(|wh| wh.from_calendar_week <= week && wh.to_calendar_week >= week)
             .map(|wh| wh.expected_hours)
             .sum::<f32>();
-        let extra_hours = filtered_extra_hours_list
+        let extra_work_hours = filtered_extra_hours_list
             .iter()
+            .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
+            .map(|eh| eh.amount)
+            .sum::<f32>();
+        let absence_hours = filtered_extra_hours_list
+            .iter()
+            .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
             .map(|eh| eh.amount)
             .sum::<f32>();
 
@@ -333,9 +351,9 @@ fn hours_per_week(
         weeks.push(WorkingHours {
             from: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap(),
             to: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday).unwrap(),
-            expected_hours: working_hours,
-            overall_hours: shiftplan_hours + extra_hours,
-            balance: shiftplan_hours + extra_hours - working_hours,
+            expected_hours: working_hours - absence_hours,
+            overall_hours: shiftplan_hours + extra_work_hours,
+            balance: shiftplan_hours + extra_work_hours - working_hours + absence_hours,
             shiftplan_hours,
             extra_work_hours: filtered_extra_hours_list
                 .iter()
