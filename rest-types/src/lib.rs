@@ -305,8 +305,8 @@ pub struct WorkingHoursReportTO {
 }
 
 #[cfg(feature = "service-impl")]
-impl From<&service::reporting::WorkingHours> for WorkingHoursReportTO {
-    fn from(hours: &service::reporting::WorkingHours) -> Self {
+impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
+    fn from(hours: &service::reporting::GroupedReportHours) -> Self {
         Self {
             from: hours.from,
             to: hours.to,

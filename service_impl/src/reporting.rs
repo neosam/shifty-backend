@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{shiftplan_report::ShiftplanReportEntity, working_hours::WorkingHoursEntity};
+use dao::shiftplan_report::ShiftplanReportEntity;
 use service::{
     extra_hours::{ExtraHours, ExtraHoursCategory, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
-        EmployeeReport, ExtraHoursReportCategory, ShortEmployeeReport, WorkingHours,
+        EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
         WorkingHoursDay,
     },
+    working_hours::WorkingHours,
     ServiceError,
 };
 use tokio::join;
@@ -17,7 +18,7 @@ use uuid::Uuid;
 pub struct ReportingServiceImpl<
     ExtraHoursService,
     ShiftplanReportDao,
-    WorkingHoursDao,
+    WorkingHoursService,
     SalesPersonService,
     PermissionService,
     ClockService,
@@ -25,7 +26,7 @@ pub struct ReportingServiceImpl<
 > where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursDao: dao::working_hours::WorkingHoursDao + Send + Sync,
+    WorkingHoursService: service::working_hours::WorkingHoursService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
@@ -33,7 +34,7 @@ pub struct ReportingServiceImpl<
 {
     pub extra_hours_service: Arc<ExtraHoursService>,
     pub shiftplan_report_dao: Arc<ShiftplanReportDao>,
-    pub working_hours_dao: Arc<WorkingHoursDao>,
+    pub working_hours_service: Arc<WorkingHoursService>,
     pub sales_person_service: Arc<SalesPersonService>,
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
@@ -43,7 +44,7 @@ pub struct ReportingServiceImpl<
 impl<
         ExtraHoursService,
         ShiftplanReportDao,
-        WorkingHoursDao,
+        WorkingHoursService,
         SalesPersonService,
         PermissionService,
         ClockService,
@@ -52,7 +53,7 @@ impl<
     ReportingServiceImpl<
         ExtraHoursService,
         ShiftplanReportDao,
-        WorkingHoursDao,
+        WorkingHoursService,
         SalesPersonService,
         PermissionService,
         ClockService,
@@ -61,7 +62,7 @@ impl<
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursDao: dao::working_hours::WorkingHoursDao + Send + Sync,
+    WorkingHoursService: service::working_hours::WorkingHoursService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
@@ -70,7 +71,7 @@ where
     pub fn new(
         extra_hours_service: Arc<ExtraHoursService>,
         shiftplan_report_dao: Arc<ShiftplanReportDao>,
-        working_hours_dao: Arc<WorkingHoursDao>,
+        working_hours_service: Arc<WorkingHoursService>,
         sales_person_service: Arc<SalesPersonService>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
@@ -79,7 +80,7 @@ where
         Self {
             extra_hours_service,
             shiftplan_report_dao,
-            working_hours_dao,
+            working_hours_service,
             sales_person_service,
             permission_service,
             clock_service,
@@ -89,10 +90,10 @@ where
 }
 
 pub fn find_working_hours_for_calendar_week(
-    working_hours: &[WorkingHoursEntity],
+    working_hours: &[WorkingHours],
     year: u32,
     week: u8,
-) -> Option<&WorkingHoursEntity> {
+) -> Option<&WorkingHours> {
     working_hours.iter().find(|wh| {
         (year, week) >= (wh.from_year, wh.from_calendar_week)
             && (year, week) <= (wh.to_year, wh.to_calendar_week)
@@ -103,7 +104,7 @@ pub fn find_working_hours_for_calendar_week(
 impl<
         ExtraHoursService,
         ShiftplanReportDao,
-        WorkingHoursDao,
+        WorkingHoursService,
         SalesPersonService,
         PermissionService,
         ClockService,
@@ -112,7 +113,7 @@ impl<
     for ReportingServiceImpl<
         ExtraHoursService,
         ShiftplanReportDao,
-        WorkingHoursDao,
+        WorkingHoursService,
         SalesPersonService,
         PermissionService,
         ClockService,
@@ -121,7 +122,7 @@ impl<
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursDao: dao::working_hours::WorkingHoursDao + Send + Sync,
+    WorkingHoursService: service::working_hours::WorkingHoursService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
         + Send
         + Sync,
@@ -146,7 +147,7 @@ where
             .extract_quick_shiftplan_report(year, until_week)
             .await?;
 
-        let working_hours = self.working_hours_dao.all().await?;
+        let working_hours = self.working_hours_service.all(Authentication::Full).await?;
 
         let employees = self
             .sales_person_service
@@ -162,7 +163,7 @@ where
                 .filter(|r| r.sales_person_id == paid_employee.id)
                 .map(|r| r.hours)
                 .sum::<f32>();
-            let working_hours: Arc<[WorkingHoursEntity]> = working_hours
+            let working_hours: Arc<[WorkingHours]> = working_hours
                 .iter()
                 .filter(|wh| wh.sales_person_id == paid_employee.id)
                 .cloned()
@@ -215,8 +216,8 @@ where
             .get(*sales_person_id, context)
             .await?;
         let working_hours = self
-            .working_hours_dao
-            .find_by_sales_person_id(*sales_person_id)
+            .working_hours_service
+            .find_by_sales_person_id(*sales_person_id, Authentication::Full)
             .await?;
         let shiftplan_report = self
             .shiftplan_report_dao
@@ -301,11 +302,11 @@ where
 fn hours_per_week(
     shiftplan_hours_list: &Arc<[ShiftplanReportEntity]>,
     extra_hours_list: &Arc<[ExtraHours]>,
-    working_hours: &[WorkingHoursEntity],
+    working_hours: &[WorkingHours],
     year: u32,
     week_until: u8,
-) -> Result<Arc<[WorkingHours]>, ServiceError> {
-    let mut weeks: Vec<WorkingHours> = Vec::new();
+) -> Result<Arc<[GroupedReportHours]>, ServiceError> {
+    let mut weeks: Vec<GroupedReportHours> = Vec::new();
     for week in 1..=week_until {
         let filtered_extra_hours_list = extra_hours_list
             .iter()
@@ -355,7 +356,7 @@ fn hours_per_week(
             .collect::<Result<Vec<WorkingHoursDay>, ServiceError>>()?;
         day_list.sort_by_key(|day| day.date);
 
-        weeks.push(WorkingHours {
+        weeks.push(GroupedReportHours {
             from: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap(),
             to: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday).unwrap(),
             expected_hours: working_hours - absence_hours,

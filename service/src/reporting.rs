@@ -37,7 +37,7 @@ pub struct WorkingHoursDay {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct WorkingHours {
+pub struct GroupedReportHours {
     pub from: time::Date,
     pub to: time::Date,
     pub expected_hours: f32,
@@ -73,8 +73,8 @@ pub struct EmployeeReport {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
 
-    pub by_week: Arc<[WorkingHours]>,
-    pub by_month: Arc<[WorkingHours]>,
+    pub by_week: Arc<[GroupedReportHours]>,
+    pub by_month: Arc<[GroupedReportHours]>,
 }
 
 #[automock(type Context=();)]

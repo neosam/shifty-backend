@@ -44,7 +44,7 @@ type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
 type ReportingService = service_impl::reporting::ReportingServiceImpl<
     ExtraHoursService,
     dao_impl::shiftplan_report::ShiftplanReportDaoImpl,
-    dao_impl::working_hours::WorkingHoursDaoImpl,
+    WorkingHoursService,
     SalesPersonService,
     PermissionService,
     ClockService,
@@ -162,15 +162,6 @@ impl RestStateImpl {
             clock_service.clone(),
             uuid_service.clone(),
         ));
-        let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
-            extra_hours_service.clone(),
-            shiftplan_report_dao,
-            working_hours_dao.clone(),
-            sales_person_service.clone(),
-            permission_service.clone(),
-            clock_service.clone(),
-            uuid_service.clone(),
-        ));
         let working_hours_service =
             Arc::new(service_impl::working_hours::WorkingHoursServiceImpl::new(
                 working_hours_dao,
@@ -178,6 +169,15 @@ impl RestStateImpl {
                 clock_service.clone(),
                 uuid_service.clone(),
             ));
+        let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
+            extra_hours_service.clone(),
+            shiftplan_report_dao,
+            working_hours_service.clone(),
+            sales_person_service.clone(),
+            permission_service.clone(),
+            clock_service.clone(),
+            uuid_service.clone(),
+        ));
         Self {
             user_service,
             permission_service,
