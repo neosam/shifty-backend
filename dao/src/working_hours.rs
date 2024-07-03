@@ -14,6 +14,8 @@ pub struct WorkingHoursEntity {
     pub from_year: u32,
     pub to_calendar_week: u8,
     pub to_year: u32,
+    pub workdays_per_week: u8,
+    pub days_per_week: u8,
     pub created: PrimitiveDateTime,
     pub deleted: Option<PrimitiveDateTime>,
     pub version: Uuid,

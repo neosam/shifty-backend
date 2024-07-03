@@ -52,6 +52,7 @@ type ReportingService = service_impl::reporting::ReportingServiceImpl<
 >;
 type WorkingHoursService = service_impl::working_hours::WorkingHoursServiceImpl<
     dao_impl::working_hours::WorkingHoursDaoImpl,
+    SalesPersonService,
     PermissionService,
     ClockService,
     UuidService,
@@ -165,6 +166,7 @@ impl RestStateImpl {
         let working_hours_service =
             Arc::new(service_impl::working_hours::WorkingHoursServiceImpl::new(
                 working_hours_dao,
+                sales_person_service.clone(),
                 permission_service.clone(),
                 clock_service.clone(),
                 uuid_service.clone(),

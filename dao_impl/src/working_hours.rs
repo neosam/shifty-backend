@@ -18,6 +18,8 @@ pub struct WorkingHoursDb {
     pub from_year: i64,
     pub to_calendar_week: i64,
     pub to_year: i64,
+    pub workdays_per_week: i64,
+    pub days_per_week: i64,
     pub created: String,
     pub deleted: Option<String>,
     update_version: Vec<u8>,
@@ -35,6 +37,8 @@ impl TryFrom<&WorkingHoursDb> for WorkingHoursEntity {
             from_year: working_hours.from_year as u32,
             to_calendar_week: working_hours.to_calendar_week as u8,
             to_year: working_hours.to_year as u32,
+            workdays_per_week: working_hours.workdays_per_week as u8,
+            days_per_week: working_hours.days_per_week as u8,
             created: PrimitiveDateTime::parse(working_hours.created.as_str(), &Iso8601::DATE_TIME)?,
             deleted: working_hours
                 .deleted
@@ -70,6 +74,8 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
                 from_year,
                 to_calendar_week,
                 to_year,
+                workdays_per_week,
+                days_per_week,
                 created,
                 deleted,
                 update_version
@@ -101,6 +107,8 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
                 from_year,
                 to_calendar_week,
                 to_year,
+                workdays_per_week,
+                days_per_week,
                 created,
                 deleted,
                 update_version
@@ -126,6 +134,7 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
         let from_year = entity.from_year as i64;
         let to_calendar_week = entity.to_calendar_week as i64;
         let to_year = entity.to_year as i64;
+        let workdays_per_week = entity.workdays_per_week as i64;
         let created = entity.created.format(&Iso8601::DATE_TIME)?;
         let version = entity.id.as_bytes().to_vec();
         query!(
@@ -138,10 +147,11 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
                 from_year,
                 to_calendar_week,
                 to_year,
+                workdays_per_week,
                 created,
                 update_process,
                 update_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             id,
             sales_person_id,
@@ -150,6 +160,7 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
             from_year,
             to_calendar_week,
             to_year,
+            workdays_per_week,
             created,
             process,
             version,

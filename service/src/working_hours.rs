@@ -18,6 +18,8 @@ pub struct WorkingHours {
     pub from_year: u32,
     pub to_calendar_week: u8,
     pub to_year: u32,
+    pub workdays_per_week: u8,
+    pub days_per_week: u8,
     pub created: Option<PrimitiveDateTime>,
     pub deleted: Option<PrimitiveDateTime>,
     pub version: Uuid,
@@ -32,12 +34,25 @@ impl From<&dao::working_hours::WorkingHoursEntity> for WorkingHours {
             from_year: working_hours.from_year,
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
+            workdays_per_week: working_hours.workdays_per_week,
+            days_per_week: working_hours.days_per_week,
             created: Some(working_hours.created),
             deleted: working_hours.deleted,
             version: working_hours.version,
         }
     }
 }
+
+impl WorkingHours {
+    pub fn hours_per_day(&self) -> f32 {
+        self.expected_hours / self.workdays_per_week as f32
+    }
+
+    pub fn holiday_hours(&self) -> f32 {
+        self.expected_hours / self.days_per_week as f32
+    }
+}
+
 impl TryFrom<&WorkingHours> for dao::working_hours::WorkingHoursEntity {
     type Error = ServiceError;
     fn try_from(working_hours: &WorkingHours) -> Result<Self, Self::Error> {
@@ -49,6 +64,8 @@ impl TryFrom<&WorkingHours> for dao::working_hours::WorkingHoursEntity {
             from_year: working_hours.from_year,
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
+            workdays_per_week: working_hours.workdays_per_week,
+            days_per_week: working_hours.days_per_week,
             created: working_hours
                 .created
                 .ok_or_else(|| ServiceError::InternalError)?,

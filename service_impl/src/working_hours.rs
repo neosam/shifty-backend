@@ -1,42 +1,55 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::working_hours::WorkingHoursEntity;
+use dao::{sales_person, working_hours::WorkingHoursEntity};
 use service::{
     permission::{Authentication, HR_PRIVILEGE},
+    sales_person::SalesPersonService,
     working_hours::WorkingHours,
-    ServiceError,
+    PermissionService, ServiceError,
 };
+use tokio::join;
 use uuid::Uuid;
 
 pub struct WorkingHoursServiceImpl<
     WorkingHoursDao: dao::working_hours::WorkingHoursDao,
+    SalesPersonService: service::sales_person::SalesPersonService,
     PermissionService: service::PermissionService,
     ClockService: service::clock::ClockService,
     UuidService: service::uuid_service::UuidService,
 > {
     working_hours_dao: Arc<WorkingHoursDao>,
+    sales_person_service: Arc<SalesPersonService>,
     permission_service: Arc<PermissionService>,
     clock_service: Arc<ClockService>,
     uuid_service: Arc<UuidService>,
 }
 
-impl<WorkingHoursDao, PermissionService, ClockService, UuidService>
-    WorkingHoursServiceImpl<WorkingHoursDao, PermissionService, ClockService, UuidService>
+impl<WorkingHoursDao, SalesPersonService, PermissionService, ClockService, UuidService>
+    WorkingHoursServiceImpl<
+        WorkingHoursDao,
+        SalesPersonService,
+        PermissionService,
+        ClockService,
+        UuidService,
+    >
 where
     WorkingHoursDao: dao::working_hours::WorkingHoursDao + Sync + Send,
+    SalesPersonService: service::sales_person::SalesPersonService + Sync + Send,
     PermissionService: service::PermissionService + Sync + Send,
     ClockService: service::clock::ClockService + Sync + Send,
     UuidService: service::uuid_service::UuidService + Sync + Send,
 {
     pub fn new(
         working_hours_dao: Arc<WorkingHoursDao>,
+        sales_person_service: Arc<SalesPersonService>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
     ) -> Self {
         Self {
             working_hours_dao,
+            sales_person_service,
             permission_service,
             clock_service,
             uuid_service,
@@ -47,26 +60,62 @@ where
 #[async_trait]
 impl<
         WorkingHoursDao: dao::working_hours::WorkingHoursDao + Sync + Send,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
+            + Sync
+            + Send,
         PermissionService: service::PermissionService + Sync + Send,
         ClockService: service::clock::ClockService + Sync + Send,
         UuidService: service::uuid_service::UuidService + Sync + Send,
     > service::working_hours::WorkingHoursService
-    for WorkingHoursServiceImpl<WorkingHoursDao, PermissionService, ClockService, UuidService>
+    for WorkingHoursServiceImpl<
+        WorkingHoursDao,
+        SalesPersonService,
+        PermissionService,
+        ClockService,
+        UuidService,
+    >
 {
     type Context = PermissionService::Context;
 
     async fn all(
         &self,
-        _context: Authentication<Self::Context>,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[WorkingHours]>, ServiceError> {
-        unimplemented!()
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+        let working_hours: Arc<[WorkingHours]> = self
+            .working_hours_dao
+            .all()
+            .await?
+            .iter()
+            .map(WorkingHours::from)
+            .collect::<Vec<WorkingHours>>()
+            .into();
+        Ok(working_hours)
     }
     async fn find_by_sales_person_id(
         &self,
-        _sales_person_id: Uuid,
-        _context: Authentication<Self::Context>,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
     ) -> Result<Arc<[WorkingHours]>, ServiceError> {
-        unimplemented!()
+        let (hr_privilege, user_privilege) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service
+                .verify_user_is_sales_person(sales_person_id, context),
+        );
+        hr_privilege.or(user_privilege)?;
+
+        let working_hours: Arc<[WorkingHours]> = self
+            .working_hours_dao
+            .find_by_sales_person_id(sales_person_id)
+            .await?
+            .iter()
+            .map(WorkingHours::from)
+            .collect::<Vec<WorkingHours>>()
+            .into();
+        Ok(working_hours)
     }
     async fn create(
         &self,
