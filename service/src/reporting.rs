@@ -10,7 +10,7 @@ use crate::sales_person::SalesPerson;
 use crate::ServiceError;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ExtraHoursCategory {
+pub enum ExtraHoursReportCategory {
     Shiftplan,
     ExtraWork,
     Vacation,
@@ -18,13 +18,13 @@ pub enum ExtraHoursCategory {
     Holiday,
 }
 
-impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
-    fn from(category: &dao::extra_hours::ExtraHoursCategoryEntity) -> Self {
+impl From<&crate::extra_hours::ExtraHoursCategory> for ExtraHoursReportCategory {
+    fn from(category: &crate::extra_hours::ExtraHoursCategory) -> Self {
         match category {
-            dao::extra_hours::ExtraHoursCategoryEntity::ExtraWork => Self::ExtraWork,
-            dao::extra_hours::ExtraHoursCategoryEntity::Vacation => Self::Vacation,
-            dao::extra_hours::ExtraHoursCategoryEntity::SickLeave => Self::SickLeave,
-            dao::extra_hours::ExtraHoursCategoryEntity::Holiday => Self::Holiday,
+            crate::extra_hours::ExtraHoursCategory::ExtraWork => Self::ExtraWork,
+            crate::extra_hours::ExtraHoursCategory::Vacation => Self::Vacation,
+            crate::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
+            crate::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
         }
     }
 }
@@ -33,7 +33,7 @@ impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
 pub struct WorkingHoursDay {
     pub date: time::Date,
     pub hours: f32,
-    pub category: ExtraHoursCategory,
+    pub category: ExtraHoursReportCategory,
 }
 
 #[derive(Clone, Debug, PartialEq)]

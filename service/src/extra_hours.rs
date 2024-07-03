@@ -7,6 +7,12 @@ use uuid::Uuid;
 
 use crate::{permission::Authentication, ServiceError};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReportType {
+    WorkingHours,
+    AbsenceHours,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExtraHoursCategory {
     ExtraWork,
@@ -14,6 +20,17 @@ pub enum ExtraHoursCategory {
     SickLeave,
     Holiday,
 }
+impl ExtraHoursCategory {
+    pub fn as_report_type(&self) -> ReportType {
+        match self {
+            Self::ExtraWork => ReportType::WorkingHours,
+            Self::Vacation => ReportType::AbsenceHours,
+            Self::SickLeave => ReportType::AbsenceHours,
+            Self::Holiday => ReportType::AbsenceHours,
+        }
+    }
+}
+
 impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
     fn from(category: &dao::extra_hours::ExtraHoursCategoryEntity) -> Self {
         match category {

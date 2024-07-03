@@ -1,15 +1,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{
-    extra_hours::{ExtraHoursCategoryEntity, ExtraHoursEntity, ReportType},
-    shiftplan_report::ShiftplanReportEntity,
-    working_hours::WorkingHoursEntity,
-};
+use dao::{shiftplan_report::ShiftplanReportEntity, working_hours::WorkingHoursEntity};
 use service::{
+    extra_hours::{ExtraHours, ExtraHoursCategory, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
-        EmployeeReport, ExtraHoursCategory, ShortEmployeeReport, WorkingHours, WorkingHoursDay,
+        EmployeeReport, ExtraHoursReportCategory, ShortEmployeeReport, WorkingHours,
+        WorkingHoursDay,
     },
     ServiceError,
 };
@@ -17,7 +15,7 @@ use tokio::join;
 use uuid::Uuid;
 
 pub struct ReportingServiceImpl<
-    ExtraHoursDao,
+    ExtraHoursService,
     ShiftplanReportDao,
     WorkingHoursDao,
     SalesPersonService,
@@ -25,7 +23,7 @@ pub struct ReportingServiceImpl<
     ClockService,
     UuidService,
 > where
-    ExtraHoursDao: dao::extra_hours::ExtraHoursDao + Send + Sync,
+    ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
     WorkingHoursDao: dao::working_hours::WorkingHoursDao + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
@@ -33,7 +31,7 @@ pub struct ReportingServiceImpl<
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
-    pub extra_hours_dao: Arc<ExtraHoursDao>,
+    pub extra_hours_service: Arc<ExtraHoursService>,
     pub shiftplan_report_dao: Arc<ShiftplanReportDao>,
     pub working_hours_dao: Arc<WorkingHoursDao>,
     pub sales_person_service: Arc<SalesPersonService>,
@@ -43,7 +41,7 @@ pub struct ReportingServiceImpl<
 }
 
 impl<
-        ExtraHoursDao,
+        ExtraHoursService,
         ShiftplanReportDao,
         WorkingHoursDao,
         SalesPersonService,
@@ -52,7 +50,7 @@ impl<
         UuidService,
     >
     ReportingServiceImpl<
-        ExtraHoursDao,
+        ExtraHoursService,
         ShiftplanReportDao,
         WorkingHoursDao,
         SalesPersonService,
@@ -61,7 +59,7 @@ impl<
         UuidService,
     >
 where
-    ExtraHoursDao: dao::extra_hours::ExtraHoursDao + Send + Sync,
+    ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
     WorkingHoursDao: dao::working_hours::WorkingHoursDao + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
@@ -70,7 +68,7 @@ where
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
     pub fn new(
-        extra_hours_dao: Arc<ExtraHoursDao>,
+        extra_hours_service: Arc<ExtraHoursService>,
         shiftplan_report_dao: Arc<ShiftplanReportDao>,
         working_hours_dao: Arc<WorkingHoursDao>,
         sales_person_service: Arc<SalesPersonService>,
@@ -79,7 +77,7 @@ where
         uuid_service: Arc<UuidService>,
     ) -> Self {
         Self {
-            extra_hours_dao,
+            extra_hours_service,
             shiftplan_report_dao,
             working_hours_dao,
             sales_person_service,
@@ -103,7 +101,7 @@ pub fn find_working_hours_for_calendar_week(
 
 #[async_trait]
 impl<
-        ExtraHoursDao,
+        ExtraHoursService,
         ShiftplanReportDao,
         WorkingHoursDao,
         SalesPersonService,
@@ -112,7 +110,7 @@ impl<
         UuidService,
     > service::reporting::ReportingService
     for ReportingServiceImpl<
-        ExtraHoursDao,
+        ExtraHoursService,
         ShiftplanReportDao,
         WorkingHoursDao,
         SalesPersonService,
@@ -121,7 +119,7 @@ impl<
         UuidService,
     >
 where
-    ExtraHoursDao: dao::extra_hours::ExtraHoursDao + Send + Sync,
+    ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
     WorkingHoursDao: dao::working_hours::WorkingHoursDao + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
@@ -177,11 +175,15 @@ where
                 })
                 .sum();
             let extra_hours = self
-                .extra_hours_dao
-                .find_by_sales_person_id_and_year(paid_employee.id, year)
+                .extra_hours_service
+                .find_by_sales_person_id_and_year(
+                    paid_employee.id,
+                    year,
+                    until_week,
+                    Authentication::Full,
+                )
                 .await?
                 .iter()
-                .filter(|eh| eh.date_time.iso_week() <= until_week)
                 .map(|eh| eh.amount)
                 .sum::<f32>();
             let balance_hours = shiftplan_hours + extra_hours - planned_hours;
@@ -221,8 +223,13 @@ where
             .extract_shiftplan_report(*sales_person_id, year, until_week)
             .await?;
         let extra_hours = self
-            .extra_hours_dao
-            .find_by_sales_person_id_and_year(*sales_person_id, year)
+            .extra_hours_service
+            .find_by_sales_person_id_and_year(
+                *sales_person_id,
+                year,
+                until_week,
+                Authentication::Full,
+            )
             .await?;
 
         let planned_hours: f32 = (1..=until_week)
@@ -259,22 +266,22 @@ where
             shiftplan_hours,
             extra_work_hours: extra_hours
                 .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategoryEntity::ExtraWork)
+                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::ExtraWork)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
             vacation_hours: extra_hours
                 .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategoryEntity::Vacation)
+                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Vacation)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
             sick_leave_hours: extra_hours
                 .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategoryEntity::SickLeave)
+                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::SickLeave)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
             holiday_hours: extra_hours
                 .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategoryEntity::Holiday)
+                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
             by_week: hours_per_week(
@@ -293,7 +300,7 @@ where
 
 fn hours_per_week(
     shiftplan_hours_list: &Arc<[ShiftplanReportEntity]>,
-    extra_hours_list: &Arc<[ExtraHoursEntity]>,
+    extra_hours_list: &Arc<[ExtraHours]>,
     working_hours: &[WorkingHoursEntity],
     year: u32,
     week_until: u8,
@@ -342,7 +349,7 @@ fn hours_per_week(
                         time::Weekday::Sunday.nth_next(working_hours_day.day_of_week.to_number()),
                     )?,
                     hours: working_hours_day.hours,
-                    category: ExtraHoursCategory::Shiftplan,
+                    category: ExtraHoursReportCategory::Shiftplan,
                 })
             }))
             .collect::<Result<Vec<WorkingHoursDay>, ServiceError>>()?;
@@ -357,22 +364,22 @@ fn hours_per_week(
             shiftplan_hours,
             extra_work_hours: filtered_extra_hours_list
                 .iter()
-                .filter(|eh| eh.category == ExtraHoursCategoryEntity::ExtraWork)
+                .filter(|eh| eh.category == ExtraHoursCategory::ExtraWork)
                 .map(|eh| eh.amount)
                 .sum(),
             vacation_hours: filtered_extra_hours_list
                 .iter()
-                .filter(|eh| eh.category == ExtraHoursCategoryEntity::Vacation)
+                .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
                 .map(|eh| eh.amount)
                 .sum(),
             sick_leave_hours: filtered_extra_hours_list
                 .iter()
-                .filter(|eh| eh.category == ExtraHoursCategoryEntity::SickLeave)
+                .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
                 .map(|eh| eh.amount)
                 .sum(),
             holiday_hours: filtered_extra_hours_list
                 .iter()
-                .filter(|eh| eh.category == ExtraHoursCategoryEntity::Holiday)
+                .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
                 .map(|eh| eh.amount)
                 .sum(),
             days: day_list

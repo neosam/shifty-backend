@@ -258,14 +258,14 @@ pub enum ExtraHoursReportCategoryTO {
     Holiday,
 }
 #[cfg(feature = "service-impl")]
-impl From<&service::reporting::ExtraHoursCategory> for ExtraHoursReportCategoryTO {
-    fn from(category: &service::reporting::ExtraHoursCategory) -> Self {
+impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCategoryTO {
+    fn from(category: &service::reporting::ExtraHoursReportCategory) -> Self {
         match category {
-            service::reporting::ExtraHoursCategory::Shiftplan => Self::Shiftplan,
-            service::reporting::ExtraHoursCategory::ExtraWork => Self::ExtraWork,
-            service::reporting::ExtraHoursCategory::Vacation => Self::Vacation,
-            service::reporting::ExtraHoursCategory::SickLeave => Self::SickLeave,
-            service::reporting::ExtraHoursCategory::Holiday => Self::Holiday,
+            service::reporting::ExtraHoursReportCategory::Shiftplan => Self::Shiftplan,
+            service::reporting::ExtraHoursReportCategory::ExtraWork => Self::ExtraWork,
+            service::reporting::ExtraHoursReportCategory::Vacation => Self::Vacation,
+            service::reporting::ExtraHoursReportCategory::SickLeave => Self::SickLeave,
+            service::reporting::ExtraHoursReportCategory::Holiday => Self::Holiday,
         }
     }
 }

@@ -34,8 +34,15 @@ type BookingService = service_impl::booking::BookingServiceImpl<
     SalesPersonService,
     SlotService,
 >;
-type ReportingService = service_impl::reporting::ReportingServiceImpl<
+type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
     dao_impl::extra_hours::ExtraHoursDaoImpl,
+    PermissionService,
+    SalesPersonService,
+    ClockService,
+    UuidService,
+>;
+type ReportingService = service_impl::reporting::ReportingServiceImpl<
+    ExtraHoursService,
     dao_impl::shiftplan_report::ShiftplanReportDaoImpl,
     dao_impl::working_hours::WorkingHoursDaoImpl,
     SalesPersonService,
@@ -46,13 +53,6 @@ type ReportingService = service_impl::reporting::ReportingServiceImpl<
 type WorkingHoursService = service_impl::working_hours::WorkingHoursServiceImpl<
     dao_impl::working_hours::WorkingHoursDaoImpl,
     PermissionService,
-    ClockService,
-    UuidService,
->;
-type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
-    dao_impl::extra_hours::ExtraHoursDaoImpl,
-    PermissionService,
-    SalesPersonService,
     ClockService,
     UuidService,
 >;
@@ -155,8 +155,15 @@ impl RestStateImpl {
             sales_person_service.clone(),
             slot_service.clone(),
         ));
+        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
+            extra_hours_dao,
+            permission_service.clone(),
+            sales_person_service.clone(),
+            clock_service.clone(),
+            uuid_service.clone(),
+        ));
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
-            extra_hours_dao.clone(),
+            extra_hours_service.clone(),
             shiftplan_report_dao,
             working_hours_dao.clone(),
             sales_person_service.clone(),
@@ -171,13 +178,6 @@ impl RestStateImpl {
                 clock_service.clone(),
                 uuid_service.clone(),
             ));
-        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
-            extra_hours_dao,
-            permission_service.clone(),
-            sales_person_service.clone(),
-            clock_service,
-            uuid_service,
-        ));
         Self {
             user_service,
             permission_service,
