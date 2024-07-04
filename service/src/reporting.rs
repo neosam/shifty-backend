@@ -40,9 +40,13 @@ pub struct WorkingHoursDay {
 pub struct GroupedReportHours {
     pub from: time::Date,
     pub to: time::Date,
+    pub contract_weekly_hours: f32,
     pub expected_hours: f32,
     pub overall_hours: f32,
     pub balance: f32,
+
+    pub days_per_week: u8,
+    pub workdays_per_week: u8,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
@@ -51,6 +55,30 @@ pub struct GroupedReportHours {
     pub holiday_hours: f32,
 
     pub days: Arc<[WorkingHoursDay]>,
+}
+impl GroupedReportHours {
+    pub fn hours_per_day(&self) -> f32 {
+        self.contract_weekly_hours / self.workdays_per_week as f32
+    }
+    pub fn hours_per_holiday(&self) -> f32 {
+        self.contract_weekly_hours / self.days_per_week as f32
+    }
+
+    pub fn vacation_days(&self) -> f32 {
+        self.vacation_hours / self.hours_per_day()
+    }
+
+    pub fn sick_leave_days(&self) -> f32 {
+        self.sick_leave_hours / self.hours_per_day()
+    }
+
+    pub fn holiday_days(&self) -> f32 {
+        self.holiday_hours / self.hours_per_holiday()
+    }
+
+    pub fn absence_days(&self) -> f32 {
+        (self.vacation_hours + self.sick_leave_hours + self.holiday_hours) / self.hours_per_day()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -72,6 +100,11 @@ pub struct EmployeeReport {
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+
+    pub vacation_days: f32,
+    pub sick_leave_days: f32,
+    pub holiday_days: f32,
+    pub absence_days: f32,
 
     pub by_week: Arc<[GroupedReportHours]>,
     pub by_month: Arc<[GroupedReportHours]>,

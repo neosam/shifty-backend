@@ -160,6 +160,12 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(id.to_string()))
                 .unwrap()
         }
+        Err(RestError::ServiceError(service::ServiceError::EntityNotFoundGeneric(description))) => {
+            Response::builder()
+                .status(404)
+                .body(Body::new(description.to_string()))
+                .unwrap()
+        }
         Err(RestError::ServiceError(err @ service::ServiceError::EntityConflicts(_, _, _))) => {
             Response::builder()
                 .status(409)

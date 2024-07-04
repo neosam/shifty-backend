@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{sales_person, working_hours::WorkingHoursEntity};
+use dao::working_hours::WorkingHoursEntity;
 use service::{
     permission::{Authentication, HR_PRIVILEGE},
-    sales_person::SalesPersonService,
     working_hours::WorkingHours,
-    PermissionService, ServiceError,
+    ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
@@ -115,6 +114,40 @@ impl<
             .map(WorkingHours::from)
             .collect::<Vec<WorkingHours>>()
             .into();
+        Ok(working_hours)
+    }
+    async fn find_for_week(
+        &self,
+        sales_person_id: Uuid,
+        calendar_week: u8,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<WorkingHours, ServiceError> {
+        let (hr_privilege, user_privilege) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service
+                .verify_user_is_sales_person(sales_person_id, context),
+        );
+        hr_privilege.or(user_privilege)?;
+
+        let working_hours: WorkingHours = self
+            .working_hours_dao
+            .find_by_sales_person_id(sales_person_id)
+            .await?
+            .iter()
+            .find(|wh| {
+                (wh.from_year, wh.from_calendar_week) >= (year, calendar_week)
+                    && (wh.to_year, wh.to_calendar_week) <= (year, calendar_week)
+            })
+            .map(WorkingHours::from)
+            .ok_or(ServiceError::EntityNotFoundGeneric(
+                format!(
+                    "sales_person_id: {}, year: {}, calendar_week: {}",
+                    sales_person_id, year, calendar_week
+                )
+                .into(),
+            ))?;
         Ok(working_hours)
     }
     async fn create(

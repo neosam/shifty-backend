@@ -89,6 +89,13 @@ pub trait WorkingHoursService {
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[WorkingHours]>, ServiceError>;
+    async fn find_for_week(
+        &self,
+        sales_person_id: Uuid,
+        calendar_week: u8,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<WorkingHours, ServiceError>;
     async fn create(
         &self,
         entity: &WorkingHours,

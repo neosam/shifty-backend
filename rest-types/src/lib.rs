@@ -295,11 +295,18 @@ pub struct WorkingHoursReportTO {
     pub overall_hours: f32,
     pub balance: f32,
 
+    pub days_per_week: u8,
+    pub workdays_per_week: u8,
+
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
     pub vacation_hours: f32,
+    pub vacation_days: f32,
     pub sick_leave_hours: f32,
+    pub sick_leave_days: f32,
     pub holiday_hours: f32,
+    pub holiday_days: f32,
+    pub absence_days: f32,
 
     pub days: Arc<[WorkingHoursDayTO]>,
 }
@@ -313,11 +320,19 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             expected_hours: hours.expected_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,
+
+            days_per_week: hours.days_per_week,
+            workdays_per_week: hours.workdays_per_week,
+
             shiftplan_hours: hours.shiftplan_hours,
             extra_work_hours: hours.extra_work_hours,
             vacation_hours: hours.vacation_hours,
+            vacation_days: hours.vacation_days(),
             sick_leave_hours: hours.sick_leave_hours,
+            sick_leave_days: hours.sick_leave_days(),
             holiday_hours: hours.holiday_hours,
+            holiday_days: hours.holiday_days(),
+            absence_days: hours.absence_days(),
             days: hours
                 .days
                 .iter()
@@ -342,6 +357,11 @@ pub struct EmployeeReportTO {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
 
+    pub vacation_days: f32,
+    pub sick_leave_days: f32,
+    pub holiday_days: f32,
+    pub absence_days: f32,
+
     pub by_week: Arc<[WorkingHoursReportTO]>,
     pub by_month: Arc<[WorkingHoursReportTO]>,
 }
@@ -358,7 +378,11 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             extra_work_hours: report.extra_work_hours,
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
+            vacation_days: report.vacation_days,
+            sick_leave_days: report.sick_leave_days,
+            holiday_days: report.holiday_days,
             holiday_hours: report.holiday_hours,
+            absence_days: report.absence_days,
             by_week: report
                 .by_week
                 .iter()

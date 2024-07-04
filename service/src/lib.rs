@@ -47,6 +47,9 @@ pub enum ServiceError {
     #[error("Entity {0} not found")]
     EntityNotFound(Uuid),
 
+    #[error("Entity {0} not found")]
+    EntityNotFoundGeneric(Arc<str>),
+
     #[error("Entity {0} conflicts, expected version {1} but got {2}")]
     EntityConflicts(Uuid, Uuid, Uuid),
 

@@ -257,6 +257,24 @@ where
             })
             .map(|eh| eh.amount)
             .sum::<f32>();
+        let by_week = hours_per_week(
+            &shiftplan_report,
+            &extra_hours,
+            &working_hours,
+            year,
+            until_week,
+        )?;
+        let (vacation_days, sick_leave_days, holiday_days, absence_days) = by_week.iter().fold(
+            (0.0, 0.0, 0.0, 0.0),
+            |(vacation_days, sick_leave_days, holiday_days, absence_days), week| {
+                (
+                    vacation_days + week.vacation_days(),
+                    sick_leave_days + week.sick_leave_days(),
+                    holiday_days + week.holiday_days(),
+                    absence_days + week.absence_days(),
+                )
+            },
+        );
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
@@ -265,6 +283,10 @@ where
             overall_hours: shiftplan_hours + overall_extra_work_hours,
             expected_hours: planned_hours - overall_absense_hours,
             shiftplan_hours,
+            holiday_days,
+            vacation_days,
+            sick_leave_days,
+            absence_days,
             extra_work_hours: extra_hours
                 .iter()
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::ExtraWork)
@@ -285,13 +307,7 @@ where
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
-            by_week: hours_per_week(
-                &shiftplan_report,
-                &extra_hours,
-                &working_hours,
-                year,
-                until_week,
-            )?,
+            by_week,
             by_month: Arc::new([]),
         };
 
@@ -317,11 +333,11 @@ fn hours_per_week(
             .filter(|r| r.calendar_week == week)
             .map(|r| r.hours)
             .sum::<f32>();
-        let working_hours = working_hours
+        let (working_hours, days_per_week, workdays_per_week) = working_hours
             .iter()
-            .filter(|wh| wh.from_calendar_week <= week && wh.to_calendar_week >= week)
-            .map(|wh| wh.expected_hours)
-            .sum::<f32>();
+            .find(|wh| wh.from_calendar_week <= week && wh.to_calendar_week >= week)
+            .map(|wh| (wh.expected_hours, wh.days_per_week, wh.workdays_per_week))
+            .unwrap_or((0.0, 1, 1));
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
@@ -359,10 +375,13 @@ fn hours_per_week(
         weeks.push(GroupedReportHours {
             from: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap(),
             to: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday).unwrap(),
+            contract_weekly_hours: working_hours,
             expected_hours: working_hours - absence_hours,
             overall_hours: shiftplan_hours + extra_work_hours,
             balance: shiftplan_hours + extra_work_hours - working_hours + absence_hours,
             shiftplan_hours,
+            days_per_week,
+            workdays_per_week,
             extra_work_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::ExtraWork)
