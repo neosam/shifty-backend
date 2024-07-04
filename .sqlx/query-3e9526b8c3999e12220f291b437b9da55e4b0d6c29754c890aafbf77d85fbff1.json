@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_calendar_week,\n                from_year,\n                to_calendar_week,\n                to_year,\n                created,\n                deleted,\n                update_version\n            FROM\n                working_hours\n            WHERE\n                sales_person_id = ?\n            ",
+  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_calendar_week,\n                from_year,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                days_per_week,\n                created,\n                deleted,\n                update_version\n            FROM\n                working_hours\n            WHERE\n                sales_person_id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -39,18 +39,28 @@
         "type_info": "Int64"
       },
       {
-        "name": "created",
+        "name": "workdays_per_week",
         "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "days_per_week",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created",
+        "ordinal": 9,
         "type_info": "Text"
       },
       {
         "name": "deleted",
-        "ordinal": 8,
+        "ordinal": 10,
         "type_info": "Text"
       },
       {
         "name": "update_version",
-        "ordinal": 9,
+        "ordinal": 11,
         "type_info": "Blob"
       }
     ],
@@ -66,9 +76,11 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       false
     ]
   },
-  "hash": "a85db22630c8d55b5eb6be027cca9016d77615573d141348015f7c69021f1581"
+  "hash": "3e9526b8c3999e12220f291b437b9da55e4b0d6c29754c890aafbf77d85fbff1"
 }
