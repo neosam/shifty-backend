@@ -137,8 +137,8 @@ impl<
             .await?
             .iter()
             .find(|wh| {
-                (wh.from_year, wh.from_calendar_week) >= (year, calendar_week)
-                    && (wh.to_year, wh.to_calendar_week) <= (year, calendar_week)
+                (wh.from_year, wh.from_calendar_week) <= (year, calendar_week)
+                    && (wh.to_year, wh.to_calendar_week) >= (year, calendar_week)
             })
             .map(WorkingHours::from)
             .ok_or(ServiceError::EntityNotFoundGeneric(
