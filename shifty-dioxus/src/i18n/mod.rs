@@ -2,7 +2,12 @@ pub mod de;
 pub mod en;
 pub mod i18n;
 
+use std::rc::Rc;
+
 pub use i18n::I18n;
+use time::macros::format_description;
+
+use crate::{error::ShiftyError, state::week::Week};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Locale {
@@ -16,6 +21,29 @@ impl Locale {
             "de" => Locale::De,
             _ => Locale::En,
         }
+    }
+}
+
+pub trait LocaleDef {
+    fn format_date(&self, date: &time::Date) -> Rc<str>;
+    fn format_week(&self, week: &Week) -> Result<Rc<str>, ShiftyError>;
+}
+impl LocaleDef for Locale {
+    fn format_date(&self, date: &time::Date) -> Rc<str> {
+        let formatter = match self {
+            Locale::En => format_description!("[year]-[month]-[day]"),
+            Locale::De => format_description!("[day].[month].[year]"),
+        };
+        date.format(formatter).unwrap_or(date.to_string()).into()
+    }
+    fn format_week(&self, week: &Week) -> Result<Rc<str>, ShiftyError> {
+        Ok(format!(
+            "#{}: {} - {}",
+            week.week,
+            self.format_date(&week.monday()?),
+            self.format_date(&week.sunday()?)
+        )
+        .into())
     }
 }
 
@@ -76,6 +104,14 @@ pub enum Key {
     When,
     Submit,
     Cancel,
+
+    // Add extra hours choice form
+    AddExtraHoursChoiceTitle,
+    AddVacationTitle,
+    AddHolidaysTitle,
+    AddSickLeaveTitle,
+    WeekLabel,
+    FullWeekLabel,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

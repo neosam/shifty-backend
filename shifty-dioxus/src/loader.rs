@@ -8,6 +8,7 @@ use crate::{
     state::{
         employee::{Employee, ExtraHours},
         shiftplan::{Booking, SalesPerson},
+        week::Week,
         Config, Shiftplan, Slot,
     },
 };
@@ -162,4 +163,9 @@ pub async fn load_extra_hours_per_year(
             .collect();
     extra_hours.sort_by_key(|extra_hours| extra_hours.date_time.clone());
     Ok(extra_hours.iter().map(ExtraHours::from).collect())
+}
+
+pub async fn load_weeks(_config: Config, year: u32) -> Result<Rc<[Week]>, ShiftyError> {
+    let weeks: Rc<[Week]> = (1..=53).map(|week| Week { year, week }).collect();
+    Ok(weeks)
 }

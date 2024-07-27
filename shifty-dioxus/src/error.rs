@@ -5,6 +5,9 @@ use thiserror::Error;
 pub enum ShiftyError {
     #[error("reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("Time ComponentRange error: {0}")]
+    TimeComponentRange(#[from] time::error::ComponentRange),
 }
 
 pub fn error_handler(e: ShiftyError) {
@@ -14,6 +17,9 @@ pub fn error_handler(e: ShiftyError) {
             if let Some(StatusCode::UNAUTHORIZED) = e.status() {
                 let _ = web_sys::window().expect("no window").location().reload();
             }
+        }
+        ShiftyError::TimeComponentRange(e) => {
+            eprintln!("Error: {}", e);
         }
     }
 }

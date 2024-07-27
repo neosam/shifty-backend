@@ -81,4 +81,19 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::When, "Wann");
     i18n.add_text(Locale::En, Key::Submit, "Hinzufügen");
     i18n.add_text(Locale::En, Key::Cancel, "Abbrechen");
+
+    i18n.add_text(
+        Locale::En,
+        Key::AddExtraHoursChoiceTitle,
+        "Bitte Kategorie auswählen",
+    );
+    i18n.add_text(Locale::En, Key::AddVacationTitle, "Urlaub hinzufügen");
+    i18n.add_text(Locale::En, Key::AddHolidaysTitle, "Feiertag hinzufügen");
+    i18n.add_text(
+        Locale::En,
+        Key::AddSickLeaveTitle,
+        "Krankheitstage hinzufügen",
+    );
+    i18n.add_text(Locale::En, Key::WeekLabel, "Woche");
+    i18n.add_text(Locale::En, Key::FullWeekLabel, "Ganze Woche");
 }

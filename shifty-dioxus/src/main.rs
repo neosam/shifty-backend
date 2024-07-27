@@ -6,6 +6,7 @@ use tracing::Level;
 mod api;
 mod app;
 mod auth;
+mod base_types;
 mod component;
 mod error;
 mod i18n;

@@ -4,12 +4,10 @@ use rest_types::{
     BookingTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, SalesPersonTO,
     ShortEmployeeReportTO, SlotTO,
 };
-use time::{macros::format_description, PrimitiveDateTime};
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-    api,
     error::ShiftyError,
     js,
     state::{AuthInfo, Config},
@@ -192,7 +190,6 @@ pub async fn add_extra_hour(
     date_time: String,
 ) -> Result<(), ShiftyError> {
     let url: String = format!("{}/extra-hours", config.backend,);
-    let format = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
     info!("Parsing datetime");
     info!("Datetime: {}", date_time);
     //let date_time = PrimitiveDateTime::parse(&date_time, &format).unwrap();

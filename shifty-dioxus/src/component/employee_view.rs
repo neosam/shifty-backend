@@ -3,11 +3,11 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
+use crate::component::add_extra_hours_choice::AddExtraHoursChoice;
 use crate::i18n::{self, Key};
 use crate::state::employee::{Employee, ExtraHours, WorkingHours};
 
-use crate::component::AddExtraHoursForm;
-use crate::component::Modal;
+use crate::component::{AddExtraHoursForm, Modal};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewProps {
@@ -129,7 +129,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                     rsx! { li {
                         class: "mb-1",
                         TripleView {
-                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            label: i18n.format_date(&extra_hours.date_time.date()),
                             value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
                             description: format!("{}", extra_hours.description).into(),
                             ondelete: move |_| props.ondelete.call(extra_hours_id),
@@ -149,7 +149,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                     rsx! { li {
                         class: "mb-1",
                         TripleView {
-                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            label: i18n.format_date(&extra_hours.date_time.date()),
                             value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
                             description: format!("{}", extra_hours.description).into(),
                             ondelete: move |_| props.ondelete.call(extra_hours_id),
@@ -169,7 +169,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                     rsx! { li {
                         class: "mb-1",
                         TripleView {
-                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            label: i18n.format_date(&extra_hours.date_time.date()),
                             value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
                             description: format!("{}", extra_hours.description).into(),
                             ondelete: move |_| props.ondelete.call(extra_hours_id),
@@ -194,7 +194,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                         key: "{extra_hours_id}",
                         class: "mb-1",
                         TripleView {
-                            label: format!("{}", extra_hours.date_time.date()).into(),
+                            label: i18n.format_date(&extra_hours.date_time.date()),
                             value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
                             description: format!("{}", extra_hours.description).into(),
                             ondelete: move |_| props.ondelete.call(extra_hours_id),
@@ -232,7 +232,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                 class: "flex flex-row mt-4 justify-between gap-2",
                 h3 {
                     class: "text-l font-bold",
-                    "{props.working_hours.from} - {props.working_hours.to}"
+                    "{i18n.format_date(&props.working_hours.from)} - {i18n.format_date(&props.working_hours.to)}"
                 }
                 div {
                     { format!("{:.2} {}", props.working_hours.balance, hours_str) }
@@ -355,7 +355,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                         for working_hours in props.working_hours.days.iter() {
                             li {
                                 TripleView {
-                                    label: format!("{}", working_hours.date).into(),
+                                    label: i18n.format_date(&working_hours.date),
                                     value: format!("{} {hours_str}", working_hours.hours).into(),
                                     description: format!("{}", i18n.t(working_hours.category.to_i18n_key())).into()
                                 }
@@ -399,6 +399,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     rsx! {
         if *show_add_entry_dialog.read() {
             Modal {
+                /*AddExtraHoursChoice {}*/
                 AddExtraHoursForm {
                     sales_person_id: props.employee.sales_person.id,
                     onabort: move |_| {

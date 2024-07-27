@@ -1,5 +1,9 @@
 use std::{collections::HashMap, hash::Hash, rc::Rc};
 
+use crate::{base_types::ImStr, state::week::Week};
+
+use super::LocaleDef;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct I18n<Key: Copy + PartialEq + Eq + Hash, Locale: Copy + PartialEq + Eq + Hash> {
     pub(crate) locales: HashMap<Locale, HashMap<Key, Rc<str>>>,
@@ -66,5 +70,17 @@ impl<Key: Copy + PartialEq + Eq + Hash, Locale: Copy + PartialEq + Eq + Hash> I1
             text = text.replace(&format!("{{{}}}", key), value);
         }
         text.into()
+    }
+}
+
+impl<Key: Copy + PartialEq + Eq + Hash, Locale: LocaleDef + Copy + Eq + Hash> I18n<Key, Locale> {
+    pub fn format_date(&self, date: &time::Date) -> Rc<str> {
+        self.current_locale.format_date(date)
+    }
+    pub fn format_week(&self, week: &Week) -> ImStr {
+        self.current_locale
+            .format_week(week)
+            .unwrap_or_else(|_| Rc::<str>::from("??"))
+            .into()
     }
 }
