@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use crate::{
-    i18n, state,
-    state::{Slot, Weekday},
+    base_types::ImStr,
+    i18n,
+    state::{self, Slot, Weekday},
 };
 use dioxus::prelude::*;
 use tracing::info;
@@ -19,7 +20,7 @@ pub struct ColumnViewContentItem {
 
 #[derive(PartialEq, Clone)]
 pub enum ColumnViewContent {
-    Title(Rc<str>),
+    Title(ImStr),
     Items(Rc<[ColumnViewContentItem]>),
 }
 impl From<String> for ColumnViewContent {
@@ -144,7 +145,7 @@ where
     pub scale: f32,
     pub offset: f32,
     pub slots: Rc<[ColumnViewItem<CustomData>]>,
-    pub title: Option<Rc<str>>,
+    pub title: Option<ImStr>,
     pub highlight_item_id: Option<Uuid>,
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
@@ -188,7 +189,7 @@ where
                 item_data: ColumnViewItem {
                     start: 0.0,
                     end: props.offset,
-                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone()),
+                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone()).into(),
                     show_add: false,
                     show_remove: false,
                     custom_data: (),
@@ -254,11 +255,17 @@ pub struct DayViewProps {
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
+    pub date: Option<time::Date>,
 }
 
 #[component]
 pub fn DayView(props: DayViewProps) -> Element {
     let i18n = use_context::<i18n::I18nType>();
+    let date_string = if let Some(date) = props.date {
+        format!(", {}", i18n.format_date(&date))
+    } else {
+        "".into()
+    };
     rsx! {
         ColumnView::<Slot> {
             height: (props.day_end - props.day_start) as f32 * SCALING + SCALING / 2.0,
@@ -275,7 +282,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                     custom_data: column.custom_data,
                 })
                 .collect(),
-            title: Some(props.weekday.i18n_string(&i18n)),
+            title: Some(format!("{}{}", props.weekday.i18n_string(&i18n), date_string).into()),
             highlight_item_id: props.highlight_item_id,
             add_event: props.add_event.clone(),
             remove_event: props.remove_event.clone(),
@@ -291,6 +298,7 @@ pub struct WeekViewProps {
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
+    pub date_of_monday: Option<time::Date>,
 }
 
 enum Zoom {
@@ -355,6 +363,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                     if !(*weekday == Weekday::Sunday && !has_sunday) {
                         DayView {
                             weekday: weekday.clone(),
+                            date: props.date_of_monday.map(|date| date + time::Duration::days(weekday.clone() as i64)),
                             slots: props.shiftplan_data.slots_by_weekday(weekday.clone()),
                             day_start, day_end,
                             highlight_item_id: props.highlight_item_id,
