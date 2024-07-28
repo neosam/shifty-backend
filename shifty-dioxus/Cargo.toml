@@ -21,6 +21,7 @@ futures = "0.3.30"
 thiserror = "1.0.61"
 futures-util = "0.3.30"
 js-sys = "0.3.69"
+manganis = "0.2.2"
 
 [dependencies.rest-types]
 path = "rest-types"

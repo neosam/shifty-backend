@@ -177,7 +177,7 @@ pub fn ShiftPlan() -> Element {
                 class: "m-4 text-lg flex align-center justify-center width-full",
                 button {
                     onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
-                    class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold",
+                    class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
                     "<"
                 }
                 div {
@@ -186,12 +186,12 @@ pub fn ShiftPlan() -> Element {
                 }
                 button {
                     onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
-                    class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold",
+                    class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
                     ">"
                 }
             }
             div {
-                class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4",
+                class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4 print:hidden",
                 if is_shiftplanner {
                     button {
                         onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),

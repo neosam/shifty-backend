@@ -3,7 +3,12 @@ module.exports = {
   mode: "all",
   content: ["./src/**/*.{rs,html,css}", "./dist/**/*.html"],
   theme: {
-    extend: {},
+    extend: {
+      screens: {
+        print: { raw: 'print' },
+        screen: { raw: 'screen' },
+      },
+    },
   },
   plugins: [],
 };

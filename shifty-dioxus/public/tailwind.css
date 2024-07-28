@@ -1130,3 +1130,17 @@ video {
     display: none;
   }
 }
+
+@media print {
+  .print\:hidden {
+    display: none;
+  }
+
+  .print\:min-w-0 {
+    min-width: 0px;
+  }
+
+  .print\:overflow-visible {
+    overflow: visible;
+  }
+}

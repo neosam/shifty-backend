@@ -104,7 +104,7 @@ where
                 class: "flex flex-col flex-grow overflow-scroll no-scrollbar",
                 if props.item_data.show_add {
                     button {
-                        class: "border w-8",
+                        class: "border w-8 print:hidden",
                         onclick: move |_| {
                             if let Some(add_event) = props.add_event {
                                 info!("Found event handler and call it");
@@ -118,7 +118,7 @@ where
                 }
                 if props.item_data.show_remove {
                     button {
-                        class: "border w-8",
+                        class: "border w-8 print:hidden",
                         onclick: move |_| {
                             if let Some(remove_event) = props.remove_event {
                                 info!("Found event handler and call it");
@@ -180,7 +180,7 @@ where
 {
     rsx! {
         div {
-            class: "relative min-w-48 flex-grow",
+            class: "relative min-w-48 flex-grow print:min-w-0",
             style: {
                 format!("height: {}px;", props.height)
             },
@@ -316,10 +316,10 @@ pub fn WeekView(props: WeekViewProps) -> Element {
     };
     rsx! {
         div {
-            class: "overflow-y-scroll overflow-visible no-scrollbar",
+            class: "overflow-y-scroll overflow-visible no-scrollbar print:width-full print:overflow-visible",
             style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
             div {
-                class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md 2xl:hidden",
+                class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md 2xl:hidden print:hidden",
                 label {
                     "Zoom: "
                 }

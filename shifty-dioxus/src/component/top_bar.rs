@@ -33,7 +33,7 @@ pub fn TopBar() -> Element {
 
     rsx! {
         div {
-            class: "flex bg-gray-800 text-white p-4 items-center",
+            class: "flex bg-gray-800 text-white p-4 items-center print:hidden",
             h1 {
                 class: "text-2xl font-bold",
                 "Shifty"
