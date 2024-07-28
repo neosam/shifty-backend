@@ -58,25 +58,43 @@ pub struct GroupedReportHours {
 }
 impl GroupedReportHours {
     pub fn hours_per_day(&self) -> f32 {
+        if self.workdays_per_week == 0 {
+            return 0.0;
+        }
         self.contract_weekly_hours / self.workdays_per_week as f32
     }
     pub fn hours_per_holiday(&self) -> f32 {
+        if self.days_per_week == 0 {
+            return 0.0;
+        }
         self.contract_weekly_hours / self.days_per_week as f32
     }
 
     pub fn vacation_days(&self) -> f32 {
+        if self.hours_per_day() == 0.0 {
+            return 0.0;
+        }
         self.vacation_hours / self.hours_per_day()
     }
 
     pub fn sick_leave_days(&self) -> f32 {
+        if self.hours_per_day() == 0.0 {
+            return 0.0;
+        }
         self.sick_leave_hours / self.hours_per_day()
     }
 
     pub fn holiday_days(&self) -> f32 {
+        if self.hours_per_day() == 0.0 {
+            return 0.0;
+        }
         self.holiday_hours / self.hours_per_holiday()
     }
 
     pub fn absence_days(&self) -> f32 {
+        if self.hours_per_day() == 0.0 {
+            return 0.0;
+        }
         (self.vacation_hours + self.sick_leave_hours + self.holiday_hours) / self.hours_per_day()
     }
 }
