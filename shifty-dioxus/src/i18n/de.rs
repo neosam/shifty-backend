@@ -101,7 +101,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::En,
         Key::NonProdWarning,
-        "Das ist keine produktive Umgebung",
+        "Das ist nur eine Seite zum Testen❗",
     );
     i18n.add_text(Locale::En, Key::NonProdWarningDetails,
         "Diese Seite darf nicht produktiv genutzt werden! Sie kann Bugs enthalten und Daten können jederzeit zurückgesetzt werden und verloren gehen!");

@@ -90,8 +90,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::En,
         Key::NonProdWarning,
-        "This is a non-production environment",
+        "This is a test environment only❗",
     );
     i18n.add_text(Locale::En, Key::NonProdWarningDetails,
-        "This page is not inended for production use. It could contain bugs and data can be reverted and lost anytime without warning.");
+        "This page is not intended for production use. It could contain bugs and data can be reverted and lost anytime without warning.");
 }
