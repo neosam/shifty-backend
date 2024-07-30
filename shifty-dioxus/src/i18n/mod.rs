@@ -112,6 +112,10 @@ pub enum Key {
     AddSickLeaveTitle,
     WeekLabel,
     FullWeekLabel,
+
+    // Non-prod warnings
+    NonProdWarning,
+    NonProdWarningDetails,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

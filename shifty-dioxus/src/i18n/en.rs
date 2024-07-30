@@ -85,4 +85,13 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     i18n.add_text(Locale::En, Key::WeekLabel, "Week");
     i18n.add_text(Locale::En, Key::FullWeekLabel, "Full week");
+
+    // Non-prod warnings
+    i18n.add_text(
+        Locale::En,
+        Key::NonProdWarning,
+        "This is a non-production environment",
+    );
+    i18n.add_text(Locale::En, Key::NonProdWarningDetails,
+        "This page is not inended for production use. It could contain bugs and data can be reverted and lost anytime without warning.");
 }

@@ -14,7 +14,12 @@ pub fn TopBar() -> Element {
     let config = use_context::<config::Config>();
     let show_my_time = config.show_my_time.unwrap_or(false);
     let backend_url = config.backend.clone();
-    let employee = use_resource(move || loader::load_current_sales_person(config.clone()));
+    let non_production_warning_str = i18n.t(Key::NonProdWarning);
+    let non_production_warning_detail_str = i18n.t(Key::NonProdWarningDetails);
+    let employee = {
+        let config = config.clone();
+        use_resource(move || loader::load_current_sales_person(config.to_owned()))
+    };
     let show_shiftplan = if let Some(ref auth_info) = auth_info {
         auth_info.has_privilege("sales") || auth_info.has_privilege("shiftplanner")
     } else {
@@ -37,6 +42,12 @@ pub fn TopBar() -> Element {
             h1 {
                 class: "text-2xl font-bold",
                 "Shifty"
+                if !config.is_prod {
+                    span {
+                        class: "ml-2 text-sm",
+                        "{config.env_short_description}"
+                    }
+                }
             }
 
             nav {
@@ -85,6 +96,19 @@ pub fn TopBar() -> Element {
                     }
                 }
             }
+        }
+        if !config.is_prod {
+            div {
+                class: "bg-yellow-200 text-yellow-800 pl-4 p-1 print:hidden",
+                div {
+                    class: "font-bold",
+                    title: "{non_production_warning_detail_str}",
+                    {non_production_warning_str}
+                }
+            }
+        }
+        div {
+
         }
     }
 }

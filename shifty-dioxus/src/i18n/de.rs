@@ -96,4 +96,13 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::WeekLabel, "Woche");
     i18n.add_text(Locale::En, Key::FullWeekLabel, "Ganze Woche");
+
+    // Non-prod warnings
+    i18n.add_text(
+        Locale::En,
+        Key::NonProdWarning,
+        "Das ist keine produktive Umgebung",
+    );
+    i18n.add_text(Locale::En, Key::NonProdWarningDetails,
+        "Diese Seite darf nicht produktiv genutzt werden! Sie kann Bugs enthalten und Daten können jederzeit zurückgesetzt werden und verloren gehen!");
 }
