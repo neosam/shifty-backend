@@ -11,7 +11,6 @@ use sqlx::{query, query_as};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;
 
-
 struct SalesPersonUnavailableDb {
     id: Vec<u8>,
     sales_person_id: Vec<u8>,
@@ -71,7 +70,6 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         .transpose()?)
     }
 
-
     async fn find_all_by_sales_person_id(
         &self,
         sales_person_id: Uuid,
@@ -79,8 +77,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         let id = sales_person_id.as_bytes().to_vec();
         query_as!(
             SalesPersonUnavailableDb,
-            "SELECT id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version FROM sales_person_unavailable WHERE sales_person_id = ? AND deleted IS NULL",
-           id 
+            "SELECT id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version FROM sales_person_unavailable WHERE sales_person_id = ? AND deleted IS NULL", id 
         ).fetch_all(self.pool.as_ref())
         .await
         .map_db_error()?
@@ -109,7 +106,6 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         .map(SalesPersonUnavailableEntity::try_from)
         .collect::<Result<Arc<[SalesPersonUnavailableEntity]>, DaoError>>()
     }
-
 
     async fn create(
         &self,
