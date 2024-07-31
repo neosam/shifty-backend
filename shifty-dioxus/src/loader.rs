@@ -1,15 +1,17 @@
 use rest_types::ExtraHoursTO;
 use std::rc::Rc;
 use tracing::info;
+use uuid::Uuid;
 
 use crate::{
     api,
     error::ShiftyError,
     state::{
         employee::{Employee, ExtraHours},
+        sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, SalesPerson},
         week::Week,
-        Config, Shiftplan, Slot,
+        Config, Shiftplan, Slot, Weekday,
     },
 };
 
@@ -168,4 +170,40 @@ pub async fn load_extra_hours_per_year(
 pub async fn load_weeks(_config: Config, year: u32) -> Result<Rc<[Week]>, ShiftyError> {
     let weeks: Rc<[Week]> = (1..=53).map(|week| Week { year, week }).collect();
     Ok(weeks)
+}
+
+pub async fn load_unavailable_sales_person_days_for_week(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[SalesPersonUnavailable]>, ShiftyError> {
+    let unavailable_days =
+        api::get_unavailable_sales_person_days_for_week(config, sales_person_id, year, week)
+            .await?;
+    let weeks: Rc<[SalesPersonUnavailable]> = unavailable_days
+        .iter()
+        .map(SalesPersonUnavailable::from)
+        .collect();
+    Ok(weeks)
+}
+
+pub async fn create_unavailable_sales_person_day(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    week: u8,
+    day: Weekday,
+) -> Result<(), ShiftyError> {
+    api::create_unavailable_sales_person_day(config, sales_person_id, year, week, (&day).into())
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_unavailable_sales_person_day(
+    config: Config,
+    unavailable_id: Uuid,
+) -> Result<(), ShiftyError> {
+    api::delete_unavailable_sales_person_day(config, unavailable_id).await?;
+    Ok(())
 }

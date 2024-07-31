@@ -4,7 +4,7 @@ use crate::i18n::{I18n, Key, Locale};
 use rest_types::{BookingTO, DayOfWeekTO, SalesPersonTO, SlotTO};
 use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Weekday {
     Monday,
     Tuesday,
@@ -37,6 +37,19 @@ impl From<DayOfWeekTO> for Weekday {
             rest_types::DayOfWeekTO::Friday => Weekday::Friday,
             rest_types::DayOfWeekTO::Saturday => Weekday::Saturday,
             rest_types::DayOfWeekTO::Sunday => Weekday::Sunday,
+        }
+    }
+}
+impl From<&Weekday> for DayOfWeekTO {
+    fn from(weekday: &Weekday) -> Self {
+        match weekday {
+            Weekday::Monday => DayOfWeekTO::Monday,
+            Weekday::Tuesday => DayOfWeekTO::Tuesday,
+            Weekday::Wednesday => DayOfWeekTO::Wednesday,
+            Weekday::Thursday => DayOfWeekTO::Thursday,
+            Weekday::Friday => DayOfWeekTO::Friday,
+            Weekday::Saturday => DayOfWeekTO::Saturday,
+            Weekday::Sunday => DayOfWeekTO::Sunday,
         }
     }
 }

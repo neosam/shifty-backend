@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BookingTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, SalesPersonTO,
-    ShortEmployeeReportTO, SlotTO,
+    BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, SalesPersonTO,
+    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     error::ShiftyError,
     js,
-    state::{AuthInfo, Config},
+    state::{AuthInfo, Config, Weekday},
 };
 
 pub async fn fetch_auth_info(backend_url: Rc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
@@ -250,4 +250,66 @@ pub async fn get_version(config: Config) -> Result<Rc<str>, reqwest::Error> {
     let res = response.text().await?;
     info!("Fetched");
     Ok(res.into())
+}
+
+pub async fn get_unavailable_sales_person_days_for_week(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[SalesPersonUnavailableTO]>, reqwest::Error> {
+    info!("Fetching unavailable sales person days for week {week} in year {year}");
+    let url = format!(
+        "{}/sales-person/{sales_person_id}/unavailable?year={year}&calendar_week={week}",
+        config.backend
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn create_unavailable_sales_person_day(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    week: u8,
+    day_of_week: DayOfWeekTO,
+) -> Result<(), reqwest::Error> {
+    info!(
+        "Creating unavailable sales person day for user {sales_person_id} in week {week} of year {year}"
+    );
+    let url = format!("{}/sales-person/unavailable", config.backend);
+    let unavailable_to = SalesPersonUnavailableTO {
+        id: Uuid::nil(),
+        sales_person_id,
+        year,
+        calendar_week: week,
+        day_of_week,
+        created: None,
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&unavailable_to).send().await?;
+    response.error_for_status_ref()?;
+    info!("Created");
+    Ok(())
+}
+
+pub async fn delete_unavailable_sales_person_day(
+    config: Config,
+    unavailable_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Deleting unavailable sales person day {unavailable_id}");
+    let url = format!(
+        "{}/sales-person/unavailable/{}",
+        config.backend, unavailable_id
+    );
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
 }

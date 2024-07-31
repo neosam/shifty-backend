@@ -11,4 +11,9 @@ module.exports = {
     },
   },
   plugins: [],
+  safelist: [
+    "bg-red-200",
+    "print:bg-white",
+    "cursor-not-allowed"
+  ]
 };

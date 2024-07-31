@@ -542,3 +542,50 @@ impl From<&ExtraHoursTO> for service::extra_hours::ExtraHours {
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SalesPersonUnavailableTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    #[serde(default)]
+    pub created: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<time::PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+#[cfg(feature = "service-impl")]
+impl From<&service::sales_person_unavailable::SalesPersonUnavailable> for SalesPersonUnavailableTO {
+    fn from(unavailable: &service::sales_person_unavailable::SalesPersonUnavailable) -> Self {
+        Self {
+            id: unavailable.id,
+            sales_person_id: unavailable.sales_person_id,
+            year: unavailable.year,
+            calendar_week: unavailable.calendar_week,
+            day_of_week: unavailable.day_of_week.into(),
+            created: unavailable.created,
+            deleted: unavailable.deleted,
+            version: unavailable.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&SalesPersonUnavailableTO> for service::sales_person_unavailable::SalesPersonUnavailable {
+    fn from(unavailable: &SalesPersonUnavailableTO) -> Self {
+        Self {
+            id: unavailable.id,
+            sales_person_id: unavailable.sales_person_id,
+            year: unavailable.year,
+            calendar_week: unavailable.calendar_week,
+            day_of_week: unavailable.day_of_week.into(),
+            created: unavailable.created,
+            deleted: unavailable.deleted,
+            version: unavailable.version,
+        }
+    }
+}

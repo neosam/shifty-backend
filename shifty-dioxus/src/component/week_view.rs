@@ -51,7 +51,14 @@ where
     pub item_data: ColumnViewItem<CustomData>,
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
+    pub double_clicked: Option<EventHandler<()>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
+
+    #[props(default = false)]
+    pub discourage: bool,
+
+    #[props(default = false)]
+    pub show_dropdown: bool,
 }
 
 pub fn ColumnViewSlot<CustomData>(props: ColumnViewSlotProps<CustomData>) -> Element
@@ -62,7 +69,12 @@ where
     let custom_data_remove = props.item_data.custom_data.clone();
     rsx! {
         div {
-            class: "w-full absolute border-solid border-black border truncate flex text-ellipsis touch-auto",
+            class: format!("w-full select-none absolute border-solid border-black border truncate flex text-ellipsis touch-auto {}", if props.discourage { "cursor-not-allowed bg-red-200 print:bg-white" } else { "" }),
+            ondoubleclick: move |_| {
+                if let Some(double_clicked) = &props.double_clicked {
+                    double_clicked.call(());
+                }
+            },
             style: {
                 format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
             },
@@ -150,6 +162,9 @@ where
     pub add_event: Option<EventHandler<CustomData>>,
     pub remove_event: Option<EventHandler<CustomData>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
+    pub title_double_clicked: Option<EventHandler<()>>,
+    #[props(default = false)]
+    pub discourage: bool,
 }
 
 impl From<Slot> for ColumnViewItem<Slot> {
@@ -194,6 +209,9 @@ where
                     show_remove: false,
                     custom_data: (),
                 },
+                show_dropdown: true,
+                discourage: props.discourage,
+                double_clicked: props.title_double_clicked.clone(),
             }
             for slot in props.slots.iter() {
                 ColumnViewSlot::<CustomData> {
@@ -209,6 +227,7 @@ where
                     add_event: props.add_event,
                     remove_event: props.remove_event,
                     item_clicked: props.item_clicked.clone(),
+                    discourage: props.discourage,
                 }
             }
         }
@@ -255,7 +274,10 @@ pub struct DayViewProps {
     pub add_event: Option<EventHandler<Slot>>,
     pub remove_event: Option<EventHandler<Slot>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
+    pub title_double_clicked: Option<EventHandler<Weekday>>,
     pub date: Option<time::Date>,
+
+    pub discourage: bool,
 }
 
 #[component]
@@ -287,6 +309,12 @@ pub fn DayView(props: DayViewProps) -> Element {
             add_event: props.add_event.clone(),
             remove_event: props.remove_event.clone(),
             item_clicked: props.item_clicked.clone(),
+            title_double_clicked: move |_| {
+                if let Some(title_double_clicked) = &props.title_double_clicked {
+                    title_double_clicked.call(props.weekday.clone());
+                }
+            },
+            discourage: props.discourage,
         }
     }
 }
@@ -299,6 +327,10 @@ pub struct WeekViewProps {
     pub remove_event: Option<EventHandler<Slot>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
     pub date_of_monday: Option<time::Date>,
+    pub title_double_clicked: Option<EventHandler<Weekday>>,
+
+    #[props(default = Rc::new([]))]
+    pub discourage_weekdays: Rc<[Weekday]>,
 }
 
 enum Zoom {
@@ -370,6 +402,9 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             add_event: props.add_event.clone(),
                             remove_event: props.remove_event.clone(),
                             item_clicked: props.item_clicked.clone(),
+                            title_double_clicked: props.title_double_clicked.clone(),
+
+                            discourage: props.discourage_weekdays.contains(weekday),
                         }
                     }
                 }
