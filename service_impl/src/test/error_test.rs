@@ -108,6 +108,18 @@ pub fn test_validation_error<T>(
     }
 }
 
+pub fn test_exists_error<T>(result: &Result<T, service::ServiceError>, id: Uuid) {
+    if let Err(service::ServiceError::EntityAlreadyExists(id)) = result {
+        if id == id {
+            // All good
+        } else {
+            panic!("Expected entity already exists with key {}", id);
+        }
+    } else {
+        panic!("Expected entity already exists with key {}", id);
+    }
+}
+
 pub fn generate_default_datetime() -> PrimitiveDateTime {
     PrimitiveDateTime::new(
         Date::from_calendar_date(2063, Month::April, 5).unwrap(),

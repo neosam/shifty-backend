@@ -8,6 +8,7 @@ pub mod extra_hours;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;
+pub mod sales_person_unavailable;
 pub mod slot;
 mod test;
 pub mod uuid_service;

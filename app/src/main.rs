@@ -26,6 +26,14 @@ type SalesPersonService = service_impl::sales_person::SalesPersonServiceImpl<
     ClockService,
     UuidService,
 >;
+type SalesPersonUnavailableService =
+    service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl<
+        dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl,
+        SalesPersonService,
+        PermissionService,
+        ClockService,
+        UuidService,
+    >;
 type BookingService = service_impl::booking::BookingServiceImpl<
     dao_impl::booking::BookingDaoImpl,
     PermissionService,
@@ -64,6 +72,7 @@ pub struct RestStateImpl {
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
     sales_person_service: Arc<SalesPersonService>,
+    sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
     booking_service: Arc<BookingService>,
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
@@ -74,6 +83,7 @@ impl rest::RestStateDef for RestStateImpl {
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type SalesPersonService = SalesPersonService;
+    type SalesPersonUnavailableService = SalesPersonUnavailableService;
     type BookingService = BookingService;
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
@@ -94,6 +104,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService> {
         self.sales_person_service.clone()
+    }
+    fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService> {
+        self.sales_person_unavailable_service.clone()
     }
     fn booking_service(&self) -> Arc<Self::BookingService> {
         self.booking_service.clone()
@@ -148,6 +161,17 @@ impl RestStateImpl {
                 clock_service.clone(),
                 uuid_service.clone(),
             ));
+        let sales_person_unavailable_service = Arc::new(
+            service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl::new(
+                Arc::new(
+                    dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl::new(pool),
+                ),
+                sales_person_service.clone(),
+                permission_service.clone(),
+                clock_service.clone(),
+                uuid_service.clone(),
+            ),
+        );
         let booking_service = Arc::new(service_impl::booking::BookingServiceImpl::new(
             booking_dao.into(),
             permission_service.clone(),
@@ -185,6 +209,7 @@ impl RestStateImpl {
             permission_service,
             slot_service,
             sales_person_service,
+            sales_person_unavailable_service,
             booking_service,
             reporting_service,
             working_hours_service,

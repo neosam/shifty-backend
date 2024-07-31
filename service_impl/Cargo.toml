@@ -19,7 +19,7 @@ path = "../dao"
 
 [dependencies.time]
 version = "0.3.36"
-features = ["std"]
+features = ["std", "formatting"]
 
 [dependencies.uuid]
 version = "1.8.0"

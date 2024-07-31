@@ -7,4 +7,6 @@ mod permission_test;
 #[cfg(test)]
 pub mod sales_person;
 #[cfg(test)]
+pub mod sales_person_unavailable;
+#[cfg(test)]
 pub mod slot;

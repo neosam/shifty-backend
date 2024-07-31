@@ -190,6 +190,18 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        Err(RestError::ServiceError(err @ service::ServiceError::DeletedSetOnCreate)) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
+        Err(RestError::ServiceError(err @ service::ServiceError::CreatedSetOnCreate)) => {
+            Response::builder()
+                .status(422)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
         Err(RestError::ServiceError(err @ service::ServiceError::OverlappingTimeRange)) => {
             Response::builder()
                 .status(409)
@@ -229,6 +241,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type SalesPersonUnavailableService: service::sales_person_unavailable::SalesPersonUnavailableService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BookingService: service::booking::BookingService<Context = Context> + Send + Sync + 'static;
     type ReportingService: service::reporting::ReportingService<Context = Context>
         + Send
@@ -249,6 +265,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
+    fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService>;
     fn booking_service(&self) -> Arc<Self::BookingService>;
     fn reporting_service(&self) -> Arc<Self::ReportingService>;
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;

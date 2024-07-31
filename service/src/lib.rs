@@ -11,6 +11,7 @@ pub mod extra_hours;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;
+pub mod sales_person_unavailable;
 pub mod slot;
 pub mod user_service;
 pub mod uuid_service;
@@ -61,6 +62,12 @@ pub enum ServiceError {
 
     #[error("Version cannot be set on create")]
     VersionSetOnCreate,
+
+    #[error("Created cannot bet set on create")]
+    CreatedSetOnCreate,
+
+    #[error("Deleted cannot bet set on create")]
+    DeletedSetOnCreate,
 
     #[error("Overlapping time range")]
     OverlappingTimeRange,

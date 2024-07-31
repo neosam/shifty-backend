@@ -8,6 +8,7 @@ pub mod booking;
 pub mod extra_hours;
 pub mod permission;
 pub mod sales_person;
+pub mod sales_person_unavailable;
 pub mod shiftplan_report;
 pub mod slot;
 pub mod working_hours;
