@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version FROM sales_person_unavailable WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "year",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "day_of_week",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 7,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "cae68f4910a32e04c82fdccfba9e923190f14e6d74949dab5ba288c303642020"
+}

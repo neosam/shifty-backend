@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sales_person_unavailable (id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "c5ee2aa4eb58b54d53567b8e6f24b42ff617a467a7ff4a93b9f61e0b7751382b"
+}
