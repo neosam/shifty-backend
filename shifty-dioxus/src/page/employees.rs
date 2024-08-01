@@ -2,6 +2,7 @@ use crate::{
     component::{EmployeeShort, TopBar},
     js, loader,
     router::Route,
+    service::CONFIG,
     state,
 };
 use dioxus::prelude::*;
@@ -14,15 +15,14 @@ pub fn Employees() -> Element {
     } else {
         52
     };
-    let config = use_context::<state::Config>();
+    let config = CONFIG.read().clone();
     let employees =
         use_resource(move || loader::load_employees(config.to_owned(), *year.read(), week_until));
 
     rsx! {
         TopBar {}
 
-        div {
-            class: "ml-1 mr-1 pt-4 md:m-8",
+        div { class: "ml-1 mr-1 pt-4 md:m-8",
             match &*employees.read_unchecked() {
                 Some(Ok(employee)) => {
                     rsx! {

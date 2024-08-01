@@ -9,6 +9,7 @@ use crate::{
     error::result_handler,
     i18n::{self, Key},
     js,
+    service::CONFIG,
     state::{employee::WorkingHoursCategory, Config},
 };
 
@@ -31,7 +32,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let mut description = use_signal(|| "".to_string());
     let mut when = use_signal(|| js::current_datetime().format(&format).unwrap());
 
-    let config = use_context::<Config>();
+    let config = CONFIG.read().clone();
     let sales_person_id = props.sales_person_id;
 
     let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
@@ -79,17 +80,10 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
 
     rsx! {
         form {
-            h1 {
-                class: "text-2xl font-bold",
-                "{form_title}"
-            }
+            h1 { class: "text-2xl font-bold", "{form_title}" }
 
-            div {
-                class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
-                label {
-                    class: "block mt-4 mr-4 grow",
-                    "{category_str}"
-                }
+            div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
+                label { class: "block mt-4 mr-4 grow", "{category_str}" }
                 select {
                     class: "block mt-2 pl-2 pr-2 w-full md:w-1/2",
                     value: "{category.read().identifier()}",
@@ -97,31 +91,15 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                         let value = event.data.value();
                         *category.write() = WorkingHoursCategory::from_identifier(&value);
                     },
-                    option {
-                        value: "extra_work",
-                        "{extra_work_str}"
-                    }
-                    option {
-                        value: "holiday",
-                        "{holidays_str}"
-                    }
-                    option {
-                        value: "sick_leave",
-                        "{sick_leave_str}"
-                    }
-                    option {
-                        value: "vacation",
-                        "{vacation_str}"
-                    }
+                    option { value: "extra_work", "{extra_work_str}" }
+                    option { value: "holiday", "{holidays_str}" }
+                    option { value: "sick_leave", "{sick_leave_str}" }
+                    option { value: "vacation", "{vacation_str}" }
                 }
             }
 
-            div {
-                class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
-                label {
-                    class: "block mt-4 mr-4 grow",
-                    "{amount_of_hours_str}"
-                }
+            div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
+                label { class: "block mt-4 mr-4 grow", "{amount_of_hours_str}" }
                 input {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     value: "{amount.read()}",
@@ -134,28 +112,20 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 }
             }
 
-            div {
-                class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
-                label {
-                    class: "block mt-4 mr-4 grow",
-                    "{description_str}"
-                }
+            div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
+                label { class: "block mt-4 mr-4 grow", "{description_str}" }
                 input {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     value: "{description.read()}",
                     onchange: move |event| {
                         let value = event.data.value();
                         *description.write() = value;
-                    },
+                    }
                 }
             }
 
-            div {
-                class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
-                label {
-                    class: "block mt-4 mr-4 grow",
-                    "{when_str}"
-                }
+            div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
+                label { class: "block mt-4 mr-4 grow", "{when_str}" }
                 input {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     value: "{*when.read()}",
@@ -164,12 +134,11 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                         info!("Setting when to: {value}");
                         *when.write() = value;
                     },
-                    "type": "datetime-local",
+                    "type": "datetime-local"
                 }
             }
 
-            div {
-                class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1 mt-8",
+            div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1 mt-8",
                 button {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     onclick: move |_| props.onabort.call(()),

@@ -8,6 +8,7 @@ use crate::{
     error,
     i18n::{self, Key},
     js, loader,
+    service::CONFIG,
     state::{week::Week, Config},
 };
 
@@ -26,7 +27,7 @@ pub struct AddExtraDaysFormProps {
 #[component]
 pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
     let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
-    let config = use_context::<Config>();
+    let config = CONFIG.read().clone();
 
     let title_str = match props.extra_hours_type {
         AddExtraDaysType::Vacation => i18n.t(Key::AddVacationTitle),
@@ -54,102 +55,100 @@ pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
     });
 
     rsx! {
-        Header {
-            {title_str}
-        }
+        Header { {title_str} }
 
         Form {
-            FormPair {
-                label: week_str,
+            FormPair { label: week_str,
                 SimpleSelect {
                     selected_key: current_week,
-                    options: weeks.read().iter().map(|week| SimpleOption {
-                        key: format!("{}", week.week).into(),
-                        text: i18n.format_week(&week),
-                    }).collect::<Vec<_>>().into(),
+                    options: weeks
+                        .read()
+                        .iter()
+                        .map(|week| SimpleOption {
+                            key: format!("{}", week.week).into(),
+                            text: i18n.format_week(&week),
+                        })
+                        .collect::<Vec<_>>()
+                        .into()
                 }
             }
             FormItem {
                 Checkbox {
                     value: *whole_week.read(),
-                    {full_week_str},
                     on_change: move |value| {
                         *whole_week.write() = value;
-                    }
+                    },
+                    {full_week_str}
                 }
             }
             if !*whole_week.read() {
                 FormItem {
                     Checkbox {
                         value: *monday.read(),
-                        "Monday",
                         on_change: move |value| {
                             *monday.write() = value;
-                        }
+                        },
+                        "Monday"
                     }
                 }
                 FormItem {
                     Checkbox {
                         value: *tuesday.read(),
-                        "Tuesday",
                         on_change: move |value| {
                             *tuesday.write() = value;
-                        }
+                        },
+                        "Tuesday"
                     }
                 }
                 FormItem {
                     Checkbox {
                         value: *wednesday.read(),
-                        "Wednesday",
                         on_change: move |value| {
                             *wednesday.write() = value;
-                        }
+                        },
+                        "Wednesday"
                     }
                 }
                 FormItem {
                     Checkbox {
                         value: *thursday.read(),
-                        "Thursday",
                         on_change: move |value| {
                             *thursday.write() = value;
-                        }
+                        },
+                        "Thursday"
                     }
                 }
                 FormItem {
                     Checkbox {
                         value: *friday.read(),
-                        "Friday",
                         on_change: move |value| {
                             *friday.write() = value;
-                        }
+                        },
+                        "Friday"
                     }
                 }
                 FormItem {
                     Checkbox {
                         value: *saturday.read(),
-                        "Saturday",
                         on_change: move |value| {
                             *saturday.write() = value;
-                        }
+                        },
+                        "Saturday"
                     }
                 }
                 FormItem {
                     Checkbox {
                         value: *sunday.read(),
-                        "Sunday",
                         on_change: move |value| {
                             *sunday.write() = value;
-                        }
+                        },
+                        "Sunday"
                     }
                 }
             }
             FormGroup {
-                Button {
-                    "Abort"
-                }
-                Button {
-                    "Submit"
-                }
+                Button { "Abort" }
+                Button { "Submit" }
             }
         }
     }

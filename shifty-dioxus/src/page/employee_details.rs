@@ -7,6 +7,7 @@ use crate::{
     component::{EmployeeView, TopBar},
     error::{result_handler, ShiftyError},
     js, loader,
+    service::CONFIG,
     state::{
         self,
         employee::{Employee, ExtraHours},
@@ -33,7 +34,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     } else {
         52
     };
-    let config = use_context::<state::Config>();
+    let config = CONFIG.read().clone();
     let employee_id = match Uuid::parse_str(&props.employee_id) {
         Ok(employee_id) => employee_id,
         Err(err) => {
@@ -96,8 +97,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     rsx! {
         TopBar {}
 
-        div {
-            class: "ml-1 mr-1 pt-4 md:m-8",
+        div { class: "ml-1 mr-1 pt-4 md:m-8",
             match (&*employee_resource.read_unchecked(), &*extra_hours_resource.read_unchecked()) {
                 (Some(Ok(employee)), Some(Ok(extra_hours))) => {
                     rsx! {

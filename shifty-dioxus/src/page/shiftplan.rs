@@ -11,6 +11,8 @@ use crate::error::result_handler;
 use crate::i18n::{self, Key};
 use crate::js;
 use crate::loader;
+use crate::service;
+use crate::service::CONFIG;
 use crate::state;
 use crate::state::sales_person_available::SalesPersonUnavailable;
 use crate::state::shiftplan::SalesPerson;
@@ -37,10 +39,11 @@ pub enum ShiftPlanAction {
 
 #[component]
 pub fn ShiftPlan() -> Element {
-    let config = use_context::<state::Config>();
+    let config = CONFIG.read().clone();
     let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
     let auth_info = use_context::<state::AuthInfo>();
     let is_shiftplanner = auth_info.has_privilege("shiftplanner");
+    let dropdown_cr = use_coroutine_handle::<service::DropdownAction>();
 
     let mut week = use_signal(|| js::get_current_week());
     let year = use_signal(|| js::get_current_year());
@@ -248,27 +251,21 @@ pub fn ShiftPlan() -> Element {
     rsx! {
         TopBar {}
 
-        div {
-            class: "flex flex-col md:flex-row md:items-center md:justify-between",
-            div {
-                class: "m-4 text-lg flex align-center justify-center width-full",
+        div { class: "flex flex-col md:flex-row md:items-center md:justify-between",
+            div { class: "m-4 text-lg flex align-center justify-center width-full",
                 button {
                     onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
                     class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
                     "<"
                 }
-                div {
-                    class: "pt-2",
-                    "{calendar_week_str}"
-                }
+                div { class: "pt-2", "{calendar_week_str}" }
                 button {
                     onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
                     class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
                     ">"
                 }
             }
-            div {
-                class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4 print:hidden",
+            div { class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4 print:hidden",
                 if is_shiftplanner {
                     button {
                         onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),

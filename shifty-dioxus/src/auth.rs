@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{api, state};
+use crate::{api, service::CONFIG, state};
 
 #[derive(PartialEq, Clone, Props)]
 pub struct AuthProps {
@@ -10,7 +10,7 @@ pub struct AuthProps {
 
 #[component]
 pub fn Auth(props: AuthProps) -> Element {
-    let backend = use_context::<state::Config>().backend;
+    let backend = CONFIG.read().backend.clone();
 
     let auth_info = {
         let backend = backend.clone();
@@ -26,10 +26,14 @@ pub fn Auth(props: AuthProps) -> Element {
         }
         Some(Ok(None)) => props.unauthenticated,
         Some(Err(err)) => {
-            rsx! { div { "Error while fetching username: {err}" } }
+            rsx! {
+                div { "Error while fetching username: {err}" }
+            }
         }
         None => {
-            rsx! { div { "Fetching auth information..." } }
+            rsx! {
+                div { "Fetching auth information..." }
+            }
         }
     }
 }

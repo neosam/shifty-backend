@@ -10,7 +10,7 @@ fn default_application_title() -> Rc<str> {
     "Shifty".into()
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     pub backend: Rc<str>,
     pub show_my_time: Option<bool>,
