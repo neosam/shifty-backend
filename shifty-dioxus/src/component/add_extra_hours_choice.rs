@@ -6,6 +6,7 @@ use crate::{
         base_components::Header,
     },
     i18n::{self, Key},
+    service::I18N,
 };
 
 pub enum Choice {
@@ -18,7 +19,7 @@ pub enum Choice {
 
 #[component]
 pub fn AddExtraHoursChoice() -> Element {
-    let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
+    let i18n = I18N.read().clone();
 
     let form_title = i18n.t(Key::AddExtraHoursChoiceTitle);
     let add_vacation_str = i18n.t(Key::CategoryVacation);
@@ -31,41 +32,25 @@ pub fn AddExtraHoursChoice() -> Element {
     let result = match *choice.read() {
         Choice::Main => rsx! {
             div {
-                Header {
-                    {form_title.clone()}
-                }
+                Header { {form_title.clone()} }
 
-                div {
-                    class: "grid gap-4 md:grid-cols-2",
+                div { class: "grid gap-4 md:grid-cols-2",
                     button {
                         class: "border-2 border-gray-200 p-2",
                         onclick: move |_| *choice.write() = Choice::Vacation,
                         "{add_vacation_str}"
                     }
-                    button {
-                        class: "border-2 border-gray-200 p-2",
-                        "{add_sick_leave_str}"
-                    }
-                    button {
-                        class: "border-2 border-gray-200 p-2",
-                        "{add_holiday_str}"
-                    }
-                    button {
-                        class: "border-2 border-gray-200 p-2",
-                        "{add_extra_work_str}"
-                    }
+                    button { class: "border-2 border-gray-200 p-2", "{add_sick_leave_str}" }
+                    button { class: "border-2 border-gray-200 p-2", "{add_holiday_str}" }
+                    button { class: "border-2 border-gray-200 p-2", "{add_extra_work_str}" }
                 }
             }
         },
         Choice::Vacation => rsx! {
-            AddExtraDaysForm {
-                extra_hours_type: AddExtraDaysType::Vacation,
-            }
+            AddExtraDaysForm { extra_hours_type: AddExtraDaysType::Vacation }
         },
         Choice::Holiday => rsx! {
-            AddExtraDaysForm {
-                extra_hours_type: AddExtraDaysType::Holiday,
-            }
+            AddExtraDaysForm { extra_hours_type: AddExtraDaysType::Holiday }
         },
         _ => rsx! { "Not implemented" },
     };

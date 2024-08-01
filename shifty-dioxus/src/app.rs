@@ -8,14 +8,9 @@ use dioxus::prelude::*;
 use web_sys::window;
 
 pub fn App() -> Element {
-    let mut config_service = use_coroutine(service::config_service);
-    let language = web_sys::window()
-        .map(|w| w.navigator())
-        .and_then(|n| n.language())
-        .map(|locale| locale[..2].to_string())
-        .unwrap_or_else(|| "en".to_string());
-    use_context_provider(|| i18n::generate(i18n::Locale::from_str(&language)));
+    use_coroutine(service::config_service);
     use_coroutine(service::dropdown_service);
+    use_coroutine(service::i18n_service);
     let config = CONFIG.read();
     if !config.backend.is_empty() {
         let title = config.application_title.clone();
@@ -34,18 +29,9 @@ pub fn App() -> Element {
         rsx! {
             div { class: "flex flex-col",
                 Auth {
-                    authenticated: {
-                        eval(
-                            format!(
-                                "window.oidcLoginKeepAliveURL = '{}/authenticate';",
-                                config.backend.clone(),
-                            )
-                                .as_str(),
-                        );
-                        rsx! {
-                            div { Router::<Route> {} }
-                        }
-                    },
+                    authenticated: { rsx! {
+                        div { Router::<Route> {} }
+                    } },
                     unauthenticated: rsx! {
                         TopBar {}
                         NotAuthenticated {}

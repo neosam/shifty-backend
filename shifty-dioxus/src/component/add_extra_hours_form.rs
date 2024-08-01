@@ -9,7 +9,7 @@ use crate::{
     error::result_handler,
     i18n::{self, Key},
     js,
-    service::CONFIG,
+    service::{CONFIG, I18N},
     state::{employee::WorkingHoursCategory, Config},
 };
 
@@ -35,7 +35,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let config = CONFIG.read().clone();
     let sales_person_id = props.sales_person_id;
 
-    let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
+    let i18n = I18N.read().clone();
     let form_title = i18n.t(Key::AddExtraHoursFormTitle);
     let category_str = i18n.t(Key::Category);
     let amount_of_hours_str = i18n.t(Key::AmountOfHours);

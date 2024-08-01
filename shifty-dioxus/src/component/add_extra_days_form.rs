@@ -8,7 +8,7 @@ use crate::{
     error,
     i18n::{self, Key},
     js, loader,
-    service::CONFIG,
+    service::{CONFIG, I18N},
     state::{week::Week, Config},
 };
 
@@ -26,7 +26,7 @@ pub struct AddExtraDaysFormProps {
 
 #[component]
 pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
-    let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
+    let i18n = I18N.read().clone();
     let config = CONFIG.read().clone();
 
     let title_str = match props.extra_hours_type {

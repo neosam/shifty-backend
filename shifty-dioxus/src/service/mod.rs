@@ -1,7 +1,12 @@
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 
-use crate::{api, error::ShiftyError, state::Config};
+use crate::{
+    api,
+    error::ShiftyError,
+    i18n::{self, I18n, Locale},
+    state::Config,
+};
 
 #[derive(Default, Debug)]
 pub struct ErrorStore {
@@ -61,4 +66,21 @@ pub async fn config_service(mut rx: UnboundedReceiver<ConfigAction>) {
             }
         }
     }
+}
+
+pub static I18N: GlobalSignal<I18n<i18n::Key, i18n::Locale>> =
+    Signal::global(|| i18n::generate(i18n::Locale::En));
+
+pub async fn i18n_service(mut rx: UnboundedReceiver<()>) {
+    let set_browser_language = || async {
+        let language = web_sys::window()
+            .map(|w| w.navigator())
+            .and_then(|n| n.language())
+            .map(|locale| locale[..2].to_string())
+            .unwrap_or_else(|| "en".to_string());
+        let i18n = i18n::generate(i18n::Locale::from_str(&language));
+        *I18N.write() = i18n;
+    };
+
+    set_browser_language().await;
 }

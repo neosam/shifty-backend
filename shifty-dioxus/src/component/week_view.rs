@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::{
     base_types::ImStr,
     i18n,
+    service::I18N,
     state::{self, Slot, Weekday},
 };
 use dioxus::prelude::*;
@@ -69,17 +70,27 @@ where
     let custom_data_remove = props.item_data.custom_data.clone();
     rsx! {
         div {
-            class: format!("w-full select-none absolute border-solid border-black border truncate flex text-ellipsis touch-auto {}", if props.discourage { "cursor-not-allowed bg-red-200 print:bg-white" } else { "" }),
+            class: format!(
+                "w-full select-none absolute border-solid border-black border truncate flex text-ellipsis touch-auto {}",
+                if props.discourage {
+                    "cursor-not-allowed bg-red-200 print:bg-white"
+                } else {
+                    ""
+                },
+            ),
             ondoubleclick: move |_| {
                 if let Some(double_clicked) = &props.double_clicked {
                     double_clicked.call(());
                 }
             },
             style: {
-                format!("top: {}px; height: {}px;", props.item_data.start, props.item_data.end - props.item_data.start)
+                format!(
+                    "top: {}px; height: {}px;",
+                    props.item_data.start,
+                    props.item_data.end - props.item_data.start,
+                )
             },
-            div {
-                class: "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar",
+            div { class: "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar",
                 {
                     match props.item_data.title {
                         ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
@@ -113,8 +124,7 @@ where
                     }
                 }
             }
-            div {
-                class: "flex flex-col flex-grow overflow-scroll no-scrollbar",
+            div { class: "flex flex-col flex-grow overflow-scroll no-scrollbar",
                 if props.item_data.show_add {
                     button {
                         class: "border w-8 print:hidden",
@@ -122,7 +132,7 @@ where
                             if let Some(add_event) = props.add_event {
                                 info!("Found event handler and call it");
                                 add_event.call(custom_data_add.to_owned());
-                            };
+                            }
                             info!("Add event");
                             ()
                         },
@@ -136,7 +146,7 @@ where
                             if let Some(remove_event) = props.remove_event {
                                 info!("Found event handler and call it");
                                 remove_event.call(custom_data_remove.to_owned());
-                            };
+                            }
                             info!("Remove event");
                             ()
                         },
@@ -197,21 +207,20 @@ where
     rsx! {
         div {
             class: "relative min-w-48 flex-grow print:min-w-0",
-            style: {
-                format!("height: {}px;", props.height)
-            },
+            style: { format!("height: {}px;", props.height) },
             ColumnViewSlot::<()> {
                 item_data: ColumnViewItem {
                     start: 0.0,
                     end: props.offset,
-                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone()).into(),
+                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone())
+                        .into(),
                     show_add: false,
                     show_remove: false,
                     custom_data: (),
                 },
                 show_dropdown: true,
                 discourage: props.discourage,
-                double_clicked: props.title_double_clicked.clone(),
+                double_clicked: props.title_double_clicked.clone()
             }
             for slot in props.slots.iter() {
                 ColumnViewSlot::<CustomData> {
@@ -227,7 +236,7 @@ where
                     add_event: props.add_event,
                     remove_event: props.remove_event,
                     item_clicked: props.item_clicked.clone(),
-                    discourage: props.discourage,
+                    discourage: props.discourage
                 }
             }
         }
@@ -259,7 +268,7 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             height: (props.end - props.start) as f32 * SCALING,
             scale: SCALING,
             offset: SCALING / 2.0,
-            slots: slots,
+            slots
         }
     }
 }
@@ -282,7 +291,7 @@ pub struct DayViewProps {
 
 #[component]
 pub fn DayView(props: DayViewProps) -> Element {
-    let i18n = use_context::<i18n::I18nType>();
+    let i18n = I18N.read().clone();
     let date_string = if let Some(date) = props.date {
         format!(", {}", i18n.format_date(&date))
     } else {
@@ -293,7 +302,9 @@ pub fn DayView(props: DayViewProps) -> Element {
             height: (props.day_end - props.day_start) as f32 * SCALING + SCALING / 2.0,
             scale: SCALING,
             offset: SCALING / 2.0,
-            slots: props.slots.iter()
+            slots: props
+                .slots
+                .iter()
                 .map(|slot| ColumnViewItem::from(slot.clone()))
                 .map(|column| ColumnViewItem {
                     start: column.start - props.day_start,
@@ -314,7 +325,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                     title_double_clicked.call(props.weekday.clone());
                 }
             },
-            discourage: props.discourage,
+            discourage: props.discourage
         }
     }
 }
@@ -358,11 +369,8 @@ pub fn WeekView(props: WeekViewProps) -> Element {
         div {
             class: "overflow-y-scroll overflow-visible no-scrollbar print:width-full print:overflow-visible",
             style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
-            div {
-                class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md 2xl:hidden print:hidden",
-                label {
-                    "Zoom: "
-                }
+            div { class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md 2xl:hidden print:hidden",
+                label { "Zoom: " }
                 select {
                     onchange: move |event| {
                         let value = event.data.value();
@@ -370,41 +378,40 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             "full" => *zoom.write() = Zoom::Full,
                             "half" => *zoom.write() = Zoom::Half,
                             "quarter" => *zoom.write() = Zoom::Quarter,
-                            _ => (),
+                            _ => {}
                         }
                     },
-                    option {
-                        value: "full",
-                        "100%"
-                    }
-                    option {
-                        value: "quarter",
-                        "75%"
-                    }
-                    option {
-                        value: "half",
-                        "50%"
-                    }
-
+                    option { value: "full", "100%" }
+                    option { value: "quarter", "75%" }
+                    option { value: "half", "50%" }
                 }
             }
-            div {
-                class: format!("flex flex-row {}", zoom_class),
-                TimeView {start: day_start.ceil() as u8, end: day_end.ceil() as u8}
-                for weekday in [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday, Weekday::Saturday, Weekday::Sunday].iter() {
+            div { class: format!("flex flex-row {}", zoom_class),
+                TimeView { start: day_start.ceil() as u8, end: day_end.ceil() as u8 }
+                for weekday in [
+                    Weekday::Monday,
+                    Weekday::Tuesday,
+                    Weekday::Wednesday,
+                    Weekday::Thursday,
+                    Weekday::Friday,
+                    Weekday::Saturday,
+                    Weekday::Sunday,
+                ]
+                    .iter()
+                {
                     if !(*weekday == Weekday::Sunday && !has_sunday) {
                         DayView {
                             weekday: weekday.clone(),
                             date: props.date_of_monday.map(|date| date + time::Duration::days(weekday.clone() as i64)),
                             slots: props.shiftplan_data.slots_by_weekday(weekday.clone()),
-                            day_start, day_end,
+                            day_start,
+                            day_end,
                             highlight_item_id: props.highlight_item_id,
                             add_event: props.add_event.clone(),
                             remove_event: props.remove_event.clone(),
                             item_clicked: props.item_clicked.clone(),
                             title_double_clicked: props.title_double_clicked.clone(),
-
-                            discourage: props.discourage_weekdays.contains(weekday),
+                            discourage: props.discourage_weekdays.contains(weekday)
                         }
                     }
                 }

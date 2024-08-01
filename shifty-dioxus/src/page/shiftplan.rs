@@ -13,6 +13,7 @@ use crate::js;
 use crate::loader;
 use crate::service;
 use crate::service::CONFIG;
+use crate::service::I18N;
 use crate::state;
 use crate::state::sales_person_available::SalesPersonUnavailable;
 use crate::state::shiftplan::SalesPerson;
@@ -40,7 +41,7 @@ pub enum ShiftPlanAction {
 #[component]
 pub fn ShiftPlan() -> Element {
     let config = CONFIG.read().clone();
-    let i18n = use_context::<i18n::I18n<Key, i18n::Locale>>();
+    let i18n = I18N.read().clone();
     let auth_info = use_context::<state::AuthInfo>();
     let is_shiftplanner = auth_info.has_privilege("shiftplanner");
     let dropdown_cr = use_coroutine_handle::<service::DropdownAction>();

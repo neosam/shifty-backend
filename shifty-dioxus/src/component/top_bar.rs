@@ -4,13 +4,13 @@ use crate::{
     i18n::{self, Key},
     loader,
     router::Route,
-    service::CONFIG,
+    service::{CONFIG, I18N},
     state::config,
 };
 
 #[component]
 pub fn TopBar() -> Element {
-    let i18n = use_context::<i18n::I18nType>();
+    let i18n = I18N.read().clone();
     let auth_info = try_use_context::<crate::state::AuthInfo>();
     let config = CONFIG.read().clone();
     let show_my_time = config.show_my_time.unwrap_or(false);
