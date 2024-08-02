@@ -1,4 +1,5 @@
 use crate::auth::Auth;
+use crate::component::dropdown_base::DropdownBase;
 use crate::component::{Footer, TopBar};
 use crate::page::NotAuthenticated;
 use crate::service::CONFIG;
@@ -28,6 +29,7 @@ pub fn App() -> Element {
 
         rsx! {
             div { class: "flex flex-col",
+                DropdownBase {}
                 div { Router::<Route> {} }
                 Footer {}
             }

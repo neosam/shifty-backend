@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 use js_sys::WebAssembly::Global;
@@ -6,7 +8,10 @@ use crate::{
     api,
     error::ShiftyError,
     i18n::{self, I18n, Locale},
-    state::{AuthInfo, Config},
+    state::{
+        dropdown::{Dropdown, DropdownEntry},
+        AuthInfo, Config,
+    },
 };
 
 pub async fn load_auth_info() {
@@ -63,13 +68,37 @@ pub async fn error_service(mut rx: UnboundedReceiver<ErrorAction>) {
     }
 }
 
-pub struct Dropdown;
+pub static DROPDOWN: GlobalSignal<Option<Dropdown>> = Signal::global(|| None);
 
-pub static DROPDOWN: GlobalSignal<Dropdown> = Signal::global(|| Dropdown);
+pub enum DropdownAction {
+    OpenDropdown(f64, f64, Rc<[DropdownEntry]>),
+    CloseDropdown,
+    ToggleDropdown(f64, f64, Rc<[DropdownEntry]>),
+}
 
-pub enum DropdownAction {}
+pub async fn open_dropdown(x: f64, y: f64, entries: Rc<[DropdownEntry]>) {
+    *DROPDOWN.write() = Some(Dropdown { x, y, entries });
+}
+pub async fn close_dropdown() {
+    *DROPDOWN.write() = None;
+}
+pub async fn toggle_dropdown(x: f64, y: f64, entries: Rc<[DropdownEntry]>) {
+    if DROPDOWN.read().is_some() {
+        close_dropdown().await;
+    } else {
+        open_dropdown(x, y, entries).await;
+    }
+}
 
-pub async fn dropdown_service(rx: UnboundedReceiver<DropdownAction>) {}
+pub async fn dropdown_service(mut rx: UnboundedReceiver<DropdownAction>) {
+    while let Some(action) = rx.next().await {
+        match action {
+            DropdownAction::OpenDropdown(x, y, entries) => open_dropdown(x, y, entries).await,
+            DropdownAction::CloseDropdown => close_dropdown().await,
+            DropdownAction::ToggleDropdown(x, y, entries) => toggle_dropdown(x, y, entries).await,
+        }
+    }
+}
 
 // Config service
 pub static CONFIG: GlobalSignal<Config> = Signal::global(|| Config::default());

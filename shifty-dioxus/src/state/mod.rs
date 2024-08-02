@@ -1,5 +1,6 @@
 pub mod auth_info;
 pub mod config;
+pub mod dropdown;
 pub mod employee;
 pub mod sales_person_available;
 pub mod shiftplan;
