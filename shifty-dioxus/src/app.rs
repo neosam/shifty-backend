@@ -28,15 +28,7 @@ pub fn App() -> Element {
 
         rsx! {
             div { class: "flex flex-col",
-                Auth {
-                    authenticated: { rsx! {
-                        div { Router::<Route> {} }
-                    } },
-                    unauthenticated: rsx! {
-                        TopBar {}
-                        NotAuthenticated {}
-                    }
-                }
+                div { Router::<Route> {} }
                 Footer {}
             }
         }

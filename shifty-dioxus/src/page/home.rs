@@ -2,11 +2,12 @@ use dioxus::prelude::*;
 
 use crate::component::TopBar;
 use crate::router::Route;
+use crate::service::AUTH;
 use crate::state::auth_info;
 
 #[component]
 pub fn Home() -> Element {
-    let auth_info = use_context::<auth_info::AuthInfo>();
+    let auth_info = AUTH.read().clone()?;
     let nav = navigator();
 
     if auth_info.privileges.len() == 1 && auth_info.has_privilege("sales") {
@@ -24,20 +25,11 @@ pub fn Home() -> Element {
 
     rsx! {
         TopBar {}
-        div {
-            class: "flex place-content-center mt-16",
+        div { class: "flex place-content-center mt-16",
             div {
-                h1 {
-                    class: "text-6xl font-bold",
-                    "Welcome to Shifty!"
-                }
-                p {
-                    class: "mt-8 mb-8",
-                    "Choose your view from the menu on top of the page."
-                }
-                img {
-                    src: "/shifty.webp"
-                }
+                h1 { class: "text-6xl font-bold", "Welcome to Shifty!" }
+                p { class: "mt-8 mb-8", "Choose your view from the menu on top of the page." }
+                img { src: "/shifty.webp" }
             }
         }
     }

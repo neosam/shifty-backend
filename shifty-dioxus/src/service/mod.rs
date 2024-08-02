@@ -1,12 +1,47 @@
 use dioxus::prelude::*;
 use futures_util::StreamExt;
+use js_sys::WebAssembly::Global;
 
 use crate::{
     api,
     error::ShiftyError,
     i18n::{self, I18n, Locale},
-    state::Config,
+    state::{AuthInfo, Config},
 };
+
+pub async fn load_auth_info() {
+    if CONFIG.read().backend.is_empty() {
+        return;
+    }
+    let auth_info = api::fetch_auth_info(CONFIG.read().backend.clone()).await;
+
+    match auth_info {
+        Ok(Some(auth_info)) => {
+            *AUTH.write() = Some(auth_info);
+        }
+        Err(err) => {
+            *ERROR_STORE.write() = ErrorStore {
+                error: Some(err.into()),
+            };
+        }
+        _ => {}
+    }
+}
+pub async fn load_config() {
+    let config = api::load_config().await;
+    match config {
+        Ok(config) => {
+            *CONFIG.write() = config;
+        }
+        Err(err) => {
+            *ERROR_STORE.write() = ErrorStore {
+                error: Some(err.into()),
+            };
+        }
+    }
+    *CONFIG.write() = api::load_config().await.unwrap();
+    load_auth_info().await;
+}
 
 #[derive(Default, Debug)]
 pub struct ErrorStore {
@@ -42,21 +77,6 @@ pub enum ConfigAction {
     LoadConfig,
 }
 pub async fn config_service(mut rx: UnboundedReceiver<ConfigAction>) {
-    let load_config = || async {
-        let config = api::load_config().await;
-        match config {
-            Ok(config) => {
-                *CONFIG.write() = config;
-            }
-            Err(err) => {
-                *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
-                };
-            }
-        }
-        *CONFIG.write() = api::load_config().await.unwrap();
-    };
-
     load_config().await;
 
     while let Some(action) = rx.next().await {
@@ -83,4 +103,10 @@ pub async fn i18n_service(mut rx: UnboundedReceiver<()>) {
     };
 
     set_browser_language().await;
+}
+
+pub static AUTH: GlobalSignal<Option<AuthInfo>> = Signal::global(|| None);
+
+pub async fn auth_service(mut rx: UnboundedReceiver<()>) {
+    load_auth_info().await;
 }

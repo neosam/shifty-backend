@@ -12,6 +12,7 @@ use crate::i18n::{self, Key};
 use crate::js;
 use crate::loader;
 use crate::service;
+use crate::service::AUTH;
 use crate::service::CONFIG;
 use crate::service::I18N;
 use crate::state;
@@ -42,8 +43,10 @@ pub enum ShiftPlanAction {
 pub fn ShiftPlan() -> Element {
     let config = CONFIG.read().clone();
     let i18n = I18N.read().clone();
-    let auth_info = use_context::<state::AuthInfo>();
-    let is_shiftplanner = auth_info.has_privilege("shiftplanner");
+    let auth_info = AUTH.read().clone();
+    let is_shiftplanner = auth_info
+        .map(|auth_info| auth_info.has_privilege("shiftplanner"))
+        .unwrap_or(false);
     let dropdown_cr = use_coroutine_handle::<service::DropdownAction>();
 
     let mut week = use_signal(|| js::get_current_week());
