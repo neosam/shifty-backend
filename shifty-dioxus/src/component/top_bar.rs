@@ -11,7 +11,7 @@ use crate::{
 #[component]
 pub fn TopBar() -> Element {
     let i18n = I18N.read().clone();
-    let auth_info = AUTH.read().clone();
+    let auth_info = AUTH.read().auth_info.clone();
     let config = CONFIG.read().clone();
     let show_my_time = config.show_my_time.unwrap_or(false);
     let backend_url = config.backend.clone();

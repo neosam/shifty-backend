@@ -45,7 +45,7 @@ pub enum ShiftPlanAction {
 pub fn ShiftPlan() -> Element {
     let config = CONFIG.read().clone();
     let i18n = I18N.read().clone();
-    let auth_info = AUTH.read().clone();
+    let auth_info = AUTH.read().auth_info.clone();
     let is_shiftplanner = auth_info
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
         .unwrap_or(false);

@@ -30,7 +30,15 @@ pub fn App() -> Element {
         rsx! {
             div { class: "flex flex-col",
                 DropdownBase {}
-                div { Router::<Route> {} }
+                Auth {
+                    authenticated: rsx! {
+                        Router::<Route> {}
+                    },
+                    unauthenticated: rsx! {
+                        TopBar {}
+                        NotAuthenticated {}
+                    }
+                }
                 Footer {}
             }
         }

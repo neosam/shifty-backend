@@ -7,7 +7,7 @@ use crate::state::auth_info;
 
 #[component]
 pub fn Home() -> Element {
-    let auth_info = AUTH.read().clone()?;
+    let auth_info = AUTH.read().auth_info.clone()?;
     let nav = navigator();
 
     if auth_info.privileges.len() == 1 && auth_info.has_privilege("sales") {

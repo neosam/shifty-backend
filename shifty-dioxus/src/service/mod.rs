@@ -22,11 +22,24 @@ pub async fn load_auth_info() {
 
     match auth_info {
         Ok(Some(auth_info)) => {
-            *AUTH.write() = Some(auth_info);
+            *AUTH.write() = AuthStore {
+                auth_info: Some(auth_info),
+                loading_done: true,
+            };
+        }
+        Ok(None) => {
+            *AUTH.write() = AuthStore {
+                auth_info: None,
+                loading_done: true,
+            };
         }
         Err(err) => {
             *ERROR_STORE.write() = ErrorStore {
                 error: Some(err.into()),
+            };
+            *AUTH.write() = AuthStore {
+                auth_info: None,
+                loading_done: true,
             };
         }
         _ => {}
@@ -134,7 +147,13 @@ pub async fn i18n_service(mut rx: UnboundedReceiver<()>) {
     set_browser_language().await;
 }
 
-pub static AUTH: GlobalSignal<Option<AuthInfo>> = Signal::global(|| None);
+#[derive(Default, Clone, Eq, PartialEq)]
+pub struct AuthStore {
+    pub auth_info: Option<AuthInfo>,
+    pub loading_done: bool,
+}
+
+pub static AUTH: GlobalSignal<AuthStore> = Signal::global(|| AuthStore::default());
 
 pub async fn auth_service(mut rx: UnboundedReceiver<()>) {
     load_auth_info().await;
