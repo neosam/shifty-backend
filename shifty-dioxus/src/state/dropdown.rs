@@ -31,6 +31,17 @@ where
         }
     }
 }
+impl<F> From<(ImStr, F)> for DropdownEntry
+where
+    F: Fn() + 'static,
+{
+    fn from(tuple: (ImStr, F)) -> Self {
+        DropdownEntry {
+            text: tuple.0,
+            action: Rc::new(tuple.1),
+        }
+    }
+}
 
 #[derive(Clone, Default, PartialEq)]
 pub struct Dropdown {

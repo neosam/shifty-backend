@@ -5,6 +5,7 @@ use futures_util::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
+use crate::base_types::ImStr;
 use crate::component::dropdown_base::DropdownTrigger;
 use crate::component::TopBar;
 use crate::component::WeekView;
@@ -67,7 +68,7 @@ pub fn ShiftPlan() -> Element {
         ]
         .into(),
     );
-    let take_last_week_str = i18n.t(Key::ShiftplanTakeLastWeek);
+    let take_last_week_str: ImStr = i18n.t(Key::ShiftplanTakeLastWeek).into();
     let edit_as_str = i18n.t(Key::ShiftplanEditAs);
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
 
@@ -280,10 +281,18 @@ pub fn ShiftPlan() -> Element {
             }
             div { class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4 print:hidden",
                 if is_shiftplanner {
-                    button {
-                        onclick: move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek),
-                        class: "border-2 border-solid border-black mr-2 ml-2 p-2",
-                        "{take_last_week_str}"
+                    DropdownTrigger {
+                        entries: [
+                            (
+                                take_last_week_str,
+                                Box::new(move || cr.send(ShiftPlanAction::CopyFromPreviousWeek)),
+                            )
+                                .into(),
+                        ]
+                            .into(),
+                        button { class: "border-2 border-solid border-black pt-2 pb-2 pl-4 pr-4 text-xl font-bold",
+                            "..."
+                        }
                     }
                 }
                 match &*sales_persons_resource.read_unchecked() {

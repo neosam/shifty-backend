@@ -39,7 +39,7 @@ pub fn DropdownBase() -> Element {
     if let Some(dropdown) = dropdown.clone() {
         rsx! {
             div {
-                class: "absolute inset-0",
+                class: "absolute inset-0 z-40 bg-gray",
                 onclick: {
                     to_owned![dropdown_service];
                     move |_| dropdown_service.send(DropdownAction::CloseDropdown)
@@ -47,9 +47,9 @@ pub fn DropdownBase() -> Element {
                 div {
                     class: "absolute z-50 bg-white border border-gray-300 shadow-lg",
                     id: "dropdown-base",
-                    "Dropdown Base"
                     for entry in dropdown.entries.iter().cloned() {
                         div {
+                            class: "p-2 cursor-pointer",
                             onclick: {
                                 to_owned![dropdown_service];
                                 move |_| {
