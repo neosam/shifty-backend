@@ -26,16 +26,6 @@ pub struct SalesPersonUnavailableServiceDependencies {
     pub uuid_service: MockUuidService,
 }
 impl SalesPersonUnavailableServiceDependencies {
-    pub fn new() -> Self {
-        Self {
-            sales_person_unavailable_dao: MockSalesPersonUnavailableDao::new(),
-            sales_person_service: MockSalesPersonService::new(),
-            permission_service: MockPermissionService::new(),
-            clock_service: MockClockService::new(),
-            uuid_service: MockUuidService::new(),
-        }
-    }
-
     pub fn build_service(
         self,
     ) -> SalesPersonUnavailableServiceImpl<

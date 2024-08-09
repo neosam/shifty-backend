@@ -259,27 +259,12 @@ where
             )
             .await?;
 
-        let planned_hours: f32 = (1..=until_week)
-            .map(|week| {
-                find_working_hours_for_calendar_week(&working_hours, year, week)
-                    .map(|wh| wh.expected_hours)
-                    .unwrap_or(0.0)
-            })
-            .sum();
         let shiftplan_hours = shiftplan_report.iter().map(|r| r.hours).sum::<f32>() as f32;
         let overall_extra_work_hours = extra_hours
             .iter()
             .filter(|eh| {
                 eh.date_time.iso_week() <= until_week
                     && eh.category.as_report_type() == ReportType::WorkingHours
-            })
-            .map(|eh| eh.amount)
-            .sum::<f32>();
-        let overall_absense_hours = extra_hours
-            .iter()
-            .filter(|eh| {
-                eh.date_time.iso_week() <= until_week
-                    && eh.category.as_report_type() == ReportType::AbsenceHours
             })
             .map(|eh| eh.amount)
             .sum::<f32>();
