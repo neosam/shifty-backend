@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.10-dev"
+version = "0.1.10"
 edition = "2021"
 resolver = "2"
 
