@@ -306,10 +306,9 @@ where
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
-            balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours
-                + overall_absense_hours,
+            balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours,
             overall_hours: shiftplan_hours + overall_extra_work_hours,
-            expected_hours: planned_hours - overall_absense_hours,
+            expected_hours: planned_hours,
             shiftplan_hours,
             holiday_days,
             vacation_days,
