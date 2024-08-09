@@ -257,14 +257,6 @@ pub fn ShiftPlan() -> Element {
     rsx! {
         TopBar {}
 
-        DropdownTrigger {
-            entries: [
-                ("Entry 1", Box::new(|| info!("Entry 1 clicked"))).into(),
-                ("Entry 2", Box::new(|| info!("Entry 2 clicked"))).into(),
-            ]
-                .into(),
-            "I am a dropdown"
-        }
         div { class: "flex flex-col md:flex-row md:items-center md:justify-between",
             div { class: "m-4 text-lg flex align-center justify-center width-full",
                 button {
