@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use tracing::info;
+use tracing::{error, info};
 use web_sys::window;
 
 use crate::{
@@ -14,7 +14,6 @@ pub fn DropdownBase() -> Element {
     let dropdown = DROPDOWN.read().clone();
     let dropdown_service = use_coroutine_handle::<DropdownAction>();
     let width = window().unwrap().inner_width().unwrap().as_f64().unwrap();
-    let height = window().unwrap().inner_height().unwrap().as_f64().unwrap();
     use_effect({
         move || {
             let dropdown = DROPDOWN.read().clone();
@@ -31,8 +30,11 @@ pub fn DropdownBase() -> Element {
                 } else {
                     dropdown.x
                 };
-                dropdown_base
-                    .set_attribute("style", &format!("top: {}px; left: {}px", dropdown.y, x));
+                if let Err(_) = dropdown_base
+                    .set_attribute("style", &format!("top: {}px; left: {}px", dropdown.y, x))
+                {
+                    error!("Failed to set dropdown position");
+                }
             }
         }
     });

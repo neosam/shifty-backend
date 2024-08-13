@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     error::ShiftyError,
     js,
-    state::{AuthInfo, Config, Weekday},
+    state::{AuthInfo, Config},
 };
 
 pub async fn fetch_auth_info(backend_url: Rc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {

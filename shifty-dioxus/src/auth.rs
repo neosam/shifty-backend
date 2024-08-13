@@ -1,10 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{
-    api,
-    service::{AUTH, CONFIG},
-    state,
-};
+use crate::service::AUTH;
 
 #[derive(PartialEq, Clone, Props)]
 pub struct AuthProps {
@@ -17,7 +13,7 @@ pub fn Auth(props: AuthProps) -> Element {
     let auth = AUTH.read().clone();
 
     match (auth.auth_info, auth.loading_done) {
-        (Some(auth_info), true) => props.authenticated,
+        (Some(_auth_info), true) => props.authenticated,
         (None, true) => props.unauthenticated,
         (_, false) => {
             rsx! {

@@ -1,10 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{
-    i18n::{self, Key},
-    service::I18N,
-    state::employee::Employee,
-};
+use crate::{i18n::Key, service::I18N, state::employee::Employee};
 
 #[derive(Clone, Props, PartialEq)]
 pub struct EmployeeShortProps {

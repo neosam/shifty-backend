@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use crate::{
     base_types::ImStr,
-    i18n,
     service::I18N,
     state::{self, Slot, Weekday},
 };
@@ -207,7 +206,7 @@ where
     rsx! {
         div {
             class: "relative min-w-48 flex-grow print:min-w-0",
-            style: { format!("height: {}px;", props.height) },
+            style: format!("height: {}px;", props.height),
             ColumnViewSlot::<()> {
                 item_data: ColumnViewItem {
                     start: 0.0,

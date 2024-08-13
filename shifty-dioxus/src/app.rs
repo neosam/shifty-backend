@@ -2,9 +2,9 @@ use crate::auth::Auth;
 use crate::component::dropdown_base::DropdownBase;
 use crate::component::{Footer, TopBar};
 use crate::page::NotAuthenticated;
+use crate::router::Route;
+use crate::service;
 use crate::service::CONFIG;
-use crate::{api, service};
-use crate::{i18n, router::Route};
 use dioxus::prelude::*;
 use web_sys::window;
 

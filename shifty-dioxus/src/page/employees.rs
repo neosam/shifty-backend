@@ -3,7 +3,6 @@ use crate::{
     js, loader,
     router::Route,
     service::CONFIG,
-    state,
 };
 use dioxus::prelude::*;
 

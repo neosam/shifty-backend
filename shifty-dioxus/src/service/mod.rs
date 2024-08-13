@@ -2,12 +2,11 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
-use js_sys::WebAssembly::Global;
 
 use crate::{
     api,
     error::ShiftyError,
-    i18n::{self, I18n, Locale},
+    i18n::{self, I18nType},
     state::{
         dropdown::{Dropdown, DropdownEntry},
         AuthInfo, Config,
@@ -42,7 +41,6 @@ pub async fn load_auth_info() {
                 loading_done: true,
             };
         }
-        _ => {}
     }
 }
 pub async fn load_config() {
@@ -61,16 +59,19 @@ pub async fn load_config() {
     load_auth_info().await;
 }
 
+#[allow(dead_code)]
 #[derive(Default, Debug)]
 pub struct ErrorStore {
     pub error: Option<ShiftyError>,
 }
 pub static ERROR_STORE: GlobalSignal<ErrorStore> = Signal::global(|| ErrorStore::default());
 
+#[allow(dead_code)]
 pub enum ErrorAction {
     SetError(ShiftyError),
 }
 
+#[allow(dead_code)]
 pub async fn error_service(mut rx: UnboundedReceiver<ErrorAction>) {
     while let Some(action) = rx.next().await {
         match action {
@@ -84,7 +85,6 @@ pub async fn error_service(mut rx: UnboundedReceiver<ErrorAction>) {
 pub static DROPDOWN: GlobalSignal<Option<Dropdown>> = Signal::global(|| None);
 
 pub enum DropdownAction {
-    OpenDropdown(f64, f64, Rc<[DropdownEntry]>),
     CloseDropdown,
     ToggleDropdown(f64, f64, Rc<[DropdownEntry]>),
 }
@@ -106,7 +106,6 @@ pub async fn toggle_dropdown(x: f64, y: f64, entries: Rc<[DropdownEntry]>) {
 pub async fn dropdown_service(mut rx: UnboundedReceiver<DropdownAction>) {
     while let Some(action) = rx.next().await {
         match action {
-            DropdownAction::OpenDropdown(x, y, entries) => open_dropdown(x, y, entries).await,
             DropdownAction::CloseDropdown => close_dropdown().await,
             DropdownAction::ToggleDropdown(x, y, entries) => toggle_dropdown(x, y, entries).await,
         }
@@ -115,6 +114,7 @@ pub async fn dropdown_service(mut rx: UnboundedReceiver<DropdownAction>) {
 
 // Config service
 pub static CONFIG: GlobalSignal<Config> = Signal::global(|| Config::default());
+#[allow(dead_code)]
 pub enum ConfigAction {
     LoadConfig,
 }
@@ -130,10 +130,9 @@ pub async fn config_service(mut rx: UnboundedReceiver<ConfigAction>) {
     }
 }
 
-pub static I18N: GlobalSignal<I18n<i18n::Key, i18n::Locale>> =
-    Signal::global(|| i18n::generate(i18n::Locale::En));
+pub static I18N: GlobalSignal<I18nType> = Signal::global(|| i18n::generate(i18n::Locale::En));
 
-pub async fn i18n_service(mut rx: UnboundedReceiver<()>) {
+pub async fn i18n_service(_rx: UnboundedReceiver<()>) {
     let set_browser_language = || async {
         let language = web_sys::window()
             .map(|w| w.navigator())
@@ -155,6 +154,7 @@ pub struct AuthStore {
 
 pub static AUTH: GlobalSignal<AuthStore> = Signal::global(|| AuthStore::default());
 
-pub async fn auth_service(mut rx: UnboundedReceiver<()>) {
+#[allow(dead_code)]
+pub async fn auth_service(_rx: UnboundedReceiver<()>) {
     load_auth_info().await;
 }

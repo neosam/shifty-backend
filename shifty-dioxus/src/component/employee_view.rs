@@ -3,8 +3,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
-use crate::component::add_extra_hours_choice::AddExtraHoursChoice;
-use crate::i18n::{self, Key};
+use crate::i18n::Key;
 use crate::service::I18N;
 use crate::state::employee::{Employee, ExtraHours, WorkingHours};
 

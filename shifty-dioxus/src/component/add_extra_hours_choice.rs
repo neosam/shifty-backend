@@ -5,10 +5,11 @@ use crate::{
         add_extra_days_form::{AddExtraDaysForm, AddExtraDaysType},
         base_components::Header,
     },
-    i18n::{self, Key},
+    i18n::Key,
     service::I18N,
 };
 
+#[allow(dead_code)]
 pub enum Choice {
     Main,
     Vacation,

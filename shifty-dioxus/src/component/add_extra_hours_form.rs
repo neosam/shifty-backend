@@ -7,10 +7,10 @@ use uuid::Uuid;
 use crate::{
     api,
     error::result_handler,
-    i18n::{self, Key},
+    i18n::Key,
     js,
     service::{CONFIG, I18N},
-    state::{employee::WorkingHoursCategory, Config},
+    state::employee::WorkingHoursCategory,
 };
 
 pub enum AddExtraHoursFormAction {

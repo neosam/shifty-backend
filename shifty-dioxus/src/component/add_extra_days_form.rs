@@ -6,12 +6,13 @@ use crate::{
     base_types::ImStr,
     component::base_components::*,
     error,
-    i18n::{self, Key},
+    i18n::Key,
     js, loader,
     service::{CONFIG, I18N},
-    state::{week::Week, Config},
+    state::week::Week,
 };
 
+#[allow(dead_code)]
 #[derive(Clone, PartialEq)]
 pub enum AddExtraDaysType {
     Vacation,
@@ -24,6 +25,7 @@ pub struct AddExtraDaysFormProps {
     pub extra_hours_type: AddExtraDaysType,
 }
 
+#[allow(dead_code)]
 #[component]
 pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
     let i18n = I18N.read().clone();

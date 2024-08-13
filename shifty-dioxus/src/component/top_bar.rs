@@ -1,11 +1,10 @@
 use dioxus::prelude::*;
 
 use crate::{
-    i18n::{self, Key},
+    i18n::Key,
     loader,
     router::Route,
     service::{AUTH, CONFIG, I18N},
-    state::config,
 };
 
 #[component]

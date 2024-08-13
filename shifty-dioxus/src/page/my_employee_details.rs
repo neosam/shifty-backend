@@ -9,10 +9,7 @@ use crate::{
     error::{result_handler, ShiftyError},
     js, loader,
     service::CONFIG,
-    state::{
-        self,
-        employee::{Employee, ExtraHours},
-    },
+    state::employee::{Employee, ExtraHours},
 };
 use dioxus::prelude::*;
 

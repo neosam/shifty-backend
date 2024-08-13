@@ -10,10 +10,9 @@ use crate::component::dropdown_base::DropdownTrigger;
 use crate::component::TopBar;
 use crate::component::WeekView;
 use crate::error::result_handler;
-use crate::i18n::{self, Key};
+use crate::i18n::Key;
 use crate::js;
 use crate::loader;
-use crate::service;
 use crate::service::AUTH;
 use crate::service::CONFIG;
 use crate::service::I18N;
@@ -49,9 +48,8 @@ pub fn ShiftPlan() -> Element {
     let is_shiftplanner = auth_info
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
         .unwrap_or(false);
-    let dropdown_cr = use_coroutine_handle::<service::DropdownAction>();
 
-    let mut week = use_signal(|| js::get_current_week());
+    let week = use_signal(|| js::get_current_week());
     let year = use_signal(|| js::get_current_year());
     let date =
         time::Date::from_iso_week_date(*year.read() as i32, *week.read(), time::Weekday::Monday)
@@ -87,7 +85,7 @@ pub fn ShiftPlan() -> Element {
         use_resource(move || loader::load_sales_persons(config.to_owned()))
     };
 
-    let mut current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
+    let current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
     let unavailable_days: Signal<Rc<[SalesPersonUnavailable]>> = use_signal(|| [].into());
 
     //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
@@ -110,7 +108,7 @@ pub fn ShiftPlan() -> Element {
                 .flatten();
             *current_sales_person.write() = sales_person.clone();
 
-            let mut reload_unavailable_days = {
+            let reload_unavailable_days = {
                 to_owned![current_sales_person, unavailable_days];
                 move |config: Config| async move {
                     if let Some(sales_person) = &*current_sales_person.read() {

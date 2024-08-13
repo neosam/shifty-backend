@@ -3,7 +3,6 @@ use dioxus::prelude::*;
 use crate::component::TopBar;
 use crate::router::Route;
 use crate::service::AUTH;
-use crate::state::auth_info;
 
 #[component]
 pub fn Home() -> Element {
