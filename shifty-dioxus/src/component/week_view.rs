@@ -40,6 +40,7 @@ where
     pub show_add: bool,
     pub show_remove: bool,
     pub custom_data: CustomData,
+    pub warning: Option<ImStr>,
 }
 
 #[derive(PartialEq, Clone, Props)]
@@ -53,6 +54,9 @@ where
     pub remove_event: Option<EventHandler<CustomData>>,
     pub double_clicked: Option<EventHandler<()>>,
     pub item_clicked: Option<EventHandler<Uuid>>,
+
+    #[props(!optional)]
+    pub warning: Option<ImStr>,
 
     #[props(default = false)]
     pub discourage: bool,
@@ -89,7 +93,11 @@ where
                     props.item_data.end - props.item_data.start,
                 )
             },
-            div { class: "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar",
+            div {
+                class: format!(
+                    "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar {}",
+                    if props.item_data.warning.is_some() { "bg-red-300" } else { "" },
+                ),
                 {
                     match props.item_data.title {
                         ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
@@ -193,6 +201,11 @@ impl From<Slot> for ColumnViewItem<Slot> {
                     })
                     .collect::<Rc<[ColumnViewContentItem]>>(),
             ),
+            warning: if slot.evaluation().is_faulty() {
+                Some("Too few resources".into())
+            } else {
+                None
+            },
             custom_data: slot,
         }
     }
@@ -216,10 +229,12 @@ where
                     show_add: false,
                     show_remove: false,
                     custom_data: (),
+                    warning: None,
                 },
                 show_dropdown: true,
                 discourage: props.discourage,
-                double_clicked: props.title_double_clicked.clone()
+                double_clicked: props.title_double_clicked.clone(),
+                warning: None
             }
             for slot in props.slots.iter() {
                 ColumnViewSlot::<CustomData> {
@@ -231,11 +246,13 @@ where
                         show_add: slot.show_add,
                         show_remove: slot.show_remove,
                         custom_data: slot.custom_data.clone(),
+                        warning: slot.warning.clone(),
                     },
                     add_event: props.add_event,
                     remove_event: props.remove_event,
                     item_clicked: props.item_clicked.clone(),
-                    discourage: props.discourage
+                    discourage: props.discourage,
+                    warning: slot.warning.clone()
                 }
             }
         }
@@ -258,6 +275,7 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             show_add: false,
             show_remove: false,
             custom_data: (),
+            warning: None,
         })
         .collect();
     let slots: Rc<[ColumnViewItem]> = slots.into();
@@ -312,6 +330,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                     show_add: true,
                     show_remove: true,
                     custom_data: column.custom_data,
+                    warning: column.warning,
                 })
                 .collect(),
             title: Some(format!("{}{}", props.weekday.i18n_string(&i18n), date_string).into()),

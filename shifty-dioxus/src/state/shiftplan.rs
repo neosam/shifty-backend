@@ -103,6 +103,7 @@ pub struct Slot {
     pub from: time::Time,
     pub to: time::Time,
     pub bookings: Rc<[Booking]>,
+    pub min_resources: u8,
 }
 impl Slot {
     pub fn from_hour(&self) -> f32 {
@@ -121,7 +122,26 @@ impl From<&SlotTO> for Slot {
             from: slot.from,
             to: slot.to,
             bookings: [].into(),
+            min_resources: slot.min_resources,
         }
+    }
+}
+
+impl Slot {
+    pub fn evaluation(&self) -> SlotEvaluation {
+        SlotEvaluation {
+            too_less_resources: self.bookings.len() < self.min_resources as usize,
+        }
+    }
+}
+
+pub struct SlotEvaluation {
+    pub too_less_resources: bool,
+}
+
+impl SlotEvaluation {
+    pub fn is_faulty(&self) -> bool {
+        self.too_less_resources
     }
 }
 

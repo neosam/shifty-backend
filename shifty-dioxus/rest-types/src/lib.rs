@@ -195,6 +195,7 @@ pub struct SlotTO {
     pub day_of_week: DayOfWeekTO,
     pub from: time::Time,
     pub to: time::Time,
+    pub min_resources: u8,
     pub valid_from: time::Date,
     pub valid_to: Option<time::Date>,
     #[serde(default)]
@@ -211,6 +212,7 @@ impl From<&service::slot::Slot> for SlotTO {
             day_of_week: slot.day_of_week.into(),
             from: slot.from,
             to: slot.to,
+            min_resources: slot.min_resources,
             valid_from: slot.valid_from,
             valid_to: slot.valid_to,
             deleted: slot.deleted,
@@ -226,6 +228,7 @@ impl From<&SlotTO> for service::slot::Slot {
             day_of_week: slot.day_of_week.into(),
             from: slot.from,
             to: slot.to,
+            min_resources: slot.min_resources,
             valid_from: slot.valid_from,
             valid_to: slot.valid_to,
             deleted: slot.deleted,
