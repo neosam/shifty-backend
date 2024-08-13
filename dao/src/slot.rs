@@ -48,6 +48,7 @@ pub struct SlotEntity {
     pub day_of_week: DayOfWeek,
     pub from: time::Time,
     pub to: time::Time,
+    pub min_resources: u8,
     pub valid_from: time::Date,
     pub valid_to: Option<time::Date>,
     pub deleted: Option<time::PrimitiveDateTime>,

@@ -23,7 +23,7 @@ impl SlotDaoImpl {
 #[async_trait]
 impl dao::slot::SlotDao for SlotDaoImpl {
     async fn get_slots(&self) -> Result<Arc<[SlotEntity]>, DaoError> {
-        let result = query!(r"SELECT id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL")
+        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL")
             .fetch_all(self.pool.as_ref())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -36,6 +36,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .ok_or(DaoError::InvalidDayOfWeek(row.day_of_week as u8))?,
                     from: Time::parse(&row.time_from, &Iso8601::TIME)?,
                     to: Time::parse(&row.time_to, &Iso8601::TIME)?,
+                    min_resources: row.min_resources as u8,
                     valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
                     valid_to: row
                         .valid_to
@@ -54,7 +55,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
     }
     async fn get_slot(&self, id: &Uuid) -> Result<Option<SlotEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
-        let result = query!(r"SELECT id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version FROM slot WHERE id = ?", id_vec)
+        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE id = ?", id_vec)
             .fetch_optional(self.pool.as_ref())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -66,6 +67,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .ok_or(DaoError::InvalidDayOfWeek(row.day_of_week as u8))?,
                     from: Time::parse(&row.time_from, &Iso8601::TIME)?,
                     to: Time::parse(&row.time_to, &Iso8601::TIME)?,
+                    min_resources: row.min_resources as u8,
                     valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
                     valid_to: row
                         .valid_to

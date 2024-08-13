@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL",
+  "query": "SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -24,23 +24,28 @@
         "type_info": "Text"
       },
       {
-        "name": "valid_from",
+        "name": "min_resources",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Int64"
       },
       {
-        "name": "valid_to",
+        "name": "valid_from",
         "ordinal": 5,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "valid_to",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 8,
         "type_info": "Blob"
       }
     ],
@@ -53,10 +58,11 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       false
     ]
   },
-  "hash": "5a1b624146b71f3031470f082d45b6b8ba6b5e2424e9f6875d3b649585a0c61b"
+  "hash": "9cd4f6b86a7e503f08bfead7ce5f3910937f32382e1d0feddfd885e2d767642a"
 }
