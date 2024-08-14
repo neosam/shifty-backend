@@ -26,7 +26,7 @@ pub fn WorkingHoursMiniOverview(props: WorkingHoursMiniOverviewProps) -> Element
                     let actual_hours = format!("{:.1}", working_hour.actual_hours);
                     let expected_hours = format!("{:.1}", working_hour.expected_hours);
                     rsx! { div {
-                        class: format!("flex cusor-pointer border-b border-gray-200 border-dashed pt-2 {}",
+                        class: format!("flex cusor-pointer border-b border-gray-200 border-dashed p-1 {}",
                             if Some(sales_person_id) == props.selected_sales_person_id {
                                 "bg-gray-200"
                             } else {
