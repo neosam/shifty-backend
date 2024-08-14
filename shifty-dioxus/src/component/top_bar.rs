@@ -62,7 +62,7 @@ pub fn TopBar() -> Element {
                 } else {
                     ""
                 },
-                ul { class: "flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mb-6 md:mb-0 ml-1",
+                ul { class: "flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 ml-1",
                     if show_shiftplan {
                         li {
                             Link { to: Route::ShiftPlan {}, {i18n.t(Key::Shiftplan)} }
@@ -77,6 +77,9 @@ pub fn TopBar() -> Element {
                         li {
                             Link { to: Route::MyEmployeeDetails {}, {i18n.t(Key::MyTime)} }
                         }
+                    }
+                    if auth_info.is_some() {
+                        div { class: "mb-6 md:mb-0" }
                     }
                 }
                 ul { class: "ml-1",
