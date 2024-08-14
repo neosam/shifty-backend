@@ -142,6 +142,10 @@ pub fn ShiftPlan() -> Element {
                 }
             };
             reload_unavailable_days(config.clone()).await;
+            working_hours_mini_service.send(service::WorkingHoursMiniAction::LoadWorkingHoursMini(
+                *year.read(),
+                *week.read(),
+            ));
 
             //if let Some(sales_person) = sales_person {
             //    let unavailable_days = result_handler(
@@ -401,7 +405,8 @@ pub fn ShiftPlan() -> Element {
                             working_hours: WORKING_HOURS_MINI.read().clone(),
                             on_dbl_click: move |employee_id: Uuid| {
                                 cr.send(ShiftPlanAction::UpdateSalesPerson(employee_id.clone()));
-                            }
+                            },
+                            selected_sales_person_id: current_sales_person.read().as_ref().map(|sp| sp.id),
                         }
                     }
                 }}

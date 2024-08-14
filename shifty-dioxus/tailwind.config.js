@@ -14,6 +14,8 @@ module.exports = {
   safelist: [
     "bg-red-200",
     "print:bg-white",
-    "cursor-not-allowed"
+    "cursor-not-allowed",
+    "text-green-800",
+    "text-red-800"
   ]
 };
