@@ -1,13 +1,18 @@
 use dioxus::prelude::*;
 
 use crate::component::TopBar;
+use crate::i18n::Key as K;
 use crate::router::Route;
 use crate::service::AUTH;
+use crate::service::I18N;
 
 #[component]
 pub fn Home() -> Element {
     let auth_info = AUTH.read().auth_info.clone()?;
     let nav = navigator();
+    let i18n = I18N.read().clone();
+    let title_str = i18n.t(K::WelcomeTitle);
+    let choose_str = i18n.t(K::PleaseChoose);
 
     if auth_info.privileges.len() == 1 && auth_info.has_privilege("sales") {
         nav.push(Route::ShiftPlan {});
@@ -26,8 +31,8 @@ pub fn Home() -> Element {
         TopBar {}
         div { class: "flex place-content-center mt-16",
             div {
-                h1 { class: "text-6xl font-bold", "Welcome to Shifty!" }
-                p { class: "mt-8 mb-8", "Choose your view from the menu on top of the page." }
+                h1 { class: "text-6xl font-bold", "{title_str}" }
+                p { class: "mt-8 mb-8", "{choose_str}" }
                 img { src: "/shifty.webp" }
             }
         }

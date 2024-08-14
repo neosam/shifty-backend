@@ -105,4 +105,13 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::NonProdWarningDetails,
         "Diese Seite darf nicht produktiv genutzt werden! Sie kann Bugs enthalten und Daten können jederzeit zurückgesetzt werden und verloren gehen!");
+
+    // Not authenticated page
+    i18n.add_text(Locale::En, Key::WelcomeTitle, "Willkommen zu Shifty!");
+    i18n.add_text(Locale::En, Key::PleaseLogin, "Bitte log dich ein.");
+    i18n.add_text(
+        Locale::En,
+        Key::PleaseChoose,
+        "Bitte wähle eine Ansicht von der oberen Leiste.",
+    );
 }

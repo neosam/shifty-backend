@@ -116,6 +116,11 @@ pub enum Key {
     // Non-prod warnings
     NonProdWarning,
     NonProdWarningDetails,
+
+    // Not authenticated and home page
+    WelcomeTitle,
+    PleaseLogin,
+    PleaseChoose,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
