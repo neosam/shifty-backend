@@ -103,6 +103,24 @@ impl<
         Ok(extra_hours.into())
     }
 
+    async fn find_by_week(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[ExtraHours]>, ServiceError> {
+        self.permission_service
+            .check_only_full_authentication(context)
+            .await?;
+        Ok(self
+            .extra_hours_dao
+            .find_by_week(week, year)
+            .await?
+            .iter()
+            .map(ExtraHours::from)
+            .collect())
+    }
+
     async fn create(
         &self,
         extra_hours: &ExtraHours,

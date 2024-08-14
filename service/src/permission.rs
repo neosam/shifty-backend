@@ -78,6 +78,10 @@ pub trait PermissionService {
         privilege: &str,
         context: Authentication<Self::Context>,
     ) -> Result<(), ServiceError>;
+    async fn check_only_full_authentication(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
     async fn check_user(
         &self,
         user: &str,

@@ -110,6 +110,14 @@ pub trait ExtraHoursService {
         until_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;
+
+    async fn find_by_week(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[ExtraHours]>, ServiceError>;
+
     async fn create(
         &self,
         entity: &ExtraHours,

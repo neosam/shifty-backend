@@ -17,6 +17,10 @@ use crate::{error_handler, Context, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_short_report_for_all::<RestState>))
+        .route(
+            "/week/:year/:calendar_week",
+            get(get_short_week_report::<RestState>),
+        )
         .route("/:id", get(get_report::<RestState>))
 }
 
@@ -67,6 +71,29 @@ pub async fn get_report<RestState: RestStateDef>(
                 )
                 .await?)
                 .into();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&report).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn get_short_week_report<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path((year, calendar_week)): Path<(u32, u8)>,
+) -> Response {
+    error_handler(
+        (async {
+            let report: Arc<[ShortEmployeeReportTO]> = rest_state
+                .reporting_service()
+                .get_week(year, calendar_week, context.into())
+                .await?
+                .iter()
+                .map(ShortEmployeeReportTO::from)
+                .collect();
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(serde_json::to_string(&report).unwrap()))

@@ -36,6 +36,9 @@ pub enum DaoError {
     #[error("Date/Time format error: {0}")]
     DateTimeFormatError(#[from] time::error::Format),
 
+    #[error("Component range error: {0}")]
+    ComponentRangeError(#[from] time::error::ComponentRange),
+
     #[error("Enum value not found: {0}")]
     EnumValueNotFound(Arc<str>),
 }

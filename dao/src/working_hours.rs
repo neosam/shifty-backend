@@ -29,6 +29,11 @@ pub trait WorkingHoursDao {
         &self,
         sales_person_id: Uuid,
     ) -> Result<Arc<[WorkingHoursEntity]>, DaoError>;
+    async fn find_for_week(
+        &self,
+        calenar_week: u8,
+        year: u32,
+    ) -> Result<Arc<[WorkingHoursEntity]>, DaoError>;
     async fn create(&self, entity: &WorkingHoursEntity, process: &str) -> Result<(), DaoError>;
     async fn update(&self, entity: &WorkingHoursEntity, process: &str) -> Result<(), DaoError>;
 }

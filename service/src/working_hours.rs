@@ -96,6 +96,12 @@ pub trait WorkingHoursService {
         year: u32,
         context: Authentication<Self::Context>,
     ) -> Result<WorkingHours, ServiceError>;
+    async fn all_for_week(
+        &self,
+        calendar_week: u8,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[WorkingHours]>, ServiceError>;
     async fn create(
         &self,
         entity: &WorkingHours,

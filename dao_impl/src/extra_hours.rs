@@ -102,6 +102,33 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .collect::<Result<Arc<[_]>, _>>()?
             .into())
     }
+
+    async fn find_by_week(
+        &self,
+        calendar_week: u8,
+        year: u32,
+    ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
+        let monday = time::PrimitiveDateTime::new(
+            time::Date::from_iso_week_date(year as i32, calendar_week, time::Weekday::Monday)?,
+            time::Time::MIDNIGHT,
+        );
+        let next_monday = monday + time::Duration::weeks(1);
+        let monday_str = monday.format(&Iso8601::DATE_TIME)?;
+        let next_monday_str = next_monday.format(&Iso8601::DATE_TIME)?;
+        Ok(query_as!(
+            ExtraHoursDb,
+            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+            monday_str,
+            next_monday_str,
+        ).fetch_all(self.pool.as_ref())
+            .await
+            .map_db_error()?
+            .iter()
+            .map(ExtraHoursEntity::try_from)
+            .collect::<Result<Arc<[_]>, _>>()?
+            .into())
+    }
+
     async fn create(
         &self,
         entity: &ExtraHoursEntity,

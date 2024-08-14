@@ -126,6 +126,49 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
         .map(WorkingHoursEntity::try_from)
         .collect::<Result<_, _>>()
     }
+
+    async fn find_for_week(
+        &self,
+        calenar_week: u8,
+        year: u32,
+    ) -> Result<Arc<[WorkingHoursEntity]>, DaoError> {
+        query_as!(
+            WorkingHoursDb,
+            r#"
+            SELECT
+                id,
+                sales_person_id,
+                expected_hours,
+                from_calendar_week,
+                from_year,
+                to_calendar_week,
+                to_year,
+                workdays_per_week,
+                days_per_week,
+                created,
+                deleted,
+                update_version
+            FROM
+                working_hours
+            WHERE
+                from_calendar_week <= ?
+                AND from_year <= ?
+                AND to_calendar_week >= ?
+                AND to_year >= ?
+            "#,
+            calenar_week,
+            year,
+            calenar_week,
+            year
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(WorkingHoursEntity::try_from)
+        .collect::<Result<_, _>>()
+    }
+
     async fn create(&self, entity: &WorkingHoursEntity, process: &str) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let sales_person_id = entity.sales_person_id.as_bytes().to_vec();

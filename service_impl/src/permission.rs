@@ -88,6 +88,16 @@ where
         }
     }
 
+    async fn check_only_full_authentication(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        match context {
+            Authentication::Full => Ok(()),
+            Authentication::Context(_) => Err(service::ServiceError::Forbidden),
+        }
+    }
+
     async fn get_privileges_for_current_user(
         &self,
         context: Authentication<Self::Context>,

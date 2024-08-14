@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::slot::DayOfWeek;
 use crate::DaoError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ShiftplanReportEntity {
     pub sales_person_id: Uuid,
     pub hours: f32,
@@ -38,4 +38,11 @@ pub trait ShiftplanReportDao {
         year: u32,
         until_week: u8,
     ) -> Result<Arc<[ShiftplanQuickOverviewEntity]>, DaoError>;
+
+    /// A report which contains the worked hours of all sales persons for a specific week.
+    async fn extract_shiftplan_report_for_week(
+        &self,
+        year: u32,
+        calendar_week: u8,
+    ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError>;
 }

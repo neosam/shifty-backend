@@ -34,6 +34,11 @@ pub trait ExtraHoursDao {
         sales_person_id: Uuid,
         year: u32,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
+    async fn find_by_week(
+        &self,
+        calendar_week: u8,
+        year: u32,
+    ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
     async fn create(&self, entity: &ExtraHoursEntity, process: &str)
         -> Result<(), crate::DaoError>;
     async fn update(&self, entity: &ExtraHoursEntity, process: &str)

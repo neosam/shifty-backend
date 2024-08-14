@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::working_hours::WorkingHoursEntity;
 use service::{
-    permission::{Authentication, HR_PRIVILEGE},
+    permission::{Authentication, HR_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
     working_hours::WorkingHours,
     ServiceError,
 };
@@ -150,6 +150,54 @@ impl<
             ))?;
         Ok(working_hours)
     }
+
+    async fn all_for_week(
+        &self,
+        calendar_week: u8,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[WorkingHours]>, ServiceError> {
+        let shiftplanner_privilege = self
+            .permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
+            .await;
+
+        match shiftplanner_privilege {
+            Ok(_) => {
+                // Shiftplanner can see all working hours
+                let working_hours: Arc<[WorkingHours]> = self
+                    .working_hours_dao
+                    .find_for_week(calendar_week, year)
+                    .await?
+                    .iter()
+                    .map(WorkingHours::from)
+                    .collect::<Vec<WorkingHours>>()
+                    .into();
+                Ok(working_hours)
+            }
+            Err(_) => {
+                // Only load the user's working hours
+                let Some(sales_person) = self
+                    .sales_person_service
+                    .get_sales_person_current_user(context)
+                    .await?
+                else {
+                    return Ok(Arc::new([]));
+                };
+                let working_hours: Arc<[WorkingHours]> = self
+                    .working_hours_dao
+                    .find_for_week(calendar_week, year)
+                    .await?
+                    .iter()
+                    .filter(|wh| wh.sales_person_id == sales_person.id)
+                    .map(WorkingHours::from)
+                    .collect::<Vec<WorkingHours>>()
+                    .into();
+                Ok(working_hours)
+            }
+        }
+    }
+
     async fn create(
         &self,
         working_hours: &WorkingHours,

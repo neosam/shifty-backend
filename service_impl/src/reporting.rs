@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use dao::shiftplan_report::ShiftplanReportEntity;
@@ -14,6 +14,27 @@ use service::{
 };
 use tokio::join;
 use uuid::Uuid;
+
+pub trait IteratorExt {
+    fn collect_to_hash_map_by<K, F>(self, f: F) -> HashMap<K, Arc<[Self::Item]>>
+    where
+        Self: Iterator + Sized,
+        K: Clone + Eq + std::hash::Hash,
+        F: Fn(&Self::Item) -> K,
+    {
+        let vec_map = self.fold(HashMap::new(), |mut map, item| {
+            let key = f(&item);
+            map.entry(key.clone()).or_insert_with(Vec::new).push(item);
+            map
+        });
+        let vec_map: HashMap<K, Arc<[Self::Item]>> = vec_map
+            .into_iter()
+            .map(|(key, vec)| (key, vec.into()))
+            .collect();
+        vec_map
+    }
+}
+impl<T> IteratorExt for T where T: Iterator {}
 
 pub struct ReportingServiceImpl<
     ExtraHoursService,
@@ -122,7 +143,9 @@ impl<
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursService: service::working_hours::WorkingHoursService + Send + Sync,
+    WorkingHoursService: service::working_hours::WorkingHoursService<Context = PermissionService::Context>
+        + Send
+        + Sync,
     SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
         + Send
         + Sync,
@@ -217,6 +240,8 @@ where
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
+                expected_hours: planned_hours,
+                overall_hours: shiftplan_hours + extra_hours,
             });
         }
         Ok(short_employee_report.into())
@@ -324,6 +349,79 @@ where
         };
 
         Ok(employee_report)
+    }
+
+    async fn get_week(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError> {
+        // Auth check is done by working_hours_service
+        let working_hours = self
+            .working_hours_service
+            .all_for_week(week, year, context)
+            .await?
+            .iter()
+            .cloned()
+            .collect_to_hash_map_by(|wh| wh.sales_person_id);
+        let shiftplan_report = self
+            .shiftplan_report_dao
+            .extract_shiftplan_report_for_week(year, week)
+            .await?;
+        let shiftplan_report = shiftplan_report
+            .iter()
+            .collect_to_hash_map_by(|r| r.sales_person_id);
+        let extra_hours = self
+            .extra_hours_service
+            .find_by_week(year, week, Authentication::Full)
+            .await?;
+        let extra_hours = extra_hours
+            .iter()
+            .collect_to_hash_map_by(|eh| eh.sales_person_id);
+
+        let mut result = Vec::new();
+
+        for (sales_person_id, working_hours) in working_hours {
+            let shiftplan_hours = shiftplan_report
+                .get(&sales_person_id)
+                .map(|r| r.iter().map(|r| r.hours).sum::<f32>())
+                .unwrap_or(0.0);
+            let extra_working_hours = extra_hours
+                .get(&sales_person_id)
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
+            let abense_hours = extra_hours
+                .get(&sales_person_id)
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
+            let planned_hours = find_working_hours_for_calendar_week(&working_hours, year, week)
+                .map(|wh| wh.expected_hours)
+                .unwrap_or(0.0);
+            let balance_hours = shiftplan_hours + extra_working_hours - planned_hours;
+            result.push(ShortEmployeeReport {
+                sales_person: Arc::new(
+                    self.sales_person_service
+                        .get(sales_person_id, Authentication::Full)
+                        .await?,
+                ),
+                balance_hours,
+                expected_hours: planned_hours - abense_hours,
+                overall_hours: shiftplan_hours + extra_working_hours,
+            });
+        }
+
+        Ok(result.into())
     }
 }
 

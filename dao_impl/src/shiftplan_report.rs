@@ -120,4 +120,34 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
             .collect::<Arc<[_]>>()
         )
     }
+
+    async fn extract_shiftplan_report_for_week(
+        &self,
+        year: u32,
+        calendar_week: u8,
+    ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError> {
+        Ok(query_as!(
+            ShiftplanReportDb,
+            r#"
+                SELECT
+                  sales_person.id as sales_person_id,
+                  sum((STRFTIME('%H', slot.time_to) + STRFTIME('%M', slot.time_to) / 60.0) - (STRFTIME('%H', slot.time_from) + STRFTIME('%M', slot.time_from))) as hours,
+                  booking.calendar_week, booking.year, slot.day_of_week
+                FROM slot
+                INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
+                INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
+                WHERE booking.year = ?
+                  AND booking.calendar_week = ?
+                GROUP BY year, calendar_week, day_of_week
+                        "#,
+            year,
+            calendar_week
+        ).fetch_all(self.pool.as_ref())
+            .await
+            .map_db_error()?
+            .iter()
+            .map(ShiftplanReportEntity::try_from)
+            .collect::<Result<Arc<[_]>, _>>()?
+        )
+    }
 }

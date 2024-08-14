@@ -103,6 +103,8 @@ impl GroupedReportHours {
 pub struct ShortEmployeeReport {
     pub sales_person: Arc<SalesPerson>,
     pub balance_hours: f32,
+    pub expected_hours: f32,
+    pub overall_hours: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -147,4 +149,11 @@ pub trait ReportingService {
         until_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<EmployeeReport, ServiceError>;
+
+    async fn get_week(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError>;
 }
