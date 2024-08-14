@@ -36,6 +36,17 @@ pub trait IteratorExt {
 }
 impl<T> IteratorExt for T where T: Iterator {}
 
+#[test]
+pub fn iterator_test() {
+    let vec = vec![(1, 1), (2, 5), (1, 6)];
+    let map = vec.iter().collect_to_hash_map_by(|e| e.0);
+    assert_eq!(map.len(), 2);
+    let first_sum = map.get(&1).unwrap().iter().map(|e| e.1).sum::<i32>();
+    let second_sum = map.get(&2).unwrap().iter().map(|e| e.1).sum::<i32>();
+    assert_eq!(first_sum, 7);
+    assert_eq!(second_sum, 5);
+}
+
 pub struct ReportingServiceImpl<
     ExtraHoursService,
     ShiftplanReportDao,
