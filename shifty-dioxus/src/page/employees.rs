@@ -24,6 +24,8 @@ pub fn Employees() -> Element {
         div { class: "ml-1 mr-1 pt-4 md:m-8",
             match &*employees.read_unchecked() {
                 Some(Ok(employee)) => {
+                    let mut employee = employee.iter().cloned().collect::<Vec<_>>();
+                    employee.sort_by(|a, b| a.sales_person.name.cmp(&b.sales_person.name));
                     rsx! {
                         for employee in employee.iter() {
                             Link {
