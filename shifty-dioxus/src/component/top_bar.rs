@@ -20,6 +20,7 @@ pub fn TopBar() -> Element {
         let config = config.clone();
         use_resource(move || loader::load_current_sales_person(config.to_owned()))
     };
+    let mut visible = use_signal(|| false);
     let show_shiftplan = if let Some(ref auth_info) = auth_info {
         auth_info.has_privilege("sales") || auth_info.has_privilege("shiftplanner")
     } else {
@@ -37,16 +38,31 @@ pub fn TopBar() -> Element {
     };
 
     rsx! {
-        div { class: "flex bg-gray-800 text-white p-4 items-center print:hidden",
-            h1 { class: "text-2xl font-bold",
+        div { class: "flex bg-gray-800 text-white p-4 md:p-0 items-center print:hidden",
+            button {
+                class: "md:hidden pr-6 pl-4 text-xl",
+                onclick: move |_| {
+                    let visibility = *visible.read();
+                    visible.set(!visibility)
+                },
+                "☰"
+            }
+
+            h1 { class: "text-2xl font-bold ml-2",
                 "Shifty"
                 if !config.is_prod {
                     span { class: "ml-2 text-sm", "{config.env_short_description}" }
                 }
             }
 
-            nav { class: "flex grow ml-4 justify-between",
-                ul { class: "flex space-x-4",
+            nav {
+                class: "hidden bg-gray-800 md:pl-0 p-4 md:grow md:ml-4 md:justify-between md:flex",
+                style: if *visible.read() {
+                    "display: flex; flex-direction: column; position: absolute; left: 0px; top: 64px;"
+                } else {
+                    ""
+                },
+                ul { class: "flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mb-6 md:mb-0 ml-1",
                     if show_shiftplan {
                         li {
                             Link { to: Route::ShiftPlan {}, {i18n.t(Key::Shiftplan)} }
@@ -63,7 +79,7 @@ pub fn TopBar() -> Element {
                         }
                     }
                 }
-                ul {
+                ul { class: "ml-1",
                     li { class: "flex",
                         if let Some(auth_info) = auth_info {
                             a { href: "{backend_url}/logout", "Logout {auth_info.user}" }
