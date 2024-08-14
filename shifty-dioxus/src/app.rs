@@ -12,6 +12,7 @@ pub fn App() -> Element {
     use_coroutine(service::config_service);
     use_coroutine(service::dropdown_service);
     use_coroutine(service::i18n_service);
+    use_coroutine(service::working_hours_mini_service);
     let config = CONFIG.read();
     if !config.backend.is_empty() {
         let title = config.application_title.clone();

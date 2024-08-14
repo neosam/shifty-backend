@@ -313,3 +313,17 @@ pub async fn delete_unavailable_sales_person_day(
     info!("Deleted");
     Ok(())
 }
+
+pub async fn get_working_hours_minified_for_week(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[ShortEmployeeReportTO]>, reqwest::Error> {
+    info!("Fetching working hours minified in week {week} of year {year}");
+    let url = format!("{}/report/week/{}/{}", config.backend, year, week);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}

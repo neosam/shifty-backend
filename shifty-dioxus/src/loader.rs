@@ -11,6 +11,7 @@ use crate::{
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, SalesPerson},
         week::Week,
+        working_hours::WorkingHoursMini,
         Config, Shiftplan, Slot, Weekday,
     },
 };
@@ -206,4 +207,22 @@ pub async fn delete_unavailable_sales_person_day(
 ) -> Result<(), ShiftyError> {
     api::delete_unavailable_sales_person_day(config, unavailable_id).await?;
     Ok(())
+}
+
+pub async fn load_working_hours_minified_for_week(
+    config: Config,
+    year: u32,
+    week: u8,
+    //sales_persons: Rc<[SalesPerson]>,
+) -> Result<Rc<[WorkingHoursMini]>, ShiftyError> {
+    let reports = api::get_working_hours_minified_for_week(config, year, week).await?;
+    Ok(reports
+        .iter()
+        .map(move |report| WorkingHoursMini {
+            sales_person_id: report.sales_person.id,
+            sales_person_name: report.sales_person.name.to_owned().as_ref().into(),
+            expected_hours: report.expected_hours,
+            actual_hours: report.overall_hours,
+        })
+        .collect())
 }

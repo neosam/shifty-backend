@@ -241,6 +241,8 @@ impl From<&SlotTO> for service::slot::Slot {
 pub struct ShortEmployeeReportTO {
     pub sales_person: SalesPersonTO,
     pub balance_hours: f32,
+    pub expected_hours: f32,
+    pub overall_hours: f32,
 }
 
 #[cfg(feature = "service-impl")]
@@ -249,6 +251,8 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
         Self {
             sales_person: SalesPersonTO::from(report.sales_person.as_ref()),
             balance_hours: report.balance_hours,
+            expected_hours: report.expected_hours,
+            overall_hours: report.overall_hours,
         }
     }
 }

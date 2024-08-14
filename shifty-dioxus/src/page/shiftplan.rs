@@ -7,15 +7,18 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::dropdown_base::DropdownTrigger;
+use crate::component::working_hours_mini_overview::WorkingHoursMiniOverview;
 use crate::component::TopBar;
 use crate::component::WeekView;
 use crate::error::result_handler;
 use crate::i18n::Key;
 use crate::js;
 use crate::loader;
+use crate::service;
 use crate::service::AUTH;
 use crate::service::CONFIG;
 use crate::service::I18N;
+use crate::service::WORKING_HOURS_MINI;
 use crate::state;
 use crate::state::sales_person_available::SalesPersonUnavailable;
 use crate::state::shiftplan::SalesPerson;
@@ -45,6 +48,7 @@ pub fn ShiftPlan() -> Element {
     let config = CONFIG.read().clone();
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
+    let working_hours_mini_service = use_coroutine_handle::<service::WorkingHoursMiniAction>();
     let is_shiftplanner = auth_info
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
         .unwrap_or(false);
@@ -80,6 +84,7 @@ pub fn ShiftPlan() -> Element {
             )
         })
     };
+
     let sales_persons_resource = {
         let config = config.clone();
         use_resource(move || loader::load_sales_persons(config.to_owned()))
@@ -102,6 +107,16 @@ pub fn ShiftPlan() -> Element {
     let cr = use_coroutine({
         to_owned![year, week, current_sales_person, unavailable_days, config];
         move |mut rx: UnboundedReceiver<ShiftPlanAction>| async move {
+            let mut update_shiftplan = move || {
+                shift_plan_context.restart();
+                working_hours_mini_service.send(
+                    service::WorkingHoursMiniAction::LoadWorkingHoursMini(
+                        *year.read(),
+                        *week.read(),
+                    ),
+                );
+            };
+
             let sales_person = loader::load_current_sales_person(config.to_owned())
                 .await
                 .ok()
@@ -164,7 +179,7 @@ pub fn ShiftPlan() -> Element {
                             )
                             .await,
                         );
-                        shift_plan_context.restart();
+                        update_shiftplan();
                     }
                     ShiftPlanAction::RemoveUserFromSlot {
                         slot_id,
@@ -182,20 +197,20 @@ pub fn ShiftPlan() -> Element {
                                 .await,
                             );
                         }
-                        shift_plan_context.restart();
+                        update_shiftplan();
                     }
                     ShiftPlanAction::NextWeek => {
                         info!("Next week");
                         let current_week = *week.read();
                         week.set(current_week + 1);
-                        shift_plan_context.restart();
+                        update_shiftplan();
                         reload_unavailable_days(config.clone()).await;
                     }
                     ShiftPlanAction::PreviousWeek => {
                         info!("Previous week");
                         let current_week = *week.read();
                         week.set(current_week - 1);
-                        shift_plan_context.restart();
+                        update_shiftplan();
                         reload_unavailable_days(config.clone()).await;
                     }
                     ShiftPlanAction::UpdateSalesPerson(uuid) => {
@@ -218,7 +233,7 @@ pub fn ShiftPlan() -> Element {
                             )
                             .await,
                         );
-                        shift_plan_context.restart();
+                        update_shiftplan();
                     }
                     ShiftPlanAction::ToggleAvailability(weekday) => {
                         if let Some(available_day) = unavailable_days
@@ -379,6 +394,15 @@ pub fn ShiftPlan() -> Element {
                                 cr.send(ShiftPlanAction::ToggleAvailability(weekday));
                             }
                         },
+                    }
+                    div {
+                        class: "mt-4 print:hidden",
+                        WorkingHoursMiniOverview {
+                            working_hours: WORKING_HOURS_MINI.read().clone(),
+                            on_dbl_click: move |employee_id: Uuid| {
+                                cr.send(ShiftPlanAction::UpdateSalesPerson(employee_id.clone()));
+                            }
+                        }
                     }
                 }}
             }

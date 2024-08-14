@@ -9,6 +9,7 @@ pub mod footer;
 pub mod modal;
 pub mod top_bar;
 pub mod week_view;
+pub mod working_hours_mini_overview;
 
 pub use add_extra_hours_form::AddExtraHoursForm;
 pub use employee_short::EmployeeShort;

@@ -5,6 +5,7 @@ pub mod employee;
 pub mod sales_person_available;
 pub mod shiftplan;
 pub mod week;
+pub mod working_hours;
 
 pub use auth_info::AuthInfo;
 pub use config::Config;
