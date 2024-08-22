@@ -172,13 +172,10 @@ where
         until_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError> {
+        let until_week = until_week.min(time::util::weeks_in_year(year as i32));
+
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
-            .await?;
-
-        let shiftplan_report = self
-            .shiftplan_report_dao
-            .extract_quick_shiftplan_report(year, until_week)
             .await?;
 
         let working_hours = self.working_hours_service.all(Authentication::Full).await?;
@@ -197,11 +194,6 @@ where
                 .extract_shiftplan_report(paid_employee.id, year, until_week)
                 .await?;
 
-            let shiftplan_hours = shiftplan_report
-                .iter()
-                .filter(|r| r.sales_person_id == paid_employee.id)
-                .map(|r| r.hours)
-                .sum::<f32>();
             let working_hours: Arc<[WorkingHours]> = working_hours
                 .iter()
                 .filter(|wh| wh.sales_person_id == paid_employee.id)
@@ -216,43 +208,81 @@ where
                     Authentication::Full,
                 )
                 .await?;
-            let extra_hours = extra_hours_array.iter().map(|eh| eh.amount).sum::<f32>();
-            let planned_hours: f32 = (1..=until_week)
+            let (shiftplan_hours, extra_working_hours, absense_hours, planned_hours): (
+                f32,
+                f32,
+                f32,
+                f32,
+            ) = (1..=until_week)
                 .map(|week| {
-                    find_working_hours_for_calendar_week(&working_hours, year, week)
-                        .map(|wh| {
-                            if wh.expected_hours == 0.0 {
-                                let extra_work: f32 = extra_hours_array
-                                    .iter()
-                                    .filter(|extra_hours| {
-                                        extra_hours.category == ExtraHoursCategory::ExtraWork
-                                            && extra_hours.date_time.iso_week() == week
-                                            && extra_hours.date_time.year() as u32 == year
-                                    })
-                                    .map(|extra_hours| extra_hours.amount)
-                                    .sum();
-                                let shiftplan_hours: f32 = detailed_shiftplan_report
-                                    .iter()
-                                    .filter(|shift_plan_item| {
-                                        shift_plan_item.year == year
-                                            && shift_plan_item.calendar_week == week
-                                    })
-                                    .map(|shift_plan_item| shift_plan_item.hours)
-                                    .sum();
-                                extra_work + shiftplan_hours
-                            } else {
-                                wh.expected_hours
-                            }
+                    let expected_hours =
+                        find_working_hours_for_calendar_week(&working_hours, year, week)
+                            .map(|wh| wh.expected_hours)
+                            .unwrap_or(0.0);
+                    // If expected hours is 0 or less, the planned hours and the working hours are the same
+                    // because the balance should never be affected in this case.
+                    let shiftplan_hours: f32 = detailed_shiftplan_report
+                        .iter()
+                        .filter(|shift_plan_item| {
+                            shift_plan_item.year == year && shift_plan_item.calendar_week == week
                         })
-                        .unwrap_or(0.0)
+                        .map(|shift_plan_item| shift_plan_item.hours)
+                        .sum();
+                    if expected_hours <= 0.0 {
+                        let extra_work: f32 = extra_hours_array
+                            .iter()
+                            .filter(|extra_hours| {
+                                /*extra_hours.category == ExtraHoursCategory::ExtraWork
+                                &&*/
+                                extra_hours.date_time.iso_week() == week
+                                    && extra_hours.date_time.year() as u32 == year
+                            })
+                            .map(|extra_hours| extra_hours.amount)
+                            .sum();
+                        let overall_hours = extra_work + shiftplan_hours;
+                        (shiftplan_hours, extra_work, 0.0, overall_hours)
+                    } else {
+                        let extra_working_hours = extra_hours_array
+                            .iter()
+                            .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours
+                                && eh.date_time.iso_week() == week
+                                && eh.date_time.year() as u32 == year)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
+                        let absense_hours = extra_hours_array
+                            .iter()
+                            .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours
+                                && eh.date_time.iso_week() == week
+                                && eh.date_time.year() as u32 == year)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
+                        (
+                            shiftplan_hours,
+                            extra_working_hours,
+                            absense_hours,
+                            expected_hours,
+                        )
+                    }
                 })
-                .sum();
-            let balance_hours = shiftplan_hours + extra_hours - planned_hours;
+                .fold(
+                    (0.0, 0.0, 0.0, 0.0),
+                    |(shiftplan_hours, extra_work, absense, planned),
+                     (shiftplan_hours_week, extra_work_week, absense_week, planned_week)| {
+                        (
+                            shiftplan_hours + shiftplan_hours_week,
+                            extra_work + extra_work_week,
+                            absense + absense_week,
+                            planned + planned_week,
+                        )
+                    },
+                );
+            let balance_hours =
+                shiftplan_hours + extra_working_hours - planned_hours - absense_hours;
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
-                expected_hours: planned_hours,
-                overall_hours: shiftplan_hours + extra_hours,
+                expected_hours: planned_hours - absense_hours,
+                overall_hours: shiftplan_hours + extra_working_hours,
             });
         }
         Ok(short_employee_report.into())

@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod integration_test;
+
 use std::sync::Arc;
 
 use dao_impl::{

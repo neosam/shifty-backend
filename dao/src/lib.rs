@@ -48,3 +48,9 @@ pub enum DaoError {
 pub trait HelloDao {
     async fn get_hello(&self) -> Result<Arc<str>, DaoError>;
 }
+
+#[automock]
+#[async_trait]
+pub trait BasicDao {
+    async fn clear_all(&self) -> Result<(), DaoError>;
+}

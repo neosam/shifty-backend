@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{DaoError, PrivilegeEntity};
+use dao::{BasicDao, DaoError, PrivilegeEntity};
 use sqlx::{query, query_as, SqlitePool};
 
 pub mod booking;
@@ -231,5 +231,34 @@ impl dao::PermissionDao for PermissionDaoImpl {
             .map(Arc::<[PrivilegeEntity]>::from)
             .map_db_error()?,
         )
+    }
+}
+
+pub struct BasicDaoImpl {
+    pool: Arc<SqlitePool>,
+}
+impl BasicDaoImpl {
+    pub fn new(pool: Arc<SqlitePool>) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl BasicDao for BasicDaoImpl {
+    async fn clear_all(&self) -> Result<(), DaoError> {
+        query!(
+            r"
+                DELETE FROM booking;
+                DELETE FROM sales_person_user;
+                DELETE FROM sales_person_unavailable;
+                DELETE FROM extra_hours;
+                DELETE FROM working_hours;
+                DELETE FROM sales_person;
+                "
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
+        Ok(())
     }
 }
