@@ -9,6 +9,7 @@ use service::{
     permission::Authentication,
     sales_person::SalesPerson,
     working_hours::WorkingHours,
+    ServiceError, ValidationFailureItem,
 };
 use sqlx::SqlitePool;
 use time_macros::date;
@@ -360,7 +361,14 @@ proptest! {
                         let balance_hours = balance_hours.entry(sales_person_id).or_insert(HashMap::new());
                         *balance_hours.entry(year).or_insert(0.0) += slot_duration;
                     }
-                    rest_state.booking_service().create(&booking, Authentication::Full).await.unwrap();
+                    match rest_state.booking_service().create(&booking, Authentication::Full).await {
+                        Ok(_) => {},
+                        Err(ServiceError::ValidationError(validations)) => {
+                            assert_eq!(validations.len(), 1, "Expect extactly one validation error when inserting bookings");
+                            assert_eq!(validations[0], ValidationFailureItem::Duplicate, "Expect only duplicate errors when inserting bookings");
+                        },
+                        _ => panic!("Unexpected error when inserting bookings"),
+                    }
                 }
             }
 
