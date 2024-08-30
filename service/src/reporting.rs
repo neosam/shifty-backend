@@ -40,6 +40,8 @@ pub struct WorkingHoursDay {
 pub struct GroupedReportHours {
     pub from: time::Date,
     pub to: time::Date,
+    pub year: u32,
+    pub week: u8,
     pub contract_weekly_hours: f32,
     pub expected_hours: f32,
     pub overall_hours: f32,

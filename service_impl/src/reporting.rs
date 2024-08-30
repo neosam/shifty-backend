@@ -1,7 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use dao::shiftplan_report::ShiftplanReportEntity;
+use dao::{
+    sales_person_unavailable::__mock_MockSalesPersonUnavailableDao_SalesPersonUnavailableDao::__find_all_by_sales_person_id,
+    shiftplan_report::ShiftplanReportEntity,
+};
 use service::{
     extra_hours::{ExtraHours, ExtraHoursCategory, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
@@ -232,14 +235,24 @@ where
                         let extra_work: f32 = extra_hours_array
                             .iter()
                             .filter(|extra_hours| {
-                                /*extra_hours.category == ExtraHoursCategory::ExtraWork
-                                &&*/
+                                extra_hours.category == ExtraHoursCategory::ExtraWork
+                                &&
                                 extra_hours.date_time.iso_week() == week
                                     && extra_hours.date_time.year() as u32 == year
                             })
                             .map(|extra_hours| extra_hours.amount)
                             .sum();
-                        let overall_hours = extra_work + shiftplan_hours;
+                        /*let absense_hours: f32 = extra_hours_array
+                            .iter()
+                            .filter(|extra_hours| {
+                                extra_hours.category != ExtraHoursCategory::ExtraWork
+                                &&
+                                extra_hours.date_time.iso_week() == week
+                                    && extra_hours.date_time.year() as u32 == year
+                            })
+                            .map(|extra_hours| extra_hours.amount)
+                            .sum();*/
+                        let overall_hours = extra_work + shiftplan_hours;// - absense_hours;
                         (shiftplan_hours, extra_work, 0.0, overall_hours)
                     } else {
                         let extra_working_hours = extra_hours_array
@@ -276,13 +289,14 @@ where
                         )
                     },
                 );
-            let balance_hours =
-                shiftplan_hours + extra_working_hours - planned_hours - absense_hours;
+            let expected_hours = planned_hours - absense_hours;
+            let overall_hours = shiftplan_hours + extra_working_hours;
+            let balance_hours = overall_hours - expected_hours;
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
-                expected_hours: planned_hours - absense_hours,
-                overall_hours: shiftplan_hours + extra_working_hours,
+                expected_hours,
+                overall_hours,
             });
         }
         Ok(short_employee_report.into())
@@ -295,6 +309,7 @@ where
         until_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<EmployeeReport, ServiceError> {
+        let until_week = until_week.min(time::util::weeks_in_year(year as i32));
         let (hr_permission, user_permission) = join!(
             self.permission_service
                 .check_permission(HR_PRIVILEGE, context.clone()),
@@ -449,7 +464,9 @@ where
             let planned_hours = find_working_hours_for_calendar_week(&working_hours, year, week)
                 .map(|wh| wh.expected_hours)
                 .unwrap_or(0.0);
-            let balance_hours = shiftplan_hours + extra_working_hours - planned_hours;
+            let expected_hours = planned_hours - abense_hours;
+            let overall_hours = shiftplan_hours + extra_working_hours;
+            let balance_hours = overall_hours - expected_hours;
             result.push(ShortEmployeeReport {
                 sales_person: Arc::new(
                     self.sales_person_service
@@ -457,8 +474,8 @@ where
                         .await?,
                 ),
                 balance_hours,
-                expected_hours: planned_hours - abense_hours,
-                overall_hours: shiftplan_hours + extra_working_hours,
+                expected_hours,
+                overall_hours,
             });
         }
 
@@ -484,21 +501,26 @@ fn hours_per_week(
             .filter(|r| r.calendar_week == week)
             .map(|r| r.hours)
             .sum::<f32>();
-        let (working_hours, days_per_week, workdays_per_week) = working_hours
-            .iter()
-            .find(|wh| wh.from_calendar_week <= week && wh.to_calendar_week >= week)
-            .map(|wh| (wh.expected_hours, wh.days_per_week, wh.workdays_per_week))
-            .unwrap_or((0.0, 1, 1));
+        let (working_hours, days_per_week, workdays_per_week) =
+            find_working_hours_for_calendar_week(working_hours, year, week)
+                .iter()
+                .nth(0)
+                .map(|wh| (wh.expected_hours, wh.days_per_week, wh.workdays_per_week))
+                .unwrap_or((0.0, 1, 1));
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
             .map(|eh| eh.amount)
             .sum::<f32>();
-        let absence_hours = filtered_extra_hours_list
-            .iter()
-            .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
-            .map(|eh| eh.amount)
-            .sum::<f32>();
+        let absence_hours = if working_hours <= 0.0 {
+            0.0f32
+        } else {
+            filtered_extra_hours_list
+                .iter()
+                .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
+                .map(|eh| eh.amount)
+                .sum::<f32>()
+        };
 
         let mut day_list = extra_hours_list
             .iter()
@@ -531,6 +553,8 @@ fn hours_per_week(
         weeks.push(GroupedReportHours {
             from: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap(),
             to: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday).unwrap(),
+            year,
+            week,
             contract_weekly_hours: expected_hours,
             expected_hours: expected_hours - absence_hours,
             overall_hours: shiftplan_hours + extra_work_hours,

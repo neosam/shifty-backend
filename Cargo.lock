@@ -2108,7 +2108,6 @@ dependencies = [
  "async-trait",
  "dao",
  "mockall",
- "proptest",
  "service",
  "time",
  "tokio",

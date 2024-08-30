@@ -246,7 +246,7 @@ proptest! {
                             0..10
                         ))
                         .collect::<Vec<_>>();
-                (Just(sales_persons), working_hours, extra_hours, bookings)
+                (Just(sales_persons), working_hours, extra_hours , bookings)
             })
     ) {
         Runtime::new().unwrap().block_on(async {
@@ -307,10 +307,12 @@ proptest! {
                     .map(|working_hour| working_hour.expected_hours).unwrap_or(0.0);
                     if expected_hours_for_week <= 0.0 {
                         // In this case, expected hours are always equal to working hours and balance is not touched.
-                        let hours = working_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
-                        *hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) += extra_hour.amount;
-                        let hours = expected_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
-                        *hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) += extra_hour.amount;
+                        if extra_hour.category == ExtraHoursCategory::ExtraWork {
+                            let hours = working_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
+                            *hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) += extra_hour.amount;
+                            let hours = expected_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
+                            *hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) += extra_hour.amount;
+                        }
                     } else {
                         if extra_hour.category == ExtraHoursCategory::ExtraWork {
                             let hours = working_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
@@ -321,7 +323,7 @@ proptest! {
                             let hours = expected_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
                             *hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) -= extra_hour.amount;
                             let balance_hours = balance_hours.entry(extra_hour.sales_person_id).or_insert(HashMap::new());
-                            *balance_hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) -= extra_hour.amount;
+                            *balance_hours.entry(extra_hour.date_time.year() as u32).or_insert(0.0) += extra_hour.amount;
                         }
                     }
                     rest_state.extra_hours_service().create(&extra_hour, Authentication::Full).await.unwrap();
@@ -376,13 +378,24 @@ proptest! {
                         dbg!(&sales_person_report);
                     }
                     assert!(sales_person_report.overall_hours >= *work_hours - EPSILON && sales_person_report.overall_hours <= *work_hours + EPSILON,
-                        "Test if working hours match for sales person {} in year {year}, expected={}, got={}, object: {:?}", sales_person_report.sales_person.name, *work_hours, sales_person_report.overall_hours, &sales_person_report);
+                        "Test if working hours match for sales person {} in year {year}, expected={}, got={}, object: {:#?}", sales_person_report.sales_person.name, *work_hours, sales_person_report.overall_hours, &sales_person_report);
                     assert!(sales_person_report.expected_hours >= *expected_hours - EPSILON && sales_person_report.expected_hours <= *expected_hours + EPSILON,
-                        "Test if expected hours match for sales person {} in year {year}, expected={}, got={}, object: {:?}", sales_person_report.sales_person.name, *expected_hours, sales_person_report.expected_hours, &sales_person_report);
+                        "Test if expected hours match for sales person {} in year {year}, expected={}, got={}, object: {:#?}", sales_person_report.sales_person.name, *expected_hours, sales_person_report.expected_hours, &sales_person_report);
                     assert!(sales_person_report.balance_hours >= *balance_hours - EPSILON && sales_person_report.balance_hours <= *balance_hours + EPSILON,
-                        "Test if balance hours match for sales person {} in year {year}, expected={}, got={}, object: {:?}", sales_person_report.sales_person.name, *balance_hours, sales_person_report.balance_hours, &sales_person_report);
+                        "Test if balance hours match for sales person {} in year {year}, expected={}, got={}, object: {:#?}", sales_person_report.sales_person.name, *balance_hours, sales_person_report.balance_hours, &sales_person_report);
+
+                    // Verify that that the values match the detailed report
+                    let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_report.sales_person.id, year, 53, Authentication::Full).await.unwrap();
+                    assert!(sales_person_report.overall_hours >= detailed_report.overall_hours - EPSILON && sales_person_report.overall_hours <= detailed_report.overall_hours + EPSILON,
+                        "Test if working hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}, detailed: {:#?}", sales_person_report.sales_person.name, detailed_report.overall_hours, sales_person_report.overall_hours, &sales_person_report, detailed_report);
+                    //assert!(sales_person_report.expected_hours >= detailed_report.expected_hours - EPSILON && sales_person_report.expected_hours <= detailed_report.expected_hours + EPSILON,
+                    //    "Test if expected hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}", sales_person_report.sales_person.name, detailed_report.expected_hours, sales_person_report.expected_hours, &sales_person_report);
+                    assert!(sales_person_report.balance_hours >= detailed_report.balance_hours - EPSILON && sales_person_report.balance_hours <= detailed_report.balance_hours + EPSILON,
+                        "Test if balance hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}, detailed: {:#?}", sales_person_report.sales_person.name, detailed_report.balance_hours, sales_person_report.balance_hours, &sales_person_report, detailed_report);
                 }
             }
+
+
         })
     }
 }
