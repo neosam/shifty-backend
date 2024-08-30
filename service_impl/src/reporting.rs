@@ -1,10 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use dao::{
-    sales_person_unavailable::__mock_MockSalesPersonUnavailableDao_SalesPersonUnavailableDao::__find_all_by_sales_person_id,
-    shiftplan_report::ShiftplanReportEntity,
-};
+use dao::shiftplan_report::ShiftplanReportEntity;
 use service::{
     extra_hours::{ExtraHours, ExtraHoursCategory, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
