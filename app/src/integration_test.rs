@@ -349,25 +349,28 @@ proptest! {
                     let slot_duration = (slot.to - slot.from).as_seconds_f32() / 3600.0;
                     let expected_hours_for_week = get_working_hours_for_week(testdata.1[i].as_ref(),
                         year, week).map(|working_hour| working_hour.expected_hours).unwrap_or(0.0);
-                    if expected_hours_for_week <= 0.0 {
-                        // In this case, expected hours are always equal to working hours and balance is not touched.
-                        let hours = working_hours.entry(sales_person_id).or_insert(HashMap::new());
-                        *hours.entry(year).or_insert(0.0) += slot_duration;
-                        let hours = expected_hours.entry(sales_person_id).or_insert(HashMap::new());
-                        *hours.entry(year).or_insert(0.0) += slot_duration;
-                    } else {
-                        let hours = working_hours.entry(sales_person_id).or_insert(HashMap::new());
-                        *hours.entry(year).or_insert(0.0) += slot_duration;
-                        let balance_hours = balance_hours.entry(sales_person_id).or_insert(HashMap::new());
-                        *balance_hours.entry(year).or_insert(0.0) += slot_duration;
-                    }
-                    match rest_state.booking_service().create(&booking, Authentication::Full).await {
-                        Ok(_) => {},
+                    let insert_successful = match rest_state.booking_service().create(&booking, Authentication::Full).await {
+                        Ok(_) => true,
                         Err(ServiceError::ValidationError(validations)) => {
                             assert_eq!(validations.len(), 1, "Expect extactly one validation error when inserting bookings");
                             assert_eq!(validations[0], ValidationFailureItem::Duplicate, "Expect only duplicate errors when inserting bookings");
+                            false
                         },
                         _ => panic!("Unexpected error when inserting bookings"),
+                    };
+                    if insert_successful {
+                        if expected_hours_for_week <= 0.0 {
+                            // In this case, expected hours are always equal to working hours and balance is not touched.
+                            let hours = working_hours.entry(sales_person_id).or_insert(HashMap::new());
+                            *hours.entry(year).or_insert(0.0) += slot_duration;
+                            let hours = expected_hours.entry(sales_person_id).or_insert(HashMap::new());
+                            *hours.entry(year).or_insert(0.0) += slot_duration;
+                        } else {
+                            let hours = working_hours.entry(sales_person_id).or_insert(HashMap::new());
+                            *hours.entry(year).or_insert(0.0) += slot_duration;
+                            let balance_hours = balance_hours.entry(sales_person_id).or_insert(HashMap::new());
+                            *balance_hours.entry(year).or_insert(0.0) += slot_duration;
+                        }
                     }
                 }
             }
@@ -396,8 +399,8 @@ proptest! {
                     let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_report.sales_person.id, year, 53, Authentication::Full).await.unwrap();
                     assert!(sales_person_report.overall_hours >= detailed_report.overall_hours - EPSILON && sales_person_report.overall_hours <= detailed_report.overall_hours + EPSILON,
                         "Test if working hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}, detailed: {:#?}", sales_person_report.sales_person.name, detailed_report.overall_hours, sales_person_report.overall_hours, &sales_person_report, detailed_report);
-                    //assert!(sales_person_report.expected_hours >= detailed_report.expected_hours - EPSILON && sales_person_report.expected_hours <= detailed_report.expected_hours + EPSILON,
-                    //    "Test if expected hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}", sales_person_report.sales_person.name, detailed_report.expected_hours, sales_person_report.expected_hours, &sales_person_report);
+                    assert!(sales_person_report.expected_hours >= detailed_report.expected_hours - EPSILON && sales_person_report.expected_hours <= detailed_report.expected_hours + EPSILON,
+                        "Test if expected hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}", sales_person_report.sales_person.name, detailed_report.expected_hours, sales_person_report.expected_hours, &sales_person_report);
                     assert!(sales_person_report.balance_hours >= detailed_report.balance_hours - EPSILON && sales_person_report.balance_hours <= detailed_report.balance_hours + EPSILON,
                         "Test if balance hours match for sales person {} in year {year}, detailed-report={}, employee-report={}, object: {:#?}, detailed: {:#?}", sales_person_report.sales_person.name, detailed_report.balance_hours, sales_person_report.balance_hours, &sales_person_report, detailed_report);
                 }
