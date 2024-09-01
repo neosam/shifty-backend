@@ -53,19 +53,25 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                             }
                         }
                         FormPair { label: "Shiftplan color".into(),
-                            TextInput {
-                                value: sales_person.sales_person.background_color.clone().into(),
-                                on_change: {
-                                    to_owned![user_management_service, sales_person];
-                                    move |background_color: ImStr| {
-                                        user_management_service
-                                            .send(
-                                                UserManagementAction::UpdateSalesPerson(SalesPerson {
-                                                    background_color: background_color.as_rc(),
-                                                    ..sales_person.sales_person.clone()
-                                                }),
-                                            );
+                            div { class: "flex items-center flex-row",
+                                TextInput {
+                                    value: sales_person.sales_person.background_color.clone().into(),
+                                    on_change: {
+                                        to_owned![user_management_service, sales_person];
+                                        move |background_color: ImStr| {
+                                            user_management_service
+                                                .send(
+                                                    UserManagementAction::UpdateSalesPerson(SalesPerson {
+                                                        background_color: background_color.as_rc(),
+                                                        ..sales_person.sales_person.clone()
+                                                    }),
+                                                );
+                                        }
                                     }
+                                }
+                                div {
+                                    class: "w-6 h-6 ml-2 block",
+                                    style: format!("background-color: {}", sales_person.sales_person.background_color.clone())
                                 }
                             }
                         }
