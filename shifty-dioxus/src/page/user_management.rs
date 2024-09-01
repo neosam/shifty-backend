@@ -1,5 +1,9 @@
 use crate::{
-    component::{base_components::Button, TopBar},
+    base_types::ImStr,
+    component::{
+        base_components::{Button, TextInput},
+        TopBar,
+    },
     router::Route,
     service::{UserManagementAction, USER_MANAGEMENT_STORE},
 };
@@ -9,6 +13,7 @@ use dioxus::prelude::*;
 pub fn UserManagementPage() -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
+    let add_user_value: Signal<ImStr> = use_signal(|| "".into());
 
     use_effect(move || {
         user_management_service.send(UserManagementAction::LoadAllUsers);
@@ -36,6 +41,27 @@ pub fn UserManagementPage() -> Element {
                                     user_id: user.username.to_string(),
                                 },
                                 li { class: "center p-2 border-b ", "{user.username}" }
+                            }
+                        }
+                        li { class: "center p-2 border-b flex width-full",
+                            TextInput {
+                                value: add_user_value.read().clone(),
+                                on_change: {
+                                    to_owned![add_user_value];
+                                    move |value: ImStr| {
+                                        *add_user_value.write() = value;
+                                    }
+                                }
+                            }
+                            Button {
+                                on_click: {
+                                    to_owned![user_management_service];
+                                    move |_| {
+                                        user_management_service
+                                            .send(UserManagementAction::AddUser(add_user_value.read().clone()));
+                                    }
+                                },
+                                "Create new user"
                             }
                         }
                     }

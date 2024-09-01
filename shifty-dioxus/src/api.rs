@@ -469,3 +469,13 @@ pub async fn remove_role_from_user(
     info!("Removed");
     Ok(())
 }
+
+pub async fn add_user(config: Config, user: UserTO) -> Result<(), reqwest::Error> {
+    info!("Adding user");
+    let url = format!("{}/permission/user", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&user).send().await?;
+    response.error_for_status_ref()?;
+    info!("Added");
+    Ok(())
+}

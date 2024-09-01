@@ -399,6 +399,11 @@ pub async fn remove_user_from_role(user: ImStr, role: ImStr) -> Result<(), Shift
     Ok(())
 }
 
+pub async fn add_user(user: ImStr) -> Result<(), ShiftyError> {
+    loader::add_user(CONFIG.read().clone(), user).await?;
+    Ok(())
+}
+
 pub enum UserManagementAction {
     LoadAllUsers,
     LoadAllSalesPersons,
@@ -411,6 +416,7 @@ pub enum UserManagementAction {
     LoadUserRoleAssignments(ImStr),
     AssignUserToRole(ImStr, ImStr),
     RemoveUserFromRole(ImStr, ImStr),
+    AddUser(ImStr),
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
@@ -487,6 +493,13 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             UserManagementAction::RemoveUserFromRole(user, role) => {
                 remove_user_from_role(user, role).await
             }
+            UserManagementAction::AddUser(user) => match add_user(user).await {
+                Ok(()) => {
+                    load_all_users().await;
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            },
         } {
             Ok(_) => {}
             Err(err) => {

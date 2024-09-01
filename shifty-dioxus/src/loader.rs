@@ -1,4 +1,4 @@
-use rest_types::{ExtraHoursTO, SalesPersonTO, UserRole};
+use rest_types::{ExtraHoursTO, SalesPersonTO, UserRole, UserTO};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -320,6 +320,17 @@ pub async fn remove_user_from_role(
         UserRole {
             user: user_id.to_string(),
             role: role.to_string(),
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn add_user(config: Config, user: ImStr) -> Result<(), ShiftyError> {
+    api::add_user(
+        config,
+        UserTO {
+            name: user.to_string(),
         },
     )
     .await?;
