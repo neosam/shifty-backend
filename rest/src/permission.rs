@@ -15,7 +15,7 @@ use service::PermissionService;
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
-        .route("/user/", get(get_all_users::<RestState>))
+        .route("/user", get(get_all_users::<RestState>))
         .route("/user/", post(add_user::<RestState>))
         .route("/user/", delete(remove_user::<RestState>))
         .route("/role/", get(get_all_roles::<RestState>))
