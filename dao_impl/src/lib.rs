@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{BasicDao, DaoError, PrivilegeEntity};
+use dao::{BasicDao, DaoError, PrivilegeEntity, RoleEntity};
 use sqlx::{query, query_as, SqlitePool};
 
 pub mod booking;
@@ -231,6 +231,19 @@ impl dao::PermissionDao for PermissionDaoImpl {
             .map(Arc::<[PrivilegeEntity]>::from)
             .map_db_error()?,
         )
+    }
+
+    async fn roles_for_user(&self, user: &str) -> Result<Arc<[RoleEntity]>, DaoError> {
+        Ok(query_as!(
+            RoleEntity,
+            r"SELECT user_role.role_name as name FROM user_role 
+                                 WHERE user_role.user_name = ?",
+            user
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map(Arc::<[RoleEntity]>::from)
+        .map_db_error()?)
     }
 }
 

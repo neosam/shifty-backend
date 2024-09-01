@@ -4,6 +4,7 @@ use time::Date;
 use time::Time;
 use uuid::Uuid;
 
+pub mod block;
 pub mod booking;
 pub mod clock;
 pub mod datetime_utils;

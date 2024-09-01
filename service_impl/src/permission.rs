@@ -119,6 +119,21 @@ where
         }
     }
 
+    async fn get_roles_for_user(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[service::Role]>, ServiceError> {
+        self.check_permission("admin", context).await?;
+        Ok(self
+            .permission_dao
+            .roles_for_user(user)
+            .await?
+            .iter()
+            .map(service::Role::from)
+            .collect())
+    }
+
     async fn create_user(
         &self,
         user: &str,

@@ -52,4 +52,5 @@ pub trait PermissionDao {
     async fn delete_user_role(&self, user: &str, role: &str) -> Result<(), DaoError>;
 
     async fn privileges_for_user(&self, user: &str) -> Result<Arc<[PrivilegeEntity]>, DaoError>;
+    async fn roles_for_user(&self, user: &str) -> Result<Arc<[RoleEntity]>, DaoError>;
 }

@@ -4,7 +4,7 @@ use rest_types::*;
 
 use axum::{
     body::Body,
-    extract::State,
+    extract::{Path, State},
     response::Response,
     routing::{delete, get, post},
     Extension, Json, Router,
@@ -18,12 +18,13 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/user", get(get_all_users::<RestState>))
         .route("/user/", post(add_user::<RestState>))
         .route("/user/", delete(remove_user::<RestState>))
-        .route("/role/", get(get_all_roles::<RestState>))
-        .route("/role/", post(add_role::<RestState>))
-        .route("/role/", delete(delete_role::<RestState>))
+        .route("/role", get(get_all_roles::<RestState>))
+        .route("/role", post(add_role::<RestState>))
+        .route("/role", delete(delete_role::<RestState>))
+        .route("/user/:user/roles", get(get_roles_for_user::<RestState>))
         .route("/privilege/", get(get_all_privileges::<RestState>))
-        .route("/user-role/", post(add_user_role::<RestState>))
-        .route("/user-role/", delete(remove_user_role::<RestState>))
+        .route("/user-role", post(add_user_role::<RestState>))
+        .route("/user-role", delete(remove_user_role::<RestState>))
         .route("/role-privilege/", post(add_role_privilege::<RestState>))
         .route(
             "/role-privilege/",
@@ -269,6 +270,29 @@ pub async fn get_all_privileges<RestState: RestStateDef>(
             Ok(Response::builder()
                 .status(200)
                 .body(Body::from(serde_json::to_string(&privileges).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn get_roles_for_user<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(user_id): Path<String>,
+) -> Response {
+    error_handler(
+        (async {
+            let roles: Arc<[RoleTO]> = rest_state
+                .permission_service()
+                .get_roles_for_user(&user_id, context.into())
+                .await?
+                .iter()
+                .map(RoleTO::from)
+                .collect();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::from(serde_json::to_string(&roles).unwrap()))
                 .unwrap())
         })
         .await,

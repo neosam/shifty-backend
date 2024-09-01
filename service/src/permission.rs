@@ -91,6 +91,11 @@ pub trait PermissionService {
         &self,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[Privilege]>, ServiceError>;
+    async fn get_roles_for_user(
+        &self,
+        user: &str,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Role]>, ServiceError>;
 
     async fn create_user(
         &self,
