@@ -12,10 +12,7 @@ pub struct ChildrenProps {
 #[component]
 pub fn Header(props: ChildrenProps) -> Element {
     rsx! {
-        h1 {
-            class: "text-2xl font-bold mb-6",
-            {props.children},
-        }
+        h1 { class: "text-2xl font-bold mb-6", {props.children} }
     }
 }
 
@@ -30,11 +27,9 @@ pub struct OptionProps {
 
 #[component]
 pub fn Option(props: OptionProps) -> Element {
-    rsx! { option {
-        value: "{props.value}",
-        selected: props.selected,
-        {props.children}
-    } }
+    rsx! {
+        option { value: "{props.value}", selected: props.selected, {props.children} }
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -47,16 +42,18 @@ pub struct SelectProps {
 
 #[component]
 pub fn Select(props: SelectProps) -> Element {
-    rsx! { select {
-        class: "border-2 border-gray-200 p-2",
-        onchange: move |event| {
-            if let Some(on_change) = &props.on_change {
-                let value = event.data.value();
-                on_change.call(ImStr::from(value));
-            }
-        },
-        {props.children}
-    } }
+    rsx! {
+        select {
+            class: "border-2 border-gray-200 p-2",
+            onchange: move |event| {
+                if let Some(on_change) = &props.on_change {
+                    let value = event.data.value();
+                    on_change.call(ImStr::from(value));
+                }
+            },
+            {props.children}
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -75,8 +72,7 @@ pub struct SimpleSelectProps {
 #[component]
 pub fn SimpleSelect(props: SimpleSelectProps) -> Element {
     rsx! {
-        Select {
-            on_change: props.on_change.clone(),
+        Select { on_change: props.on_change.clone(),
             for option in props.options.iter() {
                 Option {
                     value: option.key.clone(),
@@ -90,10 +86,9 @@ pub fn SimpleSelect(props: SimpleSelectProps) -> Element {
 
 #[component]
 pub fn Label(props: ChildrenProps) -> Element {
-    rsx! { label {
-        class: "",
-        {props.children}
-    } }
+    rsx! {
+        label { class: "", {props.children} }
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -106,11 +101,8 @@ pub struct FormPairProps {
 #[component]
 pub fn FormPair(props: FormPairProps) -> Element {
     rsx! {
-        div {
-            class: "flex flex-col justify-between md:flex-row border-b-2 border-gray-200 border-dashed p-2",
-            Label {
-                {props.label}
-            }
+        div { class: "flex flex-col justify-between md:flex-row border-b-2 border-gray-200 border-dashed p-2",
+            Label { {props.label} }
             {props.children}
         }
     }
@@ -118,10 +110,9 @@ pub fn FormPair(props: FormPairProps) -> Element {
 
 #[component]
 pub fn FormItem(props: ChildrenProps) -> Element {
-    rsx! { div {
-        class: "border-b-2 border-gray-200 border-dashed p-2",
-        {props.children}
-    } }
+    rsx! {
+        div { class: "border-b-2 border-gray-200 border-dashed p-2", {props.children} }
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -145,7 +136,7 @@ pub fn Checkbox(props: CheckboxProps) -> Element {
             input {
                 class: "border-2 border-gray-200 p-2 mr-2",
                 "type": "checkbox",
-                "checked": props.value,
+                "checked": props.value
             }
             {props.children}
         }
@@ -154,16 +145,15 @@ pub fn Checkbox(props: CheckboxProps) -> Element {
 
 #[component]
 pub fn Form(props: ChildrenProps) -> Element {
-    rsx! { form {
-        {props.children}
-    } }
+    rsx! {
+        form { {props.children} }
+    }
 }
 
 #[component]
 pub fn FormGroup(props: ChildrenProps) -> Element {
     rsx! {
-        div {
-            class: "flex flex-col justify-between md:flex-row border-b-2 border-gray-200 border-dashed p-2",
+        div { class: "flex flex-col justify-between md:flex-row border-b-2 border-gray-200 border-dashed p-2",
             {props.children}
         }
     }
@@ -181,12 +171,37 @@ pub fn Button(props: ButtonProps) -> Element {
     rsx! {
         button {
             class: "border-2 border-gray-200 p-2",
+            prevent_default: "onclick",
             onclick: move |_| {
                 if let Some(on_click) = &props.on_click {
                     on_click.call(());
                 }
             },
             {props.children}
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct TextInputProps {
+    pub value: ImStr,
+
+    pub on_change: Option<EventHandler<ImStr>>,
+}
+
+#[component]
+pub fn TextInput(props: TextInputProps) -> Element {
+    rsx! {
+        input {
+            class: "border-2 border-gray-200 p-2",
+            "type": "text",
+            value: props.value,
+            oninput: move |event| {
+                if let Some(on_change) = &props.on_change {
+                    let value = event.data.value();
+                    on_change.call(ImStr::from(value));
+                }
+            }
         }
     }
 }

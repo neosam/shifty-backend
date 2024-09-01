@@ -60,3 +60,5 @@ backend = "http://localhost:3000/extra-hours"
 backend = "http://localhost:3000/working-hours"
 [[web.proxy]]
 backend = "http://localhost:3000/version"
+[[web.proxy]]
+backend = "http://localhost:3000/permission"

@@ -15,6 +15,10 @@ impl ImStr {
     pub fn as_str(&self) -> &str {
         &self.inner
     }
+
+    pub fn as_rc(&self) -> Rc<str> {
+        self.inner.clone()
+    }
 }
 
 impl From<String> for ImStr {

@@ -3,11 +3,17 @@ pub mod employees;
 pub mod home;
 pub mod my_employee_details;
 pub mod not_authenticated;
+pub mod sales_person_details;
 pub mod shiftplan;
+pub mod user_details;
+pub mod user_management;
 
 pub use employee_details::EmployeeDetails;
 pub use employees::Employees;
 pub use home::Home;
 pub use my_employee_details::MyEmployeeDetails;
 pub use not_authenticated::NotAuthenticated;
+pub use sales_person_details::SalesPersonDetails;
 pub use shiftplan::ShiftPlan;
+pub use user_details::UserDetails;
+pub use user_management::UserManagementPage;

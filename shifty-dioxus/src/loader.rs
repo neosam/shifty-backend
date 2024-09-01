@@ -1,10 +1,11 @@
-use rest_types::ExtraHoursTO;
+use rest_types::{ExtraHoursTO, SalesPersonTO};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
     api,
+    base_types::ImStr,
     error::ShiftyError,
     state::{
         employee::{Employee, ExtraHours},
@@ -12,7 +13,7 @@ use crate::{
         shiftplan::{Booking, SalesPerson},
         week::Week,
         working_hours::WorkingHoursMini,
-        Config, Shiftplan, Slot, Weekday,
+        Config, Shiftplan, Slot, User, Weekday,
     },
 };
 
@@ -24,6 +25,33 @@ pub async fn load_sales_persons(config: Config) -> Result<Rc<[SalesPerson]>, Shi
     let sales_persons: Rc<[SalesPerson]> = sales_persons.into();
 
     Ok(sales_persons)
+}
+
+pub async fn load_user_for_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Option<ImStr>, ShiftyError> {
+    let user = api::get_user_for_sales_person(config, sales_person_id)
+        .await?
+        .map(|user| user.into());
+    Ok(user)
+}
+
+pub async fn save_user_for_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+    user_id: ImStr,
+) -> Result<(), ShiftyError> {
+    api::post_user_to_sales_person(config, sales_person_id, user_id).await?;
+    Ok(())
+}
+
+pub async fn remove_user_from_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<(), ShiftyError> {
+    api::delete_user_from_sales_person(config, sales_person_id).await?;
+    Ok(())
 }
 
 pub async fn load_bookings(
@@ -90,6 +118,27 @@ pub async fn load_current_sales_person(config: Config) -> Result<Option<SalesPer
     let sales_person_to = api::get_current_sales_person(config).await?;
     let sales_person = sales_person_to.as_ref().map(SalesPerson::from);
     Ok(sales_person)
+}
+
+pub async fn load_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<SalesPerson, ShiftyError> {
+    let sales_person_to = api::get_sales_person(config, sales_person_id).await?;
+    let sales_person = SalesPerson::from(&sales_person_to);
+    Ok(sales_person)
+}
+
+pub async fn save_sales_person(
+    config: Config,
+    sales_person: SalesPerson,
+) -> Result<(), ShiftyError> {
+    if sales_person.id.is_nil() {
+        api::post_sales_person(config, SalesPersonTO::from(&sales_person)).await?;
+    } else {
+        api::put_sales_person(config, SalesPersonTO::from(&sales_person)).await?;
+    }
+    Ok(())
 }
 
 pub async fn register_user_to_slot(
@@ -225,4 +274,9 @@ pub async fn load_working_hours_minified_for_week(
             actual_hours: report.overall_hours,
         })
         .collect())
+}
+
+pub async fn load_all_users(config: Config) -> Result<Rc<[User]>, ShiftyError> {
+    let users = api::get_all_users(config).await?;
+    Ok(users.iter().map(User::from).collect())
 }

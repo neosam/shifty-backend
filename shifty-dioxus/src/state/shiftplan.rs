@@ -84,6 +84,7 @@ pub struct SalesPerson {
     pub name: Rc<str>,
     pub background_color: Rc<str>,
     pub is_paid: bool,
+    pub version: Uuid,
 }
 impl From<&SalesPersonTO> for SalesPerson {
     fn from(sales_person: &SalesPersonTO) -> Self {
@@ -92,6 +93,20 @@ impl From<&SalesPersonTO> for SalesPerson {
             name: sales_person.name.as_ref().into(),
             background_color: sales_person.background_color.as_ref().into(),
             is_paid: sales_person.is_paid.unwrap_or(false),
+            version: sales_person.version,
+        }
+    }
+}
+impl From<&SalesPerson> for SalesPersonTO {
+    fn from(sales_person: &SalesPerson) -> Self {
+        Self {
+            id: sales_person.id,
+            name: sales_person.name.to_string().into(),
+            background_color: sales_person.background_color.to_string().into(),
+            is_paid: Some(sales_person.is_paid),
+            inactive: false,
+            deleted: None,
+            version: sales_person.version,
         }
     }
 }

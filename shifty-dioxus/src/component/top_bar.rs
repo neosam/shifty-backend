@@ -36,6 +36,11 @@ pub fn TopBar() -> Element {
     } else {
         false
     };
+    let show_user_management = if let Some(ref auth_info) = auth_info {
+        auth_info.has_privilege("admin")
+    } else {
+        false
+    };
 
     rsx! {
         div { class: "flex bg-gray-800 text-white p-4 md:p-0 items-center print:hidden",
@@ -76,6 +81,11 @@ pub fn TopBar() -> Element {
                     if is_paid && !show_reports && show_my_time {
                         li {
                             Link { to: Route::MyEmployeeDetails {}, {i18n.t(Key::MyTime)} }
+                        }
+                    }
+                    if show_user_management {
+                        li {
+                            Link { to: Route::UserManagementPage {}, {"User Management (beta)"} }
                         }
                     }
                     if auth_info.is_some() {

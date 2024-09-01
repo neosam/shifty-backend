@@ -2,12 +2,13 @@ use std::rc::Rc;
 
 use rest_types::{
     BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, SalesPersonTO,
-    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO,
+    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, UserTO,
 };
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
+    base_types::ImStr,
     error::ShiftyError,
     js,
     state::{AuthInfo, Config},
@@ -144,6 +145,89 @@ pub async fn get_current_sales_person(
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn get_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<SalesPersonTO, reqwest::Error> {
+    info!("Fetching sales person {sales_person_id}");
+    let url = format!("{}/sales-person/{sales_person_id}", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn put_sales_person(
+    config: Config,
+    sales_person: SalesPersonTO,
+) -> Result<(), reqwest::Error> {
+    info!("Posting sales person");
+    let url = format!(
+        "{}/sales-person/{}",
+        config.backend,
+        sales_person.id.to_string()
+    );
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&sales_person).send().await?;
+    response.error_for_status_ref()?;
+    info!("Posted");
+    Ok(())
+}
+
+pub async fn post_sales_person(
+    config: Config,
+    sales_person: SalesPersonTO,
+) -> Result<(), reqwest::Error> {
+    info!("Posting sales person");
+    let url = format!("{}/sales-person", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&sales_person).send().await?;
+    response.error_for_status_ref()?;
+    info!("Posted");
+    Ok(())
+}
+
+pub async fn get_user_for_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Option<Rc<str>>, reqwest::Error> {
+    info!("Fetching user for sales person {sales_person_id}");
+    let url = format!("{}/sales-person/{sales_person_id}/user", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn post_user_to_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+    user_id: ImStr,
+) -> Result<(), reqwest::Error> {
+    info!("Posting user {user_id} to sales person {sales_person_id}");
+    let url = format!("{}/sales-person/{sales_person_id}/user", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(user_id.as_str()).send().await?;
+    response.error_for_status_ref()?;
+    info!("Posted");
+    Ok(())
+}
+
+pub async fn delete_user_from_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Deleting user from sales person {sales_person_id}");
+    let url = format!("{}/sales-person/{sales_person_id}/user", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
 }
 
 pub async fn get_short_reports(
@@ -321,6 +405,16 @@ pub async fn get_working_hours_minified_for_week(
 ) -> Result<Rc<[ShortEmployeeReportTO]>, reqwest::Error> {
     info!("Fetching working hours minified in week {week} of year {year}");
     let url = format!("{}/report/week/{}/{}", config.backend, year, week);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_all_users(config: Config) -> Result<Rc<[UserTO]>, reqwest::Error> {
+    info!("Fetching all users");
+    let url = format!("{}/permission/user", config.backend);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
