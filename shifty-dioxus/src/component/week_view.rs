@@ -44,7 +44,7 @@ where
 }
 
 #[derive(PartialEq, Clone, Props)]
-pub struct ColumnViewSlotProps<CustomData = ()>
+pub struct ColumnViewSlotProps<CustomData: PartialEq + Clone + 'static = ()>
 where
     CustomData: PartialEq + Clone + 'static,
 {
@@ -166,7 +166,7 @@ where
 }
 
 #[derive(PartialEq, Clone, Props)]
-pub struct ColumnViewProps<CustomData = ()>
+pub struct ColumnViewProps<CustomData: PartialEq + Clone + 'static = ()>
 where
     CustomData: PartialEq + Clone + 'static,
 {
