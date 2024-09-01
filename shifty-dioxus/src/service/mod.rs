@@ -208,11 +208,18 @@ impl SelectedSalesPerson {
 }
 
 #[derive(Default, Clone, PartialEq)]
+pub struct RoleAssignment {
+    pub role: ImStr,
+    pub assigned: bool,
+}
+
+#[derive(Default, Clone, PartialEq)]
 pub struct UserManagementStore {
     pub users: Rc<[User]>,
     pub sales_persons: Rc<[SalesPerson]>,
     pub sales_person: Option<SelectedSalesPerson>,
     pub loaded_sales_person: Option<SelectedSalesPerson>,
+    pub role_assignements: Rc<[RoleAssignment]>,
 }
 pub static USER_MANAGEMENT_STORE: GlobalSignal<UserManagementStore> =
     Signal::global(|| UserManagementStore::default());
@@ -366,6 +373,32 @@ pub async fn save_sales_person() {
     }
 }
 
+pub async fn load_role_assignments(user: ImStr) -> Result<(), ShiftyError> {
+    let config = CONFIG.read().clone();
+    let roles = loader::load_all_roles(config.clone()).await?;
+    let user_roles = loader::load_roles_from_user(config.clone(), user).await?;
+    let mut role_assignments = roles
+        .iter()
+        .map(|role| RoleAssignment {
+            role: role.clone(),
+            assigned: user_roles.contains(&role),
+        })
+        .collect::<Vec<_>>();
+    role_assignments.sort_by_key(|role| role.role.clone());
+    USER_MANAGEMENT_STORE.write().role_assignements = role_assignments.into();
+    Ok(())
+}
+
+pub async fn assign_user_to_role(user: ImStr, role: ImStr) -> Result<(), ShiftyError> {
+    loader::add_user_to_role(CONFIG.read().clone(), user, role).await?;
+    Ok(())
+}
+
+pub async fn remove_user_from_role(user: ImStr, role: ImStr) -> Result<(), ShiftyError> {
+    loader::remove_user_from_role(CONFIG.read().clone(), user, role).await?;
+    Ok(())
+}
+
 pub enum UserManagementAction {
     LoadAllUsers,
     LoadAllSalesPersons,
@@ -375,19 +408,25 @@ pub enum UserManagementAction {
     RemoveSalesPersonUser,
     SaveSalesPerson,
     CreateNewSalesPerson,
+    LoadUserRoleAssignments(ImStr),
+    AssignUserToRole(ImStr, ImStr),
+    RemoveUserFromRole(ImStr, ImStr),
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
     while let Some(action) = rx.next().await {
-        match action {
+        match match action {
             UserManagementAction::LoadAllUsers => {
                 load_all_users().await;
+                Ok(())
             }
             UserManagementAction::LoadAllSalesPersons => {
                 load_all_sales_persons().await;
+                Ok(())
             }
             UserManagementAction::LoadSalesPerson(sales_person_id) => {
                 load_sales_person(sales_person_id).await;
+                Ok(())
             }
             UserManagementAction::UpdateSalesPerson(sales_person) => {
                 if USER_MANAGEMENT_STORE.read().sales_person.is_none() {
@@ -401,6 +440,7 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                         .unwrap()
                         .sales_person = sales_person;
                 }
+                Ok(())
             }
             UserManagementAction::UpdateSalesPersonUser(user_id) => {
                 USER_MANAGEMENT_STORE
@@ -409,6 +449,7 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     .as_mut()
                     .unwrap()
                     .user_id = Some(user_id);
+                Ok(())
             }
             UserManagementAction::RemoveSalesPersonUser => {
                 USER_MANAGEMENT_STORE
@@ -417,9 +458,11 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     .as_mut()
                     .unwrap()
                     .user_id = None;
+                Ok(())
             }
             UserManagementAction::SaveSalesPerson => {
                 save_sales_person().await;
+                Ok(())
             }
             UserManagementAction::CreateNewSalesPerson => {
                 let new_sales_person = SalesPerson {
@@ -433,6 +476,23 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     Some(SelectedSalesPerson::new(new_sales_person.clone()));
                 USER_MANAGEMENT_STORE.write().loaded_sales_person =
                     Some(SelectedSalesPerson::new(new_sales_person));
+                Ok(())
+            }
+            UserManagementAction::LoadUserRoleAssignments(user) => {
+                load_role_assignments(user).await
+            }
+            UserManagementAction::AssignUserToRole(user, role) => {
+                assign_user_to_role(user, role).await
+            }
+            UserManagementAction::RemoveUserFromRole(user, role) => {
+                remove_user_from_role(user, role).await
+            }
+        } {
+            Ok(_) => {}
+            Err(err) => {
+                *ERROR_STORE.write() = ErrorStore {
+                    error: Some(err.into()),
+                };
             }
         }
     }

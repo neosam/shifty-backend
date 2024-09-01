@@ -6,7 +6,7 @@ use std::{
 
 use dioxus::{dioxus_core::AttributeValue, prelude::IntoAttributeValue};
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, PartialOrd, Ord, Default)]
 pub struct ImStr {
     pub(crate) inner: Rc<str>,
 }

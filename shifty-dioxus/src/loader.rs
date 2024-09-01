@@ -1,4 +1,4 @@
-use rest_types::{ExtraHoursTO, SalesPersonTO};
+use rest_types::{ExtraHoursTO, SalesPersonTO, UserRole};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -279,4 +279,49 @@ pub async fn load_working_hours_minified_for_week(
 pub async fn load_all_users(config: Config) -> Result<Rc<[User]>, ShiftyError> {
     let users = api::get_all_users(config).await?;
     Ok(users.iter().map(User::from).collect())
+}
+
+pub async fn load_all_roles(config: Config) -> Result<Rc<[ImStr]>, ShiftyError> {
+    let roles = api::get_all_roles(config).await?;
+    Ok(roles.iter().map(|role| role.name.clone().into()).collect())
+}
+
+pub async fn load_roles_from_user(
+    config: Config,
+    user_id: ImStr,
+) -> Result<Rc<[ImStr]>, ShiftyError> {
+    let roles = api::get_roles_from_user(config, user_id).await?;
+    Ok(roles.iter().map(|role| role.name.clone().into()).collect())
+}
+
+pub async fn add_user_to_role(
+    config: Config,
+    user_id: ImStr,
+    role: ImStr,
+) -> Result<(), ShiftyError> {
+    api::add_role_to_user(
+        config,
+        UserRole {
+            user: user_id.to_string(),
+            role: role.to_string(),
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn remove_user_from_role(
+    config: Config,
+    user_id: ImStr,
+    role: ImStr,
+) -> Result<(), ShiftyError> {
+    api::remove_role_from_user(
+        config,
+        UserRole {
+            user: user_id.to_string(),
+            role: role.to_string(),
+        },
+    )
+    .await?;
+    Ok(())
 }

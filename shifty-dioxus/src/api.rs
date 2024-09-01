@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, SalesPersonTO,
-    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, UserTO,
+    BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, RoleTO,
+    SalesPersonTO, SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, UserRole, UserTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -420,4 +420,52 @@ pub async fn get_all_users(config: Config) -> Result<Rc<[UserTO]>, reqwest::Erro
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn get_all_roles(config: Config) -> Result<Rc<[RoleTO]>, reqwest::Error> {
+    info!("Fetching all roles");
+    let url = format!("{}/permission/role", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_roles_from_user(
+    config: Config,
+    user_id: ImStr,
+) -> Result<Rc<[RoleTO]>, reqwest::Error> {
+    info!("Fetching roles from user {user_id}");
+    let url = format!(
+        "{}/permission/user/{}/roles",
+        config.backend,
+        user_id.as_str()
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn add_role_to_user(config: Config, user_role: UserRole) -> Result<(), reqwest::Error> {
+    let url = format!("{}/permission/user-role", config.backend,);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&user_role).send().await?;
+    response.error_for_status_ref()?;
+    info!("Added");
+    Ok(())
+}
+
+pub async fn remove_role_from_user(
+    config: Config,
+    user_role: UserRole,
+) -> Result<(), reqwest::Error> {
+    let url = format!("{}/permission/user-role", config.backend,);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).json(&user_role).send().await?;
+    response.error_for_status_ref()?;
+    info!("Removed");
+    Ok(())
 }
