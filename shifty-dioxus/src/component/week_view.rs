@@ -76,7 +76,7 @@ where
             class: format!(
                 "w-full select-none absolute border-solid border-black border truncate flex text-ellipsis touch-auto {}",
                 if props.discourage {
-                    "cursor-not-allowed bg-red-200 print:bg-white"
+                    "cursor-not-allowed bg-blockedColor print:bg-white"
                 } else {
                     ""
                 },
@@ -96,7 +96,7 @@ where
             div {
                 class: format!(
                     "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar {}",
-                    if props.item_data.warning.is_some() { "bg-red-300" } else { "" },
+                    if props.item_data.warning.is_some() { "bg-missingColor" } else { "" },
                 ),
                 {
                     match props.item_data.title {
@@ -131,7 +131,7 @@ where
                     }
                 }
             }
-            div { class: "flex flex-col flex-grow overflow-scroll no-scrollbar",
+            div { class: "flex flex-col flex-grow overflow-scroll no-scrollbar bg-white",
                 if props.item_data.show_add {
                     button {
                         class: "border w-8 print:hidden",
