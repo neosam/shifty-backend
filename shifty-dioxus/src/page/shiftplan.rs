@@ -205,15 +205,15 @@ pub fn ShiftPlan() -> Element {
                     }
                     ShiftPlanAction::NextWeek => {
                         info!("Next week");
-                        let current_monday = time::Date::from_iso_week_date(
+                        let current_thursday = time::Date::from_iso_week_date(
                             *year.read() as i32,
                             *week.read(),
-                            time::Weekday::Monday,
+                            time::Weekday::Thursday,
                         )
                         .unwrap();
-                        let next_monday = current_monday + time::Duration::weeks(1);
-                        let next_weeks_year = next_monday.year() as u32;
-                        let next_weeks_week = next_monday.iso_week();
+                        let next_thursday = current_thursday + time::Duration::weeks(1);
+                        let next_weeks_year = next_thursday.year() as u32;
+                        let next_weeks_week = next_thursday.iso_week();
                         year.set(next_weeks_year);
                         week.set(next_weeks_week);
                         update_shiftplan();
@@ -221,15 +221,15 @@ pub fn ShiftPlan() -> Element {
                     }
                     ShiftPlanAction::PreviousWeek => {
                         info!("Previous week");
-                        let current_monday = time::Date::from_iso_week_date(
+                        let current_thursday = time::Date::from_iso_week_date(
                             *year.read() as i32,
                             *week.read(),
-                            time::Weekday::Monday,
+                            time::Weekday::Thursday,
                         )
                         .unwrap();
-                        let previous_monday = current_monday - time::Duration::weeks(1);
-                        let previous_weeks_year = previous_monday.year() as u32;
-                        let previous_weeks_week = previous_monday.iso_week();
+                        let previous_thursday = current_thursday - time::Duration::weeks(1);
+                        let previous_weeks_year = previous_thursday.year() as u32;
+                        let previous_weeks_week = previous_thursday.iso_week();
                         year.set(previous_weeks_year);
                         week.set(previous_weeks_week);
                         update_shiftplan();
