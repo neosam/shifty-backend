@@ -205,15 +205,33 @@ pub fn ShiftPlan() -> Element {
                     }
                     ShiftPlanAction::NextWeek => {
                         info!("Next week");
-                        let current_week = *week.read();
-                        week.set(current_week + 1);
+                        let current_monday = time::Date::from_iso_week_date(
+                            *year.read() as i32,
+                            *week.read(),
+                            time::Weekday::Monday,
+                        )
+                        .unwrap();
+                        let next_monday = current_monday + time::Duration::weeks(1);
+                        let next_weeks_year = next_monday.year() as u32;
+                        let next_weeks_week = next_monday.iso_week();
+                        year.set(next_weeks_year);
+                        week.set(next_weeks_week);
                         update_shiftplan();
                         reload_unavailable_days(config.clone()).await;
                     }
                     ShiftPlanAction::PreviousWeek => {
                         info!("Previous week");
-                        let current_week = *week.read();
-                        week.set(current_week - 1);
+                        let current_monday = time::Date::from_iso_week_date(
+                            *year.read() as i32,
+                            *week.read(),
+                            time::Weekday::Monday,
+                        )
+                        .unwrap();
+                        let previous_monday = current_monday - time::Duration::weeks(1);
+                        let previous_weeks_year = previous_monday.year() as u32;
+                        let previous_weeks_week = previous_monday.iso_week();
+                        year.set(previous_weeks_year);
+                        week.set(previous_weeks_week);
                         update_shiftplan();
                         reload_unavailable_days(config.clone()).await;
                     }
