@@ -12,7 +12,7 @@ module.exports = {
       },
       colors: {
         missingColor: colors.amber[200],
-        blockedColor: colors.red[500],
+        blockedColor: colors.red[300],
       },
     },
   },
