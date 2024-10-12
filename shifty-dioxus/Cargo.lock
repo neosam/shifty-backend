@@ -2335,7 +2335,7 @@ dependencies = [
 
 [[package]]
 name = "shifty-dioxus"
-version = "0.1.13-dev"
+version = "0.1.13"
 dependencies = [
  "async-recursion",
  "dioxus",
