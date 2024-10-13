@@ -393,7 +393,7 @@ pub fn ShiftPlan() -> Element {
         }
         if is_shiftplanner && !booking_conflicts.is_empty() {
             div { class: "m-4 print:hidden",
-                h2 { class: "text-xl font-bold", "⚠️ {conflict_booking_entries_header}" }
+                h2 { class: "text-xl font-bold pb-4", "⚠️ {conflict_booking_entries_header}" }
                 ul { class: "list-disc list-inside",
                     {
                         let mut unique_booking_conflicts = Vec::new();
@@ -402,7 +402,7 @@ pub fn ShiftPlan() -> Element {
                             let name = booking_conflict.sales_person_name.clone();
                             let weekday = booking_conflict.day_of_week.i18n_string(&i18n);
                             let unique_booking_conflict = (
-                                name, weekday
+                                name, weekday, booking_conflict.sales_person_id,
                             );
                             if !unique_booking_conflicts.iter().any(|inner| inner == &unique_booking_conflict) {
                                 unique_booking_conflicts.push(unique_booking_conflict);
@@ -411,6 +411,8 @@ pub fn ShiftPlan() -> Element {
                         rsx! {
                             for unique_booking_conflict in unique_booking_conflicts {
                                 li {
+                                    onclick: move |_| cr.send(ShiftPlanAction::UpdateSalesPerson(unique_booking_conflict.2)),
+                                    class: "cursor-pointer",
                                     "{unique_booking_conflict.0} - {unique_booking_conflict.1}"
                                 }
                             }
