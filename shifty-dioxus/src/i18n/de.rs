@@ -33,6 +33,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::ShiftplanEditAs, "Du bearbeitest:");
     i18n.add_text(Locale::En, Key::ShiftplanYouAre, "Du bist ");
+    i18n.add_text(
+        Locale::En,
+        Key::ConflictBookingsHeader,
+        "Fehlerhafte Zuweisungen",
+    );
 
     // Employee report
     i18n.add_text(Locale::En, Key::OverallHeading, "Gesamtansicht");

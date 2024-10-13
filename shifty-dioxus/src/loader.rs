@@ -10,7 +10,7 @@ use crate::{
     state::{
         employee::{Employee, ExtraHours},
         sales_person_available::SalesPersonUnavailable,
-        shiftplan::{Booking, SalesPerson},
+        shiftplan::{Booking, BookingConflict, SalesPerson},
         week::Week,
         working_hours::WorkingHoursMini,
         Config, Shiftplan, Slot, User, Weekday,
@@ -335,4 +335,16 @@ pub async fn add_user(config: Config, user: ImStr) -> Result<(), ShiftyError> {
     )
     .await?;
     Ok(())
+}
+
+pub async fn load_bookings_conflicts_for_week(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[BookingConflict]>, ShiftyError> {
+    Ok(api::get_booking_conflicts_for_week(config, year, week)
+        .await?
+        .iter()
+        .map(|booking_conflict_to| BookingConflict::from(booking_conflict_to))
+        .collect())
 }

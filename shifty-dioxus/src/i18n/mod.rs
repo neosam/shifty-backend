@@ -72,6 +72,7 @@ pub enum Key {
     ShiftplanTakeLastWeek,
     ShiftplanEditAs,
     ShiftplanYouAre,
+    ConflictBookingsHeader,
 
     // Employee report
     OverallHeading,

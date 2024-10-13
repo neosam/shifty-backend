@@ -16,6 +16,7 @@ use crate::js;
 use crate::loader;
 use crate::service;
 use crate::service::AUTH;
+use crate::service::BOOKING_CONFLICTS_STORE;
 use crate::service::CONFIG;
 use crate::service::I18N;
 use crate::service::WORKING_HOURS_MINI;
@@ -48,7 +49,9 @@ pub fn ShiftPlan() -> Element {
     let config = CONFIG.read().clone();
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
+    let booking_conflicts = BOOKING_CONFLICTS_STORE.read().clone();
     let working_hours_mini_service = use_coroutine_handle::<service::WorkingHoursMiniAction>();
+    let booking_conflict_service = use_coroutine_handle::<service::BookingConflictAction>();
     let is_shiftplanner = auth_info
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
         .unwrap_or(false);
@@ -73,6 +76,7 @@ pub fn ShiftPlan() -> Element {
     let take_last_week_str: ImStr = i18n.t(Key::ShiftplanTakeLastWeek).into();
     let edit_as_str = i18n.t(Key::ShiftplanEditAs);
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
+    let conflict_booking_entries_header = i18n.t(Key::ConflictBookingsHeader);
 
     let mut shift_plan_context = {
         let config = config.clone();
@@ -115,6 +119,12 @@ pub fn ShiftPlan() -> Element {
                         *week.read(),
                     ),
                 );
+                if is_shiftplanner {
+                    booking_conflict_service.send(service::BookingConflictAction::LoadWeek(
+                        *year.read(),
+                        *week.read(),
+                    ));
+                }
             };
 
             let sales_person = loader::load_current_sales_person(config.to_owned())
@@ -370,6 +380,34 @@ pub fn ShiftPlan() -> Element {
                         rsx!{div {
                             "Loading sales persons..."
                         }}
+                    }
+                }
+            }
+        }
+        if is_shiftplanner && !booking_conflicts.is_empty() {
+            div { class: "m-4 print:hidden",
+                h2 { class: "text-xl font-bold", "⚠️ {conflict_booking_entries_header}" }
+                ul { class: "list-disc list-inside",
+                    {
+                        let mut unique_booking_conflicts = Vec::new();
+                        let i18n = i18n.to_owned();
+                        for booking_conflict in booking_conflicts.iter() {
+                            let name = booking_conflict.sales_person_name.clone();
+                            let weekday = booking_conflict.day_of_week.i18n_string(&i18n);
+                            let unique_booking_conflict = (
+                                name, weekday
+                            );
+                            if !unique_booking_conflicts.iter().any(|inner| inner == &unique_booking_conflict) {
+                                unique_booking_conflicts.push(unique_booking_conflict);
+                            }
+                        }
+                        rsx! {
+                            for unique_booking_conflict in unique_booking_conflicts {
+                                li {
+                                    "{unique_booking_conflict.0} - {unique_booking_conflict.1}"
+                                }
+                            }
+                        }
                     }
                 }
             }

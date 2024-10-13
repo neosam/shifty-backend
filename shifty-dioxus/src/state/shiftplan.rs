@@ -1,7 +1,10 @@
 use std::rc::Rc;
 
-use crate::i18n::{I18n, Key, Locale};
-use rest_types::{BookingTO, DayOfWeekTO, SalesPersonTO, SlotTO};
+use crate::{
+    base_types::ImStr,
+    i18n::{I18n, Key, Locale},
+};
+use rest_types::{BookingConflictTO, BookingTO, DayOfWeekTO, SalesPersonTO, SlotTO};
 use uuid::Uuid;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -188,5 +191,26 @@ impl Shiftplan {
             .iter()
             .map(|slot| slot.to_hour())
             .fold(f32::NEG_INFINITY, f32::max)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BookingConflict {
+    pub booking_id: Uuid,
+    pub slot_id: Uuid,
+    pub sales_person_id: Uuid,
+    pub sales_person_name: ImStr,
+    pub day_of_week: Weekday,
+}
+
+impl From<&BookingConflictTO> for BookingConflict {
+    fn from(to: &BookingConflictTO) -> BookingConflict {
+        BookingConflict {
+            booking_id: to.booking.id,
+            slot_id: to.slot.id,
+            sales_person_id: to.sales_person.id,
+            sales_person_name: to.sales_person.name.to_string().into(),
+            day_of_week: to.slot.day_of_week.into(),
+        }
     }
 }

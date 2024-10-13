@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursTO, RoleTO,
-    SalesPersonTO, SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, UserRole, UserTO,
+    BookingConflictTO, BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO,
+    ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO,
+    UserRole, UserTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -478,4 +479,19 @@ pub async fn add_user(config: Config, user: UserTO) -> Result<(), reqwest::Error
     response.error_for_status_ref()?;
     info!("Added");
     Ok(())
+}
+
+pub async fn get_booking_conflicts_for_week(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[BookingConflictTO]>, reqwest::Error> {
+    let url = format!(
+        "{}/booking-information/conflicts/for-week/{}/{}",
+        config.backend, year, week,
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    Ok(res)
 }
