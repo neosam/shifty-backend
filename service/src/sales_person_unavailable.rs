@@ -68,6 +68,12 @@ pub trait SalesPersonUnavailableService {
         calendar_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError>;
+    async fn get_by_week(
+        &self,
+        year: u32,
+        calendar_week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError>;
     async fn create(
         &self,
         entity: &SalesPersonUnavailable,

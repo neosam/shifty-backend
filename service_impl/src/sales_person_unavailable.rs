@@ -140,6 +140,24 @@ where
             .collect()
     }
 
+    async fn get_by_week(
+        &self,
+        year: u32,
+        calendar_week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError> {
+        self.permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
+            .await?;
+
+        self.sales_person_unavailable_dao
+            .find_by_week(year, calendar_week)
+            .await?
+            .iter()
+            .map(|entity| Ok(SalesPersonUnavailable::from(entity)))
+            .collect()
+    }
+
     async fn create(
         &self,
         entity: &SalesPersonUnavailable,

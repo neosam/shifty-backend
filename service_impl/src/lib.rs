@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 pub mod booking;
+pub mod booking_information;
 pub mod clock;
 pub mod extra_hours;
 pub mod permission;

@@ -1,6 +1,7 @@
 use std::{convert::Infallible, sync::Arc};
 
 mod booking;
+mod booking_information;
 mod extra_hours;
 mod permission;
 mod report;
@@ -246,6 +247,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
     type BookingService: service::booking::BookingService<Context = Context> + Send + Sync + 'static;
+    type BookingInformationService: service::booking_information::BookingInformationService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type ReportingService: service::reporting::ReportingService<Context = Context>
         + Send
         + Sync
@@ -267,6 +272,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
     fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService>;
     fn booking_service(&self) -> Arc<Self::BookingService>;
+    fn booking_information_service(&self) -> Arc<Self::BookingInformationService>;
     fn reporting_service(&self) -> Arc<Self::ReportingService>;
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService>;
@@ -381,6 +387,10 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())
+        .nest(
+            "/booking-information",
+            booking_information::generate_route(),
+        )
         .nest("/report", report::generate_route())
         .nest("/working-hours", working_hours::generate_route())
         .nest("/extra-hours", extra_hours::generate_route())

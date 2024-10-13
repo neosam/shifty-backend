@@ -45,6 +45,15 @@ type BookingService = service_impl::booking::BookingServiceImpl<
     SalesPersonService,
     SlotService,
 >;
+type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
+    SlotService,
+    BookingService,
+    SalesPersonService,
+    SalesPersonUnavailableService,
+    PermissionService,
+    ClockService,
+    UuidService,
+>;
 type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
     dao_impl::extra_hours::ExtraHoursDaoImpl,
     PermissionService,
@@ -77,6 +86,7 @@ pub struct RestStateImpl {
     sales_person_service: Arc<SalesPersonService>,
     sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
     booking_service: Arc<BookingService>,
+    booking_information_service: Arc<BookingInformationService>,
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
     extra_hours_service: Arc<ExtraHoursService>,
@@ -88,6 +98,7 @@ impl rest::RestStateDef for RestStateImpl {
     type SalesPersonService = SalesPersonService;
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
     type BookingService = BookingService;
+    type BookingInformationService = BookingInformationService;
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
     type ExtraHoursService = ExtraHoursService;
@@ -113,6 +124,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn booking_service(&self) -> Arc<Self::BookingService> {
         self.booking_service.clone()
+    }
+    fn booking_information_service(&self) -> Arc<Self::BookingInformationService> {
+        self.booking_information_service.clone()
     }
     fn reporting_service(&self) -> Arc<Self::ReportingService> {
         self.reporting_service.clone()
@@ -183,6 +197,17 @@ impl RestStateImpl {
             sales_person_service.clone(),
             slot_service.clone(),
         ));
+        let booking_information_service = Arc::new(
+            service_impl::booking_information::BookingInformationServiceImpl::new(
+                slot_service.clone(),
+                booking_service.clone(),
+                sales_person_service.clone(),
+                sales_person_unavailable_service.clone(),
+                permission_service.clone(),
+                clock_service.clone(),
+                uuid_service.clone(),
+            ),
+        );
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
             extra_hours_dao,
             permission_service.clone(),
@@ -214,6 +239,7 @@ impl RestStateImpl {
             sales_person_service,
             sales_person_unavailable_service,
             booking_service,
+            booking_information_service,
             reporting_service,
             working_hours_service,
             extra_hours_service,

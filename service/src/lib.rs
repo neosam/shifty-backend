@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub mod block;
 pub mod booking;
+pub mod booking_information;
 pub mod clock;
 pub mod datetime_utils;
 pub mod extra_hours;

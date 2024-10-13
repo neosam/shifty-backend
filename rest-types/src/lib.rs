@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use service::booking_information::BookingInformation;
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 use time::PrimitiveDateTime;
@@ -188,7 +189,7 @@ impl From<DayOfWeekTO> for service::slot::DayOfWeek {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotTO {
     #[serde(default)]
     pub id: Uuid,
@@ -593,6 +594,24 @@ impl From<&SalesPersonUnavailableTO> for service::sales_person_unavailable::Sale
             created: unavailable.created,
             deleted: unavailable.deleted,
             version: unavailable.version,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BookingConflictTO {
+    pub booking: BookingTO,
+    pub slot: Arc<SlotTO>,
+    pub sales_person: Arc<SalesPersonTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&BookingInformation> for BookingConflictTO {
+    fn from(booking_conflict: &BookingInformation) -> BookingConflictTO {
+        BookingConflictTO {
+            booking: (&booking_conflict.booking).into(),
+            slot: Arc::new(SlotTO::from(&*booking_conflict.slot)),
+            sales_person: Arc::new(SalesPersonTO::from(&*booking_conflict.sales_person)),
         }
     }
 }

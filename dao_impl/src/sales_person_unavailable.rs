@@ -107,6 +107,25 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         .collect::<Result<Arc<[SalesPersonUnavailableEntity]>, DaoError>>()
     }
 
+    async fn find_by_week(
+        &self,
+        year: u32,
+        calendar_week: u8,
+    ) -> Result<Arc<[SalesPersonUnavailableEntity]>, DaoError> {
+        query_as!(
+            SalesPersonUnavailableDb,
+            "SELECT id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version FROM sales_person_unavailable WHERE year = ? AND calendar_week = ? AND deleted IS NULL",
+            year,
+            calendar_week
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(SalesPersonUnavailableEntity::try_from)
+        .collect::<Result<Arc<[SalesPersonUnavailableEntity]>, DaoError>>()
+    }
+
     async fn create(
         &self,
         entity: &SalesPersonUnavailableEntity,

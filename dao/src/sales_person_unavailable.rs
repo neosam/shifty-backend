@@ -32,6 +32,11 @@ pub trait SalesPersonUnavailableDao {
         year: u32,
         calendar_week: u8,
     ) -> Result<Arc<[SalesPersonUnavailableEntity]>, DaoError>;
+    async fn find_by_week(
+        &self,
+        year: u32,
+        calendar_week: u8,
+    ) -> Result<Arc<[SalesPersonUnavailableEntity]>, DaoError>;
     async fn create(
         &self,
         entity: &SalesPersonUnavailableEntity,
