@@ -156,6 +156,12 @@ pub fn ShiftPlan() -> Element {
                 *year.read(),
                 *week.read(),
             ));
+            if is_shiftplanner {
+                booking_conflict_service.send(service::BookingConflictAction::LoadWeek(
+                    *year.read(),
+                    *week.read(),
+                ));
+            }
 
             //if let Some(sales_person) = sales_person {
             //    let unavailable_days = result_handler(
@@ -292,6 +298,7 @@ pub fn ShiftPlan() -> Element {
                                 .await,
                             );
                         }
+                        update_shiftplan();
                         reload_unavailable_days(config.clone()).await;
                     }
                 }
