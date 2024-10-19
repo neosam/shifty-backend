@@ -40,6 +40,15 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Fehlerhafte Zuweisungen",
     );
 
+    // Weekly overview page
+    i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Jahresübersicht");
+    i18n.add_text(
+        Locale::En,
+        Key::AvailableRequiredHours,
+        "Verfügbare / Benötigte Stunden",
+    );
+    i18n.add_text(Locale::En, Key::MissingHours, "Fehlende Stunden");
+
     // Employee report
     i18n.add_text(Locale::En, Key::OverallHeading, "Gesamtansicht");
     i18n.add_text(

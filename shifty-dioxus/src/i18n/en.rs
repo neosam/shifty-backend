@@ -1,3 +1,5 @@
+use dioxus::html::i;
+
 use super::{I18n, Key, Locale};
 
 pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
@@ -35,6 +37,15 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::ConflictBookingsHeader,
         "Invalid booked slots",
     );
+
+    // Weekly overview page
+    i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
+    i18n.add_text(
+        Locale::En,
+        Key::AvailableRequiredHours,
+        "Available / Requested Hours",
+    );
+    i18n.add_text(Locale::En, Key::MissingHours, "Missing Hours");
 
     // Employee report
     i18n.add_text(Locale::En, Key::OverallHeading, "Overall");

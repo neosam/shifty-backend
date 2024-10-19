@@ -75,6 +75,11 @@ pub enum Key {
     ShiftplanYouAre,
     ConflictBookingsHeader,
 
+    // Weekly overview page
+    WeeklyOverviewTitle,
+    AvailableRequiredHours,
+    MissingHours,
+
     // Employee report
     OverallHeading,
     WorkingHoursPerWeekHeading,
