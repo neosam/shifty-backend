@@ -185,7 +185,10 @@ where
                 .reporting_service
                 .get_week(year, week, Authentication::Full)
                 .await?;
-            let slots = self.slot_service.get_slots(Authentication::Full).await?;
+            let slots = self
+                .slot_service
+                .get_slots_for_week(year, week, Authentication::Full)
+                .await?;
             let slot_hours = slots
                 .iter()
                 .map(|slot| {

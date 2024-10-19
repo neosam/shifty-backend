@@ -17,6 +17,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_slots::<RestState>))
         .route("/:id", get(get_slot::<RestState>))
+        .route("/week/:year/:month", get(get_slots_for_week::<RestState>))
         .route("/", post(create_slot::<RestState>))
         .route("/:id", put(update_slot::<RestState>))
 }
@@ -59,6 +60,29 @@ pub async fn get_slot<RestState: RestStateDef>(
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(serde_json::to_string(&slot).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn get_slots_for_week<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path((year, week)): Path<(u32, u8)>,
+) -> Response {
+    error_handler(
+        (async {
+            let slots: Arc<[SlotTO]> = rest_state
+                .slot_service()
+                .get_slots_for_week(year, week, context.into())
+                .await?
+                .iter()
+                .map(SlotTO::from)
+                .collect();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&slots).unwrap()))
                 .unwrap())
         })
         .await,
