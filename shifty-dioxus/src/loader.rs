@@ -85,9 +85,11 @@ pub async fn load_bookings(
 
 pub async fn load_slots(
     config: Config,
+    year: u32,
+    week: u8,
     bookings: Rc<[Booking]>,
 ) -> Result<Rc<[Slot]>, ShiftyError> {
-    let slot_tos = api::get_slots(config).await?;
+    let slot_tos = api::get_slots(config, year, week).await?;
     let slots: Rc<[Slot]> = slot_tos
         .iter()
         .map(|slot_to| slot_to.into())
@@ -110,7 +112,7 @@ pub async fn load_shift_plan(
 ) -> Result<Shiftplan, ShiftyError> {
     let sales_persons = load_sales_persons(config.clone()).await?;
     let bookings = load_bookings(config.clone(), sales_persons.clone(), week, year).await?;
-    let slots = load_slots(config.clone(), bookings.clone()).await?;
+    let slots = load_slots(config.clone(), year, week, bookings.clone()).await?;
 
     Ok(Shiftplan { week, year, slots })
 }

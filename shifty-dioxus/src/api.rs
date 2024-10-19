@@ -48,9 +48,13 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
     Ok(res)
 }
 
-pub async fn get_slots(config: Config) -> Result<Rc<[SlotTO]>, reqwest::Error> {
+pub async fn get_slots(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[SlotTO]>, reqwest::Error> {
     info!("Fetching slots");
-    let url = format!("{}/slot", config.backend);
+    let url = format!("{}/slot/week/{year}/{week}", config.backend);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
