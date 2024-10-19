@@ -47,21 +47,34 @@ pub fn WeeklyOverview() -> Element {
             h1 { class: "text-2xl font-bold", "Weekly Overview" }
             p { class: "mt-8 mb-8", "This is a page that shows the weekly overview." }
             div {
-                button { onclick: move |_| cr.send(WeeklyOverviewPageAction::PreviousYear),
+                button {
+                    onclick: move |_| cr.send(WeeklyOverviewPageAction::PreviousYear),
+                    class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
                     "<"
                 }
-                span { class: "mx-4", "{year.read()}" }
-                button { onclick: move |_| cr.send(WeeklyOverviewPageAction::NextYear),
+                span { class: "mx-4 mr-6", "{year.read()}" }
+                button {
+                    onclick: move |_| cr.send(WeeklyOverviewPageAction::NextYear),
+                    class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
                     ">"
                 }
             }
             div {
-                h2 { class: "text-xl font-bold", "Weeks" }
-                for week in weekly_summary.iter() {
-                    div {
-                        h3 { class: "text-lg font-bold", "{week.year} / {week.week}" }
-                        p { class: "mt-2",
-                            "Available hours: {week.available_hours} / {week.required_hours}."
+                table { class: "table-fixed w-full md:w-1/2",
+                    thead { class: "text-left",
+                        tr {
+                            th { class: "pl-2 pr-2", "Week" }
+                            th { class: "pl-2 pr-2", "Available / Required hours" }
+                            th { class: "pl-2 pr-2", "Missing hours" }
+                        }
+                    }
+                    tbody {
+                        for week in weekly_summary.iter() {
+                            tr { class: "content-center",
+                                td { "{week.year} / {week.week}" }
+                                td { "{week.available_hours} / {week.required_hours}" }
+                                td { "{week.required_hours - week.available_hours}" }
+                            }
                         }
                     }
                 }
