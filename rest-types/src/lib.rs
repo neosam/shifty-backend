@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "service-impl")]
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
@@ -622,6 +623,7 @@ pub struct WorkingHoursPerSalesPersonTO {
     pub sales_person_name: Arc<str>,
     pub available_hours: f32,
 }
+#[cfg(feature = "service-impl")]
 impl From<&WorkingHoursPerSalesPerson> for WorkingHoursPerSalesPersonTO {
     fn from(working_hours_per_sales_person: &WorkingHoursPerSalesPerson) -> Self {
         Self {
@@ -637,15 +639,18 @@ pub struct WeeklySummaryTO {
     pub year: u32,
     pub week: u8,
     pub overall_available_hours: f32,
+    pub required_hours: f32,
 
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPersonTO]>,
 }
+#[cfg(feature = "service-impl")]
 impl From<&WeeklySummary> for WeeklySummaryTO {
     fn from(weekly_summary: &WeeklySummary) -> Self {
         Self {
             year: weekly_summary.year,
             week: weekly_summary.week,
             overall_available_hours: weekly_summary.overall_available_hours,
+            required_hours: weekly_summary.required_hours,
             working_hours_per_sales_person: weekly_summary
                 .working_hours_per_sales_person
                 .iter()

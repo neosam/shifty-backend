@@ -178,13 +178,20 @@ where
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let mut weekly_report = vec![];
-        for week in 1..time::util::weeks_in_year(year as i32) {
+        for week in 1..=time::util::weeks_in_year(year as i32) {
             let mut overall_available_hours = 0.0;
             let mut working_hours_per_sales_person = vec![];
             let week_report = self
                 .reporting_service
                 .get_week(year, week, Authentication::Full)
                 .await?;
+            let slots = self.slot_service.get_slots(Authentication::Full).await?;
+            let slot_hours = slots
+                .iter()
+                .map(|slot| {
+                    (slot.to - slot.from).as_seconds_f32() / 3600.0 * slot.min_resources as f32
+                })
+                .sum::<f32>();
             for report in week_report.iter() {
                 overall_available_hours += report.expected_hours;
                 working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
@@ -198,6 +205,7 @@ where
                 week,
                 overall_available_hours,
                 working_hours_per_sales_person: working_hours_per_sales_person.into(),
+                required_hours: slot_hours,
             });
         }
 

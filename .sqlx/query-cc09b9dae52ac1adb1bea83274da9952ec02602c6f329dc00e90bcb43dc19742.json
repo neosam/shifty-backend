@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version \n                FROM slot \n                WHERE deleted IS NULL\n                AND valid_from <= ?\n                AND (valid_to IS NULL OR valid_to >= ?)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "day_of_week",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "time_from",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "time_to",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "min_resources",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "valid_from",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "valid_to",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 8,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "cc09b9dae52ac1adb1bea83274da9952ec02602c6f329dc00e90bcb43dc19742"
+}

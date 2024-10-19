@@ -31,6 +31,7 @@ pub struct WeeklySummary {
     pub year: u32,
     pub week: u8,
     pub overall_available_hours: f32,
+    pub required_hours: f32,
 
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPerson]>,
 }

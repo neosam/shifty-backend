@@ -128,6 +128,12 @@ pub trait SlotService {
         id: &Uuid,
         context: Authentication<Self::Context>,
     ) -> Result<Slot, ServiceError>;
+    async fn get_slots_for_week(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Slot]>, ServiceError>;
     async fn exists(
         &self,
         id: Uuid,

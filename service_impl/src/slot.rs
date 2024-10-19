@@ -105,6 +105,29 @@ where
         Ok(slot)
     }
 
+    async fn get_slots_for_week(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Slot]>, ServiceError> {
+        let (shiftplanner_permission, sales_permission) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context),
+        );
+        shiftplanner_permission.or(sales_permission)?;
+
+        Ok(self
+            .slot_dao
+            .get_slots_for_week(year, week)
+            .await?
+            .iter()
+            .map(Slot::from)
+            .collect())
+    }
+
     async fn exists(
         &self,
         id: Uuid,
