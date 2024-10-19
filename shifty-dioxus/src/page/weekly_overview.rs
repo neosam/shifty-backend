@@ -25,6 +25,7 @@ pub fn WeeklyOverview() -> Element {
         };
 
         move |mut rx: UnboundedReceiver<WeeklyOverviewPageAction>| async move {
+            load_data().await;
             while let Some(action) = rx.next().await {
                 match action {
                     WeeklyOverviewPageAction::NextYear => {
