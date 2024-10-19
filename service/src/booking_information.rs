@@ -19,6 +19,22 @@ pub struct BookingInformation {
     pub sales_person: Arc<SalesPerson>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorkingHoursPerSalesPerson {
+    pub sales_person_id: Uuid,
+    pub sales_person_name: Arc<str>,
+    pub available_hours: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WeeklySummary {
+    pub year: u32,
+    pub week: u8,
+    pub overall_available_hours: f32,
+
+    pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPerson]>,
+}
+
 pub fn build_booking_information(
     slots: Arc<[Slot]>,
     booking: Arc<[Booking]>,
@@ -57,4 +73,10 @@ pub trait BookingInformationService {
         week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[BookingInformation]>, ServiceError>;
+
+    async fn get_weekly_summary(
+        &self,
+        years: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[WeeklySummary]>, ServiceError>;
 }

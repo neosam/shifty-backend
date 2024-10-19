@@ -50,6 +50,7 @@ type BookingInformationService = service_impl::booking_information::BookingInfor
     BookingService,
     SalesPersonService,
     SalesPersonUnavailableService,
+    ReportingService,
     PermissionService,
     ClockService,
     UuidService,
@@ -197,17 +198,6 @@ impl RestStateImpl {
             sales_person_service.clone(),
             slot_service.clone(),
         ));
-        let booking_information_service = Arc::new(
-            service_impl::booking_information::BookingInformationServiceImpl::new(
-                slot_service.clone(),
-                booking_service.clone(),
-                sales_person_service.clone(),
-                sales_person_unavailable_service.clone(),
-                permission_service.clone(),
-                clock_service.clone(),
-                uuid_service.clone(),
-            ),
-        );
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
             extra_hours_dao,
             permission_service.clone(),
@@ -232,6 +222,18 @@ impl RestStateImpl {
             clock_service.clone(),
             uuid_service.clone(),
         ));
+        let booking_information_service = Arc::new(
+            service_impl::booking_information::BookingInformationServiceImpl::new(
+                slot_service.clone(),
+                booking_service.clone(),
+                sales_person_service.clone(),
+                sales_person_unavailable_service.clone(),
+                reporting_service.clone(),
+                permission_service.clone(),
+                clock_service.clone(),
+                uuid_service.clone(),
+            ),
+        );
         Self {
             user_service,
             permission_service,

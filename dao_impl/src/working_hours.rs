@@ -151,15 +151,13 @@ impl WorkingHoursDao for WorkingHoursDaoImpl {
             FROM
                 working_hours
             WHERE
-                from_calendar_week <= ?
-                AND from_year <= ?
-                AND to_calendar_week >= ?
-                AND to_year >= ?
+                (from_year * 100 + from_calendar_week) <= (? * 100 + ?)
+                AND (to_year * 100 + to_calendar_week) >= (? * 100 + ?)
             "#,
+            year,
             calenar_week,
             year,
             calenar_week,
-            year
         )
         .fetch_all(self.pool.as_ref())
         .await

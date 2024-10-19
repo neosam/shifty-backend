@@ -5,16 +5,21 @@ use axum::extract::Path;
 use axum::routing::get;
 use axum::{extract::State, response::Response};
 use axum::{Extension, Router};
-use rest_types::BookingConflictTO;
+use rest_types::{BookingConflictTO, WeeklySummaryTO};
 use service::booking_information::BookingInformationService;
 
 use crate::{error_handler, Context, RestStateDef};
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
-    Router::new().route(
-        "/conflicts/for-week/:year/:week",
-        get(get_booking_conflicts_for_week::<RestState>),
-    )
+    Router::new()
+        .route(
+            "/conflicts/for-week/:year/:week",
+            get(get_booking_conflicts_for_week::<RestState>),
+        )
+        .route(
+            "/weekly-resource-report/:year",
+            get(get_weekly_summary::<RestState>),
+        )
 }
 
 pub async fn get_booking_conflicts_for_week<RestState: RestStateDef>(
@@ -36,6 +41,29 @@ pub async fn get_booking_conflicts_for_week<RestState: RestStateDef>(
                 .body(Body::new(
                     serde_json::to_string(&booking_conflicts).unwrap(),
                 ))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn get_weekly_summary<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(year): Path<u32>,
+) -> Response {
+    error_handler(
+        (async {
+            let weekly_summary: Arc<[WeeklySummaryTO]> = rest_state
+                .booking_information_service()
+                .get_weekly_summary(year, context.into())
+                .await?
+                .iter()
+                .map(WeeklySummaryTO::from)
+                .collect();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&weekly_summary).unwrap()))
                 .unwrap())
         })
         .await,

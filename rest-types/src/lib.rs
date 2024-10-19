@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use service::booking_information::BookingInformation;
+use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 use time::PrimitiveDateTime;
@@ -612,6 +612,48 @@ impl From<&BookingInformation> for BookingConflictTO {
             booking: (&booking_conflict.booking).into(),
             slot: Arc::new(SlotTO::from(&*booking_conflict.slot)),
             sales_person: Arc::new(SalesPersonTO::from(&*booking_conflict.sales_person)),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WorkingHoursPerSalesPersonTO {
+    pub sales_person_id: Uuid,
+    pub sales_person_name: Arc<str>,
+    pub available_hours: f32,
+}
+impl From<&WorkingHoursPerSalesPerson> for WorkingHoursPerSalesPersonTO {
+    fn from(working_hours_per_sales_person: &WorkingHoursPerSalesPerson) -> Self {
+        Self {
+            sales_person_id: working_hours_per_sales_person.sales_person_id,
+            sales_person_name: working_hours_per_sales_person.sales_person_name.clone(),
+            available_hours: working_hours_per_sales_person.available_hours,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WeeklySummaryTO {
+    pub year: u32,
+    pub week: u8,
+    pub overall_available_hours: f32,
+
+    pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPersonTO]>,
+}
+impl From<&WeeklySummary> for WeeklySummaryTO {
+    fn from(weekly_summary: &WeeklySummary) -> Self {
+        Self {
+            year: weekly_summary.year,
+            week: weekly_summary.week,
+            overall_available_hours: weekly_summary.overall_available_hours,
+            working_hours_per_sales_person: weekly_summary
+                .working_hours_per_sales_person
+                .iter()
+                .map(|working_hours_per_sales_person| {
+                    WorkingHoursPerSalesPersonTO::from(working_hours_per_sales_person)
+                })
+                .collect::<Vec<_>>()
+                .into(),
         }
     }
 }

@@ -1,9 +1,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::working_hours;
 use service::{
-    booking_information::{build_booking_information, BookingInformation},
+    booking_information::{
+        build_booking_information, BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson,
+    },
     permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
+    reporting::{self, ReportingService},
     ServiceError,
 };
 
@@ -12,6 +16,7 @@ pub struct BookingInformationServiceImpl<
     BookingService,
     SalesPersonService,
     SalesPersonUnavailableService,
+    ReportingService,
     PermissionService,
     ClockService,
     UuidService,
@@ -21,6 +26,7 @@ pub struct BookingInformationServiceImpl<
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     SalesPersonUnavailableService:
         service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
+    ReportingService: service::reporting::ReportingService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -29,6 +35,7 @@ pub struct BookingInformationServiceImpl<
     pub booking_service: Arc<BookingService>,
     pub sales_person_service: Arc<SalesPersonService>,
     pub sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
+    pub reporting_service: Arc<ReportingService>,
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
     pub uuid_service: Arc<UuidService>,
@@ -39,6 +46,7 @@ impl<
         BookingService,
         SalesPersonService,
         SalesPersonUnavailableService,
+        ReportingService,
         PermissionService,
         ClockService,
         UuidService,
@@ -48,6 +56,7 @@ impl<
         BookingService,
         SalesPersonService,
         SalesPersonUnavailableService,
+        ReportingService,
         PermissionService,
         ClockService,
         UuidService,
@@ -58,6 +67,7 @@ where
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     SalesPersonUnavailableService:
         service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
+    ReportingService: service::reporting::ReportingService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -67,6 +77,7 @@ where
         booking_service: Arc<BookingService>,
         sales_person_service: Arc<SalesPersonService>,
         sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
+        reporting_service: Arc<ReportingService>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
@@ -76,6 +87,7 @@ where
             booking_service,
             sales_person_service,
             sales_person_unavailable_service,
+            reporting_service,
             permission_service,
             clock_service,
             uuid_service,
@@ -89,6 +101,7 @@ impl<
         BookingService,
         SalesPersonService,
         SalesPersonUnavailableService,
+        ReportingService,
         PermissionService,
         ClockService,
         UuidService,
@@ -98,6 +111,7 @@ impl<
         BookingService,
         SalesPersonService,
         SalesPersonUnavailableService,
+        ReportingService,
         PermissionService,
         ClockService,
         UuidService,
@@ -111,6 +125,7 @@ where
         + Sync,
     SalesPersonUnavailableService:
         service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
+    ReportingService: service::reporting::ReportingService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -152,5 +167,40 @@ where
             .collect();
 
         Ok(conflicts)
+    }
+
+    async fn get_weekly_summary(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[WeeklySummary]>, ServiceError> {
+        self.permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
+            .await?;
+        let mut weekly_report = vec![];
+        for week in 1..time::util::weeks_in_year(year as i32) {
+            let mut overall_available_hours = 0.0;
+            let mut working_hours_per_sales_person = vec![];
+            let week_report = self
+                .reporting_service
+                .get_week(year, week, Authentication::Full)
+                .await?;
+            for report in week_report.iter() {
+                overall_available_hours += report.expected_hours;
+                working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
+                    sales_person_id: report.sales_person.id,
+                    sales_person_name: report.sales_person.name.clone(),
+                    available_hours: report.expected_hours,
+                });
+            }
+            weekly_report.push(WeeklySummary {
+                year,
+                week,
+                overall_available_hours,
+                working_hours_per_sales_person: working_hours_per_sales_person.into(),
+            });
+        }
+
+        Ok(weekly_report.into())
     }
 }
