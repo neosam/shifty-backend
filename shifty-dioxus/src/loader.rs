@@ -12,6 +12,7 @@ use crate::{
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
         week::Week,
+        weekly_overview::WeeklySummary,
         working_hours::WorkingHoursMini,
         Config, Shiftplan, Slot, User, Weekday,
     },
@@ -347,4 +348,16 @@ pub async fn load_bookings_conflicts_for_week(
         .iter()
         .map(|booking_conflict_to| BookingConflict::from(booking_conflict_to))
         .collect())
+}
+
+pub async fn load_weekly_summary_for_year(
+    config: Config,
+    year: u32,
+) -> Result<Rc<[WeeklySummary]>, ShiftyError> {
+    let extra_hours_to = api::get_weekly_overview(config, year).await?;
+    let mut extra_hours_to: Vec<WeeklySummary> =
+        extra_hours_to.iter().map(WeeklySummary::from).collect();
+    extra_hours_to.sort_by_key(|extra_hours| (extra_hours.year, extra_hours.week));
+
+    Ok(extra_hours_to.into())
 }

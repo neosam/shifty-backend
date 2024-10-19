@@ -26,6 +26,11 @@ pub fn TopBar() -> Element {
     } else {
         false
     };
+    let show_weekly_overview = if let Some(ref auth_info) = auth_info {
+        auth_info.has_privilege("shiftplanner")
+    } else {
+        false
+    };
     let show_reports = if let Some(ref auth_info) = auth_info {
         auth_info.has_privilege("hr")
     } else {
@@ -71,6 +76,11 @@ pub fn TopBar() -> Element {
                     if show_shiftplan {
                         li {
                             Link { to: Route::ShiftPlan {}, {i18n.t(Key::Shiftplan)} }
+                        }
+                    }
+                    if show_weekly_overview {
+                        li {
+                            Link { to: Route::WeeklyOverview {}, {i18n.t(Key::YearOverview)} }
                         }
                     }
                     if show_reports {

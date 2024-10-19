@@ -4,9 +4,10 @@ pub mod dropdown;
 pub mod employee;
 pub mod sales_person_available;
 pub mod shiftplan;
-pub mod week;
-pub mod working_hours;
 pub mod user_management;
+pub mod week;
+pub mod weekly_overview;
+pub mod working_hours;
 
 pub use auth_info::AuthInfo;
 pub use config::Config;

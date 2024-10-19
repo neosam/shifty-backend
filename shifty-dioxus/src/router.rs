@@ -8,6 +8,7 @@ pub use crate::page::SalesPersonDetails;
 pub use crate::page::ShiftPlan;
 pub use crate::page::UserDetails;
 pub use crate::page::UserManagementPage;
+pub use crate::page::WeeklyOverview;
 
 #[derive(Clone, Routable, Debug, PartialEq)]
 pub enum Route {
@@ -15,6 +16,8 @@ pub enum Route {
     Home {},
     #[route("/shiftplan/")]
     ShiftPlan {},
+    #[route("/weekly_overview/")]
+    WeeklyOverview {},
     #[route("/employees/")]
     Employees {},
     #[route("/employees/:employee_id/")]

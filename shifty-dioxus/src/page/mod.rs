@@ -7,6 +7,7 @@ pub mod sales_person_details;
 pub mod shiftplan;
 pub mod user_details;
 pub mod user_management;
+pub mod weekly_overview;
 
 pub use employee_details::EmployeeDetails;
 pub use employees::Employees;
@@ -17,3 +18,4 @@ pub use sales_person_details::SalesPersonDetails;
 pub use shiftplan::ShiftPlan;
 pub use user_details::UserDetails;
 pub use user_management::UserManagementPage;
+pub use weekly_overview::WeeklyOverview;

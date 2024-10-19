@@ -3,7 +3,7 @@ use std::rc::Rc;
 use rest_types::{
     BookingConflictTO, BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO,
     ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO,
-    UserRole, UserTO,
+    UserRole, UserTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -489,6 +489,20 @@ pub async fn get_booking_conflicts_for_week(
     let url = format!(
         "{}/booking-information/conflicts/for-week/{}/{}",
         config.backend, year, week,
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    Ok(res)
+}
+
+pub async fn get_weekly_overview(
+    config: Config,
+    year: u32,
+) -> Result<Rc<[WeeklySummaryTO]>, reqwest::Error> {
+    let url = format!(
+        "{}/booking-information/weekly-resource-report/{}",
+        config.backend, year,
     );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;

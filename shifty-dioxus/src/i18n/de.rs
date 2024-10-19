@@ -18,6 +18,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Shiftplan, "Schichtplan");
     i18n.add_text(Locale::En, Key::Employees, "Angestellte");
     i18n.add_text(Locale::En, Key::MyTime, "Zeitkonto");
+    i18n.add_text(Locale::En, Key::YearOverview, "Jahresübersicht");
     i18n.add_text(Locale::En, Key::Logout, "Logout");
 
     // Shiftplan

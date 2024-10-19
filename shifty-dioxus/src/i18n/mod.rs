@@ -65,6 +65,7 @@ pub enum Key {
     Shiftplan,
     Employees,
     MyTime,
+    YearOverview,
     Logout,
 
     // Shiftplan
