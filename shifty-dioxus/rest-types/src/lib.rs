@@ -265,6 +265,7 @@ pub enum ExtraHoursReportCategoryTO {
     Vacation,
     SickLeave,
     Holiday,
+    Unavailable,
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCategoryTO {
@@ -275,6 +276,7 @@ impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCat
             service::reporting::ExtraHoursReportCategory::Vacation => Self::Vacation,
             service::reporting::ExtraHoursReportCategory::SickLeave => Self::SickLeave,
             service::reporting::ExtraHoursReportCategory::Holiday => Self::Holiday,
+            service::reporting::ExtraHoursReportCategory::Unavailable => Self::Unavailable,
         }
     }
 }
@@ -478,6 +480,7 @@ pub enum ExtraHoursCategoryTO {
     Vacation,
     SickLeave,
     Holiday,
+    Unavailable,
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
@@ -487,6 +490,7 @@ impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
             service::extra_hours::ExtraHoursCategory::Vacation => Self::Vacation,
             service::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
             service::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
+            service::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
         }
     }
 }
@@ -498,6 +502,7 @@ impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
             ExtraHoursCategoryTO::Vacation => Self::Vacation,
             ExtraHoursCategoryTO::SickLeave => Self::SickLeave,
             ExtraHoursCategoryTO::Holiday => Self::Holiday,
+            ExtraHoursCategoryTO::Unavailable => Self::Unavailable,
         }
     }
 }

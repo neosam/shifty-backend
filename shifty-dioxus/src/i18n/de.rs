@@ -62,6 +62,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryVacation, "Urlaub");
     i18n.add_text(Locale::En, Key::CategorySickLeave, "Krank");
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Feiertage");
+    i18n.add_text(Locale::En, Key::CategoryUnavailable, "Nicht verfügbar");
 
     i18n.add_text(Locale::En, Key::ShowDetails, "Mehr");
     i18n.add_text(Locale::En, Key::HideDetails, "Weniger");
@@ -73,6 +74,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Locale::En,
         Key::WorkHoursDescription,
         "(Arbeitsstunden, die nicht im Schichtplan enthalten sind)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::UnavailableDescription,
+        "(Stunden, die nicht das Zeitkonto beeinflussen aber dem Schichtplanner zeigen, dass du nicht verfügbar bist)",
     );
 
     // Add extra hours form

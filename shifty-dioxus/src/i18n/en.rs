@@ -58,6 +58,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryVacation, "Vacation");
     i18n.add_text(Locale::En, Key::CategorySickLeave, "Sick leave");
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Holiday");
+    i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
 
     i18n.add_text(Locale::En, Key::ShowDetails, "More");
     i18n.add_text(Locale::En, Key::HideDetails, "Less");
@@ -69,6 +70,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Locale::En,
         Key::WorkHoursDescription,
         "(work hours which are not covered by the shiftplan)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::UnavailableDescription,
+        "(Hours which do not affect the hour balance but marks shows the shiftplanner that you are not available)",
     );
 
     // Add extra hours form

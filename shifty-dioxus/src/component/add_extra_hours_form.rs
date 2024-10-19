@@ -47,6 +47,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let vacation_str = i18n.t(Key::CategoryVacation);
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
+    let unavailable_str = i18n.t(Key::CategoryUnavailable);
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<AddExtraHoursFormAction>| async move {
@@ -95,6 +96,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     option { value: "holiday", "{holidays_str}" }
                     option { value: "sick_leave", "{sick_leave_str}" }
                     option { value: "vacation", "{vacation_str}" }
+                    option { value: "unavailable", "{unavailable_str}" }
                 }
             }
 

@@ -89,6 +89,7 @@ pub enum Key {
     CategoryVacation,
     CategorySickLeave,
     CategoryHolidays,
+    CategoryUnavailable,
 
     ShowDetails,
     HideDetails,
@@ -97,6 +98,7 @@ pub enum Key {
 
     AddEntry,
     WorkHoursDescription,
+    UnavailableDescription,
 
     // Add extra hours form
     AddExtraHoursFormTitle,

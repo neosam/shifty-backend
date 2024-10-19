@@ -95,8 +95,10 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
     let vacation_str = i18n.t(Key::CategoryVacation);
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
+    let unavailable_str = i18n.t(Key::CategoryUnavailable);
     let hours_str = i18n.t(Key::Hours);
     let work_hours_description_str = i18n.t(Key::WorkHoursDescription);
+    let unavailable_description_str = i18n.t(Key::UnavailableDescription);
 
     rsx! {
         div { class: "flex flex-col",
@@ -162,6 +164,27 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
 
             ul {
                 for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_extra_work()) {
+                    {
+                        let extra_hours_id = extra_hours.id;
+                        rsx! { li {
+                            key: "{extra_hours_id}",
+                            class: "mb-1",
+                            TripleView {
+                                label: i18n.format_date(&extra_hours.date_time.date()),
+                                value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                description: format!("{}", extra_hours.description).into(),
+                                ondelete: move |_| props.ondelete.call(extra_hours_id),
+                            }
+                        } }
+                    }
+                }
+            }
+
+            h2 { class: "text-lg font-bold mt-8", "{unavailable_str}" }
+            p { class: "text-sm text-gray-500 mb-4", "{unavailable_description_str}" }
+
+            ul {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_unavailable()) {
                     {
                         let extra_hours_id = extra_hours.id;
                         rsx! { li {

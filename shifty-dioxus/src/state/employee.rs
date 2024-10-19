@@ -30,6 +30,7 @@ pub enum WorkingHoursCategory {
     Vacation,
     SickLeave,
     Holiday,
+    Unavailable,
 }
 impl WorkingHoursCategory {
     pub fn is_extra_work(&self) -> bool {
@@ -44,6 +45,9 @@ impl WorkingHoursCategory {
     pub fn is_holiday(&self) -> bool {
         matches!(self, WorkingHoursCategory::Holiday)
     }
+    pub fn is_unavailable(&self) -> bool {
+        matches!(self, WorkingHoursCategory::Unavailable)
+    }
     pub fn identifier(&self) -> Rc<str> {
         match self {
             WorkingHoursCategory::Shiftplan => "shiftplan".into(),
@@ -51,6 +55,7 @@ impl WorkingHoursCategory {
             WorkingHoursCategory::Vacation => "vacation".into(),
             WorkingHoursCategory::SickLeave => "sick_leave".into(),
             WorkingHoursCategory::Holiday => "holiday".into(),
+            WorkingHoursCategory::Unavailable => "unavailable".into(),
         }
     }
     pub fn from_identifier(identifier: &str) -> Self {
@@ -60,6 +65,7 @@ impl WorkingHoursCategory {
             "vacation" => WorkingHoursCategory::Vacation,
             "sick_leave" => WorkingHoursCategory::SickLeave,
             "holiday" => WorkingHoursCategory::Holiday,
+            "unavailable" => WorkingHoursCategory::Unavailable,
             _ => panic!("Unknown working hours category: {}", identifier),
         }
     }
@@ -70,6 +76,7 @@ impl WorkingHoursCategory {
             WorkingHoursCategory::Vacation => i18n::Key::CategoryVacation,
             WorkingHoursCategory::SickLeave => i18n::Key::CategorySickLeave,
             WorkingHoursCategory::Holiday => i18n::Key::CategoryHolidays,
+            WorkingHoursCategory::Unavailable => i18n::Key::CategoryUnavailable,
         }
     }
 }
@@ -82,6 +89,7 @@ impl Display for WorkingHoursCategory {
             WorkingHoursCategory::Vacation => write!(f, "Vacation"),
             WorkingHoursCategory::SickLeave => write!(f, "Sick leave"),
             WorkingHoursCategory::Holiday => write!(f, "Holiday"),
+            WorkingHoursCategory::Unavailable => write!(f, "Unavailable"),
         }
     }
 }
@@ -94,6 +102,7 @@ impl From<&ExtraHoursReportCategoryTO> for WorkingHoursCategory {
             ExtraHoursReportCategoryTO::Vacation => WorkingHoursCategory::Vacation,
             ExtraHoursReportCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursReportCategoryTO::Holiday => WorkingHoursCategory::Holiday,
+            ExtraHoursReportCategoryTO::Unavailable => WorkingHoursCategory::Unavailable,
         }
     }
 }
@@ -104,6 +113,7 @@ impl From<&WorkingHoursCategory> for ExtraHoursCategoryTO {
             WorkingHoursCategory::Vacation => ExtraHoursCategoryTO::Vacation,
             WorkingHoursCategory::SickLeave => ExtraHoursCategoryTO::SickLeave,
             WorkingHoursCategory::Holiday => ExtraHoursCategoryTO::Holiday,
+            WorkingHoursCategory::Unavailable => ExtraHoursCategoryTO::Unavailable,
             _ => panic!(
                 "Cannot convert working hours category to extra hours category: {:?}",
                 category
@@ -118,6 +128,7 @@ impl From<&ExtraHoursCategoryTO> for WorkingHoursCategory {
             ExtraHoursCategoryTO::Vacation => WorkingHoursCategory::Vacation,
             ExtraHoursCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursCategoryTO::Holiday => WorkingHoursCategory::Holiday,
+            ExtraHoursCategoryTO::Unavailable => WorkingHoursCategory::Unavailable,
         }
     }
 }
