@@ -16,6 +16,7 @@ pub enum ExtraHoursReportCategory {
     Vacation,
     SickLeave,
     Holiday,
+    Unavailable,
 }
 
 impl From<&crate::extra_hours::ExtraHoursCategory> for ExtraHoursReportCategory {
@@ -25,6 +26,7 @@ impl From<&crate::extra_hours::ExtraHoursCategory> for ExtraHoursReportCategory 
             crate::extra_hours::ExtraHoursCategory::Vacation => Self::Vacation,
             crate::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
             crate::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
+            crate::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
         }
     }
 }

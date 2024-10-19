@@ -35,6 +35,7 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
                 "Vacation" => ExtraHoursCategoryEntity::Vacation,
                 "SickLeave" => ExtraHoursCategoryEntity::SickLeave,
                 "Holiday" => ExtraHoursCategoryEntity::Holiday,
+                "Unavailable" => ExtraHoursCategoryEntity::Unavailable,
                 value @ _ => return Err(DaoError::EnumValueNotFound(value.into())),
             },
             description: extra_hours
@@ -141,6 +142,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             ExtraHoursCategoryEntity::Vacation => "Vacation",
             ExtraHoursCategoryEntity::SickLeave => "SickLeave",
             ExtraHoursCategoryEntity::Holiday => "Holiday",
+            ExtraHoursCategoryEntity::Unavailable => "Unavailable",
         };
         let description = entity.description.as_ref();
         let date_time = entity.date_time.format(&Iso8601::DATE_TIME)?;

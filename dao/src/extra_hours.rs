@@ -10,6 +10,7 @@ pub enum ExtraHoursCategoryEntity {
     Vacation,
     SickLeave,
     Holiday,
+    Unavailable,
 }
 
 #[derive(Clone, Debug, PartialEq)]

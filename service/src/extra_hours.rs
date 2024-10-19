@@ -11,6 +11,13 @@ use crate::{permission::Authentication, ServiceError};
 pub enum ReportType {
     WorkingHours,
     AbsenceHours,
+    None,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Availability {
+    Available,
+    Unavailable,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,6 +26,7 @@ pub enum ExtraHoursCategory {
     Vacation,
     SickLeave,
     Holiday,
+    Unavailable,
 }
 impl ExtraHoursCategory {
     pub fn as_report_type(&self) -> ReportType {
@@ -27,6 +35,17 @@ impl ExtraHoursCategory {
             Self::Vacation => ReportType::AbsenceHours,
             Self::SickLeave => ReportType::AbsenceHours,
             Self::Holiday => ReportType::AbsenceHours,
+            Self::Unavailable => ReportType::None,
+        }
+    }
+
+    pub fn availability(&self) -> Availability {
+        match self {
+            Self::ExtraWork => Availability::Available,
+            Self::Vacation => Availability::Unavailable,
+            Self::SickLeave => Availability::Available,
+            Self::Holiday => Availability::Available,
+            Self::Unavailable => Availability::Unavailable,
         }
     }
 }
@@ -38,6 +57,7 @@ impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
             dao::extra_hours::ExtraHoursCategoryEntity::Vacation => Self::Vacation,
             dao::extra_hours::ExtraHoursCategoryEntity::SickLeave => Self::SickLeave,
             dao::extra_hours::ExtraHoursCategoryEntity::Holiday => Self::Holiday,
+            dao::extra_hours::ExtraHoursCategoryEntity::Unavailable => Self::Unavailable,
         }
     }
 }
@@ -48,6 +68,7 @@ impl From<&ExtraHoursCategory> for dao::extra_hours::ExtraHoursCategoryEntity {
             ExtraHoursCategory::Vacation => Self::Vacation,
             ExtraHoursCategory::SickLeave => Self::SickLeave,
             ExtraHoursCategory::Holiday => Self::Holiday,
+            ExtraHoursCategory::Unavailable => Self::Unavailable,
         }
     }
 }

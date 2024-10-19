@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use dao::shiftplan_report::ShiftplanReportEntity;
 use service::{
-    extra_hours::{ExtraHours, ExtraHoursCategory, ReportType},
+    extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
         EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
@@ -444,7 +444,7 @@ where
                 .get(&sales_person_id)
                 .map(|eh| {
                     eh.iter()
-                        .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
+                        .filter(|eh| eh.category.availability() == Availability::Available)
                         .map(|eh| eh.amount)
                         .sum::<f32>()
                 })
@@ -453,7 +453,7 @@ where
                 .get(&sales_person_id)
                 .map(|eh| {
                     eh.iter()
-                        .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
+                        .filter(|eh| eh.category.availability() == Availability::Unavailable)
                         .map(|eh| eh.amount)
                         .sum::<f32>()
                 })
