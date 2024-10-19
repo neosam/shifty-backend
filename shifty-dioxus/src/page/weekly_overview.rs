@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use crate::{
     component::TopBar,
     js,
-    service::{WeeklySummaryAction, WEEKLY_SUMMARY_STORE},
+    service::{WeeklySummaryAction, I18N, WEEKLY_SUMMARY_STORE},
 };
 
 pub enum WeeklyOverviewPageAction {
@@ -17,6 +17,7 @@ pub fn WeeklyOverview() -> Element {
     let year = use_signal(|| js::get_current_year());
     let weekly_overview_service = use_coroutine_handle::<WeeklySummaryAction>();
     let weekly_summary = WEEKLY_SUMMARY_STORE.read().clone();
+    let i18n = I18N.read().clone();
     let cr = use_coroutine({
         to_owned![year];
 
@@ -60,7 +61,7 @@ pub fn WeeklyOverview() -> Element {
                 }
             }
             div {
-                table { class: "table-fixed w-full md:w-1/2",
+                table { class: "table-auto w-full mt-4 md:w-3/4",
                     thead { class: "text-left",
                         tr {
                             th { class: "pl-2 pr-2", "Week" }
@@ -71,9 +72,14 @@ pub fn WeeklyOverview() -> Element {
                     tbody {
                         for week in weekly_summary.iter() {
                             tr { class: "content-center",
-                                td { "{week.year} / {week.week}" }
-                                td { "{week.available_hours} / {week.required_hours}" }
-                                td { "{week.required_hours - week.available_hours}" }
+                                td { class: "pb-2",
+                                    div { "{week.year} / {week.week}" }
+                                    div {
+                                        "{i18n.format_date(&week.monday_date())} - {i18n.format_date(&week.sunday_date())}"
+                                    }
+                                }
+                                td { "{week.available_hours:.2} / {week.required_hours:.2}" }
+                                td { "{week.required_hours - week.available_hours:.2}" }
                             }
                         }
                     }
