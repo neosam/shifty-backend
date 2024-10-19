@@ -59,7 +59,9 @@ pub fn WeeklyOverview() -> Element {
                 for week in weekly_summary.iter() {
                     div {
                         h3 { class: "text-lg font-bold", "{week.year} / {week.week}" }
-                        p { class: "mt-2", "Available hours: {week.available_hours}." }
+                        p { class: "mt-2",
+                            "Available hours: {week.available_hours} / {week.required_hours}."
+                        }
                     }
                 }
             }

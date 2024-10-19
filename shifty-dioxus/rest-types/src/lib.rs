@@ -639,6 +639,7 @@ pub struct WeeklySummaryTO {
     pub year: u32,
     pub week: u8,
     pub overall_available_hours: f32,
+    pub required_hours: f32,
 
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPersonTO]>,
 }
@@ -649,6 +650,7 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
             year: weekly_summary.year,
             week: weekly_summary.week,
             overall_available_hours: weekly_summary.overall_available_hours,
+            required_hours: weekly_summary.required_hours,
             working_hours_per_sales_person: weekly_summary
                 .working_hours_per_sales_person
                 .iter()
