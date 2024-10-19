@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_calendar_week,\n                from_year,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                days_per_week,\n                created,\n                deleted,\n                update_version\n            FROM\n                working_hours\n            WHERE\n                from_calendar_week <= ?\n                AND from_year <= ?\n                AND to_calendar_week >= ?\n                AND to_year >= ?\n            ",
+  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_calendar_week,\n                from_year,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                days_per_week,\n                created,\n                deleted,\n                update_version\n            FROM\n                working_hours\n            WHERE\n                (from_year * 100 + from_calendar_week) <= (? * 100 + ?)\n                AND (to_year * 100 + to_calendar_week) >= (? * 100 + ?)\n            ",
   "describe": {
     "columns": [
       {
@@ -82,5 +82,5 @@
       false
     ]
   },
-  "hash": "eb3236f7d35dda263f7b15d7b106560eeef3ffbb8cfd163d3d853b6bf4414016"
+  "hash": "12f22da59ac77c6de9361d15d48f83afa45080f40993d7de8b2af1d0c8a9639e"
 }
