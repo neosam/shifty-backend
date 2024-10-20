@@ -3,7 +3,6 @@ mod integration_test;
 
 use std::sync::Arc;
 
-use dao::special_day;
 use dao_impl::{
     extra_hours::ExtraHoursDaoImpl, shiftplan_report::ShiftplanReportDaoImpl,
     working_hours::WorkingHoursDaoImpl,

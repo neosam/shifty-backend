@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::special_day;
 use service::{
     booking_information::{
         build_booking_information, BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson,
     },
     permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
     slot::Slot,
-    special_days::{SpecialDay, SpecialDayType},
+    special_days::SpecialDayType,
     ServiceError,
 };
 
