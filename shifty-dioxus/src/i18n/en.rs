@@ -43,7 +43,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::AvailableRequiredHours,
         "Available / Requested Hours",
     );
-    i18n.add_text(Locale::En, Key::MissingHours, "Missing Hours");
+    i18n.add_text(Locale::En, Key::MissingHours, "Difference");
 
     // Employee report
     i18n.add_text(Locale::En, Key::OverallHeading, "Overall");

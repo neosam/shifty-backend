@@ -85,7 +85,21 @@ pub fn WeeklyOverview() -> Element {
                                     }
                                 }
                                 td { "{week.available_hours:.2} / {week.required_hours:.2}" }
-                                td { "{week.required_hours - week.available_hours:.2}" }
+                                if week.required_hours - week.available_hours < 0.0 {
+                                    td { class: "text-green-500",
+                                        "+ {week.available_hours - week.required_hours:.2}"
+                                    }
+                                } else if week.required_hours - week.available_hours > 20.0 {
+                                    td { class: "text-red-500",
+                                        "- {week.required_hours - week.available_hours:.2}"
+                                    }
+                                } else if week.required_hours - week.available_hours > 7.0 {
+                                    td { class: "text-yellow-700",
+                                        "- {week.required_hours - week.available_hours:.2}"
+                                    }
+                                } else {
+                                    td { "- {week.required_hours - week.available_hours:.2}" }
+                                }
                             }
                         }
                     }
