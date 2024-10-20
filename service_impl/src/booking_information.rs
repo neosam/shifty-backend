@@ -189,7 +189,13 @@ where
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let mut weekly_report = vec![];
-        for week in 1..=time::util::weeks_in_year(year as i32) {
+        let weeks_in_year = time::util::weeks_in_year(year as i32);
+        for week in 1..=(weeks_in_year + 3) {
+            let (year, week) = if week > weeks_in_year as u8 {
+                (year + 1, week - weeks_in_year as u8)
+            } else {
+                (year, week)
+            };
             let mut overall_available_hours = 0.0;
             let mut working_hours_per_sales_person = vec![];
             let week_report = self
