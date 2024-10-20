@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE special_day\n            SET deleted = ?, update_version = ?, update_process = ?\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0c9a62ae86caebe1bd8f8e17d51f9daea3f9c9e97df801684c8e4225ea31b0f1"
+}

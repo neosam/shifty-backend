@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO special_day (id, year, calendar_week, day_of_week, day_type, time_of_day, created, update_version, update_process)\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "15d9d8d0d5f6f9fca0a2f34009260660fc9d47c4207dbe7f7ed3df86669115aa"
+}

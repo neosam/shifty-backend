@@ -667,3 +667,76 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum SpecialDayTypeTO {
+    Holiday,
+    ShortDay,
+}
+#[cfg(feature = "service-impl")]
+impl From<&service::special_days::SpecialDayType> for SpecialDayTypeTO {
+    fn from(day_type: &service::special_days::SpecialDayType) -> Self {
+        match day_type {
+            service::special_days::SpecialDayType::Holiday => Self::Holiday,
+            service::special_days::SpecialDayType::ShortDay => Self::ShortDay,
+        }
+    }
+}
+impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
+    fn from(day_type: &SpecialDayTypeTO) -> Self {
+        match day_type {
+            SpecialDayTypeTO::Holiday => Self::Holiday,
+            SpecialDayTypeTO::ShortDay => Self::ShortDay,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpecialDayTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    pub day_type: SpecialDayTypeTO,
+    pub time_of_day: Option<time::Time>,
+    #[serde(default)]
+    pub created: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<time::PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+#[cfg(feature = "service-impl")]
+impl From<&service::special_days::SpecialDay> for SpecialDayTO {
+    fn from(special_day: &service::special_days::SpecialDay) -> Self {
+        Self {
+            id: special_day.id,
+            year: special_day.year,
+            calendar_week: special_day.calendar_week,
+            day_of_week: special_day.day_of_week.into(),
+            day_type: (&special_day.day_type).into(),
+            time_of_day: special_day.time_of_day,
+            created: special_day.created,
+            deleted: special_day.deleted,
+            version: special_day.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&SpecialDayTO> for service::special_days::SpecialDay {
+    fn from(special_day: &SpecialDayTO) -> Self {
+        Self {
+            id: special_day.id,
+            year: special_day.year,
+            calendar_week: special_day.calendar_week,
+            day_of_week: special_day.day_of_week.into(),
+            day_type: (&special_day.day_type).into(),
+            time_of_day: special_day.time_of_day,
+            created: special_day.created,
+            deleted: special_day.deleted,
+            version: special_day.version,
+        }
+    }
+}

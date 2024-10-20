@@ -11,6 +11,7 @@ pub mod reporting;
 pub mod sales_person;
 pub mod sales_person_unavailable;
 pub mod slot;
+pub mod special_days;
 mod test;
 pub mod uuid_service;
 pub mod working_hours;

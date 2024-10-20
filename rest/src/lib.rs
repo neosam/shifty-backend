@@ -7,6 +7,7 @@ mod permission;
 mod report;
 mod sales_person;
 mod slot;
+mod special_day;
 mod working_hours;
 
 #[cfg(feature = "oidc")]
@@ -242,6 +243,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type SpecialDayService: service::special_days::SpecialDayService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type SalesPersonUnavailableService: service::sales_person_unavailable::SalesPersonUnavailableService<Context = Context>
         + Send
         + Sync
@@ -270,6 +275,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
+    fn special_day_service(&self) -> Arc<Self::SpecialDayService>;
     fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService>;
     fn booking_service(&self) -> Arc<Self::BookingService>;
     fn booking_information_service(&self) -> Arc<Self::BookingInformationService>;
@@ -394,6 +400,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/report", report::generate_route())
         .nest("/working-hours", working_hours::generate_route())
         .nest("/extra-hours", extra_hours::generate_route())
+        .nest("/special-days", special_day::generate_route())
         .with_state(rest_state)
         .layer(middleware::from_fn(context_extractor));
 

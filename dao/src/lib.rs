@@ -11,6 +11,7 @@ pub mod sales_person;
 pub mod sales_person_unavailable;
 pub mod shiftplan_report;
 pub mod slot;
+pub mod special_day;
 pub mod working_hours;
 
 pub use permission::MockPermissionDao;

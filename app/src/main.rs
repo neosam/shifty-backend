@@ -3,6 +3,7 @@ mod integration_test;
 
 use std::sync::Arc;
 
+use dao::special_day;
 use dao_impl::{
     extra_hours::ExtraHoursDaoImpl, shiftplan_report::ShiftplanReportDaoImpl,
     working_hours::WorkingHoursDaoImpl,
@@ -25,6 +26,12 @@ type SlotService = service_impl::slot::SlotServiceImpl<
 >;
 type SalesPersonService = service_impl::sales_person::SalesPersonServiceImpl<
     dao_impl::sales_person::SalesPersonDaoImpl,
+    PermissionService,
+    ClockService,
+    UuidService,
+>;
+type SpecialDayService = service_impl::special_days::SpecialDayServiceImpl<
+    dao_impl::special_day::SpecialDayDaoImpl,
     PermissionService,
     ClockService,
     UuidService,
@@ -85,6 +92,7 @@ pub struct RestStateImpl {
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
     sales_person_service: Arc<SalesPersonService>,
+    special_day_service: Arc<SpecialDayService>,
     sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
     booking_service: Arc<BookingService>,
     booking_information_service: Arc<BookingInformationService>,
@@ -97,6 +105,7 @@ impl rest::RestStateDef for RestStateImpl {
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type SalesPersonService = SalesPersonService;
+    type SpecialDayService = SpecialDayService;
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
     type BookingService = BookingService;
     type BookingInformationService = BookingInformationService;
@@ -119,6 +128,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService> {
         self.sales_person_service.clone()
+    }
+    fn special_day_service(&self) -> Arc<Self::SpecialDayService> {
+        self.special_day_service.clone()
     }
     fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService> {
         self.sales_person_unavailable_service.clone()
@@ -148,6 +160,7 @@ impl RestStateImpl {
         let extra_hours_dao = Arc::new(ExtraHoursDaoImpl::new(pool.clone()));
         let shiftplan_report_dao = Arc::new(ShiftplanReportDaoImpl::new(pool.clone()));
         let working_hours_dao = Arc::new(WorkingHoursDaoImpl::new(pool.clone()));
+        let special_day_dao = dao_impl::special_day::SpecialDayDaoImpl::new(pool.clone());
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -179,6 +192,12 @@ impl RestStateImpl {
                 clock_service.clone(),
                 uuid_service.clone(),
             ));
+        let special_day_service = Arc::new(service_impl::special_days::SpecialDayServiceImpl::new(
+            special_day_dao.into(),
+            permission_service.clone(),
+            clock_service.clone(),
+            uuid_service.clone(),
+        ));
         let sales_person_unavailable_service = Arc::new(
             service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl::new(
                 Arc::new(
@@ -239,6 +258,7 @@ impl RestStateImpl {
             permission_service,
             slot_service,
             sales_person_service,
+            special_day_service,
             sales_person_unavailable_service,
             booking_service,
             booking_information_service,
