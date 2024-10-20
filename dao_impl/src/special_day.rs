@@ -4,11 +4,11 @@ use crate::DaoError;
 use crate::ResultDbErrorExt;
 use async_trait::async_trait;
 use dao::{
-    sales_person_unavailable::SalesPersonUnavailableEntity,
     slot::DayOfWeek,
     special_day::{SpecialDayDao, SpecialDayEntity, SpecialDayTypeEntity},
 };
 use sqlx::query_as;
+use time::macros::format_description;
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime, Time};
 use uuid::Uuid;
 
@@ -28,6 +28,7 @@ impl TryFrom<&SpecialDayDb> for SpecialDayEntity {
     type Error = DaoError;
 
     fn try_from(entity: &SpecialDayDb) -> Result<Self, Self::Error> {
+        let time_format = format_description!("[hour]:[minute]:[second]");
         Ok(Self {
             id: Uuid::from_slice(&entity.id)?,
             year: entity.year as u32,
@@ -42,7 +43,7 @@ impl TryFrom<&SpecialDayDb> for SpecialDayEntity {
             time_of_day: entity
                 .time_of_day
                 .as_ref()
-                .map(|time_of_day| Time::parse(&time_of_day, &Iso8601::TIME))
+                .map(|time_of_day| Time::parse(&time_of_day, &time_format))
                 .transpose()?,
             created: PrimitiveDateTime::parse(&entity.created, &Iso8601::DATE_TIME)?,
             deleted: entity
@@ -117,10 +118,11 @@ impl SpecialDayDao for SpecialDayDaoImpl {
             SpecialDayTypeEntity::ShortDay => "ShortDay",
         }
         .to_string();
+        let time_format = format_description!("[hour]:[minute]:[second]");
         let time_of_day = entity
             .time_of_day
             .as_ref()
-            .map(|time_of_day| time_of_day.format(&Iso8601::TIME))
+            .map(|time_of_day| time_of_day.format(&time_format))
             .transpose()?;
         let created = entity.created.format(&Iso8601::DATE_TIME).map_db_error()?;
         query_as!(

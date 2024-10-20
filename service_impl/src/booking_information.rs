@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::working_hours;
+use dao::special_day;
 use service::{
     booking_information::{
         build_booking_information, BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson,
     },
     permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
-    reporting::{self, ReportingService},
+    slot::Slot,
+    special_days::{SpecialDay, SpecialDayType},
     ServiceError,
 };
 
@@ -17,6 +18,7 @@ pub struct BookingInformationServiceImpl<
     SalesPersonService,
     SalesPersonUnavailableService,
     ReportingService,
+    SpecialDayService,
     PermissionService,
     ClockService,
     UuidService,
@@ -27,6 +29,7 @@ pub struct BookingInformationServiceImpl<
     SalesPersonUnavailableService:
         service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
     ReportingService: service::reporting::ReportingService + Send + Sync,
+    SpecialDayService: service::special_days::SpecialDayService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -36,6 +39,7 @@ pub struct BookingInformationServiceImpl<
     pub sales_person_service: Arc<SalesPersonService>,
     pub sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
     pub reporting_service: Arc<ReportingService>,
+    pub special_day_service: Arc<SpecialDayService>,
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
     pub uuid_service: Arc<UuidService>,
@@ -47,6 +51,7 @@ impl<
         SalesPersonService,
         SalesPersonUnavailableService,
         ReportingService,
+        SpecialDayService,
         PermissionService,
         ClockService,
         UuidService,
@@ -57,6 +62,7 @@ impl<
         SalesPersonService,
         SalesPersonUnavailableService,
         ReportingService,
+        SpecialDayService,
         PermissionService,
         ClockService,
         UuidService,
@@ -68,6 +74,7 @@ where
     SalesPersonUnavailableService:
         service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
     ReportingService: service::reporting::ReportingService + Send + Sync,
+    SpecialDayService: service::special_days::SpecialDayService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -78,6 +85,7 @@ where
         sales_person_service: Arc<SalesPersonService>,
         sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
         reporting_service: Arc<ReportingService>,
+        special_day_service: Arc<SpecialDayService>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
@@ -88,6 +96,7 @@ where
             sales_person_service,
             sales_person_unavailable_service,
             reporting_service,
+            special_day_service,
             permission_service,
             clock_service,
             uuid_service,
@@ -102,6 +111,7 @@ impl<
         SalesPersonService,
         SalesPersonUnavailableService,
         ReportingService,
+        SpecialDayService,
         PermissionService,
         ClockService,
         UuidService,
@@ -112,6 +122,7 @@ impl<
         SalesPersonService,
         SalesPersonUnavailableService,
         ReportingService,
+        SpecialDayService,
         PermissionService,
         ClockService,
         UuidService,
@@ -126,6 +137,7 @@ where
     SalesPersonUnavailableService:
         service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
     ReportingService: service::reporting::ReportingService + Send + Sync,
+    SpecialDayService: service::special_days::SpecialDayService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -185,10 +197,26 @@ where
                 .reporting_service
                 .get_week(year, week, Authentication::Full)
                 .await?;
-            let slots = self
+            let special_days = self
+                .special_day_service
+                .get_by_week(year, week, Authentication::Full)
+                .await?;
+            let slots: Arc<[Slot]> = self
                 .slot_service
                 .get_slots_for_week(year, week, Authentication::Full)
-                .await?;
+                .await?
+                .iter()
+                .filter(|slot| {
+                    !special_days.iter().any(|day| {
+                        day.day_of_week == slot.day_of_week
+                            && (day.day_type == SpecialDayType::Holiday
+                                || day.day_type == SpecialDayType::ShortDay
+                                    && day.time_of_day.is_some()
+                                    && slot.to > day.time_of_day.unwrap())
+                    })
+                })
+                .cloned()
+                .collect();
             let slot_hours = slots
                 .iter()
                 .map(|slot| {
