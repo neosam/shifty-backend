@@ -79,7 +79,7 @@ pub fn WeeklyOverview() -> Element {
                         for week in weekly_summary.iter() {
                             tr { class: "content-center border-b",
                                 td { class: "pb-2 pt-2",
-                                    div { "{week.year} / {week.week}" }
+                                    div { class: "font-bold", "{week.year} / {week.week}" }
                                     div {
                                         "{i18n.format_date(&week.monday_date())} - {i18n.format_date(&week.sunday_date())}"
                                     }
