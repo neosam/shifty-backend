@@ -129,7 +129,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Not authenticated page
     i18n.add_text(Locale::En, Key::WelcomeTitle, "Willkommen zu Shifty!");
-    i18n.add_text(Locale::En, Key::PleaseLogin, "Bitte log dich ein.");
+    i18n.add_text(Locale::En, Key::PleaseLogin, "Hier klicken zum Einloggen.");
     i18n.add_text(
         Locale::En,
         Key::PleaseChoose,
