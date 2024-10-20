@@ -1,4 +1,4 @@
-use rest_types::{ExtraHoursTO, SalesPersonTO, UserRole, UserTO};
+use rest_types::{ExtraHoursTO, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -89,9 +89,19 @@ pub async fn load_slots(
     week: u8,
     bookings: Rc<[Booking]>,
 ) -> Result<Rc<[Slot]>, ShiftyError> {
-    let slot_tos = api::get_slots(config, year, week).await?;
+    let slot_tos = api::get_slots(config.clone(), year, week).await?;
+    let special_days = api::get_special_days_for_week(config.clone(), year, week).await?;
     let slots: Rc<[Slot]> = slot_tos
         .iter()
+        .filter(|slot_to| {
+            !special_days.iter().any(|special_day| {
+                special_day.day_of_week == slot_to.day_of_week
+                    && (special_day.day_type == SpecialDayTypeTO::Holiday
+                        || special_day.day_type == SpecialDayTypeTO::ShortDay
+                            && special_day.time_of_day.is_some()
+                            && slot_to.to > special_day.time_of_day.unwrap())
+            })
+        })
         .map(|slot_to| slot_to.into())
         .map(|slot: Slot| Slot {
             bookings: bookings

@@ -1,5 +1,3 @@
-use dioxus::html::i;
-
 use super::{I18n, Key, Locale};
 
 pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
