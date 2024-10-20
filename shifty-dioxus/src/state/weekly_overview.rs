@@ -1,7 +1,5 @@
 use rest_types::WeeklySummaryTO;
 
-use crate::i18n::{self, I18n};
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeeklySummary {
     pub week: u8,
