@@ -1268,6 +1268,10 @@ video {
   .md\:pt-0 {
     padding-top: 0px;
   }
+
+  .md\:pr-16 {
+    padding-right: 4rem;
+  }
 }
 
 @media (min-width: 1024px) {

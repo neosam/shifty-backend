@@ -16,6 +16,8 @@ use uuid::Uuid;
 pub enum EmployeeDetailsAction {
     Update,
     DeleteExtraHour(Uuid),
+    FullYear,
+    UntilNow,
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -31,6 +33,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     } else {
         52
     };
+    let week_until = use_signal(|| week_until);
     let config = CONFIG.read().clone();
     let employee_id = match Uuid::parse_str(&props.employee_id) {
         Ok(employee_id) => employee_id,
@@ -44,12 +47,12 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeDetailsAction>| async move {
-            to_owned![employee_resource, extra_hours_resource];
+            to_owned![employee_resource, extra_hours_resource, week_until];
             *employee_resource.write() = Some(
                 loader::load_employee_details(
                     config.to_owned(),
                     *year.read(),
-                    week_until,
+                    *week_until.read(),
                     employee_id,
                 )
                 .await,
@@ -65,7 +68,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             loader::load_employee_details(
                                 config.to_owned(),
                                 *year.read(),
-                                week_until,
+                                *week_until.read(),
                                 employee_id,
                             )
                             .await,
@@ -86,6 +89,51 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                                 .map_err(|err| err.into()),
                         );
                     }
+                    EmployeeDetailsAction::FullYear => {
+                        *employee_resource.write() = Some(
+                            loader::load_employee_details(
+                                config.to_owned(),
+                                *year.read(),
+                                53,
+                                employee_id,
+                            )
+                            .await,
+                        );
+                        *extra_hours_resource.write() = Some(
+                            loader::load_extra_hours_per_year(
+                                config.to_owned(),
+                                *year.read(),
+                                employee_id,
+                            )
+                            .await,
+                        );
+                        *week_until.write() = 53u8;
+                    }
+                    EmployeeDetailsAction::UntilNow => {
+                        let week = if *year.read() == js::get_current_year() {
+                            js::get_current_week()
+                        } else {
+                            53
+                        };
+                        *employee_resource.write() = Some(
+                            loader::load_employee_details(
+                                config.to_owned(),
+                                *year.read(),
+                                week,
+                                employee_id,
+                            )
+                            .await,
+                        );
+                        *extra_hours_resource.write() = Some(
+                            loader::load_extra_hours_per_year(
+                                config.to_owned(),
+                                *year.read(),
+                                employee_id,
+                            )
+                            .await,
+                        );
+                        *week_until.write() = week;
+                    }
                 }
             }
         },
@@ -103,6 +151,8 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             extra_hours: extra_hours.clone(),
                             onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
                             on_extra_hour_delete: move |id| cr.send(EmployeeDetailsAction::DeleteExtraHour(id)),
+                            on_full_year: move |_| cr.send(EmployeeDetailsAction::FullYear),
+                            on_until_now: move |_| cr.send(EmployeeDetailsAction::UntilNow),
                         }
                     }
                 },

@@ -16,6 +16,8 @@ use dioxus::prelude::*;
 pub enum MyEmployeeDetailsAction {
     Update,
     DeleteExtraHour(Uuid),
+    FullYear,
+    UntilNow,
 }
 
 #[component]
@@ -26,6 +28,7 @@ pub fn MyEmployeeDetails() -> Element {
     } else {
         52
     };
+    let week_until = use_signal(|| week_until);
     let config = CONFIG.read().clone();
     let employee_resource: Signal<Option<Result<Employee, ShiftyError>>> = use_signal(|| None);
     let extra_hours_resource: Signal<Option<Result<Rc<[ExtraHours]>, ShiftyError>>> =
@@ -33,14 +36,14 @@ pub fn MyEmployeeDetails() -> Element {
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<MyEmployeeDetailsAction>| async move {
-            to_owned![employee_resource, extra_hours_resource];
+            to_owned![employee_resource, extra_hours_resource, week_until];
             if let Ok(Some(sales_person)) = loader::load_current_sales_person(config.clone()).await
             {
                 *employee_resource.write() = Some(
                     loader::load_employee_details(
                         config.to_owned(),
                         *year.read(),
-                        week_until,
+                        *week_until.read(),
                         sales_person.id,
                     )
                     .await,
@@ -64,7 +67,7 @@ pub fn MyEmployeeDetails() -> Element {
                                 loader::load_employee_details(
                                     config.to_owned(),
                                     *year.read(),
-                                    week_until,
+                                    *week_until.read(),
                                     sales_person.id,
                                 )
                                 .await,
@@ -86,6 +89,59 @@ pub fn MyEmployeeDetails() -> Element {
                                 .map_err(|err| err.into()),
                         );
                     }
+                    MyEmployeeDetailsAction::FullYear => {
+                        if let Ok(Some(sales_person)) =
+                            loader::load_current_sales_person(config.clone()).await
+                        {
+                            *employee_resource.write() = Some(
+                                loader::load_employee_details(
+                                    config.to_owned(),
+                                    *year.read(),
+                                    53,
+                                    sales_person.id,
+                                )
+                                .await,
+                            );
+                            *extra_hours_resource.write() = Some(
+                                loader::load_extra_hours_per_year(
+                                    config.to_owned(),
+                                    *year.read(),
+                                    sales_person.id,
+                                )
+                                .await,
+                            );
+                            *week_until.write() = 53u8;
+                        }
+                    }
+                    MyEmployeeDetailsAction::UntilNow => {
+                        if let Ok(Some(sales_person)) =
+                            loader::load_current_sales_person(config.clone()).await
+                        {
+                            let week = if *year.read() == js::get_current_year() {
+                                js::get_current_week()
+                            } else {
+                                53
+                            };
+                            *employee_resource.write() = Some(
+                                loader::load_employee_details(
+                                    config.to_owned(),
+                                    *year.read(),
+                                    week,
+                                    sales_person.id,
+                                )
+                                .await,
+                            );
+                            *extra_hours_resource.write() = Some(
+                                loader::load_extra_hours_per_year(
+                                    config.to_owned(),
+                                    *year.read(),
+                                    sales_person.id,
+                                )
+                                .await,
+                            );
+                            *week_until.write() = week;
+                        }
+                    }
                 }
             }
         },
@@ -103,6 +159,8 @@ pub fn MyEmployeeDetails() -> Element {
                             extra_hours: extra_hours.clone(),
                             onupdate: move |_| cr.send(MyEmployeeDetailsAction::Update),
                             on_extra_hour_delete: move |uuid| cr.send(MyEmployeeDetailsAction::DeleteExtraHour(uuid)),
+                            on_full_year: move |_| cr.send(MyEmployeeDetailsAction::FullYear),
+                            on_until_now: move |_| cr.send(MyEmployeeDetailsAction::UntilNow),
                         }
                     }
                 },

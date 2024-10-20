@@ -15,6 +15,8 @@ pub struct EmployeeViewProps {
     pub extra_hours: Rc<[ExtraHours]>,
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
+    pub on_full_year: EventHandler<()>,
+    pub on_until_now: EventHandler<()>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -396,7 +398,25 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
         }
 
         div { class: "flex justify-between",
-            h1 { class: "text-2xl font-bold", {props.employee.sales_person.name.clone()} }
+            div { class: "flex flex-row pb-2",
+                h1 { class: "text-2xl font-bold mr-4 md:pr-16",
+                    {props.employee.sales_person.name.clone()}
+                }
+                button {
+                    class: "border-2 border-gray-200 p-2",
+                    onclick: move |_| {
+                        props.on_full_year.call(());
+                    },
+                    "Full year"
+                }
+                button {
+                    class: "border-2 border-gray-200 p-2",
+                    onclick: move |_| {
+                        props.on_until_now.call(());
+                    },
+                    "Until now"
+                }
+            }
             button {
                 class: "border-2 border-gray-200 p-2",
                 onclick: move |_| {
