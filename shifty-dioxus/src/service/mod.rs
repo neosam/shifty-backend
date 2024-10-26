@@ -1,10 +1,13 @@
 use std::rc::Rc;
+use tracing::info;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
+use crate::state::employee::WorkingHours;
+use crate::state::employee_work_details::{self, EmployeeWorkDetails};
 use crate::state::shiftplan::{BookingConflict, SalesPerson};
 use crate::state::weekly_overview::WeeklySummary;
 use crate::state::User;
@@ -15,7 +18,7 @@ use crate::{
     loader,
     state::{
         dropdown::{Dropdown, DropdownEntry},
-        working_hours::WorkingHoursMini,
+        employee_work_details::WorkingHoursMini,
         AuthInfo, Config,
     },
 };
@@ -559,6 +562,133 @@ pub async fn weekly_summary_service(mut rx: UnboundedReceiver<WeeklySummaryActio
     while let Some(action) = rx.next().await {
         match match action {
             WeeklySummaryAction::LoadYear(year) => load_weekly_summary_year(year).await,
+        } {
+            Ok(_) => {}
+            Err(err) => {
+                *ERROR_STORE.write() = ErrorStore {
+                    error: Some(err.into()),
+                };
+            }
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct EmployeeWorkDetailsStore {
+    pub employee_work_details: Rc<[EmployeeWorkDetails]>,
+    pub selected_employee_work_details: EmployeeWorkDetails,
+    pub sales_person_id: Uuid,
+
+    pub selected_sales_person: SalesPerson,
+}
+
+impl Default for EmployeeWorkDetailsStore {
+    fn default() -> Self {
+        Self {
+            employee_work_details: Rc::new([]),
+            selected_employee_work_details: EmployeeWorkDetails::blank_standard(Uuid::nil()),
+            sales_person_id: Uuid::nil(),
+            selected_sales_person: SalesPerson::default(),
+        }
+    }
+}
+
+pub static EMPLOYEE_WORK_DETAILS_STORE: GlobalSignal<EmployeeWorkDetailsStore> =
+    Signal::global(|| EmployeeWorkDetailsStore::default());
+
+async fn load_sales_person_in_employee_work_details(
+    sales_person_id: Uuid,
+) -> Result<(), ShiftyError> {
+    let sales_person = loader::load_sales_person(CONFIG.read().clone(), sales_person_id).await?;
+    EMPLOYEE_WORK_DETAILS_STORE.write().selected_sales_person = sales_person;
+    Ok(())
+}
+
+async fn load_employee_work_details(employee_id: Uuid) -> Result<(), ShiftyError> {
+    let employee_work_details =
+        loader::load_employee_work_details(CONFIG.read().clone(), employee_id).await?;
+    EMPLOYEE_WORK_DETAILS_STORE.write().sales_person_id = employee_id;
+    EMPLOYEE_WORK_DETAILS_STORE.write().employee_work_details = employee_work_details;
+    Ok(())
+}
+
+async fn reload_employee_work_details() -> Result<(), ShiftyError> {
+    let sales_person_id = EMPLOYEE_WORK_DETAILS_STORE.read().sales_person_id;
+    load_employee_work_details(sales_person_id).await
+}
+
+async fn new_employee_work_details_for_sales_person(
+    sales_person_id: Uuid,
+) -> Result<(), ShiftyError> {
+    load_sales_person_in_employee_work_details(sales_person_id).await?;
+    (*EMPLOYEE_WORK_DETAILS_STORE.write()).selected_employee_work_details =
+        EmployeeWorkDetails::blank_standard(sales_person_id);
+    Ok(())
+}
+
+async fn delete_employee_work_details(employee_work_details_id: Uuid) -> Result<(), ShiftyError> {
+    api::delete_employee_work_details(CONFIG.read().clone(), employee_work_details_id).await?;
+    reload_employee_work_details().await?;
+    Ok(())
+}
+
+async fn find_and_activate_employee_work_details(
+    employee_work_details_id: Uuid,
+) -> Result<(), ShiftyError> {
+    let employee_work_details_list = EMPLOYEE_WORK_DETAILS_STORE
+        .read()
+        .employee_work_details
+        .clone();
+    let employee_work_details = employee_work_details_list
+        .iter()
+        .find(|details| details.id == employee_work_details_id)
+        .to_owned();
+    if let Some(employee_work_details) = employee_work_details {
+        load_sales_person_in_employee_work_details(employee_work_details.sales_person_id).await?;
+        EMPLOYEE_WORK_DETAILS_STORE
+            .write()
+            .selected_employee_work_details = employee_work_details.to_owned();
+    }
+    Ok(())
+}
+
+pub enum EmployeeWorkDetailsAction {
+    NewWorkingHours(Uuid),
+    UpdateWorkingHours(EmployeeWorkDetails),
+    Save,
+    LoadForEmployee(Uuid),
+    Delete(Uuid),
+    Load(Uuid),
+}
+
+pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWorkDetailsAction>) {
+    while let Some(action) = rx.next().await {
+        match match action {
+            EmployeeWorkDetailsAction::NewWorkingHours(sales_person_id) => {
+                new_employee_work_details_for_sales_person(sales_person_id).await
+            }
+            EmployeeWorkDetailsAction::UpdateWorkingHours(working_hours) => {
+                dbg!(&working_hours);
+                info!("Update working hours: {:?}", &working_hours);
+                EMPLOYEE_WORK_DETAILS_STORE
+                    .write()
+                    .selected_employee_work_details = working_hours;
+                Ok(())
+            }
+            EmployeeWorkDetailsAction::Save => {
+                let working_hours = EMPLOYEE_WORK_DETAILS_STORE
+                    .read()
+                    .selected_employee_work_details
+                    .clone();
+                loader::save_new_employee_work_details(CONFIG.read().clone(), working_hours).await
+            }
+            EmployeeWorkDetailsAction::LoadForEmployee(sales_person_id) => {
+                load_employee_work_details(sales_person_id).await
+            }
+            EmployeeWorkDetailsAction::Delete(id) => delete_employee_work_details(id).await,
+            EmployeeWorkDetailsAction::Load(employee_work_details_id) => {
+                find_and_activate_employee_work_details(employee_work_details_id).await
+            }
         } {
             Ok(_) => {}
             Err(err) => {

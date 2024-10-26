@@ -81,7 +81,7 @@ impl From<&BookingTO> for Booking {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SalesPerson {
     pub id: Uuid,
     pub name: Rc<str>,

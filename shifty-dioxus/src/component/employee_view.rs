@@ -4,19 +4,26 @@ use dioxus::prelude::*;
 use uuid::Uuid;
 
 use crate::i18n::Key;
-use crate::service::I18N;
-use crate::state::employee::{Employee, ExtraHours, WorkingHours};
+use crate::service::{EmployeeWorkDetailsAction, I18N};
+use crate::state::employee::WorkingHours;
+use crate::state::employee::{Employee, ExtraHours};
 
 use crate::component::{AddExtraHoursForm, Modal};
+use crate::state::employee_work_details::EmployeeWorkDetails;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewProps {
     pub employee: Employee,
     pub extra_hours: Rc<[ExtraHours]>,
+    pub employee_work_details_list: Rc<[EmployeeWorkDetails]>,
+    pub show_delete_employee_work_details: bool,
+
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
     pub on_full_year: EventHandler<()>,
     pub on_until_now: EventHandler<()>,
+    pub on_add_employee_work_details: Option<EventHandler<()>>,
+    pub on_employee_work_details_clicked: EventHandler<Uuid>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -56,13 +63,22 @@ pub struct TripleViewProps {
     pub label: Rc<str>,
     pub value: Rc<str>,
     pub description: Rc<str>,
+    #[props(default = false)]
+    pub hide_delete_button: bool,
     pub ondelete: Option<EventHandler<()>>,
+    pub on_click: Option<EventHandler<()>>,
 }
 #[component]
 pub fn TripleView(props: TripleViewProps) -> Element {
     rsx! {
         div { class: "flex justify-between border-b-2 border-gray-200 border-dashed pl-2 gap-2",
-            div { class: "flex flex-col",
+            div {
+                class: "flex flex-col",
+                onclick: move |_| {
+                    if let Some(on_click) = &props.on_click {
+                        on_click.call(());
+                    }
+                },
                 div { "{props.label}" }
                 div { class: "text-sm text-gray-500", "{props.description}" }
             }
@@ -71,12 +87,14 @@ pub fn TripleView(props: TripleViewProps) -> Element {
                     div { "{props.value}" }
                 }
                 if let Some(ondelete) = props.ondelete {
-                    button {
-                        class: "border-2 border-gray-200 pl-1 pr-1 shrink h-6 font-small",
-                        onclick: move |_| {
-                            ondelete.call(());
-                        },
-                        "🗑️"
+                    if !props.hide_delete_button {
+                        button {
+                            class: "border-2 border-gray-200 pl-1 pr-1 shrink h-6 font-small",
+                            onclick: move |_| {
+                                ondelete.call(());
+                            },
+                            "🗑️"
+                        }
                     }
                 }
             }
@@ -365,6 +383,8 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     //let mut expand_details = use_signal(|| false);
     let mut show_add_entry_dialog = use_signal(|| false);
 
+    let employee_work_details_service = use_coroutine_handle::<EmployeeWorkDetailsAction>();
+
     let overall_header_str = i18n.t(Key::OverallHeading);
     let working_hours_per_week_heading = i18n.t(Key::WorkingHoursPerWeekHeading);
     let extra_hours_heading = i18n.t(Key::ExtraHoursHeading);
@@ -415,6 +435,15 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                         props.on_until_now.call(());
                     },
                     "Until now"
+                }
+                if let Some(on_add_employee_work_details) = props.on_add_employee_work_details {
+                    button {
+                        class: "border-2 border-gray-200 p-2",
+                        onclick: move |_| {
+                            on_add_employee_work_details.call(());
+                        },
+                        "Add work details"
+                    }
                 }
             }
             button {
@@ -485,6 +514,29 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             }
 
             div { class: "border-t-2 border-gray-200 border-double mt-8 lg:pl-4 lg:flex-grow lg:ml-4 lg:border-t-0 lg:border-l-2 lg:mt-0",
+                h2 { class: "text-lg font-bold mt-8", "Work details" }
+
+                for employee_work_details in props.employee_work_details_list.iter() {
+                    TripleView {
+                        label: format!("{} - {}", employee_work_details.from, employee_work_details.to).into(),
+                        value: format!("{}h", employee_work_details.expected_hours).into(),
+                        description: "".into(),
+                        hide_delete_button: !props.show_delete_employee_work_details,
+                        ondelete: {
+                            let employee_work_details_id = employee_work_details.id;
+                            move |_| {
+                                employee_work_details_service
+                                    .send(EmployeeWorkDetailsAction::Delete(employee_work_details_id))
+                            }
+                        },
+                        on_click: {
+                            let employee_work_details_id = employee_work_details.id;
+                            move |_| {
+                                props.on_employee_work_details_clicked.call(employee_work_details_id)
+                            }
+                        }
+                    }
+                }
                 div { class: "flex flex-row mt-8 justify-between",
                     h2 { class: "text-lg font-bold", "{working_hours_per_week_heading}" }
                     if !*expand_weeks.read() {

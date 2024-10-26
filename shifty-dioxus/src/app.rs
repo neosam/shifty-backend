@@ -16,6 +16,7 @@ pub fn App() -> Element {
     use_coroutine(service::user_management_service);
     use_coroutine(service::booking_conflicts_service);
     use_coroutine(service::weekly_summary_service);
+    use_coroutine(service::employee_work_details_service);
     let config = CONFIG.read();
     if !config.backend.is_empty() {
         let title = config.application_title.clone();

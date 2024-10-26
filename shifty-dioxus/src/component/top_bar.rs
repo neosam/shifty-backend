@@ -12,7 +12,7 @@ pub fn TopBar() -> Element {
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
     let config = CONFIG.read().clone();
-    let show_my_time = config.show_my_time.unwrap_or(false);
+    let show_my_time = config.show_my_time.unwrap_or(true);
     let backend_url = config.backend.clone();
     let non_production_warning_str = i18n.t(Key::NonProdWarning);
     let non_production_warning_detail_str = i18n.t(Key::NonProdWarningDetails);

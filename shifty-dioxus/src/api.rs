@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BookingConflictTO, BookingTO, DayOfWeekTO, EmployeeReportTO, ExtraHoursCategoryTO,
-    ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO,
-    SpecialDayTO, UserRole, UserTO, WeeklySummaryTO,
+    BookingConflictTO, BookingTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
+    ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
+    ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -524,4 +524,42 @@ pub async fn get_special_days_for_week(
     response.error_for_status_ref()?;
     let res = response.json().await?;
     Ok(res)
+}
+
+pub async fn get_employee_work_details_for_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Rc<[EmployeeWorkDetailsTO]>, reqwest::Error> {
+    let url = format!(
+        "{}/working-hours/for-sales-person/{}",
+        config.backend, sales_person_id,
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    Ok(res)
+}
+
+pub async fn post_employee_work_details(
+    config: Config,
+    work_details: EmployeeWorkDetailsTO,
+) -> Result<(), reqwest::Error> {
+    let url = format!("{}/working-hours", config.backend,);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&work_details).send().await?;
+    response.error_for_status_ref()?;
+    info!("Posted");
+    Ok(())
+}
+
+pub async fn delete_employee_work_details(
+    config: Config,
+    work_details_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    let url = format!("{}/working-hours/{}", config.backend, work_details_id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
 }

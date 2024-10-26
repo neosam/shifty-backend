@@ -9,11 +9,11 @@ use crate::{
     error::ShiftyError,
     state::{
         employee::{Employee, ExtraHours},
+        employee_work_details::{self, EmployeeWorkDetails, WorkingHoursMini},
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
         week::Week,
         weekly_overview::WeeklySummary,
-        working_hours::WorkingHoursMini,
         Config, Shiftplan, Slot, User, Weekday,
     },
 };
@@ -372,4 +372,25 @@ pub async fn load_weekly_summary_for_year(
     extra_hours_to.sort_by_key(|extra_hours| (extra_hours.year, extra_hours.week));
 
     Ok(extra_hours_to.into())
+}
+
+pub async fn load_employee_work_details(
+    config: Config,
+    employee_id: Uuid,
+) -> Result<Rc<[EmployeeWorkDetails]>, ShiftyError> {
+    let employee_work_details_to: Rc<[EmployeeWorkDetails]> =
+        api::get_employee_work_details_for_sales_person(config, employee_id)
+            .await?
+            .iter()
+            .flat_map(EmployeeWorkDetails::try_from)
+            .collect();
+    Ok(employee_work_details_to)
+}
+
+pub async fn save_new_employee_work_details(
+    config: Config,
+    employee_work_details: EmployeeWorkDetails,
+) -> Result<(), ShiftyError> {
+    api::post_employee_work_details(config, (&employee_work_details).try_into()?).await?;
+    Ok(())
 }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
-use crate::state::working_hours::WorkingHoursMini;
+use crate::state::employee_work_details::WorkingHoursMini;
 
 #[derive(PartialEq, Clone, Props)]
 pub struct WorkingHoursMiniOverviewProps {

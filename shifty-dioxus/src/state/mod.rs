@@ -7,7 +7,7 @@ pub mod shiftplan;
 pub mod user_management;
 pub mod week;
 pub mod weekly_overview;
-pub mod working_hours;
+pub mod employee_work_details;
 
 pub use auth_info::AuthInfo;
 pub use config::Config;

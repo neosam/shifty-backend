@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
+use time::macros::format_description;
 
 use crate::base_types::ImStr;
 
@@ -118,6 +119,8 @@ pub fn FormItem(props: ChildrenProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct CheckboxProps {
     pub children: Element,
+    #[props(default = false)]
+    pub disabled: bool,
 
     pub value: Option<bool>,
     pub on_change: Option<EventHandler<bool>>,
@@ -130,12 +133,15 @@ pub fn Checkbox(props: CheckboxProps) -> Element {
         div {
             onclick: move |_| {
                 if let Some(on_change) = &props.on_change {
-                    on_change.call(!value);
+                    if !props.disabled {
+                        on_change.call(!value);
+                    }
                 }
             },
             input {
                 class: "border-2 border-gray-200 p-2 mr-2",
                 "type": "checkbox",
+                disabled: props.on_change.is_none() || props.disabled,
                 "checked": props.value
             }
             {props.children}
@@ -185,6 +191,8 @@ pub fn Button(props: ButtonProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct TextInputProps {
     pub value: ImStr,
+    #[props(default = false)]
+    pub disabled: bool,
 
     pub on_change: Option<EventHandler<ImStr>>,
 }
@@ -196,10 +204,110 @@ pub fn TextInput(props: TextInputProps) -> Element {
             class: "border-2 border-gray-200 p-2",
             "type": "text",
             value: props.value,
+            disabled: props.disabled,
             oninput: move |event| {
                 if let Some(on_change) = &props.on_change {
                     let value = event.data.value();
                     on_change.call(ImStr::from(value));
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct DateInputProps {
+    pub value: time::Date,
+    #[props(default = false)]
+    pub disabled: bool,
+
+    pub on_change: Option<EventHandler<time::Date>>,
+}
+
+#[component]
+pub fn DateInput(props: DateInputProps) -> Element {
+    let format = format_description!("[year]-[month]-[day]");
+    let value = props.value.format(&format).unwrap();
+    rsx! {
+        input {
+            class: "border-2 border-gray-200 p-2",
+            "type": "date",
+            value,
+            disabled: props.disabled,
+            oninput: move |event| {
+                if let Some(on_change) = &props.on_change {
+                    let value = event.data.value();
+                    if let Ok(value) = time::Date::parse(&value, format) {
+                        on_change.call(value);
+                    } else {
+                        tracing::error!("Invalid date: {}", value);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Input tag for integer values
+#[derive(Props, Clone, PartialEq)]
+pub struct IntegerInputProps {
+    pub value: i32,
+    #[props(default = false)]
+    pub disabled: bool,
+
+    pub on_change: Option<EventHandler<i32>>,
+}
+
+#[component]
+pub fn IntegerInput(props: IntegerInputProps) -> Element {
+    rsx! {
+        input {
+            class: "border-2 border-gray-200 p-2",
+            "type": "number",
+            value: props.value.to_string(),
+            disabled: props.disabled,
+            oninput: move |event| {
+                if let Some(on_change) = &props.on_change {
+                    let value = event.data.value();
+                    if let Ok(value) = value.parse() {
+                        on_change.call(value);
+                    } else {
+                        tracing::error!("Invalid number: {}", value);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Input tag for float values
+#[derive(Props, Clone, PartialEq)]
+pub struct FloatInputProps {
+    pub value: f32,
+    pub step: f32,
+    #[props(default = false)]
+    pub disabled: bool,
+
+    pub on_change: Option<EventHandler<f32>>,
+}
+
+#[component]
+pub fn FloatInput(props: FloatInputProps) -> Element {
+    rsx! {
+        input {
+            class: "border-2 border-gray-200 p-2",
+            "type": "number",
+            value: props.value.to_string(),
+            step: props.step.to_string(),
+            disabled: props.disabled,
+            oninput: move |event| {
+                if let Some(on_change) = &props.on_change {
+                    let value = event.data.value();
+                    if let Ok(value) = value.parse() {
+                        on_change.call(value);
+                    } else {
+                        tracing::error!("Invalid number: {}", value);
+                    }
                 }
             }
         }

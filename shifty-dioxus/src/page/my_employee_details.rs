@@ -5,10 +5,13 @@ use uuid::Uuid;
 
 use crate::{
     api,
-    component::{EmployeeView, TopBar},
+    component::{
+        employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
+        EmployeeWorkDetailsForm, Modal, TopBar,
+    },
     error::{result_handler, ShiftyError},
     js, loader,
-    service::CONFIG,
+    service::{EmployeeWorkDetailsAction, CONFIG, EMPLOYEE_WORK_DETAILS_STORE},
     state::employee::{Employee, ExtraHours},
 };
 use dioxus::prelude::*;
@@ -18,6 +21,8 @@ pub enum MyEmployeeDetailsAction {
     DeleteExtraHour(Uuid),
     FullYear,
     UntilNow,
+    OpenEmployeeWorkDetails(Uuid),
+    CloseEmployeeWorkDetailsDialog,
 }
 
 #[component]
@@ -33,6 +38,12 @@ pub fn MyEmployeeDetails() -> Element {
     let employee_resource: Signal<Option<Result<Employee, ShiftyError>>> = use_signal(|| None);
     let extra_hours_resource: Signal<Option<Result<Rc<[ExtraHours]>, ShiftyError>>> =
         use_signal(|| None);
+    let employee_work_details_service = use_coroutine_handle::<EmployeeWorkDetailsAction>();
+    let employee_work_details_list = EMPLOYEE_WORK_DETAILS_STORE
+        .read()
+        .employee_work_details
+        .clone();
+    let mut show_add_employee_work_details_dialog = use_signal(|| false);
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<MyEmployeeDetailsAction>| async move {
@@ -55,7 +66,9 @@ pub fn MyEmployeeDetails() -> Element {
                         sales_person.id,
                     )
                     .await,
-                )
+                );
+                employee_work_details_service
+                    .send(EmployeeWorkDetailsAction::LoadForEmployee(sales_person.id));
             }
             while let Some(action) = rx.next().await {
                 match action {
@@ -142,6 +155,13 @@ pub fn MyEmployeeDetails() -> Element {
                             *week_until.write() = week;
                         }
                     }
+                    MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id) => {
+                        employee_work_details_service.send(EmployeeWorkDetailsAction::Load(id));
+                        *show_add_employee_work_details_dialog.write() = true;
+                    }
+                    MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog => {
+                        *show_add_employee_work_details_dialog.write() = false;
+                    }
                 }
             }
         },
@@ -154,13 +174,24 @@ pub fn MyEmployeeDetails() -> Element {
             match (&*employee_resource.read_unchecked(), &*extra_hours_resource.read_unchecked()) {
                 (Some(Ok(employee)), Some(Ok(extra_hours))) => {
                     rsx! {
+                        if *show_add_employee_work_details_dialog.read() {
+                            Modal {
+                                EmployeeWorkDetailsForm {
+                                    employee_work_details_form_type: EmployeeWorkDetailsFormType::ReadOnly,
+                                    on_cancel: move |_| cr.send(MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog),
+                                }
+                            }
+                        }
                         EmployeeView {
                             employee: employee.clone(),
                             extra_hours: extra_hours.clone(),
+                            employee_work_details_list,
+                            show_delete_employee_work_details: false,
                             onupdate: move |_| cr.send(MyEmployeeDetailsAction::Update),
                             on_extra_hour_delete: move |uuid| cr.send(MyEmployeeDetailsAction::DeleteExtraHour(uuid)),
                             on_full_year: move |_| cr.send(MyEmployeeDetailsAction::FullYear),
                             on_until_now: move |_| cr.send(MyEmployeeDetailsAction::UntilNow),
+                            on_employee_work_details_clicked: move |id| cr.send(MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
                         }
                     }
                 },
