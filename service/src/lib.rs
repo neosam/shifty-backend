@@ -9,6 +9,7 @@ pub mod booking;
 pub mod booking_information;
 pub mod clock;
 pub mod datetime_utils;
+pub mod employee_work_details;
 pub mod extra_hours;
 pub mod permission;
 pub mod reporting;
@@ -18,7 +19,6 @@ pub mod slot;
 pub mod special_days;
 pub mod user_service;
 pub mod uuid_service;
-pub mod working_hours;
 
 pub use permission::MockPermissionService;
 pub use permission::PermissionService;

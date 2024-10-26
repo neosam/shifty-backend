@@ -411,7 +411,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct WorkingHoursTO {
+pub struct EmployeeWorkDetailsTO {
     #[serde(default)]
     pub id: Uuid,
     pub sales_person_id: Uuid,
@@ -421,9 +421,21 @@ pub struct WorkingHoursTO {
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,
+
+    pub monday: bool,
+    pub tuesday: bool,
+    pub wednesday: bool,
+    pub thursday: bool,
+    pub friday: bool,
+    pub saturday: bool,
+    pub sunday: bool,
+
+    pub vacation_days: u8,
+
     pub days_per_week: u8,
     pub hours_per_day: f32,
     pub hours_per_holiday: f32,
+
     #[serde(default)]
     pub created: Option<time::PrimitiveDateTime>,
     #[serde(default)]
@@ -433,8 +445,8 @@ pub struct WorkingHoursTO {
     pub version: Uuid,
 }
 #[cfg(feature = "service-impl")]
-impl From<&service::working_hours::WorkingHours> for WorkingHoursTO {
-    fn from(working_hours: &service::working_hours::WorkingHours) -> Self {
+impl From<&service::employee_work_details::EmployeeWorkDetails> for EmployeeWorkDetailsTO {
+    fn from(working_hours: &service::employee_work_details::EmployeeWorkDetails) -> Self {
         Self {
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
@@ -444,9 +456,21 @@ impl From<&service::working_hours::WorkingHours> for WorkingHoursTO {
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
-            days_per_week: working_hours.days_per_week,
+
+            monday: working_hours.monday,
+            tuesday: working_hours.tuesday,
+            wednesday: working_hours.wednesday,
+            thursday: working_hours.thursday,
+            friday: working_hours.friday,
+            saturday: working_hours.saturday,
+            sunday: working_hours.sunday,
+
+            vacation_days: working_hours.vacation_days,
+
+            days_per_week: working_hours.potential_days_per_week(),
             hours_per_day: working_hours.hours_per_day(),
             hours_per_holiday: working_hours.holiday_hours(),
+
             created: working_hours.created,
             deleted: working_hours.deleted,
             version: working_hours.version,
@@ -455,8 +479,8 @@ impl From<&service::working_hours::WorkingHours> for WorkingHoursTO {
 }
 
 #[cfg(feature = "service-impl")]
-impl From<&WorkingHoursTO> for service::working_hours::WorkingHours {
-    fn from(working_hours: &WorkingHoursTO) -> Self {
+impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWorkDetails {
+    fn from(working_hours: &EmployeeWorkDetailsTO) -> Self {
         Self {
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
@@ -466,7 +490,17 @@ impl From<&WorkingHoursTO> for service::working_hours::WorkingHours {
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
-            days_per_week: working_hours.days_per_week,
+
+            monday: working_hours.monday,
+            tuesday: working_hours.tuesday,
+            wednesday: working_hours.wednesday,
+            thursday: working_hours.thursday,
+            friday: working_hours.friday,
+            saturday: working_hours.saturday,
+            sunday: working_hours.sunday,
+
+            vacation_days: working_hours.vacation_days,
+
             created: working_hours.created,
             deleted: working_hours.deleted,
             version: working_hours.version,
@@ -682,6 +716,7 @@ impl From<&service::special_days::SpecialDayType> for SpecialDayTypeTO {
         }
     }
 }
+#[cfg(feature = "service-impl")]
 impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
     fn from(day_type: &SpecialDayTypeTO) -> Self {
         match day_type {

@@ -1,0 +1,128 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_calendar_week,\n                from_year,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                \n                monday,\n                tuesday,\n                wednesday,\n                thursday,\n                friday,\n                saturday,\n                sunday,\n\n                vacation_days,\n\n                created,\n                deleted,\n                update_version\n            FROM\n                employee_work_details\n            WHERE\n                id = ?\n                and deleted IS NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "expected_hours",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "from_calendar_week",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "from_year",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "to_calendar_week",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "to_year",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "workdays_per_week",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "monday",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "tuesday",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "wednesday",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "thursday",
+        "ordinal": 11,
+        "type_info": "Int64"
+      },
+      {
+        "name": "friday",
+        "ordinal": 12,
+        "type_info": "Int64"
+      },
+      {
+        "name": "saturday",
+        "ordinal": 13,
+        "type_info": "Int64"
+      },
+      {
+        "name": "sunday",
+        "ordinal": 14,
+        "type_info": "Int64"
+      },
+      {
+        "name": "vacation_days",
+        "ordinal": 15,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created",
+        "ordinal": 16,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 17,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 18,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "c5e7283bde0bd1b7ce04e7f7bca808a422e860b3223ead1f0670daa0cf1f4ff7"
+}

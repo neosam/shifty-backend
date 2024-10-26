@@ -5,13 +5,13 @@ use dao::{BasicDao, DaoError, PrivilegeEntity, RoleEntity};
 use sqlx::{query, query_as, SqlitePool};
 
 pub mod booking;
+pub mod employee_work_details;
 pub mod extra_hours;
 pub mod sales_person;
 pub mod sales_person_unavailable;
 pub mod shiftplan_report;
 pub mod slot;
 pub mod special_day;
-pub mod working_hours;
 
 pub trait ResultDbErrorExt<T, E> {
     fn map_db_error(self) -> Result<T, DaoError>;
@@ -266,7 +266,7 @@ impl BasicDao for BasicDaoImpl {
                 DELETE FROM sales_person_user;
                 DELETE FROM sales_person_unavailable;
                 DELETE FROM extra_hours;
-                DELETE FROM working_hours;
+                DELETE FROM employee_work_details;
                 DELETE FROM sales_person;
                 "
         )

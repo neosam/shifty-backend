@@ -5,10 +5,10 @@ use proptest::prelude::*;
 use rest::RestStateDef;
 use service::{
     booking::Booking,
+    employee_work_details::EmployeeWorkDetails,
     extra_hours::{ExtraHours, ExtraHoursCategory},
     permission::Authentication,
     sales_person::SalesPerson,
-    working_hours::WorkingHours,
     ServiceError, ValidationFailureItem,
 };
 use sqlx::SqlitePool;
@@ -19,11 +19,11 @@ use uuid::Uuid;
 use crate::{create_dev_admin_user, RestStateImpl};
 use dao::BasicDao;
 use service::booking::BookingService;
+use service::employee_work_details::EmployeeWorkDetailsService;
 use service::extra_hours::ExtraHoursService;
 use service::reporting::ReportingService;
 use service::sales_person::SalesPersonService;
 use service::slot::SlotService;
-use service::working_hours::WorkingHoursService;
 
 prop_compose! {
     fn arb_sales_person()(
@@ -50,14 +50,13 @@ prop_compose! {
         to_year: u32,
         to_calendar_week: u8,
         sales_person_id: Option<Uuid>,
-        days_per_week: u8,
         expected_hours_zero_chance: f64,
     )(
         expected_hours in prop::bool::weighted(expected_hours_zero_chance)
             .prop_flat_map(|is_zero| if is_zero { (1.0..=7.0f32).boxed() } else { Just(0.0).boxed() }),
-        workdays_per_week in 1..=days_per_week,
-    ) -> WorkingHours {
-        WorkingHours {
+        workdays_per_week in 1..=6u8//days_per_week,
+    ) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
             id: Uuid::new_v4(),
             sales_person_id: sales_person_id.unwrap_or_else(|| Uuid::new_v4()),
             expected_hours,
@@ -66,7 +65,18 @@ prop_compose! {
             to_year,
             to_calendar_week,
             workdays_per_week,
-            days_per_week,
+            //days_per_week,
+
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: true,
+            sunday: false,
+
+            vacation_days: 25u8,
+
             created: Some(time::PrimitiveDateTime::new(date!(2020-01-01), time::Time::MIDNIGHT)),
             deleted: None,
             version: Uuid::new_v4(),
@@ -150,12 +160,12 @@ prop_compose! {
                 .map(|(start_week, end_week)| arb_working_hour(
                     start_week.0, start_week.1,
                     end_week.0, end_week.1,
-                    sales_person_id, 6,
+                    sales_person_id,
                     0.2))
                 .collect::<Vec<_>>()
 
             )
-    ) -> Arc<[WorkingHours]> {
+    ) -> Arc<[EmployeeWorkDetails]> {
         working_hours.into()
     }
 }
@@ -210,10 +220,10 @@ prop_compose! {
 
 #[cfg(test)]
 pub fn get_working_hours_for_week(
-    working_hours: &[WorkingHours],
+    working_hours: &[EmployeeWorkDetails],
     year: u32,
     week: u8,
-) -> Option<&WorkingHours> {
+) -> Option<&EmployeeWorkDetails> {
     working_hours.iter().find(|working_hour| {
         (working_hour.from_year, working_hour.from_calendar_week) <= (year, week)
             && (working_hour.to_year, working_hour.to_calendar_week) >= (year, week)

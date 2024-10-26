@@ -3,13 +3,13 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use dao::shiftplan_report::ShiftplanReportEntity;
 use service::{
+    employee_work_details::EmployeeWorkDetails,
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
         EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
         WorkingHoursDay,
     },
-    working_hours::WorkingHours,
     ServiceError,
 };
 use tokio::join;
@@ -58,7 +58,7 @@ pub struct ReportingServiceImpl<
 > where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursService: service::working_hours::WorkingHoursService + Send + Sync,
+    WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
@@ -94,7 +94,7 @@ impl<
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursService: service::working_hours::WorkingHoursService + Send + Sync,
+    WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
@@ -122,10 +122,10 @@ where
 }
 
 pub fn find_working_hours_for_calendar_week(
-    working_hours: &[WorkingHours],
+    working_hours: &[EmployeeWorkDetails],
     year: u32,
     week: u8,
-) -> Option<&WorkingHours> {
+) -> Option<&EmployeeWorkDetails> {
     working_hours.iter().find(|wh| {
         (year, week) >= (wh.from_year, wh.from_calendar_week)
             && (year, week) <= (wh.to_year, wh.to_calendar_week)
@@ -154,8 +154,9 @@ impl<
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
     ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
-    WorkingHoursService: service::working_hours::WorkingHoursService<Context = PermissionService::Context>
-        + Send
+    WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService<
+            Context = PermissionService::Context,
+        > + Send
         + Sync,
     SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
         + Send
@@ -194,7 +195,7 @@ where
                 .extract_shiftplan_report(paid_employee.id, year, until_week)
                 .await?;
 
-            let working_hours: Arc<[WorkingHours]> = working_hours
+            let working_hours: Arc<[EmployeeWorkDetails]> = working_hours
                 .iter()
                 .filter(|wh| wh.sales_person_id == paid_employee.id)
                 .cloned()
@@ -483,7 +484,7 @@ where
 fn hours_per_week(
     shiftplan_hours_list: &Arc<[ShiftplanReportEntity]>,
     extra_hours_list: &Arc<[ExtraHours]>,
-    working_hours: &[WorkingHours],
+    working_hours: &[EmployeeWorkDetails],
     year: u32,
     week_until: u8,
 ) -> Result<Arc<[GroupedReportHours]>, ServiceError> {
@@ -502,7 +503,13 @@ fn hours_per_week(
             find_working_hours_for_calendar_week(working_hours, year, week)
                 .iter()
                 .nth(0)
-                .map(|wh| (wh.expected_hours, wh.days_per_week, wh.workdays_per_week))
+                .map(|wh| {
+                    (
+                        wh.expected_hours,
+                        wh.potential_days_per_week(),
+                        wh.workdays_per_week,
+                    )
+                })
                 .unwrap_or((0.0, 1, 1));
         let extra_work_hours = filtered_extra_hours_list
             .iter()

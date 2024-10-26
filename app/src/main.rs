@@ -4,8 +4,8 @@ mod integration_test;
 use std::sync::Arc;
 
 use dao_impl::{
-    extra_hours::ExtraHoursDaoImpl, shiftplan_report::ShiftplanReportDaoImpl,
-    working_hours::WorkingHoursDaoImpl,
+    employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
+    shiftplan_report::ShiftplanReportDaoImpl,
 };
 use sqlx::SqlitePool;
 
@@ -78,8 +78,8 @@ type ReportingService = service_impl::reporting::ReportingServiceImpl<
     ClockService,
     UuidService,
 >;
-type WorkingHoursService = service_impl::working_hours::WorkingHoursServiceImpl<
-    dao_impl::working_hours::WorkingHoursDaoImpl,
+type WorkingHoursService = service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl<
+    dao_impl::employee_work_details::EmployeeWorkDetailsDaoImpl,
     SalesPersonService,
     PermissionService,
     ClockService,
@@ -159,7 +159,7 @@ impl RestStateImpl {
         let booking_dao = dao_impl::booking::BookingDaoImpl::new(pool.clone());
         let extra_hours_dao = Arc::new(ExtraHoursDaoImpl::new(pool.clone()));
         let shiftplan_report_dao = Arc::new(ShiftplanReportDaoImpl::new(pool.clone()));
-        let working_hours_dao = Arc::new(WorkingHoursDaoImpl::new(pool.clone()));
+        let working_hours_dao = Arc::new(EmployeeWorkDetailsDaoImpl::new(pool.clone()));
         let special_day_dao = dao_impl::special_day::SpecialDayDaoImpl::new(pool.clone());
 
         // Always authenticate with DEVUSER during development.
@@ -224,14 +224,15 @@ impl RestStateImpl {
             clock_service.clone(),
             uuid_service.clone(),
         ));
-        let working_hours_service =
-            Arc::new(service_impl::working_hours::WorkingHoursServiceImpl::new(
+        let working_hours_service = Arc::new(
+            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl::new(
                 working_hours_dao,
                 sales_person_service.clone(),
                 permission_service.clone(),
                 clock_service.clone(),
                 uuid_service.clone(),
-            ));
+            ),
+        );
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
             extra_hours_service.clone(),
             shiftplan_report_dao,

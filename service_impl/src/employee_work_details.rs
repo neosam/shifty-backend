@@ -1,46 +1,46 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::working_hours::WorkingHoursEntity;
+use dao::employee_work_details::EmployeeWorkDetailsEntity;
 use service::{
+    employee_work_details::EmployeeWorkDetails,
     permission::{Authentication, HR_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
-    working_hours::WorkingHours,
     ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
 
-pub struct WorkingHoursServiceImpl<
-    WorkingHoursDao: dao::working_hours::WorkingHoursDao,
+pub struct EmployeeWorkDetailsServiceImpl<
+    EmployeeWorkDetailsDao: dao::employee_work_details::EmployeeWorkDetailsDao,
     SalesPersonService: service::sales_person::SalesPersonService,
     PermissionService: service::PermissionService,
     ClockService: service::clock::ClockService,
     UuidService: service::uuid_service::UuidService,
 > {
-    working_hours_dao: Arc<WorkingHoursDao>,
+    working_hours_dao: Arc<EmployeeWorkDetailsDao>,
     sales_person_service: Arc<SalesPersonService>,
     permission_service: Arc<PermissionService>,
     clock_service: Arc<ClockService>,
     uuid_service: Arc<UuidService>,
 }
 
-impl<WorkingHoursDao, SalesPersonService, PermissionService, ClockService, UuidService>
-    WorkingHoursServiceImpl<
-        WorkingHoursDao,
+impl<EmployeeWorkDetailsDao, SalesPersonService, PermissionService, ClockService, UuidService>
+    EmployeeWorkDetailsServiceImpl<
+        EmployeeWorkDetailsDao,
         SalesPersonService,
         PermissionService,
         ClockService,
         UuidService,
     >
 where
-    WorkingHoursDao: dao::working_hours::WorkingHoursDao + Sync + Send,
+    EmployeeWorkDetailsDao: dao::employee_work_details::EmployeeWorkDetailsDao + Sync + Send,
     SalesPersonService: service::sales_person::SalesPersonService + Sync + Send,
     PermissionService: service::PermissionService + Sync + Send,
     ClockService: service::clock::ClockService + Sync + Send,
     UuidService: service::uuid_service::UuidService + Sync + Send,
 {
     pub fn new(
-        working_hours_dao: Arc<WorkingHoursDao>,
+        working_hours_dao: Arc<EmployeeWorkDetailsDao>,
         sales_person_service: Arc<SalesPersonService>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
@@ -58,16 +58,16 @@ where
 
 #[async_trait]
 impl<
-        WorkingHoursDao: dao::working_hours::WorkingHoursDao + Sync + Send,
+        EmployeeWorkDetailsDao: dao::employee_work_details::EmployeeWorkDetailsDao + Sync + Send,
         SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
             + Sync
             + Send,
         PermissionService: service::PermissionService + Sync + Send,
         ClockService: service::clock::ClockService + Sync + Send,
         UuidService: service::uuid_service::UuidService + Sync + Send,
-    > service::working_hours::WorkingHoursService
-    for WorkingHoursServiceImpl<
-        WorkingHoursDao,
+    > service::employee_work_details::EmployeeWorkDetailsService
+    for EmployeeWorkDetailsServiceImpl<
+        EmployeeWorkDetailsDao,
         SalesPersonService,
         PermissionService,
         ClockService,
@@ -79,17 +79,17 @@ impl<
     async fn all(
         &self,
         context: Authentication<Self::Context>,
-    ) -> Result<Arc<[WorkingHours]>, ServiceError> {
+    ) -> Result<Arc<[EmployeeWorkDetails]>, ServiceError> {
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
-        let working_hours: Arc<[WorkingHours]> = self
+        let working_hours: Arc<[EmployeeWorkDetails]> = self
             .working_hours_dao
             .all()
             .await?
             .iter()
-            .map(WorkingHours::from)
-            .collect::<Vec<WorkingHours>>()
+            .map(EmployeeWorkDetails::from)
+            .collect::<Vec<EmployeeWorkDetails>>()
             .into();
         Ok(working_hours)
     }
@@ -97,7 +97,7 @@ impl<
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
-    ) -> Result<Arc<[WorkingHours]>, ServiceError> {
+    ) -> Result<Arc<[EmployeeWorkDetails]>, ServiceError> {
         let (hr_privilege, user_privilege) = join!(
             self.permission_service
                 .check_permission(HR_PRIVILEGE, context.clone()),
@@ -106,13 +106,13 @@ impl<
         );
         hr_privilege.or(user_privilege)?;
 
-        let working_hours: Arc<[WorkingHours]> = self
+        let working_hours: Arc<[EmployeeWorkDetails]> = self
             .working_hours_dao
             .find_by_sales_person_id(sales_person_id)
             .await?
             .iter()
-            .map(WorkingHours::from)
-            .collect::<Vec<WorkingHours>>()
+            .map(EmployeeWorkDetails::from)
+            .collect::<Vec<EmployeeWorkDetails>>()
             .into();
         Ok(working_hours)
     }
@@ -122,7 +122,7 @@ impl<
         calendar_week: u8,
         year: u32,
         context: Authentication<Self::Context>,
-    ) -> Result<WorkingHours, ServiceError> {
+    ) -> Result<EmployeeWorkDetails, ServiceError> {
         let (hr_privilege, user_privilege) = join!(
             self.permission_service
                 .check_permission(HR_PRIVILEGE, context.clone()),
@@ -131,7 +131,7 @@ impl<
         );
         hr_privilege.or(user_privilege)?;
 
-        let working_hours: WorkingHours = self
+        let working_hours: EmployeeWorkDetails = self
             .working_hours_dao
             .find_by_sales_person_id(sales_person_id)
             .await?
@@ -140,7 +140,7 @@ impl<
                 (wh.from_year, wh.from_calendar_week) <= (year, calendar_week)
                     && (wh.to_year, wh.to_calendar_week) >= (year, calendar_week)
             })
-            .map(WorkingHours::from)
+            .map(EmployeeWorkDetails::from)
             .ok_or(ServiceError::EntityNotFoundGeneric(
                 format!(
                     "sales_person_id: {}, year: {}, calendar_week: {}",
@@ -156,7 +156,7 @@ impl<
         calendar_week: u8,
         year: u32,
         context: Authentication<Self::Context>,
-    ) -> Result<Arc<[WorkingHours]>, ServiceError> {
+    ) -> Result<Arc<[EmployeeWorkDetails]>, ServiceError> {
         let shiftplanner_privilege = self
             .permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
@@ -165,13 +165,13 @@ impl<
         match shiftplanner_privilege {
             Ok(_) => {
                 // Shiftplanner can see all working hours
-                let working_hours: Arc<[WorkingHours]> = self
+                let working_hours: Arc<[EmployeeWorkDetails]> = self
                     .working_hours_dao
                     .find_for_week(calendar_week, year)
                     .await?
                     .iter()
-                    .map(WorkingHours::from)
-                    .collect::<Vec<WorkingHours>>()
+                    .map(EmployeeWorkDetails::from)
+                    .collect::<Vec<EmployeeWorkDetails>>()
                     .into();
                 Ok(working_hours)
             }
@@ -184,14 +184,14 @@ impl<
                 else {
                     return Ok(Arc::new([]));
                 };
-                let working_hours: Arc<[WorkingHours]> = self
+                let working_hours: Arc<[EmployeeWorkDetails]> = self
                     .working_hours_dao
                     .find_for_week(calendar_week, year)
                     .await?
                     .iter()
                     .filter(|wh| wh.sales_person_id == sales_person.id)
-                    .map(WorkingHours::from)
-                    .collect::<Vec<WorkingHours>>()
+                    .map(EmployeeWorkDetails::from)
+                    .collect::<Vec<EmployeeWorkDetails>>()
                     .into();
                 Ok(working_hours)
             }
@@ -200,16 +200,16 @@ impl<
 
     async fn create(
         &self,
-        working_hours: &WorkingHours,
+        working_hours: &EmployeeWorkDetails,
         context: Authentication<Self::Context>,
-    ) -> Result<WorkingHours, ServiceError> {
+    ) -> Result<EmployeeWorkDetails, ServiceError> {
         let mut working_hours = working_hours.to_owned();
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
 
         working_hours.created = Some(self.clock_service.date_time_now());
-        let mut entity: WorkingHoursEntity = (&working_hours).try_into()?;
+        let mut entity: EmployeeWorkDetailsEntity = (&working_hours).try_into()?;
 
         if !entity.id.is_nil() {
             return Err(ServiceError::IdSetOnCreate);
@@ -227,13 +227,33 @@ impl<
             .create(&entity, "working-hours-service::create")
             .await?;
 
-        Ok(WorkingHours::from(&entity))
+        Ok(EmployeeWorkDetails::from(&entity))
     }
     async fn update(
         &self,
-        _entity: &WorkingHours,
+        _entity: &EmployeeWorkDetails,
         _context: Authentication<Self::Context>,
-    ) -> Result<WorkingHours, ServiceError> {
+    ) -> Result<EmployeeWorkDetails, ServiceError> {
         unimplemented!()
+    }
+
+    async fn delete(
+        &self,
+        id: Uuid,
+        context: Authentication<Self::Context>,
+    ) -> Result<EmployeeWorkDetails, ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+        let entity = self.working_hours_dao.find_by_id(id).await?;
+        if let Some(mut entity) = entity {
+            entity.deleted = Some(self.clock_service.date_time_now());
+            self.working_hours_dao
+                .update(&entity, "working-hours-service::delete")
+                .await?;
+            Ok(EmployeeWorkDetails::from(&entity))
+        } else {
+            return Err(ServiceError::EntityNotFound(id));
+        }
     }
 }

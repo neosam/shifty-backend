@@ -2,13 +2,13 @@ use std::{convert::Infallible, sync::Arc};
 
 mod booking;
 mod booking_information;
+mod employee_work_details;
 mod extra_hours;
 mod permission;
 mod report;
 mod sales_person;
 mod slot;
 mod special_day;
-mod working_hours;
 
 #[cfg(feature = "oidc")]
 use axum::error_handling::HandleErrorLayer;
@@ -260,7 +260,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
-    type WorkingHoursService: service::working_hours::WorkingHoursService<Context = Context>
+    type WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService<Context = Context>
         + Send
         + Sync
         + 'static;
@@ -398,7 +398,11 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             booking_information::generate_route(),
         )
         .nest("/report", report::generate_route())
-        .nest("/working-hours", working_hours::generate_route())
+        .nest("/working-hours", employee_work_details::generate_route())
+        .nest(
+            "/employee-work-details",
+            employee_work_details::generate_route(),
+        )
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/special-days", special_day::generate_route())
         .with_state(rest_state)
