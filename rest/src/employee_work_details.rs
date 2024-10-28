@@ -4,7 +4,7 @@ use axum::{
     body::Body,
     extract::{Path, State},
     response::Response,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use rest_types::EmployeeWorkDetailsTO;
@@ -26,6 +26,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         )
         .route("/", post(create_working_hours::<RestState>))
         .route("/:id", delete(delete_employee_work_details::<RestState>))
+        .route("/:id", put(update_working_hours::<RestState>))
 }
 
 pub async fn create_working_hours<RestState: RestStateDef>(
@@ -39,6 +40,28 @@ pub async fn create_working_hours<RestState: RestStateDef>(
                 &rest_state
                     .working_hours_service()
                     .create(&(&working_hours).into(), context.into())
+                    .await?,
+            );
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&working_hours).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+pub async fn update_working_hours<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Json(working_hours): Json<EmployeeWorkDetailsTO>,
+) -> Response {
+    error_handler(
+        (async {
+            let working_hours = EmployeeWorkDetailsTO::from(
+                &rest_state
+                    .working_hours_service()
+                    .update(&(&working_hours).into(), context.into())
                     .await?,
             );
             Ok(Response::builder()

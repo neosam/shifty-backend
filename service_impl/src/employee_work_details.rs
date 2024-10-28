@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::employee_work_details::EmployeeWorkDetailsEntity;
+use dao::employee_work_details::{self, EmployeeWorkDetailsEntity};
 use service::{
     employee_work_details::EmployeeWorkDetails,
     permission::{Authentication, HR_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
@@ -231,10 +231,38 @@ impl<
     }
     async fn update(
         &self,
-        _entity: &EmployeeWorkDetails,
-        _context: Authentication<Self::Context>,
+        employee_work_details: &EmployeeWorkDetails,
+        context: Authentication<Self::Context>,
     ) -> Result<EmployeeWorkDetails, ServiceError> {
-        unimplemented!()
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let mut entity = self
+            .working_hours_dao
+            .find_by_id(employee_work_details.id)
+            .await?
+            .ok_or(ServiceError::EntityNotFound(employee_work_details.id))?;
+        if entity.version != employee_work_details.version {
+            return Err(ServiceError::EntityConflicts(
+                entity.id,
+                entity.version,
+                employee_work_details.version,
+            ));
+        }
+
+        entity.to_calendar_week = employee_work_details.to_calendar_week;
+        entity.to_day_of_week = employee_work_details.to_day_of_week.into();
+        entity.to_year = employee_work_details.to_year;
+
+        entity.version = self
+            .uuid_service
+            .new_uuid("working-hours-service::update version");
+
+        self.working_hours_dao
+            .update(&entity, "working-hours-service::update")
+            .await?;
+        Ok(EmployeeWorkDetails::from(&entity))
     }
 
     async fn delete(
