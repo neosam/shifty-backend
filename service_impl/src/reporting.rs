@@ -463,7 +463,7 @@ where
                 .unwrap_or(0.0);
             let planned_hours: f32 =
                 find_working_hours_for_calendar_week(&working_hours, year, week)
-                    .map(|wh| wh.expected_hours)
+                    .map(|wh| weight_for_week(year, week, wh).0)
                     .sum();
             let expected_hours = planned_hours - abense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
