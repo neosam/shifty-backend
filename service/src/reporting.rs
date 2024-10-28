@@ -50,7 +50,7 @@ pub struct GroupedReportHours {
     pub balance: f32,
 
     pub days_per_week: u8,
-    pub workdays_per_week: u8,
+    pub workdays_per_week: f32,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
@@ -62,7 +62,7 @@ pub struct GroupedReportHours {
 }
 impl GroupedReportHours {
     pub fn hours_per_day(&self) -> f32 {
-        if self.workdays_per_week == 0 {
+        if self.workdays_per_week == 0.0 {
             return 0.0;
         }
         self.contract_weekly_hours / self.workdays_per_week as f32

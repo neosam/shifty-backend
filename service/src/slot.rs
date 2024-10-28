@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::permission::Authentication;
 use crate::ServiceError;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub enum DayOfWeek {
     Monday,
     Tuesday,

@@ -381,13 +381,15 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             .map_db_error()?;
         let to_year = entity.to_year as i64;
         let to_calendar_week = entity.to_calendar_week as i64;
+        let to_day_of_week = entity.to_day_of_week.to_number() as i64;
         query!(
             r#"
             UPDATE employee_work_details SET
                 deleted = ?,
                 update_process = ?,
                 to_year = ?,
-                to_calendar_week = ?
+                to_calendar_week = ?,
+                to_day_of_week = ?
             WHERE
                 id = ?
             "#,
@@ -395,6 +397,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             process,
             to_year,
             to_calendar_week,
+            to_day_of_week,
             id
         )
         .execute(self.pool.as_ref())

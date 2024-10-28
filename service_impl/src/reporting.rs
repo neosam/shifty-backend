@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use dao::shiftplan_report::ShiftplanReportEntity;
+use dao::{employee_work_details, shiftplan_report::ShiftplanReportEntity};
 use service::{
     employee_work_details::EmployeeWorkDetails,
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},
@@ -10,6 +10,7 @@ use service::{
         EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
         WorkingHoursDay,
     },
+    slot::DayOfWeek,
     ServiceError,
 };
 use tokio::join;
@@ -125,8 +126,8 @@ pub fn find_working_hours_for_calendar_week(
     working_hours: &[EmployeeWorkDetails],
     year: u32,
     week: u8,
-) -> Option<&EmployeeWorkDetails> {
-    working_hours.iter().find(|wh| {
+) -> impl Iterator<Item = &EmployeeWorkDetails> {
+    working_hours.iter().filter(move |wh| {
         (year, week) >= (wh.from_year, wh.from_calendar_week)
             && (year, week) <= (wh.to_year, wh.to_calendar_week)
     })
@@ -218,8 +219,9 @@ where
                 .map(|week| {
                     let expected_hours =
                         find_working_hours_for_calendar_week(&working_hours, year, week)
-                            .map(|wh| wh.expected_hours)
-                            .unwrap_or(0.0);
+                            .map(|wh| weight_for_week(year, week, &wh))
+                            .map(|(expected_hours, _, _)| expected_hours)
+                            .sum();
                     // If expected hours is 0 or less, the planned hours and the working hours are the same
                     // because the balance should never be affected in this case.
                     let shiftplan_hours: f32 = detailed_shiftplan_report
@@ -459,9 +461,10 @@ where
                         .sum::<f32>()
                 })
                 .unwrap_or(0.0);
-            let planned_hours = find_working_hours_for_calendar_week(&working_hours, year, week)
-                .map(|wh| wh.expected_hours)
-                .unwrap_or(0.0);
+            let planned_hours: f32 =
+                find_working_hours_for_calendar_week(&working_hours, year, week)
+                    .map(|wh| wh.expected_hours)
+                    .sum();
             let expected_hours = planned_hours - abense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
@@ -478,6 +481,50 @@ where
         }
 
         Ok(result.into())
+    }
+}
+
+fn weight_for_week(
+    year: u32,
+    week: u8,
+    employee_work_details: &EmployeeWorkDetails,
+) -> (f32, u8, f32) {
+    if year == employee_work_details.from_year && week == employee_work_details.from_calendar_week {
+        let workdays = employee_work_details.potential_weekday_list();
+        let all_potential_workdays = workdays.len() as u8;
+        let num_potential_workdays_in_week = workdays
+            .iter()
+            .map(|workday| DayOfWeek::from(*workday))
+            .filter(|workday| *workday >= employee_work_details.from_day_of_week)
+            .count();
+        let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
+        (
+            employee_work_details.expected_hours * relation,
+            num_potential_workdays_in_week as u8,
+            employee_work_details.workdays_per_week as f32 * relation,
+        )
+    } else if year == employee_work_details.to_year
+        && week == employee_work_details.to_calendar_week
+    {
+        let workdays = employee_work_details.potential_weekday_list();
+        let all_potential_workdays = workdays.len() as u8;
+        let num_potential_workdays_in_week = workdays
+            .iter()
+            .map(|workday| DayOfWeek::from(*workday))
+            .filter(|workday| *workday <= employee_work_details.to_day_of_week)
+            .count();
+        let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
+        (
+            employee_work_details.expected_hours * relation,
+            num_potential_workdays_in_week as u8,
+            employee_work_details.workdays_per_week as f32 * relation,
+        )
+    } else {
+        (
+            employee_work_details.expected_hours,
+            employee_work_details.potential_days_per_week(),
+            employee_work_details.workdays_per_week as f32,
+        )
     }
 }
 
@@ -501,16 +548,19 @@ fn hours_per_week(
             .sum::<f32>();
         let (working_hours, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, year, week)
-                .iter()
-                .nth(0)
-                .map(|wh| {
-                    (
-                        wh.expected_hours,
-                        wh.potential_days_per_week(),
-                        wh.workdays_per_week,
-                    )
-                })
-                .unwrap_or((0.0, 1, 1));
+                .map(|wh| weight_for_week(year, week, &wh))
+                .fold(
+                    (0.0f32, 0u8, 0f32),
+                    |(working_hours_acc, days_per_week_acc, workdays_per_week_acc),
+                     (wh, dpw, wpw)| {
+                        (
+                            working_hours_acc + wh,
+                            days_per_week_acc + dpw,
+                            workdays_per_week_acc + wpw,
+                        )
+                    },
+                );
+        //.unwrap_or((0.0, 1, 1));
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
