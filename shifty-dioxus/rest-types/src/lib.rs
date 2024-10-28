@@ -333,7 +333,7 @@ pub struct WorkingHoursReportTO {
     pub balance: f32,
 
     pub days_per_week: u8,
-    pub workdays_per_week: u8,
+    pub workdays_per_week: f32,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
