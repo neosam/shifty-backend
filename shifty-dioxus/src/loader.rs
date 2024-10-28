@@ -378,13 +378,14 @@ pub async fn load_employee_work_details(
     config: Config,
     employee_id: Uuid,
 ) -> Result<Rc<[EmployeeWorkDetails]>, ShiftyError> {
-    let employee_work_details_to: Rc<[EmployeeWorkDetails]> =
+    let mut employee_work_details_to: Vec<EmployeeWorkDetails> =
         api::get_employee_work_details_for_sales_person(config, employee_id)
             .await?
             .iter()
             .flat_map(EmployeeWorkDetails::try_from)
             .collect();
-    Ok(employee_work_details_to)
+    employee_work_details_to.sort_by_key(|details| details.from);
+    Ok(employee_work_details_to.into())
 }
 
 pub async fn save_new_employee_work_details(
