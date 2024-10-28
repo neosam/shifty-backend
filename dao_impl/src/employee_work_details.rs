@@ -4,6 +4,7 @@ use crate::ResultDbErrorExt;
 use async_trait::async_trait;
 use dao::{
     employee_work_details::{EmployeeWorkDetailsDao, EmployeeWorkDetailsEntity},
+    slot::DayOfWeek,
     DaoError,
 };
 use sqlx::{query, query_as};
@@ -14,8 +15,10 @@ pub struct EmployeeWorkDetailsDb {
     pub id: Vec<u8>,
     pub sales_person_id: Vec<u8>,
     pub expected_hours: f64,
+    pub from_day_of_week: i64,
     pub from_calendar_week: i64,
     pub from_year: i64,
+    pub to_day_of_week: i64,
     pub to_calendar_week: i64,
     pub to_year: i64,
     pub workdays_per_week: i64,
@@ -43,8 +46,14 @@ impl TryFrom<&EmployeeWorkDetailsDb> for EmployeeWorkDetailsEntity {
             id: Uuid::from_slice(working_hours.id.as_ref())?,
             sales_person_id: Uuid::from_slice(working_hours.sales_person_id.as_ref()).unwrap(),
             expected_hours: working_hours.expected_hours as f32,
+            from_day_of_week: DayOfWeek::from_number(working_hours.from_day_of_week as u8).ok_or(
+                DaoError::InvalidDayOfWeek(working_hours.from_day_of_week as u8),
+            )?,
             from_calendar_week: working_hours.from_calendar_week as u8,
             from_year: working_hours.from_year as u32,
+            to_day_of_week: DayOfWeek::from_number(working_hours.to_day_of_week as u8).ok_or(
+                DaoError::InvalidDayOfWeek(working_hours.to_day_of_week as u8),
+            )?,
             to_calendar_week: working_hours.to_calendar_week as u8,
             to_year: working_hours.to_year as u32,
             workdays_per_week: working_hours.workdays_per_week as u8,
@@ -90,8 +99,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 id,
                 sales_person_id,
                 expected_hours,
+                from_day_of_week,
                 from_calendar_week,
                 from_year,
+                to_day_of_week,
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
@@ -132,8 +143,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 id,
                 sales_person_id,
                 expected_hours,
+                from_day_of_week,
                 from_calendar_week,
                 from_year,
+                to_day_of_week,
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
@@ -179,8 +192,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 id,
                 sales_person_id,
                 expected_hours,
+                from_day_of_week,
                 from_calendar_week,
                 from_year,
+                to_day_of_week,
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
@@ -228,8 +243,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 id,
                 sales_person_id,
                 expected_hours,
+                from_day_of_week,
                 from_calendar_week,
                 from_year,
+                to_day_of_week,
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
@@ -276,8 +293,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let id = entity.id.as_bytes().to_vec();
         let sales_person_id = entity.sales_person_id.as_bytes().to_vec();
         let expected_hours = entity.expected_hours as f64;
+        let from_day_of_week = entity.from_day_of_week.to_number() as i64;
         let from_calendar_week = entity.from_calendar_week as i64;
         let from_year = entity.from_year as i64;
+        let to_day_of_week = entity.to_day_of_week.to_number() as i64;
         let to_calendar_week = entity.to_calendar_week as i64;
         let to_year = entity.to_year as i64;
         let monday = entity.monday as i64;
@@ -297,8 +316,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 id,
                 sales_person_id,
                 expected_hours,
+                from_day_of_week,
                 from_calendar_week,
                 from_year,
+                to_day_of_week,
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
@@ -316,13 +337,15 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 created,
                 update_process,
                 update_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             id,
             sales_person_id,
             expected_hours,
+            from_day_of_week,
             from_calendar_week,
             from_year,
+            to_day_of_week,
             to_calendar_week,
             to_year,
             workdays_per_week,

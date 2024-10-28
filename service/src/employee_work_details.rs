@@ -7,6 +7,7 @@ use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
 
 use crate::permission::Authentication;
+use crate::slot::DayOfWeek;
 use crate::ServiceError;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -14,8 +15,10 @@ pub struct EmployeeWorkDetails {
     pub id: Uuid,
     pub sales_person_id: Uuid,
     pub expected_hours: f32,
+    pub from_day_of_week: DayOfWeek,
     pub from_calendar_week: u8,
     pub from_year: u32,
+    pub to_day_of_week: DayOfWeek,
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,
@@ -40,8 +43,10 @@ impl From<&dao::employee_work_details::EmployeeWorkDetailsEntity> for EmployeeWo
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
             expected_hours: working_hours.expected_hours,
+            from_day_of_week: working_hours.from_day_of_week.into(),
             from_calendar_week: working_hours.from_calendar_week,
             from_year: working_hours.from_year,
+            to_day_of_week: working_hours.to_day_of_week.into(),
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
@@ -110,8 +115,10 @@ impl TryFrom<&EmployeeWorkDetails> for dao::employee_work_details::EmployeeWorkD
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
             expected_hours: working_hours.expected_hours,
+            from_day_of_week: working_hours.from_day_of_week.into(),
             from_calendar_week: working_hours.from_calendar_week,
             from_year: working_hours.from_year,
+            to_day_of_week: working_hours.to_day_of_week.into(),
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,

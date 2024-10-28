@@ -10,8 +10,8 @@ ALTER TABLE employee_work_details ADD COLUMN saturday INTEGER NOT NULL DEFAULT 1
 ALTER TABLE employee_work_details ADD COLUMN sunday INTEGER NOT NULL DEFAULT 0;
 
 -- Start week and end week on the first and last week of the contract
-ALTER TABLE employee_work_details ADD COLUMN start_day_of_week INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE employee_work_details ADD COLUMN end_day_of_week INTEGER NOT NULL DEFAULT 7;
+ALTER TABLE employee_work_details ADD COLUMN from_day_of_week INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE employee_work_details ADD COLUMN to_day_of_week INTEGER NOT NULL DEFAULT 7;
 
 -- Add vacation days per year
 ALTER TABLE employee_work_details ADD COLUMN vacation_days INTEGER NOT NULL DEFAULT 0;

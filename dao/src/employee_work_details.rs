@@ -1,4 +1,4 @@
-use crate::DaoError;
+use crate::{slot::DayOfWeek, DaoError};
 use async_trait::async_trait;
 use mockall::automock;
 use std::sync::Arc;
@@ -10,8 +10,10 @@ pub struct EmployeeWorkDetailsEntity {
     pub id: Uuid,
     pub sales_person_id: Uuid,
     pub expected_hours: f32,
+    pub from_day_of_week: DayOfWeek,
     pub from_calendar_week: u8,
     pub from_year: u32,
+    pub to_day_of_week: DayOfWeek,
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,

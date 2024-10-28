@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
-use time::PrimitiveDateTime;
+use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -186,6 +186,32 @@ impl From<DayOfWeekTO> for service::slot::DayOfWeek {
             DayOfWeekTO::Friday => Self::Friday,
             DayOfWeekTO::Saturday => Self::Saturday,
             DayOfWeekTO::Sunday => Self::Sunday,
+        }
+    }
+}
+impl From<Weekday> for DayOfWeekTO {
+    fn from(weekday: Weekday) -> Self {
+        match weekday {
+            Weekday::Monday => DayOfWeekTO::Monday,
+            Weekday::Tuesday => DayOfWeekTO::Tuesday,
+            Weekday::Wednesday => DayOfWeekTO::Wednesday,
+            Weekday::Thursday => DayOfWeekTO::Thursday,
+            Weekday::Friday => DayOfWeekTO::Friday,
+            Weekday::Saturday => DayOfWeekTO::Saturday,
+            Weekday::Sunday => DayOfWeekTO::Sunday,
+        }
+    }
+}
+impl From<DayOfWeekTO> for Weekday {
+    fn from(day_of_week: DayOfWeekTO) -> Self {
+        match day_of_week {
+            DayOfWeekTO::Monday => Weekday::Monday,
+            DayOfWeekTO::Tuesday => Weekday::Tuesday,
+            DayOfWeekTO::Wednesday => Weekday::Wednesday,
+            DayOfWeekTO::Thursday => Weekday::Thursday,
+            DayOfWeekTO::Friday => Weekday::Friday,
+            DayOfWeekTO::Saturday => Weekday::Saturday,
+            DayOfWeekTO::Sunday => Weekday::Sunday,
         }
     }
 }
@@ -416,8 +442,10 @@ pub struct EmployeeWorkDetailsTO {
     pub id: Uuid,
     pub sales_person_id: Uuid,
     pub expected_hours: f32,
+    pub from_day_of_week: DayOfWeekTO,
     pub from_calendar_week: u8,
     pub from_year: u32,
+    pub to_day_of_week: DayOfWeekTO,
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,
@@ -451,8 +479,10 @@ impl From<&service::employee_work_details::EmployeeWorkDetails> for EmployeeWork
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
             expected_hours: working_hours.expected_hours,
+            from_day_of_week: working_hours.from_day_of_week.into(),
             from_calendar_week: working_hours.from_calendar_week,
             from_year: working_hours.from_year,
+            to_day_of_week: working_hours.to_day_of_week.into(),
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
@@ -485,8 +515,10 @@ impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWo
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
             expected_hours: working_hours.expected_hours,
+            from_day_of_week: working_hours.from_day_of_week.into(),
             from_calendar_week: working_hours.from_calendar_week,
             from_year: working_hours.from_year,
+            to_day_of_week: working_hours.to_day_of_week.into(),
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
@@ -702,7 +734,7 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SpecialDayTypeTO {
     Holiday,
     ShortDay,
