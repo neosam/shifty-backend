@@ -656,6 +656,7 @@ pub enum EmployeeWorkDetailsAction {
     NewWorkingHours(Uuid),
     UpdateWorkingHours(EmployeeWorkDetails),
     Save,
+    Update,
     LoadForEmployee(Uuid),
     Delete(Uuid),
     Load(Uuid),
@@ -681,6 +682,13 @@ pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWor
                     .selected_employee_work_details
                     .clone();
                 loader::save_new_employee_work_details(CONFIG.read().clone(), working_hours).await
+            }
+            EmployeeWorkDetailsAction::Update => {
+                let working_hours = EMPLOYEE_WORK_DETAILS_STORE
+                    .read()
+                    .selected_employee_work_details
+                    .clone();
+                loader::update_employee_work_details(CONFIG.read().clone(), working_hours).await
             }
             EmployeeWorkDetailsAction::LoadForEmployee(sales_person_id) => {
                 load_employee_work_details(sales_person_id).await

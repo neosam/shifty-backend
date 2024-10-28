@@ -552,6 +552,22 @@ pub async fn post_employee_work_details(
     Ok(())
 }
 
+pub async fn put_employee_work_details(
+    config: Config,
+    work_details: EmployeeWorkDetailsTO,
+) -> Result<(), reqwest::Error> {
+    let url = format!(
+        "{}/working-hours/{}",
+        config.backend,
+        work_details.id.to_string()
+    );
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&work_details).send().await?;
+    response.error_for_status_ref()?;
+    info!("Updated");
+    Ok(())
+}
+
 pub async fn delete_employee_work_details(
     config: Config,
     work_details_id: Uuid,

@@ -328,7 +328,18 @@ pub fn EmployeeWorkDetailsForm(props: EmployeeWorkDetailsFormPlainProps) -> Elem
             },
             on_save: move |()| {
                 if let Some(on_save) = &props.on_save {
-                    employee_work_details_service.send(EmployeeWorkDetailsAction::Save);
+                    match props.employee_work_details_form_type {
+                        EmployeeWorkDetailsFormType::New => {
+                            employee_work_details_service.send(EmployeeWorkDetailsAction::Save);
+                        }
+                        EmployeeWorkDetailsFormType::Edit => {
+                            employee_work_details_service
+                                .send(EmployeeWorkDetailsAction::Update);
+                        }
+                        _ => {
+                            tracing::error!("Cannot save read only employee work details");
+                        }
+                    }
                     on_save.call(());
                 }
             },

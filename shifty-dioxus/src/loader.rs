@@ -394,3 +394,11 @@ pub async fn save_new_employee_work_details(
     api::post_employee_work_details(config, (&employee_work_details).try_into()?).await?;
     Ok(())
 }
+
+pub async fn update_employee_work_details(
+    config: Config,
+    employee_work_details: EmployeeWorkDetails,
+) -> Result<(), ShiftyError> {
+    api::put_employee_work_details(config, (&employee_work_details).try_into()?).await?;
+    Ok(())
+}
