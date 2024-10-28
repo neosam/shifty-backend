@@ -118,12 +118,12 @@ impl TryFrom<&EmployeeWorkDetailsTO> for EmployeeWorkDetails {
             from: time::Date::from_iso_week_date(
                 details.from_year as i32,
                 details.from_calendar_week,
-                time::Weekday::Monday,
+                details.from_day_of_week.into(),
             )?,
             to: time::Date::from_iso_week_date(
                 details.to_year as i32,
                 details.to_calendar_week,
-                time::Weekday::Sunday,
+                details.to_day_of_week.into(),
             )?,
             workdays_per_week: details.workdays_per_week,
 
@@ -153,8 +153,10 @@ impl TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO {
             id: details.id,
             sales_person_id: details.sales_person_id,
             expected_hours: details.expected_hours,
+            from_day_of_week: details.from.weekday().into(),
             from_year: from_year as u32,
             from_calendar_week: from_week,
+            to_day_of_week: details.to.weekday().into(),
             to_year: to_year as u32,
             to_calendar_week: to_week,
             workdays_per_week: details.workdays_per_week,
