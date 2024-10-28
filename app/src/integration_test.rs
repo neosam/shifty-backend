@@ -9,6 +9,7 @@ use service::{
     extra_hours::{ExtraHours, ExtraHoursCategory},
     permission::Authentication,
     sales_person::SalesPerson,
+    slot::DayOfWeek,
     ServiceError, ValidationFailureItem,
 };
 use sqlx::SqlitePool;
@@ -62,8 +63,10 @@ prop_compose! {
             expected_hours,
             from_year,
             from_calendar_week,
+            from_day_of_week: DayOfWeek::Monday,
             to_year,
             to_calendar_week,
+            to_day_of_week: DayOfWeek::Sunday,
             workdays_per_week,
             //days_per_week,
 
