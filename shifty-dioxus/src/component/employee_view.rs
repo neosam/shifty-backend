@@ -24,6 +24,7 @@ pub struct EmployeeViewProps {
     pub on_until_now: EventHandler<()>,
     pub on_add_employee_work_details: Option<EventHandler<()>>,
     pub on_employee_work_details_clicked: EventHandler<Uuid>,
+    pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -526,7 +527,13 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                             let employee_work_details_id = employee_work_details.id;
                             move |_| {
                                 employee_work_details_service
-                                    .send(EmployeeWorkDetailsAction::Delete(employee_work_details_id))
+                                    .send(EmployeeWorkDetailsAction::Delete(employee_work_details_id));
+                                if let Some(on_delete_employee_work_details_clicked) = props
+                                    .on_delete_employee_work_details_clicked
+                                    .clone()
+                                {
+                                    on_delete_employee_work_details_clicked.call(employee_work_details_id);
+                                }
                             }
                         },
                         on_click: {

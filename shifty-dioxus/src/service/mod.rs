@@ -632,6 +632,22 @@ async fn delete_employee_work_details(employee_work_details_id: Uuid) -> Result<
     Ok(())
 }
 
+async fn save_employee_work_details(
+    employee_work_details: EmployeeWorkDetails,
+) -> Result<(), ShiftyError> {
+    loader::save_new_employee_work_details(CONFIG.read().clone(), employee_work_details).await?;
+    reload_employee_work_details().await?;
+    Ok(())
+}
+
+async fn update_employee_work_details(
+    employee_work_details: EmployeeWorkDetails,
+) -> Result<(), ShiftyError> {
+    loader::update_employee_work_details(CONFIG.read().clone(), employee_work_details).await?;
+    reload_employee_work_details().await?;
+    Ok(())
+}
+
 async fn find_and_activate_employee_work_details(
     employee_work_details_id: Uuid,
 ) -> Result<(), ShiftyError> {
@@ -677,18 +693,18 @@ pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWor
                 Ok(())
             }
             EmployeeWorkDetailsAction::Save => {
-                let working_hours = EMPLOYEE_WORK_DETAILS_STORE
+                let employee_work_details = EMPLOYEE_WORK_DETAILS_STORE
                     .read()
                     .selected_employee_work_details
                     .clone();
-                loader::save_new_employee_work_details(CONFIG.read().clone(), working_hours).await
+                save_employee_work_details(employee_work_details).await
             }
             EmployeeWorkDetailsAction::Update => {
-                let working_hours = EMPLOYEE_WORK_DETAILS_STORE
+                let employee_work_details = EMPLOYEE_WORK_DETAILS_STORE
                     .read()
                     .selected_employee_work_details
                     .clone();
-                loader::update_employee_work_details(CONFIG.read().clone(), working_hours).await
+                update_employee_work_details(employee_work_details).await
             }
             EmployeeWorkDetailsAction::LoadForEmployee(sales_person_id) => {
                 load_employee_work_details(sales_person_id).await

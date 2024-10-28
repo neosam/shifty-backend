@@ -168,6 +168,20 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             EmployeeWorkDetailsFormType::New;
                     }
                     EmployeeDetailsAction::SaveEmployeeWorkDetails => {
+                        let week = if *year.read() == js::get_current_year() {
+                            js::get_current_week()
+                        } else {
+                            53
+                        };
+                        *employee_resource.write() = Some(
+                            loader::load_employee_details(
+                                config.to_owned(),
+                                *year.read(),
+                                week,
+                                employee_id,
+                            )
+                            .await,
+                        );
                         *show_add_employee_work_details_dialog.write() = false;
                     }
                     EmployeeDetailsAction::OpenEmployeeWorkDetails(id) => {
@@ -208,6 +222,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             on_until_now: move |_| cr.send(EmployeeDetailsAction::UntilNow),
                             on_add_employee_work_details: move |_| cr.send(EmployeeDetailsAction::NewEmployeeWorkDetails),
                             on_employee_work_details_clicked: move |id| cr.send(EmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
+                            on_delete_employee_work_details_clicked: move |_id| cr.send(EmployeeDetailsAction::Update),
                         }
                     }
                 },
