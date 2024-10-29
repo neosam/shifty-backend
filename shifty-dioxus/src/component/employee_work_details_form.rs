@@ -213,19 +213,20 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     "Sunday"
                 }
             }
-            FormPair { label: "Vacation Days".into(),
-                IntegerInput {
-                    value: employee_work_details.vacation_days as i32,
+            FormPair { label: "Expected hours per week".into(),
+                FloatInput {
+                    value: employee_work_details.expected_hours,
                     disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
+                    step: 1.0,
                     on_change: {
                         to_owned![employee_work_details];
-                        move |value: i32| {
+                        move |value: f32| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
                                 return ();
                             }
                             let mut employee_work_details = employee_work_details.clone();
-                            employee_work_details.vacation_days = value as u8;
+                            employee_work_details.expected_hours = value;
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     }
@@ -249,20 +250,20 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     }
                 }
             }
-            FormPair { label: "Expected hours per week".into(),
-                FloatInput {
-                    value: employee_work_details.expected_hours,
-                    disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
-                    step: 1.0,
+            FormPair { label: "Vacation Days".into(),
+                IntegerInput {
+                    value: employee_work_details.vacation_days as i32,
+                    disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
                     on_change: {
                         to_owned![employee_work_details];
-                        move |value: f32| {
-                            if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
+                        move |value: i32| {
+                            if props.employee_work_details_form_type
+                                == EmployeeWorkDetailsFormType::ReadOnly
                             {
                                 return ();
                             }
                             let mut employee_work_details = employee_work_details.clone();
-                            employee_work_details.expected_hours = value;
+                            employee_work_details.vacation_days = value as u8;
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     }
