@@ -4,15 +4,17 @@ use dioxus::prelude::*;
 use uuid::Uuid;
 
 use crate::i18n::Key;
-use crate::service::{EmployeeWorkDetailsAction, I18N};
+use crate::service::{
+    EmployeeAction, EmployeeWorkDetailsAction, EMPLOYEE_STORE, EMPLOYEE_WORK_DETAILS_STORE, I18N,
+};
 use crate::state::employee::WorkingHours;
 use crate::state::employee::{Employee, ExtraHours};
 
 use crate::component::{AddExtraHoursForm, Modal};
-use crate::state::employee_work_details::EmployeeWorkDetails;
+use crate::state::employee_work_details::{self, EmployeeWorkDetails};
 
 #[derive(Props, Clone, PartialEq)]
-pub struct EmployeeViewProps {
+pub struct EmployeeViewPlainProps {
     pub employee: Employee,
     pub extra_hours: Rc<[ExtraHours]>,
     pub employee_work_details_list: Rc<[EmployeeWorkDetails]>,
@@ -377,7 +379,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
 }
 
 #[component]
-pub fn EmployeeView(props: EmployeeViewProps) -> Element {
+pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let i18n = I18N.read().clone();
     let mut expand_weeks = use_signal(|| false);
     //let mut expand_months = use_signal(|| false);
@@ -584,6 +586,48 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                     }
                 }
             }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct EmployeeViewProps {
+    pub show_delete_employee_work_details: bool,
+    pub onupdate: EventHandler<()>,
+    pub on_extra_hour_delete: EventHandler<Uuid>,
+    pub on_add_employee_work_details: Option<EventHandler<()>>,
+    pub on_employee_work_details_clicked: EventHandler<Uuid>,
+    pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
+}
+
+#[component]
+pub fn EmployeeView(props: EmployeeViewProps) -> Element {
+    let employee_store = EMPLOYEE_STORE.read();
+    let employee = employee_store.employee.clone();
+    let extra_hours = employee_store.extra_hours.clone();
+    let employee_work_details_list = EMPLOYEE_WORK_DETAILS_STORE
+        .read()
+        .employee_work_details
+        .clone();
+    let employee_service = use_coroutine_handle::<EmployeeAction>();
+
+    rsx! {
+        EmployeeViewPlain {
+            employee,
+            extra_hours,
+            employee_work_details_list,
+            show_delete_employee_work_details: props.show_delete_employee_work_details,
+            onupdate: props.onupdate,
+            on_extra_hour_delete: props.on_extra_hour_delete,
+            on_full_year: move |_| {
+                employee_service.send(EmployeeAction::FullYear);
+            },
+            on_until_now: move |_| {
+                employee_service.send(EmployeeAction::UntilNow);
+            },
+            on_add_employee_work_details: props.on_add_employee_work_details,
+            on_employee_work_details_clicked: props.on_employee_work_details_clicked,
+            on_delete_employee_work_details_clicked: props.on_delete_employee_work_details_clicked
         }
     }
 }

@@ -6,7 +6,8 @@ use futures_util::StreamExt;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
-use crate::state::employee::WorkingHours;
+use crate::js;
+use crate::state::employee::{Employee, ExtraHours, WorkingHours};
 use crate::state::employee_work_details::{self, EmployeeWorkDetails};
 use crate::state::shiftplan::{BookingConflict, SalesPerson};
 use crate::state::weekly_overview::WeeklySummary;
@@ -614,7 +615,9 @@ async fn load_employee_work_details(employee_id: Uuid) -> Result<(), ShiftyError
 
 async fn reload_employee_work_details() -> Result<(), ShiftyError> {
     let sales_person_id = EMPLOYEE_WORK_DETAILS_STORE.read().sales_person_id;
-    load_employee_work_details(sales_person_id).await
+    load_employee_work_details(sales_person_id).await?;
+    refresh_employee_data().await?;
+    Ok(())
 }
 
 async fn new_employee_work_details_for_sales_person(
@@ -712,6 +715,129 @@ pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWor
             EmployeeWorkDetailsAction::Delete(id) => delete_employee_work_details(id).await,
             EmployeeWorkDetailsAction::Load(employee_work_details_id) => {
                 find_and_activate_employee_work_details(employee_work_details_id).await
+            }
+        } {
+            Ok(_) => {}
+            Err(err) => {
+                *ERROR_STORE.write() = ErrorStore {
+                    error: Some(err.into()),
+                };
+            }
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct EmployeeStore {
+    pub year: u32,
+    pub until_week: u8,
+
+    pub employee: Employee,
+    pub extra_hours: Rc<[ExtraHours]>,
+}
+
+pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| EmployeeStore {
+    year: 0,
+    until_week: 0,
+    employee: Employee {
+        sales_person: SalesPerson::default(),
+        working_hours_by_week: Rc::new([]),
+        working_hours_by_month: Rc::new([]),
+        overall_working_hours: 0.0,
+        expected_working_hours: 0.0,
+        balance: 0.0,
+        shiftplan_hours: 0.0,
+        extra_work_hours: 0.0,
+        vacation_hours: 0.0,
+        sick_leave_hours: 0.0,
+        holiday_hours: 0.0,
+    },
+    extra_hours: Rc::new([]),
+});
+
+pub enum EmployeeAction {
+    LoadEmployeeDataUntilNow { sales_person_id: Uuid },
+    LoadCurrentEmployeeDataUntilNow,
+    Refresh,
+    DeleteExtraHours(Uuid),
+    FullYear,
+    UntilNow,
+}
+
+pub async fn load_employee_data(
+    sales_person_id: Uuid,
+    year: u32,
+    until_week: u8,
+) -> Result<(), ShiftyError> {
+    let employee =
+        loader::load_employee_details(CONFIG.read().clone(), year, until_week, sales_person_id)
+            .await?;
+    let extra_hours =
+        loader::load_extra_hours_per_year(CONFIG.read().clone(), year, sales_person_id).await?;
+    *EMPLOYEE_STORE.write() = EmployeeStore {
+        employee,
+        extra_hours,
+        year,
+        until_week,
+    };
+    load_employee_work_details(sales_person_id).await?;
+    Ok(())
+}
+
+pub async fn load_current_employee_data() -> Result<(), ShiftyError> {
+    if let Some(sales_person) = loader::load_current_sales_person(CONFIG.read().clone()).await? {
+        let year = js::get_current_year();
+        let until_week = js::get_current_week();
+        load_employee_data(sales_person.id, year, until_week).await;
+    }
+    Ok(())
+}
+
+pub async fn refresh_employee_data() -> Result<(), ShiftyError> {
+    let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
+    let year = EMPLOYEE_STORE.read().year;
+    let until_week = EMPLOYEE_STORE.read().until_week;
+    load_employee_data(sales_person_id, year, until_week).await
+}
+
+pub async fn delete_extra_hours(extra_hours_id: Uuid) -> Result<(), ShiftyError> {
+    api::delete_extra_hour(CONFIG.read().clone(), extra_hours_id).await?;
+    Ok(())
+}
+
+pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
+    while let Some(action) = rx.next().await {
+        match match action {
+            EmployeeAction::LoadEmployeeDataUntilNow { sales_person_id } => {
+                let year = js::get_current_year();
+                let until_week = js::get_current_week();
+                load_employee_data(sales_person_id, year, until_week).await
+            }
+            EmployeeAction::LoadCurrentEmployeeDataUntilNow => load_current_employee_data().await,
+            EmployeeAction::Refresh => refresh_employee_data().await,
+            EmployeeAction::DeleteExtraHours(extra_hours_id) => {
+                delete_extra_hours(extra_hours_id).await
+            }
+            EmployeeAction::FullYear => {
+                let sales_person_id: Uuid = EMPLOYEE_STORE.read().employee.sales_person.id;
+                let year = EMPLOYEE_STORE.read().year;
+                let until_week = 53;
+                load_employee_data(sales_person_id, year, until_week).await
+            }
+            EmployeeAction::UntilNow => {
+                let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
+                let year = EMPLOYEE_STORE.read().year;
+                if year == js::get_current_year() {
+                    let until_week = js::get_current_week();
+                    load_employee_data(sales_person_id, year, until_week).await
+                } else {
+                    load_employee_data(
+                        sales_person_id,
+                        year,
+                        time::util::weeks_in_year(year as i32),
+                    )
+                    .await
+                }
             }
         } {
             Ok(_) => {}
