@@ -1,12 +1,14 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
+use dioxus_elements::a;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::base_components::Button;
 use crate::component::dropdown_base::DropdownTrigger;
 use crate::i18n::Key;
+use crate::js;
 use crate::service::{
     EmployeeAction, EmployeeWorkDetailsAction, EMPLOYEE_STORE, EMPLOYEE_WORK_DETAILS_STORE, I18N,
 };
@@ -402,6 +404,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let overall_header_str = i18n.t(Key::OverallHeading);
     let working_hours_per_week_heading = i18n.t(Key::WorkingHoursPerWeekHeading);
     let extra_hours_heading = i18n.t(Key::ExtraHoursHeading);
+    let work_details_header: ImStr = i18n.t(Key::WorkDetailsHeading).into();
     let balance_str = i18n.t(Key::Balance);
     let overall_str = i18n.t(Key::Overall);
     let required_str = i18n.t(Key::Required);
@@ -413,7 +416,12 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let hours_str = i18n.t(Key::Hours);
-    let add_entry_str = i18n.t(Key::AddEntry);
+    let add_entry_str: ImStr = i18n.t(Key::AddEntry).into();
+    let actions_label: ImStr = i18n.t(Key::ActionsLabel).into();
+    let show_full_year_label: ImStr = i18n.t(Key::ShowFullYearLabel).into();
+    let show_until_now_label: ImStr = i18n.t(Key::ShowUntilNowLabel).into();
+    let add_work_details_label: ImStr = i18n.t(Key::AddWorkDetailsLabel).into();
+    let hours_label = i18n.t(Key::Hours);
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
@@ -456,22 +464,29 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     }
                     DropdownTrigger {
                         entries: [
+                            (add_entry_str, Box::new(move || cr.send(EmployeeViewActions::ShowAddEntry)))
+                                .into(),
                             (
-                                ImStr::from(add_entry_str),
-                                Box::new(move || cr.send(EmployeeViewActions::ShowAddEntry)),
+                                show_full_year_label,
+                                Box::new(move || props.on_full_year.call(())),
+                                props.year != js::get_current_year(),
                             )
                                 .into(),
-                            ("Show full year", Box::new(move || props.on_full_year.call(()))).into(),
-                            ("Show until now", Box::new(move || props.on_until_now.call(()))).into(),
                             (
-                                "Add work details",
+                                show_until_now_label,
+                                Box::new(move || props.on_until_now.call(())),
+                                props.year != js::get_current_year(),
+                            )
+                                .into(),
+                            (
+                                add_work_details_label,
                                 Box::new(move || props.on_add_employee_work_details.unwrap().call(())),
                                 props.on_add_employee_work_details.is_none(),
                             )
                                 .into(),
                         ]
                             .into(),
-                        Button { "Actions" }
+                        Button { "{actions_label}" }
                     }
                 }
             }
@@ -536,12 +551,17 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
             }
 
             div { class: "border-t-2 border-gray-200 border-double mt-8 lg:pl-4 lg:flex-grow lg:ml-4 lg:border-t-0 lg:border-l-2 lg:mt-0",
-                h2 { class: "text-lg font-bold mt-8", "Work details" }
+                h2 { class: "text-lg font-bold mt-8", "{work_details_header}" }
 
                 for employee_work_details in props.employee_work_details_list.iter() {
                     TripleView {
-                        label: format!("{} - {}", employee_work_details.from, employee_work_details.to).into(),
-                        value: format!("{}h", employee_work_details.expected_hours).into(),
+                        label: format!(
+                            "{} - {}",
+                            i18n.format_date(&employee_work_details.from),
+                            i18n.format_date(&employee_work_details.to),
+                        )
+                            .into(),
+                        value: format!("{} {}", employee_work_details.expected_hours, hours_label).into(),
                         description: "".into(),
                         hide_delete_button: !props.show_delete_employee_work_details,
                         ondelete: {

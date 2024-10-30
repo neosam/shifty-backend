@@ -85,6 +85,7 @@ pub enum Key {
     WorkingHoursPerWeekHeading,
     WorkingHoursPerDayHeading,
     ExtraHoursHeading,
+    WorkDetailsHeading,
 
     Balance,
     Required,
@@ -104,6 +105,10 @@ pub enum Key {
     AddEntry,
     WorkHoursDescription,
     UnavailableDescription,
+    ActionsLabel,
+    ShowFullYearLabel,
+    ShowUntilNowLabel,
+    AddWorkDetailsLabel,
 
     // Add extra hours form
     AddExtraHoursFormTitle,

@@ -62,6 +62,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Stunden pro Tag",
     );
     i18n.add_text(Locale::En, Key::ExtraHoursHeading, "Zusatzstunden");
+    i18n.add_text(Locale::En, Key::WorkDetailsHeading, "Arbeitsverträge");
 
     i18n.add_text(Locale::En, Key::Balance, "Stundenkonto");
     i18n.add_text(Locale::En, Key::Required, "Soll");
@@ -88,6 +89,22 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Locale::En,
         Key::UnavailableDescription,
         "(Stunden, die nicht das Zeitkonto beeinflussen aber dem Schichtplanner zeigen, dass du nicht verfügbar bist)",
+    );
+    i18n.add_text(Locale::En, Key::ActionsLabel, "Mehr");
+    i18n.add_text(
+        Locale::En,
+        Key::ShowFullYearLabel,
+        "Bericht des vollständigen Jahres",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShowUntilNowLabel,
+        "Bericht bis zur heutigen Woche",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::AddWorkDetailsLabel,
+        "Arbeitvertrag hinzufügen",
     );
 
     // Add extra hours form

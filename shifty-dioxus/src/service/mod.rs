@@ -819,7 +819,7 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
             EmployeeAction::FullYear => {
                 let sales_person_id: Uuid = EMPLOYEE_STORE.read().employee.sales_person.id;
                 let year = EMPLOYEE_STORE.read().year;
-                let until_week = 53;
+                let until_week = 54;
                 load_employee_data(sales_person_id, year, until_week).await
             }
             EmployeeAction::UntilNow => {
@@ -840,13 +840,21 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
             EmployeeAction::NextYear => {
                 let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
                 let year = EMPLOYEE_STORE.read().year + 1;
-                let until_week = 53;
+                let until_week = if year == js::get_current_year() {
+                    js::get_current_week()
+                } else {
+                    54
+                };
                 load_employee_data(sales_person_id, year, until_week).await
             }
             EmployeeAction::PrevYear => {
                 let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
                 let year = EMPLOYEE_STORE.read().year - 1;
-                let until_week = 53;
+                let until_week = if year == js::get_current_year() {
+                    js::get_current_week()
+                } else {
+                    54
+                };
                 load_employee_data(sales_person_id, year, until_week).await
             }
         } {

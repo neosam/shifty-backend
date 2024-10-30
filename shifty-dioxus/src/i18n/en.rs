@@ -57,6 +57,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::WorkingHoursPerDayHeading,
         "Working hours per day",
     );
+    i18n.add_text(Locale::En, Key::WorkDetailsHeading, "Work contracts");
     i18n.add_text(Locale::En, Key::ExtraHoursHeading, "Extra hours");
 
     i18n.add_text(Locale::En, Key::Balance, "Balance");
@@ -85,6 +86,10 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::UnavailableDescription,
         "(Hours which do not affect the hour balance but marks shows the shiftplanner that you are not available)",
     );
+    i18n.add_text(Locale::En, Key::ActionsLabel, "Actions");
+    i18n.add_text(Locale::En, Key::ShowFullYearLabel, "Show full year");
+    i18n.add_text(Locale::En, Key::ShowUntilNowLabel, "Show until now");
+    i18n.add_text(Locale::En, Key::AddWorkDetailsLabel, "Add work contract");
 
     // Add extra hours form
     i18n.add_text(Locale::En, Key::AddExtraHoursFormTitle, "Add extra hours");
