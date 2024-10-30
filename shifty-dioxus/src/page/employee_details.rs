@@ -1,20 +1,11 @@
-use std::rc::Rc;
-
 use futures_util::StreamExt;
 
 use crate::{
-    api,
     component::{
         employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
         EmployeeWorkDetailsForm, Modal, TopBar,
     },
-    error::{result_handler, ShiftyError},
-    js, loader,
-    service::{
-        EmployeeAction, EmployeeWorkDetailsAction, EmployeeWorkDetailsStore, CONFIG,
-        EMPLOYEE_WORK_DETAILS_STORE,
-    },
-    state::employee::{self, Employee, ExtraHours},
+    service::{EmployeeAction, EmployeeWorkDetailsAction},
 };
 use dioxus::prelude::*;
 use uuid::Uuid;

@@ -14,7 +14,7 @@ use crate::state::employee::WorkingHours;
 use crate::state::employee::{Employee, ExtraHours};
 
 use crate::component::{AddExtraHoursForm, Modal};
-use crate::state::employee_work_details::{self, EmployeeWorkDetails};
+use crate::state::employee_work_details::EmployeeWorkDetails;
 use futures_util::StreamExt;
 
 #[derive(Props, Clone, PartialEq)]
@@ -387,7 +387,6 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
 
 enum EmployeeViewActions {
     ShowAddEntry,
-    HideAddEntry,
 }
 
 #[component]
@@ -416,15 +415,12 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let hours_str = i18n.t(Key::Hours);
     let add_entry_str = i18n.t(Key::AddEntry);
 
-    let mut cr = use_coroutine(
+    let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
             while let Some(action) = rx.next().await {
                 match action {
                     EmployeeViewActions::ShowAddEntry => {
                         *show_add_entry_dialog.write() = true;
-                    }
-                    EmployeeViewActions::HideAddEntry => {
-                        *show_add_entry_dialog.write() = false;
                     }
                 }
             }
@@ -462,7 +458,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                         entries: [
                             (
                                 ImStr::from(add_entry_str),
-                                Box::new({ move || cr.send(EmployeeViewActions::ShowAddEntry) }),
+                                Box::new(move || cr.send(EmployeeViewActions::ShowAddEntry)),
                             )
                                 .into(),
                             ("Show full year", Box::new(move || props.on_full_year.call(()))).into(),

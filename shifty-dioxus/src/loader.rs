@@ -9,7 +9,7 @@ use crate::{
     error::ShiftyError,
     state::{
         employee::{Employee, ExtraHours},
-        employee_work_details::{self, EmployeeWorkDetails, WorkingHoursMini},
+        employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
         week::Week,

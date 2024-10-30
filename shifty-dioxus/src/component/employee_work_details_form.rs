@@ -1,19 +1,13 @@
 use dioxus::prelude::*;
-use uuid::Uuid;
 
 use crate::{
     base_types::ImStr,
     component::base_components::{
         Button, Checkbox, DateInput, FloatInput, Form, FormGroup, FormPair, Header, IntegerInput,
-        Label, TextInput,
     },
     service::{EmployeeWorkDetailsAction, EMPLOYEE_WORK_DETAILS_STORE},
-    state::{
-        employee_work_details::{self, EmployeeWorkDetails},
-        shiftplan::SalesPerson,
-    },
+    state::{employee_work_details::EmployeeWorkDetails, shiftplan::SalesPerson},
 };
-use web_sys::console::error;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum EmployeeWorkDetailsFormType {

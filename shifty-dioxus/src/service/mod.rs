@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::js;
-use crate::state::employee::{Employee, ExtraHours, WorkingHours};
-use crate::state::employee_work_details::{self, EmployeeWorkDetails};
+use crate::state::employee::{Employee, ExtraHours};
+use crate::state::employee_work_details::EmployeeWorkDetails;
 use crate::state::shiftplan::{BookingConflict, SalesPerson};
 use crate::state::weekly_overview::WeeklySummary;
 use crate::state::User;
@@ -676,7 +676,6 @@ pub enum EmployeeWorkDetailsAction {
     UpdateWorkingHours(EmployeeWorkDetails),
     Save,
     Update,
-    LoadForEmployee(Uuid),
     Delete(Uuid),
     Load(Uuid),
 }
@@ -708,9 +707,6 @@ pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWor
                     .selected_employee_work_details
                     .clone();
                 update_employee_work_details(employee_work_details).await
-            }
-            EmployeeWorkDetailsAction::LoadForEmployee(sales_person_id) => {
-                load_employee_work_details(sales_person_id).await
             }
             EmployeeWorkDetailsAction::Delete(id) => delete_employee_work_details(id).await,
             EmployeeWorkDetailsAction::Load(employee_work_details_id) => {
