@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                  sales_person.id as sales_person_id,\n                  sum((STRFTIME('%H', slot.time_to) + STRFTIME('%M', slot.time_to) / 60.0) - (STRFTIME('%H', slot.time_from) + STRFTIME('%M', slot.time_from))) as hours,\n                  booking.calendar_week, booking.year, slot.day_of_week\n                FROM slot\n                INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)\n                INNER JOIN sales_person ON booking.sales_person_id = sales_person.id\n                WHERE sales_person.id = ?\n                  AND booking.year * 100 + booking.calendar_week >= ? * 100 + ?\n                  AND booking.year * 100 + booking.calendar_week <= ? * 100 + ?\n                GROUP BY year, calendar_week, day_of_week\n                        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "sales_person_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "hours",
+        "ordinal": 1,
+        "type_info": "Float"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "year",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "day_of_week",
+        "ordinal": 4,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7bf8d828b5c42b4147f40277e3fa91923b47c866bb97a89743b548c6de988fde"
+}

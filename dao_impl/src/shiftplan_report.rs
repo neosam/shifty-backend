@@ -77,8 +77,8 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
                 INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
                 WHERE sales_person.id = ?
-                  AND booking.year * 100 + booking.calendar_week <= ? * 100 + ?
                   AND booking.year * 100 + booking.calendar_week >= ? * 100 + ?
+                  AND booking.year * 100 + booking.calendar_week <= ? * 100 + ?
                 GROUP BY year, calendar_week, day_of_week
                         "#,
             sales_person_id_vec,

@@ -333,7 +333,6 @@ where
         until_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<EmployeeReport, ServiceError> {
-        let requested_week = until_week;
         let until_week = until_week.min(time::util::weeks_in_year(year as i32));
         let (hr_permission, user_permission) = join!(
             self.permission_service
@@ -359,8 +358,16 @@ where
                 *sales_person_id,
                 last_year,
                 last_years_last_week,
-                year,
-                until_week,
+                if until_week == time::util::weeks_in_year(year as i32) {
+                    year + 1
+                } else {
+                    year
+                },
+                if until_week == time::util::weeks_in_year(year as i32) {
+                    1
+                } else {
+                    until_week
+                },
             )
             .await?;
         let extra_hours = self
@@ -373,7 +380,11 @@ where
             )
             .await?;
 
-        let shiftplan_hours = shiftplan_report.iter().map(|r| r.hours).sum::<f32>() as f32;
+        let shiftplan_hours = shiftplan_report
+            .iter()
+            .filter(|r| r.to_date().map(|d| d.year() as u32) == Ok(year))
+            .map(|r| r.hours)
+            .sum::<f32>() as f32;
         let overall_extra_work_hours = extra_hours
             .iter()
             .filter(|eh| {

@@ -21,7 +21,7 @@ impl ShiftplanReportEntity {
         time::Date::from_iso_week_date(
             self.year as i32,
             self.calendar_week,
-            time::Weekday::Monday.nth_next(self.day_of_week.to_number()),
+            time::Weekday::Monday.nth_next(self.day_of_week.to_number() - 1),
         )
     }
 }
