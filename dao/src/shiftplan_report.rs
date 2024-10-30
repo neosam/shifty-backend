@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use mockall::automock;
 use std::sync::Arc;
+use time::error::ComponentRange;
 use uuid::Uuid;
 
 use crate::slot::DayOfWeek;
@@ -13,6 +14,16 @@ pub struct ShiftplanReportEntity {
     pub year: u32,
     pub calendar_week: u8,
     pub day_of_week: DayOfWeek,
+}
+
+impl ShiftplanReportEntity {
+    pub fn to_date(&self) -> Result<time::Date, ComponentRange> {
+        time::Date::from_iso_week_date(
+            self.year as i32,
+            self.calendar_week,
+            time::Weekday::Monday.nth_next(self.day_of_week.to_number()),
+        )
+    }
 }
 
 pub struct ShiftplanQuickOverviewEntity {
@@ -28,8 +39,10 @@ pub trait ShiftplanReportDao {
     async fn extract_shiftplan_report(
         &self,
         sales_person_id: Uuid,
-        year: u32,
-        until_week: u8,
+        from_year: u32,
+        from_week: u8,
+        to_year: u32,
+        to_week: u8,
     ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError>;
 
     /// A report which shows the summed up yearly work hours of all sales persons.

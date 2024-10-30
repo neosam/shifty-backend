@@ -60,8 +60,10 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
     async fn extract_shiftplan_report(
         &self,
         sales_person_id: Uuid,
-        year: u32,
-        until_week: u8,
+        from_year: u32,
+        from_week: u8,
+        to_year: u32,
+        to_week: u8,
     ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError> {
         let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
@@ -75,13 +77,15 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
                 INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
                 WHERE sales_person.id = ?
-                  AND booking.year = ?
-                  AND booking.calendar_week <= ?
+                  AND booking.year * 100 + booking.calendar_week <= ? * 100 + ?
+                  AND booking.year * 100 + booking.calendar_week >= ? * 100 + ?
                 GROUP BY year, calendar_week, day_of_week
                         "#,
             sales_person_id_vec,
-            year,
-            until_week
+            from_year,
+            from_week,
+            to_year,
+            to_week,
         ).fetch_all(self.pool.as_ref())
             .await
             .map_db_error()?

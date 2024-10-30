@@ -191,9 +191,17 @@ where
             .iter()
             .filter(|employee| employee.is_paid.unwrap_or(false))
         {
+            let last_year = year - 1;
+            let last_years_last_week = time::util::weeks_in_year(last_year as i32);
             let detailed_shiftplan_report = self
                 .shiftplan_report_dao
-                .extract_shiftplan_report(paid_employee.id, year, until_week)
+                .extract_shiftplan_report(
+                    paid_employee.id,
+                    last_year,
+                    last_years_last_week,
+                    year,
+                    until_week,
+                )
                 .await?;
 
             let working_hours: Arc<[EmployeeWorkDetails]> = working_hours
@@ -215,11 +223,27 @@ where
                 f32,
                 f32,
                 f32,
-            ) = (1..=until_week)
-                .map(|week| {
+            ) = (0..=until_week)
+                .map(|mut week| {
+                    let target_year = year;
+                    let year = if week == 0 {
+                        year - 1
+                    } else if week > time::util::weeks_in_year(year as i32) {
+                        year + 1
+                    } else {
+                        year
+                    };
+                    let week = if week == 0 {
+                        time::util::weeks_in_year(year as i32 - 1)
+                    } else if week > time::util::weeks_in_year(year as i32 - 1) {
+                        1
+                    } else {
+                        week
+                    };
+
                     let expected_hours =
                         find_working_hours_for_calendar_week(&working_hours, year, week)
-                            .map(|wh| weight_for_week(year, week, &wh))
+                            .map(|wh| weight_for_week(target_year, year, week, &wh))
                             .map(|(expected_hours, _, _)| expected_hours)
                             .sum();
                     // If expected hours is 0 or less, the planned hours and the working hours are the same
@@ -309,6 +333,7 @@ where
         until_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<EmployeeReport, ServiceError> {
+        let requested_week = until_week;
         let until_week = until_week.min(time::util::weeks_in_year(year as i32));
         let (hr_permission, user_permission) = join!(
             self.permission_service
@@ -317,6 +342,8 @@ where
                 .verify_user_is_sales_person(*sales_person_id, context.clone())
         );
         hr_permission.or(user_permission)?;
+        let last_year = year - 1;
+        let last_years_last_week = time::util::weeks_in_year(last_year as i32);
 
         let sales_person = self
             .sales_person_service
@@ -328,7 +355,13 @@ where
             .await?;
         let shiftplan_report = self
             .shiftplan_report_dao
-            .extract_shiftplan_report(*sales_person_id, year, until_week)
+            .extract_shiftplan_report(
+                *sales_person_id,
+                last_year,
+                last_years_last_week,
+                year,
+                until_week,
+            )
             .await?;
         let extra_hours = self
             .extra_hours_service
@@ -353,6 +386,7 @@ where
             &shiftplan_report,
             &extra_hours,
             &working_hours,
+            year,
             year,
             until_week,
         )?;
@@ -463,7 +497,7 @@ where
                 .unwrap_or(0.0);
             let planned_hours: f32 =
                 find_working_hours_for_calendar_week(&working_hours, year, week)
-                    .map(|wh| weight_for_week(year, week, wh).0)
+                    .map(|wh| weight_for_week(year, year, week, wh).0)
                     .sum();
             let expected_hours = planned_hours - abense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
@@ -485,70 +519,132 @@ where
 }
 
 fn weight_for_week(
+    target_year: u32,
     year: u32,
     week: u8,
     employee_work_details: &EmployeeWorkDetails,
 ) -> (f32, u8, f32) {
-    if year == employee_work_details.from_year && week == employee_work_details.from_calendar_week {
-        let workdays = employee_work_details.potential_weekday_list();
-        let all_potential_workdays = workdays.len() as u8;
-        let num_potential_workdays_in_week = workdays
+    let workdays: Arc<[time::Weekday]> = employee_work_details.potential_weekday_list();
+    let all_potential_workdays = workdays.len() as u8;
+
+    // Remove the workdays that are outside of the employee's contract.
+    let workdays: Arc<[DayOfWeek]> = if year == employee_work_details.from_year
+        && week == employee_work_details.from_calendar_week
+    {
+        workdays
             .iter()
             .map(|workday| DayOfWeek::from(*workday))
             .filter(|workday| *workday >= employee_work_details.from_day_of_week)
-            .count();
-        let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
-        (
-            employee_work_details.expected_hours * relation,
-            num_potential_workdays_in_week as u8,
-            employee_work_details.workdays_per_week as f32 * relation,
-        )
+            .collect()
     } else if year == employee_work_details.to_year
         && week == employee_work_details.to_calendar_week
     {
-        let workdays = employee_work_details.potential_weekday_list();
-        let all_potential_workdays = workdays.len() as u8;
-        let num_potential_workdays_in_week = workdays
+        workdays
             .iter()
             .map(|workday| DayOfWeek::from(*workday))
             .filter(|workday| *workday <= employee_work_details.to_day_of_week)
-            .count();
-        let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
-        (
-            employee_work_details.expected_hours * relation,
-            num_potential_workdays_in_week as u8,
-            employee_work_details.workdays_per_week as f32 * relation,
-        )
+            .collect()
     } else {
-        (
-            employee_work_details.expected_hours,
-            employee_work_details.potential_days_per_week(),
-            employee_work_details.workdays_per_week as f32,
-        )
-    }
+        workdays
+            .iter()
+            .map(|workday| DayOfWeek::from(*workday))
+            .collect()
+    };
+
+    // Remove the workdays which are not in the target year.
+    let workdays: Arc<[DayOfWeek]> = if week == 0 {
+        workdays
+            .iter()
+            .filter_map(|workday| {
+                time::Date::from_iso_week_date(
+                    target_year as i32 - 1,
+                    time::util::weeks_in_year(target_year as i32 - 1),
+                    (*workday).into(),
+                )
+                .ok()
+            })
+            .filter(|date| date.year() as u32 == target_year)
+            .map(|date| date.weekday().into())
+            .collect::<Vec<_>>()
+            .into()
+    } else if week > time::util::weeks_in_year(target_year as i32) {
+        workdays
+            .iter()
+            .filter_map(|workday| {
+                time::Date::from_iso_week_date(target_year as i32 + 1, 1, (*workday).into()).ok()
+            })
+            .filter(|date| date.year() as u32 == target_year)
+            .map(|date| date.weekday().into())
+            .collect::<Vec<_>>()
+            .into()
+    } else {
+        workdays
+            .iter()
+            .filter_map(|workday| {
+                time::Date::from_iso_week_date(year as i32, week, (*workday).into()).ok()
+            })
+            .filter(|date| date.year() as u32 == target_year)
+            .map(|date| date.weekday().into())
+            .collect::<Vec<_>>()
+            .into()
+    };
+
+    let num_potential_workdays_in_week = workdays.iter().count();
+    let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
+    (
+        employee_work_details.expected_hours * relation,
+        num_potential_workdays_in_week as u8,
+        employee_work_details.workdays_per_week as f32 * relation,
+    )
 }
 
 fn hours_per_week(
     shiftplan_hours_list: &Arc<[ShiftplanReportEntity]>,
     extra_hours_list: &Arc<[ExtraHours]>,
     working_hours: &[EmployeeWorkDetails],
+    target_year: u32,
     year: u32,
     week_until: u8,
 ) -> Result<Arc<[GroupedReportHours]>, ServiceError> {
     let mut weeks: Vec<GroupedReportHours> = Vec::new();
-    for week in 1..=week_until {
+    let extend = if week_until >= time::util::weeks_in_year(target_year as i32) {
+        1
+    } else {
+        0
+    };
+    for week in 0..=week_until + extend {
+        let year = if week == 0 {
+            year - 1
+        } else if week > time::util::weeks_in_year(target_year as i32) {
+            year + 1
+        } else {
+            year
+        };
+        let week = if week == 0 {
+            time::util::weeks_in_year(year as i32)
+        } else if week > time::util::weeks_in_year(target_year as i32) {
+            1
+        } else {
+            week
+        };
         let filtered_extra_hours_list = extra_hours_list
             .iter()
-            .filter(|eh| eh.date_time.iso_week() == week && eh.date_time.year() == year as i32)
+            .filter(|eh| {
+                eh.date_time.iso_week() == week
+                    && eh.date_time.to_iso_week_date().0 == year as i32
+                    && eh.date_time.year() as u32 == target_year
+            })
             .collect::<Vec<_>>();
         let shiftplan_hours = shiftplan_hours_list
             .iter()
-            .filter(|r| r.calendar_week == week)
+            .filter(|r| {
+                r.calendar_week == week && r.to_date().map(|d| d.year() as u32) == Ok(target_year)
+            })
             .map(|r| r.hours)
             .sum::<f32>();
         let (working_hours, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, year, week)
-                .map(|wh| weight_for_week(year, week, &wh))
+                .map(|wh| weight_for_week(target_year, year, week, &wh))
                 .fold(
                     (0.0f32, 0u8, 0f32),
                     |(working_hours_acc, days_per_week_acc, workdays_per_week_acc),
@@ -604,9 +700,27 @@ fn hours_per_week(
             working_hours
         };
 
+        let mut from =
+            time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap();
+        if from.year() < target_year as i32 {
+            from = time::Date::from_calendar_date(target_year as i32, time::Month::January, 1)
+                .unwrap();
+        }
+
+        let mut to =
+            time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday).unwrap();
+        if to.year() > target_year as i32 {
+            to = time::Date::from_calendar_date(target_year as i32, time::Month::December, 31)
+                .unwrap();
+        }
+
+        if from > to {
+            continue;
+        }
+
         weeks.push(GroupedReportHours {
-            from: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday).unwrap(),
-            to: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday).unwrap(),
+            from,
+            to,
             year,
             week,
             contract_weekly_hours: expected_hours,
