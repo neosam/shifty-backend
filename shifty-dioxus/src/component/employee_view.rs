@@ -3,6 +3,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
+use crate::component::base_components::Button;
 use crate::i18n::Key;
 use crate::service::{
     EmployeeAction, EmployeeWorkDetailsAction, EMPLOYEE_STORE, EMPLOYEE_WORK_DETAILS_STORE, I18N,
@@ -19,6 +20,7 @@ pub struct EmployeeViewPlainProps {
     pub extra_hours: Rc<[ExtraHours]>,
     pub employee_work_details_list: Rc<[EmployeeWorkDetails]>,
     pub show_delete_employee_work_details: bool,
+    pub year: u32,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -27,6 +29,8 @@ pub struct EmployeeViewPlainProps {
     pub on_add_employee_work_details: Option<EventHandler<()>>,
     pub on_employee_work_details_clicked: EventHandler<Uuid>,
     pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
+    pub on_next_year: EventHandler<()>,
+    pub on_previous_year: EventHandler<()>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -423,7 +427,10 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
         div { class: "flex justify-between",
             div { class: "flex flex-row pb-2",
                 h1 { class: "text-2xl font-bold mr-4 md:pr-16",
-                    {props.employee.sales_person.name.clone()}
+                    "{props.employee.sales_person.name.clone()}"
+                    Button { on_click: props.on_previous_year.clone(), "<" }
+                    "{props.year}"
+                    Button { on_click: props.on_next_year.clone(), ">" }
                 }
                 button {
                     class: "border-2 border-gray-200 p-2",
@@ -610,11 +617,13 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
         .employee_work_details
         .clone();
     let employee_service = use_coroutine_handle::<EmployeeAction>();
+    let year = employee_store.year;
 
     rsx! {
         EmployeeViewPlain {
             employee,
             extra_hours,
+            year,
             employee_work_details_list,
             show_delete_employee_work_details: props.show_delete_employee_work_details,
             onupdate: props.onupdate,
@@ -627,7 +636,13 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             },
             on_add_employee_work_details: props.on_add_employee_work_details,
             on_employee_work_details_clicked: props.on_employee_work_details_clicked,
-            on_delete_employee_work_details_clicked: props.on_delete_employee_work_details_clicked
+            on_delete_employee_work_details_clicked: props.on_delete_employee_work_details_clicked,
+            on_next_year: move |_| {
+                employee_service.send(EmployeeAction::NextYear);
+            },
+            on_previous_year: move |_| {
+                employee_service.send(EmployeeAction::PrevYear);
+            }
         }
     }
 }

@@ -762,6 +762,8 @@ pub enum EmployeeAction {
     DeleteExtraHours(Uuid),
     FullYear,
     UntilNow,
+    NextYear,
+    PrevYear,
 }
 
 pub async fn load_employee_data(
@@ -838,6 +840,18 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
                     )
                     .await
                 }
+            }
+            EmployeeAction::NextYear => {
+                let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
+                let year = EMPLOYEE_STORE.read().year + 1;
+                let until_week = 53;
+                load_employee_data(sales_person_id, year, until_week).await
+            }
+            EmployeeAction::PrevYear => {
+                let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
+                let year = EMPLOYEE_STORE.read().year - 1;
+                let until_week = 53;
+                load_employee_data(sales_person_id, year, until_week).await
             }
         } {
             Ok(_) => {}
