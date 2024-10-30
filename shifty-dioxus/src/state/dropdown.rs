@@ -6,6 +6,7 @@ use crate::base_types::ImStr;
 pub struct DropdownEntry {
     pub text: ImStr,
     pub action: Rc<dyn Fn() + 'static>,
+    pub disabled: bool,
 }
 impl PartialEq for DropdownEntry {
     fn eq(&self, other: &Self) -> bool {
@@ -28,6 +29,19 @@ where
         DropdownEntry {
             text: ImStr::from(tuple.0),
             action: Rc::new(tuple.1),
+            disabled: false,
+        }
+    }
+}
+impl<F> From<(&'static str, F, bool)> for DropdownEntry
+where
+    F: Fn() + 'static,
+{
+    fn from(triple: (&'static str, F, bool)) -> Self {
+        DropdownEntry {
+            text: ImStr::from(triple.0),
+            action: Rc::new(triple.1),
+            disabled: triple.2,
         }
     }
 }
@@ -39,6 +53,19 @@ where
         DropdownEntry {
             text: tuple.0,
             action: Rc::new(tuple.1),
+            disabled: false,
+        }
+    }
+}
+impl<F> From<(ImStr, F, bool)> for DropdownEntry
+where
+    F: Fn() + 'static,
+{
+    fn from(triple: (ImStr, F, bool)) -> Self {
+        DropdownEntry {
+            text: ImStr::from(triple.0),
+            action: Rc::new(triple.1),
+            disabled: triple.2,
         }
     }
 }

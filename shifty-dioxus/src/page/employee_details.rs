@@ -50,9 +50,6 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeDetailsAction>| async move {
             to_owned![show_add_employee_work_details_dialog];
-            employee_service.send(EmployeeAction::LoadEmployeeDataUntilNow {
-                sales_person_id: employee_id,
-            });
             while let Some(action) = rx.next().await {
                 match action {
                     EmployeeDetailsAction::Update => {
@@ -84,6 +81,11 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             }
         },
     );
+    use_effect(move || {
+        employee_service.send(EmployeeAction::LoadEmployeeDataUntilNow {
+            sales_person_id: employee_id,
+        })
+    });
 
     rsx! {
         TopBar {}

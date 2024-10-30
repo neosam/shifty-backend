@@ -49,7 +49,7 @@ pub fn DropdownBase() -> Element {
                 div {
                     class: "absolute z-50 bg-white border border-gray-300 shadow-lg",
                     id: "dropdown-base",
-                    for entry in dropdown.entries.iter().cloned() {
+                    for entry in dropdown.entries.iter().filter(|entry| entry.disabled == false).cloned() {
                         div {
                             class: "p-2 cursor-pointer",
                             onclick: {

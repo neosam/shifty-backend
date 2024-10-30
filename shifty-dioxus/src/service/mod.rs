@@ -776,13 +776,13 @@ pub async fn load_employee_data(
             .await?;
     let extra_hours =
         loader::load_extra_hours_per_year(CONFIG.read().clone(), year, sales_person_id).await?;
+    load_employee_work_details(sales_person_id).await?;
     *EMPLOYEE_STORE.write() = EmployeeStore {
         employee,
         extra_hours,
         year,
         until_week,
     };
-    load_employee_work_details(sales_person_id).await?;
     Ok(())
 }
 
@@ -790,7 +790,7 @@ pub async fn load_current_employee_data() -> Result<(), ShiftyError> {
     if let Some(sales_person) = loader::load_current_sales_person(CONFIG.read().clone()).await? {
         let year = js::get_current_year();
         let until_week = js::get_current_week();
-        load_employee_data(sales_person.id, year, until_week).await;
+        load_employee_data(sales_person.id, year, until_week).await?;
     }
     Ok(())
 }

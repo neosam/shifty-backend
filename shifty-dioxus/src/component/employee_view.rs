@@ -3,7 +3,9 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
+use crate::base_types::ImStr;
 use crate::component::base_components::Button;
+use crate::component::dropdown_base::DropdownTrigger;
 use crate::i18n::Key;
 use crate::service::{
     EmployeeAction, EmployeeWorkDetailsAction, EMPLOYEE_STORE, EMPLOYEE_WORK_DETAILS_STORE, I18N,
@@ -13,6 +15,7 @@ use crate::state::employee::{Employee, ExtraHours};
 
 use crate::component::{AddExtraHoursForm, Modal};
 use crate::state::employee_work_details::{self, EmployeeWorkDetails};
+use futures_util::StreamExt;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewPlainProps {
@@ -382,6 +385,11 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
     }
 }
 
+enum EmployeeViewActions {
+    ShowAddEntry,
+    HideAddEntry,
+}
+
 #[component]
 pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let i18n = I18N.read().clone();
@@ -408,6 +416,21 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let hours_str = i18n.t(Key::Hours);
     let add_entry_str = i18n.t(Key::AddEntry);
 
+    let mut cr = use_coroutine(
+        move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
+            while let Some(action) = rx.next().await {
+                match action {
+                    EmployeeViewActions::ShowAddEntry => {
+                        *show_add_entry_dialog.write() = true;
+                    }
+                    EmployeeViewActions::HideAddEntry => {
+                        *show_add_entry_dialog.write() = false;
+                    }
+                }
+            }
+        },
+    );
+
     rsx! {
         if *show_add_entry_dialog.read() {
             Modal {
@@ -425,43 +448,36 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
         }
 
         div { class: "flex justify-between",
-            div { class: "flex flex-row pb-2",
-                h1 { class: "text-2xl font-bold mr-4 md:pr-16",
-                    "{props.employee.sales_person.name.clone()}"
-                    Button { on_click: props.on_previous_year.clone(), "<" }
-                    "{props.year}"
-                    Button { on_click: props.on_next_year.clone(), ">" }
-                }
-                button {
-                    class: "border-2 border-gray-200 p-2",
-                    onclick: move |_| {
-                        props.on_full_year.call(());
-                    },
-                    "Full year"
-                }
-                button {
-                    class: "border-2 border-gray-200 p-2",
-                    onclick: move |_| {
-                        props.on_until_now.call(());
-                    },
-                    "Until now"
-                }
-                if let Some(on_add_employee_work_details) = props.on_add_employee_work_details {
-                    button {
-                        class: "border-2 border-gray-200 p-2",
-                        onclick: move |_| {
-                            on_add_employee_work_details.call(());
-                        },
-                        "Add work details"
+            div { class: "flex flex-col pb-2 gap-2 w-full",
+                div { class: "flex flex-row justify-between",
+                    h1 { class: "text-2xl font-bold mr-4 md:pr-16",
+                        "{props.employee.sales_person.name.clone()}"
+                    }
+                    div { class: "flex flex-row gap-2 justify-center",
+                        Button { on_click: props.on_previous_year.clone(), "<" }
+                        span { class: "pt-2", "{props.year}" }
+                        Button { on_click: props.on_next_year.clone(), ">" }
+                    }
+                    DropdownTrigger {
+                        entries: [
+                            (
+                                ImStr::from(add_entry_str),
+                                Box::new({ move || cr.send(EmployeeViewActions::ShowAddEntry) }),
+                            )
+                                .into(),
+                            ("Show full year", Box::new(move || props.on_full_year.call(()))).into(),
+                            ("Show until now", Box::new(move || props.on_until_now.call(()))).into(),
+                            (
+                                "Add work details",
+                                Box::new(move || props.on_add_employee_work_details.unwrap().call(())),
+                                props.on_add_employee_work_details.is_none(),
+                            )
+                                .into(),
+                        ]
+                            .into(),
+                        Button { "Actions" }
                     }
                 }
-            }
-            button {
-                class: "border-2 border-gray-200 p-2",
-                onclick: move |_| {
-                    *show_add_entry_dialog.write() = true;
-                },
-                "{add_entry_str}"
             }
         }
         div { class: "flex flex-col lg:flex-row lg:justify-between lg:gap-4",

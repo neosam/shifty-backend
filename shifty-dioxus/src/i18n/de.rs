@@ -78,7 +78,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     i18n.add_text(Locale::En, Key::Hours, "Std.");
 
-    i18n.add_text(Locale::En, Key::AddEntry, "Hinzufügen");
+    i18n.add_text(Locale::En, Key::AddEntry, "Sonstige Stunden hinzufügen");
     i18n.add_text(
         Locale::En,
         Key::WorkHoursDescription,
