@@ -27,7 +27,7 @@ pub fn TopBar() -> Element {
         false
     };
     let show_weekly_overview = if let Some(ref auth_info) = auth_info {
-        auth_info.has_privilege("shiftplanner")
+        auth_info.has_privilege("shiftplanner") || auth_info.has_privilege("sales")
     } else {
         false
     };
@@ -78,6 +78,11 @@ pub fn TopBar() -> Element {
                             Link { to: Route::ShiftPlan {}, {i18n.t(Key::Shiftplan)} }
                         }
                     }
+                    if is_paid && !show_reports && show_my_time {
+                        li {
+                            Link { to: Route::MyEmployeeDetails {}, {i18n.t(Key::MyTime)} }
+                        }
+                    }
                     if show_weekly_overview {
                         li {
                             Link { to: Route::WeeklyOverview {}, {i18n.t(Key::YearOverview)} }
@@ -86,11 +91,6 @@ pub fn TopBar() -> Element {
                     if show_reports {
                         li {
                             Link { to: Route::Employees {}, {i18n.t(Key::Employees)} }
-                        }
-                    }
-                    if is_paid && !show_reports && show_my_time {
-                        li {
-                            Link { to: Route::MyEmployeeDetails {}, {i18n.t(Key::MyTime)} }
                         }
                     }
                     if show_user_management {
