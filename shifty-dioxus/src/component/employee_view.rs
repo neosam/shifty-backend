@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use dioxus_elements::a;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
