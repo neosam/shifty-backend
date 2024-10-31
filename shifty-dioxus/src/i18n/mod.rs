@@ -135,6 +135,17 @@ pub enum Key {
     WelcomeTitle,
     PleaseLogin,
     PleaseChoose,
+
+    // Employee work details form
+    AddWorkDetailsFormTitle,
+    FromLabel,
+    ToLabel,
+    WorkdaysLabel,
+    ExpectedHoursPerWeekLabel,
+    DaysPerWeekLabel,
+    VacationDaysLabel,
+    HolidaysInHoursLabel,
+    WorkdaysInHoursLabel,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

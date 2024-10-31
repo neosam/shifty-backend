@@ -5,7 +5,8 @@ use crate::{
     component::base_components::{
         Button, Checkbox, DateInput, FloatInput, Form, FormGroup, FormPair, Header, IntegerInput,
     },
-    service::{EmployeeWorkDetailsAction, EMPLOYEE_WORK_DETAILS_STORE},
+    i18n,
+    service::{EmployeeWorkDetailsAction, EMPLOYEE_WORK_DETAILS_STORE, I18N},
     state::{employee_work_details::EmployeeWorkDetails, shiftplan::SalesPerson},
 };
 
@@ -35,15 +36,33 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
     let employee_work_details: EmployeeWorkDetails = props.employee_work_details.clone();
     let (from_year, from_week, from_day) = employee_work_details.from_as_calendar_week();
     let (to_year, to_week, to_day) = employee_work_details.to_as_calendar_week();
+    let i18n = I18N.read().clone();
+
+    let title = i18n.t_m(
+        i18n::Key::AddWorkDetailsFormTitle,
+        [("name", props.sales_person.name.as_ref())].into(),
+    );
+    let from_label = i18n.t(i18n::Key::FromLabel);
+    let to_label = i18n.t(i18n::Key::ToLabel);
+    let workdays_label = i18n.t(i18n::Key::WorkdaysLabel);
+    let expected_hours_per_week_label = i18n.t(i18n::Key::ExpectedHoursPerWeekLabel);
+    let days_per_week_label = i18n.t(i18n::Key::DaysPerWeekLabel);
+    let vacation_days_label = i18n.t(i18n::Key::VacationDaysLabel);
+    let holiday_in_hours_label = i18n.t(i18n::Key::HolidaysInHoursLabel);
+    let workday_in_hours_label = i18n.t(i18n::Key::WorkdaysInHoursLabel);
+
+    let monday_label = i18n.t(i18n::Key::Monday);
+    let tuesday_label = i18n.t(i18n::Key::Tuesday);
+    let wednesday_label = i18n.t(i18n::Key::Wednesday);
+    let thursday_label = i18n.t(i18n::Key::Thursday);
+    let friday_label = i18n.t(i18n::Key::Friday);
+    let saturday_label = i18n.t(i18n::Key::Saturday);
+    let sunday_label = i18n.t(i18n::Key::Sunday);
+
     rsx! {
-        Header { "Employee Work Details for {props.sales_person.name}" }
-        match props.employee_work_details_form_type {
-            EmployeeWorkDetailsFormType::New => "New",
-            EmployeeWorkDetailsFormType::Edit => "Edit",
-            EmployeeWorkDetailsFormType::ReadOnly => "ReadOnly",
-        },
+        Header { "{title}" }
         Form {
-            FormPair { label: "From".into(),
+            FormPair { label: from_label,
                 div { class: "flex flex-col",
                     DateInput {
                         value: employee_work_details.from.clone(),
@@ -64,7 +83,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     span { class: "text-xs text-gray-500", "({from_day}, Week {from_week}, {from_year})" }
                 }
             }
-            FormPair { label: "To".into(),
+            FormPair { label: to_label,
                 div { class: "flex flex-col",
                     DateInput {
                         value: employee_work_details.to.clone(),
@@ -86,7 +105,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     span { class: "text-xs text-gray-500", "({to_day}, Week {to_week}, {to_year})" }
                 }
             }
-            FormPair { label: "Workdays".into(),
+            FormPair { label: workdays_label,
                 Checkbox {
                     value: employee_work_details.monday,
                     disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
@@ -102,7 +121,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Monday"
+                    "{monday_label}"
                 }
                 Checkbox {
                     value: employee_work_details.tuesday,
@@ -119,7 +138,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Tuesday"
+                    "{tuesday_label}"
                 }
                 Checkbox {
                     value: employee_work_details.wednesday,
@@ -136,7 +155,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Wednesday"
+                    "{wednesday_label}"
                 }
                 Checkbox {
                     value: employee_work_details.thursday,
@@ -153,7 +172,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Thursday"
+                    "{thursday_label}"
                 }
                 Checkbox {
                     value: employee_work_details.friday,
@@ -170,7 +189,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Friday"
+                    "{friday_label}"
                 }
                 Checkbox {
                     value: employee_work_details.saturday,
@@ -187,7 +206,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Saturday"
+                    "{saturday_label}"
                 }
                 Checkbox {
                     value: employee_work_details.sunday,
@@ -204,10 +223,10 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
                     },
-                    "Sunday"
+                    "{sunday_label}"
                 }
             }
-            FormPair { label: "Expected hours per week".into(),
+            FormPair { label: expected_hours_per_week_label,
                 FloatInput {
                     value: employee_work_details.expected_hours,
                     disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
@@ -226,7 +245,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     }
                 }
             }
-            FormPair { label: "Days per Week".into(),
+            FormPair { label: days_per_week_label,
                 IntegerInput {
                     value: employee_work_details.workdays_per_week as i32,
                     disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
@@ -244,7 +263,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     }
                 }
             }
-            FormPair { label: "Vacation Days".into(),
+            FormPair { label: vacation_days_label,
                 IntegerInput {
                     value: employee_work_details.vacation_days as i32,
                     disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
@@ -265,13 +284,13 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
             }
             FormGroup {
                 span {
-                    "Holiday in hours: "
+                    "{holiday_in_hours_label}: "
                     "{employee_work_details.holiday_hours()}"
                 }
             }
             FormGroup {
                 span {
-                    "Workday in hours: "
+                    "{workday_in_hours_label}: "
                     "{employee_work_details.vacation_day_in_hours()}"
                 }
             }

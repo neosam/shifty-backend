@@ -129,4 +129,23 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::PleaseChoose,
         "Choose your view from the menu on top of the page.",
     );
+
+    // Employee work details form
+    i18n.add_text(
+        Locale::En,
+        Key::AddWorkDetailsFormTitle,
+        "Work contract for {name}",
+    );
+    i18n.add_text(Locale::En, Key::FromLabel, "From");
+    i18n.add_text(Locale::En, Key::ToLabel, "To");
+    i18n.add_text(Locale::En, Key::WorkdaysLabel, "Workdays");
+    i18n.add_text(
+        Locale::En,
+        Key::ExpectedHoursPerWeekLabel,
+        "Expected hours per week",
+    );
+    i18n.add_text(Locale::En, Key::DaysPerWeekLabel, "Days per week");
+    i18n.add_text(Locale::En, Key::VacationDaysLabel, "Vacation days");
+    i18n.add_text(Locale::En, Key::HolidaysInHoursLabel, "Holidays in hours");
+    i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Workdays in hours");
 }

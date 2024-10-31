@@ -152,4 +152,31 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::PleaseChoose,
         "Bitte wähle eine Ansicht von der oberen Leiste.",
     );
+
+    // Employee work details form
+    i18n.add_text(
+        Locale::En,
+        Key::AddWorkDetailsFormTitle,
+        "Arbeitsvertrag von {name}",
+    );
+    i18n.add_text(Locale::En, Key::FromLabel, "Von");
+    i18n.add_text(Locale::En, Key::ToLabel, "Bis");
+    i18n.add_text(Locale::En, Key::WorkdaysLabel, "Wochentage");
+    i18n.add_text(
+        Locale::En,
+        Key::ExpectedHoursPerWeekLabel,
+        "Wochenarbeitsstunden",
+    );
+    i18n.add_text(Locale::En, Key::DaysPerWeekLabel, "Arbeitstage pro Woche");
+    i18n.add_text(
+        Locale::En,
+        Key::VacationDaysLabel,
+        "Urlaubsanspruch im Jahr",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::HolidaysInHoursLabel,
+        "Urlaubstag in Stunden",
+    );
+    i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Feiertag in Stunden");
 }
