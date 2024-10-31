@@ -78,10 +78,12 @@ pub fn WeeklyOverview() -> Element {
                     tbody {
                         for week in weekly_summary.iter() {
                             tr { class: "content-center border-b",
-                                td { class: "pb-2 pt-2",
-                                    div { class: "font-bold", "{week.year} / {week.week}" }
-                                    div {
-                                        "{i18n.format_date(&week.monday_date())} - {i18n.format_date(&week.sunday_date())}"
+                                td { class: "pb-2 pt-2 underline",
+                                    Link { to: format!("/shiftplan/{}/{}", week.year, week.week),
+                                        div { class: "font-bold", "{week.year} / {week.week}" }
+                                        div {
+                                            "{i18n.format_date(&week.monday_date())} - {i18n.format_date(&week.sunday_date())}"
+                                        }
                                     }
                                 }
                                 td { "{week.available_hours:.2} / {week.required_hours:.2}" }

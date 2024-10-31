@@ -16,6 +16,7 @@ pub use my_employee_details::MyEmployeeDetails;
 pub use not_authenticated::NotAuthenticated;
 pub use sales_person_details::SalesPersonDetails;
 pub use shiftplan::ShiftPlan;
+pub use shiftplan::ShiftPlanDeep;
 pub use user_details::UserDetails;
 pub use user_management::UserManagementPage;
 pub use weekly_overview::WeeklyOverview;

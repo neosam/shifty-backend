@@ -6,6 +6,7 @@ pub use crate::page::Home;
 pub use crate::page::MyEmployeeDetails;
 pub use crate::page::SalesPersonDetails;
 pub use crate::page::ShiftPlan;
+pub use crate::page::ShiftPlanDeep;
 pub use crate::page::UserDetails;
 pub use crate::page::UserManagementPage;
 pub use crate::page::WeeklyOverview;
@@ -16,6 +17,8 @@ pub enum Route {
     Home {},
     #[route("/shiftplan/")]
     ShiftPlan {},
+    #[route("/shiftplan/:year/:week")]
+    ShiftPlanDeep { year: u32, week: u8 },
     #[route("/weekly_overview/")]
     WeeklyOverview {},
     #[route("/employees/")]

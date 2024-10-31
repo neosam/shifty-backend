@@ -44,8 +44,21 @@ pub enum ShiftPlanAction {
     ToggleAvailability(Weekday),
 }
 
+#[derive(Clone, PartialEq, Props)]
+pub struct ShiftPlanProps {
+    year: Option<u32>,
+    week: Option<u8>,
+}
+
 #[component]
-pub fn ShiftPlan() -> Element {
+pub fn ShiftPlanDeep(props: ShiftPlanProps) -> Element {
+    rsx! {
+        ShiftPlan { year: props.year, week: props.week }
+    }
+}
+
+#[component]
+pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let config = CONFIG.read().clone();
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
@@ -56,8 +69,8 @@ pub fn ShiftPlan() -> Element {
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
         .unwrap_or(false);
 
-    let week = use_signal(|| js::get_current_week());
-    let year = use_signal(|| js::get_current_year());
+    let week = use_signal(|| props.week.unwrap_or_else(|| js::get_current_week()));
+    let year = use_signal(|| props.year.unwrap_or_else(|| js::get_current_year()));
     let date =
         time::Date::from_iso_week_date(*year.read() as i32, *week.read(), time::Weekday::Monday)
             .unwrap();
