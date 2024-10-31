@@ -1,17 +1,24 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::{
+    permission,
+    shiftplan_report::{self, ShiftplanReportDao},
+};
 use service::{
     booking_information::{
         build_booking_information, BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson,
     },
-    permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
+    permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
     slot::Slot,
     special_days::SpecialDayType,
     ServiceError,
 };
+use tokio::join;
+use uuid::Uuid;
 
 pub struct BookingInformationServiceImpl<
+    ShiftplanReportDao,
     SlotService,
     BookingService,
     SalesPersonService,
@@ -22,6 +29,7 @@ pub struct BookingInformationServiceImpl<
     ClockService,
     UuidService,
 > where
+    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
     SlotService: service::slot::SlotService + Send + Sync,
     BookingService: service::booking::BookingService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
@@ -33,6 +41,7 @@ pub struct BookingInformationServiceImpl<
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
+    pub shiftplan_report_dao: Arc<ShiftplanReportDao>,
     pub slot_service: Arc<SlotService>,
     pub booking_service: Arc<BookingService>,
     pub sales_person_service: Arc<SalesPersonService>,
@@ -45,6 +54,7 @@ pub struct BookingInformationServiceImpl<
 }
 
 impl<
+        ShiftplanReportDao,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -56,6 +66,7 @@ impl<
         UuidService,
     >
     BookingInformationServiceImpl<
+        ShiftplanReportDao,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -67,6 +78,7 @@ impl<
         UuidService,
     >
 where
+    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
     SlotService: service::slot::SlotService + Send + Sync,
     BookingService: service::booking::BookingService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
@@ -79,6 +91,7 @@ where
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
     pub fn new(
+        shiftplan_report_dao: Arc<ShiftplanReportDao>,
         slot_service: Arc<SlotService>,
         booking_service: Arc<BookingService>,
         sales_person_service: Arc<SalesPersonService>,
@@ -90,6 +103,7 @@ where
         uuid_service: Arc<UuidService>,
     ) -> Self {
         Self {
+            shiftplan_report_dao,
             slot_service,
             booking_service,
             sales_person_service,
@@ -105,6 +119,7 @@ where
 
 #[async_trait]
 impl<
+        ShiftplanReportDao,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -116,6 +131,7 @@ impl<
         UuidService,
     > service::booking_information::BookingInformationService
     for BookingInformationServiceImpl<
+        ShiftplanReportDao,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -127,6 +143,7 @@ impl<
         UuidService,
     >
 where
+    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
     SlotService: service::slot::SlotService<Context = PermissionService::Context> + Send + Sync,
     BookingService:
         service::booking::BookingService<Context = PermissionService::Context> + Send + Sync,
@@ -185,18 +202,36 @@ where
         year: u32,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[WeeklySummary]>, ServiceError> {
-        self.permission_service
-            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
-            .await?;
+        let (shiftplanner, sales) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context.clone())
+        );
+        shiftplanner.or(sales)?;
+
+        let is_shiftplanner = self
+            .permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
+            .await
+            .is_ok();
+
         let mut weekly_report = vec![];
         let weeks_in_year = time::util::weeks_in_year(year as i32);
+        let volunteer_ids: Arc<[Uuid]> = self
+            .sales_person_service
+            .get_all(Authentication::Full)
+            .await?
+            .iter()
+            .filter(|sales_person| !sales_person.is_paid.unwrap_or(false))
+            .map(|sales_person| sales_person.id)
+            .collect();
         for week in 1..=(weeks_in_year + 3) {
             let (year, week) = if week > weeks_in_year as u8 {
                 (year + 1, week - weeks_in_year as u8)
             } else {
                 (year, week)
             };
-            let mut overall_available_hours = 0.0;
             let mut working_hours_per_sales_person = vec![];
             let week_report = self
                 .reporting_service
@@ -206,6 +241,14 @@ where
                 .special_day_service
                 .get_by_week(year, week, Authentication::Full)
                 .await?;
+            let volunteer_hours = self
+                .shiftplan_report_dao
+                .extract_shiftplan_report_for_week(year, week)
+                .await?
+                .iter()
+                .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
+                .map(|report| report.hours)
+                .sum::<f32>();
             let slots: Arc<[Slot]> = self
                 .slot_service
                 .get_slots_for_week(year, week, Authentication::Full)
@@ -228,13 +271,16 @@ where
                     (slot.to - slot.from).as_seconds_f32() / 3600.0 * slot.min_resources as f32
                 })
                 .sum::<f32>();
+            let mut overall_available_hours = volunteer_hours;
             for report in week_report.iter() {
                 overall_available_hours += report.expected_hours;
-                working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
-                    sales_person_id: report.sales_person.id,
-                    sales_person_name: report.sales_person.name.clone(),
-                    available_hours: report.expected_hours,
-                });
+                if is_shiftplanner {
+                    working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
+                        sales_person_id: report.sales_person.id,
+                        sales_person_name: report.sales_person.name.clone(),
+                        available_hours: report.expected_hours,
+                    });
+                }
             }
             weekly_report.push(WeeklySummary {
                 year,

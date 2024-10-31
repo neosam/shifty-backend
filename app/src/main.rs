@@ -52,6 +52,7 @@ type BookingService = service_impl::booking::BookingServiceImpl<
     SlotService,
 >;
 type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
+    ShiftplanReportDaoImpl,
     SlotService,
     BookingService,
     SalesPersonService,
@@ -235,7 +236,7 @@ impl RestStateImpl {
         );
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
             extra_hours_service.clone(),
-            shiftplan_report_dao,
+            shiftplan_report_dao.clone(),
             working_hours_service.clone(),
             sales_person_service.clone(),
             permission_service.clone(),
@@ -244,6 +245,7 @@ impl RestStateImpl {
         ));
         let booking_information_service = Arc::new(
             service_impl::booking_information::BookingInformationServiceImpl::new(
+                shiftplan_report_dao.clone(),
                 slot_service.clone(),
                 booking_service.clone(),
                 sales_person_service.clone(),
