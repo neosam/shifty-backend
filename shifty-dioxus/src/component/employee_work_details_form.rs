@@ -263,21 +263,23 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     }
                 }
             }
-            FormPair { label: vacation_days_label,
-                IntegerInput {
-                    value: employee_work_details.vacation_days as i32,
-                    disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
-                    on_change: {
-                        to_owned![employee_work_details];
-                        move |value: i32| {
-                            if props.employee_work_details_form_type
-                                == EmployeeWorkDetailsFormType::ReadOnly
-                            {
-                                return ();
+            if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::ReadOnly {
+                FormPair { label: vacation_days_label,
+                    IntegerInput {
+                        value: employee_work_details.vacation_days as i32,
+                        disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
+                        on_change: {
+                            to_owned![employee_work_details];
+                            move |value: i32| {
+                                if props.employee_work_details_form_type
+                                    == EmployeeWorkDetailsFormType::ReadOnly
+                                {
+                                    return ();
+                                }
+                                let mut employee_work_details = employee_work_details.clone();
+                                employee_work_details.vacation_days = value as u8;
+                                props.on_update_employee_work_details.call(employee_work_details);
                             }
-                            let mut employee_work_details = employee_work_details.clone();
-                            employee_work_details.vacation_days = value as u8;
-                            props.on_update_employee_work_details.call(employee_work_details);
                         }
                     }
                 }
