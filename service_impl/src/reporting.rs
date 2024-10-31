@@ -199,8 +199,16 @@ where
                     paid_employee.id,
                     last_year,
                     last_years_last_week,
-                    year,
-                    until_week,
+                    if until_week == time::util::weeks_in_year(year as i32) {
+                        year + 1
+                    } else {
+                        year
+                    },
+                    if until_week == time::util::weeks_in_year(year as i32) {
+                        1
+                    } else {
+                        until_week
+                    },
                 )
                 .await?;
 
@@ -218,13 +226,18 @@ where
                     Authentication::Full,
                 )
                 .await?;
+            let additional_weeks = if until_week >= time::util::weeks_in_year(year as i32) {
+                1
+            } else {
+                0
+            };
             let (shiftplan_hours, extra_working_hours, absense_hours, planned_hours): (
                 f32,
                 f32,
                 f32,
                 f32,
-            ) = (0..=until_week)
-                .map(|mut week| {
+            ) = (0..=until_week + additional_weeks)
+                .map(|week| {
                     let target_year = year;
                     let year = if week == 0 {
                         year - 1
@@ -234,8 +247,8 @@ where
                         year
                     };
                     let week = if week == 0 {
-                        time::util::weeks_in_year(year as i32 - 1)
-                    } else if week > time::util::weeks_in_year(year as i32 - 1) {
+                        time::util::weeks_in_year(year as i32)
+                    } else if week > time::util::weeks_in_year(year as i32) {
                         1
                     } else {
                         week
@@ -251,7 +264,7 @@ where
                     let shiftplan_hours: f32 = detailed_shiftplan_report
                         .iter()
                         .filter(|shift_plan_item| {
-                            shift_plan_item.year == year && shift_plan_item.calendar_week == week
+                            shift_plan_item.year == year && shift_plan_item.calendar_week == week && shift_plan_item.to_date().map(|d| d.year() as u32) == Ok(target_year)
                         })
                         .map(|shift_plan_item| shift_plan_item.hours)
                         .sum();
