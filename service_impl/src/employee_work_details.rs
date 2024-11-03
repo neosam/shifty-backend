@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::employee_work_details::{self, EmployeeWorkDetailsEntity};
+use dao::employee_work_details::EmployeeWorkDetailsEntity;
 use service::{
     employee_work_details::EmployeeWorkDetails,
     permission::{Authentication, HR_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},

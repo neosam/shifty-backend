@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use dao::{employee_work_details, shiftplan_report::ShiftplanReportEntity};
+use dao::shiftplan_report::ShiftplanReportEntity;
 use service::{
     employee_work_details::EmployeeWorkDetails,
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},

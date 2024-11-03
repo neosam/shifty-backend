@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{
-    permission,
-    shiftplan_report::{self, ShiftplanReportDao},
-};
 use service::{
     booking_information::{
         build_booking_information, BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson,
