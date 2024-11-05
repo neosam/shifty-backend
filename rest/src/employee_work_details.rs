@@ -10,6 +10,7 @@ use axum::{
 use rest_types::EmployeeWorkDetailsTO;
 
 use service::employee_work_details::EmployeeWorkDetailsService;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -29,6 +30,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id", put(update_working_hours::<RestState>))
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_working_hours<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -51,6 +53,7 @@ pub async fn create_working_hours<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn update_working_hours<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -73,6 +76,7 @@ pub async fn update_working_hours<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_employee_work_details<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -90,6 +94,7 @@ pub async fn delete_employee_work_details<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_working_hours_for_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -112,6 +117,7 @@ pub async fn get_working_hours_for_week<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_working_hours_for_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

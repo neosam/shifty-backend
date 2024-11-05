@@ -7,6 +7,7 @@ use axum::{extract::State, response::Response};
 use axum::{Extension, Router};
 use rest_types::{BookingConflictTO, WeeklySummaryTO};
 use service::booking_information::BookingInformationService;
+use tracing::instrument;
 
 use crate::{error_handler, Context, RestStateDef};
 
@@ -22,6 +23,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_booking_conflicts_for_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -47,6 +49,7 @@ pub async fn get_booking_conflicts_for_week<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_weekly_summary<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

@@ -7,6 +7,7 @@ use service::{
     ServiceError, ValidationFailureItem,
 };
 use tokio::join;
+use tracing::instrument;
 use uuid::Uuid;
 
 const SLOT_SERVICE_PROCESS: &str = "slot-service";
@@ -64,6 +65,7 @@ where
 {
     type Context = PermissionService::Context;
 
+    #[instrument(name = "SlotServiceImpl::get_slots_for_week", skip(self))]
     async fn get_slots(
         &self,
         context: Authentication<Self::Context>,
@@ -105,6 +107,7 @@ where
         Ok(slot)
     }
 
+    #[instrument(name = "SlotServiceImpl::get_slots_for_week", skip(self))]
     async fn get_slots_for_week(
         &self,
         year: u32,
@@ -118,6 +121,7 @@ where
                 .check_permission(SALES_PRIVILEGE, context),
         );
         shiftplanner_permission.or(sales_permission)?;
+        tracing::info!("Getting slots for week {} of year {}", week, year);
 
         Ok(self
             .slot_dao

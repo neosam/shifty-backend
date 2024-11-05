@@ -7,6 +7,7 @@ use axum::{
 };
 use rest_types::SpecialDayTO;
 use std::sync::Arc;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -22,6 +23,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id", delete(delete_special_day::<RestState>))
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_special_days_for_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -45,6 +47,7 @@ pub async fn get_special_days_for_week<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_special_days<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -67,6 +70,7 @@ pub async fn create_special_days<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_special_day<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

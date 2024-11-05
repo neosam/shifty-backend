@@ -8,6 +8,7 @@ use dao_impl::{
     shiftplan_report::ShiftplanReportDaoImpl,
 };
 use sqlx::SqlitePool;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 #[cfg(feature = "mock_auth")]
 type UserService = service_impl::UserServiceDev;
@@ -300,7 +301,17 @@ async fn create_dev_admin_user(pool: Arc<SqlitePool>) {
 #[tokio::main]
 async fn main() {
     let version = env!("CARGO_PKG_VERSION");
-    println!("Shifty backend version: {}", version);
+
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::DEBUG)
+        .json()
+        .with_span_events(FmtSpan::CLOSE)
+        .with_span_list(true)
+        .with_file(true)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    tracing::info!("Shifty backend version: {}", version);
     dotenvy::dotenv().ok();
     let pool = Arc::new(
         SqlitePool::connect("sqlite:./localdb.sqlite3")

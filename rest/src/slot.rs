@@ -9,6 +9,7 @@ use axum::{
 };
 use rest_types::SlotTO;
 use service::slot::SlotService;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestError, RestStateDef};
@@ -22,6 +23,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/:id", put(update_slot::<RestState>))
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_all_slots<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -44,6 +46,7 @@ pub async fn get_all_slots<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_slot<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -66,6 +69,7 @@ pub async fn get_slot<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_slots_for_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -89,6 +93,7 @@ pub async fn get_slots_for_week<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_slot<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -111,6 +116,7 @@ pub async fn create_slot<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn update_slot<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

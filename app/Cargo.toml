@@ -13,6 +13,9 @@ default = ["mock_auth"]
 oidc = ["rest/oidc"]
 mock_auth = ["rest/mock_auth"]
 
+[dependencies]
+tracing = "0.1.40"
+
 [dependencies.uuid]
 version = "1.8"
 
@@ -47,6 +50,10 @@ version = "0.2.18"
 
 [dependencies.dotenvy]
 version = "0.15"
+
+[dependencies.tracing-subscriber]
+version = "0.3.18"
+features = ["json"]
 
 [dev-dependencies]
 proptest = "1.5.0"

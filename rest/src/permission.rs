@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, get, post},
     Extension, Json, Router,
 };
+use tracing::instrument;
 
 use crate::{error_handler, Context, RestStateDef};
 use service::PermissionService;
@@ -32,6 +33,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn add_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -53,6 +55,7 @@ pub async fn add_user<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn remove_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -74,6 +77,7 @@ pub async fn remove_user<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn add_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -94,6 +98,7 @@ pub async fn add_role<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -114,6 +119,7 @@ pub async fn delete_role<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn add_user_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -138,6 +144,7 @@ pub async fn add_user_role<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn remove_user_role<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -162,6 +169,7 @@ pub async fn remove_user_role<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn add_role_privilege<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -186,6 +194,7 @@ pub async fn add_role_privilege<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn remove_role_privilege<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -210,6 +219,7 @@ pub async fn remove_role_privilege<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_all_users<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -232,6 +242,7 @@ pub async fn get_all_users<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_all_roles<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -254,6 +265,7 @@ pub async fn get_all_roles<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_all_privileges<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -276,6 +288,7 @@ pub async fn get_all_privileges<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_roles_for_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

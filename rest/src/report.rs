@@ -10,6 +10,7 @@ use axum::{
 use rest_types::{EmployeeReportTO, ShortEmployeeReportTO};
 use serde::Deserialize;
 use service::reporting::ReportingService;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -30,6 +31,7 @@ pub struct ReportRequest {
     until_week: u8,
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_short_report_for_all<RestState: RestStateDef>(
     rest_state: State<RestState>,
     query: Query<ReportRequest>,
@@ -53,6 +55,7 @@ pub async fn get_short_report_for_all<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_report<RestState: RestStateDef>(
     rest_state: State<RestState>,
     query: Query<ReportRequest>,
@@ -80,6 +83,7 @@ pub async fn get_report<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_short_week_report<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

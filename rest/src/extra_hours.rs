@@ -11,6 +11,7 @@ use rest_types::ExtraHoursTO;
 
 use serde::Deserialize;
 use service::extra_hours::ExtraHoursService;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -31,6 +32,7 @@ pub struct ExtraHoursForSalesPersonAttributes {
     until_week: u8,
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_extra_hours_for_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -60,6 +62,7 @@ pub async fn get_extra_hours_for_sales_person<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_extra_hours<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -82,6 +85,7 @@ pub async fn create_extra_hours<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_extra_hours<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

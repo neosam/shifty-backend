@@ -9,6 +9,7 @@ use rest_types::{SalesPersonTO, SalesPersonUnavailableTO};
 use serde::Deserialize;
 use service::sales_person::SalesPersonService;
 use service::sales_person_unavailable::SalesPersonUnavailableService;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestError, RestStateDef};
@@ -38,6 +39,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/current", get(get_sales_person_current_user::<RestState>))
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_all_sales_persons<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -60,6 +62,7 @@ pub async fn get_all_sales_persons<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -82,6 +85,7 @@ pub async fn get_sales_person<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -104,6 +108,7 @@ pub async fn create_sales_person<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn update_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -128,6 +133,7 @@ pub async fn update_sales_person<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -145,6 +151,7 @@ pub async fn delete_sales_person<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -165,6 +172,7 @@ pub async fn get_sales_person_user<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn set_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -183,6 +191,7 @@ pub async fn set_sales_person_user<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_sales_person_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -200,6 +209,7 @@ pub async fn delete_sales_person_user<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_sales_person_current_user<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -227,6 +237,7 @@ pub struct ReportRequest {
     calendar_week: Option<u8>,
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_sales_person_unavailable<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -266,6 +277,7 @@ pub async fn get_sales_person_unavailable<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_sales_person_unavailable<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -288,6 +300,7 @@ pub async fn create_sales_person_unavailable<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_sales_person_unavailable<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,

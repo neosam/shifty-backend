@@ -7,6 +7,7 @@ use axum::routing::{delete, get, post};
 use axum::{extract::State, response::Response};
 use axum::{Extension, Json, Router};
 use rest_types::BookingTO;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestError, RestStateDef};
@@ -22,6 +23,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/copy", post(copy_calendar_week::<RestState>))
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_all_bookings<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -44,6 +46,7 @@ pub async fn get_all_bookings<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_by_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -67,6 +70,7 @@ pub async fn get_by_week<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn get_booking<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -89,6 +93,7 @@ pub async fn get_booking<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn create_booking<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -111,6 +116,7 @@ pub async fn create_booking<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn copy_calendar_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -144,6 +150,7 @@ pub async fn copy_calendar_week<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
 pub async fn delete_booking<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
