@@ -383,6 +383,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let to_calendar_week = entity.to_calendar_week as i64;
         let to_day_of_week = entity.to_day_of_week.to_number() as i64;
         let vacation_days = entity.vacation_days as i64;
+        let workdays_per_week = entity.workdays_per_week as i64;
         query!(
             r#"
             UPDATE employee_work_details SET
@@ -391,7 +392,8 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_year = ?,
                 to_calendar_week = ?,
                 to_day_of_week = ?,
-                vacation_days = ?
+                vacation_days = ?,
+                workdays_per_week = ?
             WHERE
                 id = ?
             "#,
@@ -401,6 +403,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             to_calendar_week,
             to_day_of_week,
             vacation_days,
+            workdays_per_week,
             id
         )
         .execute(self.pool.as_ref())
