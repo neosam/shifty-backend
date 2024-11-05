@@ -248,11 +248,12 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
             FormPair { label: days_per_week_label,
                 IntegerInput {
                     value: employee_work_details.workdays_per_week as i32,
-                    disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
+                    disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
                     on_change: {
                         to_owned![employee_work_details];
                         move |value: i32| {
-                            if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
+                            if props.employee_work_details_form_type
+                                == EmployeeWorkDetailsFormType::ReadOnly
                             {
                                 return ();
                             }
