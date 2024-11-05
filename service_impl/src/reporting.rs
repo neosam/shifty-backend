@@ -427,6 +427,11 @@ where
         );
 
         let planned_hours: f32 = by_week.iter().map(|week| week.expected_hours).sum();
+        let vacation_entitlement = working_hours
+            .iter()
+            .map(|wh| wh.vacation_days_for_year(year))
+            .sum::<f32>()
+            .round();
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
@@ -436,6 +441,7 @@ where
             shiftplan_hours,
             holiday_days,
             vacation_days,
+            vacation_entitlement,
             sick_leave_days,
             absence_days,
             extra_work_hours: extra_hours

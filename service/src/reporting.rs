@@ -126,6 +126,7 @@ pub struct EmployeeReport {
     pub holiday_hours: f32,
 
     pub vacation_days: f32,
+    pub vacation_entitlement: f32,
     pub sick_leave_days: f32,
     pub holiday_days: f32,
     pub absence_days: f32,

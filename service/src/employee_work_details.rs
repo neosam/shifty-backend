@@ -106,6 +106,31 @@ impl EmployeeWorkDetails {
     pub fn holiday_hours(&self) -> f32 {
         self.expected_hours / self.potential_days_per_week() as f32
     }
+
+    pub fn vacation_days_for_year(&self, year: u32) -> f32 {
+        let mut days = self.vacation_days as f32;
+        if self.from_year == year {
+            if let Ok(from_date) = time::Date::from_iso_week_date(
+                year as i32,
+                self.from_calendar_week,
+                self.from_day_of_week.into(),
+            ) {
+                let month: u8 = from_date.month().into();
+                days -= self.vacation_days as f32 / 12.0 * (month - 1) as f32;
+            }
+        }
+        if self.to_year == year {
+            if let Ok(to_date) = time::Date::from_iso_week_date(
+                year as i32,
+                self.to_calendar_week,
+                self.to_day_of_week.into(),
+            ) {
+                let month: u8 = to_date.month().into();
+                days -= self.vacation_days as f32 / 12.0 * (12 - month) as f32;
+            }
+        }
+        days
+    }
 }
 
 impl TryFrom<&EmployeeWorkDetails> for dao::employee_work_details::EmployeeWorkDetailsEntity {
