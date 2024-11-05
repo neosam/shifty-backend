@@ -422,6 +422,8 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let add_work_details_label: ImStr = i18n.t(Key::AddWorkDetailsLabel).into();
     let hours_label = i18n.t(Key::Hours);
 
+    let vacation_days_str: ImStr = i18n.t(Key::VacationDaysLabel).into();
+
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
             while let Some(action) = rx.next().await {
@@ -543,6 +545,15 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             TupleView {
                                 label: holidays_str.clone(),
                                 value: format!("{:.2} {}", props.employee.holiday_hours, hours_str.clone()).into()
+                            }
+                        }
+
+                        h2 { class: "text-lg font-bold mt-8", "{vacation_str}" }
+                        li {
+                            TupleView {
+                                label: vacation_days_str.as_rc(),
+                                value: format!("{} / {}", props.employee.vacation_days, props.employee.vacation_entitlement)
+                                    .into()
                             }
                         }
                     }

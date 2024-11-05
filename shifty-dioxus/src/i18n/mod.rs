@@ -97,6 +97,8 @@ pub enum Key {
     CategoryHolidays,
     CategoryUnavailable,
 
+    VacationDaysLabel,
+
     ShowDetails,
     HideDetails,
 
@@ -143,7 +145,7 @@ pub enum Key {
     WorkdaysLabel,
     ExpectedHoursPerWeekLabel,
     DaysPerWeekLabel,
-    VacationDaysLabel,
+    VacationEntitlementsPerYearLabel,
     HolidaysInHoursLabel,
     WorkdaysInHoursLabel,
 }

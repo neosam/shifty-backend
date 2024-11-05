@@ -47,7 +47,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
     let workdays_label = i18n.t(i18n::Key::WorkdaysLabel);
     let expected_hours_per_week_label = i18n.t(i18n::Key::ExpectedHoursPerWeekLabel);
     let days_per_week_label = i18n.t(i18n::Key::DaysPerWeekLabel);
-    let vacation_days_label = i18n.t(i18n::Key::VacationDaysLabel);
+    let vacation_days_label = i18n.t(i18n::Key::VacationEntitlementsPerYearLabel);
     let holiday_in_hours_label = i18n.t(i18n::Key::HolidaysInHoursLabel);
     let workday_in_hours_label = i18n.t(i18n::Key::WorkdaysInHoursLabel);
 

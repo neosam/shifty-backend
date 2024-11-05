@@ -55,7 +55,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
             while let Some(action) = rx.next().await {
                 match action {
                     AddExtraHoursFormAction::Submit => {
-                        let category = (*category.read()).clone();
+                        let category: WorkingHoursCategory = (*category.read()).clone();
                         let amount = *amount.read();
                         let description = (*description.read()).clone();
                         let when = (*when.read()).clone();

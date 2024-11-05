@@ -747,6 +747,8 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
         vacation_hours: 0.0,
         sick_leave_hours: 0.0,
         holiday_hours: 0.0,
+        vacation_days: 0.0,
+        vacation_entitlement: 0.0,
     },
     extra_hours: Rc::new([]),
 });

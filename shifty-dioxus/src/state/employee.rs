@@ -199,6 +199,9 @@ pub struct Employee {
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+
+    pub vacation_days: f32,
+    pub vacation_entitlement: f32,
 }
 
 impl From<&ShortEmployeeReportTO> for Employee {
@@ -215,6 +218,8 @@ impl From<&ShortEmployeeReportTO> for Employee {
             vacation_hours: 0.0,
             sick_leave_hours: 0.0,
             holiday_hours: 0.0,
+            vacation_days: 0.0,
+            vacation_entitlement: 0.0,
         }
     }
 }
@@ -238,6 +243,8 @@ impl From<&EmployeeReportTO> for Employee {
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
             holiday_hours: report.holiday_hours,
+            vacation_days: report.vacation_days,
+            vacation_entitlement: report.vacation_entitlement,
         }
     }
 }

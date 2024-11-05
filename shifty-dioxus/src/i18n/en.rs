@@ -70,6 +70,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Holiday");
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
 
+    i18n.add_text(Locale::En, Key::VacationDaysLabel, "Vacation days");
+
     i18n.add_text(Locale::En, Key::ShowDetails, "More");
     i18n.add_text(Locale::En, Key::HideDetails, "Less");
 
@@ -145,7 +147,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Expected hours per week",
     );
     i18n.add_text(Locale::En, Key::DaysPerWeekLabel, "Days per week");
-    i18n.add_text(Locale::En, Key::VacationDaysLabel, "Vacation days");
+    i18n.add_text(
+        Locale::En,
+        Key::VacationEntitlementsPerYearLabel,
+        "Vacation days",
+    );
     i18n.add_text(Locale::En, Key::HolidaysInHoursLabel, "Holidays in hours");
     i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Workdays in hours");
 }
