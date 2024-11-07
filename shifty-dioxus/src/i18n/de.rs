@@ -175,10 +175,10 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::VacationEntitlementsPerYearLabel,
         "Urlaubsanspruch im Jahr",
     );
+    i18n.add_text(Locale::En, Key::HolidaysInHoursLabel, "Feiertag in Stunden");
     i18n.add_text(
         Locale::En,
-        Key::HolidaysInHoursLabel,
-        "Urlaubstag in Stunden",
+        Key::WorkdaysInHoursLabel,
+        "Arbeitstag in Stunden",
     );
-    i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Feiertag in Stunden");
 }
