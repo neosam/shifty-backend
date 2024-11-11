@@ -6,7 +6,7 @@ use crate::{
         employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
         EmployeeWorkDetailsForm, Modal, TopBar,
     },
-    service::{EmployeeAction, EmployeeWorkDetailsAction},
+    service::{EmployeeAction, EmployeeWorkDetailsAction, CONFIG},
 };
 use dioxus::prelude::*;
 
@@ -21,6 +21,7 @@ pub enum MyEmployeeDetailsAction {
 pub fn MyEmployeeDetails() -> Element {
     let employee_work_details_service = use_coroutine_handle::<EmployeeWorkDetailsAction>();
     let mut show_add_employee_work_details_dialog = use_signal(|| false);
+    let config = CONFIG.read().clone();
 
     let employee_service = use_coroutine_handle::<EmployeeAction>();
 
@@ -61,6 +62,7 @@ pub fn MyEmployeeDetails() -> Element {
             }
             EmployeeView {
                 show_delete_employee_work_details: false,
+                show_vacation: config.show_vacation,
                 onupdate: move |_| cr.send(MyEmployeeDetailsAction::Update),
                 on_extra_hour_delete: move |uuid| cr.send(MyEmployeeDetailsAction::DeleteExtraHour(uuid)),
                 on_employee_work_details_clicked: move |id| cr.send(MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id))

@@ -12,7 +12,6 @@ pub fn TopBar() -> Element {
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
     let config = CONFIG.read().clone();
-    let show_my_time = config.show_my_time.unwrap_or(true);
     let backend_url = config.backend.clone();
     let non_production_warning_str = i18n.t(Key::NonProdWarning);
     let non_production_warning_detail_str = i18n.t(Key::NonProdWarningDetails);
@@ -78,7 +77,7 @@ pub fn TopBar() -> Element {
                             Link { to: Route::ShiftPlan {}, {i18n.t(Key::Shiftplan)} }
                         }
                     }
-                    if is_paid && !show_reports && show_my_time {
+                    if is_paid && !show_reports {
                         li {
                             Link { to: Route::MyEmployeeDetails {}, {i18n.t(Key::MyTime)} }
                         }

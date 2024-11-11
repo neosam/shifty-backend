@@ -93,6 +93,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             }
             EmployeeView {
                 onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
+                show_vacation: true,
                 show_delete_employee_work_details: true,
                 on_extra_hour_delete: move |id| cr.send(EmployeeDetailsAction::DeleteExtraHour(id)),
                 on_add_employee_work_details: move |_| cr.send(EmployeeDetailsAction::NewEmployeeWorkDetails),

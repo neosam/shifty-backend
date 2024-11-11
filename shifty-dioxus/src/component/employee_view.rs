@@ -25,6 +25,7 @@ pub struct EmployeeViewPlainProps {
     pub employee_work_details_list: Rc<[EmployeeWorkDetails]>,
     pub show_delete_employee_work_details: bool,
     pub year: u32,
+    pub show_vacation: bool,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -548,12 +549,14 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             }
                         }
 
-                        h2 { class: "text-lg font-bold mt-8", "{vacation_str}" }
-                        li {
-                            TupleView {
-                                label: vacation_days_str.as_rc(),
-                                value: format!("{} / {}", props.employee.vacation_days, props.employee.vacation_entitlement)
-                                    .into()
+                        if props.show_vacation {
+                            h2 { class: "text-lg font-bold mt-8", "{vacation_str}" }
+                            li {
+                                TupleView {
+                                    label: vacation_days_str.as_rc(),
+                                    value: format!("{} / {}", props.employee.vacation_days, props.employee.vacation_entitlement)
+                                        .into()
+                                }
                             }
                         }
                     }
@@ -642,6 +645,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewProps {
     pub show_delete_employee_work_details: bool,
+    pub show_vacation: bool,
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
     pub on_add_employee_work_details: Option<EventHandler<()>>,
@@ -667,6 +671,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             extra_hours,
             year,
             employee_work_details_list,
+            show_vacation: props.show_vacation,
             show_delete_employee_work_details: props.show_delete_employee_work_details,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
