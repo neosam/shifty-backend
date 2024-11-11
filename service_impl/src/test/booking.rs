@@ -1,4 +1,4 @@
-use crate::test::error_test::*;
+use crate::{booking::BookingServiceDeps, test::error_test::*};
 use dao::booking::{BookingEntity, MockBookingDao};
 use mockall::predicate::{always, eq};
 use service::{
@@ -72,25 +72,25 @@ pub struct BookingServiceDependencies {
     pub sales_person_service: MockSalesPersonService,
     pub slot_service: MockSlotService,
 }
+impl BookingServiceDeps for BookingServiceDependencies {
+    type Context = ();
+    type BookingDao = MockBookingDao;
+    type PermissionService = MockPermissionService;
+    type ClockService = MockClockService;
+    type UuidService = MockUuidService;
+    type SalesPersonService = MockSalesPersonService;
+    type SlotService = MockSlotService;
+}
 impl BookingServiceDependencies {
-    pub fn build_service(
-        self,
-    ) -> BookingServiceImpl<
-        MockBookingDao,
-        MockPermissionService,
-        MockClockService,
-        MockUuidService,
-        MockSalesPersonService,
-        MockSlotService,
-    > {
-        BookingServiceImpl::new(
-            self.booking_dao.into(),
-            self.permission_service.into(),
-            self.clock_service.into(),
-            self.uuid_service.into(),
-            self.sales_person_service.into(),
-            self.slot_service.into(),
-        )
+    pub fn build_service(self) -> BookingServiceImpl<BookingServiceDependencies> {
+        BookingServiceImpl {
+            booking_dao: self.booking_dao.into(),
+            permission_service: self.permission_service.into(),
+            clock_service: self.clock_service.into(),
+            uuid_service: self.uuid_service.into(),
+            sales_person_service: self.sales_person_service.into(),
+            slot_service: self.slot_service.into(),
+        }
     }
 }
 

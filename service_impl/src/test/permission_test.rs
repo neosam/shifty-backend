@@ -4,13 +4,28 @@ use mockall::predicate::eq;
 use service::PermissionService;
 use tokio;
 
+pub struct PermissionServiceDependencies {
+    pub permission_dao: dao::MockPermissionDao,
+    pub user_service: service::user_service::MockUserService,
+}
+impl crate::permission::PermissionServiceDeps for PermissionServiceDependencies {
+    type Context = ();
+    type PermissionDao = dao::MockPermissionDao;
+    type UserService = service::user_service::MockUserService;
+}
+impl PermissionServiceDependencies {
+    pub fn build_service(self) -> PermissionServiceImpl<PermissionServiceDependencies> {
+        PermissionServiceImpl {
+            permission_dao: self.permission_dao.into(),
+            user_service: self.user_service.into(),
+        }
+    }
+}
+
 fn generate_dependencies_mocks_permission(
     grant: bool,
     privilege: &'static str,
-) -> (
-    dao::MockPermissionDao,
-    service::user_service::MockUserService,
-) {
+) -> PermissionServiceDependencies {
     let mut permission_dao = dao::MockPermissionDao::new();
     permission_dao
         .expect_has_privilege()
@@ -21,15 +36,16 @@ fn generate_dependencies_mocks_permission(
     user_service
         .expect_current_user()
         .returning(|_| Ok("DEVUSER".into()));
-    (permission_dao, user_service)
+    PermissionServiceDependencies {
+        permission_dao,
+        user_service,
+    }
 }
 
 #[tokio::test]
 async fn test_check_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(true, "hello");
+    let permission_service = generate_dependencies_mocks_permission(true, "hello").build_service();
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
     let result = permission_service
         .check_permission("hello", ().auth())
         .await;
@@ -38,10 +54,7 @@ async fn test_check_permission() {
 
 #[tokio::test]
 async fn test_check_permission_denied() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "hello");
-
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "hello").build_service();
     let result = permission_service
         .check_permission("hello", ().auth())
         .await;
@@ -64,8 +77,9 @@ async fn test_user_service_dev() {
 
 #[tokio::test]
 async fn test_create_user() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_create_user()
         .with(
             eq(dao::UserEntity {
@@ -76,8 +90,7 @@ async fn test_create_user() {
         .times(1)
         .returning(|_, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
     permission_service
         .create_user("testuser", ().auth())
         .await
@@ -86,23 +99,21 @@ async fn test_create_user() {
 
 #[tokio::test]
 async fn test_create_user_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.create_user("testuser", ().auth()).await);
 }
 
 #[tokio::test]
 async fn test_delete_user() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_delete_user()
         .with(eq("testuser"))
         .times(1)
         .returning(|_| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .delete_user("testuser", ().auth())
@@ -111,16 +122,15 @@ async fn test_delete_user() {
 }
 #[tokio::test]
 async fn test_delete_user_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.delete_user("testuser", ().auth()).await);
 }
 
 #[tokio::test]
 async fn test_create_role() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_create_role()
         .with(
             eq(dao::RoleEntity {
@@ -131,8 +141,7 @@ async fn test_create_role() {
         .times(1)
         .returning(|_, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
     permission_service
         .create_role("testrole", ().auth())
         .await
@@ -141,23 +150,21 @@ async fn test_create_role() {
 
 #[tokio::test]
 async fn test_create_role_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.create_role("testrole", ().auth()).await);
 }
 
 #[tokio::test]
 async fn test_delete_role() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_delete_role()
         .with(eq("testrole"))
         .times(1)
         .returning(|_| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .delete_role("testrole", ().auth())
@@ -167,16 +174,15 @@ async fn test_delete_role() {
 
 #[tokio::test]
 async fn test_delete_role_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.delete_role("testrole", ().auth()).await);
 }
 
 #[tokio::test]
 async fn test_create_privilege() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_create_privilege()
         .with(
             eq(dao::PrivilegeEntity {
@@ -187,8 +193,7 @@ async fn test_create_privilege() {
         .times(1)
         .returning(|_, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .create_privilege("testprivilege", ().auth())
@@ -197,9 +202,7 @@ async fn test_create_privilege() {
 }
 #[tokio::test]
 async fn test_create_privilege_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(
         &permission_service
             .create_privilege("testprivilege", ().auth())
@@ -209,15 +212,15 @@ async fn test_create_privilege_without_permission() {
 
 #[tokio::test]
 async fn test_delete_privilege() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_delete_privilege()
         .with(eq("testprivilege"))
         .times(1)
         .returning(|_| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .delete_privilege("testprivilege", ().auth())
@@ -227,9 +230,7 @@ async fn test_delete_privilege() {
 
 #[tokio::test]
 async fn test_delete_privilege_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(
         &permission_service
             .delete_privilege("testprivilege", ().auth())
@@ -239,15 +240,15 @@ async fn test_delete_privilege_without_permission() {
 
 #[tokio::test]
 async fn test_add_user_role() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_add_user_role()
         .with(eq("testuser"), eq("testrole"), eq("permission-service"))
         .times(1)
         .returning(|_, _, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .add_user_role("testuser", "testrole", ().auth())
@@ -257,9 +258,7 @@ async fn test_add_user_role() {
 
 #[tokio::test]
 async fn test_add_user_role_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(
         &permission_service
             .add_user_role("testuser", "testrole", ().auth())
@@ -269,8 +268,9 @@ async fn test_add_user_role_without_permission() {
 
 #[tokio::test]
 async fn test_add_role_privilege() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_add_role_privilege()
         .with(
             eq("testrole"),
@@ -280,8 +280,7 @@ async fn test_add_role_privilege() {
         .times(1)
         .returning(|_, _, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .add_role_privilege("testrole", "testprivilege", ().auth())
@@ -291,9 +290,7 @@ async fn test_add_role_privilege() {
 
 #[tokio::test]
 async fn test_add_role_privilege_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(
         &permission_service
             .add_role_privilege("testrole", "testprivilege", ().auth())
@@ -303,15 +300,15 @@ async fn test_add_role_privilege_without_permission() {
 
 #[tokio::test]
 async fn test_delete_role_privilege() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_delete_role_privilege()
         .with(eq("testrole"), eq("testprivilege"))
         .times(1)
         .returning(|_, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     permission_service
         .delete_role_privilege("testrole", "testprivilege", ().auth())
@@ -321,9 +318,7 @@ async fn test_delete_role_privilege() {
 
 #[tokio::test]
 async fn test_delete_role_privilege_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(
         &permission_service
             .delete_role_privilege("testrole", "testprivilege", ().auth())
@@ -333,16 +328,15 @@ async fn test_delete_role_privilege_without_permission() {
 
 #[tokio::test]
 async fn test_delete_user_role() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_delete_user_role()
         .with(eq("testuser"), eq("testrole"))
         .times(1)
         .returning(|_, _| Ok(()));
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-
+    let permission_service = dependencies.build_service();
     permission_service
         .delete_user_role("testuser", "testrole", ().auth())
         .await
@@ -351,9 +345,7 @@ async fn test_delete_user_role() {
 
 #[tokio::test]
 async fn test_delete_user_role_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(
         &permission_service
             .delete_user_role("testuser", "testrole", ().auth())
@@ -363,21 +355,23 @@ async fn test_delete_user_role_without_permission() {
 
 #[tokio::test]
 async fn test_all_roles() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao.expect_all_roles().times(1).returning(|| {
-        Ok(Arc::new([
-            dao::RoleEntity {
-                name: "testrole".into(),
-            },
-            dao::RoleEntity {
-                name: "testrole2".into(),
-            },
-        ]))
-    });
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
+        .expect_all_roles()
+        .times(1)
+        .returning(|| {
+            Ok(Arc::new([
+                dao::RoleEntity {
+                    name: "testrole".into(),
+                },
+                dao::RoleEntity {
+                    name: "testrole2".into(),
+                },
+            ]))
+        });
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
-
+    let permission_service = dependencies.build_service();
     let all_roles = permission_service
         .get_all_roles(().auth())
         .await
@@ -389,28 +383,29 @@ async fn test_all_roles() {
 
 #[tokio::test]
 async fn test_all_roles_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.get_all_roles(().auth()).await);
 }
 
 #[tokio::test]
 async fn test_all_users() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao.expect_all_users().times(1).returning(|| {
-        Ok(Arc::new([
-            dao::UserEntity {
-                name: "testuser".into(),
-            },
-            dao::UserEntity {
-                name: "testuser2".into(),
-            },
-        ]))
-    });
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
+        .expect_all_users()
+        .times(1)
+        .returning(|| {
+            Ok(Arc::new([
+                dao::UserEntity {
+                    name: "testuser".into(),
+                },
+                dao::UserEntity {
+                    name: "testuser2".into(),
+                },
+            ]))
+        });
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     let all_users = permission_service
         .get_all_users(().auth())
@@ -424,16 +419,15 @@ async fn test_all_users() {
 
 #[tokio::test]
 async fn test_all_users_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.get_all_users(().auth()).await);
 }
 
 #[tokio::test]
 async fn test_all_privileges() {
-    let (mut permission_dao, user_service) = generate_dependencies_mocks_permission(true, "admin");
-    permission_dao
+    let mut dependencies = generate_dependencies_mocks_permission(true, "admin");
+    dependencies
+        .permission_dao
         .expect_all_privileges()
         .times(1)
         .returning(|| {
@@ -447,8 +441,7 @@ async fn test_all_privileges() {
             ]))
         });
 
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = dependencies.build_service();
 
     let all_privileges = permission_service
         .get_all_privileges(().auth())
@@ -462,8 +455,6 @@ async fn test_all_privileges() {
 
 #[tokio::test]
 async fn test_all_privileges_without_permission() {
-    let (permission_dao, user_service) = generate_dependencies_mocks_permission(false, "admin");
-    let permission_service =
-        PermissionServiceImpl::new(Arc::new(permission_dao), Arc::new(user_service));
+    let permission_service = generate_dependencies_mocks_permission(false, "admin").build_service();
     test_forbidden(&permission_service.get_all_privileges(().auth()).await);
 }

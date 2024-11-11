@@ -1,7 +1,13 @@
+use crate::gen_service_impl;
 use async_trait::async_trait;
+use dao::booking::BookingDao;
 use service::{
     booking::{Booking, BookingService},
-    permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
+    clock::ClockService,
+    permission::{Authentication, PermissionService, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
+    sales_person::SalesPersonService,
+    slot::SlotService,
+    uuid_service::UuidService,
     ServiceError, ValidationFailureItem,
 };
 use std::sync::Arc;
@@ -10,78 +16,23 @@ use uuid::Uuid;
 
 const BOOKING_SERVICE_PROCESS: &str = "booking-service";
 
-pub struct BookingServiceImpl<
-    BookingDao,
-    PermissionService,
-    ClockService,
-    UuidService,
-    SalesPersonService,
-    SlotService,
-> where
-    BookingDao: dao::booking::BookingDao + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    SlotService: service::slot::SlotService + Send + Sync,
-{
-    pub booking_dao: Arc<BookingDao>,
-    pub permission_service: Arc<PermissionService>,
-    pub clock_service: Arc<ClockService>,
-    pub uuid_service: Arc<UuidService>,
-    pub sales_person_service: Arc<SalesPersonService>,
-    pub slot_service: Arc<SlotService>,
-}
-impl<BookingDao, PermissionService, ClockService, UuidService, SalesPersonService, SlotService>
-    BookingServiceImpl<
-        BookingDao,
-        PermissionService,
-        ClockService,
-        UuidService,
-        SalesPersonService,
-        SlotService,
-    >
-where
-    BookingDao: dao::booking::BookingDao + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    SlotService: service::slot::SlotService + Send + Sync,
-{
-    pub fn new(
-        booking_dao: Arc<BookingDao>,
-        permission_service: Arc<PermissionService>,
-        clock_service: Arc<ClockService>,
-        uuid_service: Arc<UuidService>,
-        sales_person_service: Arc<SalesPersonService>,
-        slot_service: Arc<SlotService>,
-    ) -> Self {
-        Self {
-            booking_dao,
-            permission_service,
-            clock_service,
-            uuid_service,
-            sales_person_service,
-            slot_service,
-        }
+gen_service_impl! {
+    struct BookingServiceImpl: service::booking::BookingService = BookingServiceDeps {
+        BookingDao: dao::booking::BookingDao = booking_dao,
+        PermissionService: service::permission::PermissionService<Context = Self::Context> = permission_service,
+        ClockService: service::clock::ClockService = clock_service,
+        UuidService: service::uuid_service::UuidService = uuid_service,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context> = sales_person_service,
+        SlotService: service::slot::SlotService<Context = Self::Context> = slot_service
     }
+}
 
-    pub async fn check_booking_permission<AuthContext>(
+impl<Deps: BookingServiceDeps> BookingServiceImpl<Deps> {
+    pub async fn check_booking_permission(
         &self,
         sales_person_id: Uuid,
-        context: AuthContext,
-    ) -> Result<(), ServiceError>
-    where
-        AuthContext: Clone
-            + Send
-            + Sync
-            + std::fmt::Debug
-            + Eq
-            + 'static
-            + Into<Authentication<PermissionService::Context>>
-            + Into<Authentication<SalesPersonService::Context>>,
-    {
+        context: Authentication<Deps::Context>,
+    ) -> Result<(), ServiceError> {
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone().into()),
@@ -114,27 +65,8 @@ where
 }
 
 #[async_trait]
-impl<BookingDao, PermissionService, ClockService, UuidService, SalesPersonService, SlotService>
-    BookingService
-    for BookingServiceImpl<
-        BookingDao,
-        PermissionService,
-        ClockService,
-        UuidService,
-        SalesPersonService,
-        SlotService,
-    >
-where
-    BookingDao: dao::booking::BookingDao + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
-        + Send
-        + Sync,
-    SlotService: service::slot::SlotService<Context = PermissionService::Context> + Send + Sync,
-{
-    type Context = PermissionService::Context;
+impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
+    type Context = Deps::Context;
 
     async fn get_all(
         &self,

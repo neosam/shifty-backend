@@ -7,15 +7,26 @@ use dao_impl::{
     employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
     shiftplan_report::ShiftplanReportDaoImpl,
 };
+use service::permission::MockContext;
+use service_impl::permission::PermissionServiceDeps;
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 #[cfg(feature = "mock_auth")]
 type UserService = service_impl::UserServiceDev;
+#[cfg(feature = "mock_auth")]
+type Context = MockContext;
 #[cfg(feature = "oidc")]
 type UserService = service_impl::UserServiceImpl;
-type PermissionService =
-    service_impl::PermissionServiceImpl<dao_impl::PermissionDaoImpl, UserService>;
+#[cfg(feature = "oidc")]
+type Context = Option<Arc<str>>;
+pub struct PermissionServiceDependencies;
+impl PermissionServiceDeps for PermissionServiceDependencies {
+    type Context = Context;
+    type PermissionDao = dao_impl::PermissionDaoImpl;
+    type UserService = UserService;
+}
+type PermissionService = service_impl::PermissionServiceImpl<PermissionServiceDependencies>;
 type ClockService = service_impl::clock::ClockServiceImpl;
 type UuidService = service_impl::uuid_service::UuidServiceImpl;
 type SlotService = service_impl::slot::SlotServiceImpl<
@@ -44,14 +55,17 @@ type SalesPersonUnavailableService =
         ClockService,
         UuidService,
     >;
-type BookingService = service_impl::booking::BookingServiceImpl<
-    dao_impl::booking::BookingDaoImpl,
-    PermissionService,
-    ClockService,
-    UuidService,
-    SalesPersonService,
-    SlotService,
->;
+pub struct BookingServiceDependencies;
+impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
+    type Context = Context;
+    type BookingDao = dao_impl::booking::BookingDaoImpl;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type SalesPersonService = SalesPersonService;
+    type SlotService = SlotService;
+}
+type BookingService = service_impl::booking::BookingServiceImpl<BookingServiceDependencies>;
 type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
     ShiftplanReportDaoImpl,
     SlotService,
@@ -175,10 +189,10 @@ impl RestStateImpl {
         #[cfg(feature = "oidc")]
         let user_service = service_impl::UserServiceImpl;
         let user_service = Arc::new(user_service);
-        let permission_service = Arc::new(service_impl::PermissionServiceImpl::new(
-            permission_dao.into(),
-            user_service.clone(),
-        ));
+        let permission_service = Arc::new(service_impl::PermissionServiceImpl {
+            permission_dao: permission_dao.into(),
+            user_service: user_service.clone(),
+        });
         let clock_service = Arc::new(service_impl::clock::ClockServiceImpl);
         let uuid_service = Arc::new(service_impl::uuid_service::UuidServiceImpl);
         let slot_service = Arc::new(service_impl::slot::SlotServiceImpl::new(
@@ -211,14 +225,14 @@ impl RestStateImpl {
                 uuid_service.clone(),
             ),
         );
-        let booking_service = Arc::new(service_impl::booking::BookingServiceImpl::new(
-            booking_dao.into(),
-            permission_service.clone(),
-            clock_service.clone(),
-            uuid_service.clone(),
-            sales_person_service.clone(),
-            slot_service.clone(),
-        ));
+        let booking_service = Arc::new(service_impl::booking::BookingServiceImpl {
+            booking_dao: booking_dao.into(),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            slot_service: slot_service.clone(),
+        });
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
             extra_hours_dao,
             permission_service.clone(),

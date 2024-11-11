@@ -7,6 +7,7 @@ pub mod booking_information;
 pub mod clock;
 pub mod employee_work_details;
 pub mod extra_hours;
+pub mod macros;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;

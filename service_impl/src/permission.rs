@@ -1,40 +1,24 @@
+use crate::gen_service_impl;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::PermissionDao;
 use service::permission::Authentication;
+use service::user_service::UserService;
 use service::{Privilege, ServiceError};
 
-pub struct PermissionServiceImpl<PermissionDao, UserService>
-where
-    PermissionDao: dao::PermissionDao + Send + Sync,
-    UserService: service::user_service::UserService + Send + Sync,
-{
-    permission_dao: Arc<PermissionDao>,
-    user_service: Arc<UserService>,
-}
-impl<PermissionDao, UserService> PermissionServiceImpl<PermissionDao, UserService>
-where
-    PermissionDao: dao::PermissionDao + Send + Sync,
-    UserService: service::user_service::UserService + Send + Sync,
-{
-    pub fn new(permission_dao: Arc<PermissionDao>, user_service: Arc<UserService>) -> Self {
-        Self {
-            permission_dao,
-            user_service,
-        }
+gen_service_impl! {
+    struct PermissionServiceImpl: service::PermissionService = PermissionServiceDeps {
+        PermissionDao: dao::PermissionDao = permission_dao,
+        UserService: service::user_service::UserService<Context = Self::Context> = user_service
     }
 }
 
 const PERMISSION_SERVICE_PROCESS: &str = "permission-service";
 
 #[async_trait]
-impl<PermissionDao, UserService> service::PermissionService
-    for PermissionServiceImpl<PermissionDao, UserService>
-where
-    PermissionDao: dao::PermissionDao + Send + Sync,
-    UserService: service::user_service::UserService + Send + Sync,
-{
-    type Context = UserService::Context;
+impl<Deps: PermissionServiceDeps> service::PermissionService for PermissionServiceImpl<Deps> {
+    type Context = Deps::Context;
 
     async fn current_user_id(
         &self,
