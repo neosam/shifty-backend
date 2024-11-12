@@ -103,6 +103,7 @@ pub enum Key {
     HideDetails,
 
     Hours,
+    Days,
 
     AddEntry,
     WorkHoursDescription,

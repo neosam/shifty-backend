@@ -249,11 +249,13 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
     let shiftplan_str = i18n.t(Key::CategoryShiftplan);
     let extra_work_str = i18n.t(Key::CategoryExtraWork);
     let vacation_str = i18n.t(Key::CategoryVacation);
+    let vacation_days_str = i18n.t(Key::VacationDaysLabel);
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let hours_str = i18n.t(Key::Hours);
+    let days_str = i18n.t(Key::Days);
 
     rsx! {
         div {
@@ -316,6 +318,12 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                         TupleView {
                             label: vacation_str.clone(),
                             value: format!("{:.2} {hours_str}", props.working_hours.vacation_hours).into()
+                        }
+                    }
+                    li {
+                        TupleView {
+                            label: vacation_days_str.clone(),
+                            value: format!("{:.2} {days_str}", props.working_hours.vacation_days).into()
                         }
                     }
                     li {

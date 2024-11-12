@@ -152,6 +152,7 @@ pub struct WorkingHours {
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
     pub vacation_hours: f32,
+    pub vacation_days: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
 
@@ -169,6 +170,7 @@ impl From<&WorkingHoursReportTO> for WorkingHours {
             shiftplan_hours: working_hours.shiftplan_hours,
             extra_work_hours: working_hours.extra_work_hours,
             vacation_hours: working_hours.vacation_hours,
+            vacation_days: working_hours.vacation_days,
             sick_leave_hours: working_hours.sick_leave_hours,
             holiday_hours: working_hours.holiday_hours,
             days: working_hours
