@@ -115,8 +115,11 @@ impl EmployeeWorkDetails {
                 self.from_calendar_week,
                 self.from_day_of_week.into(),
             ) {
-                let month: u8 = from_date.month().into();
-                days -= self.vacation_days as f32 / 12.0 * (month - 1) as f32;
+                let relation =
+                    from_date.ordinal() as f32 / time::util::days_in_year(year as i32) as f32;
+                days -= self.vacation_days as f32 * relation as f32;
+                //let month: u8 = from_date.month().into();
+                //days -= self.vacation_days as f32 / 12.0 * (month - 1) as f32;
             }
         }
         if self.to_year == year {
@@ -125,8 +128,11 @@ impl EmployeeWorkDetails {
                 self.to_calendar_week,
                 self.to_day_of_week.into(),
             ) {
-                let month: u8 = to_date.month().into();
-                days -= self.vacation_days as f32 / 12.0 * (12 - month) as f32;
+                let relation =
+                    1.0 - to_date.ordinal() as f32 / time::util::days_in_year(year as i32) as f32;
+                days -= self.vacation_days as f32 * relation as f32;
+                //let month: u8 = to_date.month().into();
+                //days -= self.vacation_days as f32 / 12.0 * (12 - month) as f32;
             }
         }
         days
