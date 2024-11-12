@@ -14,6 +14,7 @@ use service::{
     ServiceError,
 };
 use tokio::join;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub trait IteratorExt {
@@ -395,7 +396,9 @@ where
 
         let shiftplan_hours = shiftplan_report
             .iter()
-            .filter(|r| r.to_date().map(|d| d.year() as u32) == Ok(year))
+            .filter(|r| {
+                r.calendar_week <= until_week && r.to_date().map(|d| d.year() as u32) == Ok(year)
+            })
             .map(|r| r.hours)
             .sum::<f32>() as f32;
         let overall_extra_work_hours = extra_hours
@@ -414,6 +417,8 @@ where
             year,
             until_week,
         )?;
+        let shiftplan_hours_by_week = by_week.iter().map(|week| week.shiftplan_hours).sum::<f32>();
+        tracing::info!("Shiftplan hours: {}", shiftplan_hours_by_week);
         let (vacation_days, sick_leave_days, holiday_days, absence_days) = by_week.iter().fold(
             (0.0, 0.0, 0.0, 0.0),
             |(vacation_days, sick_leave_days, holiday_days, absence_days), week| {
@@ -646,11 +651,11 @@ fn hours_per_week(
     };
     for week in 0..=week_until + extend {
         let year = if week == 0 {
-            year - 1
+            target_year - 1
         } else if week > time::util::weeks_in_year(target_year as i32) {
-            year + 1
+            target_year + 1
         } else {
-            year
+            target_year
         };
         let week = if week == 0 {
             time::util::weeks_in_year(year as i32)
@@ -659,6 +664,7 @@ fn hours_per_week(
         } else {
             week
         };
+        tracing::info!("Week: {}, Year: {}", week, year);
         let filtered_extra_hours_list = extra_hours_list
             .iter()
             .filter(|eh| {
@@ -667,12 +673,21 @@ fn hours_per_week(
                     && eh.date_time.year() as u32 == target_year
             })
             .collect::<Vec<_>>();
-        let shiftplan_hours = shiftplan_hours_list
+        let filtered_shiftplan_hours_list = shiftplan_hours_list
             .iter()
             .filter(|r| {
-                r.calendar_week == week && r.to_date().map(|d| d.year() as u32) == Ok(target_year)
+                r.calendar_week == week
+                    && r.year == year
+                    && r.to_date().map(|d| d.year() as u32) == Ok(target_year)
             })
-            .map(|r| r.hours)
+            .map(|r: &ShiftplanReportEntity| {
+                tracing::info!("{:?} - {:?}", r.to_date(), r);
+                r
+            })
+            .collect::<Vec<_>>();
+        let shiftplan_hours = filtered_shiftplan_hours_list
+            .iter()
+            .map(|r: &&ShiftplanReportEntity| r.hours)
             .sum::<f32>();
         let (working_hours, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, year, week)
@@ -704,7 +719,7 @@ fn hours_per_week(
                 .sum::<f32>()
         };
 
-        let mut day_list = extra_hours_list
+        let mut day_list = filtered_extra_hours_list
             .iter()
             .map(|eh| {
                 Ok(WorkingHoursDay {
@@ -713,17 +728,22 @@ fn hours_per_week(
                     category: (&eh.category).into(),
                 })
             })
-            .chain(shiftplan_hours_list.iter().map(|working_hours_day| {
-                Ok::<WorkingHoursDay, ServiceError>(WorkingHoursDay {
-                    date: time::Date::from_iso_week_date(
-                        year as i32,
-                        working_hours_day.calendar_week,
-                        time::Weekday::Sunday.nth_next(working_hours_day.day_of_week.to_number()),
-                    )?,
-                    hours: working_hours_day.hours,
-                    category: ExtraHoursReportCategory::Shiftplan,
-                })
-            }))
+            .chain(
+                filtered_shiftplan_hours_list
+                    .iter()
+                    .map(|working_hours_day| {
+                        Ok::<WorkingHoursDay, ServiceError>(WorkingHoursDay {
+                            date: time::Date::from_iso_week_date(
+                                year as i32,
+                                working_hours_day.calendar_week,
+                                time::Weekday::Sunday
+                                    .nth_next(working_hours_day.day_of_week.to_number()),
+                            )?,
+                            hours: working_hours_day.hours,
+                            category: ExtraHoursReportCategory::Shiftplan,
+                        })
+                    }),
+            )
             .collect::<Result<Vec<WorkingHoursDay>, ServiceError>>()?;
         day_list.sort_by_key(|day| day.date);
         let expected_hours = if working_hours == 0.0 {
@@ -784,7 +804,7 @@ fn hours_per_week(
                 .sum(),
             days: day_list
                 .iter()
-                .filter(|day| day.date.iso_week() == week && day.date.year() == year as i32)
+                //.filter(|day| day.date.iso_week() == week && day.date.year() == year as i32)
                 .cloned()
                 .collect(),
         });

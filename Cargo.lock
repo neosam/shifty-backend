@@ -438,6 +438,7 @@ dependencies = [
  "mockall",
  "thiserror",
  "time",
+ "tracing",
  "uuid",
 ]
 
@@ -449,6 +450,7 @@ dependencies = [
  "dao",
  "sqlx",
  "time",
+ "tracing",
  "uuid",
 ]
 
