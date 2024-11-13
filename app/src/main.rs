@@ -317,7 +317,7 @@ async fn main() {
     let version = env!("CARGO_PKG_VERSION");
 
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .json()
         .with_span_events(FmtSpan::CLOSE)
         .with_span_list(true)

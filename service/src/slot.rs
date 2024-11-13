@@ -113,6 +113,28 @@ impl From<&Slot> for dao::slot::SlotEntity {
         }
     }
 }
+impl PartialOrd for Slot {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.day_of_week < other.day_of_week {
+            return Some(std::cmp::Ordering::Less);
+        }
+        if self.day_of_week > other.day_of_week {
+            return Some(std::cmp::Ordering::Greater);
+        }
+        if self.from < other.from {
+            return Some(std::cmp::Ordering::Less);
+        }
+        if self.to > other.to {
+            return Some(std::cmp::Ordering::Greater);
+        }
+        return Some(std::cmp::Ordering::Equal);
+    }
+}
+impl Ord for Slot {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
 
 #[automock(type Context=();)]
 #[async_trait]
