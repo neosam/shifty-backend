@@ -109,6 +109,9 @@ impl EmployeeWorkDetails {
 
     pub fn vacation_days_for_year(&self, year: u32) -> f32 {
         let mut days = self.vacation_days as f32;
+        if year < self.from_year || year > self.to_year {
+            return 0.0;
+        }
         if self.from_year == year {
             if let Ok(from_date) = time::Date::from_iso_week_date(
                 year as i32,
