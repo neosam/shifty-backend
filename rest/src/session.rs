@@ -57,6 +57,7 @@ pub async fn context_extractor<RestState: RestStateDef>(
         .extensions()
         .get::<Cookies>()
         .expect("Cookies extension not set");
+    tracing::info!("All cookies: {:?}", cookies.list());
 
     tracing::info!("Search for app_session cookie");
     if let Some(cookie) = cookies.get("app_session") {
