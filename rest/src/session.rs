@@ -62,9 +62,11 @@ pub async fn context_extractor<RestState: RestStateDef>(
     tracing::info!("Search for app_session cookie");
     if let Some(cookie) = cookies.get("app_session") {
         tracing::info!("app_session cookie found: {:?}", cookie);
+        let session_id = cookie.value();
+        tracing::info!("Session ID: {:?}", session_id);
         if let Some(session) = rest_state
             .session_service()
-            .verify_user_session(cookie.value())
+            .verify_user_session(session_id)
             .await
             .unwrap()
         {
