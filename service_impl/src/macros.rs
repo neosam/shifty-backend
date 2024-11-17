@@ -14,7 +14,7 @@ macro_rules! gen_service_impl {
 
             pub struct $service_name<Deps: $dependencies> {
                 $(
-                    pub $field_attr: Arc<Deps::$field_name>,
+                    pub $field_attr: std::sync::Arc<Deps::$field_name>,
                 )*
             }
     };

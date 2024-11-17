@@ -14,7 +14,6 @@ use service::{
     ServiceError,
 };
 use tokio::join;
-use tracing::instrument;
 use uuid::Uuid;
 
 pub trait IteratorExt {

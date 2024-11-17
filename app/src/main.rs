@@ -7,6 +7,7 @@ use dao_impl::{
     employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
     shiftplan_report::ShiftplanReportDaoImpl,
 };
+#[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
 use service_impl::permission::PermissionServiceDeps;
 use sqlx::SqlitePool;
@@ -27,6 +28,17 @@ impl PermissionServiceDeps for PermissionServiceDependencies {
     type UserService = UserService;
 }
 type PermissionService = service_impl::PermissionServiceImpl<PermissionServiceDependencies>;
+
+type SessionDao = dao_impl::session::SessionDaoImpl;
+pub struct SessionServiceDependencies;
+impl service_impl::session::SessionServiceDeps for SessionServiceDependencies {
+    type Context = Context;
+    type SessionDao = SessionDao;
+    type ClockService = service_impl::clock::ClockServiceImpl;
+    type UuidService = service_impl::uuid_service::UuidServiceImpl;
+}
+type SessionService = service_impl::session::SessionServiceImpl<SessionServiceDependencies>;
+
 type ClockService = service_impl::clock::ClockServiceImpl;
 type UuidService = service_impl::uuid_service::UuidServiceImpl;
 type SlotService = service_impl::slot::SlotServiceImpl<
@@ -105,6 +117,7 @@ type WorkingHoursService = service_impl::employee_work_details::EmployeeWorkDeta
 #[derive(Clone)]
 pub struct RestStateImpl {
     user_service: Arc<UserService>,
+    session_service: Arc<SessionService>,
     permission_service: Arc<PermissionService>,
     slot_service: Arc<SlotService>,
     sales_person_service: Arc<SalesPersonService>,
@@ -118,6 +131,7 @@ pub struct RestStateImpl {
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
+    type SessionService = SessionService;
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type SalesPersonService = SalesPersonService;
@@ -135,6 +149,9 @@ impl rest::RestStateDef for RestStateImpl {
 
     fn user_service(&self) -> Arc<Self::UserService> {
         self.user_service.clone()
+    }
+    fn session_service(&self) -> Arc<Self::SessionService> {
+        self.session_service.clone()
     }
     fn permission_service(&self) -> Arc<Self::PermissionService> {
         self.permission_service.clone()
@@ -177,6 +194,7 @@ impl RestStateImpl {
         let shiftplan_report_dao = Arc::new(ShiftplanReportDaoImpl::new(pool.clone()));
         let working_hours_dao = Arc::new(EmployeeWorkDetailsDaoImpl::new(pool.clone()));
         let special_day_dao = dao_impl::special_day::SpecialDayDaoImpl::new(pool.clone());
+        let session_dao = SessionDao::new(pool.clone());
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -195,6 +213,11 @@ impl RestStateImpl {
         });
         let clock_service = Arc::new(service_impl::clock::ClockServiceImpl);
         let uuid_service = Arc::new(service_impl::uuid_service::UuidServiceImpl);
+        let session_service = Arc::new(service_impl::session::SessionServiceImpl {
+            session_dao: Arc::new(session_dao),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+        });
         let slot_service = Arc::new(service_impl::slot::SlotServiceImpl::new(
             slot_dao.into(),
             permission_service.clone(),
@@ -274,6 +297,7 @@ impl RestStateImpl {
         );
         Self {
             user_service,
+            session_service,
             permission_service,
             slot_service,
             sales_person_service,

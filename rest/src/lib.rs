@@ -7,15 +7,15 @@ mod extra_hours;
 mod permission;
 mod report;
 mod sales_person;
+mod session;
 mod slot;
 mod special_day;
 
 #[cfg(feature = "oidc")]
 use axum::error_handling::HandleErrorLayer;
-use axum::extract::{Request, State};
+use axum::extract::State;
 #[cfg(feature = "oidc")]
 use axum::http::Uri;
-use axum::middleware::Next;
 use axum::middleware::{self};
 #[cfg(feature = "oidc")]
 use axum::response::IntoResponse;
@@ -23,14 +23,14 @@ use axum::response::Redirect;
 use axum::routing::get;
 use axum::Extension;
 use axum::{body::Body, response::Response, Router};
-#[cfg(feature = "oidc")]
-use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
 use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
+use session::context_extractor;
+pub use session::Context;
 use thiserror::Error;
 #[cfg(feature = "oidc")]
 use time::Duration;
@@ -41,35 +41,6 @@ use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use uuid::Uuid;
-
-#[cfg(feature = "mock_auth")]
-type Context = MockContext;
-#[cfg(feature = "oidc")]
-type Context = Option<Arc<str>>;
-
-#[cfg(feature = "oidc")]
-pub async fn context_extractor(
-    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    let context: Context = if let Some(oidc_claims) = claims {
-        let username = oidc_claims
-            .preferred_username()
-            .map(|s| s.as_str().to_string())
-            .unwrap_or_else(|| "NoUsername".to_string());
-        Some(username.into())
-    } else {
-        None
-    };
-    request.extensions_mut().insert(context);
-    next.run(request).await
-}
-#[cfg(feature = "mock_auth")]
-pub async fn context_extractor(mut request: Request, next: Next) -> Response {
-    request.extensions_mut().insert(MockContext);
-    next.run(request).await
-}
 
 pub struct RoString(Arc<str>, bool);
 impl http_body::Body for RoString {
@@ -237,6 +208,7 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
 
 pub trait RestStateDef: Clone + Send + Sync + 'static {
     type UserService: service::user_service::UserService<Context = Context> + Send + Sync + 'static;
+    type SessionService: service::session::SessionService<Context = Context> + Send + Sync + 'static;
     type PermissionService: service::PermissionService<Context = Context> + Send + Sync + 'static;
     type SlotService: service::slot::SlotService<Context = Context> + Send + Sync + 'static;
     type SalesPersonService: service::sales_person::SalesPersonService<Context = Context>
@@ -272,6 +244,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn backend_version(&self) -> Arc<str>;
 
     fn user_service(&self) -> Arc<Self::UserService>;
+    fn session_service(&self) -> Arc<Self::SessionService>;
     fn permission_service(&self) -> Arc<Self::PermissionService>;
     fn slot_service(&self) -> Arc<Self::SlotService>;
     fn sales_person_service(&self) -> Arc<Self::SalesPersonService>;
@@ -383,7 +356,12 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             }))
             .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
 
-        app.route("/logout", get(logout)).layer(oidc_login_service)
+        app.route("/logout", get(logout))
+            .layer(middleware::from_fn_with_state(
+                rest_state.clone(),
+                session::register_session::<RestState>,
+            ))
+            .layer(oidc_login_service)
     };
 
     let app = app
@@ -405,8 +383,11 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         )
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/special-days", special_day::generate_route())
-        .with_state(rest_state)
-        .layer(middleware::from_fn(context_extractor));
+        .with_state(rest_state.clone())
+        .layer(middleware::from_fn_with_state(
+            rest_state,
+            context_extractor::<RestState>,
+        ));
 
     #[cfg(feature = "oidc")]
     let app = {

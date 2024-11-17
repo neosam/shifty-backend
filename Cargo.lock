@@ -1828,6 +1828,7 @@ dependencies = [
  "time",
  "tokio",
  "tower",
+ "tower-cookies",
  "tower-sessions",
  "tracing",
  "uuid",
