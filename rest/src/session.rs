@@ -23,10 +23,14 @@ pub async fn register_session<RestState: RestStateDef>(
     request: Request,
     next: Next,
 ) -> Response {
-    use http::header::SET_COOKIE;
     use service::session::SessionService;
+    use time::OffsetDateTime;
+    use tower_cookies::Cookie;
 
-    let mut response = next.run(request).await;
+    let cookies = request
+        .extensions()
+        .get::<Cookies>()
+        .expect("Cookies extension not set");
 
     if let Some(oidc_claims) = claims {
         let username = oidc_claims
@@ -38,12 +42,18 @@ pub async fn register_session<RestState: RestStateDef>(
             .new_session_for_user(&username)
             .await
             .unwrap();
-        let cookie = format!("app_session={}; Path=/; HttpOnly; Secure", session.id);
-        response
-            .headers_mut()
-            .append(SET_COOKIE, cookie.parse().unwrap());
+        let session_id = session.id.to_string();
+        let now = OffsetDateTime::now_utc();
+        let expires = now + time::Duration::days(365);
+        let cookie = Cookie::build(Cookie::new("app_session", session_id))
+            .path("/")
+            .expires(expires)
+            .http_only(true)
+            .same_site(tower_cookies::cookie::SameSite::Strict)
+            .secure(true);
+        cookies.add(cookie.into());
     }
-    response
+    next.run(request).await
 }
 #[cfg(feature = "oidc")]
 pub async fn context_extractor<RestState: RestStateDef>(
