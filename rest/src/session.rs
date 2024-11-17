@@ -38,7 +38,7 @@ pub async fn register_session<RestState: RestStateDef>(
             .new_session_for_user(&username)
             .await
             .unwrap();
-        let cookie = format!("session={} Path=/; HttpOnly; Secure", session.id);
+        let cookie = format!("app_session={} Path=/; HttpOnly; Secure", session.id);
         response
             .headers_mut()
             .append(SET_COOKIE, cookie.parse().unwrap());
