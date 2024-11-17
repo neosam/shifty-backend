@@ -36,6 +36,7 @@ use thiserror::Error;
 use time::Duration;
 #[cfg(feature = "oidc")]
 use tower::ServiceBuilder;
+use tower_cookies::CookieManagerLayer;
 #[cfg(feature = "oidc")]
 use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
@@ -387,7 +388,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .layer(middleware::from_fn_with_state(
             rest_state,
             context_extractor::<RestState>,
-        ));
+        ))
+        .layer(CookieManagerLayer::new());
 
     #[cfg(feature = "oidc")]
     let app = {
