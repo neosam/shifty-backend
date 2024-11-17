@@ -14,14 +14,7 @@ pub fn Home() -> Element {
     let title_str = i18n.t(K::WelcomeTitle);
     let choose_str = i18n.t(K::PleaseChoose);
 
-    if auth_info.privileges.len() == 1 && auth_info.has_privilege("sales") {
-        nav.push(Route::ShiftPlan {});
-    } else if auth_info.privileges.len() == 1 && auth_info.has_privilege("shiftplanner") {
-        nav.push(Route::ShiftPlan {});
-    } else if auth_info.privileges.len() == 2
-        && auth_info.has_privilege("sales")
-        && auth_info.has_privilege("shiftplanner")
-    {
+    if auth_info.has_privilege("sales") || auth_info.has_privilege("shiftplanner") {
         nav.push(Route::ShiftPlan {});
     } else if auth_info.privileges.len() == 1 && auth_info.has_privilege("hr") {
         nav.push(Route::Employees {});
