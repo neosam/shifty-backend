@@ -52,7 +52,6 @@ pub async fn context_extractor<RestState: RestStateDef>(
     next: Next,
 ) -> Response {
     use service::session::SessionService;
-    use tracing::trace;
 
     let cookies = request
         .extensions()
@@ -75,7 +74,7 @@ pub async fn context_extractor<RestState: RestStateDef>(
             request.extensions_mut().insert(None::<Arc<str>>);
         }
     } else {
-        trace::info!("app_session cookie not found");
+        tracing::info!("app_session cookie not found");
         request.extensions_mut().insert(None::<Arc<str>>);
     };
     next.run(request).await
