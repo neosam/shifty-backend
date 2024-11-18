@@ -1,6 +1,8 @@
+#[cfg(feature = "oidc")]
 use std::sync::Arc;
 
 use axum::extract::Request;
+#[cfg(feature = "oidc")]
 use axum::extract::State;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -8,6 +10,7 @@ use axum::response::Response;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
+#[cfg(feature = "oidc")]
 use tower_cookies::Cookies;
 
 #[cfg(feature = "mock_auth")]

@@ -24,8 +24,6 @@ use axum::routing::get;
 use axum::Extension;
 use axum::{body::Body, response::Response, Router};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "mock_auth")]
-use service::permission::MockContext;
 use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
