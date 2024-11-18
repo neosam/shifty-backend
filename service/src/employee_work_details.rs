@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::u32;
 
 use async_trait::async_trait;
 use mockall::automock;
+use time::error::ComponentRange;
 use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
 
@@ -107,17 +109,37 @@ impl EmployeeWorkDetails {
         self.expected_hours / self.potential_days_per_week() as f32
     }
 
+    pub fn from_date(&self) -> Result<time::Date, ComponentRange> {
+        time::Date::from_iso_week_date(
+            self.from_year as i32,
+            self.from_calendar_week,
+            self.from_day_of_week.into(),
+        )
+    }
+
+    pub fn to_date(&self) -> Result<time::Date, ComponentRange> {
+        time::Date::from_iso_week_date(
+            self.to_year as i32,
+            self.to_calendar_week,
+            self.to_day_of_week.into(),
+        )
+    }
+
     pub fn vacation_days_for_year(&self, year: u32) -> f32 {
         let mut days = self.vacation_days as f32;
-        if year < self.from_year || year > self.to_year {
+        let from_year = self
+            .from_date()
+            .map(|date| date.year() as u32)
+            .unwrap_or(u32::MAX) as u32;
+        let to_year = self
+            .to_date()
+            .map(|date| date.year() as u32)
+            .unwrap_or(u32::MIN) as u32;
+        if year < from_year || year > to_year {
             return 0.0;
         }
-        if self.from_year == year {
-            if let Ok(from_date) = time::Date::from_iso_week_date(
-                year as i32,
-                self.from_calendar_week,
-                self.from_day_of_week.into(),
-            ) {
+        if from_year == year {
+            if let Ok(from_date) = self.from_date() {
                 let relation =
                     from_date.ordinal() as f32 / time::util::days_in_year(year as i32) as f32;
                 days -= self.vacation_days as f32 * relation as f32;
@@ -125,12 +147,8 @@ impl EmployeeWorkDetails {
                 //days -= self.vacation_days as f32 / 12.0 * (month - 1) as f32;
             }
         }
-        if self.to_year == year {
-            if let Ok(to_date) = time::Date::from_iso_week_date(
-                year as i32,
-                self.to_calendar_week,
-                self.to_day_of_week.into(),
-            ) {
+        if to_year == year {
+            if let Ok(to_date) = self.to_date() {
                 let relation =
                     1.0 - to_date.ordinal() as f32 / time::util::days_in_year(year as i32) as f32;
                 days -= self.vacation_days as f32 * relation as f32;
