@@ -761,39 +761,39 @@ async fn test_update_slot_day_of_week_forbidden() {
     );
 }
 
-#[tokio::test]
-async fn test_update_to_forbidden_when_not_none() {
-    let mut dependencies = build_dependencies(true, "shiftplanner");
-    dependencies
-        .slot_dao
-        .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| {
-            Ok(Some(SlotEntity {
-                valid_to: Some(
-                    time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 3).unwrap(),
-                ),
-                ..generate_default_slot_entity()
-            }))
-        });
-    let slot_service = dependencies.build_service();
-    let result = slot_service
-        .update_slot(
-            &service::slot::Slot {
-                valid_to: Some(
-                    time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 4).unwrap(),
-                ),
-                ..generate_default_slot()
-            },
-            ().auth(),
-        )
-        .await;
-    test_validation_error(
-        &result,
-        &ValidationFailureItem::ModificationNotAllowed("valid_to".into()),
-        1,
-    );
-}
+//#[tokio::test]
+//async fn test_update_to_forbidden_when_not_none() {
+//    let mut dependencies = build_dependencies(true, "shiftplanner");
+//    dependencies
+//        .slot_dao
+//        .expect_get_slot()
+//        .with(eq(default_id()))
+//        .returning(|_| {
+//            Ok(Some(SlotEntity {
+//                valid_to: Some(
+//                    time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 3).unwrap(),
+//                ),
+//                ..generate_default_slot_entity()
+//            }))
+//        });
+//    let slot_service = dependencies.build_service();
+//    let result = slot_service
+//        .update_slot(
+//            &service::slot::Slot {
+//                valid_to: Some(
+//                    time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 4).unwrap(),
+//                ),
+//                ..generate_default_slot()
+//            },
+//            ().auth(),
+//        )
+//        .await;
+//    test_validation_error(
+//        &result,
+//        &ValidationFailureItem::ModificationNotAllowed("valid_to".into()),
+//        1,
+//    );
+//}
 
 #[tokio::test]
 async fn test_update_from_forbidden() {

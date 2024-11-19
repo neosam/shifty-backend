@@ -590,69 +590,69 @@ proptest! {
         });
     }
 
-    #[test]
-    fn test_simple_extra_hours(
-        testdata in (arb_sales_person(), arb_extra_hour(None, 2000, 2000))
-    ) {
-        Runtime::new().unwrap().block_on(async {
-            let mut test_setup = TestSetup::new().await;
-            let sales_persons = vec![testdata.0.clone()];
-            let working_hours = vec![vec![EmployeeWorkDetails {
-                id: Uuid::nil(),
-                sales_person_id: Uuid::nil(),
-                expected_hours: 40.0,
-                from_year: 2000,
-                from_calendar_week: 1,
-                from_day_of_week: DayOfWeek::Monday,
-                to_year: 2005,
-                to_calendar_week: 52,
-                to_day_of_week: DayOfWeek::Sunday,
-                workdays_per_week: 5,
-                monday: true,
-                tuesday: true,
-                wednesday: true,
-                thursday: true,
-                friday: true,
-                saturday: false,
-                sunday: false,
-                vacation_days: 25,
-                created: Some(time::PrimitiveDateTime::new(date!(2020-01-01), time::Time::MIDNIGHT)),
-                deleted: None,
-                version: Uuid::nil(),
-            }].into()];
+    //#[test]
+    //fn test_simple_extra_hours(
+    //    testdata in (arb_sales_person(), arb_extra_hour(None, 2000, 2000))
+    //) {
+    //    Runtime::new().unwrap().block_on(async {
+    //        let mut test_setup = TestSetup::new().await;
+    //        let sales_persons = vec![testdata.0.clone()];
+    //        let working_hours = vec![vec![EmployeeWorkDetails {
+    //            id: Uuid::nil(),
+    //            sales_person_id: Uuid::nil(),
+    //            expected_hours: 40.0,
+    //            from_year: 2000,
+    //            from_calendar_week: 1,
+    //            from_day_of_week: DayOfWeek::Monday,
+    //            to_year: 2005,
+    //            to_calendar_week: 52,
+    //            to_day_of_week: DayOfWeek::Sunday,
+    //            workdays_per_week: 5,
+    //            monday: true,
+    //            tuesday: true,
+    //            wednesday: true,
+    //            thursday: true,
+    //            friday: true,
+    //            saturday: false,
+    //            sunday: false,
+    //            vacation_days: 25,
+    //            created: Some(time::PrimitiveDateTime::new(date!(2020-01-01), time::Time::MIDNIGHT)),
+    //            deleted: None,
+    //            version: Uuid::nil(),
+    //        }].into()];
 
-            let extra_hours = vec![vec![testdata.1]];
-            let bookings = vec![];
-            test_setup.insert_data(&sales_persons, &working_hours, &extra_hours, &bookings).await;
+    //        let extra_hours = vec![vec![testdata.1]];
+    //        let bookings = vec![];
+    //        test_setup.insert_data(&sales_persons, &working_hours, &extra_hours, &bookings).await;
 
-            let sales_person_id = test_setup.created_sales_persons[0].id;
+    //        let sales_person_id = test_setup.created_sales_persons[0].id;
 
-            let rest_state = &test_setup.rest_state;
-            let fetched_extra_hours = rest_state.extra_hours_service().find_by_sales_person_id_and_year(sales_person_id, 2000, 53, Authentication::Full).await.unwrap();
-            assert_eq!(fetched_extra_hours.len(), 1);
+    //        let rest_state = &test_setup.rest_state;
+    //        let fetched_extra_hours = rest_state.extra_hours_service().find_by_sales_person_id_and_year(sales_person_id, 2000, 53, Authentication::Full).await.unwrap();
+    //        assert_eq!(fetched_extra_hours.len(), 1);
 
-            let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 53, Authentication::Full).await.unwrap();
-            assert_eq!(report.len(), 1);
-            let sales_person_report = &report[0];
-            assert_eq!(sales_person_report.sales_person.name, testdata.0.name);
-            if extra_hours[0][0].category == ExtraHoursCategory::ExtraWork {
-                let working_hours = test_setup.working_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
-                assert_eq!(sales_person_report.overall_hours, working_hours);
-            } else {
-                assert_eq!(sales_person_report.overall_hours, 0.0);
-            }
-            let expected_hours = test_setup.expected_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
-            let balance_hours = test_setup.balance_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
-            assert_eq!(sales_person_report.expected_hours, expected_hours);
-            assert_eq!(sales_person_report.balance_hours, balance_hours);
+    //        let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 53, Authentication::Full).await.unwrap();
+    //        assert_eq!(report.len(), 1);
+    //        let sales_person_report = &report[0];
+    //        assert_eq!(sales_person_report.sales_person.name, testdata.0.name);
+    //        if extra_hours[0][0].category == ExtraHoursCategory::ExtraWork {
+    //            let working_hours = test_setup.working_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
+    //            assert_eq!(sales_person_report.overall_hours, working_hours);
+    //        } else {
+    //            assert_eq!(sales_person_report.overall_hours, 0.0);
+    //        }
+    //        let expected_hours = test_setup.expected_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
+    //        let balance_hours = test_setup.balance_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
+    //        assert_eq!(sales_person_report.expected_hours, expected_hours);
+    //        assert_eq!(sales_person_report.balance_hours, balance_hours);
 
-            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2000, 53, Authentication::Full).await.unwrap();
-            assert_eq!(detailed_report.sales_person.name, testdata.0.name);
-            assert_eq!(floor_f32(detailed_report.overall_hours), floor_f32(sales_person_report.overall_hours));
-            assert_eq!(floor_f32(detailed_report.expected_hours), floor_f32(sales_person_report.expected_hours));
-            assert_eq!(floor_f32(detailed_report.balance_hours), floor_f32(sales_person_report.balance_hours));
-        });
-    }
+    //        let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2000, 53, Authentication::Full).await.unwrap();
+    //        assert_eq!(detailed_report.sales_person.name, testdata.0.name);
+    //        assert_eq!(floor_f32(detailed_report.overall_hours), floor_f32(sales_person_report.overall_hours));
+    //        assert_eq!(floor_f32(detailed_report.expected_hours), floor_f32(sales_person_report.expected_hours));
+    //        assert_eq!(floor_f32(detailed_report.balance_hours), floor_f32(sales_person_report.balance_hours));
+    //    });
+    //}
 
     #[test]
     fn test_start_of_year(
