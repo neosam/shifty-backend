@@ -53,9 +53,9 @@ pub fn DropdownBase() -> Element {
                         div {
                             class: "p-2 cursor-pointer",
                             onclick: {
-                                to_owned![dropdown_service];
+                                to_owned![dropdown_service, dropdown];
                                 move |_| {
-                                    (entry.action)();
+                                    (entry.action)(dropdown.context.clone());
                                     dropdown_service.send(DropdownAction::CloseDropdown);
                                 }
                             },
@@ -74,6 +74,7 @@ pub fn DropdownBase() -> Element {
 pub struct DropdownTriggerProps {
     pub children: Element,
     pub entries: Rc<[DropdownEntry]>,
+    pub context: Option<Rc<str>>,
 }
 
 #[component]
@@ -90,6 +91,7 @@ pub fn DropdownTrigger(props: DropdownTriggerProps) -> Element {
                             coordinates.x,
                             coordinates.y,
                             props.entries.clone(),
+                            props.context.clone(),
                         ),
                     );
             },

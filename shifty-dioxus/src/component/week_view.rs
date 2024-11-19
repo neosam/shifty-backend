@@ -1,9 +1,11 @@
 use std::rc::Rc;
 
+use crate::state::shiftplan::Identifiable;
 use crate::{
     base_types::ImStr,
+    component::dropdown_base::DropdownTrigger,
     service::I18N,
-    state::{self, Slot, Weekday},
+    state::{self, dropdown::DropdownEntry, Slot, Weekday},
 };
 use dioxus::prelude::*;
 use tracing::info;
@@ -32,7 +34,7 @@ impl From<String> for ColumnViewContent {
 #[derive(PartialEq, Clone)]
 pub struct ColumnViewItem<CustomData = ()>
 where
-    CustomData: PartialEq + Clone + 'static,
+    CustomData: Identifiable + PartialEq + Clone + 'static,
 {
     pub start: f32,
     pub end: f32,
@@ -41,12 +43,13 @@ where
     pub show_remove: bool,
     pub custom_data: CustomData,
     pub warning: Option<ImStr>,
+    pub dropdown_entries: Option<Rc<[DropdownEntry]>>,
 }
 
 #[derive(PartialEq, Clone, Props)]
-pub struct ColumnViewSlotProps<CustomData: PartialEq + Clone + 'static = ()>
+pub struct ColumnViewSlotProps<CustomData: Identifiable + PartialEq + Clone + 'static = ()>
 where
-    CustomData: PartialEq + Clone + 'static,
+    CustomData: Identifiable + PartialEq + Clone + 'static,
 {
     pub highlight_item_id: Option<Uuid>,
     pub item_data: ColumnViewItem<CustomData>,
@@ -67,7 +70,7 @@ where
 
 pub fn ColumnViewSlot<CustomData>(props: ColumnViewSlotProps<CustomData>) -> Element
 where
-    CustomData: PartialEq + Clone + 'static,
+    CustomData: Identifiable + PartialEq + Clone + 'static,
 {
     let custom_data_add = props.item_data.custom_data.clone();
     let custom_data_remove = props.item_data.custom_data.clone();
@@ -160,15 +163,27 @@ where
                         "-"
                     }
                 }
+                if let Some(dropdown_entries) = &props.item_data.dropdown_entries {
+                    {
+                        rsx! { DropdownTrigger {
+                            entries: dropdown_entries.clone(),
+                            context: props.item_data.custom_data.id(),
+                            button {
+                                class: "border w-8 print:hidden",
+                                "..."
+                            }
+                        } }
+                    }
+                }
             }
         }
     }
 }
 
 #[derive(PartialEq, Clone, Props)]
-pub struct ColumnViewProps<CustomData: PartialEq + Clone + 'static = ()>
+pub struct ColumnViewProps<CustomData: Identifiable + PartialEq + Clone + 'static = ()>
 where
-    CustomData: PartialEq + Clone + 'static,
+    CustomData: Identifiable + PartialEq + Clone + 'static,
 {
     pub height: f32,
     pub scale: f32,
@@ -182,6 +197,8 @@ where
     pub title_double_clicked: Option<EventHandler<()>>,
     #[props(default = false)]
     pub discourage: bool,
+    pub button_types: WeekViewButtonTypes,
+    pub dropdown_entries: Option<Rc<[DropdownEntry]>>,
 }
 
 impl From<Slot> for ColumnViewItem<Slot> {
@@ -206,6 +223,7 @@ impl From<Slot> for ColumnViewItem<Slot> {
             } else {
                 None
             },
+            dropdown_entries: None,
             custom_data: slot,
         }
     }
@@ -214,7 +232,7 @@ impl From<Slot> for ColumnViewItem<Slot> {
 #[component]
 pub fn ColumnView<CustomData>(props: ColumnViewProps<CustomData>) -> Element
 where
-    CustomData: PartialEq + Clone + 'static,
+    CustomData: Identifiable + PartialEq + Clone + 'static,
 {
     rsx! {
         div {
@@ -230,6 +248,7 @@ where
                     show_remove: false,
                     custom_data: (),
                     warning: None,
+                    dropdown_entries: None,
                 },
                 show_dropdown: true,
                 discourage: props.discourage,
@@ -243,10 +262,16 @@ where
                         start: slot.start * props.scale + props.offset,
                         end: slot.end * props.scale + props.offset,
                         title: slot.title.clone(),
-                        show_add: slot.show_add,
-                        show_remove: slot.show_remove,
+                        show_add: slot.show_add && props.button_types == WeekViewButtonTypes::AddRemove,
+                        show_remove: slot.show_remove
+                            && props.button_types == WeekViewButtonTypes::AddRemove,
                         custom_data: slot.custom_data.clone(),
                         warning: slot.warning.clone(),
+                        dropdown_entries: if props.button_types == WeekViewButtonTypes::Dropdown {
+                            slot.dropdown_entries.clone()
+                        } else {
+                            None
+                        },
                     },
                     add_event: props.add_event,
                     remove_event: props.remove_event,
@@ -276,6 +301,7 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             show_remove: false,
             custom_data: (),
             warning: None,
+            dropdown_entries: None,
         })
         .collect();
     let slots: Rc<[ColumnViewItem]> = slots.into();
@@ -285,6 +311,7 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             height: (props.end - props.start) as f32 * SCALING,
             scale: SCALING,
             offset: SCALING / 2.0,
+            button_types: WeekViewButtonTypes::None,
             slots
         }
     }
@@ -302,6 +329,8 @@ pub struct DayViewProps {
     pub item_clicked: Option<EventHandler<Uuid>>,
     pub title_double_clicked: Option<EventHandler<Weekday>>,
     pub date: Option<time::Date>,
+    pub button_types: WeekViewButtonTypes,
+    pub dropdown_entries: Option<Rc<[DropdownEntry]>>,
 
     pub discourage: bool,
 }
@@ -331,6 +360,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                     show_remove: true,
                     custom_data: column.custom_data,
                     warning: column.warning,
+                    dropdown_entries: props.dropdown_entries.clone(),
                 })
                 .collect(),
             title: Some(format!("{}{}", props.weekday.i18n_string(&i18n), date_string).into()),
@@ -343,9 +373,17 @@ pub fn DayView(props: DayViewProps) -> Element {
                     title_double_clicked.call(props.weekday.clone());
                 }
             },
-            discourage: props.discourage
+            discourage: props.discourage,
+            button_types: props.button_types.clone()
         }
     }
+}
+
+#[derive(PartialEq, Clone)]
+pub enum WeekViewButtonTypes {
+    AddRemove,
+    Dropdown,
+    None,
 }
 
 #[derive(PartialEq, Clone, Props)]
@@ -357,6 +395,8 @@ pub struct WeekViewProps {
     pub item_clicked: Option<EventHandler<Uuid>>,
     pub date_of_monday: Option<time::Date>,
     pub title_double_clicked: Option<EventHandler<Weekday>>,
+    pub button_types: WeekViewButtonTypes,
+    pub dropdown_entries: Option<Rc<[DropdownEntry]>>,
 
     #[props(default = Rc::new([]))]
     pub discourage_weekdays: Rc<[Weekday]>,
@@ -429,7 +469,9 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             remove_event: props.remove_event.clone(),
                             item_clicked: props.item_clicked.clone(),
                             title_double_clicked: props.title_double_clicked.clone(),
-                            discourage: props.discourage_weekdays.contains(weekday)
+                            discourage: props.discourage_weekdays.contains(weekday),
+                            button_types: props.button_types.clone(),
+                            dropdown_entries: props.dropdown_entries.clone()
                         }
                     }
                 }

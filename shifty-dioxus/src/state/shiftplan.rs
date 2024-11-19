@@ -114,6 +114,15 @@ impl From<&SalesPerson> for SalesPersonTO {
     }
 }
 
+pub trait Identifiable {
+    fn id(&self) -> Rc<str>;
+}
+impl Identifiable for () {
+    fn id(&self) -> Rc<str> {
+        "".into()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Slot {
     pub id: Uuid,
@@ -122,6 +131,11 @@ pub struct Slot {
     pub to: time::Time,
     pub bookings: Rc<[Booking]>,
     pub min_resources: u8,
+}
+impl Identifiable for Slot {
+    fn id(&self) -> Rc<str> {
+        self.id.to_string().into()
+    }
 }
 impl Slot {
     pub fn from_hour(&self) -> f32 {

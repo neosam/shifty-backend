@@ -474,23 +474,23 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     }
                     DropdownTrigger {
                         entries: [
-                            (add_entry_str, Box::new(move || cr.send(EmployeeViewActions::ShowAddEntry)))
+                            (add_entry_str, Box::new(move |_| cr.send(EmployeeViewActions::ShowAddEntry)))
                                 .into(),
                             (
                                 show_full_year_label,
-                                Box::new(move || props.on_full_year.call(())),
+                                Box::new(move |_| props.on_full_year.call(())),
                                 props.year != js::get_current_year(),
                             )
                                 .into(),
                             (
                                 show_until_now_label,
-                                Box::new(move || props.on_until_now.call(())),
+                                Box::new(move |_| props.on_until_now.call(())),
                                 props.year != js::get_current_year(),
                             )
                                 .into(),
                             (
                                 add_work_details_label,
-                                Box::new(move || props.on_add_employee_work_details.unwrap().call(())),
+                                Box::new(move |_| props.on_add_employee_work_details.unwrap().call(())),
                                 props.on_add_employee_work_details.is_none(),
                             )
                                 .into(),

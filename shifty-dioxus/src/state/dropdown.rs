@@ -5,7 +5,7 @@ use crate::base_types::ImStr;
 #[derive(Clone)]
 pub struct DropdownEntry {
     pub text: ImStr,
-    pub action: Rc<dyn Fn() + 'static>,
+    pub action: Rc<dyn Fn(Option<Rc<str>>) + 'static>,
     pub disabled: bool,
 }
 impl PartialEq for DropdownEntry {
@@ -23,7 +23,7 @@ impl PartialEq for DropdownEntry {
 //}
 impl<F> From<(&'static str, F)> for DropdownEntry
 where
-    F: Fn() + 'static,
+    F: Fn(Option<Rc<str>>) + 'static,
 {
     fn from(tuple: (&'static str, F)) -> Self {
         DropdownEntry {
@@ -35,7 +35,7 @@ where
 }
 impl<F> From<(&'static str, F, bool)> for DropdownEntry
 where
-    F: Fn() + 'static,
+    F: Fn(Option<Rc<str>>) + 'static,
 {
     fn from(triple: (&'static str, F, bool)) -> Self {
         DropdownEntry {
@@ -47,7 +47,7 @@ where
 }
 impl<F> From<(ImStr, F)> for DropdownEntry
 where
-    F: Fn() + 'static,
+    F: Fn(Option<Rc<str>>) + 'static,
 {
     fn from(tuple: (ImStr, F)) -> Self {
         DropdownEntry {
@@ -59,7 +59,7 @@ where
 }
 impl<F> From<(ImStr, F, bool)> for DropdownEntry
 where
-    F: Fn() + 'static,
+    F: Fn(Option<Rc<str>>) + 'static,
 {
     fn from(triple: (ImStr, F, bool)) -> Self {
         DropdownEntry {
@@ -75,4 +75,5 @@ pub struct Dropdown {
     pub x: f64,
     pub y: f64,
     pub entries: Rc<[DropdownEntry]>,
+    pub context: Option<Rc<str>>,
 }

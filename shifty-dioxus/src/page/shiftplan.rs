@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::dropdown_base::DropdownTrigger;
+use crate::component::week_view::WeekViewButtonTypes;
 use crate::component::working_hours_mini_overview::WorkingHoursMiniOverview;
 use crate::component::TopBar;
 use crate::component::WeekView;
@@ -21,6 +22,7 @@ use crate::service::CONFIG;
 use crate::service::I18N;
 use crate::service::WORKING_HOURS_MINI;
 use crate::state;
+use crate::state::dropdown::DropdownEntry;
 use crate::state::sales_person_available::SalesPersonUnavailable;
 use crate::state::shiftplan::SalesPerson;
 use crate::state::Config;
@@ -42,6 +44,7 @@ pub enum ShiftPlanAction {
     UpdateSalesPerson(Uuid),
     CopyFromPreviousWeek,
     ToggleAvailability(Weekday),
+    ToggleChangeStructureMode,
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -66,7 +69,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let working_hours_mini_service = use_coroutine_handle::<service::WorkingHoursMiniAction>();
     let booking_conflict_service = use_coroutine_handle::<service::BookingConflictAction>();
     let is_shiftplanner = auth_info
+        .as_ref()
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
+        .unwrap_or(false);
+    let is_shift_editor = auth_info
+        .as_ref()
+        .map(|auth_info| auth_info.has_privilege("shiftplan.edit"))
+        .unwrap_or(false);
+    let is_hr = auth_info
+        .as_ref()
+        .map(|auth_info| auth_info.has_privilege("hr"))
         .unwrap_or(false);
 
     let week = use_signal(|| props.week.unwrap_or_else(|| js::get_current_week()));
@@ -109,6 +121,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
     let unavailable_days: Signal<Rc<[SalesPersonUnavailable]>> = use_signal(|| [].into());
+    let mut change_structure_mode: Signal<bool> = use_signal(|| false);
+
+    let button_mode = if *change_structure_mode.read() {
+        WeekViewButtonTypes::Dropdown
+    } else if js::current_datetime().date() - date > time::Duration::weeks(2) && !is_hr {
+        WeekViewButtonTypes::None
+    } else {
+        WeekViewButtonTypes::AddRemove
+    };
 
     //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
     //    match &*current_sales_person_resource.read_unchecked() {
@@ -314,10 +335,21 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         update_shiftplan();
                         reload_unavailable_days(config.clone()).await;
                     }
+                    ShiftPlanAction::ToggleChangeStructureMode => {
+                        let new_change_structure_mode = !*change_structure_mode.read();
+                        change_structure_mode.set(new_change_structure_mode);
+                    }
                 }
             }
         }
     });
+
+    let field_dropdown_entries: Rc<[DropdownEntry]> = [(
+        "Log slot id",
+        Box::new(move |slot_id| info!("Slot id: {:?}", slot_id)),
+    )
+        .into()]
+    .into();
 
     rsx! {
         TopBar {}
@@ -342,7 +374,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         entries: [
                             (
                                 take_last_week_str,
-                                Box::new(move || cr.send(ShiftPlanAction::CopyFromPreviousWeek)),
+                                Box::new(move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek)),
+                            )
+                                .into(),
+                            (
+                                "Edit structure",
+                                Box::new(move |_| { cr.send(ShiftPlanAction::ToggleChangeStructureMode) }),
+                                !is_shift_editor,
                             )
                                 .into(),
                         ]
@@ -444,6 +482,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         date_of_monday: date,
                         highlight_item_id: current_sales_person.read().as_ref().map(|sp| sp.id),
                         discourage_weekdays: unavailable_days.read().iter().map(|unavailable_day| unavailable_day.day_of_week).collect(),
+                        button_types: button_mode,
+                        dropdown_entries: field_dropdown_entries,
                         add_event: move |slot: state::Slot| {
                             to_owned![current_sales_person];
                             info!("Register to slot");
