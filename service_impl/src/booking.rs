@@ -132,6 +132,30 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .collect())
     }
 
+    async fn get_for_slot_id_since(
+        &self,
+        slot_id: Uuid,
+        year: u32,
+        calendar_week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Booking]>, ServiceError> {
+        let (shiftplanner_permission, sales_permission) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context),
+        );
+        shiftplanner_permission.or(sales_permission)?;
+
+        Ok(self
+            .booking_dao
+            .find_by_slot_id_from(slot_id, year, calendar_week)
+            .await?
+            .iter()
+            .map(Booking::from)
+            .collect())
+    }
+
     async fn create(
         &self,
         booking: &Booking,

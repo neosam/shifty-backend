@@ -9,6 +9,7 @@ use dao_impl::{
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
+use service::shiftplan_edit;
 use service_impl::permission::PermissionServiceDeps;
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -113,6 +114,16 @@ type WorkingHoursService = service_impl::employee_work_details::EmployeeWorkDeta
     ClockService,
     UuidService,
 >;
+pub struct ShiftplanEditServiceDependencies;
+impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditServiceDependencies {
+    type Context = Context;
+    type PermissionService = PermissionService;
+    type SlotService = SlotService;
+    type BookingService = BookingService;
+    type UuidService = UuidService;
+}
+type ShiftplanEditService =
+    service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
 
 #[derive(Clone)]
 pub struct RestStateImpl {
@@ -128,6 +139,7 @@ pub struct RestStateImpl {
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
     extra_hours_service: Arc<ExtraHoursService>,
+    shiftplan_edit_service: Arc<ShiftplanEditService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -142,6 +154,7 @@ impl rest::RestStateDef for RestStateImpl {
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
     type ExtraHoursService = ExtraHoursService;
+    type ShiftplanEditService = ShiftplanEditService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -182,6 +195,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService> {
         self.extra_hours_service.clone()
+    }
+    fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService> {
+        self.shiftplan_edit_service.clone()
     }
 }
 impl RestStateImpl {
@@ -295,6 +311,13 @@ impl RestStateImpl {
                 uuid_service.clone(),
             ),
         );
+        let shiftplan_edit_service =
+            Arc::new(service_impl::shiftplan_edit::ShiftplanEditServiceImpl {
+                permission_service: permission_service.clone(),
+                slot_service: slot_service.clone(),
+                booking_service: booking_service.clone(),
+                uuid_service: uuid_service.clone(),
+            });
         Self {
             user_service,
             session_service,
@@ -308,6 +331,7 @@ impl RestStateImpl {
             reporting_service,
             working_hours_service,
             extra_hours_service,
+            shiftplan_edit_service,
         }
     }
 }

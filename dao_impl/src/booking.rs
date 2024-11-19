@@ -80,6 +80,29 @@ impl BookingDao for BookingDaoImpl {
         .transpose()?)
     }
 
+    async fn find_by_slot_id_from(
+        &self,
+        slot_id: Uuid,
+        year: u32,
+        week: u8,
+    ) -> Result<Arc<[BookingEntity]>, DaoError> {
+        let slot_id_vec = slot_id.as_bytes().to_vec();
+        let until = year * 100 + week as u32;
+        Ok(query_as!(
+            BookingDb,
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE slot_id = ? AND year * 100 + calendar_week >= ? AND deleted IS NULL",
+            slot_id_vec,
+            until,
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(BookingEntity::try_from)
+        .collect::<Result<Arc<[BookingEntity]>, DaoError>>()?
+        )
+    }
+
     async fn find_by_booking_data(
         &self,
         sales_person_id: Uuid,

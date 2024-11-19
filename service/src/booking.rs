@@ -70,6 +70,13 @@ pub trait BookingService {
         year: u32,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[Booking]>, ServiceError>;
+    async fn get_for_slot_id_since(
+        &self,
+        slot_id: Uuid,
+        year: u32,
+        calendar_week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[Booking]>, ServiceError>;
     async fn create(
         &self,
         booking: &Booking,

@@ -8,6 +8,7 @@ mod permission;
 mod report;
 mod sales_person;
 mod session;
+mod shiftplan_edit;
 mod slot;
 mod special_day;
 
@@ -239,6 +240,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type ShiftplanEditService: service::shiftplan_edit::ShiftplanEditService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -254,6 +259,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn reporting_service(&self) -> Arc<Self::ReportingService>;
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService>;
+    fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService>;
 }
 
 pub struct OidcConfig {
@@ -382,6 +388,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         )
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/special-days", special_day::generate_route())
+        .nest("/shiftplan-edit", shiftplan_edit::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state,

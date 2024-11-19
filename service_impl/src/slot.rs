@@ -169,6 +169,10 @@ where
             .get_slots(context)
             .await?
             .iter()
+            .filter(|s| {
+                !(s.valid_from > slot.valid_to.unwrap_or_else(|| s.valid_from)
+                    || slot.valid_from > s.valid_to.unwrap_or_else(|| slot.valid_from))
+            })
             .any(|s| test_overlapping_slots(slot, s))
         {
             return Err(ServiceError::OverlappingTimeRange);
@@ -248,11 +252,11 @@ where
                 "valid_from".into(),
             ));
         }
-        if persisted_slot.valid_to.is_some() && persisted_slot.valid_to != slot.valid_to {
+        /*if persisted_slot.valid_to.is_some() && persisted_slot.valid_to != slot.valid_to {
             validation.push(ValidationFailureItem::ModificationNotAllowed(
                 "valid_to".into(),
             ));
-        }
+        }*/
 
         if !validation.is_empty() {
             return Err(ServiceError::ValidationError(validation.into()));
