@@ -106,4 +106,49 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 
         Ok(new_slot)
     }
+
+    async fn remove_slot(
+        &self,
+        slot_id: Uuid,
+        change_year: u32,
+        change_week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission("shiftplan.edit", context)
+            .await?;
+
+        let mut stored_slot = self
+            .slot_service
+            .get_slot(&slot_id, Authentication::Full)
+            .await?;
+
+        let new_slot_valid_from =
+            time::Date::from_iso_week_date(change_year as i32, change_week, time::Weekday::Monday)?;
+        let old_slot_valid_to = new_slot_valid_from - time::Duration::days(1);
+        let bookings = self
+            .booking_service
+            .get_for_slot_id_since(slot_id, change_year, change_week, Authentication::Full)
+            .await?;
+
+        stored_slot.valid_to = Some(old_slot_valid_to);
+
+        if stored_slot.valid_to.unwrap() < stored_slot.valid_from {
+            self.slot_service
+                .delete_slot(&stored_slot.id, Authentication::Full)
+                .await?;
+        } else {
+            self.slot_service
+                .update_slot(&stored_slot, Authentication::Full)
+                .await?;
+        }
+
+        for booking in bookings.iter() {
+            self.booking_service
+                .delete(booking.id, Authentication::Full)
+                .await?;
+        }
+
+        Ok(())
+    }
 }

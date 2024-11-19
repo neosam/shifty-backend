@@ -3,6 +3,7 @@ use crate::slot::Slot;
 use crate::ServiceError;
 use async_trait::async_trait;
 use mockall::automock;
+use uuid::Uuid;
 
 #[automock(type Context=();)]
 #[async_trait]
@@ -16,4 +17,11 @@ pub trait ShiftplanEditService {
         change_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<Slot, ServiceError>;
+    async fn remove_slot(
+        &self,
+        slot: Uuid,
+        change_year: u32,
+        change_week: u8,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError>;
 }
