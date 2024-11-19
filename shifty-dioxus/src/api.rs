@@ -86,6 +86,24 @@ pub async fn update_slot(
     Ok(())
 }
 
+pub async fn delete_slot_from(
+    config: Config,
+    slot_id: Uuid,
+    year: u32,
+    week: u8,
+) -> Result<(), reqwest::Error> {
+    info!("Deleting slot {slot_id} from week {week} in year {year}");
+    let url = format!(
+        "{}/shiftplan-edit/slot/{}/{}/{}",
+        config.backend, slot_id, year, week
+    );
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
+}
+
 pub async fn get_bookings_for_week(
     config: Config,
     week: u8,

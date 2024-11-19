@@ -371,6 +371,18 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             }),
         )
             .into(),
+        (
+            "Remove slot",
+            Box::new(move |slot_id: Option<Rc<str>>| {
+                let slot_id: Uuid = slot_id.unwrap().parse().unwrap();
+                slot_edit_service.send(service::SlotEditAction::DeleteSlot(
+                    slot_id,
+                    *year.read(),
+                    *week.read(),
+                ))
+            }),
+        )
+            .into(),
     ]
     .into();
 

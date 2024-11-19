@@ -927,7 +927,8 @@ pub async fn cancel_slot_edit() -> Result<(), ShiftyError> {
     Ok(())
 }
 
-pub async fn delete_slot_edit(_id: Uuid, year: u32, week: u8) -> Result<(), ShiftyError> {
+pub async fn delete_slot_edit(id: Uuid, year: u32, week: u8) -> Result<(), ShiftyError> {
+    api::delete_slot_from(CONFIG.read().clone(), id, year, week).await?;
     Ok(())
 }
 
