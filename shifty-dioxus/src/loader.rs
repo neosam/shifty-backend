@@ -12,6 +12,7 @@ use crate::{
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
+        slot_edit::SlotEditItem,
         week::Week,
         weekly_overview::WeeklySummary,
         Config, Shiftplan, Slot, User, Weekday,
@@ -401,5 +402,20 @@ pub async fn update_employee_work_details(
     employee_work_details: EmployeeWorkDetails,
 ) -> Result<(), ShiftyError> {
     api::put_employee_work_details(config, (&employee_work_details).try_into()?).await?;
+    Ok(())
+}
+
+pub async fn load_slot(config: Config, slot_id: Uuid) -> Result<SlotEditItem, ShiftyError> {
+    let slot_to = api::get_slot(config, slot_id).await?;
+    Ok((&slot_to).into())
+}
+
+pub async fn save_slot(
+    config: Config,
+    slot: Rc<SlotEditItem>,
+    year: u32,
+    week: u8,
+) -> Result<(), ShiftyError> {
+    api::update_slot(config, slot.as_ref().into(), year, week).await?;
     Ok(())
 }

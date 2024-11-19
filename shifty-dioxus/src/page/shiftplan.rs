@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::dropdown_base::DropdownTrigger;
+use crate::component::slot_edit::SlotEdit;
 use crate::component::week_view::WeekViewButtonTypes;
 use crate::component::working_hours_mini_overview::WorkingHoursMiniOverview;
 use crate::component::TopBar;
@@ -20,6 +21,7 @@ use crate::service::AUTH;
 use crate::service::BOOKING_CONFLICTS_STORE;
 use crate::service::CONFIG;
 use crate::service::I18N;
+use crate::service::SLOT_EDIT_STORE;
 use crate::service::WORKING_HOURS_MINI;
 use crate::state;
 use crate::state::dropdown::DropdownEntry;
@@ -45,6 +47,7 @@ pub enum ShiftPlanAction {
     CopyFromPreviousWeek,
     ToggleAvailability(Weekday),
     ToggleChangeStructureMode,
+    EditSlot(Uuid, u32, u8),
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -68,6 +71,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let booking_conflicts = BOOKING_CONFLICTS_STORE.read().clone();
     let working_hours_mini_service = use_coroutine_handle::<service::WorkingHoursMiniAction>();
     let booking_conflict_service = use_coroutine_handle::<service::BookingConflictAction>();
+    let slot_edit_service = use_coroutine_handle::<service::SlotEditAction>();
     let is_shiftplanner = auth_info
         .as_ref()
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
@@ -339,16 +343,35 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         let new_change_structure_mode = !*change_structure_mode.read();
                         change_structure_mode.set(new_change_structure_mode);
                     }
+                    ShiftPlanAction::EditSlot(slot_id, year, week) => {
+                        slot_edit_service
+                            .send(service::SlotEditAction::LoadSlot(slot_id, year, week));
+                        update_shiftplan();
+                    }
                 }
             }
         }
     });
 
-    let field_dropdown_entries: Rc<[DropdownEntry]> = [(
-        "Log slot id",
-        Box::new(move |slot_id| info!("Slot id: {:?}", slot_id)),
-    )
-        .into()]
+    let field_dropdown_entries: Rc<[DropdownEntry]> = [
+        (
+            "Log slot id",
+            Box::new(move |slot_id| info!("Slot id: {:?}", slot_id)),
+        )
+            .into(),
+        (
+            "Edit slot",
+            Box::new(move |slot_id: Option<Rc<str>>| {
+                let slot_id: Uuid = slot_id.unwrap().parse().unwrap();
+                slot_edit_service.send(service::SlotEditAction::LoadSlot(
+                    slot_id,
+                    *year.read(),
+                    *week.read(),
+                ))
+            }),
+        )
+            .into(),
+    ]
     .into();
 
     rsx! {
@@ -477,6 +500,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             Some(Ok(shift_plan)) => {
                 rsx! {div {
                     class: "m-4",
+                    SlotEdit {}
                     WeekView {
                         shiftplan_data: shift_plan.clone(),
                         date_of_monday: date,

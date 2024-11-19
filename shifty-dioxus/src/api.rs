@@ -62,6 +62,30 @@ pub async fn get_slots(
     Ok(res)
 }
 
+pub async fn get_slot(config: Config, slot_id: Uuid) -> Result<SlotTO, reqwest::Error> {
+    info!("Fetching slot {slot_id}");
+    let url = format!("{}/slot/{}", config.backend, slot_id);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn update_slot(
+    config: Config,
+    slot: SlotTO,
+    year: u32,
+    week: u8,
+) -> Result<(), reqwest::Error> {
+    let url = format!("{}/shiftplan-edit/slot/{}/{}", config.backend, year, week);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&slot).send().await?;
+    response.error_for_status_ref()?;
+    info!("Updated slot");
+    Ok(())
+}
+
 pub async fn get_bookings_for_week(
     config: Config,
     week: u8,

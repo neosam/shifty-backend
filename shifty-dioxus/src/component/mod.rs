@@ -8,6 +8,7 @@ pub mod employee_view;
 pub mod employee_work_details_form;
 pub mod footer;
 pub mod modal;
+pub mod slot_edit;
 pub mod top_bar;
 pub mod week_view;
 pub mod working_hours_mini_overview;
