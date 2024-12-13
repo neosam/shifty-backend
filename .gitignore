@@ -2,3 +2,5 @@ localdb.sqlite3*
 target
 .idea
 result
+mutants.out
+mutants.out.old
