@@ -66,7 +66,7 @@ pub fn DropdownBase() -> Element {
             }
         }
     } else {
-        None
+        VNode::empty()
     }
 }
 

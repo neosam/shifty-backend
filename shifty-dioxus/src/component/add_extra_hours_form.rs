@@ -49,9 +49,9 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unavailable_str = i18n.t(Key::CategoryUnavailable);
 
-    let cr = use_coroutine(
-        move |mut rx: UnboundedReceiver<AddExtraHoursFormAction>| async move {
-            to_owned![category, amount, description, when, config];
+    let cr = use_coroutine(move |mut rx: UnboundedReceiver<AddExtraHoursFormAction>| {
+        to_owned![category, amount, description, when, config];
+        async move {
             while let Some(action) = rx.next().await {
                 match action {
                     AddExtraHoursFormAction::Submit => {
@@ -76,8 +76,8 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     }
                 }
             }
-        },
-    );
+        }
+    });
 
     rsx! {
         form {
@@ -110,7 +110,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                         *amount.write() = value;
                     },
                     "type": "number",
-                    "step": "0.001"
+                    "step": "0.001",
                 }
             }
 
@@ -122,7 +122,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     onchange: move |event| {
                         let value = event.data.value();
                         *description.write() = value;
-                    }
+                    },
                 }
             }
 
@@ -136,7 +136,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                         info!("Setting when to: {value}");
                         *when.write() = value;
                     },
-                    "type": "datetime-local"
+                    "type": "datetime-local",
                 }
             }
 

@@ -35,6 +35,7 @@ pub fn App() -> Element {
         });
 
         rsx! {
+            document::Stylesheet { href: asset!("/assets/tailwind.css") }
             div { class: "flex flex-col",
                 DropdownBase {}
                 Auth {
@@ -44,7 +45,7 @@ pub fn App() -> Element {
                     unauthenticated: rsx! {
                         TopBar {}
                         NotAuthenticated {}
-                    }
+                    },
                 }
                 Footer {}
             }

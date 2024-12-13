@@ -49,10 +49,14 @@ pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
     let mut sunday: Signal<bool> = use_signal(|| false);
     let current_week: ImStr = format!("{}", js::get_current_week()).into();
 
-    let _cr = use_coroutine(|_rx: UnboundedReceiver<()>| async move {
-        to_owned![weeks];
-        if let Some(loaded_weeks) = error::result_handler(loader::load_weeks(config, 2024).await) {
-            *weeks.write() = loaded_weeks;
+    let _cr = use_coroutine(move |_rx: UnboundedReceiver<()>| {
+        to_owned![config, weeks];
+        async move {
+            if let Some(loaded_weeks) =
+                error::result_handler(loader::load_weeks(config, 2024).await)
+            {
+                *weeks.write() = loaded_weeks;
+            }
         }
     });
 
@@ -71,7 +75,7 @@ pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
                             text: i18n.format_week(&week),
                         })
                         .collect::<Vec<_>>()
-                        .into()
+                        .into(),
                 }
             }
             FormItem {

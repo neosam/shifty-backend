@@ -39,7 +39,7 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
         .location()
         .host()
         .expect("no host");
-    let url = format!("{protocol}//{host}/config.json");
+    let url = format!("{protocol}//{host}/assets/config.json");
     info!("URL: {url}");
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;

@@ -8,11 +8,11 @@ edition = "2021"
 
 [dependencies]
 
-dioxus = { version = "0.5", features = ["web", "router"] }
+dioxus = { version = "0.6.0", features = ["web", "router"] }
 
 # Debug
 tracing = "0.1.40"
-dioxus-logger = "0.5.0"
+dioxus-logger = "0.6.0"
 reqwest = { version = "0.12.4", features = ["json"] }
 serde = { version = "1.0.203", features = ["rc"] }
 serde_json = "1.0.117"
@@ -21,7 +21,7 @@ futures = "0.3.30"
 thiserror = "1.0.61"
 futures-util = "0.3.30"
 js-sys = "0.3.69"
-manganis = "0.2.2"
+manganis = "0.6.0"
 
 [dependencies.rest-types]
 path = "rest-types"
@@ -34,3 +34,15 @@ features = ["macros"]
 [dependencies.web-sys]
 version = "0.3.69"
 features = ["Window", "Navigator"]
+
+[profile]
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"

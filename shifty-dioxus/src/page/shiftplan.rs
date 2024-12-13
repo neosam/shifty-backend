@@ -145,10 +145,50 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     //    };
 
     let cr = use_coroutine({
-        to_owned![year, week, current_sales_person, unavailable_days, config];
-        move |mut rx: UnboundedReceiver<ShiftPlanAction>| async move {
-            let mut update_shiftplan = move || {
-                shift_plan_context.restart();
+        move |mut rx: UnboundedReceiver<ShiftPlanAction>| {
+            to_owned![year, week, current_sales_person, unavailable_days, config];
+            async move {
+                let mut update_shiftplan = move || {
+                    shift_plan_context.restart();
+                    working_hours_mini_service.send(
+                        service::WorkingHoursMiniAction::LoadWorkingHoursMini(
+                            *year.read(),
+                            *week.read(),
+                        ),
+                    );
+                    if is_shiftplanner {
+                        booking_conflict_service.send(service::BookingConflictAction::LoadWeek(
+                            *year.read(),
+                            *week.read(),
+                        ));
+                    }
+                };
+
+                let sales_person = loader::load_current_sales_person(config.to_owned())
+                    .await
+                    .ok()
+                    .flatten();
+                *current_sales_person.write() = sales_person.clone();
+
+                let reload_unavailable_days = {
+                    to_owned![current_sales_person, unavailable_days];
+                    move |config: Config| async move {
+                        if let Some(sales_person) = &*current_sales_person.read() {
+                            let result = result_handler(
+                                loader::load_unavailable_sales_person_days_for_week(
+                                    config.clone(),
+                                    sales_person.id,
+                                    *year.read(),
+                                    *week.read(),
+                                )
+                                .await,
+                            )
+                            .unwrap_or(Rc::new([]));
+                            *unavailable_days.write() = result;
+                        }
+                    }
+                };
+                reload_unavailable_days(config.clone()).await;
                 working_hours_mini_service.send(
                     service::WorkingHoursMiniAction::LoadWorkingHoursMini(
                         *year.read(),
@@ -161,185 +201,152 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         *week.read(),
                     ));
                 }
-            };
 
-            let sales_person = loader::load_current_sales_person(config.to_owned())
-                .await
-                .ok()
-                .flatten();
-            *current_sales_person.write() = sales_person.clone();
+                //if let Some(sales_person) = sales_person {
+                //    let unavailable_days = result_handler(
+                //        loader::load_unavailable_sales_person_days_for_week(
+                //            config.clone(),
+                //            sales_person.id,
+                //            *year.read(),
+                //            *week.read(),
+                //        )
+                //        .await,
+                //    )
+                //    .unwrap_or(Rc::new([]))
+                //    .iter()
+                //    .map(|unavailable_day| unavailable_day.day_of_week)
+                //    .collect::<Rc<[Weekday]>>();
+                //    *discouraged_weekdays.write() = unavailable_days;
+                //};
 
-            let reload_unavailable_days = {
-                to_owned![current_sales_person, unavailable_days];
-                move |config: Config| async move {
-                    if let Some(sales_person) = &*current_sales_person.read() {
-                        let result = result_handler(
-                            loader::load_unavailable_sales_person_days_for_week(
-                                config.clone(),
-                                sales_person.id,
-                                *year.read(),
-                                *week.read(),
-                            )
-                            .await,
-                        )
-                        .unwrap_or(Rc::new([]));
-                        *unavailable_days.write() = result;
-                    }
-                }
-            };
-            reload_unavailable_days(config.clone()).await;
-            working_hours_mini_service.send(service::WorkingHoursMiniAction::LoadWorkingHoursMini(
-                *year.read(),
-                *week.read(),
-            ));
-            if is_shiftplanner {
-                booking_conflict_service.send(service::BookingConflictAction::LoadWeek(
-                    *year.read(),
-                    *week.read(),
-                ));
-            }
-
-            //if let Some(sales_person) = sales_person {
-            //    let unavailable_days = result_handler(
-            //        loader::load_unavailable_sales_person_days_for_week(
-            //            config.clone(),
-            //            sales_person.id,
-            //            *year.read(),
-            //            *week.read(),
-            //        )
-            //        .await,
-            //    )
-            //    .unwrap_or(Rc::new([]))
-            //    .iter()
-            //    .map(|unavailable_day| unavailable_day.day_of_week)
-            //    .collect::<Rc<[Weekday]>>();
-            //    *discouraged_weekdays.write() = unavailable_days;
-            //};
-
-            while let Some(action) = rx.next().await {
-                match action {
-                    ShiftPlanAction::AddUserToSlot {
-                        slot_id,
-                        sales_person_id,
-                        week,
-                        year,
-                    } => {
-                        info!("Registering user to slot");
-                        result_handler(
-                            loader::register_user_to_slot(
-                                config.to_owned(),
-                                slot_id,
-                                sales_person_id,
-                                week,
-                                year,
-                            )
-                            .await,
-                        );
-                        update_shiftplan();
-                    }
-                    ShiftPlanAction::RemoveUserFromSlot {
-                        slot_id,
-                        sales_person_id,
-                    } => {
-                        info!("Removing user from slot");
-                        if let Some(Ok(shift_plan)) = &*shift_plan_context.read_unchecked() {
+                while let Some(action) = rx.next().await {
+                    match action {
+                        ShiftPlanAction::AddUserToSlot {
+                            slot_id,
+                            sales_person_id,
+                            week,
+                            year,
+                        } => {
+                            info!("Registering user to slot");
                             result_handler(
-                                loader::remove_user_from_slot(
+                                loader::register_user_to_slot(
                                     config.to_owned(),
                                     slot_id,
                                     sales_person_id,
-                                    shift_plan.clone(),
+                                    week,
+                                    year,
                                 )
                                 .await,
                             );
+                            update_shiftplan();
                         }
-                        update_shiftplan();
-                    }
-                    ShiftPlanAction::NextWeek => {
-                        info!("Next week");
-                        let current_thursday = time::Date::from_iso_week_date(
-                            *year.read() as i32,
-                            *week.read(),
-                            time::Weekday::Thursday,
-                        )
-                        .unwrap();
-                        let next_thursday = current_thursday + time::Duration::weeks(1);
-                        let next_weeks_year = next_thursday.year() as u32;
-                        let next_weeks_week = next_thursday.iso_week();
-                        year.set(next_weeks_year);
-                        week.set(next_weeks_week);
-                        update_shiftplan();
-                        reload_unavailable_days(config.clone()).await;
-                    }
-                    ShiftPlanAction::PreviousWeek => {
-                        info!("Previous week");
-                        let current_thursday = time::Date::from_iso_week_date(
-                            *year.read() as i32,
-                            *week.read(),
-                            time::Weekday::Thursday,
-                        )
-                        .unwrap();
-                        let previous_thursday = current_thursday - time::Duration::weeks(1);
-                        let previous_weeks_year = previous_thursday.year() as u32;
-                        let previous_weeks_week = previous_thursday.iso_week();
-                        year.set(previous_weeks_year);
-                        week.set(previous_weeks_week);
-                        update_shiftplan();
-                        reload_unavailable_days(config.clone()).await;
-                    }
-                    ShiftPlanAction::UpdateSalesPerson(uuid) => {
-                        info!("Update sales person");
-                        if let Some(Ok(sales_persons)) = &*sales_persons_resource.read_unchecked() {
-                            let new_sales_person =
-                                sales_persons.iter().find(|sp| sp.id == uuid).cloned();
-                            if let Some(new_sales_person) = new_sales_person {
-                                *current_sales_person.write() = Some(new_sales_person);
+                        ShiftPlanAction::RemoveUserFromSlot {
+                            slot_id,
+                            sales_person_id,
+                        } => {
+                            info!("Removing user from slot");
+                            if let Some(Ok(shift_plan)) = &*shift_plan_context.read_unchecked() {
+                                result_handler(
+                                    loader::remove_user_from_slot(
+                                        config.to_owned(),
+                                        slot_id,
+                                        sales_person_id,
+                                        shift_plan.clone(),
+                                    )
+                                    .await,
+                                );
                             }
+                            update_shiftplan();
                         }
-                        reload_unavailable_days(config.clone()).await;
-                    }
-                    ShiftPlanAction::CopyFromPreviousWeek => {
-                        result_handler(
-                            loader::copy_from_previous_week(
-                                config.to_owned(),
+                        ShiftPlanAction::NextWeek => {
+                            info!("Next week");
+                            let current_thursday = time::Date::from_iso_week_date(
+                                *year.read() as i32,
                                 *week.read(),
-                                *year.read(),
+                                time::Weekday::Thursday,
                             )
-                            .await,
-                        );
-                        update_shiftplan();
-                    }
-                    ShiftPlanAction::ToggleAvailability(weekday) => {
-                        if let Some(available_day) = unavailable_days
-                            .read()
-                            .iter()
-                            .find(|unavailable_day| unavailable_day.day_of_week == weekday)
-                        {
-                            result_handler(
-                                loader::delete_unavailable_sales_person_day(
-                                    config.to_owned(),
-                                    available_day.id,
-                                )
-                                .await,
-                            );
-                        } else if let Some(sales_person) = current_sales_person.read().as_ref() {
-                            result_handler(
-                                loader::create_unavailable_sales_person_day(
-                                    config.to_owned(),
-                                    sales_person.id,
-                                    *year.read(),
-                                    *week.read(),
-                                    weekday,
-                                )
-                                .await,
-                            );
+                            .unwrap();
+                            let next_thursday = current_thursday + time::Duration::weeks(1);
+                            let next_weeks_year = next_thursday.year() as u32;
+                            let next_weeks_week = next_thursday.iso_week();
+                            year.set(next_weeks_year);
+                            week.set(next_weeks_week);
+                            update_shiftplan();
+                            reload_unavailable_days(config.clone()).await;
                         }
-                        update_shiftplan();
-                        reload_unavailable_days(config.clone()).await;
-                    }
-                    ShiftPlanAction::ToggleChangeStructureMode => {
-                        let new_change_structure_mode = !*change_structure_mode.read();
-                        change_structure_mode.set(new_change_structure_mode);
+                        ShiftPlanAction::PreviousWeek => {
+                            info!("Previous week");
+                            let current_thursday = time::Date::from_iso_week_date(
+                                *year.read() as i32,
+                                *week.read(),
+                                time::Weekday::Thursday,
+                            )
+                            .unwrap();
+                            let previous_thursday = current_thursday - time::Duration::weeks(1);
+                            let previous_weeks_year = previous_thursday.year() as u32;
+                            let previous_weeks_week = previous_thursday.iso_week();
+                            year.set(previous_weeks_year);
+                            week.set(previous_weeks_week);
+                            update_shiftplan();
+                            reload_unavailable_days(config.clone()).await;
+                        }
+                        ShiftPlanAction::UpdateSalesPerson(uuid) => {
+                            info!("Update sales person");
+                            if let Some(Ok(sales_persons)) =
+                                &*sales_persons_resource.read_unchecked()
+                            {
+                                let new_sales_person =
+                                    sales_persons.iter().find(|sp| sp.id == uuid).cloned();
+                                if let Some(new_sales_person) = new_sales_person {
+                                    *current_sales_person.write() = Some(new_sales_person);
+                                }
+                            }
+                            reload_unavailable_days(config.clone()).await;
+                        }
+                        ShiftPlanAction::CopyFromPreviousWeek => {
+                            result_handler(
+                                loader::copy_from_previous_week(
+                                    config.to_owned(),
+                                    *week.read(),
+                                    *year.read(),
+                                )
+                                .await,
+                            );
+                            update_shiftplan();
+                        }
+                        ShiftPlanAction::ToggleAvailability(weekday) => {
+                            if let Some(available_day) = unavailable_days
+                                .read()
+                                .iter()
+                                .find(|unavailable_day| unavailable_day.day_of_week == weekday)
+                            {
+                                result_handler(
+                                    loader::delete_unavailable_sales_person_day(
+                                        config.to_owned(),
+                                        available_day.id,
+                                    )
+                                    .await,
+                                );
+                            } else if let Some(sales_person) = current_sales_person.read().as_ref()
+                            {
+                                result_handler(
+                                    loader::create_unavailable_sales_person_day(
+                                        config.to_owned(),
+                                        sales_person.id,
+                                        *year.read(),
+                                        *week.read(),
+                                        weekday,
+                                    )
+                                    .await,
+                                );
+                            }
+                            update_shiftplan();
+                            reload_unavailable_days(config.clone()).await;
+                        }
+                        ShiftPlanAction::ToggleChangeStructureMode => {
+                            let new_change_structure_mode = !*change_structure_mode.read();
+                            change_structure_mode.set(new_change_structure_mode);
+                        }
                     }
                 }
             }

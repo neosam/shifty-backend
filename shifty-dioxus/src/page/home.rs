@@ -8,7 +8,11 @@ use crate::service::I18N;
 
 #[component]
 pub fn Home() -> Element {
-    let auth_info = AUTH.read().auth_info.clone()?;
+    let Some(auth_info) = AUTH.read().auth_info.clone() else {
+        return rsx! {
+            div { "Loading auth info..." }
+        };
+    };
     let nav = navigator();
     let i18n = I18N.read().clone();
     let title_str = i18n.t(K::WelcomeTitle);
