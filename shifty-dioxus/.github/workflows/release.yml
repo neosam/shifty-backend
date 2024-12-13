@@ -40,6 +40,8 @@ jobs:
       run: npx tailwindcss -i ./input.css -o assets/tailwind.css
     - name: Build release 
       run: dx build --release
+    - name: Move to dist
+      run: mv target/dx/shifty-dioxus/release/web/public dist
     - name: Package dist as dist.tgz
       run: tar -czf dist.tgz dist/
     - name: Upload dist directory as artifact
