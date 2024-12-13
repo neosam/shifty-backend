@@ -180,8 +180,8 @@ pub fn Button(props: ButtonProps) -> Element {
     rsx! {
         button {
             class: "border-2 border-gray-200 p-2",
-            prevent_default: "onclick",
-            onclick: move |_| {
+            onclick: move |evt| {
+                evt.prevent_default();
                 if let Some(on_click) = &props.on_click {
                     on_click.call(());
                 }
