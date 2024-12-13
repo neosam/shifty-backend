@@ -29,6 +29,14 @@ impl SlotEditItem {
             version: Uuid::nil(),
         }
     }
+
+    pub fn new_valid_from(year: u32, week: u8) -> Self {
+        SlotEditItem {
+            valid_from: time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday)
+                .unwrap(),
+            ..Self::empty()
+        }
+    }
 }
 impl From<&SlotTO> for SlotEditItem {
     fn from(slot: &SlotTO) -> Self {
@@ -60,20 +68,30 @@ impl From<&SlotEditItem> for SlotTO {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SlotEditType {
+    New,
+    Edit,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlotEdit {
+    pub slot_edit_type: SlotEditType,
     pub slot: Rc<SlotEditItem>,
     pub visible: bool,
     pub year: u32,
     pub week: u8,
+    pub has_errors: bool,
 }
 impl SlotEdit {
-    pub fn empty() -> Self {
+    pub fn new_edit() -> Self {
         SlotEdit {
+            slot_edit_type: SlotEditType::Edit,
             slot: SlotEditItem::empty().into(),
             visible: false,
             year: 0,
             week: 0,
+            has_errors: false,
         }
     }
 }

@@ -149,6 +149,17 @@ pub enum Key {
     VacationEntitlementsPerYearLabel,
     HolidaysInHoursLabel,
     WorkdaysInHoursLabel,
+
+    // Slot edit
+    SlotEditTitle,
+    SlotNewTitle,
+    SlotEditExplanation,
+    SlotEditValidUntilExplanation,
+    WeekdayLabel,
+    MinPersonsLabel,
+    SaveLabel,
+    CancelLabel,
+    SlotEditSaveError,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

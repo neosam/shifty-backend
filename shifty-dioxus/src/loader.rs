@@ -419,3 +419,7 @@ pub async fn save_slot(
     api::update_slot(config, slot.as_ref().into(), year, week).await?;
     Ok(())
 }
+
+pub async fn create_slot(config: Config, slot: Rc<SlotEditItem>) -> Result<bool, ShiftyError> {
+    Ok(api::post_slot(config, slot.as_ref().into()).await?)
+}

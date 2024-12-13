@@ -36,6 +36,8 @@ pub fn Option(props: OptionProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct SelectProps {
     pub children: Element,
+    #[props(default = false)]
+    pub disabled: bool,
 
     #[props(!optional, default = None)]
     pub on_change: Option<EventHandler<ImStr>>,
@@ -45,13 +47,14 @@ pub struct SelectProps {
 pub fn Select(props: SelectProps) -> Element {
     rsx! {
         select {
-            class: "border-2 border-gray-200 p-2",
+            class: "border-2 border-gray-200 p-2 min-w-60",
             onchange: move |event| {
                 if let Some(on_change) = &props.on_change {
                     let value = event.data.value();
                     on_change.call(ImStr::from(value));
                 }
             },
+            disabled: props.disabled,
             {props.children}
         }
     }
@@ -139,10 +142,10 @@ pub fn Checkbox(props: CheckboxProps) -> Element {
                 }
             },
             input {
-                class: "border-2 border-gray-200 p-2 mr-2",
+                class: "border-2 border-gray-200 p-2 mr-2 min-w-60",
                 "type": "checkbox",
                 disabled: props.on_change.is_none() || props.disabled,
-                "checked": props.value
+                "checked": props.value,
             }
             {props.children}
         }
@@ -201,7 +204,7 @@ pub struct TextInputProps {
 pub fn TextInput(props: TextInputProps) -> Element {
     rsx! {
         input {
-            class: "border-2 border-gray-200 p-2",
+            class: "border-2 border-gray-200 p-2 min-w-60",
             "type": "text",
             value: props.value,
             disabled: props.disabled,
@@ -210,7 +213,7 @@ pub fn TextInput(props: TextInputProps) -> Element {
                     let value = event.data.value();
                     on_change.call(ImStr::from(value));
                 }
-            }
+            },
         }
     }
 }
@@ -230,7 +233,7 @@ pub fn DateInput(props: DateInputProps) -> Element {
     let value = props.value.format(&format).unwrap();
     rsx! {
         input {
-            class: "border-2 border-gray-200 p-2",
+            class: "border-2 border-gray-200 p-2 min-w-60",
             "type": "date",
             value,
             disabled: props.disabled,
@@ -243,7 +246,7 @@ pub fn DateInput(props: DateInputProps) -> Element {
                         tracing::error!("Invalid date: {}", value);
                     }
                 }
-            }
+            },
         }
     }
 }
@@ -262,7 +265,7 @@ pub struct IntegerInputProps {
 pub fn IntegerInput(props: IntegerInputProps) -> Element {
     rsx! {
         input {
-            class: "border-2 border-gray-200 p-2",
+            class: "border-2 border-gray-200 p-2 min-w-60",
             "type": "number",
             value: props.value.to_string(),
             disabled: props.disabled,
@@ -275,7 +278,39 @@ pub fn IntegerInput(props: IntegerInputProps) -> Element {
                         tracing::error!("Invalid number: {}", value);
                     }
                 }
-            }
+            },
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct TimeInputProps {
+    pub value: time::Time,
+    #[props(default = false)]
+    pub disabled: bool,
+
+    pub on_change: Option<EventHandler<time::Time>>,
+}
+
+#[component]
+pub fn TimeInput(props: TimeInputProps) -> Element {
+    let time_format = format_description!("[hour]:[minute]:[second]");
+    rsx! {
+        input {
+            class: "border-2 border-gray-200 p-2 min-w-60",
+            "type": "time",
+            value: props.value.format(&time_format).unwrap(),
+            disabled: props.disabled,
+            oninput: move |event| {
+                if let Some(on_change) = &props.on_change {
+                    let value = event.data.value();
+                    if let Ok(value) = time::Time::parse(&value, time_format) {
+                        on_change.call(value);
+                    } else {
+                        tracing::error!("Invalid number: {}", value);
+                    }
+                }
+            },
         }
     }
 }
@@ -309,7 +344,7 @@ pub fn FloatInput(props: FloatInputProps) -> Element {
                         tracing::error!("Invalid number: {}", value);
                     }
                 }
-            }
+            },
         }
     }
 }

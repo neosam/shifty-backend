@@ -29,6 +29,31 @@ impl Weekday {
             Weekday::Sunday => i18n.t(Key::Sunday),
         }
     }
+
+    pub fn num_from_monday(&self) -> u8 {
+        match self {
+            Weekday::Monday => 0,
+            Weekday::Tuesday => 1,
+            Weekday::Wednesday => 2,
+            Weekday::Thursday => 3,
+            Weekday::Friday => 4,
+            Weekday::Saturday => 5,
+            Weekday::Sunday => 6,
+        }
+    }
+
+    pub fn from_num_from_monday(num: u8) -> Self {
+        match num {
+            0 => Weekday::Monday,
+            1 => Weekday::Tuesday,
+            2 => Weekday::Wednesday,
+            3 => Weekday::Thursday,
+            4 => Weekday::Friday,
+            5 => Weekday::Saturday,
+            6 => Weekday::Sunday,
+            _ => panic!("Invalid weekday number: {}", num),
+        }
+    }
 }
 impl From<DayOfWeekTO> for Weekday {
     fn from(day_of_week: DayOfWeekTO) -> Self {

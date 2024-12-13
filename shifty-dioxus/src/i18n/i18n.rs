@@ -71,6 +71,14 @@ impl<Key: Copy + PartialEq + Eq + Hash, Locale: Copy + PartialEq + Eq + Hash> I1
         }
         text.into()
     }
+
+    pub fn t_m_rc(&self, key: Key, values_map: HashMap<&str, ImStr>) -> Rc<str> {
+        let mut text = self.get_text(key).to_string();
+        for (key, value) in values_map {
+            text = text.replace(&format!("{{{}}}", key), value.as_str());
+        }
+        text.into()
+    }
 }
 
 impl<Key: Copy + PartialEq + Eq + Hash, Locale: LocaleDef + Copy + Eq + Hash> I18n<Key, Locale> {

@@ -155,4 +155,27 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::HolidaysInHoursLabel, "Holidays in hours");
     i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Workdays in hours");
+
+    // Slot edit
+    i18n.add_text(Locale::En, Key::SlotEditTitle, "Slot Edit");
+    i18n.add_text(Locale::En, Key::SlotNewTitle, "Create new slot");
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditExplanation,
+        "These changes will be valid starting from week {week}/{year}.  Previous weeks will not be affected.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditValidUntilExplanation,
+        "The changes will be applied until {date}.  Slots in future weeks will not be affected.",
+    );
+    i18n.add_text(Locale::En, Key::MinPersonsLabel, "Required persons");
+    i18n.add_text(Locale::En, Key::WeekdayLabel, "Weekday");
+    i18n.add_text(Locale::En, Key::SaveLabel, "Save");
+    i18n.add_text(Locale::En, Key::CancelLabel, "Cancel");
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditSaveError,
+        "Could not save.  Please verify that the slot does not overlap with other slots.",
+    );
 }

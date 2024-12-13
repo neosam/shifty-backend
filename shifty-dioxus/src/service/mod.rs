@@ -1,4 +1,3 @@
-use dioxus_elements::u;
 use std::rc::Rc;
 use tracing::info;
 
@@ -11,7 +10,7 @@ use crate::js;
 use crate::state::employee::{Employee, ExtraHours};
 use crate::state::employee_work_details::EmployeeWorkDetails;
 use crate::state::shiftplan::{BookingConflict, SalesPerson};
-use crate::state::slot_edit::{SlotEdit, SlotEditItem};
+use crate::state::slot_edit::{SlotEdit, SlotEditItem, SlotEditType};
 use crate::state::weekly_overview::WeeklySummary;
 use crate::state::User;
 use crate::{
@@ -884,7 +883,7 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
     }
 }
 
-pub static SLOT_EDIT_STORE: GlobalSignal<SlotEdit> = Signal::global(|| SlotEdit::empty());
+pub static SLOT_EDIT_STORE: GlobalSignal<SlotEdit> = Signal::global(|| SlotEdit::new_edit());
 pub enum SlotEditAction {
     NewSlot(u32, u8),
     UpdateSlot(SlotEditItem),
@@ -896,10 +895,12 @@ pub enum SlotEditAction {
 
 pub fn new_slot_edit(year: u32, week: u8) -> Result<(), ShiftyError> {
     let mut store = SLOT_EDIT_STORE.write();
-    store.slot = SlotEditItem::empty().into();
+    store.slot_edit_type = SlotEditType::New;
+    store.slot = SlotEditItem::new_valid_from(year, week).into();
     store.year = year;
     store.week = week;
     store.visible = true;
+    store.has_errors = false;
     Ok(())
 }
 
@@ -911,16 +912,27 @@ pub fn update_slot_edit(slot_edit: SlotEditItem) -> Result<(), ShiftyError> {
 
 pub async fn save_slot_edit() -> Result<(), ShiftyError> {
     let mut store = SLOT_EDIT_STORE.write();
-    loader::save_slot(
-        CONFIG.read().clone(),
-        store.slot.clone(),
-        store.year,
-        store.week,
-    )
-    .await?;
+    match store.slot_edit_type {
+        SlotEditType::Edit => {
+            loader::save_slot(
+                CONFIG.read().clone(),
+                store.slot.clone(),
+                store.year,
+                store.week,
+            )
+            .await?;
+        }
+        SlotEditType::New => {
+            if !loader::create_slot(CONFIG.read().clone(), store.slot.clone()).await? {
+                store.has_errors = true;
+                return Ok(());
+            }
+        }
+    }
     store.visible = false;
     Ok(())
 }
+
 pub async fn cancel_slot_edit() -> Result<(), ShiftyError> {
     let mut store = SLOT_EDIT_STORE.write();
     store.visible = false;
@@ -935,10 +947,12 @@ pub async fn delete_slot_edit(id: Uuid, year: u32, week: u8) -> Result<(), Shift
 pub async fn load_slot_edit(slot_id: Uuid, year: u32, week: u8) -> Result<(), ShiftyError> {
     let slot = loader::load_slot(CONFIG.read().clone(), slot_id).await?;
     let mut store = SLOT_EDIT_STORE.write();
+    store.slot_edit_type = SlotEditType::Edit;
     store.slot = slot.into();
     store.year = year;
     store.week = week;
     store.visible = true;
+    store.has_errors = false;
     Ok(())
 }
 

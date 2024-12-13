@@ -86,6 +86,19 @@ pub async fn update_slot(
     Ok(())
 }
 
+pub async fn post_slot(config: Config, slot: SlotTO) -> Result<bool, reqwest::Error> {
+    info!("Adding slot");
+    let url = format!("{}/slot", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&slot).send().await?;
+    if response.status() == 409 {
+        return Ok(false);
+    }
+    response.error_for_status_ref()?;
+    info!("Added slot");
+    Ok(true)
+}
+
 pub async fn delete_slot_from(
     config: Config,
     slot_id: Uuid,

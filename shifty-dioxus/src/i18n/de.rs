@@ -182,4 +182,27 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::WorkdaysInHoursLabel,
         "Arbeitstag in Stunden",
     );
+
+    // Slot edit
+    i18n.add_text(Locale::En, Key::SlotEditTitle, "Slot bearbeiten");
+    i18n.add_text(Locale::En, Key::SlotNewTitle, "Neuen Slot erstellen");
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditExplanation,
+        "Diese Änderungen werden ab der Kalenderwoche {week}/{year} angewendet.  Vorherige Woche bleiben unverändert.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditValidUntilExplanation,
+        "Die Änderungen werden nur bis zum {date} angewendet.  Nachfolgende Wochen bleiben unverändert.",
+    );
+    i18n.add_text(Locale::En, Key::MinPersonsLabel, "Benötigte Personen");
+    i18n.add_text(Locale::En, Key::WeekdayLabel, "Wochentag");
+    i18n.add_text(Locale::En, Key::SaveLabel, "Speichern");
+    i18n.add_text(Locale::En, Key::CancelLabel, "Abbrechen");
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditSaveError,
+        "Konnte nicht speichern.  Bitte prüfen, dass der Slot nicht mit anderen Slots überlappt.",
+    );
 }
