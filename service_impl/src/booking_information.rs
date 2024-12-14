@@ -14,7 +14,7 @@ use tokio::join;
 use uuid::Uuid;
 
 pub struct BookingInformationServiceImpl<
-    ShiftplanReportDao,
+    ShiftplanReportService,
     SlotService,
     BookingService,
     SalesPersonService,
@@ -25,7 +25,7 @@ pub struct BookingInformationServiceImpl<
     ClockService,
     UuidService,
 > where
-    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
+    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     SlotService: service::slot::SlotService + Send + Sync,
     BookingService: service::booking::BookingService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
@@ -37,7 +37,7 @@ pub struct BookingInformationServiceImpl<
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
-    pub shiftplan_report_dao: Arc<ShiftplanReportDao>,
+    pub shiftplan_report_service: Arc<ShiftplanReportService>,
     pub slot_service: Arc<SlotService>,
     pub booking_service: Arc<BookingService>,
     pub sales_person_service: Arc<SalesPersonService>,
@@ -50,7 +50,7 @@ pub struct BookingInformationServiceImpl<
 }
 
 impl<
-        ShiftplanReportDao,
+        ShiftplanReportService,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -62,7 +62,7 @@ impl<
         UuidService,
     >
     BookingInformationServiceImpl<
-        ShiftplanReportDao,
+        ShiftplanReportService,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -74,7 +74,7 @@ impl<
         UuidService,
     >
 where
-    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
+    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     SlotService: service::slot::SlotService + Send + Sync,
     BookingService: service::booking::BookingService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
@@ -87,7 +87,7 @@ where
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
     pub fn new(
-        shiftplan_report_dao: Arc<ShiftplanReportDao>,
+        shiftplan_report_service: Arc<ShiftplanReportService>,
         slot_service: Arc<SlotService>,
         booking_service: Arc<BookingService>,
         sales_person_service: Arc<SalesPersonService>,
@@ -99,7 +99,7 @@ where
         uuid_service: Arc<UuidService>,
     ) -> Self {
         Self {
-            shiftplan_report_dao,
+            shiftplan_report_service,
             slot_service,
             booking_service,
             sales_person_service,
@@ -115,7 +115,7 @@ where
 
 #[async_trait]
 impl<
-        ShiftplanReportDao,
+        ShiftplanReportService,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -127,7 +127,7 @@ impl<
         UuidService,
     > service::booking_information::BookingInformationService
     for BookingInformationServiceImpl<
-        ShiftplanReportDao,
+        ShiftplanReportService,
         SlotService,
         BookingService,
         SalesPersonService,
@@ -139,7 +139,7 @@ impl<
         UuidService,
     >
 where
-    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
+    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     SlotService: service::slot::SlotService<Context = PermissionService::Context> + Send + Sync,
     BookingService:
         service::booking::BookingService<Context = PermissionService::Context> + Send + Sync,
@@ -238,8 +238,8 @@ where
                 .get_by_week(year, week, Authentication::Full)
                 .await?;
             let volunteer_hours = self
-                .shiftplan_report_dao
-                .extract_shiftplan_report_for_week(year, week)
+                .shiftplan_report_service
+                .extract_shiftplan_report_for_week(year, week, Authentication::Full)
                 .await?
                 .iter()
                 .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))

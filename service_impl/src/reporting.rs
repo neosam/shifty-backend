@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use dao::shiftplan_report::ShiftplanReportEntity;
+use dao::shiftplan_report::{ShiftplanReportDao, ShiftplanReportEntity};
 use service::{
     employee_work_details::EmployeeWorkDetails,
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},
@@ -10,8 +10,9 @@ use service::{
         EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
         WorkingHoursDay,
     },
+    shiftplan_report::ShiftplanReportDay,
     slot::DayOfWeek,
-    ServiceError,
+    PermissionService, ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
@@ -50,7 +51,7 @@ pub fn iterator_test() {
 
 pub struct ReportingServiceImpl<
     ExtraHoursService,
-    ShiftplanReportDao,
+    ShiftplanReportService,
     WorkingHoursService,
     SalesPersonService,
     PermissionService,
@@ -58,7 +59,7 @@ pub struct ReportingServiceImpl<
     UuidService,
 > where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
-    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
+    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
@@ -66,7 +67,7 @@ pub struct ReportingServiceImpl<
     UuidService: service::uuid_service::UuidService + Send + Sync,
 {
     pub extra_hours_service: Arc<ExtraHoursService>,
-    pub shiftplan_report_dao: Arc<ShiftplanReportDao>,
+    pub shiftplan_report_service: Arc<ShiftplanReportService>,
     pub working_hours_service: Arc<WorkingHoursService>,
     pub sales_person_service: Arc<SalesPersonService>,
     pub permission_service: Arc<PermissionService>,
@@ -76,7 +77,7 @@ pub struct ReportingServiceImpl<
 
 impl<
         ExtraHoursService,
-        ShiftplanReportDao,
+        ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
         PermissionService,
@@ -85,7 +86,7 @@ impl<
     >
     ReportingServiceImpl<
         ExtraHoursService,
-        ShiftplanReportDao,
+        ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
         PermissionService,
@@ -94,7 +95,7 @@ impl<
     >
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
-    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
+    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
@@ -103,7 +104,7 @@ where
 {
     pub fn new(
         extra_hours_service: Arc<ExtraHoursService>,
-        shiftplan_report_dao: Arc<ShiftplanReportDao>,
+        shiftplan_report_service: Arc<ShiftplanReportService>,
         working_hours_service: Arc<WorkingHoursService>,
         sales_person_service: Arc<SalesPersonService>,
         permission_service: Arc<PermissionService>,
@@ -112,7 +113,7 @@ where
     ) -> Self {
         Self {
             extra_hours_service,
-            shiftplan_report_dao,
+            shiftplan_report_service,
             working_hours_service,
             sales_person_service,
             permission_service,
@@ -136,7 +137,7 @@ pub fn find_working_hours_for_calendar_week(
 #[async_trait]
 impl<
         ExtraHoursService,
-        ShiftplanReportDao,
+        ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
         PermissionService,
@@ -145,7 +146,7 @@ impl<
     > service::reporting::ReportingService
     for ReportingServiceImpl<
         ExtraHoursService,
-        ShiftplanReportDao,
+        ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
         PermissionService,
@@ -154,7 +155,9 @@ impl<
     >
 where
     ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
-    ShiftplanReportDao: dao::shiftplan_report::ShiftplanReportDao + Send + Sync,
+    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService<Context = PermissionService::Context>
+        + Send
+        + Sync,
     WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService<
             Context = PermissionService::Context,
         > + Send
@@ -177,7 +180,7 @@ where
         let until_week = until_week.min(time::util::weeks_in_year(year as i32));
 
         self.permission_service
-            .check_permission(HR_PRIVILEGE, context)
+            .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
 
         let working_hours = self.working_hours_service.all(Authentication::Full).await?;
@@ -194,7 +197,7 @@ where
             let last_year = year - 1;
             let last_years_last_week = time::util::weeks_in_year(last_year as i32);
             let detailed_shiftplan_report = self
-                .shiftplan_report_dao
+                .shiftplan_report_service
                 .extract_shiftplan_report(
                     paid_employee.id,
                     last_year,
@@ -209,6 +212,7 @@ where
                     } else {
                         until_week
                     },
+                    Authentication::Full,
                 )
                 .await?;
 
@@ -359,14 +363,14 @@ where
 
         let sales_person = self
             .sales_person_service
-            .get(*sales_person_id, context)
+            .get(*sales_person_id, context.clone())
             .await?;
         let working_hours = self
             .working_hours_service
             .find_by_sales_person_id(*sales_person_id, Authentication::Full)
             .await?;
         let shiftplan_report = self
-            .shiftplan_report_dao
+            .shiftplan_report_service
             .extract_shiftplan_report(
                 *sales_person_id,
                 last_year,
@@ -381,6 +385,7 @@ where
                 } else {
                     until_week
                 },
+                Authentication::Full,
             )
             .await?;
         let extra_hours = self
@@ -484,14 +489,14 @@ where
         // Auth check is done by working_hours_service
         let working_hours = self
             .working_hours_service
-            .all_for_week(week, year, context)
+            .all_for_week(week, year, context.clone())
             .await?
             .iter()
             .cloned()
             .collect_to_hash_map_by(|wh| wh.sales_person_id);
         let shiftplan_report = self
-            .shiftplan_report_dao
-            .extract_shiftplan_report_for_week(year, week)
+            .shiftplan_report_service
+            .extract_shiftplan_report_for_week(year, week, Authentication::Full)
             .await?;
         let shiftplan_report = shiftplan_report
             .iter()
@@ -635,7 +640,7 @@ fn weight_for_week(
 }
 
 fn hours_per_week(
-    shiftplan_hours_list: &Arc<[ShiftplanReportEntity]>,
+    shiftplan_hours_list: &Arc<[ShiftplanReportDay]>,
     extra_hours_list: &Arc<[ExtraHours]>,
     working_hours: &[EmployeeWorkDetails],
     target_year: u32,
@@ -679,14 +684,14 @@ fn hours_per_week(
                     && r.year == year
                     && r.to_date().map(|d| d.year() as u32) == Ok(target_year)
             })
-            .map(|r: &ShiftplanReportEntity| {
+            .map(|r: &ShiftplanReportDay| {
                 tracing::info!("{:?} - {:?}", r.to_date(), r);
                 r
             })
             .collect::<Vec<_>>();
         let shiftplan_hours = filtered_shiftplan_hours_list
             .iter()
-            .map(|r: &&ShiftplanReportEntity| r.hours)
+            .map(|r: &&ShiftplanReportDay| r.hours)
             .sum::<f32>();
         let (working_hours, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, year, week)

@@ -31,6 +31,7 @@ impl PermissionServiceDeps for PermissionServiceDependencies {
 type PermissionService = service_impl::PermissionServiceImpl<PermissionServiceDependencies>;
 
 type SessionDao = dao_impl::session::SessionDaoImpl;
+type ShiftplanReportDao = dao_impl::shiftplan_report::ShiftplanReportDaoImpl;
 pub struct SessionServiceDependencies;
 impl service_impl::session::SessionServiceDeps for SessionServiceDependencies {
     type Context = Context;
@@ -79,8 +80,17 @@ impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
     type SlotService = SlotService;
 }
 type BookingService = service_impl::booking::BookingServiceImpl<BookingServiceDependencies>;
+pub struct ShiftplanReportServiceDependencies;
+impl service_impl::shiftplan_report::ShiftplanReportServiceDeps
+    for ShiftplanReportServiceDependencies
+{
+    type Context = Context;
+    type ShiftplanReportDao = ShiftplanReportDao;
+}
+type ShiftplanReportService =
+    service_impl::shiftplan_report::ShiftplanReportServiceImpl<ShiftplanReportServiceDependencies>;
 type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
-    ShiftplanReportDaoImpl,
+    ShiftplanReportService,
     SlotService,
     BookingService,
     SalesPersonService,
@@ -98,9 +108,10 @@ type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
     ClockService,
     UuidService,
 >;
+
 type ReportingService = service_impl::reporting::ReportingServiceImpl<
     ExtraHoursService,
-    dao_impl::shiftplan_report::ShiftplanReportDaoImpl,
+    ShiftplanReportService,
     WorkingHoursService,
     SalesPersonService,
     PermissionService,
@@ -288,18 +299,22 @@ impl RestStateImpl {
                 uuid_service.clone(),
             ),
         );
+        let shiftplan_report_service = Arc::new(ShiftplanReportService {
+            shiftplan_report_dao: shiftplan_report_dao.clone(),
+        });
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
             extra_hours_service.clone(),
-            shiftplan_report_dao.clone(),
+            shiftplan_report_service.clone(),
             working_hours_service.clone(),
             sales_person_service.clone(),
             permission_service.clone(),
             clock_service.clone(),
             uuid_service.clone(),
         ));
+
         let booking_information_service = Arc::new(
             service_impl::booking_information::BookingInformationServiceImpl::new(
-                shiftplan_report_dao.clone(),
+                shiftplan_report_service.clone(),
                 slot_service.clone(),
                 booking_service.clone(),
                 sales_person_service.clone(),
