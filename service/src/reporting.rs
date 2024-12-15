@@ -131,6 +131,8 @@ pub struct EmployeeReport {
     pub holiday_days: f32,
     pub absence_days: f32,
 
+    pub carryover_hours: f32,
+
     pub by_week: Arc<[GroupedReportHours]>,
     pub by_month: Arc<[GroupedReportHours]>,
 }

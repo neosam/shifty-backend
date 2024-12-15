@@ -497,6 +497,7 @@ where
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
+            carryover_hours: previous_year_carryover,
             by_week,
             by_month: Arc::new([]),
         };

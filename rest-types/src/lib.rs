@@ -400,6 +400,8 @@ pub struct EmployeeReportTO {
     pub holiday_days: f32,
     pub absence_days: f32,
 
+    pub carryover_hours: f32,
+
     pub by_week: Arc<[WorkingHoursReportTO]>,
     pub by_month: Arc<[WorkingHoursReportTO]>,
 }
@@ -422,6 +424,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             holiday_days: report.holiday_days,
             holiday_hours: report.holiday_hours,
             absence_days: report.absence_days,
+            carryover_hours: report.carryover_hours,
             by_week: report
                 .by_week
                 .iter()
