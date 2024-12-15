@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use dao::session::SessionDao;
 use service::{
-    clock::ClockService,
     session::{Session, SessionService},
     uuid_service::UuidService,
     ServiceError,

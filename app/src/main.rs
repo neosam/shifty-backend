@@ -9,7 +9,6 @@ use dao_impl::{
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
-use service::shiftplan_edit;
 use service_impl::permission::PermissionServiceDeps;
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;

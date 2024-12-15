@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use dao::shiftplan_report::{ShiftplanReportDao, ShiftplanReportEntity};
 use service::{
     employee_work_details::EmployeeWorkDetails,
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},
@@ -12,7 +11,7 @@ use service::{
     },
     shiftplan_report::ShiftplanReportDay,
     slot::DayOfWeek,
-    PermissionService, ServiceError,
+    ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
@@ -418,7 +417,6 @@ where
             &extra_hours,
             &working_hours,
             year,
-            year,
             until_week,
         )?;
         let shiftplan_hours_by_week = by_week.iter().map(|week| week.shiftplan_hours).sum::<f32>();
@@ -644,7 +642,6 @@ fn hours_per_week(
     extra_hours_list: &Arc<[ExtraHours]>,
     working_hours: &[EmployeeWorkDetails],
     target_year: u32,
-    year: u32,
     week_until: u8,
 ) -> Result<Arc<[GroupedReportHours]>, ServiceError> {
     let mut weeks: Vec<GroupedReportHours> = Vec::new();
