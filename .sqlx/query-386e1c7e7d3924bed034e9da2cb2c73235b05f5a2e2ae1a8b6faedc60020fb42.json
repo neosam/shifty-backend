@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO employee_yearly_carryover (sales_person_id, year, carryover_hours, created, deleted, update_process, update_version)\n               VALUES (?, ?, ?, ?, ?, ?, ?)\n               ON CONFLICT(sales_person_id, year) DO UPDATE SET carryover_hours=excluded.carryover_hours, deleted=excluded.deleted, update_process=excluded.update_process, update_version=excluded.update_version",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "386e1c7e7d3924bed034e9da2cb2c73235b05f5a2e2ae1a8b6faedc60020fb42"
+}

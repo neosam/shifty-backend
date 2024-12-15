@@ -53,6 +53,7 @@ pub struct ReportingServiceImpl<
     ShiftplanReportService,
     WorkingHoursService,
     SalesPersonService,
+    CarryoverService,
     PermissionService,
     ClockService,
     UuidService,
@@ -61,6 +62,7 @@ pub struct ReportingServiceImpl<
     ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
+    CarryoverService: service::carryover::CarryoverService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -69,6 +71,7 @@ pub struct ReportingServiceImpl<
     pub shiftplan_report_service: Arc<ShiftplanReportService>,
     pub working_hours_service: Arc<WorkingHoursService>,
     pub sales_person_service: Arc<SalesPersonService>,
+    pub carryover_service: Arc<CarryoverService>,
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
     pub uuid_service: Arc<UuidService>,
@@ -79,6 +82,7 @@ impl<
         ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
+        CarryoverService,
         PermissionService,
         ClockService,
         UuidService,
@@ -88,6 +92,7 @@ impl<
         ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
+        CarryoverService,
         PermissionService,
         ClockService,
         UuidService,
@@ -97,6 +102,7 @@ where
     ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
     SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
+    CarryoverService: service::carryover::CarryoverService + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -106,6 +112,7 @@ where
         shiftplan_report_service: Arc<ShiftplanReportService>,
         working_hours_service: Arc<WorkingHoursService>,
         sales_person_service: Arc<SalesPersonService>,
+        carryover_service: Arc<CarryoverService>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
@@ -115,6 +122,7 @@ where
             shiftplan_report_service,
             working_hours_service,
             sales_person_service,
+            carryover_service,
             permission_service,
             clock_service,
             uuid_service,
@@ -139,6 +147,7 @@ impl<
         ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
+        CarryoverService,
         PermissionService,
         ClockService,
         UuidService,
@@ -148,6 +157,7 @@ impl<
         ShiftplanReportService,
         WorkingHoursService,
         SalesPersonService,
+        CarryoverService,
         PermissionService,
         ClockService,
         UuidService,
@@ -164,6 +174,8 @@ where
     SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
         + Send
         + Sync,
+    CarryoverService:
+        service::carryover::CarryoverService<Context = PermissionService::Context> + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
@@ -229,6 +241,13 @@ where
                     Authentication::Full,
                 )
                 .await?;
+            let previous_year_carryover = self
+                .carryover_service
+                .get_carryover(paid_employee.id, year - 1, Authentication::Full)
+                .await?
+                .map(|c| c.carryover_hours)
+                .unwrap_or(0.0);
+
             let additional_weeks = if until_week >= time::util::weeks_in_year(year as i32) {
                 1
             } else {
@@ -331,7 +350,7 @@ where
                 );
             let expected_hours = planned_hours - absense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
-            let balance_hours = overall_hours - expected_hours;
+            let balance_hours = overall_hours - expected_hours - previous_year_carryover;
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
@@ -439,10 +458,17 @@ where
             .map(|wh| wh.vacation_days_for_year(year))
             .sum::<f32>()
             .round();
+        let previous_year_carryover = self
+            .carryover_service
+            .get_carryover(*sales_person_id, year - 1, Authentication::Full)
+            .await?
+            .map(|c| c.carryover_hours)
+            .unwrap_or(0.0);
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
-            balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours,
+            balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours
+                + previous_year_carryover,
             overall_hours: shiftplan_hours + overall_extra_work_hours,
             expected_hours: planned_hours,
             shiftplan_hours,

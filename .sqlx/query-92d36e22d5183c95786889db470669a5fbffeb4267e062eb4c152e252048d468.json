@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sales_person_id, year, carryover_hours, created, deleted, update_version\n               FROM employee_yearly_carryover\n               WHERE sales_person_id = ? AND year = ? AND deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "sales_person_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "year",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "carryover_hours",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "created",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 5,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "92d36e22d5183c95786889db470669a5fbffeb4267e062eb4c152e252048d468"
+}

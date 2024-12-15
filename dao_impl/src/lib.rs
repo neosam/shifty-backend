@@ -5,6 +5,7 @@ use dao::{BasicDao, DaoError, PrivilegeEntity, RoleEntity};
 use sqlx::{query, query_as, SqlitePool};
 
 pub mod booking;
+pub mod carryover;
 pub mod employee_work_details;
 pub mod extra_hours;
 pub mod sales_person;

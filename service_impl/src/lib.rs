@@ -4,6 +4,7 @@ use async_trait::async_trait;
 
 pub mod booking;
 pub mod booking_information;
+pub mod carryover;
 pub mod clock;
 pub mod employee_work_details;
 pub mod extra_hours;

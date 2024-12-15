@@ -4,12 +4,12 @@ mod integration_test;
 use std::sync::Arc;
 
 use dao_impl::{
-    employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
+    carryover, employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
     shiftplan_report::ShiftplanReportDaoImpl,
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
-use service_impl::permission::PermissionServiceDeps;
+use service_impl::{carryover::CarryoverServiceDeps, permission::PermissionServiceDeps};
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -108,11 +108,20 @@ type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
     UuidService,
 >;
 
+type CarryoverDao = dao_impl::carryover::CarryoverDaoImpl;
+pub struct CarryoverServiceDependencies;
+impl CarryoverServiceDeps for CarryoverServiceDependencies {
+    type Context = Context;
+    type CarryoverDao = CarryoverDao;
+}
+
+type CarryoverService = service_impl::carryover::CarryoverServiceImpl<CarryoverServiceDependencies>;
 type ReportingService = service_impl::reporting::ReportingServiceImpl<
     ExtraHoursService,
     ShiftplanReportService,
     WorkingHoursService,
     SalesPersonService,
+    CarryoverService,
     PermissionService,
     ClockService,
     UuidService,
@@ -214,6 +223,7 @@ impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
         let permission_dao = dao_impl::PermissionDaoImpl::new(pool.clone());
         let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool.clone());
+        let carryover_dao = Arc::new(carryover::CarryoverDaoImpl::new(pool.clone()));
         let sales_person_dao = dao_impl::sales_person::SalesPersonDaoImpl::new(pool.clone());
         let booking_dao = dao_impl::booking::BookingDaoImpl::new(pool.clone());
         let extra_hours_dao = Arc::new(ExtraHoursDaoImpl::new(pool.clone()));
@@ -301,11 +311,14 @@ impl RestStateImpl {
         let shiftplan_report_service = Arc::new(ShiftplanReportService {
             shiftplan_report_dao: shiftplan_report_dao.clone(),
         });
+        let carryover_service =
+            Arc::new(service_impl::carryover::CarryoverServiceImpl { carryover_dao });
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
             extra_hours_service.clone(),
             shiftplan_report_service.clone(),
             working_hours_service.clone(),
             sales_person_service.clone(),
+            carryover_service,
             permission_service.clone(),
             clock_service.clone(),
             uuid_service.clone(),
