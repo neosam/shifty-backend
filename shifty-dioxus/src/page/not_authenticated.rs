@@ -16,7 +16,7 @@ pub fn NotAuthenticated() -> Element {
                 p { class: "mt-8 mb-8 underline",
                     a { href: "/authenticate", "{login_str}" }
                 }
-                img { src: "/shifty.webp" }
+                img { src: asset!("/assets/shifty.webp") }
             }
         }
     }

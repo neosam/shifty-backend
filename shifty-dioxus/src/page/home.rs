@@ -30,7 +30,7 @@ pub fn Home() -> Element {
             div {
                 h1 { class: "text-6xl font-bold", "{title_str}" }
                 p { class: "mt-8 mb-8", "{choose_str}" }
-                img { src: "/shifty.webp" }
+                img { src: asset!("/assets/shifty.webp") }
             }
         }
     }
