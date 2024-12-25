@@ -57,3 +57,21 @@ pub trait HelloDao {
 pub trait BasicDao {
     async fn clear_all(&self) -> Result<(), DaoError>;
 }
+
+pub trait Transaction: Clone + Send + Sync {}
+#[derive(Clone, Debug)]
+pub struct MockTransaction;
+impl Transaction for MockTransaction {}
+
+#[automock(type Transaction = MockTransaction;)]
+#[async_trait]
+pub trait TransactionDao {
+    type Transaction: Transaction;
+
+    async fn new_transaction(&self) -> Result<Self::Transaction, DaoError>;
+    async fn use_transaction(
+        &self,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Self::Transaction, DaoError>;
+    async fn commit(&self, transaction: Self::Transaction) -> Result<(), DaoError>;
+}

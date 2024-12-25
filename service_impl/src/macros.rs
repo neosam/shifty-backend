@@ -7,6 +7,7 @@ macro_rules! gen_service_impl {
     ) => {
             pub trait $dependencies {
                 type Context: Send + Sync + Clone + Eq + std::fmt::Debug + 'static;
+                type Transaction: dao::Transaction + Send + Sync + Clone + std::fmt::Debug + 'static;
                 $(
                     type $field_name: $field_type + Sync + Send;
                 )*

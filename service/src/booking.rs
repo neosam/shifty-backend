@@ -54,21 +54,25 @@ impl TryFrom<&Booking> for dao::booking::BookingEntity {
 #[async_trait]
 pub trait BookingService {
     type Context: Clone + PartialEq + Eq + Debug + Send + Sync;
+    type Transaction: dao::Transaction;
 
     async fn get_all(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Booking]>, ServiceError>;
     async fn get(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Booking, ServiceError>;
     async fn get_for_week(
         &self,
         calendar_week: u8,
         year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Booking]>, ServiceError>;
     async fn get_for_slot_id_since(
         &self,
@@ -76,11 +80,13 @@ pub trait BookingService {
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Booking]>, ServiceError>;
     async fn create(
         &self,
         booking: &Booking,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Booking, ServiceError>;
     async fn copy_week(
         &self,
@@ -89,10 +95,12 @@ pub trait BookingService {
         to_calendar_week: u8,
         to_year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
     async fn delete(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }

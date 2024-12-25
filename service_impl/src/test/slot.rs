@@ -2,8 +2,11 @@ use std::sync::Arc;
 
 use crate::slot::*;
 use crate::test::error_test::*;
-use dao::slot::{MockSlotDao, SlotEntity};
-use mockall::predicate::eq;
+use dao::{
+    slot::{MockSlotDao, SlotEntity},
+    MockTransaction, MockTransactionDao,
+};
+use mockall::predicate::{always, eq};
 use service::{
     clock::MockClockService, slot::*, uuid_service::MockUuidService, MockPermissionService,
     ValidationFailureItem,
@@ -54,17 +57,24 @@ pub struct SlotServiceDependencies {
     pub permission_service: MockPermissionService,
     pub clock_service: MockClockService,
     pub uuid_service: MockUuidService,
+    pub transaction_dao: MockTransactionDao,
 }
 impl SlotServiceDependencies {
     pub fn build_service(
         self,
-    ) -> SlotServiceImpl<MockSlotDao, MockPermissionService, MockClockService, MockUuidService>
-    {
+    ) -> SlotServiceImpl<
+        MockSlotDao,
+        MockPermissionService,
+        MockClockService,
+        MockUuidService,
+        MockTransactionDao,
+    > {
         SlotServiceImpl::new(
             self.slot_dao.into(),
             self.permission_service.into(),
             self.clock_service.into(),
             self.uuid_service.into(),
+            self.transaction_dao.into(),
         )
     }
 }
@@ -100,18 +110,25 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SlotServiceDe
     });
     let uuid_service = MockUuidService::new();
 
+    let mut transaction_dao = MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
     SlotServiceDependencies {
         slot_dao,
         permission_service,
         clock_service,
         uuid_service,
+        transaction_dao,
     }
 }
 
 #[tokio::test]
 async fn test_get_slots() {
     let mut dependencies = build_dependencies(true, "shiftplanner");
-    dependencies.slot_dao.expect_get_slots().returning(|| {
+    dependencies.slot_dao.expect_get_slots().returning(|_| {
         Ok(Arc::new([
             SlotEntity {
                 id: uuid!("DA703BC1-F488-4E4F-BA10-0972196639F7"),
@@ -124,7 +141,7 @@ async fn test_get_slots() {
 
     let slot_service = dependencies.build_service();
 
-    let result = slot_service.get_slots(().auth()).await;
+    let result = slot_service.get_slots(().auth(), None).await;
     assert!(result.is_ok());
     let result = result.unwrap();
 
@@ -146,9 +163,9 @@ async fn test_get_slots_sales_role() {
     dependencies
         .slot_dao
         .expect_get_slots()
-        .returning(|| Ok(Arc::new([])));
+        .returning(|_| Ok(Arc::new([])));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slots(().auth()).await;
+    let result = slot_service.get_slots(().auth(), None).await;
     assert!(result.is_ok());
 }
 
@@ -158,9 +175,9 @@ async fn test_get_slots_no_permission() {
     dependencies
         .slot_dao
         .expect_get_slots()
-        .returning(|| Ok(Arc::new([])));
+        .returning(|_| Ok(Arc::new([])));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slots(().auth()).await;
+    let result = slot_service.get_slots(().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -170,11 +187,11 @@ async fn test_get_slot() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ().auth()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth(), None).await;
     assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result, generate_default_slot());
@@ -186,11 +203,11 @@ async fn test_get_slot_sales_role() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ().auth()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth(), None).await;
     assert!(result.is_ok());
 }
 
@@ -200,11 +217,11 @@ async fn test_get_slot_not_found() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(None));
+        .returning(|_, _| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ().auth()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth(), None).await;
     test_not_found(&result, &default_id());
 }
 
@@ -212,7 +229,7 @@ async fn test_get_slot_not_found() {
 async fn test_get_slot_no_permission() {
     let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
-    let result = slot_service.get_slot(&default_id(), ().auth()).await;
+    let result = slot_service.get_slot(&default_id(), ().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -222,9 +239,13 @@ async fn test_create_slot() {
     dependencies
         .slot_dao
         .expect_create_slot()
-        .with(eq(generate_default_slot_entity()), eq("slot-service"))
+        .with(
+            eq(generate_default_slot_entity()),
+            eq("slot-service"),
+            always(),
+        )
         .times(1)
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -238,7 +259,7 @@ async fn test_create_slot() {
     dependencies
         .slot_dao
         .expect_get_slots()
-        .returning(|| Ok(Arc::new([])));
+        .returning(|_| Ok(Arc::new([])));
 
     let slot_service = dependencies.build_service();
     let result = slot_service
@@ -249,6 +270,7 @@ async fn test_create_slot() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     assert!(result.is_ok());
@@ -260,7 +282,7 @@ async fn test_create_slot_no_permission() {
     let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .create_slot(&generate_default_slot(), ().auth())
+        .create_slot(&generate_default_slot(), ().auth(), None)
         .await;
     test_forbidden(&result);
 }
@@ -286,6 +308,7 @@ async fn test_create_slot_non_zero_id() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_zero_id_error(&result);
@@ -312,6 +335,7 @@ async fn test_create_slot_non_zero_version() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_zero_version_error(&result);
@@ -320,7 +344,7 @@ async fn test_create_slot_non_zero_version() {
 #[tokio::test]
 async fn test_create_slot_intersects() {
     let mut dependencies = build_dependencies(true, "shiftplanner");
-    dependencies.slot_dao.expect_get_slots().returning(|| {
+    dependencies.slot_dao.expect_get_slots().returning(|_| {
         Ok(Arc::new([
             generate_default_slot_entity(),
             SlotEntity {
@@ -341,7 +365,7 @@ async fn test_create_slot_intersects() {
     dependencies
         .slot_dao
         .expect_create_slot()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -365,6 +389,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     assert!(result.is_ok());
@@ -380,6 +405,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -395,6 +421,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -410,6 +437,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -425,6 +453,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -440,6 +469,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_overlapping_time_range_error(&result);
@@ -455,6 +485,7 @@ async fn test_create_slot_intersects() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     assert!(result.is_ok());
@@ -466,11 +497,11 @@ async fn test_create_slot_time_order() {
     dependencies
         .slot_dao
         .expect_create_slot()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .slot_dao
         .expect_get_slots()
-        .returning(|| Ok(Arc::new([])));
+        .returning(|_| Ok(Arc::new([])));
 
     let slot_service = dependencies.build_service();
     let result = slot_service
@@ -483,6 +514,7 @@ async fn test_create_slot_time_order() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_time_order_wrong(&result);
@@ -494,11 +526,11 @@ async fn test_create_slot_date_order() {
     dependencies
         .slot_dao
         .expect_create_slot()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .slot_dao
         .expect_get_slots()
-        .returning(|| Ok(Arc::new([])));
+        .returning(|_| Ok(Arc::new([])));
 
     let slot_service = dependencies.build_service();
     let result = slot_service
@@ -511,6 +543,7 @@ async fn test_create_slot_date_order() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_date_order_wrong(&result);
@@ -522,9 +555,9 @@ async fn test_delete_slot() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     dependencies
         .slot_dao
         .expect_update_slot()
@@ -537,12 +570,15 @@ async fn test_delete_slot() {
                 ..generate_default_slot_entity()
             }),
             eq("slot-service"),
+            always(),
         )
         .times(1)
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
 
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id(), ().auth()).await;
+    let result = slot_service
+        .delete_slot(&default_id(), ().auth(), None)
+        .await;
     assert!(result.is_ok());
 }
 
@@ -550,7 +586,9 @@ async fn test_delete_slot() {
 async fn test_delete_slot_no_permission() {
     let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id(), ().auth()).await;
+    let result = slot_service
+        .delete_slot(&default_id(), ().auth(), None)
+        .await;
     test_forbidden(&result);
 }
 
@@ -560,11 +598,13 @@ async fn test_delete_slot_not_found() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(None));
+        .returning(|_, _| Ok(None));
     let slot_service = dependencies.build_service();
-    let result = slot_service.delete_slot(&default_id(), ().auth()).await;
+    let result = slot_service
+        .delete_slot(&default_id(), ().auth(), None)
+        .await;
     test_not_found(&result, &default_id());
 }
 
@@ -573,7 +613,7 @@ async fn test_update_slot_no_permission() {
     let dependencies = build_dependencies(false, "shiftplanner");
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&generate_default_slot(), ().auth())
+        .update_slot(&generate_default_slot(), ().auth(), None)
         .await;
     test_forbidden(&result);
 }
@@ -584,12 +624,12 @@ async fn test_update_slot_not_found() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(None));
+        .returning(|_, _| Ok(None));
     let slot_service = dependencies.build_service();
     let result = slot_service
-        .update_slot(&generate_default_slot(), ().auth())
+        .update_slot(&generate_default_slot(), ().auth(), None)
         .await;
     test_not_found(&result, &default_id());
 }
@@ -600,8 +640,8 @@ async fn test_update_slot_version_mismatch() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(
@@ -610,6 +650,7 @@ async fn test_update_slot_version_mismatch() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_conflicts(
@@ -636,14 +677,15 @@ async fn test_update_slot_valid_to() {
                 ..generate_default_slot_entity()
             }),
             eq("slot-service"),
+            always(),
         )
         .times(1)
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -660,6 +702,7 @@ async fn test_update_slot_valid_to() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     dbg!(&result);
@@ -672,8 +715,8 @@ async fn test_update_slot_valid_to_before_valid_from() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
 
     let slot_service = dependencies.build_service();
     let result = slot_service
@@ -685,6 +728,7 @@ async fn test_update_slot_valid_to_before_valid_from() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_date_order_wrong(&result);
@@ -696,8 +740,8 @@ async fn test_update_slot_deleted() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     dependencies
         .slot_dao
         .expect_update_slot()
@@ -712,8 +756,9 @@ async fn test_update_slot_deleted() {
                 ..generate_default_slot_entity()
             }),
             eq("slot-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -731,6 +776,7 @@ async fn test_update_slot_deleted() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     assert!(result.is_ok());
@@ -742,8 +788,8 @@ async fn test_update_slot_day_of_week_forbidden() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(
@@ -752,6 +798,7 @@ async fn test_update_slot_day_of_week_forbidden() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -801,8 +848,8 @@ async fn test_update_from_forbidden() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(
@@ -811,6 +858,7 @@ async fn test_update_from_forbidden() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -826,8 +874,8 @@ async fn test_update_to_forbidden() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(
@@ -836,6 +884,7 @@ async fn test_update_to_forbidden() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -851,8 +900,8 @@ async fn test_update_valid_from_forbidden() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(
@@ -862,6 +911,7 @@ async fn test_update_valid_from_forbidden() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -877,8 +927,8 @@ async fn test_update_valid_multiple_forbidden_changes() {
     dependencies
         .slot_dao
         .expect_get_slot()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(generate_default_slot_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity())));
     let slot_service = dependencies.build_service();
     let result = slot_service
         .update_slot(
@@ -889,6 +939,7 @@ async fn test_update_valid_multiple_forbidden_changes() {
                 ..generate_default_slot()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(

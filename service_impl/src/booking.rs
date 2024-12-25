@@ -1,6 +1,6 @@
 use crate::gen_service_impl;
 use async_trait::async_trait;
-use dao::booking::BookingDao;
+use dao::{booking::BookingDao, TransactionDao};
 use service::{
     booking::{Booking, BookingService},
     clock::ClockService,
@@ -18,12 +18,13 @@ const BOOKING_SERVICE_PROCESS: &str = "booking-service";
 
 gen_service_impl! {
     struct BookingServiceImpl: service::booking::BookingService = BookingServiceDeps {
-        BookingDao: dao::booking::BookingDao = booking_dao,
+        BookingDao: dao::booking::BookingDao<Transaction = Self::Transaction> = booking_dao,
         PermissionService: service::permission::PermissionService<Context = Self::Context> = permission_service,
         ClockService: service::clock::ClockService = clock_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
         SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context> = sales_person_service,
-        SlotService: service::slot::SlotService<Context = Self::Context> = slot_service
+        SlotService: service::slot::SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
+        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
 
@@ -67,11 +68,14 @@ impl<Deps: BookingServiceDeps> BookingServiceImpl<Deps> {
 #[async_trait]
 impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
     type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
 
     async fn get_all(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Booking]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner, sales) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -79,20 +83,24 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
                 .check_permission(SALES_PRIVILEGE, context)
         );
         shiftplanner.or(sales)?;
-        Ok(self
+        let booking = self
             .booking_dao
-            .all()
+            .all(tx.clone())
             .await?
             .iter()
             .map(Booking::from)
-            .collect())
+            .collect();
+        self.transaction_dao.commit(tx).await?;
+        Ok(booking)
     }
 
     async fn get(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Booking, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner, sales) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -101,11 +109,12 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         );
         shiftplanner.or(sales)?;
 
-        let booking_entity = self.booking_dao.find_by_id(id).await?;
+        let booking_entity = self.booking_dao.find_by_id(id, tx.clone()).await?;
         let booking = booking_entity
             .as_ref()
             .map(Booking::from)
             .ok_or_else(move || ServiceError::EntityNotFound(id))?;
+        self.transaction_dao.commit(tx).await?;
         Ok(booking)
     }
 
@@ -114,7 +123,9 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         calendar_week: u8,
         year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Booking]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -123,13 +134,16 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         );
         shiftplanner_permission.or(sales_permission)?;
 
-        Ok(self
+        let booking = self
             .booking_dao
-            .find_by_week(calendar_week, year)
+            .find_by_week(calendar_week, year, tx.clone())
             .await?
             .iter()
             .map(Booking::from)
-            .collect())
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(booking)
     }
 
     async fn get_for_slot_id_since(
@@ -138,7 +152,9 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Booking]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -147,20 +163,25 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         );
         shiftplanner_permission.or(sales_permission)?;
 
-        Ok(self
+        let slot = self
             .booking_dao
-            .find_by_slot_id_from(slot_id, year, calendar_week)
+            .find_by_slot_id_from(slot_id, year, calendar_week, tx.clone())
             .await?
             .iter()
             .map(Booking::from)
-            .collect())
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(slot)
     }
 
     async fn create(
         &self,
         booking: &Booking,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Booking, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.check_booking_permission(booking.sales_person_id, context)
             .await?;
 
@@ -201,7 +222,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         }
         if !self
             .slot_service
-            .exists(booking.slot_id, Authentication::Full)
+            .exists(booking.slot_id, Authentication::Full, tx.clone().into())
             .await?
         {
             validation.push(ValidationFailureItem::IdDoesNotExist(
@@ -216,6 +237,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
                 booking.slot_id,
                 booking.calendar_week,
                 booking.year,
+                tx.clone(),
             )
             .await?
             .is_some()
@@ -237,9 +259,14 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         };
 
         self.booking_dao
-            .create(&(&new_booking).try_into()?, BOOKING_SERVICE_PROCESS)
+            .create(
+                &(&new_booking).try_into()?,
+                BOOKING_SERVICE_PROCESS,
+                tx.clone(),
+            )
             .await?;
 
+        self.transaction_dao.commit(tx).await?;
         Ok(new_booking)
     }
 
@@ -250,15 +277,27 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         to_calendar_week: u8,
         to_year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
             .await?;
         let from_week = self
-            .get_for_week(from_calendar_week, from_year, Authentication::Full)
+            .get_for_week(
+                from_calendar_week,
+                from_year,
+                Authentication::Full,
+                tx.clone().into(),
+            )
             .await?;
         let to_week = self
-            .get_for_week(to_calendar_week, to_year, Authentication::Full)
+            .get_for_week(
+                to_calendar_week,
+                to_year,
+                Authentication::Full,
+                tx.clone().into(),
+            )
             .await?;
 
         // Remove entries which are already in the destination week
@@ -281,8 +320,11 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .collect();
 
         for booking in from_week.into_iter() {
-            self.create(booking, Authentication::Full).await?;
+            self.create(booking, Authentication::Full, tx.clone().into())
+                .await?;
         }
+
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 
@@ -290,10 +332,12 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let mut booking_entity = self
             .booking_dao
-            .find_by_id(id)
+            .find_by_id(id, tx.clone())
             .await?
             .ok_or_else(move || ServiceError::EntityNotFound(id))?;
 
@@ -303,8 +347,10 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         booking_entity.deleted = Some(self.clock_service.date_time_now());
         booking_entity.version = self.uuid_service.new_uuid("booking-version");
         self.booking_dao
-            .update(&booking_entity, BOOKING_SERVICE_PROCESS)
+            .update(&booking_entity, BOOKING_SERVICE_PROCESS, tx.clone())
             .await?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 }

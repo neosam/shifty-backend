@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::MockTransaction;
 use mockall::automock;
 use uuid::Uuid;
 
@@ -63,21 +64,24 @@ pub fn build_booking_information(
     booking_informations
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=MockTransaction;)]
 #[async_trait]
 pub trait BookingInformationService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn get_booking_conflicts_for_week(
         &self,
         years: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[BookingInformation]>, ServiceError>;
 
     async fn get_weekly_summary(
         &self,
         years: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[WeeklySummary]>, ServiceError>;
 }

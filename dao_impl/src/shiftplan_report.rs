@@ -71,7 +71,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
             r#"
                 SELECT
                   sales_person.id as sales_person_id,
-                  sum((STRFTIME('%H', slot.time_to) + STRFTIME('%M', slot.time_to) / 60.0) - (STRFTIME('%H', slot.time_from) + STRFTIME('%M', slot.time_from))) as hours,
+                  sum((STRFTIME('%H', slot.time_to) + STRFTIME('%M', slot.time_to) / 60.0) - (STRFTIME('%H', slot.time_from) + STRFTIME('%M', slot.time_from) / 60.0)) as "hours?: f64",
                   booking.calendar_week, booking.year, slot.day_of_week
                 FROM slot
                 INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
@@ -79,20 +79,20 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 WHERE sales_person.id = ?
                   AND booking.year * 100 + booking.calendar_week >= ? * 100 + ?
                   AND booking.year * 100 + booking.calendar_week <= ? * 100 + ?
-                GROUP BY year, calendar_week, day_of_week
+                GROUP BY sales_person_id, year, calendar_week, day_of_week
                         "#,
             sales_person_id_vec,
             from_year,
             from_week,
             to_year,
             to_week,
-        ).fetch_all(self.pool.as_ref())
-            .await
-            .map_db_error()?
-            .iter()
-            .map(ShiftplanReportEntity::try_from)
-            .collect::<Result<Arc<[_]>, _>>()?
         )
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(ShiftplanReportEntity::try_from)
+        .collect::<Result<Arc<[_]>, _>>()?)
     }
 
     async fn extract_quick_shiftplan_report(

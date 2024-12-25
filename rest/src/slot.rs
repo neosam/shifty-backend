@@ -32,7 +32,7 @@ pub async fn get_all_slots<RestState: RestStateDef>(
         (async {
             let slots: Arc<[SlotTO]> = rest_state
                 .slot_service()
-                .get_slots(context.into())
+                .get_slots(context.into(), None)
                 .await?
                 .iter()
                 .map(SlotTO::from)
@@ -57,7 +57,7 @@ pub async fn get_slot<RestState: RestStateDef>(
             let slot = SlotTO::from(
                 &rest_state
                     .slot_service()
-                    .get_slot(&slot_id, context.into())
+                    .get_slot(&slot_id, context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -79,7 +79,7 @@ pub async fn get_slots_for_week<RestState: RestStateDef>(
         (async {
             let slots: Arc<[SlotTO]> = rest_state
                 .slot_service()
-                .get_slots_for_week(year, week, context.into())
+                .get_slots_for_week(year, week, context.into(), None)
                 .await?
                 .iter()
                 .map(SlotTO::from)
@@ -104,7 +104,7 @@ pub async fn create_slot<RestState: RestStateDef>(
             let slot = SlotTO::from(
                 &rest_state
                     .slot_service()
-                    .create_slot(&(&slot).into(), context.into())
+                    .create_slot(&(&slot).into(), context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -130,7 +130,7 @@ pub async fn update_slot<RestState: RestStateDef>(
             }
             rest_state
                 .slot_service()
-                .update_slot(&(&slot).into(), context.into())
+                .update_slot(&(&slot).into(), context.into(), None)
                 .await?;
             Ok(Response::builder()
                 .status(200)

@@ -1,5 +1,8 @@
 use crate::{booking::BookingServiceDeps, test::error_test::*};
-use dao::booking::{BookingEntity, MockBookingDao};
+use dao::{
+    booking::{BookingEntity, MockBookingDao},
+    MockTransaction, MockTransactionDao,
+};
 use mockall::predicate::{always, eq};
 use service::{
     booking::Booking, clock::MockClockService, permission::Authentication,
@@ -71,15 +74,18 @@ pub struct BookingServiceDependencies {
     pub uuid_service: MockUuidService,
     pub sales_person_service: MockSalesPersonService,
     pub slot_service: MockSlotService,
+    pub transaction_dao: MockTransactionDao,
 }
 impl BookingServiceDeps for BookingServiceDependencies {
     type Context = ();
+    type Transaction = MockTransaction;
     type BookingDao = MockBookingDao;
     type PermissionService = MockPermissionService;
     type ClockService = MockClockService;
     type UuidService = MockUuidService;
     type SalesPersonService = MockSalesPersonService;
     type SlotService = MockSlotService;
+    type TransactionDao = MockTransactionDao;
 }
 impl BookingServiceDependencies {
     pub fn build_service(self) -> BookingServiceImpl<BookingServiceDependencies> {
@@ -90,6 +96,7 @@ impl BookingServiceDependencies {
             uuid_service: self.uuid_service.into(),
             sales_person_service: self.sales_person_service.into(),
             slot_service: self.slot_service.into(),
+            transaction_dao: self.transaction_dao.into(),
         }
     }
 }
@@ -98,7 +105,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
     let mut booking_dao = MockBookingDao::new();
     booking_dao
         .expect_find_by_booking_data()
-        .returning(|_, _, _, _| Ok(None));
+        .returning(|_, _, _, _, _| Ok(None));
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
@@ -133,7 +140,13 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
         .expect_exists()
         .returning(|_, _| Ok(true));
     let mut slot_service = MockSlotService::new();
-    slot_service.expect_exists().returning(|_, _| Ok(true));
+    slot_service.expect_exists().returning(|_, _, _| Ok(true));
+
+    let mut transaction_dao = MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
 
     BookingServiceDependencies {
         booking_dao,
@@ -142,13 +155,14 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
         uuid_service,
         sales_person_service,
         slot_service,
+        transaction_dao,
     }
 }
 
 #[tokio::test]
 async fn test_get_all() {
     let mut deps = build_dependencies(true, "shiftplanner");
-    deps.booking_dao.expect_all().returning(|| {
+    deps.booking_dao.expect_all().returning(|_| {
         Ok([
             default_booking_entity(),
             BookingEntity {
@@ -159,7 +173,7 @@ async fn test_get_all() {
         .into())
     });
     let service = deps.build_service();
-    let result = service.get_all(().auth()).await;
+    let result = service.get_all(().auth(), None).await;
     dbg!(&result);
     assert!(result.is_ok());
     let result = result.unwrap();
@@ -178,7 +192,7 @@ async fn test_get_all() {
 async fn test_get_all_no_permission() {
     let deps = build_dependencies(false, "shiftplanner");
     let service = deps.build_service();
-    let result = service.get_all(().auth()).await;
+    let result = service.get_all(().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -187,10 +201,10 @@ async fn test_get() {
     let mut deps = build_dependencies(true, "shiftplanner");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_booking_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
     let service = deps.build_service();
-    let result = service.get(default_id(), ().auth()).await;
+    let result = service.get(default_id(), ().auth(), None).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), default_booking());
 }
@@ -200,10 +214,10 @@ async fn test_get_not_found() {
     let mut deps = build_dependencies(true, "shiftplanner");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     let service = deps.build_service();
-    let result = service.get(default_id(), ().auth()).await;
+    let result = service.get(default_id(), ().auth(), None).await;
     test_not_found(&result, &default_id());
 }
 
@@ -211,7 +225,7 @@ async fn test_get_not_found() {
 async fn test_get_no_permission() {
     let deps = build_dependencies(false, "shiftplanner");
     let service = deps.build_service();
-    let result = service.get(default_id(), ().auth()).await;
+    let result = service.get(default_id(), ().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -220,10 +234,10 @@ async fn test_get_for_week() {
     let mut deps = build_dependencies(true, "sales");
     deps.booking_dao
         .expect_find_by_week()
-        .with(eq(3), eq(2024))
-        .returning(|_, _| Ok([default_booking_entity()].into()));
+        .with(eq(3), eq(2024), always())
+        .returning(|_, _, _| Ok([default_booking_entity()].into()));
     let service = deps.build_service();
-    let result = service.get_for_week(3, 2024, ().auth()).await;
+    let result = service.get_for_week(3, 2024, ().auth(), None).await;
     assert_eq!(result.unwrap(), [default_booking()].into());
 }
 
@@ -232,10 +246,10 @@ async fn test_get_for_week_shiftplanner_role() {
     let mut deps = build_dependencies(true, "shiftplanner");
     deps.booking_dao
         .expect_find_by_week()
-        .with(eq(3), eq(2024))
-        .returning(|_, _| Ok([default_booking_entity()].into()));
+        .with(eq(3), eq(2024), always())
+        .returning(|_, _, _| Ok([default_booking_entity()].into()));
     let service = deps.build_service();
-    let result = service.get_for_week(3, 2024, ().auth()).await;
+    let result = service.get_for_week(3, 2024, ().auth(), None).await;
     assert_eq!(result.unwrap(), [default_booking()].into());
 }
 
@@ -243,7 +257,7 @@ async fn test_get_for_week_shiftplanner_role() {
 async fn test_get_for_week_no_permission() {
     let deps = build_dependencies(false, "shiftplanner");
     let service = deps.build_service();
-    let result = service.get_for_week(3, 2024, ().auth()).await;
+    let result = service.get_for_week(3, 2024, ().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -258,8 +272,9 @@ async fn test_create() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-id"))
@@ -278,6 +293,7 @@ async fn test_create() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     assert!(result.is_ok());
@@ -301,8 +317,9 @@ async fn test_create_sales_user() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-id"))
@@ -329,6 +346,7 @@ async fn test_create_sales_user() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     assert!(result.is_ok());
@@ -352,8 +370,9 @@ async fn test_create_sales_user_not_exist() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-id"))
@@ -380,6 +399,7 @@ async fn test_create_sales_user_not_exist() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_forbidden(&result);
@@ -396,8 +416,9 @@ async fn test_create_sales_user_no_permission() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-id"))
@@ -420,6 +441,7 @@ async fn test_create_sales_user_no_permission() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_forbidden(&result);
@@ -437,6 +459,7 @@ async fn test_create_no_permission() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_forbidden(&result);
@@ -453,6 +476,7 @@ async fn test_create_with_id() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_zero_id_error(&result);
@@ -469,6 +493,7 @@ async fn test_create_with_version() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_zero_version_error(&result);
@@ -486,6 +511,7 @@ async fn test_create_with_created_fail() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -513,6 +539,7 @@ async fn test_create_sales_person_does_not_exist() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     dbg!(&result);
@@ -534,8 +561,9 @@ async fn test_create_booking_data_already_exists() {
             eq(default_slot_id()),
             eq(3),
             eq(2024),
+            always(),
         )
-        .returning(|_, _, _, _| Ok(Some(default_booking_entity())));
+        .returning(|_, _, _, _, _| Ok(Some(default_booking_entity())));
     let service = deps.build_service();
     let result = service
         .create(
@@ -546,6 +574,7 @@ async fn test_create_booking_data_already_exists() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(&result, &ValidationFailureItem::Duplicate, 1);
@@ -557,8 +586,8 @@ async fn test_create_slot_does_not_exist() {
     deps.slot_service.checkpoint();
     deps.slot_service
         .expect_exists()
-        .with(eq(default_slot_id()), eq(Authentication::Full))
-        .returning(|_, _| Ok(false));
+        .with(eq(default_slot_id()), eq(Authentication::Full), always())
+        .returning(|_, _, _| Ok(false));
     let service = deps.build_service();
     let result = service
         .create(
@@ -569,6 +598,7 @@ async fn test_create_slot_does_not_exist() {
                 ..default_booking()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -583,10 +613,10 @@ async fn test_delete_no_permission() {
     let mut deps = build_dependencies(false, "shiftplanner");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_booking_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
     let service = deps.build_service();
-    let result = service.delete(default_id(), ().auth()).await;
+    let result = service.delete(default_id(), ().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -595,10 +625,10 @@ async fn test_delete_not_found() {
     let mut deps = build_dependencies(true, "shiftplanner");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     let service = deps.build_service();
-    let result = service.delete(default_id(), ().auth()).await;
+    let result = service.delete(default_id(), ().auth(), None).await;
     test_not_found(&result, &default_id());
 }
 
@@ -607,8 +637,8 @@ async fn test_delete() {
     let mut deps = build_dependencies(true, "shiftplanner");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_booking_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
     deps.booking_dao
         .expect_update()
         .with(
@@ -618,14 +648,15 @@ async fn test_delete() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-version"))
         .returning(|_| alternate_version());
     let service = deps.build_service();
-    let result = service.delete(default_id(), ().auth()).await;
+    let result = service.delete(default_id(), ().auth(), None).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), ());
 }
@@ -635,8 +666,8 @@ async fn test_delete_sales_user() {
     let mut deps = build_dependencies(true, "sales");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_booking_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
     deps.booking_dao
         .expect_update()
         .with(
@@ -646,8 +677,9 @@ async fn test_delete_sales_user() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-version"))
@@ -661,7 +693,7 @@ async fn test_delete_sales_user() {
         .with(eq("TESTUSER"), always())
         .returning(|_, _| Ok(()));
     let service = deps.build_service();
-    let result = service.delete(default_id(), ().auth()).await;
+    let result = service.delete(default_id(), ().auth(), None).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), ());
 }
@@ -671,8 +703,8 @@ async fn test_delete_sales_user_not_exists() {
     let mut deps = build_dependencies(true, "sales");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_booking_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
     deps.booking_dao
         .expect_update()
         .with(
@@ -682,8 +714,9 @@ async fn test_delete_sales_user_not_exists() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-version"))
@@ -693,7 +726,7 @@ async fn test_delete_sales_user_not_exists() {
         .with(eq(default_sales_person_id()), always())
         .returning(|_, _| Ok(None));
     let service = deps.build_service();
-    let result = service.delete(default_id(), ().auth()).await;
+    let result = service.delete(default_id(), ().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -702,8 +735,8 @@ async fn test_delete_sales_user_not_allowed() {
     let mut deps = build_dependencies(true, "sales");
     deps.booking_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_booking_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
     deps.booking_dao
         .expect_update()
         .with(
@@ -713,8 +746,9 @@ async fn test_delete_sales_user_not_allowed() {
                 ..default_booking_entity()
             }),
             eq("booking-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("booking-version"))
@@ -728,6 +762,6 @@ async fn test_delete_sales_user_not_allowed() {
         .with(eq("TESTUSER"), always())
         .returning(|_, _| Err(service::ServiceError::Forbidden));
     let service = deps.build_service();
-    let result = service.delete(default_id(), ().auth()).await;
+    let result = service.delete(default_id(), ().auth(), None).await;
     test_forbidden(&result);
 }

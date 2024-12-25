@@ -1,5 +1,6 @@
 use crate::carryover::{CarryoverServiceDeps, CarryoverServiceImpl};
 use dao::carryover::CarryoverEntity;
+use dao::MockTransaction;
 use mockall::predicate::{always, eq};
 use service::carryover::{Carryover, CarryoverService};
 use service::permission::Authentication;
@@ -55,6 +56,7 @@ pub struct CarryoverServiceDependencies {
 
 impl CarryoverServiceDeps for CarryoverServiceDependencies {
     type Context = ();
+    type Transaction = MockTransaction;
 
     type CarryoverDao = MockCarryoverDao;
 }

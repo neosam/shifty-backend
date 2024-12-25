@@ -19,16 +19,23 @@ pub struct BookingEntity {
     pub version: Uuid,
 }
 
-#[automock]
+#[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait]
 pub trait BookingDao {
-    async fn all(&self) -> Result<Arc<[BookingEntity]>, DaoError>;
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<BookingEntity>, DaoError>;
+    type Transaction: crate::Transaction;
+
+    async fn all(&self, tx: Self::Transaction) -> Result<Arc<[BookingEntity]>, DaoError>;
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<BookingEntity>, DaoError>;
     async fn find_by_slot_id_from(
         &self,
         slot_id: Uuid,
         year: u32,
         week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[BookingEntity]>, DaoError>;
     async fn find_by_booking_data(
         &self,
@@ -36,12 +43,24 @@ pub trait BookingDao {
         slot_id: Uuid,
         calendar_week: i32,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Option<BookingEntity>, DaoError>;
     async fn find_by_week(
         &self,
         calendar_week: u8,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[BookingEntity]>, DaoError>;
-    async fn create(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError>;
-    async fn update(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError>;
+    async fn create(
+        &self,
+        entity: &BookingEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
+    async fn update(
+        &self,
+        entity: &BookingEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
 }

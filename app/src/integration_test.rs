@@ -428,7 +428,7 @@ impl TestSetup {
         }
         let mut slots: Vec<Slot> = rest_state
             .slot_service()
-            .get_slots(Authentication::Full)
+            .get_slots(Authentication::Full, None)
             .await
             .unwrap()
             .iter()
@@ -457,7 +457,7 @@ impl TestSetup {
                         .unwrap_or(0.0);
                 let insert_successful = match rest_state
                     .booking_service()
-                    .create(&booking, Authentication::Full)
+                    .create(&booking, Authentication::Full, None)
                     .await
                 {
                     Ok(_) => true,
@@ -566,7 +566,7 @@ proptest! {
             let sales_person_id = test_setup.created_sales_persons[0].id;
 
             let rest_state = &test_setup.rest_state;
-            let bookings = rest_state.booking_service().get_all(Authentication::Full).await.unwrap();
+            let bookings = rest_state.booking_service().get_all(Authentication::Full, None).await.unwrap();
             assert_eq!(bookings.len(), 1);
 
             let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 53, Authentication::Full).await.unwrap();

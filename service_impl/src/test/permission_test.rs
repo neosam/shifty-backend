@@ -10,6 +10,7 @@ pub struct PermissionServiceDependencies {
 }
 impl crate::permission::PermissionServiceDeps for PermissionServiceDependencies {
     type Context = ();
+    type Transaction = dao::MockTransaction;
     type PermissionDao = dao::MockPermissionDao;
     type UserService = service::user_service::MockUserService;
 }

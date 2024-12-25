@@ -39,7 +39,7 @@ version = "1.37.0"
 features = ["full"]
 
 [dependencies.sqlx]
-version = "0.7.4"
+version = "0.8.2"
 features = ["runtime-tokio", "sqlite"]
 
 [dependencies.time]

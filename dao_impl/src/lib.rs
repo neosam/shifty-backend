@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::{BasicDao, DaoError, PrivilegeEntity, RoleEntity};
+use dao::{BasicDao, DaoError, PrivilegeEntity, RoleEntity, Transaction};
 use sqlx::{query, query_as, SqlitePool};
+use tokio::sync::Mutex;
 
 pub mod booking;
 pub mod carryover;
@@ -275,6 +276,50 @@ impl BasicDao for BasicDaoImpl {
         .execute(self.pool.as_ref())
         .await
         .map_db_error()?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TransactionImpl {
+    tx: Arc<Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>>,
+}
+
+impl Transaction for TransactionImpl {}
+
+pub struct TransactionDaoImpl {
+    pool: Arc<SqlitePool>,
+}
+impl TransactionDaoImpl {
+    pub fn new(pool: Arc<SqlitePool>) -> Self {
+        Self { pool }
+    }
+}
+#[async_trait]
+impl dao::TransactionDao for TransactionDaoImpl {
+    type Transaction = TransactionImpl;
+
+    async fn new_transaction(&self) -> Result<Self::Transaction, DaoError> {
+        let tx = self.pool.begin().await.map_db_error()?;
+        Ok(TransactionImpl {
+            tx: Arc::new(tx.into()),
+        })
+    }
+
+    async fn use_transaction(
+        &self,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Self::Transaction, DaoError> {
+        match tx {
+            Some(tx) => Ok(tx),
+            None => self.new_transaction().await,
+        }
+    }
+
+    async fn commit(&self, transaction: Self::Transaction) -> Result<(), DaoError> {
+        if let Some(tx) = Arc::into_inner(transaction.tx) {
+            tx.into_inner().commit().await.map_db_error()?;
+        }
         Ok(())
     }
 }

@@ -24,6 +24,7 @@ pub struct BookingInformationServiceImpl<
     PermissionService,
     ClockService,
     UuidService,
+    TransactionDao,
 > where
     ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
     SlotService: service::slot::SlotService + Send + Sync,
@@ -36,6 +37,7 @@ pub struct BookingInformationServiceImpl<
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
+    TransactionDao: dao::TransactionDao + Send + Sync,
 {
     pub shiftplan_report_service: Arc<ShiftplanReportService>,
     pub slot_service: Arc<SlotService>,
@@ -47,6 +49,7 @@ pub struct BookingInformationServiceImpl<
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
     pub uuid_service: Arc<UuidService>,
+    pub transaction_dao: Arc<TransactionDao>,
 }
 
 impl<
@@ -60,6 +63,7 @@ impl<
         PermissionService,
         ClockService,
         UuidService,
+        TransactionDao,
     >
     BookingInformationServiceImpl<
         ShiftplanReportService,
@@ -72,6 +76,7 @@ impl<
         PermissionService,
         ClockService,
         UuidService,
+        TransactionDao,
     >
 where
     ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
@@ -85,6 +90,7 @@ where
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
+    TransactionDao: dao::TransactionDao + Send + Sync,
 {
     pub fn new(
         shiftplan_report_service: Arc<ShiftplanReportService>,
@@ -97,6 +103,7 @@ where
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
+        transaction_dao: Arc<TransactionDao>,
     ) -> Self {
         Self {
             shiftplan_report_service,
@@ -109,6 +116,7 @@ where
             permission_service,
             clock_service,
             uuid_service,
+            transaction_dao,
         }
     }
 }
@@ -125,6 +133,7 @@ impl<
         PermissionService,
         ClockService,
         UuidService,
+        TransactionDao,
     > service::booking_information::BookingInformationService
     for BookingInformationServiceImpl<
         ShiftplanReportService,
@@ -137,12 +146,20 @@ impl<
         PermissionService,
         ClockService,
         UuidService,
+        TransactionDao,
     >
 where
     ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
-    SlotService: service::slot::SlotService<Context = PermissionService::Context> + Send + Sync,
-    BookingService:
-        service::booking::BookingService<Context = PermissionService::Context> + Send + Sync,
+    SlotService: service::slot::SlotService<
+            Context = PermissionService::Context,
+            Transaction = TransactionDao::Transaction,
+        > + Send
+        + Sync,
+    BookingService: service::booking::BookingService<
+            Context = PermissionService::Context,
+            Transaction = TransactionDao::Transaction,
+        > + Send
+        + Sync,
     SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
         + Send
         + Sync,
@@ -153,27 +170,34 @@ where
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
+    TransactionDao: dao::TransactionDao + Send + Sync,
 {
     type Context = PermissionService::Context;
+    type Transaction = TransactionDao::Transaction;
 
     async fn get_booking_conflicts_for_week(
         &self,
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[BookingInformation]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let bookings = self
             .booking_service
-            .get_for_week(week, year, Authentication::Full)
+            .get_for_week(week, year, Authentication::Full, Some(tx.clone()))
             .await?;
         let sales_persons = self
             .sales_person_service
             .get_all(Authentication::Full)
             .await?;
-        let slots = self.slot_service.get_slots(Authentication::Full).await?;
+        let slots = self
+            .slot_service
+            .get_slots(Authentication::Full, tx.clone().into())
+            .await?;
         let unavailable_entries = self
             .sales_person_unavailable_service
             .get_by_week(year, week, Authentication::Full)
@@ -190,6 +214,7 @@ where
             .cloned()
             .collect();
 
+        self.transaction_dao.commit(tx).await?;
         Ok(conflicts)
     }
 
@@ -197,7 +222,9 @@ where
         &self,
         year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[WeeklySummary]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner, sales) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -247,7 +274,7 @@ where
                 .sum::<f32>();
             let slots: Arc<[Slot]> = self
                 .slot_service
-                .get_slots_for_week(year, week, Authentication::Full)
+                .get_slots_for_week(year, week, Authentication::Full, tx.clone().into())
                 .await?
                 .iter()
                 .filter(|slot| {
@@ -287,6 +314,7 @@ where
             });
         }
 
+        self.transaction_dao.commit(tx).await?;
         Ok(weekly_report.into())
     }
 }

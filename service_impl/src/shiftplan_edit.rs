@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use dao::TransactionDao;
 use service::{
     booking::BookingService,
     permission::Authentication,
@@ -13,15 +14,17 @@ use crate::gen_service_impl;
 gen_service_impl! {
     struct ShiftplanEditServiceImpl: ShiftplanEditService = ShiftplanEditServiceDeps {
         PermissionService: service::PermissionService<Context = Self::Context> = permission_service,
-        SlotService: service::slot::SlotService = slot_service,
-        BookingService: service::booking::BookingService<Context = Self::Context> = booking_service,
-        UuidService: service::uuid_service::UuidService = uuid_service
+        SlotService: service::slot::SlotService<Transaction = Self::Transaction> = slot_service,
+        BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
+        UuidService: service::uuid_service::UuidService = uuid_service,
+        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
 
 #[async_trait]
 impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServiceImpl<Deps> {
     type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
 
     async fn modify_slot(
         &self,
@@ -29,14 +32,16 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         change_year: u32,
         change_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission("shiftplan.edit", context)
             .await?;
 
         let mut stored_slot = self
             .slot_service
-            .get_slot(&slot.id, Authentication::Full)
+            .get_slot(&slot.id, Authentication::Full, tx.clone().into())
             .await?;
 
         if stored_slot.version != slot.version {
@@ -52,7 +57,13 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         let old_slot_valid_to = new_slot_valid_from - time::Duration::days(1);
         let bookings = self
             .booking_service
-            .get_for_slot_id_since(slot.id, change_year, change_week, Authentication::Full)
+            .get_for_slot_id_since(
+                slot.id,
+                change_year,
+                change_week,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
             .await?;
         let original_valid_to = stored_slot.valid_to;
 
@@ -60,11 +71,11 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 
         if stored_slot.valid_to.unwrap() < stored_slot.valid_from {
             self.slot_service
-                .delete_slot(&stored_slot.id, Authentication::Full)
+                .delete_slot(&stored_slot.id, Authentication::Full, tx.clone().into())
                 .await?;
         } else {
             self.slot_service
-                .update_slot(&stored_slot, Authentication::Full)
+                .update_slot(&stored_slot, Authentication::Full, tx.clone().into())
                 .await?;
         }
 
@@ -81,14 +92,14 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 
         let new_slot = self
             .slot_service
-            .create_slot(&new_slot, Authentication::Full)
+            .create_slot(&new_slot, Authentication::Full, tx.clone().into())
             .await?;
 
         dbg!(&new_slot);
 
         for booking in bookings.iter() {
             self.booking_service
-                .delete(booking.id, Authentication::Full)
+                .delete(booking.id, Authentication::Full, tx.clone().into())
                 .await?;
 
             let mut new_booking = booking.clone();
@@ -100,10 +111,11 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             new_booking.created = None;
 
             self.booking_service
-                .create(&new_booking, Authentication::Full)
+                .create(&new_booking, Authentication::Full, tx.clone().into())
                 .await?;
         }
 
+        self.transaction_dao.commit(tx).await?;
         Ok(new_slot)
     }
 
@@ -113,14 +125,16 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         change_year: u32,
         change_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission("shiftplan.edit", context)
             .await?;
 
         let mut stored_slot = self
             .slot_service
-            .get_slot(&slot_id, Authentication::Full)
+            .get_slot(&slot_id, Authentication::Full, tx.clone().into())
             .await?;
 
         let new_slot_valid_from =
@@ -128,27 +142,34 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         let old_slot_valid_to = new_slot_valid_from - time::Duration::days(1);
         let bookings = self
             .booking_service
-            .get_for_slot_id_since(slot_id, change_year, change_week, Authentication::Full)
+            .get_for_slot_id_since(
+                slot_id,
+                change_year,
+                change_week,
+                Authentication::Full,
+                None,
+            )
             .await?;
 
         stored_slot.valid_to = Some(old_slot_valid_to);
 
         if stored_slot.valid_to.unwrap() < stored_slot.valid_from {
             self.slot_service
-                .delete_slot(&stored_slot.id, Authentication::Full)
+                .delete_slot(&stored_slot.id, Authentication::Full, tx.clone().into())
                 .await?;
         } else {
             self.slot_service
-                .update_slot(&stored_slot, Authentication::Full)
+                .update_slot(&stored_slot, Authentication::Full, tx.clone().into())
                 .await?;
         }
 
         for booking in bookings.iter() {
             self.booking_service
-                .delete(booking.id, Authentication::Full)
+                .delete(booking.id, Authentication::Full, Some(tx.clone()))
                 .await?;
         }
 
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 }

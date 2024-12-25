@@ -33,7 +33,7 @@ pub async fn edit_slot<RestState: RestStateDef>(
             let slot = SlotTO::from(
                 &rest_state
                     .shiftplan_edit_service()
-                    .modify_slot(&(&slot).into(), year, week, context.into())
+                    .modify_slot(&(&slot).into(), year, week, context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -55,7 +55,7 @@ pub async fn delete_slot<RestState: RestStateDef>(
         (async {
             rest_state
                 .shiftplan_edit_service()
-                .remove_slot(slot_id, year, week, context.into())
+                .remove_slot(slot_id, year, week, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })

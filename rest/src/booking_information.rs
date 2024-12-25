@@ -33,7 +33,7 @@ pub async fn get_booking_conflicts_for_week<RestState: RestStateDef>(
         (async {
             let booking_conflicts: Arc<[BookingConflictTO]> = rest_state
                 .booking_information_service()
-                .get_booking_conflicts_for_week(year, week, context.into())
+                .get_booking_conflicts_for_week(year, week, context.into(), None)
                 .await?
                 .iter()
                 .map(BookingConflictTO::from)
@@ -59,7 +59,7 @@ pub async fn get_weekly_summary<RestState: RestStateDef>(
         (async {
             let weekly_summary: Arc<[WeeklySummaryTO]> = rest_state
                 .booking_information_service()
-                .get_weekly_summary(year, context.into())
+                .get_weekly_summary(year, context.into(), None)
                 .await?
                 .iter()
                 .map(WeeklySummaryTO::from)

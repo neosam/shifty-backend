@@ -32,7 +32,7 @@ pub async fn get_all_bookings<RestState: RestStateDef>(
         (async {
             let bookings: Arc<[BookingTO]> = rest_state
                 .booking_service()
-                .get_all(context.into())
+                .get_all(context.into(), None)
                 .await?
                 .iter()
                 .map(BookingTO::from)
@@ -56,7 +56,7 @@ pub async fn get_by_week<RestState: RestStateDef>(
         (async {
             let bookings: Arc<[BookingTO]> = rest_state
                 .booking_service()
-                .get_for_week(calendar_week, year, context.into())
+                .get_for_week(calendar_week, year, context.into(), None)
                 .await?
                 .iter()
                 .map(BookingTO::from)
@@ -80,7 +80,7 @@ pub async fn get_booking<RestState: RestStateDef>(
         (async {
             let booking = rest_state
                 .booking_service()
-                .get(booking_id, context.into())
+                .get(booking_id, context.into(), None)
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -103,7 +103,7 @@ pub async fn create_booking<RestState: RestStateDef>(
         (async {
             let booking = rest_state
                 .booking_service()
-                .create(&Booking::from(&booking), context.into())
+                .create(&Booking::from(&booking), context.into(), None)
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -142,7 +142,7 @@ pub async fn copy_calendar_week<RestState: RestStateDef>(
                 .parse()?;
             rest_state
                 .booking_service()
-                .copy_week(from_week, from_year, to_week, to_year, context.into())
+                .copy_week(from_week, from_year, to_week, to_year, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
@@ -160,7 +160,7 @@ pub async fn delete_booking<RestState: RestStateDef>(
         (async {
             rest_state
                 .booking_service()
-                .delete(booking_id, context.into())
+                .delete(booking_id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })

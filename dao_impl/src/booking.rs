@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::ResultDbErrorExt;
+use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
     booking::{BookingDao, BookingEntity},
@@ -42,22 +42,24 @@ impl TryFrom<&BookingDb> for BookingEntity {
 }
 
 pub struct BookingDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 impl BookingDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl BookingDao for BookingDaoImpl {
-    async fn all(&self) -> Result<Arc<[BookingEntity]>, DaoError> {
+    type Transaction = TransactionImpl;
+
+    async fn all(&self, tx: Self::Transaction) -> Result<Arc<[BookingEntity]>, DaoError> {
         Ok(query_as!(
             BookingDb,
             "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE deleted IS NULL"
         )
-            .fetch_all(self.pool.as_ref())
+            .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()
@@ -65,14 +67,18 @@ impl BookingDao for BookingDaoImpl {
             .collect::<Result<Arc<[BookingEntity]>, DaoError>>()?
         )
     }
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<BookingEntity>, DaoError> {
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<BookingEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             BookingDb,
             "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE id = ?",
             id_vec,
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -85,6 +91,7 @@ impl BookingDao for BookingDaoImpl {
         slot_id: Uuid,
         year: u32,
         week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[BookingEntity]>, DaoError> {
         let slot_id_vec = slot_id.as_bytes().to_vec();
         let until = year * 100 + week as u32;
@@ -94,7 +101,8 @@ impl BookingDao for BookingDaoImpl {
             slot_id_vec,
             until,
         )
-        .fetch_all(self.pool.as_ref())
+        //.fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -109,6 +117,7 @@ impl BookingDao for BookingDaoImpl {
         slot_id: Uuid,
         calendar_week: i32,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Option<BookingEntity>, DaoError> {
         let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
         let slot_id_vec = slot_id.as_bytes().to_vec();
@@ -120,7 +129,7 @@ impl BookingDao for BookingDaoImpl {
             calendar_week,
             year,
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -132,6 +141,7 @@ impl BookingDao for BookingDaoImpl {
         &self,
         calendar_week: u8,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[BookingEntity]>, DaoError> {
         Ok(query_as!(
             BookingDb,
@@ -139,7 +149,7 @@ impl BookingDao for BookingDaoImpl {
             calendar_week,
             year,
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -148,7 +158,12 @@ impl BookingDao for BookingDaoImpl {
         )
     }
 
-    async fn create(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError> {
+    async fn create(
+        &self,
+        entity: &BookingEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
         let slot_id_vec = entity.slot_id.as_bytes().to_vec();
@@ -162,10 +177,15 @@ impl BookingDao for BookingDaoImpl {
         let version_vec = entity.version.as_bytes().to_vec();
         query!("INSERT INTO booking (id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec, sales_person_id_vec, slot_id_vec, entity.calendar_week, entity.year, created, deleted, version_vec, process
-        ).execute(self.pool.as_ref()).await.map_db_error()?;
+        ).execute(tx.tx.lock().await.as_mut()).await.map_db_error()?;
         Ok(())
     }
-    async fn update(&self, entity: &BookingEntity, process: &str) -> Result<(), DaoError> {
+    async fn update(
+        &self,
+        entity: &BookingEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let version_vec = entity.version.as_bytes().to_vec();
         let deleted = entity
@@ -181,7 +201,7 @@ impl BookingDao for BookingDaoImpl {
             process,
             id_vec
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())

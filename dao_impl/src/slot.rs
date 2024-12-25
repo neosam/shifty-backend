@@ -12,22 +12,24 @@ use time::{
 };
 use uuid::Uuid;
 
-use crate::ResultDbErrorExt;
+use crate::{ResultDbErrorExt, TransactionImpl};
 
 pub struct SlotDaoImpl {
-    pool: Arc<SqlitePool>,
+    _pool: Arc<SqlitePool>,
 }
 impl SlotDaoImpl {
     pub fn new(pool: Arc<SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl dao::slot::SlotDao for SlotDaoImpl {
-    async fn get_slots(&self) -> Result<Arc<[SlotEntity]>, DaoError> {
+    type Transaction = TransactionImpl;
+
+    async fn get_slots(&self, tx: Self::Transaction) -> Result<Arc<[SlotEntity]>, DaoError> {
         let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL")
-            .fetch_all(self.pool.as_ref())
+            .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
         result
@@ -56,10 +58,15 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             })
             .collect()
     }
-    async fn get_slot(&self, id: &Uuid) -> Result<Option<SlotEntity>, DaoError> {
+
+    async fn get_slot(
+        &self,
+        id: &Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<SlotEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
         let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE id = ?", id_vec)
-            .fetch_optional(self.pool.as_ref())
+            .fetch_optional(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
         result
@@ -88,7 +95,12 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             .transpose()
     }
 
-    async fn get_slots_for_week(&self, year: u32, week: u8) -> Result<Arc<[SlotEntity]>, DaoError> {
+    async fn get_slots_for_week(
+        &self,
+        year: u32,
+        week: u8,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[SlotEntity]>, DaoError> {
         let monday = Date::from_iso_week_date(year as i32, week, time::Weekday::Monday)?;
         let sunday = Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday)?;
         let monday_str = monday.format(&Iso8601::DATE)?;
@@ -99,7 +111,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                 WHERE deleted IS NULL
                 AND valid_from <= ?
                 AND (valid_to IS NULL OR valid_to >= ?)", sunday_str, monday_str)
-            .fetch_all(self.pool.as_ref())
+            .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
         result
@@ -129,7 +141,12 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             .collect()
     }
 
-    async fn create_slot(&self, slot: &SlotEntity, process: &str) -> Result<(), DaoError> {
+    async fn create_slot(
+        &self,
+        slot: &SlotEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let time_format = format_description!("[hour]:[minute]:[second].0");
         let id_vec = slot.id.as_bytes().to_vec();
         let version_vec = slot.version.as_bytes().to_vec();
@@ -152,13 +169,18 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             process,
             min_resources,
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())
     }
 
-    async fn update_slot(&self, slot: &SlotEntity, process: &str) -> Result<(), DaoError> {
+    async fn update_slot(
+        &self,
+        slot: &SlotEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let id_vec = slot.id.as_bytes().to_vec();
         let version_vec = slot.version.as_bytes().to_vec();
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
@@ -170,7 +192,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             process,
             id_vec,
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())

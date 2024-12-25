@@ -55,13 +55,34 @@ pub struct SlotEntity {
     pub version: Uuid,
 }
 
-#[automock]
+#[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait]
 pub trait SlotDao {
-    async fn get_slots(&self) -> Result<Arc<[SlotEntity]>, DaoError>;
-    async fn get_slot(&self, id: &Uuid) -> Result<Option<SlotEntity>, DaoError>;
-    async fn get_slots_for_week(&self, year: u32, week: u8) -> Result<Arc<[SlotEntity]>, DaoError>;
-    async fn create_slot(&self, slot: &SlotEntity, process: &str) -> Result<(), DaoError>;
+    type Transaction: crate::Transaction;
+
+    async fn get_slots(&self, tx: Self::Transaction) -> Result<Arc<[SlotEntity]>, DaoError>;
+    async fn get_slot(
+        &self,
+        id: &Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<SlotEntity>, DaoError>;
+    async fn get_slots_for_week(
+        &self,
+        year: u32,
+        week: u8,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[SlotEntity]>, DaoError>;
+    async fn create_slot(
+        &self,
+        slot: &SlotEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
     //async fn delete_slot(&self, id: &Uuid, process: &str) -> Result<(), DaoError>;
-    async fn update_slot(&self, slot: &SlotEntity, process: &str) -> Result<(), DaoError>;
+    async fn update_slot(
+        &self,
+        slot: &SlotEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
 }

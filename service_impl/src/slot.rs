@@ -12,37 +12,42 @@ use uuid::Uuid;
 
 const SLOT_SERVICE_PROCESS: &str = "slot-service";
 
-pub struct SlotServiceImpl<SlotDao, PermissionService, ClockService, UuidService>
+pub struct SlotServiceImpl<SlotDao, PermissionService, ClockService, UuidService, TransactionDao>
 where
     SlotDao: dao::slot::SlotDao + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
+    TransactionDao: dao::TransactionDao + Send + Sync,
 {
     pub slot_dao: Arc<SlotDao>,
     pub permission_service: Arc<PermissionService>,
     pub clock_service: Arc<ClockService>,
     pub uuid_service: Arc<UuidService>,
+    pub transaction_dao: Arc<TransactionDao>,
 }
-impl<SlotDao, PermissionService, ClockService, UuidService>
-    SlotServiceImpl<SlotDao, PermissionService, ClockService, UuidService>
+impl<SlotDao, PermissionService, ClockService, UuidService, TransactionDao>
+    SlotServiceImpl<SlotDao, PermissionService, ClockService, UuidService, TransactionDao>
 where
     SlotDao: dao::slot::SlotDao + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
+    TransactionDao: dao::TransactionDao + Send + Sync,
 {
     pub fn new(
         slot_dao: Arc<SlotDao>,
         permission_service: Arc<PermissionService>,
         clock_service: Arc<ClockService>,
         uuid_service: Arc<UuidService>,
+        transaction_dao: Arc<TransactionDao>,
     ) -> Self {
         Self {
             slot_dao,
             permission_service,
             clock_service,
             uuid_service,
+            transaction_dao,
         }
     }
 }
@@ -55,21 +60,26 @@ pub fn test_overlapping_slots(slot_1: &Slot, slot_2: &Slot) -> bool {
 }
 
 #[async_trait]
-impl<SlotDao, PermissionService, ClockService, UuidService> service::slot::SlotService
-    for SlotServiceImpl<SlotDao, PermissionService, ClockService, UuidService>
+impl<SlotDao, PermissionService, ClockService, UuidService, TransactionDao>
+    service::slot::SlotService
+    for SlotServiceImpl<SlotDao, PermissionService, ClockService, UuidService, TransactionDao>
 where
-    SlotDao: dao::slot::SlotDao + Send + Sync,
+    SlotDao: dao::slot::SlotDao<Transaction = TransactionDao::Transaction> + Send + Sync,
     PermissionService: service::permission::PermissionService + Send + Sync,
     ClockService: service::clock::ClockService + Send + Sync,
     UuidService: service::uuid_service::UuidService + Send + Sync,
+    TransactionDao: dao::TransactionDao + Send + Sync,
 {
     type Context = PermissionService::Context;
+    type Transaction = TransactionDao::Transaction;
 
-    #[instrument(name = "SlotServiceImpl::get_slots_for_week", skip(self))]
+    #[instrument(name = "SlotServiceImpl::get_slots_for_week", skip(self, tx))]
     async fn get_slots(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Slot]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -78,19 +88,25 @@ where
         );
         shiftplanner_permission.or(sales_permission)?;
 
-        Ok(self
+        let slots = self
             .slot_dao
-            .get_slots()
+            .get_slots(tx.clone())
             .await?
             .iter()
             .map(Slot::from)
-            .collect())
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(slots)
     }
+
     async fn get_slot(
         &self,
         id: &Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -99,21 +115,25 @@ where
         );
         shiftplanner_permission.or(sales_permission)?;
 
-        let slot_entity = self.slot_dao.get_slot(id).await?;
+        let slot_entity = self.slot_dao.get_slot(id, tx.clone()).await?;
         let slot = slot_entity
             .as_ref()
             .map(Slot::from)
             .ok_or_else(move || ServiceError::EntityNotFound(*id))?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(slot)
     }
 
-    #[instrument(name = "SlotServiceImpl::get_slots_for_week", skip(self))]
+    #[instrument(name = "SlotServiceImpl::get_slots_for_week", skip(self, tx))]
     async fn get_slots_for_week(
         &self,
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Slot]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -123,28 +143,41 @@ where
         shiftplanner_permission.or(sales_permission)?;
         tracing::info!("Getting slots for week {} of year {}", week, year);
 
-        Ok(self
+        let slots = self
             .slot_dao
-            .get_slots_for_week(year, week)
+            .get_slots_for_week(year, week, tx.clone())
             .await?
             .iter()
             .map(Slot::from)
-            .collect())
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(slots)
     }
 
     async fn exists(
         &self,
         id: Uuid,
         _context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError> {
-        Ok(self.slot_dao.get_slot(&id).await.map(|s| s.is_some())?)
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let slot = self
+            .slot_dao
+            .get_slot(&id, tx.clone())
+            .await
+            .map(|s| s.is_some())?;
+        self.transaction_dao.commit(tx).await?;
+        Ok(slot)
     }
 
     async fn create_slot(
         &self,
         slot: &Slot,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
             .await?;
@@ -166,7 +199,7 @@ where
         }
 
         if self
-            .get_slots(context)
+            .get_slots(context, tx.clone().into())
             .await?
             .iter()
             .filter(|s| {
@@ -184,8 +217,10 @@ where
             ..slot.clone()
         };
         self.slot_dao
-            .create_slot(&(&slot).into(), SLOT_SERVICE_PROCESS)
+            .create_slot(&(&slot).into(), SLOT_SERVICE_PROCESS, tx.clone().into())
             .await?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(slot)
     }
 
@@ -193,32 +228,39 @@ where
         &self,
         id: &Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let mut slot = self
             .slot_dao
-            .get_slot(id)
+            .get_slot(id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(*id))?;
         slot.deleted = Some(self.clock_service.date_time_now());
         self.slot_dao
-            .update_slot(&slot, SLOT_SERVICE_PROCESS)
+            .update_slot(&slot, SLOT_SERVICE_PROCESS, tx.clone())
             .await?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
+
     async fn update_slot(
         &self,
         slot: &Slot,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
         let persisted_slot = self
             .slot_dao
-            .get_slot(&slot.id)
+            .get_slot(&slot.id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(slot.id))?;
         if persisted_slot.version != slot.version {
@@ -267,8 +309,10 @@ where
             ..slot.clone()
         };
         self.slot_dao
-            .update_slot(&(&slot).into(), SLOT_SERVICE_PROCESS)
+            .update_slot(&(&slot).into(), SLOT_SERVICE_PROCESS, tx.clone())
             .await?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 }

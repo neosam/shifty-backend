@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use dao::MockTransaction;
 use mockall::automock;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -150,44 +151,52 @@ impl Ord for Slot {
     }
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=MockTransaction;)]
 #[async_trait]
 pub trait SlotService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn get_slots(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Slot]>, ServiceError>;
     async fn get_slot(
         &self,
         id: &Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError>;
     async fn get_slots_for_week(
         &self,
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Slot]>, ServiceError>;
     async fn exists(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError>;
     async fn create_slot(
         &self,
         slot: &Slot,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError>;
     async fn delete_slot(
         &self,
         id: &Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
     async fn update_slot(
         &self,
         slot: &Slot,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }

@@ -21,9 +21,12 @@ type Context = MockContext;
 type UserService = service_impl::UserServiceImpl;
 #[cfg(feature = "oidc")]
 type Context = Option<Arc<str>>;
+type Transaction = dao_impl::TransactionImpl;
+type TransactionDao = dao_impl::TransactionDaoImpl;
 pub struct PermissionServiceDependencies;
 impl PermissionServiceDeps for PermissionServiceDependencies {
     type Context = Context;
+    type Transaction = Transaction;
     type PermissionDao = dao_impl::PermissionDaoImpl;
     type UserService = UserService;
 }
@@ -34,6 +37,7 @@ type ShiftplanReportDao = dao_impl::shiftplan_report::ShiftplanReportDaoImpl;
 pub struct SessionServiceDependencies;
 impl service_impl::session::SessionServiceDeps for SessionServiceDependencies {
     type Context = Context;
+    type Transaction = Transaction;
     type SessionDao = SessionDao;
     type ClockService = service_impl::clock::ClockServiceImpl;
     type UuidService = service_impl::uuid_service::UuidServiceImpl;
@@ -47,6 +51,7 @@ type SlotService = service_impl::slot::SlotServiceImpl<
     PermissionService,
     ClockService,
     UuidService,
+    TransactionDao,
 >;
 type SalesPersonService = service_impl::sales_person::SalesPersonServiceImpl<
     dao_impl::sales_person::SalesPersonDaoImpl,
@@ -71,12 +76,14 @@ type SalesPersonUnavailableService =
 pub struct BookingServiceDependencies;
 impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
     type Context = Context;
+    type Transaction = Transaction;
     type BookingDao = dao_impl::booking::BookingDaoImpl;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type UuidService = UuidService;
     type SalesPersonService = SalesPersonService;
     type SlotService = SlotService;
+    type TransactionDao = TransactionDao;
 }
 type BookingService = service_impl::booking::BookingServiceImpl<BookingServiceDependencies>;
 pub struct ShiftplanReportServiceDependencies;
@@ -84,6 +91,7 @@ impl service_impl::shiftplan_report::ShiftplanReportServiceDeps
     for ShiftplanReportServiceDependencies
 {
     type Context = Context;
+    type Transaction = Transaction;
     type ShiftplanReportDao = ShiftplanReportDao;
 }
 type ShiftplanReportService =
@@ -99,6 +107,7 @@ type BookingInformationService = service_impl::booking_information::BookingInfor
     PermissionService,
     ClockService,
     UuidService,
+    TransactionDao,
 >;
 type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
     dao_impl::extra_hours::ExtraHoursDaoImpl,
@@ -112,6 +121,7 @@ type CarryoverDao = dao_impl::carryover::CarryoverDaoImpl;
 pub struct CarryoverServiceDependencies;
 impl CarryoverServiceDeps for CarryoverServiceDependencies {
     type Context = Context;
+    type Transaction = Transaction;
     type CarryoverDao = CarryoverDao;
 }
 
@@ -136,10 +146,12 @@ type WorkingHoursService = service_impl::employee_work_details::EmployeeWorkDeta
 pub struct ShiftplanEditServiceDependencies;
 impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditServiceDependencies {
     type Context = Context;
+    type Transaction = Transaction;
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type BookingService = BookingService;
     type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
@@ -221,6 +233,7 @@ impl rest::RestStateDef for RestStateImpl {
 }
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
+        let transaction_dao = Arc::new(TransactionDao::new(pool.clone()));
         let permission_dao = dao_impl::PermissionDaoImpl::new(pool.clone());
         let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool.clone());
         let carryover_dao = Arc::new(carryover::CarryoverDaoImpl::new(pool.clone()));
@@ -259,6 +272,7 @@ impl RestStateImpl {
             permission_service.clone(),
             clock_service.clone(),
             uuid_service.clone(),
+            transaction_dao.clone(),
         ));
         let sales_person_service =
             Arc::new(service_impl::sales_person::SalesPersonServiceImpl::new(
@@ -285,6 +299,7 @@ impl RestStateImpl {
             ),
         );
         let booking_service = Arc::new(service_impl::booking::BookingServiceImpl {
+            transaction_dao: transaction_dao.clone(),
             booking_dao: booking_dao.into(),
             permission_service: permission_service.clone(),
             clock_service: clock_service.clone(),
@@ -336,6 +351,7 @@ impl RestStateImpl {
                 permission_service.clone(),
                 clock_service.clone(),
                 uuid_service.clone(),
+                transaction_dao.clone(),
             ),
         );
         let shiftplan_edit_service =
@@ -344,6 +360,7 @@ impl RestStateImpl {
                 slot_service: slot_service.clone(),
                 booking_service: booking_service.clone(),
                 uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
             });
         Self {
             user_service,
