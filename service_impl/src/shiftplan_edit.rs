@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
     booking::BookingService,
+    carryover::{Carryover, CarryoverService},
     permission::Authentication,
+    reporting::ReportingService,
+    sales_person::SalesPersonService,
     shiftplan_edit::ShiftplanEditService,
     slot::{Slot, SlotService},
     PermissionService, ServiceError,
@@ -16,6 +19,9 @@ gen_service_impl! {
         PermissionService: service::PermissionService<Context = Self::Context> = permission_service,
         SlotService: service::slot::SlotService<Transaction = Self::Transaction> = slot_service,
         BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
+        CarryoverService: service::carryover::CarryoverService<Context = Self::Context> = carryover_service,
+        ReportingService: service::reporting::ReportingService<Context = Self::Context> = reporting_service,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context> = sales_person_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
@@ -169,6 +175,80 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                 .await?;
         }
 
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
+    }
+
+    async fn update_carryover(
+        &self,
+        sales_person_id: Uuid,
+        year: u32,
+        _context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let until_week = time::util::weeks_in_year(year as i32);
+
+        let employee_report = self
+            .reporting_service
+            .get_report_for_employee(
+                &sales_person_id,
+                year,
+                until_week as u8,
+                Authentication::Full,
+            )
+            .await?;
+
+        let new_carryover_hours = employee_report.balance_hours;
+
+        let now = time::OffsetDateTime::now_utc();
+        let created = time::PrimitiveDateTime::new(now.date(), now.time());
+
+        let new_carryover = Carryover {
+            sales_person_id,
+            year,
+            carryover_hours: new_carryover_hours,
+            created,
+            deleted: None,
+            version: uuid::Uuid::nil(),
+        };
+
+        self.carryover_service
+            .set_carryover(&new_carryover, Authentication::Full)
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
+    }
+
+    async fn update_carryover_all_employees(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        // Acquire (or reuse) a transaction
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Make sure the caller is allowed to edit shift plans
+        self.permission_service
+            .check_permission("shiftplan.edit", context.clone())
+            .await?;
+
+        // Retrieve all sales persons
+        let sales_persons = self.sales_person_service.get_all(context.clone()).await?;
+
+        // Call update_carryover for each sales person
+        for sp in sales_persons.iter() {
+            // Pass the same transaction along so everything is done in a single transaction.
+            // Alternatively, if you want each carryover update to be committed separately,
+            // you could pass None here. But typically we want one big transaction.
+            self.update_carryover(sp.id, year, context.clone(), Some(tx.clone()))
+                .await?;
+        }
+
+        // Commit everything at the end
         self.transaction_dao.commit(tx).await?;
         Ok(())
     }

@@ -16,6 +16,7 @@ pub mod permission;
 pub mod reporting;
 pub mod sales_person;
 pub mod sales_person_unavailable;
+pub mod scheduler;
 pub mod session;
 pub mod shiftplan_edit;
 pub mod shiftplan_report;

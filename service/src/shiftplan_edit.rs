@@ -28,4 +28,19 @@ pub trait ShiftplanEditService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
+
+    async fn update_carryover(
+        &self,
+        sales_person_id: Uuid,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
+
+    async fn update_carryover_all_employees(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }

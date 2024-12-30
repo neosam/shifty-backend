@@ -9,6 +9,7 @@ use dao_impl::{
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
+use service::scheduler::SchedulerService;
 use service_impl::{carryover::CarryoverServiceDeps, permission::PermissionServiceDeps};
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -150,11 +151,23 @@ impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditSer
     type PermissionService = PermissionService;
     type SlotService = SlotService;
     type BookingService = BookingService;
+    type CarryoverService = CarryoverService;
+    type ReportingService = ReportingService;
+    type SalesPersonService = SalesPersonService;
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
+
+pub struct SchedulerServiceDependencies;
+impl service_impl::scheduler::SchedulerServiceDeps for SchedulerServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type ShiftplanEditService = ShiftplanEditService;
+}
+type SchedulerServiceImpl =
+    service_impl::scheduler::SchedulerServiceImpl<SchedulerServiceDependencies>;
 
 #[derive(Clone)]
 pub struct RestStateImpl {
@@ -333,7 +346,7 @@ impl RestStateImpl {
             shiftplan_report_service.clone(),
             working_hours_service.clone(),
             sales_person_service.clone(),
-            carryover_service,
+            carryover_service.clone(),
             permission_service.clone(),
             clock_service.clone(),
             uuid_service.clone(),
@@ -359,6 +372,9 @@ impl RestStateImpl {
                 permission_service: permission_service.clone(),
                 slot_service: slot_service.clone(),
                 booking_service: booking_service.clone(),
+                sales_person_service: sales_person_service.clone(),
+                carryover_service: carryover_service.clone(),
+                reporting_service: reporting_service.clone(),
                 uuid_service: uuid_service.clone(),
                 transaction_dao: transaction_dao.clone(),
             });
@@ -427,5 +443,12 @@ async fn main() {
 
     let rest_state = RestStateImpl::new(pool.clone());
     create_dev_admin_user(pool.clone()).await;
+
+    let scheduler_service = SchedulerServiceImpl::new(rest_state.shiftplan_edit_service.clone());
+    scheduler_service
+        .start()
+        .await
+        .expect("Expected the scheduler to start");
+
     rest::start_server(rest_state).await
 }
