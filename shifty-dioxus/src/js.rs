@@ -1,8 +1,7 @@
 use js_sys::{wasm_bindgen::JsValue, Date};
 
 pub fn get_current_year() -> u32 {
-    let date = Date::new_0();
-    date.get_full_year() as u32
+    current_datetime().to_iso_week_date().0 as u32
 }
 
 // Function to get the current week number based on ISO 8601

@@ -1,6 +1,6 @@
 [package]
 name = "shifty-dioxus"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Simon Goller <neosam+github@posteo.de>"]
 edition = "2021"
 
@@ -18,7 +18,7 @@ serde = { version = "1.0.203", features = ["rc"] }
 serde_json = "1.0.117"
 async-recursion = "1.1.1"
 futures = "0.3.30"
-thiserror = "1.0.61"
+thiserror = "2.0.9"
 futures-util = "0.3.30"
 js-sys = "0.3.69"
 manganis = "0.6.0"
