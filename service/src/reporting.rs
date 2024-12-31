@@ -125,6 +125,7 @@ pub struct EmployeeReport {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
 
+    pub vacation_carryover: i32,
     pub vacation_days: f32,
     pub vacation_entitlement: f32,
     pub sick_leave_days: f32,

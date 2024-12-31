@@ -15,6 +15,7 @@ struct CarryoverDb {
     sales_person_id: Vec<u8>,
     year: i64,
     carryover_hours: f64,
+    vacation: i64,
     created: String,
     deleted: Option<String>,
     update_version: Vec<u8>,
@@ -28,6 +29,7 @@ impl TryFrom<&CarryoverDb> for CarryoverEntity {
             sales_person_id: Uuid::from_slice(&db.sales_person_id)?,
             year: db.year as u32,
             carryover_hours: db.carryover_hours as f32,
+            vacation: db.vacation as i32,
             created: PrimitiveDateTime::parse(&db.created, &Iso8601::DATE_TIME)?,
             deleted: db
                 .deleted
@@ -59,7 +61,7 @@ impl CarryoverDao for CarryoverDaoImpl {
         let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             CarryoverDb,
-            r#"SELECT sales_person_id, year, carryover_hours, created, deleted, update_version
+            r#"SELECT sales_person_id, year, carryover_hours, vacation, created, deleted, update_version
                FROM employee_yearly_carryover
                WHERE sales_person_id = ? AND year = ? AND deleted IS NULL"#,
             sales_person_id_vec,
@@ -84,12 +86,13 @@ impl CarryoverDao for CarryoverDaoImpl {
         let version_vec = entity.version.as_bytes().to_vec();
 
         query!(
-            r#"INSERT INTO employee_yearly_carryover (sales_person_id, year, carryover_hours, created, deleted, update_process, update_version)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+            r#"INSERT INTO employee_yearly_carryover (sales_person_id, year, carryover_hours, vacation, created, deleted, update_process, update_version)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(sales_person_id, year) DO UPDATE SET carryover_hours=excluded.carryover_hours, deleted=excluded.deleted, update_process=excluded.update_process, update_version=excluded.update_version"#,
             sales_person_id_vec,
             entity.year,
             entity.carryover_hours,
+            entity.vacation,
             created_str,
             deleted_str,
             process,

@@ -394,6 +394,7 @@ pub struct EmployeeReportTO {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
 
+    pub vacation_carryover: i32,
     pub vacation_days: f32,
     pub vacation_entitlement: f32,
     pub sick_leave_days: f32,
@@ -416,6 +417,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             expected_hours: report.expected_hours,
             shiftplan_hours: report.shiftplan_hours,
             extra_work_hours: report.extra_work_hours,
+            vacation_carryover: report.vacation_carryover,
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
             vacation_days: report.vacation_days,

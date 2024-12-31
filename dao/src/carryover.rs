@@ -7,6 +7,7 @@ pub struct CarryoverEntity {
     pub sales_person_id: Uuid,
     pub year: u32,
     pub carryover_hours: f32,
+    pub vacation: i32,
     pub created: time::PrimitiveDateTime,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,

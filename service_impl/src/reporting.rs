@@ -458,12 +458,12 @@ where
             .map(|wh| wh.vacation_days_for_year(year))
             .sum::<f32>()
             .round();
-        let previous_year_carryover = self
+        let (previous_year_carryover, previous_year_vacation) = self
             .carryover_service
             .get_carryover(*sales_person_id, year - 1, Authentication::Full)
             .await?
-            .map(|c| c.carryover_hours)
-            .unwrap_or(0.0);
+            .map(|c| (c.carryover_hours, c.vacation))
+            .unwrap_or((0.0, 0));
 
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
@@ -473,8 +473,9 @@ where
             expected_hours: planned_hours,
             shiftplan_hours,
             holiday_days,
-            vacation_days,
-            vacation_entitlement,
+            vacation_carryover: previous_year_vacation,
+            vacation_days: vacation_days,
+            vacation_entitlement: vacation_entitlement + previous_year_vacation as f32,
             sick_leave_days,
             absence_days,
             extra_work_hours: extra_hours

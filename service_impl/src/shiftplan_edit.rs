@@ -201,6 +201,8 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .await?;
 
         let new_carryover_hours = employee_report.balance_hours;
+        let new_vacation_entitlement =
+            employee_report.vacation_carryover - employee_report.vacation_days.floor() as i32;
 
         let now = time::OffsetDateTime::now_utc();
         let created = time::PrimitiveDateTime::new(now.date(), now.time());
@@ -209,6 +211,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             sales_person_id,
             year,
             carryover_hours: new_carryover_hours,
+            vacation: new_vacation_entitlement,
             created,
             deleted: None,
             version: uuid::Uuid::nil(),
