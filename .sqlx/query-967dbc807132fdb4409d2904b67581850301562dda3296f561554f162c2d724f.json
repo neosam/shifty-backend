@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT sales_person_id, year, carryover_hours, created, deleted, update_version\n               FROM employee_yearly_carryover\n               WHERE sales_person_id = ? AND year = ? AND deleted IS NULL",
+  "query": "SELECT sales_person_id, year, carryover_hours, vacation, created, deleted, update_version\n               FROM employee_yearly_carryover\n               WHERE sales_person_id = ? AND year = ? AND deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -19,18 +19,23 @@
         "type_info": "Float"
       },
       {
-        "name": "created",
+        "name": "vacation",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 6,
         "type_info": "Blob"
       }
     ],
@@ -42,9 +47,10 @@
       false,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "92d36e22d5183c95786889db470669a5fbffeb4267e062eb4c152e252048d468"
+  "hash": "967dbc807132fdb4409d2904b67581850301562dda3296f561554f162c2d724f"
 }
