@@ -88,7 +88,7 @@ impl CarryoverDao for CarryoverDaoImpl {
         query!(
             r#"INSERT INTO employee_yearly_carryover (sales_person_id, year, carryover_hours, vacation, created, deleted, update_process, update_version)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(sales_person_id, year) DO UPDATE SET carryover_hours=excluded.carryover_hours, deleted=excluded.deleted, update_process=excluded.update_process, update_version=excluded.update_version"#,
+               ON CONFLICT(sales_person_id, year) DO UPDATE SET carryover_hours=excluded.carryover_hours, vacation=excluded.vacation, deleted=excluded.deleted, update_process=excluded.update_process, update_version=excluded.update_version"#,
             sales_person_id_vec,
             entity.year,
             entity.carryover_hours,
