@@ -67,6 +67,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Balance, "Stundenkonto");
     i18n.add_text(Locale::En, Key::Required, "Soll");
     i18n.add_text(Locale::En, Key::Overall, "Gesamt");
+    i18n.add_text(Locale::En, Key::CarryoverBalance, "Übertrag Vorjahr");
     i18n.add_text(Locale::En, Key::CategoryShiftplan, "Schichtplan");
     i18n.add_text(Locale::En, Key::CategoryExtraWork, "Zusatzarbeit");
     i18n.add_text(Locale::En, Key::CategoryVacation, "Urlaub");
@@ -75,6 +76,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Nicht verfügbar");
 
     i18n.add_text(Locale::En, Key::VacationDaysLabel, "Urlaubstage");
+    i18n.add_text(Locale::En, Key::VacationCarryoverLabel, "Vorjahresurlaub");
 
     i18n.add_text(Locale::En, Key::ShowDetails, "Mehr");
     i18n.add_text(Locale::En, Key::HideDetails, "Weniger");

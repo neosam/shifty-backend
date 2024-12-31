@@ -90,6 +90,7 @@ pub enum Key {
     Balance,
     Required,
     Overall,
+    CarryoverBalance,
     CategoryShiftplan,
     CategoryExtraWork,
     CategoryVacation,
@@ -98,6 +99,7 @@ pub enum Key {
     CategoryUnavailable,
 
     VacationDaysLabel,
+    VacationCarryoverLabel,
 
     ShowDetails,
     HideDetails,

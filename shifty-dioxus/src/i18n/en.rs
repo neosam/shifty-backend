@@ -63,6 +63,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Balance, "Balance");
     i18n.add_text(Locale::En, Key::Required, "Planned");
     i18n.add_text(Locale::En, Key::Overall, "Actual");
+    i18n.add_text(Locale::En, Key::CarryoverBalance, "Carryover balance");
     i18n.add_text(Locale::En, Key::CategoryShiftplan, "Shiftplan");
     i18n.add_text(Locale::En, Key::CategoryExtraWork, "Extra work");
     i18n.add_text(Locale::En, Key::CategoryVacation, "Vacation");
@@ -71,6 +72,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
 
     i18n.add_text(Locale::En, Key::VacationDaysLabel, "Vacation days");
+    i18n.add_text(
+        Locale::En,
+        Key::VacationCarryoverLabel,
+        "Open vacation days from last year",
+    );
 
     i18n.add_text(Locale::En, Key::ShowDetails, "More");
     i18n.add_text(Locale::En, Key::HideDetails, "Less");

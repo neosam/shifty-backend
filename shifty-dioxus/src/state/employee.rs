@@ -195,6 +195,7 @@ pub struct Employee {
     pub overall_working_hours: f32,
     pub expected_working_hours: f32,
     pub balance: f32,
+    pub carryover_balance: f32,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
@@ -204,6 +205,7 @@ pub struct Employee {
 
     pub vacation_days: f32,
     pub vacation_entitlement: f32,
+    pub vacation_carryover: i32,
 }
 
 impl From<&ShortEmployeeReportTO> for Employee {
@@ -215,6 +217,7 @@ impl From<&ShortEmployeeReportTO> for Employee {
             overall_working_hours: 0.0,
             expected_working_hours: 0.0,
             balance: report.balance_hours,
+            carryover_balance: 0.0,
             shiftplan_hours: 0.0,
             extra_work_hours: 0.0,
             vacation_hours: 0.0,
@@ -222,6 +225,7 @@ impl From<&ShortEmployeeReportTO> for Employee {
             holiday_hours: 0.0,
             vacation_days: 0.0,
             vacation_entitlement: 0.0,
+            vacation_carryover: 0,
         }
     }
 }
@@ -240,6 +244,7 @@ impl From<&EmployeeReportTO> for Employee {
             overall_working_hours: report.overall_hours,
             expected_working_hours: report.expected_hours,
             balance: report.balance_hours,
+            carryover_balance: report.carryover_hours,
             shiftplan_hours: report.shiftplan_hours,
             extra_work_hours: report.extra_work_hours,
             vacation_hours: report.vacation_hours,
@@ -247,6 +252,7 @@ impl From<&EmployeeReportTO> for Employee {
             holiday_hours: report.holiday_hours,
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
+            vacation_carryover: report.vacation_carryover,
         }
     }
 }

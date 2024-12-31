@@ -140,15 +140,16 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                 for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_vacation()) {
                     {
                         let extra_hours_id = extra_hours.id;
-                        rsx! { li {
-                            class: "mb-1",
-                            TripleView {
-                                label: i18n.format_date(&extra_hours.date_time.date()),
-                                value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                description: format!("{}", extra_hours.description).into(),
-                                ondelete: move |_| props.ondelete.call(extra_hours_id),
+                        rsx! {
+                            li { class: "mb-1",
+                                TripleView {
+                                    label: i18n.format_date(&extra_hours.date_time.date()),
+                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                    description: format!("{}", extra_hours.description).into(),
+                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
                             }
-                        } }
+                        }
                     }
                 }
             }
@@ -159,15 +160,16 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                 for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_holiday()) {
                     {
                         let extra_hours_id = extra_hours.id;
-                        rsx! { li {
-                            class: "mb-1",
-                            TripleView {
-                                label: i18n.format_date(&extra_hours.date_time.date()),
-                                value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                description: format!("{}", extra_hours.description).into(),
-                                ondelete: move |_| props.ondelete.call(extra_hours_id),
+                        rsx! {
+                            li { class: "mb-1",
+                                TripleView {
+                                    label: i18n.format_date(&extra_hours.date_time.date()),
+                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                    description: format!("{}", extra_hours.description).into(),
+                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
                             }
-                        } }
+                        }
                     }
                 }
             }
@@ -178,15 +180,16 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                 for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_sick_leave()) {
                     {
                         let extra_hours_id = extra_hours.id;
-                        rsx! { li {
-                            class: "mb-1",
-                            TripleView {
-                                label: i18n.format_date(&extra_hours.date_time.date()),
-                                value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                description: format!("{}", extra_hours.description).into(),
-                                ondelete: move |_| props.ondelete.call(extra_hours_id),
+                        rsx! {
+                            li { class: "mb-1",
+                                TripleView {
+                                    label: i18n.format_date(&extra_hours.date_time.date()),
+                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                    description: format!("{}", extra_hours.description).into(),
+                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
                             }
-                        } }
+                        }
                     }
                 }
             }
@@ -198,16 +201,16 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                 for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_extra_work()) {
                     {
                         let extra_hours_id = extra_hours.id;
-                        rsx! { li {
-                            key: "{extra_hours_id}",
-                            class: "mb-1",
-                            TripleView {
-                                label: i18n.format_date(&extra_hours.date_time.date()),
-                                value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                description: format!("{}", extra_hours.description).into(),
-                                ondelete: move |_| props.ondelete.call(extra_hours_id),
+                        rsx! {
+                            li { key: "{extra_hours_id}", class: "mb-1",
+                                TripleView {
+                                    label: i18n.format_date(&extra_hours.date_time.date()),
+                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                    description: format!("{}", extra_hours.description).into(),
+                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
                             }
-                        } }
+                        }
                     }
                 }
             }
@@ -219,16 +222,16 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                 for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_unavailable()) {
                     {
                         let extra_hours_id = extra_hours.id;
-                        rsx! { li {
-                            key: "{extra_hours_id}",
-                            class: "mb-1",
-                            TripleView {
-                                label: i18n.format_date(&extra_hours.date_time.date()),
-                                value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                description: format!("{}", extra_hours.description).into(),
-                                ondelete: move |_| props.ondelete.call(extra_hours_id),
+                        rsx! {
+                            li { key: "{extra_hours_id}", class: "mb-1",
+                                TripleView {
+                                    label: i18n.format_date(&extra_hours.date_time.date()),
+                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                    description: format!("{}", extra_hours.description).into(),
+                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
                             }
-                        } }
+                        }
                     }
                 }
             }
@@ -263,7 +266,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                 h3 { class: "text-l font-bold",
                     "{i18n.format_date(&props.working_hours.from)} - {i18n.format_date(&props.working_hours.to)}"
                 }
-                div { { format!("{:.2} {}", props.working_hours.balance, hours_str) } }
+                div { {format!("{:.2} {}", props.working_hours.balance, hours_str)} }
                 if *expand_details.read() {
                     div {
                         class: "cursor-pointer underline",
@@ -287,55 +290,55 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                     li {
                         TupleView {
                             label: balance_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.balance).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.balance).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: overall_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.overall_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.overall_hours).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: required_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.expected_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.expected_hours).into(),
                         }
                     }
                     li { class: "mt-2",
                         TupleView {
                             label: shiftplan_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.shiftplan_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.shiftplan_hours).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: extra_work_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.extra_work_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.extra_work_hours).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: vacation_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.vacation_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.vacation_hours).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: vacation_days_str.clone(),
-                            value: format!("{:.2} {days_str}", props.working_hours.vacation_days).into()
+                            value: format!("{:.2} {days_str}", props.working_hours.vacation_days).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: sick_leave_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.sick_leave_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.sick_leave_hours).into(),
                         }
                     }
                     li {
                         TupleView {
                             label: holidays_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.holiday_hours).into()
+                            value: format!("{:.2} {hours_str}", props.working_hours.holiday_hours).into(),
                         }
                     }
                 }
@@ -349,6 +352,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                             "{hide_details_str}"
                         }
                     } else {
+
                     }
                 }
             }
@@ -382,7 +386,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                                 TripleView {
                                     label: i18n.format_date(&working_hours.date),
                                     value: format!("{} {hours_str}", working_hours.hours).into(),
-                                    description: format!("{}", i18n.t(working_hours.category.to_i18n_key())).into()
+                                    description: format!("{}", i18n.t(working_hours.category.to_i18n_key())).into(),
                                 }
                             }
                         }
@@ -416,6 +420,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let balance_str = i18n.t(Key::Balance);
     let overall_str = i18n.t(Key::Overall);
     let required_str = i18n.t(Key::Required);
+    let carryover_balance_str = i18n.t(Key::CarryoverBalance);
     let shiftplan_str = i18n.t(Key::CategoryShiftplan);
     let extra_work_str = i18n.t(Key::CategoryExtraWork);
     let vacation_str = i18n.t(Key::CategoryVacation);
@@ -432,6 +437,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let hours_label = i18n.t(Key::Hours);
 
     let vacation_days_str: ImStr = i18n.t(Key::VacationDaysLabel).into();
+    let vacation_carryover_str: ImStr = i18n.t(Key::VacationCarryoverLabel).into();
 
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
@@ -456,7 +462,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     onsaved: move |_| {
                         props.onupdate.call(());
                         *show_add_entry_dialog.write() = false;
-                    }
+                    },
                 }
             }
         }
@@ -510,50 +516,56 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                         li {
                             TupleView {
                                 label: balance_str.clone(),
-                                value: format!("{:.2} {}", props.employee.balance, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.balance, hours_str.clone()).into(),
                             }
                         }
 
                         li {
                             TupleView {
                                 label: overall_str.clone(),
-                                value: format!("{:.2} {}", props.employee.overall_working_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.overall_working_hours, hours_str.clone()).into(),
                             }
                         }
                         li {
                             TupleView {
                                 label: required_str.clone(),
-                                value: format!("{:.2} {}", props.employee.expected_working_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.expected_working_hours, hours_str.clone()).into(),
                             }
                         }
                         li { class: "mt-2",
                             TupleView {
                                 label: shiftplan_str.clone(),
-                                value: format!("{:.2} {}", props.employee.shiftplan_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.shiftplan_hours, hours_str.clone()).into(),
                             }
                         }
                         li {
                             TupleView {
                                 label: extra_work_str.clone(),
-                                value: format!("{:.2} {}", props.employee.extra_work_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.extra_work_hours, hours_str.clone()).into(),
                             }
                         }
                         li {
                             TupleView {
                                 label: vacation_str.clone(),
-                                value: format!("{:.2} {}", props.employee.vacation_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.vacation_hours, hours_str.clone()).into(),
                             }
                         }
                         li {
                             TupleView {
                                 label: sick_leave_str.clone(),
-                                value: format!("{:.2} {}", props.employee.sick_leave_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.sick_leave_hours, hours_str.clone()).into(),
                             }
                         }
                         li {
                             TupleView {
                                 label: holidays_str.clone(),
-                                value: format!("{:.2} {}", props.employee.holiday_hours, hours_str.clone()).into()
+                                value: format!("{:.2} {}", props.employee.holiday_hours, hours_str.clone()).into(),
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: carryover_balance_str.clone(),
+                                value: format!("{:.2} {}", props.employee.carryover_balance, hours_str.clone()).into(),
                             }
                         }
 
@@ -563,7 +575,13 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                                 TupleView {
                                     label: vacation_days_str.as_rc(),
                                     value: format!("{} / {}", props.employee.vacation_days, props.employee.vacation_entitlement)
-                                        .into()
+                                        .into(),
+                                }
+                            }
+                            li {
+                                TupleView {
+                                    label: vacation_carryover_str.as_rc(),
+                                    value: format!("{}", props.employee.vacation_carryover).into(),
                                 }
                             }
                         }
@@ -603,7 +621,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             move |_| {
                                 props.on_employee_work_details_clicked.call(employee_work_details_id)
                             }
-                        }
+                        },
                     }
                 }
                 div { class: "flex flex-row mt-8 justify-between",
@@ -643,7 +661,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     ondelete: move |uuid| {
                         props.on_extra_hour_delete.call(uuid);
                         props.onupdate.call(());
-                    }
+                    },
                 }
             }
         }
@@ -697,7 +715,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             },
             on_previous_year: move |_| {
                 employee_service.send(EmployeeAction::PrevYear);
-            }
+            },
         }
     }
 }
