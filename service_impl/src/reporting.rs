@@ -350,7 +350,7 @@ where
                 );
             let expected_hours = planned_hours - absense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
-            let balance_hours = overall_hours - expected_hours - previous_year_carryover;
+            let balance_hours = overall_hours - expected_hours + previous_year_carryover;
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
