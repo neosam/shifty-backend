@@ -33,5 +33,9 @@ jobs:
         fi
     # - name: Formatting
     #   run: cargo fmt --all -- --check
+    - name: Install tailwindcss
+      run: npm install tailwindcss
+    - name: Run tailwindcss
+      run: npx tailwindcss -i ./input.css -o assets/tailwind.css
     - name: Build local version
       run: dx build
