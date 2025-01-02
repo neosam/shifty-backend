@@ -8,7 +8,7 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn Employees() -> Element {
-    let year = use_signal(|| 2024);
+    let year = use_signal(|| js::get_current_year());
     let week_until = if *year.read() == js::get_current_year() {
         js::get_current_week()
     } else {
@@ -30,18 +30,18 @@ pub fn Employees() -> Element {
                         for employee in employee.iter() {
                             Link {
                                 to: Route::EmployeeDetails {
-                                    employee_id: employee.sales_person.id.to_string()
+                                    employee_id: employee.sales_person.id.to_string(),
                                 },
-                                EmployeeShort {
-                                    employee: employee.clone()
-                                }
+                                EmployeeShort { employee: employee.clone() }
                             }
                         }
                     }
-                },
+                }
                 Some(Err(err)) => {
-                    rsx! { "Error while loading employees: {err}" }
-                },
+                    rsx! {
+                    "Error while loading employees: {err}"
+                    }
+                }
                 None => {
                     rsx! { "Loading employees." }
                 }
