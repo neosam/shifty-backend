@@ -39,9 +39,11 @@ pub struct ShiftplanQuickOverviewEntity {
     pub year: u32,
 }
 
-#[automock]
+#[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait]
 pub trait ShiftplanReportDao {
+    type Transaction: crate::Transaction;
+
     /// A report which contains the worked hours of a sales person for each day.
     async fn extract_shiftplan_report(
         &self,
@@ -50,6 +52,7 @@ pub trait ShiftplanReportDao {
         from_week: u8,
         to_year: u32,
         to_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError>;
 
     /// A report which shows the summed up yearly work hours of all sales persons.
@@ -57,6 +60,7 @@ pub trait ShiftplanReportDao {
         &self,
         year: u32,
         until_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanQuickOverviewEntity]>, DaoError>;
 
     /// A report which contains the worked hours of all sales persons for a specific week.
@@ -64,5 +68,6 @@ pub trait ShiftplanReportDao {
         &self,
         year: u32,
         calendar_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError>;
 }

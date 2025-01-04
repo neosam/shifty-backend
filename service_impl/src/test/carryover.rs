@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use crate::carryover::{CarryoverServiceDeps, CarryoverServiceImpl};
 use dao::carryover::CarryoverEntity;
-use dao::MockTransaction;
+use dao::{MockTransaction, MockTransactionDao};
 use mockall::predicate::{always, eq};
 use service::carryover::{Carryover, CarryoverService};
 use service::permission::Authentication;
@@ -61,12 +63,21 @@ impl CarryoverServiceDeps for CarryoverServiceDependencies {
     type Transaction = MockTransaction;
 
     type CarryoverDao = MockCarryoverDao;
+
+    type TransactionDao = MockTransactionDao;
 }
 
 impl CarryoverServiceDependencies {
     pub fn build_service(self) -> CarryoverServiceImpl<CarryoverServiceDependencies> {
+        let mut transaction_dao = MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(MockTransaction));
+        transaction_dao.expect_commit().returning(|_| Ok(()));
+
         CarryoverServiceImpl {
             carryover_dao: self.carryover_dao.into(),
+            transaction_dao: Arc::new(transaction_dao),
         }
     }
 }
@@ -95,12 +106,12 @@ async fn test_get_carryover_found() {
     let entity = default_carryover_entity();
     deps.carryover_dao
         .expect_find_by_sales_person_id_and_year()
-        .with(eq(entity.sales_person_id), eq(entity.year))
-        .returning(move |_, _| Ok(Some(entity.clone())));
+        .with(eq(entity.sales_person_id), eq(entity.year), always())
+        .returning(move |_, _, _| Ok(Some(entity.clone())));
 
     let service = deps.build_service();
     let result = service
-        .get_carryover(default_sales_person_id(), 2025, ().auth())
+        .get_carryover(default_sales_person_id(), 2025, ().auth(), None)
         .await;
     assert!(result.is_ok(), "Expected Ok result");
     let carryover = result.unwrap().expect("Expected Some carryover");
@@ -112,12 +123,12 @@ async fn test_get_carryover_not_found() {
     let mut deps = build_dependencies();
     deps.carryover_dao
         .expect_find_by_sales_person_id_and_year()
-        .with(eq(default_sales_person_id()), eq(2025))
-        .returning(|_, _| Ok(None));
+        .with(eq(default_sales_person_id()), eq(2025), always())
+        .returning(|_, _, _| Ok(None));
 
     let service = deps.build_service();
     let result = service
-        .get_carryover(default_sales_person_id(), 2025, ().auth())
+        .get_carryover(default_sales_person_id(), 2025, ().auth(), None)
         .await;
     assert!(result.is_ok(), "Expected Ok result even if not found");
     assert!(result.unwrap().is_none(), "Expected None for not found");
@@ -128,12 +139,12 @@ async fn test_get_carryover_dao_error() {
     let mut deps = build_dependencies();
     deps.carryover_dao
         .expect_find_by_sales_person_id_and_year()
-        .with(eq(default_sales_person_id()), eq(2025))
-        .returning(|_, _| Err(dao::DaoError::DatabaseQueryError("Some DB error".into())));
+        .with(eq(default_sales_person_id()), eq(2025), always())
+        .returning(|_, _, _| Err(dao::DaoError::DatabaseQueryError("Some DB error".into())));
 
     let service = deps.build_service();
     let result = service
-        .get_carryover(default_sales_person_id(), 2025, ().auth())
+        .get_carryover(default_sales_person_id(), 2025, ().auth(), None)
         .await;
     match result {
         Err(ServiceError::DatabaseQueryError(_)) => { /* expected */ }
@@ -149,11 +160,11 @@ async fn test_set_carryover_success() {
 
     deps.carryover_dao
         .expect_upsert()
-        .with(eq(entity.clone()), eq("carryover-service"))
-        .returning(|_, _| Ok(()));
+        .with(eq(entity.clone()), eq("carryover-service"), always())
+        .returning(|_, _, _| Ok(()));
 
     let service = deps.build_service();
-    let result = service.set_carryover(&carryover, ().auth()).await;
+    let result = service.set_carryover(&carryover, ().auth(), None).await;
     assert!(result.is_ok(), "Expected Ok result");
 }
 
@@ -164,11 +175,11 @@ async fn test_set_carryover_dao_error() {
 
     deps.carryover_dao
         .expect_upsert()
-        .with(always(), eq("carryover-service"))
-        .returning(|_, _| Err(dao::DaoError::DatabaseQueryError("DB issue".into())));
+        .with(always(), eq("carryover-service"), always())
+        .returning(|_, _, _| Err(dao::DaoError::DatabaseQueryError("DB issue".into())));
 
     let service = deps.build_service();
-    let result = service.set_carryover(&carryover, ().auth()).await;
+    let result = service.set_carryover(&carryover, ().auth(), None).await;
     match result {
         Err(ServiceError::DatabaseQueryError(_)) => { /* expected */ }
         _ => panic!("Expected a data access error"),

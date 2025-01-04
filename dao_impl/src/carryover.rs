@@ -42,21 +42,24 @@ impl TryFrom<&CarryoverDb> for CarryoverEntity {
 }
 
 pub struct CarryoverDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 
 impl CarryoverDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl CarryoverDao for CarryoverDaoImpl {
+    type Transaction = crate::TransactionImpl;
+
     async fn find_by_sales_person_id_and_year(
         &self,
         sales_person_id: Uuid,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Option<CarryoverEntity>, DaoError> {
         let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
@@ -67,7 +70,7 @@ impl CarryoverDao for CarryoverDaoImpl {
             sales_person_id_vec,
             year,
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -75,7 +78,12 @@ impl CarryoverDao for CarryoverDaoImpl {
         .transpose()?)
     }
 
-    async fn upsert(&self, entity: &CarryoverEntity, process: &str) -> Result<(), DaoError> {
+    async fn upsert(
+        &self,
+        entity: &CarryoverEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
         let created_str = entity.created.format(&Iso8601::DATE_TIME).map_db_error()?;
         let deleted_str = entity
@@ -98,7 +106,7 @@ impl CarryoverDao for CarryoverDaoImpl {
             process,
             version_vec,
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
 

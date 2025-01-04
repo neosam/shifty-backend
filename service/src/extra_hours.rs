@@ -119,10 +119,11 @@ impl TryFrom<&ExtraHours> for dao::extra_hours::ExtraHoursEntity {
     }
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait ExtraHoursService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn find_by_sales_person_id_and_year(
         &self,
@@ -130,6 +131,7 @@ pub trait ExtraHoursService {
         year: u32,
         until_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;
 
     async fn find_by_week(
@@ -137,12 +139,14 @@ pub trait ExtraHoursService {
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;
 
     async fn create(
         &self,
         entity: &ExtraHours,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<ExtraHours, ServiceError>;
     async fn update(
         &self,
@@ -153,5 +157,6 @@ pub trait ExtraHoursService {
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }

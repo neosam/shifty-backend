@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::ResultDbErrorExt;
+use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
     extra_hours::{ExtraHoursCategoryEntity, ExtraHoursDao, ExtraHoursEntity},
@@ -60,23 +60,29 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
 }
 
 pub struct ExtraHoursDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 impl ExtraHoursDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl ExtraHoursDao for ExtraHoursDaoImpl {
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<ExtraHoursEntity>, crate::DaoError> {
+    type Transaction = TransactionImpl;
+
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<ExtraHoursEntity>, crate::DaoError> {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
             "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
             id_vec,
-        ).fetch_optional(self.pool.as_ref())
+        ).fetch_optional(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .as_ref()
@@ -88,6 +94,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         &self,
         sales_person_id: Uuid,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
@@ -95,7 +102,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND deleted IS NULL",
             id_vec,
             year,
-        ).fetch_all(self.pool.as_ref())
+        ).fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()
@@ -108,6 +115,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         &self,
         calendar_week: u8,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
         let monday = time::PrimitiveDateTime::new(
             time::Date::from_iso_week_date(year as i32, calendar_week, time::Weekday::Monday)?,
@@ -121,7 +129,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
             monday_str,
             next_monday_str,
-        ).fetch_all(self.pool.as_ref())
+        ).fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()
@@ -134,6 +142,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         &self,
         entity: &ExtraHoursEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), crate::DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
@@ -164,7 +173,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             deleted,
             process,
             version_vec,
-        ).execute(self.pool.as_ref())
+        ).execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
         Ok(())
@@ -173,6 +182,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         &self,
         entity: &ExtraHoursEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), crate::DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
         let version_vec = entity.version.as_bytes().to_vec();
@@ -187,12 +197,17 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             process,
             id_vec,
         )
-            .execute(self.pool.as_ref())
+            .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
         Ok(())
     }
-    async fn delete(&self, _id: Uuid, _process: &str) -> Result<(), crate::DaoError> {
+    async fn delete(
+        &self,
+        _id: Uuid,
+        _process: &str,
+        _tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError> {
         unimplemented!()
     }
 }

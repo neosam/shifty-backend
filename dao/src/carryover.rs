@@ -13,14 +13,22 @@ pub struct CarryoverEntity {
     pub version: Uuid,
 }
 
-#[automock]
+#[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait::async_trait]
 pub trait CarryoverDao {
+    type Transaction: crate::Transaction;
+
     async fn find_by_sales_person_id_and_year(
         &self,
         sales_person_id: Uuid,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Option<CarryoverEntity>, DaoError>;
 
-    async fn upsert(&self, entity: &CarryoverEntity, process: &str) -> Result<(), DaoError>;
+    async fn upsert(
+        &self,
+        entity: &CarryoverEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
 }

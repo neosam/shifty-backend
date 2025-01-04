@@ -1,68 +1,45 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::sales_person::SalesPersonEntity;
+use dao::{
+    sales_person::{SalesPersonDao, SalesPersonEntity},
+    TransactionDao,
+};
 use service::{
+    clock::ClockService,
     permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
-    sales_person::SalesPerson,
-    ServiceError, ValidationFailureItem,
+    sales_person::{SalesPerson, SalesPersonService},
+    uuid_service::UuidService,
+    PermissionService, ServiceError, ValidationFailureItem,
 };
 use tokio::join;
 use uuid::Uuid;
 
-pub struct SalesPersonServiceImpl<SalesPersonDao, PermissionService, ClockService, UuidService>
-where
-    SalesPersonDao: dao::sales_person::SalesPersonDao + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    pub sales_person_dao: Arc<SalesPersonDao>,
-    pub permission_service: Arc<PermissionService>,
-    pub clock_service: Arc<ClockService>,
-    pub uuid_service: Arc<UuidService>,
-}
-impl<SalesPersonDao, PermissionService, ClockService, UuidService>
-    SalesPersonServiceImpl<SalesPersonDao, PermissionService, ClockService, UuidService>
-where
-    SalesPersonDao: dao::sales_person::SalesPersonDao + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    pub fn new(
-        sales_person_dao: Arc<SalesPersonDao>,
-        permission_service: Arc<PermissionService>,
-        clock_service: Arc<ClockService>,
-        uuid_service: Arc<UuidService>,
-    ) -> Self {
-        Self {
-            sales_person_dao,
-            permission_service,
-            clock_service,
-            uuid_service,
-        }
+use crate::gen_service_impl;
+
+gen_service_impl! {
+    struct SalesPersonServiceImpl: SalesPersonService = SalesPersonServiceDeps {
+        SalesPersonDao: SalesPersonDao<Transaction = Self::Transaction> = sales_person_dao,
+        PermissionService: PermissionService<Context = Self::Context> = permission_service,
+        ClockService: ClockService = clock_service,
+        UuidService: UuidService = uuid_service,
+        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
 
 const SALES_PERSON_SERVICE_PROCESS: &str = "sales-person-service";
 
 #[async_trait]
-impl<SalesPersonDao, PermissionService, ClockService, UuidService>
-    service::sales_person::SalesPersonService
-    for SalesPersonServiceImpl<SalesPersonDao, PermissionService, ClockService, UuidService>
-where
-    SalesPersonDao: dao::sales_person::SalesPersonDao + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    type Context = PermissionService::Context;
+impl<Deps: SalesPersonServiceDeps> SalesPersonService for SalesPersonServiceImpl<Deps> {
+    type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
 
     async fn get_all(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[service::sales_person::SalesPerson]>, service::ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner, sales, hr) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -74,7 +51,7 @@ where
         shiftplanner.or(sales).or(hr)?;
         let mut sales_persons = self
             .sales_person_dao
-            .all()
+            .all(tx.clone())
             .await?
             .iter()
             .map(SalesPerson::from)
@@ -91,30 +68,37 @@ where
                 sales_person.is_paid = None;
             });
         }
+        self.transaction_dao.commit(tx).await?;
         Ok(sales_persons.into())
     }
 
     async fn get_all_paid(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPerson]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
-        Ok(self
+        let ret = Ok(self
             .sales_person_dao
-            .all_paid()
+            .all_paid(tx.clone())
             .await?
             .iter()
             .map(SalesPerson::from)
-            .collect())
+            .collect());
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn get(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<service::sales_person::SalesPerson, service::ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner, sales, hr) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
@@ -126,7 +110,7 @@ where
         shiftplanner.or(sales).or(hr)?;
         let mut sales_person = self
             .sales_person_dao
-            .find_by_id(id)
+            .find_by_id(id, tx.clone())
             .await?
             .as_ref()
             .map(SalesPerson::from)
@@ -142,7 +126,8 @@ where
                 self.permission_service
                     .current_user_id(context.clone())
                     .await?,
-                self.get_assigned_user(id, Authentication::Full).await?,
+                self.get_assigned_user(id, Authentication::Full, tx.clone().into())
+                    .await?,
             ) {
                 current_user_id != assigned_user
             } else {
@@ -156,6 +141,7 @@ where
             sales_person.is_paid = None;
         }
 
+        self.transaction_dao.commit(tx).await?;
         Ok(sales_person)
     }
 
@@ -163,19 +149,26 @@ where
         &self,
         id: Uuid,
         _context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError> {
-        Ok(self
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let ret = Ok(self
             .sales_person_dao
-            .find_by_id(id)
+            .find_by_id(id, tx.clone())
             .await
-            .map(|x| x.is_some())?)
+            .map(|x| x.is_some())?);
+
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn create(
         &self,
         sales_person: &SalesPerson,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPerson, service::ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
@@ -196,8 +189,11 @@ where
             .create(
                 &SalesPersonEntity::from(&sales_person),
                 SALES_PERSON_SERVICE_PROCESS,
+                tx.clone(),
             )
             .await?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(sales_person)
     }
 
@@ -205,14 +201,16 @@ where
         &self,
         sales_person: &SalesPerson,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPerson, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
 
         let sales_person_entity = self
             .sales_person_dao
-            .find_by_id(sales_person.id)
+            .find_by_id(sales_person.id, tx.clone())
             .await?
             .as_ref()
             .map(SalesPerson::from)
@@ -244,8 +242,10 @@ where
             .update(
                 &SalesPersonEntity::from(&sales_person),
                 SALES_PERSON_SERVICE_PROCESS,
+                tx.clone(),
             )
             .await?;
+        self.transaction_dao.commit(tx).await?;
         Ok(sales_person)
     }
 
@@ -253,20 +253,27 @@ where
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
         let mut sales_person_entity = self
             .sales_person_dao
-            .find_by_id(id)
+            .find_by_id(id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(id))?;
         sales_person_entity.deleted = Some(self.clock_service.date_time_now());
         sales_person_entity.version = self.uuid_service.new_uuid("sales-person-version");
         self.sales_person_dao
-            .update(&sales_person_entity, SALES_PERSON_SERVICE_PROCESS)
+            .update(
+                &sales_person_entity,
+                SALES_PERSON_SERVICE_PROCESS,
+                tx.clone(),
+            )
             .await?;
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 
@@ -274,14 +281,18 @@ where
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<Arc<str>>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
-        Ok(self
+        let ret = Ok(self
             .sales_person_dao
-            .get_assigned_user(sales_person_id)
-            .await?)
+            .get_assigned_user(sales_person_id, tx.clone())
+            .await?);
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn set_user(
@@ -289,18 +300,26 @@ where
         sales_person_id: Uuid,
         user_id: Option<Arc<str>>,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
         self.sales_person_dao
-            .discard_assigned_user(sales_person_id)
+            .discard_assigned_user(sales_person_id, tx.clone())
             .await?;
         if let Some(user) = user_id {
             self.sales_person_dao
-                .assign_to_user(sales_person_id, user.as_ref(), SALES_PERSON_SERVICE_PROCESS)
+                .assign_to_user(
+                    sales_person_id,
+                    user.as_ref(),
+                    SALES_PERSON_SERVICE_PROCESS,
+                    tx.clone(),
+                )
                 .await?;
         }
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 
@@ -308,22 +327,28 @@ where
         &self,
         user_id: Arc<str>,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<SalesPerson>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
-        Ok(self
+        let ret = Ok(self
             .sales_person_dao
-            .find_sales_person_by_user_id(&user_id)
+            .find_sales_person_by_user_id(&user_id, tx.clone())
             .await?
             .as_ref()
-            .map(SalesPerson::from))
+            .map(SalesPerson::from));
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn get_sales_person_current_user(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<SalesPerson>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let current_user = if let Some(current_user) = self
             .permission_service
             .current_user_id(context.clone())
@@ -333,23 +358,28 @@ where
         } else {
             return Ok(None);
         };
-        Ok(self
-            .get_sales_person_for_user(current_user, Authentication::Full)
-            .await?)
+        let ret = Ok(self
+            .get_sales_person_for_user(current_user, Authentication::Full, tx.clone().into())
+            .await?);
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn verify_user_is_sales_person(
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (Some(username), Some(sales_person_username)) = (
             self.permission_service.current_user_id(context).await?,
-            self.get_assigned_user(sales_person_id, Authentication::Full)
+            self.get_assigned_user(sales_person_id, Authentication::Full, tx.clone().into())
                 .await?,
         ) else {
             return Err(ServiceError::Forbidden);
         };
+        self.transaction_dao.commit(tx).await?;
         if username == sales_person_username {
             Ok(())
         } else {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::ResultDbErrorExt;
+use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
     employee_work_details::{EmployeeWorkDetailsDao, EmployeeWorkDetailsEntity},
@@ -80,18 +80,23 @@ impl TryFrom<&EmployeeWorkDetailsDb> for EmployeeWorkDetailsEntity {
 }
 
 pub struct EmployeeWorkDetailsDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 
 impl EmployeeWorkDetailsDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
-    async fn all(&self) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError> {
+    type Transaction = TransactionImpl;
+
+    async fn all(
+        &self,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError> {
         query_as!(
             EmployeeWorkDetailsDb,
             r#"
@@ -126,7 +131,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 deleted IS NULL
             "#
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -134,7 +139,11 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         .collect::<Result<_, _>>()
     }
 
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<EmployeeWorkDetailsEntity>, DaoError> {
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<EmployeeWorkDetailsEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
         query_as!(
             EmployeeWorkDetailsDb,
@@ -172,7 +181,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             "#,
             id_vec
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -183,6 +192,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
     async fn find_by_sales_person_id(
         &self,
         sales_person_id: Uuid,
+        tx: Self::Transaction,
     ) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError> {
         let id_vec = sales_person_id.as_bytes().to_vec();
         query_as!(
@@ -223,7 +233,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             "#,
             id_vec
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -235,6 +245,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         &self,
         calenar_week: u8,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError> {
         query_as!(
             EmployeeWorkDetailsDb,
@@ -277,7 +288,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             year,
             calenar_week,
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -289,6 +300,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         &self,
         entity: &EmployeeWorkDetailsEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let sales_person_id = entity.sales_person_id.as_bytes().to_vec();
@@ -361,7 +373,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             process,
             version,
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())
@@ -371,6 +383,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         &self,
         entity: &EmployeeWorkDetailsEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let deleted = entity
@@ -406,7 +419,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             workdays_per_week,
             id
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())

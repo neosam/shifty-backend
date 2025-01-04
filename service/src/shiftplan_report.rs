@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use dao::MockTransaction;
 use mockall::automock;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -37,10 +38,11 @@ pub struct ShiftplanQuickOverview {
     pub year: u32,
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction = MockTransaction;)]
 #[async_trait]
 pub trait ShiftplanReportService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn extract_shiftplan_report(
         &self,
@@ -50,6 +52,7 @@ pub trait ShiftplanReportService {
         to_year: u32,
         to_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError>;
 
     async fn extract_quick_shiftplan_report(
@@ -57,6 +60,7 @@ pub trait ShiftplanReportService {
         year: u32,
         until_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanQuickOverview]>, ServiceError>;
 
     async fn extract_shiftplan_report_for_week(
@@ -64,5 +68,6 @@ pub trait ShiftplanReportService {
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError>;
 }

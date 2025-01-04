@@ -1,6 +1,7 @@
 use crate::permission::Authentication;
 use crate::ServiceError;
 use async_trait::async_trait;
+use dao::MockTransaction;
 use mockall::automock;
 use std::fmt::Debug;
 use uuid::Uuid;
@@ -45,21 +46,24 @@ impl TryFrom<&Carryover> for dao::carryover::CarryoverEntity {
     }
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=MockTransaction;)]
 #[async_trait]
 pub trait CarryoverService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn get_carryover(
         &self,
         sales_person_id: Uuid,
         year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<Carryover>, ServiceError>;
 
     async fn set_carryover(
         &self,
         carryover: &Carryover,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }

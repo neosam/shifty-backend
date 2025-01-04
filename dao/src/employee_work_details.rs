@@ -33,28 +33,41 @@ pub struct EmployeeWorkDetailsEntity {
     pub version: Uuid,
 }
 
-#[automock]
+#[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait]
 pub trait EmployeeWorkDetailsDao {
-    async fn all(&self) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError>;
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<EmployeeWorkDetailsEntity>, DaoError>;
+    type Transaction: crate::Transaction;
+
+    async fn all(
+        &self,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError>;
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<EmployeeWorkDetailsEntity>, DaoError>;
     async fn find_by_sales_person_id(
         &self,
         sales_person_id: Uuid,
+        tx: Self::Transaction,
     ) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError>;
     async fn find_for_week(
         &self,
         calenar_week: u8,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[EmployeeWorkDetailsEntity]>, DaoError>;
     async fn create(
         &self,
         entity: &EmployeeWorkDetailsEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError>;
     async fn update(
         &self,
         entity: &EmployeeWorkDetailsEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError>;
 }

@@ -1,5 +1,8 @@
 use super::error_test::*;
-use dao::sales_person::{MockSalesPersonDao, SalesPersonEntity};
+use dao::{
+    sales_person::{MockSalesPersonDao, SalesPersonEntity},
+    MockTransaction, MockTransactionDao,
+};
 use mockall::predicate::{always, eq};
 use service::{
     clock::MockClockService,
@@ -12,29 +15,34 @@ use time::{Date, Month, PrimitiveDateTime, Time};
 use tokio;
 use uuid::{uuid, Uuid};
 
-use crate::sales_person::SalesPersonServiceImpl;
+use crate::sales_person::{SalesPersonServiceDeps, SalesPersonServiceImpl};
 
 pub struct SalesPersonServiceDependencies {
     pub sales_person_dao: MockSalesPersonDao,
     pub permission_service: MockPermissionService,
     pub clock_service: MockClockService,
     pub uuid_service: MockUuidService,
+    pub transaction_dao: MockTransactionDao,
 }
+impl SalesPersonServiceDeps for SalesPersonServiceDependencies {
+    type Context = ();
+    type Transaction = MockTransaction;
+    type SalesPersonDao = MockSalesPersonDao;
+    type PermissionService = MockPermissionService;
+    type ClockService = MockClockService;
+    type UuidService = MockUuidService;
+    type TransactionDao = MockTransactionDao;
+}
+
 impl SalesPersonServiceDependencies {
-    pub fn build_service(
-        self,
-    ) -> SalesPersonServiceImpl<
-        MockSalesPersonDao,
-        MockPermissionService,
-        MockClockService,
-        MockUuidService,
-    > {
-        SalesPersonServiceImpl::new(
-            self.sales_person_dao.into(),
-            self.permission_service.into(),
-            self.clock_service.into(),
-            self.uuid_service.into(),
-        )
+    pub fn build_service(self) -> SalesPersonServiceImpl<SalesPersonServiceDependencies> {
+        SalesPersonServiceImpl {
+            sales_person_dao: self.sales_person_dao.into(),
+            permission_service: self.permission_service.into(),
+            clock_service: self.clock_service.into(),
+            uuid_service: self.uuid_service.into(),
+            transaction_dao: self.transaction_dao.into(),
+        }
     }
 }
 
@@ -71,11 +79,18 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> SalesPersonSe
     });
     let uuid_service = MockUuidService::new();
 
+    let mut transaction_dao = MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
     SalesPersonServiceDependencies {
         sales_person_dao,
         permission_service,
         clock_service,
         uuid_service,
+        transaction_dao,
     }
 }
 
@@ -120,7 +135,7 @@ pub fn default_sales_person() -> service::sales_person::SalesPerson {
 #[tokio::test]
 async fn test_get_all_shiftplanner() {
     let mut dependencies = build_dependencies(true, "shiftplanner");
-    dependencies.sales_person_dao.expect_all().returning(|| {
+    dependencies.sales_person_dao.expect_all().returning(|_| {
         Ok([
             default_sales_person_entity(),
             SalesPersonEntity {
@@ -132,7 +147,7 @@ async fn test_get_all_shiftplanner() {
         .into())
     });
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get_all(().auth()).await.unwrap();
+    let result = sales_person_service.get_all(().auth(), None).await.unwrap();
     assert_eq!(2, result.len());
     assert_eq!(
         service::sales_person::SalesPerson {
@@ -155,7 +170,7 @@ async fn test_get_all_shiftplanner() {
 #[tokio::test]
 async fn test_get_all_sales_user() {
     let mut dependencies = build_dependencies(true, "sales");
-    dependencies.sales_person_dao.expect_all().returning(|| {
+    dependencies.sales_person_dao.expect_all().returning(|_| {
         Ok([
             default_sales_person_entity(),
             SalesPersonEntity {
@@ -167,7 +182,7 @@ async fn test_get_all_sales_user() {
         .into())
     });
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get_all(().auth()).await.unwrap();
+    let result = sales_person_service.get_all(().auth(), None).await.unwrap();
     assert_eq!(2, result.len());
     assert_eq!(
         service::sales_person::SalesPerson {
@@ -190,7 +205,7 @@ async fn test_get_all_sales_user() {
 #[tokio::test]
 async fn test_get_all_hr_user() {
     let mut dependencies = build_dependencies(true, "hr");
-    dependencies.sales_person_dao.expect_all().returning(|| {
+    dependencies.sales_person_dao.expect_all().returning(|_| {
         Ok([
             default_sales_person_entity(),
             SalesPersonEntity {
@@ -202,7 +217,7 @@ async fn test_get_all_hr_user() {
         .into())
     });
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get_all(().auth()).await.unwrap();
+    let result = sales_person_service.get_all(().auth(), None).await.unwrap();
     assert_eq!(2, result.len());
     assert_eq!(default_sales_person(), result[0]);
     assert_eq!(
@@ -219,7 +234,7 @@ async fn test_get_all_hr_user() {
 async fn test_get_all_no_permission() {
     let dependencies = build_dependencies(false, "hr");
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get_all(().auth()).await;
+    let result = sales_person_service.get_all(().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -229,16 +244,18 @@ async fn test_get_hr_user() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_get_assigned_user()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some("TESTUSER".into())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some("TESTUSER".into())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     assert_eq!(default_sales_person(), result.unwrap());
 }
 
@@ -248,16 +265,18 @@ async fn test_get_shiftplanner_user_other_user() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_get_assigned_user()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some("OTHER".into())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some("OTHER".into())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     assert_eq!(
         SalesPerson {
             is_paid: None,
@@ -273,16 +292,18 @@ async fn test_get_sales_user_other_user() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_get_assigned_user()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some("OTHER".into())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some("OTHER".into())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     assert_eq!(
         SalesPerson {
             is_paid: None,
@@ -298,16 +319,18 @@ async fn test_get_shiftplanner_user_same_user() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_get_assigned_user()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some("TESTUSER".into())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some("TESTUSER".into())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     assert_eq!(
         SalesPerson {
             ..default_sales_person()
@@ -322,16 +345,18 @@ async fn test_get_sales_user_same_user() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_get_assigned_user()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some("TESTUSER".into())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some("TESTUSER".into())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     assert_eq!(default_sales_person(), result.unwrap());
 }
 
@@ -339,7 +364,9 @@ async fn test_get_sales_user_same_user() {
 async fn test_get_no_permission() {
     let dependencies = build_dependencies(false, "sales");
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     test_forbidden(&result);
 }
 
@@ -349,11 +376,13 @@ async fn test_get_not_found() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(None));
+        .returning(|_, _| Ok(None));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     test_not_found(&result, &default_id());
 }
 
@@ -363,11 +392,13 @@ async fn test_get_not_found_sales_user() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
+        .with(eq(default_id()), always())
         .times(1)
-        .returning(|_| Ok(None));
+        .returning(|_, _| Ok(None));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.get(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .get(default_id(), ().auth(), None)
+        .await;
     test_not_found(&result, &default_id());
 }
 
@@ -380,9 +411,10 @@ async fn test_create() {
         .with(
             eq(default_sales_person_entity()),
             eq("sales-person-service"),
+            always(),
         )
         .times(1)
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -404,6 +436,7 @@ async fn test_create() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await
         .unwrap();
@@ -422,6 +455,7 @@ async fn test_create_no_permission() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_forbidden(&result);
@@ -449,6 +483,7 @@ async fn test_create_validation() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_zero_id_error(&result);
@@ -460,6 +495,7 @@ async fn test_create_validation() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_zero_version_error(&result);
@@ -476,6 +512,7 @@ async fn test_update_no_permission() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_forbidden(&result);
@@ -487,8 +524,8 @@ async fn test_update_not_found() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service
         .update(
@@ -497,6 +534,7 @@ async fn test_update_not_found() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_not_found(&result, &default_id());
@@ -508,8 +546,8 @@ async fn test_update_conflicts() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service
         .update(
@@ -518,6 +556,7 @@ async fn test_update_conflicts() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_conflicts(
@@ -534,8 +573,8 @@ async fn test_update_deleted_no_allowed() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service
         .update(
@@ -547,6 +586,7 @@ async fn test_update_deleted_no_allowed() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await;
     test_validation_error(
@@ -562,8 +602,8 @@ async fn test_update_inactive() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_update()
@@ -574,8 +614,9 @@ async fn test_update_inactive() {
                 ..default_sales_person_entity()
             }),
             eq("sales-person-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -589,6 +630,7 @@ async fn test_update_inactive() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await
         .unwrap();
@@ -608,8 +650,8 @@ async fn test_update_name() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_update()
@@ -620,8 +662,9 @@ async fn test_update_name() {
                 ..default_sales_person_entity()
             }),
             eq("sales-person-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -635,6 +678,7 @@ async fn test_update_name() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await
         .unwrap();
@@ -654,8 +698,8 @@ async fn test_update_background_color() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_update()
@@ -666,8 +710,9 @@ async fn test_update_background_color() {
                 ..default_sales_person_entity()
             }),
             eq("sales-person-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -681,6 +726,7 @@ async fn test_update_background_color() {
                 ..default_sales_person()
             },
             ().auth(),
+            None,
         )
         .await
         .unwrap();
@@ -700,8 +746,8 @@ async fn test_delete() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     dependencies
         .sales_person_dao
         .expect_update()
@@ -715,15 +761,18 @@ async fn test_delete() {
                 ..default_sales_person_entity()
             }),
             eq("sales-person-service"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .uuid_service
         .expect_new_uuid()
         .with(eq("sales-person-version"))
         .returning(|_| alternate_version());
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.delete(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .delete(default_id(), ().auth(), None)
+        .await;
     assert!(result.is_ok());
 }
 
@@ -733,10 +782,12 @@ async fn test_delete_no_permission() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.delete(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .delete(default_id(), ().auth(), None)
+        .await;
     test_forbidden(&result);
 }
 
@@ -746,10 +797,12 @@ async fn test_delete_not_found() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     let sales_person_service = dependencies.build_service();
-    let result = sales_person_service.delete(default_id(), ().auth()).await;
+    let result = sales_person_service
+        .delete(default_id(), ().auth(), None)
+        .await;
     test_not_found(&result, &default_id());
 }
 
@@ -759,11 +812,11 @@ async fn test_exists() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_entity())));
     let sales_person_service = dependencies.build_service();
     let result = sales_person_service
-        .exists(default_id(), ().auth())
+        .exists(default_id(), ().auth(), None)
         .await
         .unwrap();
     assert!(result);
@@ -773,10 +826,10 @@ async fn test_exists() {
     dependencies
         .sales_person_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     let result = sales_person_service
-        .exists(default_id(), ().auth())
+        .exists(default_id(), ().auth(), None)
         .await
         .unwrap();
     assert_eq!(false, !result);

@@ -138,16 +138,18 @@ pub struct EmployeeReport {
     pub by_month: Arc<[GroupedReportHours]>,
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait ReportingService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn get_reports_for_all_employees(
         &self,
         years: u32,
         until_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError>;
 
     async fn get_report_for_employee(
@@ -156,6 +158,7 @@ pub trait ReportingService {
         years: u32,
         until_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<EmployeeReport, ServiceError>;
 
     async fn get_week(
@@ -163,5 +166,6 @@ pub trait ReportingService {
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError>;
 }

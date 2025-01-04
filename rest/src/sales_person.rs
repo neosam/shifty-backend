@@ -48,7 +48,7 @@ pub async fn get_all_sales_persons<RestState: RestStateDef>(
         (async {
             let sales_persons: Arc<[SalesPersonTO]> = rest_state
                 .sales_person_service()
-                .get_all(context.into())
+                .get_all(context.into(), None)
                 .await?
                 .iter()
                 .map(SalesPersonTO::from)
@@ -73,7 +73,7 @@ pub async fn get_sales_person<RestState: RestStateDef>(
             let sales_person = SalesPersonTO::from(
                 &rest_state
                     .sales_person_service()
-                    .get(sales_person_id, context.into())
+                    .get(sales_person_id, context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -96,7 +96,7 @@ pub async fn create_sales_person<RestState: RestStateDef>(
             let sales_person = SalesPersonTO::from(
                 &rest_state
                     .sales_person_service()
-                    .create(&(&sales_person).into(), context.into())
+                    .create(&(&sales_person).into(), context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -122,7 +122,7 @@ pub async fn update_sales_person<RestState: RestStateDef>(
             }
             rest_state
                 .sales_person_service()
-                .update(&(&sales_person).into(), context.into())
+                .update(&(&sales_person).into(), context.into(), None)
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -143,7 +143,7 @@ pub async fn delete_sales_person<RestState: RestStateDef>(
         (async {
             rest_state
                 .sales_person_service()
-                .delete(sales_person_id, context.into())
+                .delete(sales_person_id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
@@ -161,7 +161,7 @@ pub async fn get_sales_person_user<RestState: RestStateDef>(
         (async {
             let user = rest_state
                 .sales_person_service()
-                .get_assigned_user(sales_person_id, context.into())
+                .get_assigned_user(sales_person_id, context.into(), None)
                 .await?;
             Ok(Response::builder()
                 .status(200)
@@ -183,7 +183,7 @@ pub async fn set_sales_person_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .sales_person_service()
-                .set_user(sales_person_id, user.into(), context.into())
+                .set_user(sales_person_id, user.into(), context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
@@ -201,7 +201,7 @@ pub async fn delete_sales_person_user<RestState: RestStateDef>(
         (async {
             rest_state
                 .sales_person_service()
-                .set_user(sales_person_id, None, context.into())
+                .set_user(sales_person_id, None, context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
@@ -218,7 +218,7 @@ pub async fn get_sales_person_current_user<RestState: RestStateDef>(
         (async {
             let sales_person = rest_state
                 .sales_person_service()
-                .get_sales_person_current_user(context.into())
+                .get_sales_person_current_user(context.into(), None)
                 .await?
                 .map(|sales_person| SalesPersonTO::from(&sales_person));
 
@@ -254,6 +254,7 @@ pub async fn get_sales_person_unavailable<RestState: RestStateDef>(
                         year,
                         calendar_week,
                         context.into(),
+                        None,
                     )
                     .await?
                     .iter()
@@ -262,7 +263,7 @@ pub async fn get_sales_person_unavailable<RestState: RestStateDef>(
             } else {
                 rest_state
                     .sales_person_unavailable_service()
-                    .get_all_for_sales_person(sales_person_id, context.into())
+                    .get_all_for_sales_person(sales_person_id, context.into(), None)
                     .await?
                     .iter()
                     .map(SalesPersonUnavailableTO::from)
@@ -288,7 +289,7 @@ pub async fn create_sales_person_unavailable<RestState: RestStateDef>(
             let unavailable = SalesPersonUnavailableTO::from(
                 &rest_state
                     .sales_person_unavailable_service()
-                    .create(&(&sales_person_unavailable).into(), context.into())
+                    .create(&(&sales_person_unavailable).into(), context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -310,7 +311,7 @@ pub async fn delete_sales_person_unavailable<RestState: RestStateDef>(
         (async {
             rest_state
                 .sales_person_unavailable_service()
-                .delete(unavailable_id, context.into())
+                .delete(unavailable_id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })

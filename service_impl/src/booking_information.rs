@@ -1,179 +1,50 @@
+use crate::gen_service_impl;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::TransactionDao;
 use service::{
+    booking::BookingService,
     booking_information::{
-        build_booking_information, BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson,
+        build_booking_information, BookingInformation, BookingInformationService, WeeklySummary,
+        WorkingHoursPerSalesPerson,
     },
+    clock::ClockService,
     permission::{Authentication, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
-    slot::Slot,
-    special_days::SpecialDayType,
-    ServiceError,
+    reporting::ReportingService,
+    sales_person::SalesPersonService,
+    sales_person_unavailable::SalesPersonUnavailableService,
+    shiftplan_report::ShiftplanReportService,
+    slot::{Slot, SlotService},
+    special_days::{SpecialDayService, SpecialDayType},
+    uuid_service::UuidService,
+    PermissionService, ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
 
-pub struct BookingInformationServiceImpl<
-    ShiftplanReportService,
-    SlotService,
-    BookingService,
-    SalesPersonService,
-    SalesPersonUnavailableService,
-    ReportingService,
-    SpecialDayService,
-    PermissionService,
-    ClockService,
-    UuidService,
-    TransactionDao,
-> where
-    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
-    SlotService: service::slot::SlotService + Send + Sync,
-    BookingService: service::booking::BookingService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    SalesPersonUnavailableService:
-        service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
-    ReportingService: service::reporting::ReportingService + Send + Sync,
-    SpecialDayService: service::special_days::SpecialDayService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-    TransactionDao: dao::TransactionDao + Send + Sync,
-{
-    pub shiftplan_report_service: Arc<ShiftplanReportService>,
-    pub slot_service: Arc<SlotService>,
-    pub booking_service: Arc<BookingService>,
-    pub sales_person_service: Arc<SalesPersonService>,
-    pub sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
-    pub reporting_service: Arc<ReportingService>,
-    pub special_day_service: Arc<SpecialDayService>,
-    pub permission_service: Arc<PermissionService>,
-    pub clock_service: Arc<ClockService>,
-    pub uuid_service: Arc<UuidService>,
-    pub transaction_dao: Arc<TransactionDao>,
-}
-
-impl<
-        ShiftplanReportService,
-        SlotService,
-        BookingService,
-        SalesPersonService,
-        SalesPersonUnavailableService,
-        ReportingService,
-        SpecialDayService,
-        PermissionService,
-        ClockService,
-        UuidService,
-        TransactionDao,
-    >
-    BookingInformationServiceImpl<
-        ShiftplanReportService,
-        SlotService,
-        BookingService,
-        SalesPersonService,
-        SalesPersonUnavailableService,
-        ReportingService,
-        SpecialDayService,
-        PermissionService,
-        ClockService,
-        UuidService,
-        TransactionDao,
-    >
-where
-    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
-    SlotService: service::slot::SlotService + Send + Sync,
-    BookingService: service::booking::BookingService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    SalesPersonUnavailableService:
-        service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
-    ReportingService: service::reporting::ReportingService + Send + Sync,
-    SpecialDayService: service::special_days::SpecialDayService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-    TransactionDao: dao::TransactionDao + Send + Sync,
-{
-    pub fn new(
-        shiftplan_report_service: Arc<ShiftplanReportService>,
-        slot_service: Arc<SlotService>,
-        booking_service: Arc<BookingService>,
-        sales_person_service: Arc<SalesPersonService>,
-        sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
-        reporting_service: Arc<ReportingService>,
-        special_day_service: Arc<SpecialDayService>,
-        permission_service: Arc<PermissionService>,
-        clock_service: Arc<ClockService>,
-        uuid_service: Arc<UuidService>,
-        transaction_dao: Arc<TransactionDao>,
-    ) -> Self {
-        Self {
-            shiftplan_report_service,
-            slot_service,
-            booking_service,
-            sales_person_service,
-            sales_person_unavailable_service,
-            reporting_service,
-            special_day_service,
-            permission_service,
-            clock_service,
-            uuid_service,
-            transaction_dao,
-        }
+gen_service_impl! {
+    struct BookingInformationServiceImpl: BookingInformationService = BookingInformationServiceDeps {
+        ShiftplanReportService: ShiftplanReportService<Transaction = Self::Transaction> = shiftplan_report_service,
+        SlotService: SlotService<Transaction = Self::Transaction> = slot_service,
+        BookingService: BookingService<Transaction = Self::Transaction> = booking_service,
+        SalesPersonService: SalesPersonService<Transaction = Self::Transaction> = sales_person_service,
+        SalesPersonUnavailableService: SalesPersonUnavailableService<Transaction = Self::Transaction> = sales_person_unavailable_service,
+        ReportingService: ReportingService<Transaction = Self::Transaction> = reporting_service,
+        SpecialDayService: SpecialDayService = special_day_service,
+        PermissionService: PermissionService<Context = Self::Context> = permission_service,
+        ClockService: ClockService = clock_service,
+        UuidService: UuidService = uuid_service,
+        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
 
 #[async_trait]
-impl<
-        ShiftplanReportService,
-        SlotService,
-        BookingService,
-        SalesPersonService,
-        SalesPersonUnavailableService,
-        ReportingService,
-        SpecialDayService,
-        PermissionService,
-        ClockService,
-        UuidService,
-        TransactionDao,
-    > service::booking_information::BookingInformationService
-    for BookingInformationServiceImpl<
-        ShiftplanReportService,
-        SlotService,
-        BookingService,
-        SalesPersonService,
-        SalesPersonUnavailableService,
-        ReportingService,
-        SpecialDayService,
-        PermissionService,
-        ClockService,
-        UuidService,
-        TransactionDao,
-    >
-where
-    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
-    SlotService: service::slot::SlotService<
-            Context = PermissionService::Context,
-            Transaction = TransactionDao::Transaction,
-        > + Send
-        + Sync,
-    BookingService: service::booking::BookingService<
-            Context = PermissionService::Context,
-            Transaction = TransactionDao::Transaction,
-        > + Send
-        + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
-        + Send
-        + Sync,
-    SalesPersonUnavailableService:
-        service::sales_person_unavailable::SalesPersonUnavailableService + Send + Sync,
-    ReportingService: service::reporting::ReportingService + Send + Sync,
-    SpecialDayService: service::special_days::SpecialDayService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-    TransactionDao: dao::TransactionDao + Send + Sync,
+impl<Deps: BookingInformationServiceDeps> BookingInformationService
+    for BookingInformationServiceImpl<Deps>
 {
-    type Context = PermissionService::Context;
-    type Transaction = TransactionDao::Transaction;
+    type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
 
     async fn get_booking_conflicts_for_week(
         &self,
@@ -188,11 +59,11 @@ where
             .await?;
         let bookings = self
             .booking_service
-            .get_for_week(week, year, Authentication::Full, Some(tx.clone()))
+            .get_for_week(week, year, Authentication::Full, tx.clone().into())
             .await?;
         let sales_persons = self
             .sales_person_service
-            .get_all(Authentication::Full)
+            .get_all(Authentication::Full, tx.clone().into())
             .await?;
         let slots = self
             .slot_service
@@ -200,7 +71,7 @@ where
             .await?;
         let unavailable_entries = self
             .sales_person_unavailable_service
-            .get_by_week(year, week, Authentication::Full)
+            .get_by_week(year, week, Authentication::Full, tx.clone().into())
             .await?;
         let booking_informations = build_booking_information(slots, bookings, sales_persons);
         let conflicts = booking_informations
@@ -243,7 +114,7 @@ where
         let weeks_in_year = time::util::weeks_in_year(year as i32);
         let volunteer_ids: Arc<[Uuid]> = self
             .sales_person_service
-            .get_all(Authentication::Full)
+            .get_all(Authentication::Full, tx.clone().into())
             .await?
             .iter()
             .filter(|sales_person| !sales_person.is_paid.unwrap_or(false))
@@ -258,7 +129,7 @@ where
             let mut working_hours_per_sales_person = vec![];
             let week_report = self
                 .reporting_service
-                .get_week(year, week, Authentication::Full)
+                .get_week(year, week, Authentication::Full, tx.clone().into())
                 .await?;
             let special_days = self
                 .special_day_service
@@ -266,7 +137,12 @@ where
                 .await?;
             let volunteer_hours = self
                 .shiftplan_report_service
-                .extract_shiftplan_report_for_week(year, week, Authentication::Full)
+                .extract_shiftplan_report_for_week(
+                    year,
+                    week,
+                    Authentication::Full,
+                    tx.clone().into(),
+                )
                 .await?
                 .iter()
                 .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))

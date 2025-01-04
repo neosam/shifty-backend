@@ -1,120 +1,64 @@
+use crate::gen_service_impl;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::{sales_person_unavailable::SalesPersonUnavailableDao, TransactionDao};
 use service::{
+    clock::ClockService,
     permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
+    sales_person::SalesPersonService,
     sales_person_unavailable::{SalesPersonUnavailable, SalesPersonUnavailableService},
-    ServiceError,
+    uuid_service::UuidService,
+    PermissionService, ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
 
-pub struct SalesPersonUnavailableServiceImpl<
-    SalesPersonUnavailableDao,
-    SalesPersonService,
-    PermissionService,
-    ClockService,
-    UuidService,
-> where
-    SalesPersonUnavailableDao:
-        dao::sales_person_unavailable::SalesPersonUnavailableDao + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    pub sales_person_unavailable_dao: Arc<SalesPersonUnavailableDao>,
-    pub sales_person_service: Arc<SalesPersonService>,
-    pub permission_service: Arc<PermissionService>,
-    pub clock_service: Arc<ClockService>,
-    pub uuid_service: Arc<UuidService>,
-}
-
-impl<
-        SalesPersonUnavailableDao,
-        SalesPersonService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    >
-    SalesPersonUnavailableServiceImpl<
-        SalesPersonUnavailableDao,
-        SalesPersonService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    >
-where
-    SalesPersonUnavailableDao:
-        dao::sales_person_unavailable::SalesPersonUnavailableDao + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    pub fn new(
-        sales_person_unavailable_dao: Arc<SalesPersonUnavailableDao>,
-        sales_person_service: Arc<SalesPersonService>,
-        permission_service: Arc<PermissionService>,
-        clock_service: Arc<ClockService>,
-        uuid_service: Arc<UuidService>,
-    ) -> Self {
-        Self {
-            sales_person_unavailable_dao,
-            sales_person_service,
-            permission_service,
-            clock_service,
-            uuid_service,
-        }
+gen_service_impl! {
+    struct SalesPersonUnavailableServiceImpl: SalesPersonUnavailableService = SalesPersonUnavailableServiceDeps {
+        SalesPersonUnavailableDao: SalesPersonUnavailableDao<Transaction = Self::Transaction> = sales_person_unavailable_dao,
+        SalesPersonService: SalesPersonService<Transaction = Self::Transaction, Context = Self::Context> = sales_person_service,
+        PermissionService: PermissionService<Context = Self::Context> = permission_service,
+        ClockService: ClockService = clock_service,
+        UuidService: UuidService = uuid_service,
+        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
-
 #[async_trait]
-impl<
-        SalesPersonUnavailableDao,
-        SalesPersonService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    > SalesPersonUnavailableService
-    for SalesPersonUnavailableServiceImpl<
-        SalesPersonUnavailableDao,
-        SalesPersonService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    >
-where
-    SalesPersonUnavailableDao:
-        dao::sales_person_unavailable::SalesPersonUnavailableDao + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
-        + Send
-        + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
+impl<Deps: SalesPersonUnavailableServiceDeps> SalesPersonUnavailableService
+    for SalesPersonUnavailableServiceImpl<Deps>
 {
-    type Context = PermissionService::Context;
+    type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
 
     async fn get_all_for_sales_person(
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, is_sales_person) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
-            self.sales_person_service
-                .verify_user_is_sales_person(sales_person_id, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
         );
         shiftplanner_permission.or(is_sales_person)?;
 
-        self.sales_person_unavailable_dao
-            .find_all_by_sales_person_id(sales_person_id)
+        let ret = self
+            .sales_person_unavailable_dao
+            .find_all_by_sales_person_id(sales_person_id, tx.clone())
             .await?
             .iter()
             .map(|entity| Ok(SalesPersonUnavailable::from(entity)))
-            .collect()
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn get_by_week_for_sales_person(
@@ -123,21 +67,35 @@ where
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, is_sales_person) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
-            self.sales_person_service
-                .verify_user_is_sales_person(sales_person_id, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
         );
         shiftplanner_permission.or(is_sales_person)?;
 
-        self.sales_person_unavailable_dao
-            .find_by_week_and_sales_person_id(sales_person_id, year, calendar_week)
+        let ret = self
+            .sales_person_unavailable_dao
+            .find_by_week_and_sales_person_id(
+                sales_person_id,
+                year,
+                calendar_week,
+                tx.clone().into(),
+            )
             .await?
             .iter()
             .map(|entity| Ok(SalesPersonUnavailable::from(entity)))
-            .collect()
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn get_by_week(
@@ -145,29 +103,40 @@ where
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
 
-        self.sales_person_unavailable_dao
-            .find_by_week(year, calendar_week)
+        let ret = self
+            .sales_person_unavailable_dao
+            .find_by_week(year, calendar_week, tx.clone())
             .await?
             .iter()
             .map(|entity| Ok(SalesPersonUnavailable::from(entity)))
-            .collect()
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        ret
     }
 
     async fn create(
         &self,
         entity: &SalesPersonUnavailable,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPersonUnavailable, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let (shiftplanner_permission, is_sales_person) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
-            self.sales_person_service
-                .verify_user_is_sales_person(entity.sales_person_id, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                entity.sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
         );
         shiftplanner_permission.or(is_sales_person)?;
 
@@ -189,6 +158,7 @@ where
                 entity.sales_person_id,
                 entity.year,
                 entity.calendar_week,
+                tx.clone(),
             )
             .await?
             .iter()
@@ -210,9 +180,10 @@ where
             },
         )?;
         self.sales_person_unavailable_dao
-            .create(&entity, "SalesPersonUnavailableService::create")
+            .create(&entity, "SalesPersonUnavailableService::create", tx.clone())
             .await?;
 
+        self.transaction_dao.commit(tx).await?;
         Ok((&entity).into())
     }
 
@@ -220,18 +191,23 @@ where
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
         let entity = self
             .sales_person_unavailable_dao
-            .find_by_id(id)
+            .find_by_id(id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(id))?;
 
         let (shiftplanner_permission, is_sales_person) = join!(
             self.permission_service
                 .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
-            self.sales_person_service
-                .verify_user_is_sales_person(entity.sales_person_id, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                entity.sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
         );
         shiftplanner_permission.or(is_sales_person)?;
 
@@ -245,9 +221,11 @@ where
                     ..entity
                 },
                 "SalesPersonUnavailableService::delete",
+                tx.clone(),
             )
             .await?;
 
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 }

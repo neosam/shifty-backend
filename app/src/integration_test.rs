@@ -314,7 +314,7 @@ impl TestSetup {
             created_sales_persons.push(
                 rest_state
                     .sales_person_service()
-                    .create(&sales_person, Authentication::Full)
+                    .create(&sales_person, Authentication::Full, None)
                     .await
                     .unwrap(),
             );
@@ -356,7 +356,7 @@ impl TestSetup {
 
                 rest_state
                     .working_hours_service()
-                    .create(&working_hour, Authentication::Full)
+                    .create(&working_hour, Authentication::Full, None)
                     .await
                     .unwrap();
             }
@@ -421,7 +421,7 @@ impl TestSetup {
                 }
                 rest_state
                     .extra_hours_service()
-                    .create(&extra_hour, Authentication::Full)
+                    .create(&extra_hour, Authentication::Full, None)
                     .await
                     .unwrap();
             }
@@ -569,7 +569,7 @@ proptest! {
             let bookings = rest_state.booking_service().get_all(Authentication::Full, None).await.unwrap();
             assert_eq!(bookings.len(), 1);
 
-            let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 53, Authentication::Full).await.unwrap();
+            let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 53, Authentication::Full, None).await.unwrap();
             assert_eq!(report.len(), 1);
             let sales_person_report = &report[0];
             assert_eq!(sales_person_report.sales_person.name, testdata.0.name);
@@ -580,7 +580,7 @@ proptest! {
             assert_eq!(sales_person_report.expected_hours, expected_hours);
             assert_eq!(sales_person_report.balance_hours, balance_hours);
 
-            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2000, 53, Authentication::Full).await.unwrap();
+            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2000, 53, Authentication::Full, None).await.unwrap();
             assert_eq!(detailed_report.sales_person.name, testdata.0.name);
             assert_eq!(floor_f32(detailed_report.overall_hours), floor_f32(sales_person_report.overall_hours));
             assert_eq!(floor_f32(detailed_report.expected_hours), floor_f32(sales_person_report.expected_hours));
@@ -713,16 +713,16 @@ proptest! {
             let sales_person_id = test_setup.created_sales_persons[0].id;
 
             let rest_state = &test_setup.rest_state;
-            let fetched_extra_hours = rest_state.extra_hours_service().find_by_sales_person_id_and_year(sales_person_id, 2002, 53, Authentication::Full).await.unwrap();
+            let fetched_extra_hours = rest_state.extra_hours_service().find_by_sales_person_id_and_year(sales_person_id, 2002, 53, Authentication::Full, None).await.unwrap();
             assert_eq!(fetched_extra_hours.len(), 1);
 
-            let report = rest_state.reporting_service().get_reports_for_all_employees(2002, 53, Authentication::Full).await.unwrap();
+            let report = rest_state.reporting_service().get_reports_for_all_employees(2002, 53, Authentication::Full, None).await.unwrap();
             assert_eq!(report.len(), 1);
             let sales_person_report = &report[0];
             assert_eq!(sales_person_report.sales_person.name, testdata.name);
             assert_eq!(sales_person_report.overall_hours, 5.0);
 
-            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2002, 53, Authentication::Full).await.unwrap();
+            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2002, 53, Authentication::Full, None).await.unwrap();
             assert_eq!(detailed_report.sales_person.name, testdata.name);
             assert_eq!(floor_f32(detailed_report.overall_hours), floor_f32(sales_person_report.overall_hours));
             assert_eq!(floor_f32(detailed_report.expected_hours), floor_f32(sales_person_report.expected_hours));

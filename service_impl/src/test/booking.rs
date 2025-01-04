@@ -138,7 +138,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
     let mut sales_person_service = MockSalesPersonService::new();
     sales_person_service
         .expect_exists()
-        .returning(|_, _| Ok(true));
+        .returning(|_, _, _| Ok(true));
     let mut slot_service = MockSlotService::new();
     slot_service.expect_exists().returning(|_, _, _| Ok(true));
 
@@ -330,8 +330,8 @@ async fn test_create_sales_user() {
         .returning(|_| default_version());
     deps.sales_person_service
         .expect_get_assigned_user()
-        .with(eq(default_sales_person_id()), always())
-        .returning(|_, _| Ok(Some("TESTUSER".into())));
+        .with(eq(default_sales_person_id()), always(), always())
+        .returning(|_, _, _| Ok(Some("TESTUSER".into())));
     deps.permission_service
         .expect_check_user()
         .with(eq("TESTUSER"), always())
@@ -383,8 +383,8 @@ async fn test_create_sales_user_not_exist() {
         .returning(|_| default_version());
     deps.sales_person_service
         .expect_get_assigned_user()
-        .with(eq(default_sales_person_id()), always())
-        .returning(|_, _| Ok(Some("TESTUSER".into())));
+        .with(eq(default_sales_person_id()), always(), always())
+        .returning(|_, _, _| Ok(Some("TESTUSER".into())));
     deps.permission_service
         .expect_check_user()
         .with(eq("TESTUSER"), always())
@@ -429,8 +429,8 @@ async fn test_create_sales_user_no_permission() {
         .returning(|_| default_version());
     deps.sales_person_service
         .expect_get_assigned_user()
-        .with(eq(default_sales_person_id()), always())
-        .returning(|_, _| Ok(None));
+        .with(eq(default_sales_person_id()), always(), always())
+        .returning(|_, _, _| Ok(None));
     let service = deps.build_service();
     let result = service
         .create(
@@ -527,8 +527,12 @@ async fn test_create_sales_person_does_not_exist() {
     deps.sales_person_service.checkpoint();
     deps.sales_person_service
         .expect_exists()
-        .with(eq(default_sales_person_id()), eq(Authentication::Full))
-        .returning(|_, _| Ok(false));
+        .with(
+            eq(default_sales_person_id()),
+            eq(Authentication::Full),
+            always(),
+        )
+        .returning(|_, _, _| Ok(false));
     let service = deps.build_service();
     let result = service
         .create(
@@ -686,8 +690,8 @@ async fn test_delete_sales_user() {
         .returning(|_| alternate_version());
     deps.sales_person_service
         .expect_get_assigned_user()
-        .with(eq(default_sales_person_id()), always())
-        .returning(|_, _| Ok(Some("TESTUSER".into())));
+        .with(eq(default_sales_person_id()), always(), always())
+        .returning(|_, _, _| Ok(Some("TESTUSER".into())));
     deps.permission_service
         .expect_check_user()
         .with(eq("TESTUSER"), always())
@@ -723,8 +727,8 @@ async fn test_delete_sales_user_not_exists() {
         .returning(|_| alternate_version());
     deps.sales_person_service
         .expect_get_assigned_user()
-        .with(eq(default_sales_person_id()), always())
-        .returning(|_, _| Ok(None));
+        .with(eq(default_sales_person_id()), always(), always())
+        .returning(|_, _, _| Ok(None));
     let service = deps.build_service();
     let result = service.delete(default_id(), ().auth(), None).await;
     test_forbidden(&result);
@@ -755,8 +759,8 @@ async fn test_delete_sales_user_not_allowed() {
         .returning(|_| alternate_version());
     deps.sales_person_service
         .expect_get_assigned_user()
-        .with(eq(default_sales_person_id()), always())
-        .returning(|_, _| Ok(Some("TESTUSER".into())));
+        .with(eq(default_sales_person_id()), always(), always())
+        .returning(|_, _, _| Ok(Some("TESTUSER".into())));
     deps.permission_service
         .expect_check_user()
         .with(eq("TESTUSER"), always())

@@ -1,17 +1,23 @@
+use crate::gen_service_impl;
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use dao::TransactionDao;
 use service::{
-    employee_work_details::EmployeeWorkDetails,
-    extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ReportType},
+    carryover::CarryoverService,
+    clock::ClockService,
+    employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
+    extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
         EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
         WorkingHoursDay,
     },
-    shiftplan_report::ShiftplanReportDay,
+    sales_person::SalesPersonService,
+    shiftplan_report::{ShiftplanReportDay, ShiftplanReportService},
     slot::DayOfWeek,
-    ServiceError,
+    uuid_service::UuidService,
+    PermissionService, ServiceError,
 };
 use tokio::join;
 use uuid::Uuid;
@@ -48,85 +54,17 @@ pub fn iterator_test() {
     assert_eq!(second_sum, 5);
 }
 
-pub struct ReportingServiceImpl<
-    ExtraHoursService,
-    ShiftplanReportService,
-    WorkingHoursService,
-    SalesPersonService,
-    CarryoverService,
-    PermissionService,
-    ClockService,
-    UuidService,
-> where
-    ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
-    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
-    WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    CarryoverService: service::carryover::CarryoverService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    pub extra_hours_service: Arc<ExtraHoursService>,
-    pub shiftplan_report_service: Arc<ShiftplanReportService>,
-    pub working_hours_service: Arc<WorkingHoursService>,
-    pub sales_person_service: Arc<SalesPersonService>,
-    pub carryover_service: Arc<CarryoverService>,
-    pub permission_service: Arc<PermissionService>,
-    pub clock_service: Arc<ClockService>,
-    pub uuid_service: Arc<UuidService>,
-}
-
-impl<
-        ExtraHoursService,
-        ShiftplanReportService,
-        WorkingHoursService,
-        SalesPersonService,
-        CarryoverService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    >
-    ReportingServiceImpl<
-        ExtraHoursService,
-        ShiftplanReportService,
-        WorkingHoursService,
-        SalesPersonService,
-        CarryoverService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    >
-where
-    ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
-    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService + Send + Sync,
-    WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService + Send + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService + Send + Sync,
-    CarryoverService: service::carryover::CarryoverService + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
-{
-    pub fn new(
-        extra_hours_service: Arc<ExtraHoursService>,
-        shiftplan_report_service: Arc<ShiftplanReportService>,
-        working_hours_service: Arc<WorkingHoursService>,
-        sales_person_service: Arc<SalesPersonService>,
-        carryover_service: Arc<CarryoverService>,
-        permission_service: Arc<PermissionService>,
-        clock_service: Arc<ClockService>,
-        uuid_service: Arc<UuidService>,
-    ) -> Self {
-        Self {
-            extra_hours_service,
-            shiftplan_report_service,
-            working_hours_service,
-            sales_person_service,
-            carryover_service,
-            permission_service,
-            clock_service,
-            uuid_service,
-        }
+gen_service_impl! {
+    struct ReportingServiceImpl: ReportingService = ReportingServiceDeps {
+        ExtraHoursService: ExtraHoursService<Transaction = Self::Transaction> = extra_hours_service,
+        ShiftplanReportService: ShiftplanReportService<Transaction = Self::Transaction> = shiftplan_report_service,
+        EmployeeWorkDetailsService: EmployeeWorkDetailsService<Transaction = Self::Transaction, Context = Self::Context> = employee_work_details_service,
+        SalesPersonService: SalesPersonService<Transaction = Self::Transaction, Context = Self::Context> = sales_person_service,
+        CarryoverService: CarryoverService<Transaction = Self::Transaction> = carryover_service,
+        PermissionService: PermissionService<Context = Self::Context> = permission_service,
+        ClockService: ClockService = clock_service,
+        UuidService: UuidService = uuid_service,
+        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
 
@@ -142,51 +80,18 @@ pub fn find_working_hours_for_calendar_week(
 }
 
 #[async_trait]
-impl<
-        ExtraHoursService,
-        ShiftplanReportService,
-        WorkingHoursService,
-        SalesPersonService,
-        CarryoverService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    > service::reporting::ReportingService
-    for ReportingServiceImpl<
-        ExtraHoursService,
-        ShiftplanReportService,
-        WorkingHoursService,
-        SalesPersonService,
-        CarryoverService,
-        PermissionService,
-        ClockService,
-        UuidService,
-    >
-where
-    ExtraHoursService: service::extra_hours::ExtraHoursService + Send + Sync,
-    ShiftplanReportService: service::shiftplan_report::ShiftplanReportService<Context = PermissionService::Context>
-        + Send
-        + Sync,
-    WorkingHoursService: service::employee_work_details::EmployeeWorkDetailsService<
-            Context = PermissionService::Context,
-        > + Send
-        + Sync,
-    SalesPersonService: service::sales_person::SalesPersonService<Context = PermissionService::Context>
-        + Send
-        + Sync,
-    CarryoverService:
-        service::carryover::CarryoverService<Context = PermissionService::Context> + Send + Sync,
-    PermissionService: service::permission::PermissionService + Send + Sync,
-    ClockService: service::clock::ClockService + Send + Sync,
-    UuidService: service::uuid_service::UuidService + Send + Sync,
+impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
+    for ReportingServiceImpl<Deps>
 {
-    type Context = PermissionService::Context;
+    type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
 
     async fn get_reports_for_all_employees(
         &self,
         year: u32,
         until_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError> {
         let until_week = until_week.min(time::util::weeks_in_year(year as i32));
 
@@ -194,11 +99,14 @@ where
             .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
 
-        let working_hours = self.working_hours_service.all(Authentication::Full).await?;
+        let working_hours = self
+            .employee_work_details_service
+            .all(Authentication::Full, tx.clone().into())
+            .await?;
 
         let employees = self
             .sales_person_service
-            .get_all(Authentication::Full)
+            .get_all(Authentication::Full, tx.clone().into())
             .await?;
         let mut short_employee_report: Vec<ShortEmployeeReport> = Vec::new();
         for paid_employee in employees
@@ -224,6 +132,7 @@ where
                         until_week
                     },
                     Authentication::Full,
+                    tx.clone().into(),
                 )
                 .await?;
 
@@ -239,11 +148,17 @@ where
                     year,
                     until_week,
                     Authentication::Full,
+                    tx.clone().into(),
                 )
                 .await?;
             let previous_year_carryover = self
                 .carryover_service
-                .get_carryover(paid_employee.id, year - 1, Authentication::Full)
+                .get_carryover(
+                    paid_employee.id,
+                    year - 1,
+                    Authentication::Full,
+                    tx.clone().into(),
+                )
                 .await?
                 .map(|c| c.carryover_hours)
                 .unwrap_or(0.0);
@@ -367,13 +282,17 @@ where
         year: u32,
         until_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<EmployeeReport, ServiceError> {
         let until_week = until_week.min(time::util::weeks_in_year(year as i32));
         let (hr_permission, user_permission) = join!(
             self.permission_service
                 .check_permission(HR_PRIVILEGE, context.clone()),
-            self.sales_person_service
-                .verify_user_is_sales_person(*sales_person_id, context.clone())
+            self.sales_person_service.verify_user_is_sales_person(
+                *sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
         );
         hr_permission.or(user_permission)?;
         let last_year = year - 1;
@@ -381,11 +300,11 @@ where
 
         let sales_person = self
             .sales_person_service
-            .get(*sales_person_id, context.clone())
+            .get(*sales_person_id, context.clone(), tx.clone().into())
             .await?;
         let working_hours = self
-            .working_hours_service
-            .find_by_sales_person_id(*sales_person_id, Authentication::Full)
+            .employee_work_details_service
+            .find_by_sales_person_id(*sales_person_id, Authentication::Full, tx.clone().into())
             .await?;
         let shiftplan_report = self
             .shiftplan_report_service
@@ -404,6 +323,7 @@ where
                     until_week
                 },
                 Authentication::Full,
+                tx.clone().into(),
             )
             .await?;
         let extra_hours = self
@@ -413,6 +333,7 @@ where
                 year,
                 until_week,
                 Authentication::Full,
+                tx.clone().into(),
             )
             .await?;
 
@@ -460,7 +381,12 @@ where
             .round();
         let (previous_year_carryover, previous_year_vacation) = self
             .carryover_service
-            .get_carryover(*sales_person_id, year - 1, Authentication::Full)
+            .get_carryover(
+                *sales_person_id,
+                year - 1,
+                Authentication::Full,
+                tx.clone().into(),
+            )
             .await?
             .map(|c| (c.carryover_hours, c.vacation))
             .unwrap_or((0.0, 0));
@@ -511,25 +437,26 @@ where
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError> {
         // Auth check is done by working_hours_service
         let working_hours = self
-            .working_hours_service
-            .all_for_week(week, year, context.clone())
+            .employee_work_details_service
+            .all_for_week(week, year, context.clone(), tx.clone().into())
             .await?
             .iter()
             .cloned()
             .collect_to_hash_map_by(|wh| wh.sales_person_id);
         let shiftplan_report = self
             .shiftplan_report_service
-            .extract_shiftplan_report_for_week(year, week, Authentication::Full)
+            .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone().into())
             .await?;
         let shiftplan_report = shiftplan_report
             .iter()
             .collect_to_hash_map_by(|r| r.sales_person_id);
         let extra_hours = self
             .extra_hours_service
-            .find_by_week(year, week, Authentication::Full)
+            .find_by_week(year, week, Authentication::Full, tx.clone().into())
             .await?;
         let extra_hours = extra_hours
             .iter()
@@ -570,7 +497,7 @@ where
             result.push(ShortEmployeeReport {
                 sales_person: Arc::new(
                     self.sales_person_service
-                        .get(sales_person_id, Authentication::Full)
+                        .get(sales_person_id, Authentication::Full, tx.clone().into())
                         .await?,
                 ),
                 balance_hours,

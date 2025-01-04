@@ -48,6 +48,7 @@ pub async fn get_extra_hours_for_sales_person<RestState: RestStateDef>(
                     query.year,
                     query.until_week,
                     context.into(),
+                    None,
                 )
                 .await?
                 .iter()
@@ -73,7 +74,7 @@ pub async fn create_extra_hours<RestState: RestStateDef>(
             let extra_hours = ExtraHoursTO::from(
                 &rest_state
                     .extra_hours_service()
-                    .create(&(&sales_person).into(), context.into())
+                    .create(&(&sales_person).into(), context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -95,7 +96,7 @@ pub async fn delete_extra_hours<RestState: RestStateDef>(
         (async {
             rest_state
                 .extra_hours_service()
-                .delete(extra_hours_id, context.into())
+                .delete(extra_hours_id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })

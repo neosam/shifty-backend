@@ -45,24 +45,30 @@ impl TryFrom<&SalesPersonUnavailableDb> for SalesPersonUnavailableEntity {
 }
 
 pub struct SalesPersonUnavailableDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 impl SalesPersonUnavailableDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<SalesPersonUnavailableEntity>, DaoError> {
+    type Transaction = crate::TransactionImpl;
+
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<SalesPersonUnavailableEntity>, DaoError> {
         let id = id.as_bytes().to_vec();
         Ok(query_as!(
             SalesPersonUnavailableDb,
             "SELECT id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version FROM sales_person_unavailable WHERE id = ?",
             id
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -73,12 +79,13 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
     async fn find_all_by_sales_person_id(
         &self,
         sales_person_id: Uuid,
+        tx: Self::Transaction,
     ) -> Result<Arc<[SalesPersonUnavailableEntity]>, DaoError> {
         let id = sales_person_id.as_bytes().to_vec();
         query_as!(
             SalesPersonUnavailableDb,
             "SELECT id, sales_person_id, year, calendar_week, day_of_week, created, deleted, update_version FROM sales_person_unavailable WHERE sales_person_id = ? AND deleted IS NULL", id 
-        ).fetch_all(self.pool.as_ref())
+        ).fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -90,6 +97,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         sales_person_id: Uuid,
         year: u32,
         calendar_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[SalesPersonUnavailableEntity]>, DaoError> {
         let id = sales_person_id.as_bytes().to_vec();
         query_as!(
@@ -99,7 +107,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
             year,
             calendar_week
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -111,6 +119,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         &self,
         year: u32,
         calendar_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[SalesPersonUnavailableEntity]>, DaoError> {
         query_as!(
             SalesPersonUnavailableDb,
@@ -118,7 +127,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
             year,
             calendar_week
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -130,6 +139,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         &self,
         entity: &SalesPersonUnavailableEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
@@ -149,7 +159,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
             version,
             process,
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())
@@ -159,6 +169,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
         &self,
         entity: &SalesPersonUnavailableEntity,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
@@ -170,7 +181,7 @@ impl SalesPersonUnavailableDao for SalesPersonUnavailableDaoImpl {
             process,
             id,
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())

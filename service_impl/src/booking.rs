@@ -22,7 +22,7 @@ gen_service_impl! {
         PermissionService: service::permission::PermissionService<Context = Self::Context> = permission_service,
         ClockService: service::clock::ClockService = clock_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
-        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context> = sales_person_service,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
         SlotService: service::slot::SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
@@ -33,6 +33,7 @@ impl<Deps: BookingServiceDeps> BookingServiceImpl<Deps> {
         &self,
         sales_person_id: Uuid,
         context: Authentication<Deps::Context>,
+        tx: Option<Deps::Transaction>,
     ) -> Result<(), ServiceError> {
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
@@ -50,7 +51,7 @@ impl<Deps: BookingServiceDeps> BookingServiceImpl<Deps> {
         {
             if let Some(username) = self
                 .sales_person_service
-                .get_assigned_user(sales_person_id, Authentication::Full)
+                .get_assigned_user(sales_person_id, Authentication::Full, tx.clone().into())
                 .await?
             {
                 self.permission_service
@@ -182,7 +183,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         tx: Option<Self::Transaction>,
     ) -> Result<Booking, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
-        self.check_booking_permission(booking.sales_person_id, context)
+        self.check_booking_permission(booking.sales_person_id, context, tx.clone().into())
             .await?;
 
         if booking.id != Uuid::nil() {
@@ -212,7 +213,11 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         }
         if !self
             .sales_person_service
-            .exists(booking.sales_person_id, Authentication::Full)
+            .exists(
+                booking.sales_person_id,
+                Authentication::Full,
+                tx.clone().into(),
+            )
             .await?
         {
             validation.push(ValidationFailureItem::IdDoesNotExist(
@@ -341,7 +346,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .await?
             .ok_or_else(move || ServiceError::EntityNotFound(id))?;
 
-        self.check_booking_permission(booking_entity.sales_person_id, context)
+        self.check_booking_permission(booking_entity.sales_person_id, context, tx.clone().into())
             .await?;
 
         booking_entity.deleted = Some(self.clock_service.date_time_now());

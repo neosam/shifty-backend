@@ -58,6 +58,7 @@ pub trait BasicDao {
     async fn clear_all(&self) -> Result<(), DaoError>;
 }
 
+#[must_use]
 pub trait Transaction: Clone + Send + Sync {}
 #[derive(Clone, Debug)]
 pub struct MockTransaction;

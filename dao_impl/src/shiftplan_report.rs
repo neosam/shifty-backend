@@ -47,16 +47,18 @@ impl From<&ShiftplanQuickOverviewDb> for ShiftplanQuickOverviewEntity {
 }
 
 pub struct ShiftplanReportDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 impl ShiftplanReportDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
 #[async_trait]
 impl ShiftplanReportDao for ShiftplanReportDaoImpl {
+    type Transaction = crate::TransactionImpl;
+
     async fn extract_shiftplan_report(
         &self,
         sales_person_id: Uuid,
@@ -64,6 +66,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
         from_week: u8,
         to_year: u32,
         to_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError> {
         let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
@@ -87,7 +90,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
             to_year,
             to_week,
         )
-        .fetch_all(self.pool.as_ref())
+        .fetch_all(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .iter()
@@ -99,6 +102,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
         &self,
         year: u32,
         until_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanQuickOverviewEntity]>, DaoError> {
         Ok(query_as!(
             ShiftplanQuickOverviewDb,
@@ -116,7 +120,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                         "#,
             year,
             until_week
-        ).fetch_all(self.pool.as_ref())
+        ).fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()
@@ -129,6 +133,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
         &self,
         year: u32,
         calendar_week: u8,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError> {
         Ok(query_as!(
             ShiftplanReportDb,
@@ -146,7 +151,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                         "#,
             year,
             calendar_week
-        ).fetch_all(self.pool.as_ref())
+        ).fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()

@@ -1,13 +1,17 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
     booking::BookingService,
     carryover::{Carryover, CarryoverService},
+    employee_work_details::EmployeeWorkDetailsService,
+    extra_hours::{ExtraHours, ExtraHoursCategory},
     permission::Authentication,
     reporting::ReportingService,
     sales_person::SalesPersonService,
     shiftplan_edit::ShiftplanEditService,
-    slot::{Slot, SlotService},
+    slot::{DayOfWeek, Slot, SlotService},
     PermissionService, ServiceError,
 };
 use uuid::Uuid;
@@ -19,9 +23,10 @@ gen_service_impl! {
         PermissionService: service::PermissionService<Context = Self::Context> = permission_service,
         SlotService: service::slot::SlotService<Transaction = Self::Transaction> = slot_service,
         BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
-        CarryoverService: service::carryover::CarryoverService<Context = Self::Context> = carryover_service,
-        ReportingService: service::reporting::ReportingService<Context = Self::Context> = reporting_service,
-        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context> = sales_person_service,
+        CarryoverService: service::carryover::CarryoverService<Context = Self::Context, Transaction = Self::Transaction> = carryover_service,
+        ReportingService: service::reporting::ReportingService<Context = Self::Context, Transaction = Self::Transaction> = reporting_service,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        EmployeeWorkDetailsService: service::employee_work_details::EmployeeWorkDetailsService<Context = Self::Context, Transaction = Self::Transaction> = employee_work_details_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
@@ -197,6 +202,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                 year,
                 until_week as u8,
                 Authentication::Full,
+                tx.clone().into(),
             )
             .await?;
 
@@ -218,7 +224,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         };
 
         self.carryover_service
-            .set_carryover(&new_carryover, Authentication::Full)
+            .set_carryover(&new_carryover, Authentication::Full, tx.clone().into())
             .await?;
 
         self.transaction_dao.commit(tx).await?;
@@ -240,7 +246,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .await?;
 
         // Retrieve all sales persons
-        let sales_persons = self.sales_person_service.get_all(context.clone()).await?;
+        let sales_persons = self
+            .sales_person_service
+            .get_all(context.clone(), tx.clone().into())
+            .await?;
 
         // Call update_carryover for each sales person
         for sp in sales_persons.iter() {
@@ -254,5 +263,56 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         // Commit everything at the end
         self.transaction_dao.commit(tx).await?;
         Ok(())
+    }
+
+    async fn add_vacation(
+        &self,
+        sales_person_id: Uuid,
+        year: u32,
+        week: u8,
+        day_of_week: DayOfWeek,
+        days: u32,
+        description: Arc<str>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<ExtraHours, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        // Permission check is done by the service calls
+
+        let employee_work_details = self
+            .employee_work_details_service
+            .find_for_week(
+                sales_person_id,
+                week,
+                year,
+                context.clone(),
+                tx.clone().into(),
+            )
+            .await?;
+
+        let mut amount = employee_work_details.expected_hours * days as f32;
+        let date = time::Date::from_iso_week_date(year as i32, week, day_of_week.into())?;
+        let date_time = time::PrimitiveDateTime::new(date, time::Time::MIDNIGHT);
+
+        let blank_vacation = ExtraHours {
+            id: Uuid::nil(),
+            sales_person_id: sales_person_id,
+            amount,
+            category: ExtraHoursCategory::Vacation,
+            description,
+            date_time,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+
+        /*let new_extra_hours = self
+        .employee_work_details_service
+        .create(&blank_vacation, Authentication::Full, tx.clone().into())
+        .await?;*/
+
+        self.transaction_dao.commit(tx).await?;
+        //Ok(new_extra_hours);
+        unimplemented!()
     }
 }

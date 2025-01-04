@@ -54,25 +54,43 @@ type SlotService = service_impl::slot::SlotServiceImpl<
     UuidService,
     TransactionDao,
 >;
-type SalesPersonService = service_impl::sales_person::SalesPersonServiceImpl<
-    dao_impl::sales_person::SalesPersonDaoImpl,
-    PermissionService,
-    ClockService,
-    UuidService,
->;
+
+pub struct SalesPersonServiceDependencies;
+impl service_impl::sales_person::SalesPersonServiceDeps for SalesPersonServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type SalesPersonDao = dao_impl::sales_person::SalesPersonDaoImpl;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type SalesPersonService =
+    service_impl::sales_person::SalesPersonServiceImpl<SalesPersonServiceDependencies>;
 type SpecialDayService = service_impl::special_days::SpecialDayServiceImpl<
     dao_impl::special_day::SpecialDayDaoImpl,
     PermissionService,
     ClockService,
     UuidService,
 >;
+
+pub struct SalesPersonUnavailableServiceDependencies;
+impl service_impl::sales_person_unavailable::SalesPersonUnavailableServiceDeps
+    for SalesPersonUnavailableServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type SalesPersonUnavailableDao =
+        dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
 type SalesPersonUnavailableService =
     service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl<
-        dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl,
-        SalesPersonService,
-        PermissionService,
-        ClockService,
-        UuidService,
+        SalesPersonUnavailableServiceDependencies,
     >;
 pub struct BookingServiceDependencies;
 impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
@@ -87,6 +105,7 @@ impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
     type TransactionDao = TransactionDao;
 }
 type BookingService = service_impl::booking::BookingServiceImpl<BookingServiceDependencies>;
+
 pub struct ShiftplanReportServiceDependencies;
 impl service_impl::shiftplan_report::ShiftplanReportServiceDeps
     for ShiftplanReportServiceDependencies
@@ -94,55 +113,90 @@ impl service_impl::shiftplan_report::ShiftplanReportServiceDeps
     type Context = Context;
     type Transaction = Transaction;
     type ShiftplanReportDao = ShiftplanReportDao;
+    type TransactionDao = TransactionDao;
 }
 type ShiftplanReportService =
     service_impl::shiftplan_report::ShiftplanReportServiceImpl<ShiftplanReportServiceDependencies>;
+
+pub struct BookingInformationServiceDependencies;
+impl service_impl::booking_information::BookingInformationServiceDeps
+    for BookingInformationServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type ShiftplanReportService = ShiftplanReportService;
+    type SlotService = SlotService;
+    type BookingService = BookingService;
+    type SalesPersonService = SalesPersonService;
+    type SalesPersonUnavailableService = SalesPersonUnavailableService;
+    type ReportingService = ReportingService;
+    type SpecialDayService = SpecialDayService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
 type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
-    ShiftplanReportService,
-    SlotService,
-    BookingService,
-    SalesPersonService,
-    SalesPersonUnavailableService,
-    ReportingService,
-    SpecialDayService,
-    PermissionService,
-    ClockService,
-    UuidService,
-    TransactionDao,
->;
-type ExtraHoursService = service_impl::extra_hours::ExtraHoursServiceImpl<
-    dao_impl::extra_hours::ExtraHoursDaoImpl,
-    PermissionService,
-    SalesPersonService,
-    ClockService,
-    UuidService,
+    BookingInformationServiceDependencies,
 >;
 
+pub struct ExtraHoursServiceDependencies;
+impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type ExtraHoursDao = dao_impl::extra_hours::ExtraHoursDaoImpl;
+    type PermissionService = PermissionService;
+    type SalesPersonService = SalesPersonService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type ExtraHoursService =
+    service_impl::extra_hours::ExtraHoursServiceImpl<ExtraHoursServiceDependencies>;
+
 type CarryoverDao = dao_impl::carryover::CarryoverDaoImpl;
+
 pub struct CarryoverServiceDependencies;
 impl CarryoverServiceDeps for CarryoverServiceDependencies {
     type Context = Context;
     type Transaction = Transaction;
     type CarryoverDao = CarryoverDao;
+    type TransactionDao = TransactionDao;
 }
 
 type CarryoverService = service_impl::carryover::CarryoverServiceImpl<CarryoverServiceDependencies>;
-type ReportingService = service_impl::reporting::ReportingServiceImpl<
-    ExtraHoursService,
-    ShiftplanReportService,
-    WorkingHoursService,
-    SalesPersonService,
-    CarryoverService,
-    PermissionService,
-    ClockService,
-    UuidService,
->;
+
+pub struct ReportingServiceDependencies;
+impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type ExtraHoursService = ExtraHoursService;
+    type ShiftplanReportService = ShiftplanReportService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
+    type SalesPersonService = SalesPersonService;
+    type CarryoverService = CarryoverService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type ReportingService = service_impl::reporting::ReportingServiceImpl<ReportingServiceDependencies>;
+
+pub struct WorkingHoursServiceDependencies;
+impl service_impl::employee_work_details::EmployeeWorkDetailsServiceDeps
+    for WorkingHoursServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
 type WorkingHoursService = service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl<
-    dao_impl::employee_work_details::EmployeeWorkDetailsDaoImpl,
-    SalesPersonService,
-    PermissionService,
-    ClockService,
-    UuidService,
+    WorkingHoursServiceDependencies,
 >;
 pub struct ShiftplanEditServiceDependencies;
 impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditServiceDependencies {
@@ -156,6 +210,7 @@ impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditSer
     type SalesPersonService = SalesPersonService;
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
+    type EmployeeWorkDetailsService = WorkingHoursService;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
@@ -287,13 +342,13 @@ impl RestStateImpl {
             uuid_service.clone(),
             transaction_dao.clone(),
         ));
-        let sales_person_service =
-            Arc::new(service_impl::sales_person::SalesPersonServiceImpl::new(
-                sales_person_dao.into(),
-                permission_service.clone(),
-                clock_service.clone(),
-                uuid_service.clone(),
-            ));
+        let sales_person_service = Arc::new(service_impl::sales_person::SalesPersonServiceImpl {
+            sales_person_dao: sales_person_dao.into(),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
         let special_day_service = Arc::new(service_impl::special_days::SpecialDayServiceImpl::new(
             special_day_dao.into(),
             permission_service.clone(),
@@ -301,15 +356,16 @@ impl RestStateImpl {
             uuid_service.clone(),
         ));
         let sales_person_unavailable_service = Arc::new(
-            service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl::new(
-                Arc::new(
+            service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl {
+                sales_person_unavailable_dao: Arc::new(
                     dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl::new(pool),
                 ),
-                sales_person_service.clone(),
-                permission_service.clone(),
-                clock_service.clone(),
-                uuid_service.clone(),
-            ),
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
         );
         let booking_service = Arc::new(service_impl::booking::BookingServiceImpl {
             transaction_dao: transaction_dao.clone(),
@@ -320,52 +376,58 @@ impl RestStateImpl {
             sales_person_service: sales_person_service.clone(),
             slot_service: slot_service.clone(),
         });
-        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl::new(
-            extra_hours_dao,
-            permission_service.clone(),
-            sales_person_service.clone(),
-            clock_service.clone(),
-            uuid_service.clone(),
-        ));
+        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
+            extra_hours_dao: extra_hours_dao,
+            permission_service: permission_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
         let working_hours_service = Arc::new(
-            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl::new(
-                working_hours_dao,
-                sales_person_service.clone(),
-                permission_service.clone(),
-                clock_service.clone(),
-                uuid_service.clone(),
-            ),
+            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl {
+                employee_work_details_dao: working_hours_dao,
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
         );
         let shiftplan_report_service = Arc::new(ShiftplanReportService {
             shiftplan_report_dao: shiftplan_report_dao.clone(),
+            transaction_dao: transaction_dao.clone(),
         });
-        let carryover_service =
-            Arc::new(service_impl::carryover::CarryoverServiceImpl { carryover_dao });
-        let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl::new(
-            extra_hours_service.clone(),
-            shiftplan_report_service.clone(),
-            working_hours_service.clone(),
-            sales_person_service.clone(),
-            carryover_service.clone(),
-            permission_service.clone(),
-            clock_service.clone(),
-            uuid_service.clone(),
-        ));
+        let carryover_service = Arc::new(service_impl::carryover::CarryoverServiceImpl {
+            carryover_dao,
+            transaction_dao: transaction_dao.clone(),
+        });
+        let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl {
+            extra_hours_service: extra_hours_service.clone(),
+            shiftplan_report_service: shiftplan_report_service.clone(),
+            employee_work_details_service: working_hours_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            carryover_service: carryover_service.clone(),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
 
         let booking_information_service = Arc::new(
-            service_impl::booking_information::BookingInformationServiceImpl::new(
-                shiftplan_report_service.clone(),
-                slot_service.clone(),
-                booking_service.clone(),
-                sales_person_service.clone(),
-                sales_person_unavailable_service.clone(),
-                reporting_service.clone(),
-                special_day_service.clone(),
-                permission_service.clone(),
-                clock_service.clone(),
-                uuid_service.clone(),
-                transaction_dao.clone(),
-            ),
+            service_impl::booking_information::BookingInformationServiceImpl {
+                shiftplan_report_service: shiftplan_report_service.clone(),
+                slot_service: slot_service.clone(),
+                booking_service: booking_service.clone(),
+                sales_person_service: sales_person_service.clone(),
+                sales_person_unavailable_service: sales_person_unavailable_service.clone(),
+                reporting_service: reporting_service.clone(),
+                special_day_service: special_day_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
         );
         let shiftplan_edit_service =
             Arc::new(service_impl::shiftplan_edit::ShiftplanEditServiceImpl {
@@ -373,6 +435,7 @@ impl RestStateImpl {
                 slot_service: slot_service.clone(),
                 booking_service: booking_service.clone(),
                 sales_person_service: sales_person_service.clone(),
+                employee_work_details_service: working_hours_service.clone(),
                 carryover_service: carryover_service.clone(),
                 reporting_service: reporting_service.clone(),
                 uuid_service: uuid_service.clone(),

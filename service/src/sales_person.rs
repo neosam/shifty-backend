@@ -45,67 +45,80 @@ impl From<&SalesPerson> for dao::sales_person::SalesPersonEntity {
     }
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction = dao::MockTransaction;)]
 #[async_trait]
 pub trait SalesPersonService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn get_all(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPerson]>, ServiceError>;
     async fn get_all_paid(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPerson]>, ServiceError>;
     async fn get(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPerson, ServiceError>;
     async fn exists(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError>;
     async fn create(
         &self,
         item: &SalesPerson,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPerson, ServiceError>;
     async fn update(
         &self,
         item: &SalesPerson,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPerson, ServiceError>;
     async fn delete(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
     async fn get_assigned_user(
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<Arc<str>>, ServiceError>;
     async fn set_user(
         &self,
         sales_person_id: Uuid,
         user_id: Option<Arc<str>>,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
     async fn get_sales_person_for_user(
         &self,
         user_id: Arc<str>,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<SalesPerson>, ServiceError>;
     async fn get_sales_person_current_user(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Option<SalesPerson>, ServiceError>;
     async fn verify_user_is_sales_person(
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }

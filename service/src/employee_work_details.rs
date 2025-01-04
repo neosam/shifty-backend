@@ -194,19 +194,22 @@ impl TryFrom<&EmployeeWorkDetails> for dao::employee_work_details::EmployeeWorkD
     }
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait EmployeeWorkDetailsService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn all(
         &self,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[EmployeeWorkDetails]>, ServiceError>;
     async fn find_by_sales_person_id(
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[EmployeeWorkDetails]>, ServiceError>;
     async fn find_for_week(
         &self,
@@ -214,26 +217,31 @@ pub trait EmployeeWorkDetailsService {
         calendar_week: u8,
         year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWorkDetails, ServiceError>;
     async fn all_for_week(
         &self,
         calendar_week: u8,
         year: u32,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[EmployeeWorkDetails]>, ServiceError>;
     async fn create(
         &self,
         entity: &EmployeeWorkDetails,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWorkDetails, ServiceError>;
     async fn update(
         &self,
         entity: &EmployeeWorkDetails,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWorkDetails, ServiceError>;
     async fn delete(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWorkDetails, ServiceError>;
 }

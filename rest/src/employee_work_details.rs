@@ -41,7 +41,7 @@ pub async fn create_working_hours<RestState: RestStateDef>(
             let working_hours = EmployeeWorkDetailsTO::from(
                 &rest_state
                     .working_hours_service()
-                    .create(&(&working_hours).into(), context.into())
+                    .create(&(&working_hours).into(), context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -64,7 +64,7 @@ pub async fn update_working_hours<RestState: RestStateDef>(
             let working_hours = EmployeeWorkDetailsTO::from(
                 &rest_state
                     .working_hours_service()
-                    .update(&(&working_hours).into(), context.into())
+                    .update(&(&working_hours).into(), context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -86,7 +86,7 @@ pub async fn delete_employee_work_details<RestState: RestStateDef>(
         (async {
             rest_state
                 .working_hours_service()
-                .delete(id, context.into())
+                .delete(id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
@@ -105,7 +105,7 @@ pub async fn get_working_hours_for_week<RestState: RestStateDef>(
             let working_hours = EmployeeWorkDetailsTO::from(
                 &rest_state
                     .working_hours_service()
-                    .find_for_week(sales_person_id, calendar_week, year, context.into())
+                    .find_for_week(sales_person_id, calendar_week, year, context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
@@ -127,7 +127,7 @@ pub async fn get_working_hours_for_sales_person<RestState: RestStateDef>(
         (async {
             let working_hours: Arc<[EmployeeWorkDetailsTO]> = rest_state
                 .working_hours_service()
-                .find_by_sales_person_id(sales_person_id, context.into())
+                .find_by_sales_person_id(sales_person_id, context.into(), None)
                 .await?
                 .iter()
                 .map(EmployeeWorkDetailsTO::from)

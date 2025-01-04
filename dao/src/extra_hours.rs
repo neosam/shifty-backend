@@ -26,23 +26,44 @@ pub struct ExtraHoursEntity {
     pub version: Uuid,
 }
 
-#[automock]
+#[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait]
 pub trait ExtraHoursDao {
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<ExtraHoursEntity>, crate::DaoError>;
+    type Transaction: crate::Transaction;
+
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<ExtraHoursEntity>, crate::DaoError>;
     async fn find_by_sales_person_id_and_year(
         &self,
         sales_person_id: Uuid,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
     async fn find_by_week(
         &self,
         calendar_week: u8,
         year: u32,
+        tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
-    async fn create(&self, entity: &ExtraHoursEntity, process: &str)
-        -> Result<(), crate::DaoError>;
-    async fn update(&self, entity: &ExtraHoursEntity, process: &str)
-        -> Result<(), crate::DaoError>;
-    async fn delete(&self, id: Uuid, process: &str) -> Result<(), crate::DaoError>;
+    async fn create(
+        &self,
+        entity: &ExtraHoursEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
+    async fn update(
+        &self,
+        entity: &ExtraHoursEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
+    async fn delete(
+        &self,
+        id: Uuid,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
 }

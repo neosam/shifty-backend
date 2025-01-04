@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::ResultDbErrorExt;
+use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
     sales_person::{SalesPersonDao, SalesPersonEntity},
@@ -11,11 +11,11 @@ use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;
 
 pub struct SalesPersonDaoImpl {
-    pub pool: Arc<sqlx::SqlitePool>,
+    pub _pool: Arc<sqlx::SqlitePool>,
 }
 impl SalesPersonDaoImpl {
     pub fn new(pool: Arc<sqlx::SqlitePool>) -> Self {
-        Self { pool }
+        Self { _pool: pool }
     }
 }
 
@@ -49,12 +49,14 @@ impl TryFrom<&SalesPersonDb> for SalesPersonEntity {
 
 #[async_trait]
 impl SalesPersonDao for SalesPersonDaoImpl {
-    async fn all(&self) -> Result<Arc<[SalesPersonEntity]>, DaoError> {
+    type Transaction = TransactionImpl;
+
+    async fn all(&self, tx: Self::Transaction) -> Result<Arc<[SalesPersonEntity]>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
             "SELECT id, name, background_color, is_paid, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL"
         )
-            .fetch_all(self.pool.as_ref())
+            .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()
@@ -63,12 +65,12 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         )
     }
 
-    async fn all_paid(&self) -> Result<Arc<[SalesPersonEntity]>, DaoError> {
+    async fn all_paid(&self, tx: Self::Transaction) -> Result<Arc<[SalesPersonEntity]>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
             "SELECT id, name, background_color, is_paid, inactive, deleted, update_version FROM sales_person WHERE deleted IS NULL AND is_paid = 1"
         )
-            .fetch_all(self.pool.as_ref())
+            .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .iter()
@@ -77,14 +79,18 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         )
     }
 
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<SalesPersonEntity>, DaoError> {
+    async fn find_by_id(
+        &self,
+        id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<SalesPersonEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             SalesPersonDb,
             "SELECT id, name, background_color, is_paid, inactive, deleted, update_version FROM sales_person WHERE id = ?",
             id_vec
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -92,13 +98,17 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         .transpose()?)
     }
 
-    async fn find_by_user(&self, user_id: &str) -> Result<Option<SalesPersonEntity>, DaoError> {
+    async fn find_by_user(
+        &self,
+        user_id: &str,
+        tx: Self::Transaction,
+    ) -> Result<Option<SalesPersonEntity>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
             "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
             user_id
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .as_ref()
@@ -106,7 +116,12 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         .transpose()?)
     }
 
-    async fn create(&self, entity: &SalesPersonEntity, process: &str) -> Result<(), DaoError> {
+    async fn create(
+        &self,
+        entity: &SalesPersonEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
         let name = entity.name.as_ref();
@@ -115,12 +130,17 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let inactive = entity.inactive;
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
         query!("INSERT INTO sales_person (id, name, background_color, is_paid, inactive, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", id, name, background_color, is_paid, inactive, deleted, version, process)
-            .execute(self.pool.as_ref())
+            .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
         Ok(())
     }
-    async fn update(&self, entity: &SalesPersonEntity, process: &str) -> Result<(), DaoError> {
+    async fn update(
+        &self,
+        entity: &SalesPersonEntity,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();
         let name = entity.name.as_ref();
@@ -129,7 +149,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let inactive = entity.inactive;
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
         query!("UPDATE sales_person SET name = ?, background_color = ?, is_paid = ?, inactive = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?", name, background_color, is_paid, inactive, deleted, version, process, id)
-            .execute(self.pool.as_ref())
+            .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
         Ok(())
@@ -140,34 +160,43 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         sales_person_id: Uuid,
         user_id: &str,
         process: &str,
+        tx: Self::Transaction,
     ) -> Result<(), DaoError> {
         let sales_person_id = sales_person_id.as_bytes().to_vec();
         query!("INSERT INTO sales_person_user (user_id, sales_person_id, update_process) VALUES (?, ?, ?)", user_id, sales_person_id, process)
-            .execute(self.pool.as_ref())
+            .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
         Ok(())
     }
 
-    async fn discard_assigned_user(&self, sales_person_id: Uuid) -> Result<(), DaoError> {
+    async fn discard_assigned_user(
+        &self,
+        sales_person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let sales_person_id = sales_person_id.as_bytes().to_vec();
         query!(
             "DELETE FROM sales_person_user WHERE sales_person_id = ?",
             sales_person_id
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
         Ok(())
     }
 
-    async fn get_assigned_user(&self, sales_person_id: Uuid) -> Result<Option<Arc<str>>, DaoError> {
+    async fn get_assigned_user(
+        &self,
+        sales_person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<Arc<str>>, DaoError> {
         let sales_person_id = sales_person_id.as_bytes().to_vec();
         Ok(query!(
             "SELECT user_id FROM sales_person_user WHERE sales_person_id = ?",
             sales_person_id
         )
-        .fetch_optional(self.pool.as_ref())
+        .fetch_optional(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?
         .map(|result| result.user_id.into()))
@@ -176,13 +205,14 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     async fn find_sales_person_by_user_id(
         &self,
         user_id: &str,
+        tx: Self::Transaction,
     ) -> Result<Option<SalesPersonEntity>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
             "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
             user_id
         )
-            .fetch_optional(self.pool.as_ref())
+            .fetch_optional(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .as_ref()

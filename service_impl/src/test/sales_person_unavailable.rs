@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use dao::sales_person_unavailable::{MockSalesPersonUnavailableDao, SalesPersonUnavailableEntity};
+use dao::{
+    sales_person_unavailable::{MockSalesPersonUnavailableDao, SalesPersonUnavailableEntity},
+    MockTransaction, MockTransactionDao,
+};
 use mockall::predicate::{always, eq};
 use service::{
     clock::MockClockService,
@@ -13,7 +16,9 @@ use service::{
 
 use uuid::{uuid, Uuid};
 
-use crate::sales_person_unavailable::SalesPersonUnavailableServiceImpl;
+use crate::sales_person_unavailable::{
+    SalesPersonUnavailableServiceDeps, SalesPersonUnavailableServiceImpl,
+};
 use crate::test::error_test::{
     test_exists_error, test_forbidden, test_not_found, test_zero_id_error, test_zero_version_error,
 };
@@ -24,23 +29,31 @@ pub struct SalesPersonUnavailableServiceDependencies {
     pub permission_service: MockPermissionService,
     pub clock_service: MockClockService,
     pub uuid_service: MockUuidService,
+    pub transaction_dao: MockTransactionDao,
 }
+
+impl SalesPersonUnavailableServiceDeps for SalesPersonUnavailableServiceDependencies {
+    type Context = ();
+    type Transaction = MockTransaction;
+    type SalesPersonUnavailableDao = MockSalesPersonUnavailableDao;
+    type SalesPersonService = MockSalesPersonService;
+    type PermissionService = MockPermissionService;
+    type ClockService = MockClockService;
+    type UuidService = MockUuidService;
+    type TransactionDao = MockTransactionDao;
+}
+
 impl SalesPersonUnavailableServiceDependencies {
     pub fn build_service(
         self,
-    ) -> SalesPersonUnavailableServiceImpl<
-        MockSalesPersonUnavailableDao,
-        MockSalesPersonService,
-        MockPermissionService,
-        MockClockService,
-        MockUuidService,
-    > {
+    ) -> SalesPersonUnavailableServiceImpl<SalesPersonUnavailableServiceDependencies> {
         SalesPersonUnavailableServiceImpl {
             sales_person_unavailable_dao: Arc::new(self.sales_person_unavailable_dao),
             sales_person_service: Arc::new(self.sales_person_service),
             permission_service: Arc::new(self.permission_service),
             clock_service: Arc::new(self.clock_service),
             uuid_service: Arc::new(self.uuid_service),
+            transaction_dao: Arc::new(self.transaction_dao),
         }
     }
 }
@@ -84,12 +97,19 @@ pub fn build_dependencies(
 
     let sales_person_service = MockSalesPersonService::new();
 
+    let mut transaction_dao = MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
     SalesPersonUnavailableServiceDependencies {
         sales_person_unavailable_dao,
         sales_person_service,
         permission_service,
         clock_service,
         uuid_service,
+        transaction_dao,
     }
 }
 
@@ -183,8 +203,8 @@ pub async fn test_get_all_shiftplanner() {
     dependencies
         .sales_person_unavailable_dao
         .expect_find_all_by_sales_person_id()
-        .with(eq(default_sales_person_id()))
-        .returning(|_| {
+        .with(eq(default_sales_person_id()), always())
+        .returning(|_, _| {
             Ok([
                 default_sales_person_unavailable_entity(),
                 alternate_sales_person_unavailable_entity(),
@@ -194,11 +214,11 @@ pub async fn test_get_all_shiftplanner() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     let service = dependencies.build_service();
 
     let result = service
-        .get_all_for_sales_person(default_sales_person_id(), ().into())
+        .get_all_for_sales_person(default_sales_person_id(), ().into(), None)
         .await
         .unwrap();
     assert_eq!(result.len(), 2);
@@ -212,16 +232,16 @@ pub async fn test_get_all_sales_person() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_all_by_sales_person_id()
-        .with(eq(default_sales_person_id()))
-        .returning(|_| Ok([default_sales_person_unavailable_entity()].into()));
+        .with(eq(default_sales_person_id()), always())
+        .returning(|_, _| Ok([default_sales_person_unavailable_entity()].into()));
     let service = dependencies.build_service();
 
     let result = service
-        .get_all_for_sales_person(default_sales_person_id(), ().into())
+        .get_all_for_sales_person(default_sales_person_id(), ().into(), None)
         .await
         .unwrap();
     assert_eq!(result.len(), 1);
@@ -234,11 +254,11 @@ pub async fn test_get_all_no_permission() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     let service = dependencies.build_service();
 
     let result = service
-        .get_all_for_sales_person(default_sales_person_id(), ().into())
+        .get_all_for_sales_person(default_sales_person_id(), ().into(), None)
         .await;
     test_forbidden(&result);
 }
@@ -249,8 +269,8 @@ pub async fn test_get_by_week_shiftplanner() {
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| {
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| {
             Ok([
                 default_sales_person_unavailable_entity(),
                 alternate_sales_person_unavailable_entity(),
@@ -260,11 +280,11 @@ pub async fn test_get_by_week_shiftplanner() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     let service = dependencies.build_service();
 
     let result = service
-        .get_by_week_for_sales_person(default_sales_person_id(), 2063, 42, ().into())
+        .get_by_week_for_sales_person(default_sales_person_id(), 2063, 42, ().into(), None)
         .await
         .unwrap();
     assert_eq!(result.len(), 2);
@@ -278,8 +298,8 @@ pub async fn test_get_by_week_sales_person() {
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| {
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| {
             Ok([
                 default_sales_person_unavailable_entity(),
                 alternate_sales_person_unavailable_entity(),
@@ -289,11 +309,11 @@ pub async fn test_get_by_week_sales_person() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     let service = dependencies.build_service();
 
     let result = service
-        .get_by_week_for_sales_person(default_sales_person_id(), 2063, 42, ().into())
+        .get_by_week_for_sales_person(default_sales_person_id(), 2063, 42, ().into(), None)
         .await
         .unwrap();
     assert_eq!(result.len(), 2);
@@ -307,8 +327,8 @@ pub async fn test_get_by_week_no_permission() {
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| {
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| {
             Ok([
                 default_sales_person_unavailable_entity(),
                 alternate_sales_person_unavailable_entity(),
@@ -318,11 +338,11 @@ pub async fn test_get_by_week_no_permission() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     let service = dependencies.build_service();
 
     let result = service
-        .get_by_week_for_sales_person(default_sales_person_id(), 2063, 42, ().into())
+        .get_by_week_for_sales_person(default_sales_person_id(), 2063, 42, ().into(), None)
         .await;
     test_forbidden(&result);
 }
@@ -338,17 +358,18 @@ pub async fn test_create_shiftplanner() {
                 ..default_sales_person_unavailable_entity()
             }),
             eq("SalesPersonUnavailableService::create"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| Ok([].into()));
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| Ok([].into()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -370,6 +391,7 @@ pub async fn test_create_shiftplanner() {
                 ..default_sales_person_unavailable()
             },
             ().into(),
+            None,
         )
         .await
         .unwrap();
@@ -382,12 +404,12 @@ pub async fn test_create_id_set() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| Ok([].into()));
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| Ok([].into()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -408,6 +430,7 @@ pub async fn test_create_id_set() {
                 ..default_sales_person_unavailable()
             },
             ().into(),
+            None,
         )
         .await;
     test_zero_id_error(&result);
@@ -419,12 +442,12 @@ pub async fn test_create_version_set() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| Ok([].into()));
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| Ok([].into()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -445,6 +468,7 @@ pub async fn test_create_version_set() {
                 ..default_sales_person_unavailable()
             },
             ().into(),
+            None,
         )
         .await;
     test_zero_version_error(&result);
@@ -456,12 +480,12 @@ pub async fn test_create_already_exists() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| Ok([default_sales_person_unavailable_entity()].into()));
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| Ok([default_sales_person_unavailable_entity()].into()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -483,6 +507,7 @@ pub async fn test_create_already_exists() {
                 ..default_sales_person_unavailable()
             },
             ().into(),
+            None,
         )
         .await;
     test_exists_error(&result, default_id());
@@ -499,17 +524,18 @@ pub async fn test_create_sales_person() {
                 ..default_sales_person_unavailable_entity()
             }),
             eq("SalesPersonUnavailableService::create"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_week_and_sales_person_id()
-        .with(eq(default_sales_person_id()), eq(2063), eq(42))
-        .returning(|_, _, _| Ok([].into()));
+        .with(eq(default_sales_person_id()), eq(2063), eq(42), always())
+        .returning(|_, _, _, _| Ok([].into()));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -531,6 +557,7 @@ pub async fn test_create_sales_person() {
                 ..default_sales_person_unavailable()
             },
             ().into(),
+            None,
         )
         .await
         .unwrap();
@@ -542,11 +569,11 @@ pub async fn test_create_no_permission() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     let service = dependencies.build_service();
 
     let result = service
-        .create(&default_sales_person_unavailable(), ().into())
+        .create(&default_sales_person_unavailable(), ().into(), None)
         .await;
     test_forbidden(&result);
 }
@@ -557,17 +584,17 @@ pub async fn test_delete_shiftplanner() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_unavailable_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_unavailable_entity())));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -586,11 +613,12 @@ pub async fn test_delete_shiftplanner() {
                 ..default_sales_person_unavailable_entity()
             }),
             eq("SalesPersonUnavailableService::delete"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     let service = dependencies.build_service();
 
-    service.delete(default_id(), ().into()).await.unwrap();
+    service.delete(default_id(), ().into(), None).await.unwrap();
 }
 
 #[tokio::test]
@@ -599,12 +627,12 @@ pub async fn test_delete_sales_person() {
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_unavailable_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_unavailable_entity())));
     dependencies
         .uuid_service
         .expect_new_uuid()
@@ -623,11 +651,12 @@ pub async fn test_delete_sales_person() {
                 ..default_sales_person_unavailable_entity()
             }),
             eq("SalesPersonUnavailableService::delete"),
+            always(),
         )
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _| Ok(()));
     let service = dependencies.build_service();
 
-    service.delete(default_id(), ().into()).await.unwrap();
+    service.delete(default_id(), ().into(), None).await.unwrap();
 }
 
 #[tokio::test]
@@ -636,15 +665,15 @@ pub async fn test_delete_no_permission() {
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(Some(default_sales_person_unavailable_entity())));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_sales_person_unavailable_entity())));
     dependencies
         .sales_person_service
         .expect_verify_user_is_sales_person()
-        .returning(|_, _| Err(ServiceError::Forbidden));
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
     let service = dependencies.build_service();
 
-    let result = service.delete(default_id(), ().into()).await;
+    let result = service.delete(default_id(), ().into(), None).await;
     test_forbidden(&result);
 }
 
@@ -654,15 +683,15 @@ pub async fn test_delete_not_found() {
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     dependencies
         .sales_person_unavailable_dao
         .expect_find_by_id()
-        .with(eq(default_id()))
-        .returning(|_| Ok(None));
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(None));
     let service = dependencies.build_service();
 
-    let result = service.delete(default_id(), ().into()).await;
+    let result = service.delete(default_id(), ().into(), None).await;
     test_not_found(&result, &default_id());
 }

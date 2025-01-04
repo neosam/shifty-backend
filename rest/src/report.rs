@@ -41,7 +41,7 @@ pub async fn get_short_report_for_all<RestState: RestStateDef>(
         (async {
             let short_report: Arc<[ShortEmployeeReportTO]> = rest_state
                 .reporting_service()
-                .get_reports_for_all_employees(query.year, query.until_week, context.into())
+                .get_reports_for_all_employees(query.year, query.until_week, context.into(), None)
                 .await?
                 .iter()
                 .map(ShortEmployeeReportTO::from)
@@ -71,6 +71,7 @@ pub async fn get_report<RestState: RestStateDef>(
                     query.year,
                     query.until_week,
                     context.into(),
+                    None,
                 )
                 .await?)
                 .into();
@@ -93,7 +94,7 @@ pub async fn get_short_week_report<RestState: RestStateDef>(
         (async {
             let report: Arc<[ShortEmployeeReportTO]> = rest_state
                 .reporting_service()
-                .get_week(year, calendar_week, context.into())
+                .get_week(year, calendar_week, context.into(), None)
                 .await?
                 .iter()
                 .map(ShortEmployeeReportTO::from)

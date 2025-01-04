@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use dao::sales_person_unavailable::SalesPersonUnavailableEntity;
+use dao::MockTransaction;
 use mockall::automock;
 use uuid::Uuid;
 
@@ -51,15 +52,17 @@ impl TryFrom<&SalesPersonUnavailable> for SalesPersonUnavailableEntity {
     }
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction = MockTransaction;)]
 #[async_trait]
 pub trait SalesPersonUnavailableService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
+    type Transaction: dao::Transaction;
 
     async fn get_all_for_sales_person(
         &self,
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError>;
     async fn get_by_week_for_sales_person(
         &self,
@@ -67,21 +70,25 @@ pub trait SalesPersonUnavailableService {
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError>;
     async fn get_by_week(
         &self,
         year: u32,
         calendar_week: u8,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPersonUnavailable]>, ServiceError>;
     async fn create(
         &self,
         entity: &SalesPersonUnavailable,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<SalesPersonUnavailable, ServiceError>;
     async fn delete(
         &self,
         id: Uuid,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }
