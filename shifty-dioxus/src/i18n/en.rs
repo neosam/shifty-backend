@@ -67,6 +67,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryShiftplan, "Shiftplan");
     i18n.add_text(Locale::En, Key::CategoryExtraWork, "Extra work");
     i18n.add_text(Locale::En, Key::CategoryVacation, "Vacation");
+    i18n.add_text(Locale::En, Key::CategoryVacationHours, "Vacation (hours)");
+    i18n.add_text(Locale::En, Key::CategoryVacationDays, "Vacation");
     i18n.add_text(Locale::En, Key::CategorySickLeave, "Sick leave");
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Holiday");
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
@@ -104,6 +106,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::AddExtraHoursFormTitle, "Add extra hours");
     i18n.add_text(Locale::En, Key::Category, "Category");
     i18n.add_text(Locale::En, Key::AmountOfHours, "Amount of hours");
+    i18n.add_text(Locale::En, Key::AmountOfDays, "Amount of days");
     i18n.add_text(Locale::En, Key::Description, "Description");
     i18n.add_text(Locale::En, Key::When, "When");
     i18n.add_text(Locale::En, Key::Submit, "Submit");

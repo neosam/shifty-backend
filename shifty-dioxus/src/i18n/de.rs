@@ -71,6 +71,8 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryShiftplan, "Schichtplan");
     i18n.add_text(Locale::En, Key::CategoryExtraWork, "Zusatzarbeit");
     i18n.add_text(Locale::En, Key::CategoryVacation, "Urlaub");
+    i18n.add_text(Locale::En, Key::CategoryVacationHours, "Urlaub (Stunden)");
+    i18n.add_text(Locale::En, Key::CategoryVacationDays, "Urlaub");
     i18n.add_text(Locale::En, Key::CategorySickLeave, "Krank");
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Feiertage");
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Nicht verfügbar");
@@ -119,6 +121,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Extra Stunden hinzufügen",
     );
     i18n.add_text(Locale::En, Key::AmountOfHours, "Anzahl der Stunden");
+    i18n.add_text(Locale::En, Key::AmountOfDays, "Anzahl der Tage");
     i18n.add_text(Locale::En, Key::Category, "Kategorie");
     i18n.add_text(Locale::En, Key::Description, "Beschreibung");
     i18n.add_text(Locale::En, Key::When, "Wann");
