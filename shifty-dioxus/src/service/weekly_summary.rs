@@ -10,15 +10,26 @@ use super::{
     error::{ErrorStore, ERROR_STORE},
 };
 
-pub static WEEKLY_SUMMARY_STORE: GlobalSignal<Rc<[WeeklySummary]>> = Signal::global(|| Rc::new([]));
+#[derive(Clone, Debug)]
+pub struct WeeklySummaryStore {
+    pub weekly_summary: Rc<[WeeklySummary]>,
+    pub data_loaded: bool,
+}
+pub static WEEKLY_SUMMARY_STORE: GlobalSignal<WeeklySummaryStore> =
+    GlobalSignal::new(|| WeeklySummaryStore {
+        weekly_summary: Rc::new([]),
+        data_loaded: false,
+    });
 
 pub enum WeeklySummaryAction {
     LoadYear(u32),
 }
 
 async fn load_weekly_summary_year(year: u32) -> Result<(), ShiftyError> {
+    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = false;
     let weekly_summary = loader::load_weekly_summary_for_year(CONFIG.read().clone(), year).await?;
-    *WEEKLY_SUMMARY_STORE.write() = weekly_summary;
+    (*WEEKLY_SUMMARY_STORE.write()).weekly_summary = weekly_summary;
+    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = true;
     Ok(())
 }
 
