@@ -5,7 +5,7 @@ use crate::{
         TopBar,
     },
     router::Route,
-    service::{UserManagementAction, USER_MANAGEMENT_STORE},
+    service::user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
 };
 use dioxus::prelude::*;
 
@@ -51,7 +51,7 @@ pub fn UserManagementPage() -> Element {
                                     move |value: ImStr| {
                                         *add_user_value.write() = value;
                                     }
-                                }
+                                },
                             }
                             Button {
                                 on_click: {

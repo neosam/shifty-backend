@@ -9,7 +9,9 @@ use crate::component::dropdown_base::DropdownTrigger;
 use crate::i18n::Key;
 use crate::js;
 use crate::service::{
-    EmployeeAction, EmployeeWorkDetailsAction, EMPLOYEE_STORE, EMPLOYEE_WORK_DETAILS_STORE, I18N,
+    employee::EmployeeAction, employee::EMPLOYEE_STORE,
+    employee_work_details::EmployeeWorkDetailsAction,
+    employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
 };
 use crate::state::employee::WorkingHours;
 use crate::state::employee::{Employee, ExtraHours};

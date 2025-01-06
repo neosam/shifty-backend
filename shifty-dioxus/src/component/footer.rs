@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{api, service::CONFIG};
+use crate::{api, service::config::CONFIG};
 
 #[component]
 pub fn Footer() -> Element {
@@ -14,19 +14,19 @@ pub fn Footer() -> Element {
             div { "Shifty Frontend {version} |" }
             match &*version_resource.read_unchecked() {
                 Some(Ok(version)) => {
-                    rsx! { div {
-                        "Backend: {version}"
-                    } }
-                },
+                    rsx! {
+                        div { "Backend: {version}" }
+                    }
+                }
                 Some(Err(err)) => {
-                    rsx! { div {
-                        "Error while loading version: {err}"
-                    } }
-                },
+                    rsx! {
+                        div { "Error while loading version: {err}" }
+                    }
+                }
                 None => {
-                    rsx! { div {
-                        "Loading backend version."
-                    } }
+                    rsx! {
+                        div { "Loading backend version." }
+                    }
                 }
             }
         }

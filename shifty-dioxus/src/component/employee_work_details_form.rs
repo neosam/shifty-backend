@@ -6,7 +6,10 @@ use crate::{
         Button, Checkbox, DateInput, FloatInput, Form, FormGroup, FormPair, Header, IntegerInput,
     },
     i18n,
-    service::{EmployeeWorkDetailsAction, EMPLOYEE_WORK_DETAILS_STORE, I18N},
+    service::{
+        employee_work_details::EmployeeWorkDetailsAction,
+        employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
+    },
     state::{employee_work_details::EmployeeWorkDetails, shiftplan::SalesPerson},
 };
 
@@ -78,7 +81,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                                 employee_work_details.from = date.into();
                                 props.on_update_employee_work_details.call(employee_work_details);
                             }
-                        }
+                        },
                     }
                     span { class: "text-xs text-gray-500", "({from_day}, Week {from_week}, {from_year})" }
                 }
@@ -100,7 +103,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                                 employee_work_details.to = date.into();
                                 props.on_update_employee_work_details.call(employee_work_details);
                             }
-                        }
+                        },
                     }
                     span { class: "text-xs text-gray-500", "({to_day}, Week {to_week}, {to_year})" }
                 }
@@ -242,7 +245,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             employee_work_details.expected_hours = value;
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
-                    }
+                    },
                 }
             }
             FormPair { label: days_per_week_label,
@@ -261,7 +264,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             employee_work_details.workdays_per_week = value as u8;
                             props.on_update_employee_work_details.call(employee_work_details);
                         }
-                    }
+                    },
                 }
             }
             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::ReadOnly {
@@ -281,7 +284,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                                 employee_work_details.vacation_days = value as u8;
                                 props.on_update_employee_work_details.call(employee_work_details);
                             }
-                        }
+                        },
                     }
                 }
             }
@@ -361,7 +364,7 @@ pub fn EmployeeWorkDetailsForm(props: EmployeeWorkDetailsFormPlainProps) -> Elem
                 }
             },
             show_save_button: props.on_save.is_some(),
-            on_cancel: props.on_cancel.clone()
+            on_cancel: props.on_cancel.clone(),
         }
     }
 }

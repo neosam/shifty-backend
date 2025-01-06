@@ -5,7 +5,9 @@ use futures_util::StreamExt;
 use crate::{
     component::TopBar,
     js,
-    service::{WeeklySummaryAction, I18N, WEEKLY_SUMMARY_STORE},
+    service::{
+        i18n::I18N, weekly_summary::WeeklySummaryAction, weekly_summary::WEEKLY_SUMMARY_STORE,
+    },
 };
 
 pub enum WeeklyOverviewPageAction {

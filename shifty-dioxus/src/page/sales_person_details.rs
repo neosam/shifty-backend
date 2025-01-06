@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use crate::{
     base_types::ImStr,
     component::{base_components::*, TopBar},
-    service::{self, UserManagementAction},
+    service::{self, user_management::UserManagementAction},
     state::shiftplan::SalesPerson,
 };
 
@@ -15,7 +15,9 @@ pub struct SalesPersonDetailsProps {
 #[component]
 pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
-    let user_management = service::USER_MANAGEMENT_STORE.read().clone();
+    let user_management = service::user_management::USER_MANAGEMENT_STORE
+        .read()
+        .clone();
 
     use_effect(move || {
         if props.sales_person_id.is_empty() {
@@ -49,7 +51,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                                 }),
                                             );
                                     }
-                                }
+                                },
                             }
                         }
                         FormPair { label: "Shiftplan color".into(),
@@ -67,11 +69,11 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                                     }),
                                                 );
                                         }
-                                    }
+                                    },
                                 }
                                 div {
                                     class: "w-6 h-6 ml-2 block",
-                                    style: format!("background-color: {}", sales_person.sales_person.background_color.clone())
+                                    style: format!("background-color: {}", sales_person.sales_person.background_color.clone()),
                                 }
                             }
                         }
@@ -89,7 +91,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                                 }),
                                             );
                                     }
-                                }
+                                },
                             }
                         }
                         FormPair { label: "Connected user".into(),
@@ -103,7 +105,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                                     .send(UserManagementAction::UpdateSalesPersonUser(value));
                                             }
                                         },
-                                        value: user_id.clone().into()
+                                        value: user_id.clone().into(),
                                     }
                                     Button {
                                         on_click: {

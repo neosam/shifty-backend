@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::i18n::Key as K;
-use crate::service::I18N;
+use crate::service::i18n::I18N;
 
 #[component]
 pub fn NotAuthenticated() -> Element {

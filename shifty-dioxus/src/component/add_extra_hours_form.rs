@@ -9,7 +9,7 @@ use crate::{
     error::result_handler,
     i18n::Key,
     js,
-    service::{CONFIG, I18N},
+    service::{config::CONFIG, i18n::I18N},
     state::employee::WorkingHoursCategory,
 };
 
@@ -148,8 +148,8 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 }
                 button {
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
-                    prevent_default: "onclick",
                     onclick: move |event| {
+                        event.prevent_default();
                         event.stop_propagation();
                         cr.send(AddExtraHoursFormAction::Submit)
                     },

@@ -3,8 +3,8 @@ use dioxus::prelude::*;
 use crate::component::TopBar;
 use crate::i18n::Key as K;
 use crate::router::Route;
-use crate::service::AUTH;
-use crate::service::I18N;
+use crate::service::auth::AUTH;
+use crate::service::i18n::I18N;
 
 #[component]
 pub fn Home() -> Element {

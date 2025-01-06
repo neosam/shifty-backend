@@ -16,12 +16,14 @@ use crate::error::result_handler;
 use crate::i18n::Key;
 use crate::js;
 use crate::loader;
-use crate::service;
-use crate::service::AUTH;
-use crate::service::BOOKING_CONFLICTS_STORE;
-use crate::service::CONFIG;
-use crate::service::I18N;
-use crate::service::WORKING_HOURS_MINI;
+use crate::service::auth::AUTH;
+use crate::service::booking_conflict::BookingConflictAction;
+use crate::service::booking_conflict::BOOKING_CONFLICTS_STORE;
+use crate::service::config::CONFIG;
+use crate::service::i18n::I18N;
+use crate::service::slot_edit::SlotEditAction;
+use crate::service::working_hours_mini::WorkingHoursMiniAction;
+use crate::service::working_hours_mini::WORKING_HOURS_MINI;
 use crate::state;
 use crate::state::dropdown::DropdownEntry;
 use crate::state::sales_person_available::SalesPersonUnavailable;
@@ -67,9 +69,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
     let booking_conflicts = BOOKING_CONFLICTS_STORE.read().clone();
-    let working_hours_mini_service = use_coroutine_handle::<service::WorkingHoursMiniAction>();
-    let booking_conflict_service = use_coroutine_handle::<service::BookingConflictAction>();
-    let slot_edit_service = use_coroutine_handle::<service::SlotEditAction>();
+    let working_hours_mini_service = use_coroutine_handle::<WorkingHoursMiniAction>();
+    let booking_conflict_service = use_coroutine_handle::<BookingConflictAction>();
+    let slot_edit_service = use_coroutine_handle::<SlotEditAction>();
     let is_shiftplanner = auth_info
         .as_ref()
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
@@ -150,17 +152,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             async move {
                 let mut update_shiftplan = move || {
                     shift_plan_context.restart();
-                    working_hours_mini_service.send(
-                        service::WorkingHoursMiniAction::LoadWorkingHoursMini(
-                            *year.read(),
-                            *week.read(),
-                        ),
-                    );
+                    working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
+                        *year.read(),
+                        *week.read(),
+                    ));
                     if is_shiftplanner {
-                        booking_conflict_service.send(service::BookingConflictAction::LoadWeek(
-                            *year.read(),
-                            *week.read(),
-                        ));
+                        booking_conflict_service
+                            .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
                     }
                 };
 
@@ -189,17 +187,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     }
                 };
                 reload_unavailable_days(config.clone()).await;
-                working_hours_mini_service.send(
-                    service::WorkingHoursMiniAction::LoadWorkingHoursMini(
-                        *year.read(),
-                        *week.read(),
-                    ),
-                );
+                working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
+                    *year.read(),
+                    *week.read(),
+                ));
                 if is_shiftplanner {
-                    booking_conflict_service.send(service::BookingConflictAction::LoadWeek(
-                        *year.read(),
-                        *week.read(),
-                    ));
+                    booking_conflict_service
+                        .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
                 }
 
                 //if let Some(sales_person) = sales_person {
@@ -363,7 +357,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             "Edit slot",
             Box::new(move |slot_id: Option<Rc<str>>| {
                 let slot_id: Uuid = slot_id.unwrap().parse().unwrap();
-                slot_edit_service.send(service::SlotEditAction::LoadSlot(
+                slot_edit_service.send(SlotEditAction::LoadSlot(
                     slot_id,
                     *year.read(),
                     *week.read(),
@@ -375,7 +369,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             "Remove slot",
             Box::new(move |slot_id: Option<Rc<str>>| {
                 let slot_id: Uuid = slot_id.unwrap().parse().unwrap();
-                slot_edit_service.send(service::SlotEditAction::DeleteSlot(
+                slot_edit_service.send(SlotEditAction::DeleteSlot(
                     slot_id,
                     *year.read(),
                     *week.read(),
@@ -422,7 +416,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 "New slot",
                                 Box::new(move |_| {
                                     slot_edit_service
-                                        .send(service::SlotEditAction::NewSlot(*year.read(), *week.read()))
+                                        .send(SlotEditAction::NewSlot(*year.read(), *week.read()))
                                 }),
                                 !*change_structure_mode.read() || !is_shift_editor,
                             )

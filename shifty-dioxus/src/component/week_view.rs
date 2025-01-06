@@ -4,7 +4,7 @@ use crate::state::shiftplan::Identifiable;
 use crate::{
     base_types::ImStr,
     component::dropdown_base::DropdownTrigger,
-    service::I18N,
+    service::i18n::I18N,
     state::{self, dropdown::DropdownEntry, Slot, Weekday},
 };
 use dioxus::prelude::*;
@@ -103,33 +103,44 @@ where
                 ),
                 {
                     match props.item_data.title {
-                        ColumnViewContent::Title(title) => rsx! { p { "{title}" } },
+                        ColumnViewContent::Title(title) => rsx! {
+                            p { "{title}" }
+                        },
                         ColumnViewContent::Items(items) => {
-                            let mut items: Vec<ColumnViewContentItem> = items.iter().map(|item| item.clone()).collect();
+                            let mut items: Vec<ColumnViewContentItem> = items
+                                .iter()
+                                .map(|item| item.clone())
+                                .collect();
                             let item_clicked = props.item_clicked.clone();
                             items.sort_by_key(|item| item.title.clone());
-                            rsx! { div {
-                                class: "flex flex-row overflow-scroll no-scrollbar flex-wrap gap-1 m-1",
-                                for item in items.iter() {
-                                    {
-                                        let item_id = item.id;
-                                        rsx! { p {
-                                            class: format!("select-none pl-1 pr-1 rounded-md {}", if Some(item_id) == props.highlight_item_id { "font-bold" } else { "" }),
-                                            ondoubleclick: move |_| {
-                                                let id = item_id;
-                                                if let Some(item_clicked) = item_clicked {
-                                                    info!("Found event handler and call it");
-                                                    item_clicked.call(id);
-                                                };
-                                                info!("Item clicked");
-                                                ()
-                                            },
-                                            style: format!("background-color: {}", item.background_color),
-                                            "{item.title.clone()}"
-                                        } }
+                            rsx! {
+                                div { class: "flex flex-row overflow-scroll no-scrollbar flex-wrap gap-1 m-1",
+                                    for item in items.iter() {
+                                        {
+                                            let item_id = item.id;
+                                            rsx! {
+                                                p {
+                                                    class: format!(
+                                                        "select-none pl-1 pr-1 rounded-md {}",
+                                                        if Some(item_id) == props.highlight_item_id { "font-bold" } else { "" },
+                                                    ),
+                                                    ondoubleclick: move |_| {
+                                                        let id = item_id;
+                                                        if let Some(item_clicked) = item_clicked {
+                                                            info!("Found event handler and call it");
+                                                            item_clicked.call(id);
+                                                        }
+                                                        info!("Item clicked");
+                                                        ()
+                                                    },
+                                                    style: format!("background-color: {}", item.background_color),
+                                                    "{item.title.clone()}"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                            } }
+                            }
                         }
                     }
                 }
@@ -165,14 +176,13 @@ where
                 }
                 if let Some(dropdown_entries) = &props.item_data.dropdown_entries {
                     {
-                        rsx! { DropdownTrigger {
-                            entries: dropdown_entries.clone(),
-                            context: props.item_data.custom_data.id(),
-                            button {
-                                class: "border w-8 print:hidden",
-                                "..."
+                        rsx! {
+                            DropdownTrigger {
+                                entries: dropdown_entries.clone(),
+                                context: props.item_data.custom_data.id(),
+                                button { class: "border w-8 print:hidden", "..." }
                             }
-                        } }
+                        }
                     }
                 }
             }
@@ -253,7 +263,7 @@ where
                 show_dropdown: true,
                 discourage: props.discourage,
                 double_clicked: props.title_double_clicked.clone(),
-                warning: None
+                warning: None,
             }
             for slot in props.slots.iter() {
                 ColumnViewSlot::<CustomData> {
@@ -277,7 +287,7 @@ where
                     remove_event: props.remove_event,
                     item_clicked: props.item_clicked.clone(),
                     discourage: props.discourage,
-                    warning: slot.warning.clone()
+                    warning: slot.warning.clone(),
                 }
             }
         }
@@ -312,7 +322,7 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             scale: SCALING,
             offset: SCALING / 2.0,
             button_types: WeekViewButtonTypes::None,
-            slots
+            slots,
         }
     }
 }
@@ -374,7 +384,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                 }
             },
             discourage: props.discourage,
-            button_types: props.button_types.clone()
+            button_types: props.button_types.clone(),
         }
     }
 }
@@ -471,7 +481,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             title_double_clicked: props.title_double_clicked.clone(),
                             discourage: props.discourage_weekdays.contains(weekday),
                             button_types: props.button_types.clone(),
-                            dropdown_entries: props.dropdown_entries.clone()
+                            dropdown_entries: props.dropdown_entries.clone(),
                         }
                     }
                 }

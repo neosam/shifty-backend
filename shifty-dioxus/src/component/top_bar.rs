@@ -4,7 +4,7 @@ use crate::{
     i18n::Key,
     loader,
     router::Route,
-    service::{AUTH, CONFIG, I18N},
+    service::{auth::AUTH, config::CONFIG, i18n::I18N},
 };
 
 #[component]
@@ -66,11 +66,7 @@ pub fn TopBar() -> Element {
 
             nav {
                 class: "hidden bg-gray-800 md:pl-0 p-4 md:grow md:ml-4 md:justify-between md:flex",
-                style: if *visible.read() {
-                    "display: flex; flex-direction: column; position: absolute; left: 0px; top: 64px;"
-                } else {
-                    ""
-                },
+                style: if *visible.read() { "display: flex; flex-direction: column; position: absolute; left: 0px; top: 64px;" } else { "" },
                 ul { class: "flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 ml-1",
                     if show_shiftplan {
                         li {

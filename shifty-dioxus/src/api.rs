@@ -3,7 +3,8 @@ use std::rc::Rc;
 use rest_types::{
     BookingConflictTO, BookingTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
-    ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, WeeklySummaryTO,
+    ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, VacationPayloadTO,
+    WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -632,5 +633,29 @@ pub async fn delete_employee_work_details(
     let response = client.delete(url).send().await?;
     response.error_for_status_ref()?;
     info!("Deleted");
+    Ok(())
+}
+
+pub async fn add_vacation(
+    config: Config,
+    sales_person_id: Uuid,
+    start_date: time::Date,
+    description: ImStr,
+    days: u8,
+) -> Result<(), reqwest::Error> {
+    let url = format!("{}/shiftplan-edit/vacation", config.backend,);
+    let (year, calendar_week, weekday) = start_date.to_iso_week_date();
+    let vacation_to = VacationPayloadTO {
+        sales_person_id,
+        year: year as u32,
+        calendar_week,
+        day_of_week: weekday.into(),
+        days,
+        description: description.as_str().into(),
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&vacation_to).send().await?;
+    response.error_for_status_ref()?;
+    info!("Added");
     Ok(())
 }

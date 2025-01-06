@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::service::AUTH;
+use crate::service::auth::AUTH;
 
 #[derive(PartialEq, Clone, Props)]
 pub struct AuthProps {

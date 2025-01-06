@@ -5,7 +5,7 @@ use tracing::{error, info};
 use web_sys::window;
 
 use crate::{
-    service::{DropdownAction, DROPDOWN},
+    service::dropdown::{DropdownAction, DROPDOWN},
     state::dropdown::DropdownEntry,
 };
 

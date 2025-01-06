@@ -6,7 +6,9 @@ use crate::{
         employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
         EmployeeWorkDetailsForm, Modal, TopBar,
     },
-    service::{EmployeeAction, EmployeeWorkDetailsAction, CONFIG},
+    service::{
+        config::CONFIG, employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction,
+    },
 };
 use dioxus::prelude::*;
 
@@ -56,7 +58,7 @@ pub fn MyEmployeeDetails() -> Element {
                 Modal {
                     EmployeeWorkDetailsForm {
                         employee_work_details_form_type: EmployeeWorkDetailsFormType::ReadOnly,
-                        on_cancel: move |_| cr.send(MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog)
+                        on_cancel: move |_| cr.send(MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog),
                     }
                 }
             }
@@ -65,7 +67,7 @@ pub fn MyEmployeeDetails() -> Element {
                 show_vacation: config.show_vacation,
                 onupdate: move |_| cr.send(MyEmployeeDetailsAction::Update),
                 on_extra_hour_delete: move |uuid| cr.send(MyEmployeeDetailsAction::DeleteExtraHour(uuid)),
-                on_employee_work_details_clicked: move |id| cr.send(MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id))
+                on_employee_work_details_clicked: move |id| cr.send(MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
             }
         }
     }

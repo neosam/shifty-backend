@@ -2,7 +2,7 @@ use crate::{
     component::{EmployeeShort, TopBar},
     js, loader,
     router::Route,
-    service::CONFIG,
+    service::config::CONFIG,
 };
 use dioxus::prelude::*;
 

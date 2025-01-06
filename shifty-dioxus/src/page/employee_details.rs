@@ -5,7 +5,7 @@ use crate::{
         employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
         EmployeeWorkDetailsForm, Modal, TopBar,
     },
-    service::{EmployeeAction, EmployeeWorkDetailsAction},
+    service::{employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction},
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
@@ -87,7 +87,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                     EmployeeWorkDetailsForm {
                         employee_work_details_form_type: *employee_work_details_dialog_type.read(),
                         on_save: move |_| cr.send(EmployeeDetailsAction::EmployeeWorkDetailsSaved),
-                        on_cancel: move |_| cr.send(EmployeeDetailsAction::EmployeeWorkDetailsDialogVisibility(false))
+                        on_cancel: move |_| cr.send(EmployeeDetailsAction::EmployeeWorkDetailsDialogVisibility(false)),
                     }
                 }
             }
@@ -98,7 +98,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                 on_extra_hour_delete: move |id| cr.send(EmployeeDetailsAction::DeleteExtraHour(id)),
                 on_add_employee_work_details: move |_| cr.send(EmployeeDetailsAction::NewEmployeeWorkDetails),
                 on_employee_work_details_clicked: move |id| cr.send(EmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
-                on_delete_employee_work_details_clicked: move |_id| cr.send(EmployeeDetailsAction::Update)
+                on_delete_employee_work_details_clicked: move |_id| cr.send(EmployeeDetailsAction::Update),
             }
         }
     }

@@ -8,7 +8,7 @@ use crate::{
     error,
     i18n::Key,
     js, loader,
-    service::{CONFIG, I18N},
+    service::{config::CONFIG, i18n::I18N},
     state::week::Week,
 };
 

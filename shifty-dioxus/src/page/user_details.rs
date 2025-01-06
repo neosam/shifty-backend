@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use crate::{
     component::base_components::*,
     component::TopBar,
-    service::{UserManagementAction, USER_MANAGEMENT_STORE},
+    service::user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
 };
 
 #[derive(Clone, PartialEq, Props)]
@@ -60,7 +60,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                             );
                                     }
                                 }
-                            }
+                            },
                         }
                     }
                 }

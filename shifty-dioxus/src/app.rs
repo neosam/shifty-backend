@@ -4,21 +4,21 @@ use crate::component::{Footer, TopBar};
 use crate::page::NotAuthenticated;
 use crate::router::Route;
 use crate::service;
-use crate::service::CONFIG;
+use crate::service::config::CONFIG;
 use dioxus::prelude::*;
 use web_sys::window;
 
 pub fn App() -> Element {
-    use_coroutine(service::config_service);
-    use_coroutine(service::dropdown_service);
-    use_coroutine(service::i18n_service);
-    use_coroutine(service::working_hours_mini_service);
-    use_coroutine(service::user_management_service);
-    use_coroutine(service::booking_conflicts_service);
-    use_coroutine(service::weekly_summary_service);
-    use_coroutine(service::employee_work_details_service);
-    use_coroutine(service::employee_service);
-    use_coroutine(service::slot_edit_service);
+    use_coroutine(service::config::config_service);
+    use_coroutine(service::dropdown::dropdown_service);
+    use_coroutine(service::i18n::i18n_service);
+    use_coroutine(service::working_hours_mini::working_hours_mini_service);
+    use_coroutine(service::user_management::user_management_service);
+    use_coroutine(service::booking_conflict::booking_conflicts_service);
+    use_coroutine(service::weekly_summary::weekly_summary_service);
+    use_coroutine(service::employee_work_details::employee_work_details_service);
+    use_coroutine(service::employee::employee_service);
+    use_coroutine(service::slot_edit::slot_edit_service);
     let config = CONFIG.read();
     if !config.backend.is_empty() {
         let title = config.application_title.clone();

@@ -9,7 +9,7 @@ use crate::{
         base_components::{Button, Form, FormGroup, FormPair, IntegerInput, Select, TimeInput},
         Modal,
     },
-    service::{SlotEditAction, I18N, SLOT_EDIT_STORE},
+    service::{i18n::I18N, slot_edit::SlotEditAction, slot_edit::SLOT_EDIT_STORE},
     state::{
         slot_edit::{SlotEditItem, SlotEditType},
         Weekday,

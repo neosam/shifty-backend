@@ -6,7 +6,7 @@ use crate::{
         base_components::Header,
     },
     i18n::Key,
-    service::I18N,
+    service::i18n::I18N,
 };
 
 #[allow(dead_code)]
