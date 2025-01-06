@@ -53,7 +53,7 @@ pub trait ShiftplanEditService {
         year: u32,
         week: u8,
         day_of_week: DayOfWeek,
-        days: u32,
+        days: u8,
         description: Arc<str>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,

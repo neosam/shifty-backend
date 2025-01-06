@@ -211,6 +211,8 @@ impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditSer
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
     type EmployeeWorkDetailsService = WorkingHoursService;
+    type ExtraHoursService = ExtraHoursService;
+    type SalesPersonUnavailableService = SalesPersonUnavailableService;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
@@ -440,6 +442,8 @@ impl RestStateImpl {
                 reporting_service: reporting_service.clone(),
                 uuid_service: uuid_service.clone(),
                 transaction_dao: transaction_dao.clone(),
+                extra_hours_service: extra_hours_service.clone(),
+                sales_person_unavailable_service: sales_person_unavailable_service.clone(),
             });
         Self {
             user_service,

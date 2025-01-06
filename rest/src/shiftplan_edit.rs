@@ -5,7 +5,7 @@ use axum::{
     routing::{delete, put},
     Extension, Json, Router,
 };
-use rest_types::SlotTO;
+use rest_types::{ExtraHoursTO, SlotTO, VacationPayloadTO};
 use service::shiftplan_edit::ShiftplanEditService;
 use tracing::instrument;
 use uuid::Uuid;
@@ -19,6 +19,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             "/slot/:slot_id/:year/:week",
             delete(delete_slot::<RestState>),
         )
+        .route("/vacation", put(add_vacation::<RestState>))
 }
 
 #[instrument(skip(rest_state))]
@@ -58,6 +59,38 @@ pub async fn delete_slot<RestState: RestStateDef>(
                 .remove_slot(slot_id, year, week, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+pub async fn add_vacation<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Json(vacation_payload): Json<VacationPayloadTO>,
+) -> Response {
+    error_handler(
+        (async {
+            let slot = ExtraHoursTO::from(
+                &rest_state
+                    .shiftplan_edit_service()
+                    .add_vacation(
+                        vacation_payload.sales_person_id,
+                        vacation_payload.year,
+                        vacation_payload.calendar_week,
+                        vacation_payload.day_of_week.into(),
+                        vacation_payload.days,
+                        vacation_payload.description.clone(),
+                        context.into(),
+                        None,
+                    )
+                    .await?,
+            );
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&slot).unwrap()))
+                .unwrap())
         })
         .await,
     )

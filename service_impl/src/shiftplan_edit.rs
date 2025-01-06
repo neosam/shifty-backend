@@ -6,10 +6,11 @@ use service::{
     booking::BookingService,
     carryover::{Carryover, CarryoverService},
     employee_work_details::EmployeeWorkDetailsService,
-    extra_hours::{ExtraHours, ExtraHoursCategory},
+    extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursService},
     permission::Authentication,
     reporting::ReportingService,
     sales_person::SalesPersonService,
+    sales_person_unavailable::{SalesPersonUnavailable, SalesPersonUnavailableService},
     shiftplan_edit::ShiftplanEditService,
     slot::{DayOfWeek, Slot, SlotService},
     PermissionService, ServiceError,
@@ -26,7 +27,9 @@ gen_service_impl! {
         CarryoverService: service::carryover::CarryoverService<Context = Self::Context, Transaction = Self::Transaction> = carryover_service,
         ReportingService: service::reporting::ReportingService<Context = Self::Context, Transaction = Self::Transaction> = reporting_service,
         SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        SalesPersonUnavailableService: SalesPersonUnavailableService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_unavailable_service,
         EmployeeWorkDetailsService: service::employee_work_details::EmployeeWorkDetailsService<Context = Self::Context, Transaction = Self::Transaction> = employee_work_details_service,
+        ExtraHoursService: ExtraHoursService<Context = Self::Context, Transaction = Self::Transaction> = extra_hours_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
@@ -271,7 +274,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         year: u32,
         week: u8,
         day_of_week: DayOfWeek,
-        days: u32,
+        days: u8,
         description: Arc<str>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
@@ -290,11 +293,11 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             )
             .await?;
 
-        let mut amount = employee_work_details.expected_hours * days as f32;
+        let amount = employee_work_details.expected_hours * days as f32;
         let date = time::Date::from_iso_week_date(year as i32, week, day_of_week.into())?;
-        let date_time = time::PrimitiveDateTime::new(date, time::Time::MIDNIGHT);
+        let date_time = time::PrimitiveDateTime::new(date.clone(), time::Time::MIDNIGHT);
 
-        let blank_vacation = ExtraHours {
+        let vacation = ExtraHours {
             id: Uuid::nil(),
             sales_person_id: sales_person_id,
             amount,
@@ -306,13 +309,43 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             version: Uuid::nil(),
         };
 
-        /*let new_extra_hours = self
-        .employee_work_details_service
-        .create(&blank_vacation, Authentication::Full, tx.clone().into())
-        .await?;*/
+        let vacation = self
+            .extra_hours_service
+            .create(&vacation, context.clone(), tx.clone().into())
+            .await?;
+
+        let mut date = date;
+        for _ in 0..days {
+            while !employee_work_details.has_day_of_week(date.weekday()) {
+                date = date + time::Duration::days(1);
+            }
+
+            let (year, week, weekday) = date.to_iso_week_date();
+
+            let employee_unavailable = SalesPersonUnavailable {
+                sales_person_id,
+                id: Uuid::nil(),
+                year: year as u32,
+                calendar_week: week,
+                day_of_week: weekday.into(),
+                created: None,
+                deleted: None,
+                version: Uuid::nil(),
+            };
+            match self
+                .sales_person_unavailable_service
+                .create(&employee_unavailable, context.clone(), tx.clone().into())
+                .await
+            {
+                // Ignore if the day is already blocked.
+                Err(ServiceError::EntityAlreadyExists(_)) => Ok(()),
+                Ok(_) => Ok(()),
+                Err(e) => Err(e),
+            }?;
+            date = date + time::Duration::days(1);
+        }
 
         self.transaction_dao.commit(tx).await?;
-        //Ok(new_extra_hours);
-        unimplemented!()
+        Ok(vacation)
     }
 }

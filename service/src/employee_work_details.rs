@@ -125,6 +125,18 @@ impl EmployeeWorkDetails {
         )
     }
 
+    pub fn has_day_of_week(&self, weekday: Weekday) -> bool {
+        match weekday {
+            Weekday::Monday => self.monday,
+            Weekday::Tuesday => self.tuesday,
+            Weekday::Wednesday => self.wednesday,
+            Weekday::Thursday => self.thursday,
+            Weekday::Friday => self.friday,
+            Weekday::Saturday => self.saturday,
+            Weekday::Sunday => self.sunday,
+        }
+    }
+
     pub fn vacation_days_for_year(&self, year: u32) -> f32 {
         let mut days = self.vacation_days as f32;
         let from_year = self
