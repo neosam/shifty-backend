@@ -28,6 +28,7 @@ pub struct EmployeeViewPlainProps {
     pub show_delete_employee_work_details: bool,
     pub year: u32,
     pub show_vacation: bool,
+    pub full_year: bool,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -441,6 +442,8 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let vacation_days_str: ImStr = i18n.t(Key::VacationDaysLabel).into();
     let vacation_carryover_str: ImStr = i18n.t(Key::VacationCarryoverLabel).into();
 
+    let current_week_note: ImStr = i18n.t(Key::CurrentWeekNote).into();
+
     let cr = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
             while let Some(action) = rx.next().await {
@@ -511,6 +514,9 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
         }
         div { class: "flex flex-col lg:flex-row lg:justify-between lg:gap-4",
             div {
+                if !props.full_year {
+                    div { class: "text-sm text-gray-500", "{current_week_note}" }
+                }
                 div { class: "flex flex-col",
                     h2 { class: "text-lg font-bold mt-8", "{overall_header_str}" }
 
@@ -692,6 +698,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
         .clone();
     let employee_service = use_coroutine_handle::<EmployeeAction>();
     let year = employee_store.year;
+    let full_year = employee_store.until_week >= time::util::weeks_in_year(year as i32);
 
     rsx! {
         EmployeeViewPlain {
@@ -699,6 +706,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             extra_hours,
             year,
             employee_work_details_list,
+            full_year,
             show_vacation: props.show_vacation,
             show_delete_employee_work_details: props.show_delete_employee_work_details,
             onupdate: props.onupdate,

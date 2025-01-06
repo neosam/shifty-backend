@@ -113,6 +113,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::AddWorkDetailsLabel,
         "Arbeitvertrag hinzufügen",
     );
+    i18n.add_text(
+        Locale::En,
+        Key::CurrentWeekNote,
+        "Nur Daten bis zur aktuellen Woche werden angezeigt.",
+    );
 
     // Add extra hours form
     i18n.add_text(

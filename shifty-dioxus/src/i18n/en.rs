@@ -101,6 +101,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ShowFullYearLabel, "Show full year");
     i18n.add_text(Locale::En, Key::ShowUntilNowLabel, "Show until now");
     i18n.add_text(Locale::En, Key::AddWorkDetailsLabel, "Add work contract");
+    i18n.add_text(
+        Locale::En,
+        Key::CurrentWeekNote,
+        "Only show data until the current week.",
+    );
 
     // Add extra hours form
     i18n.add_text(Locale::En, Key::AddExtraHoursFormTitle, "Add extra hours");

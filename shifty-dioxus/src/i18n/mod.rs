@@ -117,6 +117,8 @@ pub enum Key {
     ShowUntilNowLabel,
     AddWorkDetailsLabel,
 
+    CurrentWeekNote,
+
     // Add extra hours form
     AddExtraHoursFormTitle,
     Category,
