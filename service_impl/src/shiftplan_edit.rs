@@ -299,8 +299,8 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         let mut current_weekday = from_weekday;
         let mut vacation_days_for_week = 0;
         while date <= to {
-            while !employee_work_details.has_day_of_week(date.weekday()) {
-                date = date + time::Duration::days(1);
+            if employee_work_details.has_day_of_week(date.weekday()) {
+                vacation_days_for_week += 1;
             }
 
             let (year, week, weekday) = date.to_iso_week_date();
@@ -337,8 +337,6 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                 current_weekday = weekday;
                 vacation_days_for_week = 0;
             }
-
-            vacation_days_for_week += 1;
 
             let employee_unavailable = SalesPersonUnavailable {
                 sales_person_id,
