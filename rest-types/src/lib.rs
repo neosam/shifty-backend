@@ -818,9 +818,7 @@ impl From<&SpecialDayTO> for service::special_days::SpecialDay {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VacationPayloadTO {
     pub sales_person_id: Uuid,
-    pub year: u32,
-    pub calendar_week: u8,
-    pub day_of_week: DayOfWeekTO,
-    pub days: u8,
+    pub from: time::Date,
+    pub to: time::Date,
     pub description: Arc<str>,
 }

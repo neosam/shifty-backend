@@ -12,7 +12,7 @@ use service::{
     sales_person::SalesPersonService,
     sales_person_unavailable::{SalesPersonUnavailable, SalesPersonUnavailableService},
     shiftplan_edit::ShiftplanEditService,
-    slot::{DayOfWeek, Slot, SlotService},
+    slot::{Slot, SlotService},
     PermissionService, ServiceError,
 };
 use uuid::Uuid;
@@ -271,56 +271,74 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
     async fn add_vacation(
         &self,
         sales_person_id: Uuid,
-        year: u32,
-        week: u8,
-        day_of_week: DayOfWeek,
-        days: u8,
+        from: time::Date,
+        to: time::Date,
         description: Arc<str>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<ExtraHours, ServiceError> {
+    ) -> Result<(), ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         // Permission check is done by the service calls
+
+        let (from_year, from_week, from_weekday) = from.to_iso_week_date();
 
         let employee_work_details = self
             .employee_work_details_service
             .find_for_week(
                 sales_person_id,
-                week,
-                year,
+                from_week,
+                from_year as u32,
                 context.clone(),
                 tx.clone().into(),
             )
             .await?;
 
-        let amount = employee_work_details.expected_hours * days as f32;
-        let date = time::Date::from_iso_week_date(year as i32, week, day_of_week.into())?;
-        let date_time = time::PrimitiveDateTime::new(date.clone(), time::Time::MIDNIGHT);
-
-        let vacation = ExtraHours {
-            id: Uuid::nil(),
-            sales_person_id: sales_person_id,
-            amount,
-            category: ExtraHoursCategory::Vacation,
-            description,
-            date_time,
-            created: None,
-            deleted: None,
-            version: Uuid::nil(),
-        };
-
-        let vacation = self
-            .extra_hours_service
-            .create(&vacation, context.clone(), tx.clone().into())
-            .await?;
-
-        let mut date = date;
-        for _ in 0..days {
+        let mut date = from;
+        let mut current_year = from_year as u32;
+        let mut current_week = from_week;
+        let mut current_weekday = from_weekday;
+        let mut vacation_days_for_week = 0;
+        while date <= to {
             while !employee_work_details.has_day_of_week(date.weekday()) {
                 date = date + time::Duration::days(1);
             }
 
             let (year, week, weekday) = date.to_iso_week_date();
+            if (current_year, current_week) != (year as u32, week) {
+                let amount = (employee_work_details.hours_per_day()
+                    * vacation_days_for_week as f32)
+                    .min(employee_work_details.expected_hours);
+                let date = time::Date::from_iso_week_date(
+                    current_year as i32,
+                    current_week,
+                    current_weekday.into(),
+                )?;
+                let date_time = time::PrimitiveDateTime::new(date.clone(), time::Time::MIDNIGHT);
+
+                let vacation = ExtraHours {
+                    id: Uuid::nil(),
+                    sales_person_id: sales_person_id,
+                    amount,
+                    category: ExtraHoursCategory::Vacation,
+                    description: description.clone(),
+                    date_time,
+                    created: None,
+                    deleted: None,
+                    version: Uuid::nil(),
+                };
+
+                let _ = self
+                    .extra_hours_service
+                    .create(&vacation, context.clone(), tx.clone().into())
+                    .await?;
+
+                current_year = year as u32;
+                current_week = week;
+                current_weekday = weekday;
+                vacation_days_for_week = 0;
+            }
+
+            vacation_days_for_week += 1;
 
             let employee_unavailable = SalesPersonUnavailable {
                 sales_person_id,
@@ -344,8 +362,33 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             }?;
             date = date + time::Duration::days(1);
         }
+        let amount = (employee_work_details.hours_per_day() * vacation_days_for_week as f32)
+            .min(employee_work_details.expected_hours);
+        let date = time::Date::from_iso_week_date(
+            current_year as i32,
+            current_week,
+            current_weekday.into(),
+        )?;
+        let date_time = time::PrimitiveDateTime::new(date.clone(), time::Time::MIDNIGHT);
+
+        let vacation = ExtraHours {
+            id: Uuid::nil(),
+            sales_person_id: sales_person_id,
+            amount,
+            category: ExtraHoursCategory::Vacation,
+            description: description.clone(),
+            date_time,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+
+        let _ = self
+            .extra_hours_service
+            .create(&vacation, context.clone(), tx.clone().into())
+            .await?;
 
         self.transaction_dao.commit(tx).await?;
-        Ok(vacation)
+        Ok(())
     }
 }

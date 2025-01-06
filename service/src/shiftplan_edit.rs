@@ -1,6 +1,4 @@
-use crate::extra_hours::ExtraHours;
 use crate::permission::Authentication;
-use crate::slot::DayOfWeek;
 use crate::slot::Slot;
 use crate::ServiceError;
 use async_trait::async_trait;
@@ -50,12 +48,10 @@ pub trait ShiftplanEditService {
     async fn add_vacation(
         &self,
         sales_person_id: Uuid,
-        year: u32,
-        week: u8,
-        day_of_week: DayOfWeek,
-        days: u8,
+        from: time::Date,
+        to: time::Date,
         description: Arc<str>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<ExtraHours, ServiceError>;
+    ) -> Result<(), ServiceError>;
 }

@@ -5,7 +5,7 @@ use axum::{
     routing::{delete, put},
     Extension, Json, Router,
 };
-use rest_types::{ExtraHoursTO, SlotTO, VacationPayloadTO};
+use rest_types::{SlotTO, VacationPayloadTO};
 use service::shiftplan_edit::ShiftplanEditService;
 use tracing::instrument;
 use uuid::Uuid;
@@ -72,25 +72,18 @@ pub async fn add_vacation<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let slot = ExtraHoursTO::from(
-                &rest_state
-                    .shiftplan_edit_service()
-                    .add_vacation(
-                        vacation_payload.sales_person_id,
-                        vacation_payload.year,
-                        vacation_payload.calendar_week,
-                        vacation_payload.day_of_week.into(),
-                        vacation_payload.days,
-                        vacation_payload.description.clone(),
-                        context.into(),
-                        None,
-                    )
-                    .await?,
-            );
-            Ok(Response::builder()
-                .status(200)
-                .body(Body::new(serde_json::to_string(&slot).unwrap()))
-                .unwrap())
+            let _ = &rest_state
+                .shiftplan_edit_service()
+                .add_vacation(
+                    vacation_payload.sales_person_id,
+                    vacation_payload.from,
+                    vacation_payload.to,
+                    vacation_payload.description.clone(),
+                    context.into(),
+                    None,
+                )
+                .await?;
+            Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
         .await,
     )
