@@ -10,7 +10,7 @@ impl IcalService for IcalServiceImpl {
         &self,
         blocks: Arc<[Block]>,
     ) -> Result<Arc<str>, ServiceError> {
-        let datetime_format = format_description!("[year][month][day]T[hour][minute][second]Z");
+        let datetime_format = format_description!("[year][month][day]T[hour][minute][second]");
 
         let mut ical_string = String::new();
         ical_string.push_str("BEGIN:VCALENDAR\n");
