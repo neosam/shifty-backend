@@ -94,6 +94,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let formatter = time::format_description::parse("[day].[month]").unwrap();
     let date_str = date.format(&formatter).unwrap().to_string();
 
+    let backend_url = config.backend.clone();
+
     let calendar_week_str = i18n.t_m(
         Key::ShiftplanCalendarWeek,
         [
@@ -577,6 +579,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         cr.send(ShiftPlanAction::UpdateSalesPerson(employee_id.clone()));
                                     },
                                     selected_sales_person_id: current_sales_person.read().as_ref().map(|sp| sp.id),
+                                }
+                            }
+                            if let Some(ref sales_person) = *current_sales_person.read() {
+                                div { class: "mt-8 mb-8 print:hidden",
+                                    a {
+                                        class: "text-blue-600/75 decoration-solid",
+                                        target: "_blank",
+                                        href: format!("{}/sales-person/{}/ical", backend_url, sales_person.id),
+                                        "Kalender-Export"
+                                    }
                                 }
                             }
                         }
