@@ -42,7 +42,7 @@ impl<Deps: SchedulerServiceDeps> SchedulerService for SchedulerServiceImpl<Deps>
             let mut s = scheduler.lock().await;
             s.start().await;
         });*/
-        self.schedule_carryover_updates("0 * * * * *").await?;
+        self.schedule_carryover_updates("0 0 * * * *").await?;
         Ok(())
     }
 

@@ -9,6 +9,7 @@ pub mod carryover;
 pub mod clock;
 pub mod employee_work_details;
 pub mod extra_hours;
+pub mod ical;
 pub mod macros;
 pub mod permission;
 pub mod reporting;

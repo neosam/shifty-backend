@@ -12,6 +12,7 @@ pub mod clock;
 pub mod datetime_utils;
 pub mod employee_work_details;
 pub mod extra_hours;
+pub mod ical;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;
@@ -88,6 +89,9 @@ pub enum ServiceError {
 
     #[error("Time component range error: {0}")]
     TimeComponentRangeError(#[from] time::error::ComponentRange),
+
+    #[error("Time format error: {0}")]
+    TimeFormatError(#[from] time::error::Format),
 
     #[error("Internal error")]
     InternalError,

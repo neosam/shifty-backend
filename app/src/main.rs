@@ -166,6 +166,21 @@ impl CarryoverServiceDeps for CarryoverServiceDependencies {
 
 type CarryoverService = service_impl::carryover::CarryoverServiceImpl<CarryoverServiceDependencies>;
 
+type IcalService = service_impl::ical::IcalServiceImpl;
+
+pub struct BlockServiceDependencies;
+impl service_impl::block::BlockServiceDeps for BlockServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type SlotService = SlotService;
+    type BookingService = BookingService;
+    type SalesPersonService = SalesPersonService;
+    type ClockService = ClockService;
+    type IcalService = IcalService;
+    type TransactionDao = TransactionDao;
+}
+type BlockService = service_impl::block::BlockServiceImpl<BlockServiceDependencies>;
+
 pub struct ReportingServiceDependencies;
 impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependencies {
     type Context = Context;
@@ -241,6 +256,7 @@ pub struct RestStateImpl {
     working_hours_service: Arc<WorkingHoursService>,
     extra_hours_service: Arc<ExtraHoursService>,
     shiftplan_edit_service: Arc<ShiftplanEditService>,
+    block_service: Arc<BlockService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -256,6 +272,7 @@ impl rest::RestStateDef for RestStateImpl {
     type WorkingHoursService = WorkingHoursService;
     type ExtraHoursService = ExtraHoursService;
     type ShiftplanEditService = ShiftplanEditService;
+    type BlockService = BlockService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -299,6 +316,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService> {
         self.shiftplan_edit_service.clone()
+    }
+    fn block_service(&self) -> Arc<Self::BlockService> {
+        self.block_service.clone()
     }
 }
 impl RestStateImpl {
@@ -445,6 +465,14 @@ impl RestStateImpl {
                 extra_hours_service: extra_hours_service.clone(),
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
             });
+        let block_service = Arc::new(service_impl::block::BlockServiceImpl {
+            slot_service: slot_service.clone(),
+            booking_service: booking_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            clock_service: clock_service.clone(),
+            ical_service: Arc::new(service_impl::ical::IcalServiceImpl),
+            transaction_dao: transaction_dao.clone(),
+        });
         Self {
             user_service,
             session_service,
@@ -459,6 +487,7 @@ impl RestStateImpl {
             working_hours_service,
             extra_hours_service,
             shiftplan_edit_service,
+            block_service,
         }
     }
 }

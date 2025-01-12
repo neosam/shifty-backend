@@ -4,11 +4,14 @@ use async_trait::async_trait;
 use service::{
     block::{Block, BlockService},
     booking::{Booking, BookingService},
+    clock::ClockService,
+    ical::IcalService,
     permission::Authentication,
     sales_person::SalesPersonService,
     slot::{DayOfWeek, Slot, SlotService},
     ServiceError,
 };
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
@@ -24,7 +27,9 @@ gen_service_impl! {
         BookingService: BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
         SlotService: SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
-        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao
+        IcalService: IcalService = ical_service,
+        ClockService: ClockService = clock_service,
+        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
 
@@ -33,6 +38,7 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
     type Context = Deps::Context;
     type Transaction = Deps::Transaction;
 
+    #[instrument(skip(self))]
     async fn get_blocks_for_sales_person_week(
         &self,
         sales_person_id: Uuid,
@@ -48,11 +54,14 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
         // self.permission_service.check_permission("view_blocks", context.clone()).await?;
 
         // Fetch the SalesPerson to embed in the returned `Block`.
+        dbg!(year, week);
+        dbg!("Getting sales person");
         let sales_person = Arc::new(
             self.sales_person_service
                 .get(sales_person_id, context.clone(), Some(tx.clone()))
                 .await?,
         );
+        dbg!(&sales_person);
 
         // Get all bookings for the specified year & week. Then filter by this SalesPerson.
         let all_bookings = self
@@ -65,17 +74,24 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             .filter(|b| b.sales_person_id == sales_person_id)
             .collect();
 
+        dbg!(&bookings_for_person);
+
         // Collect each booking's associated slot. We'll later group by day-of-week.
         // (You could optimize this by building a single query or caching, but this
         // example keeps it straightforward.)
         let mut booking_slot_pairs = Vec::new();
         for booking in &bookings_for_person {
-            let slot = self
+            if let Ok(slot) = self
                 .slot_service
                 .get_slot(&booking.slot_id, context.clone(), Some(tx.clone()))
-                .await?;
-            booking_slot_pairs.push((booking.clone(), slot));
+                .await
+            {
+                booking_slot_pairs.push((booking.clone(), slot));
+            }
         }
+
+        // Commit the transaction (will only actually commit if this is the last Arc reference).
+        self.transaction_dao.commit(tx).await?;
 
         // Group by DayOfWeek in a BTreeMap so days are sorted Monday..Sunday.
         let mut day_map: BTreeMap<DayOfWeek, Vec<(Booking, Slot)>> = BTreeMap::new();
@@ -119,6 +135,8 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
                     _ => {
                         // Finish the existing block
                         let finished_block = Block {
+                            year,
+                            week,
                             sales_person: sales_person.clone(),
                             day_of_week,
                             from: block_from.unwrap(),
@@ -140,6 +158,8 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             // If there's a partially built block leftover, push it.
             if !current_bookings.is_empty() {
                 let final_block = Block {
+                    year,
+                    week,
                     sales_person: sales_person.clone(),
                     day_of_week,
                     from: block_from.unwrap(),
@@ -151,9 +171,40 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             }
         }
 
-        // Commit the transaction (will only actually commit if this is the last Arc reference).
-        self.transaction_dao.commit(tx).await?;
-
         Ok(Arc::from(all_blocks))
+    }
+
+    async fn get_blocks_for_next_weeks_as_ical(
+        &self,
+        sales_person_id: Uuid,
+        _context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<str>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let mut now = self.clock_service.date_now();
+        now -= time::Duration::weeks(2);
+
+        let mut blocks = vec![];
+
+        for _ in 0..12 {
+            let (year, week, _) = now.to_iso_week_date();
+            let week_blocks = self
+                .get_blocks_for_sales_person_week(
+                    sales_person_id,
+                    year as u32,
+                    week,
+                    Authentication::Full,
+                    tx.clone().into(),
+                )
+                .await?;
+            blocks.extend_from_slice(&week_blocks);
+            now += time::Duration::weeks(1);
+        }
+        let ical = self
+            .ical_service
+            .convert_blocks_to_ical_string(blocks.into())?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(ical)
     }
 }

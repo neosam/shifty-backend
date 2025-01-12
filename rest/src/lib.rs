@@ -199,6 +199,12 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        Err(RestError::ServiceError(err @ service::ServiceError::TimeFormatError(_))) => {
+            Response::builder()
+                .status(500)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
         Err(RestError::ServiceError(ServiceError::InternalError)) => Response::builder()
             .status(500)
             .body(Body::new("Internal server error".to_string()))
@@ -244,6 +250,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type BlockService: service::block::BlockService<Context = Context> + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -260,6 +267,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService>;
     fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService>;
+    fn block_service(&self) -> Arc<Self::BlockService>;
 }
 
 pub struct OidcConfig {

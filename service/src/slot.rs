@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use dao::MockTransaction;
 use mockall::automock;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use time::Weekday;
 use uuid::Uuid;
@@ -19,6 +19,25 @@ pub enum DayOfWeek {
     Saturday,
     Sunday,
 }
+
+impl Display for DayOfWeek {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                DayOfWeek::Monday => "Monday",
+                DayOfWeek::Tuesday => "Tuesday",
+                DayOfWeek::Wednesday => "Wednesday",
+                DayOfWeek::Thursday => "Thursday",
+                DayOfWeek::Friday => "Friday",
+                DayOfWeek::Saturday => "Saturday",
+                DayOfWeek::Sunday => "Sunday",
+            }
+        )
+    }
+}
+
 impl DayOfWeek {
     pub fn to_number(&self) -> u8 {
         match self {

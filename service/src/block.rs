@@ -19,6 +19,8 @@ use uuid::Uuid;
 /// from 9:00 to 12:00. This type is *not* stored in the database.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Block {
+    pub year: u32,
+    pub week: u8,
     /// The sales person to whom these consecutive bookings belong.
     pub sales_person: Arc<SalesPerson>,
     /// The day of the week these bookings fall on (e.g., Monday).
@@ -33,6 +35,31 @@ pub struct Block {
     /// The corresponding slots for these bookings. Each slot defines from/to time,
     /// day of week, and other slot metadata.
     pub slots: Arc<[Slot]>,
+}
+
+impl Block {
+    pub fn block_identifier(&self) -> Arc<str> {
+        Arc::from(format!(
+            "{}-{}-{}-{}-{}-{}",
+            self.year, self.week, self.sales_person.id, self.day_of_week, self.from, self.to
+        ))
+    }
+
+    pub fn date(&self) -> Result<time::Date, crate::ServiceError> {
+        Ok(time::Date::from_iso_week_date(
+            self.year as i32,
+            self.week,
+            self.day_of_week.into(),
+        )?)
+    }
+
+    pub fn datetime_from(&self) -> Result<time::PrimitiveDateTime, crate::ServiceError> {
+        Ok(time::PrimitiveDateTime::new(self.date()?, self.from))
+    }
+
+    pub fn datetime_to(&self) -> Result<time::PrimitiveDateTime, crate::ServiceError> {
+        Ok(time::PrimitiveDateTime::new(self.date()?, self.to))
+    }
 }
 
 /// A service trait for grouping consecutive bookings into `Block`s.
@@ -55,4 +82,11 @@ pub trait BlockService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Block]>, ServiceError>;
+
+    async fn get_blocks_for_next_weeks_as_ical(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<str>, ServiceError>;
 }

@@ -3,10 +3,13 @@ use dao::{MockTransaction, MockTransactionDao};
 use mockall::predicate::{always, eq};
 use service::block::BlockService;
 use service::booking::Booking;
+use service::clock::MockClockService;
+use service::ical::MockIcalService;
 use service::sales_person::MockSalesPersonService;
 use service::slot::{DayOfWeek, MockSlotService, Slot};
 use service::ServiceError;
 use service::{booking::MockBookingService, sales_person::SalesPerson};
+use time::macros::date;
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::{uuid, Uuid};
 
@@ -17,6 +20,8 @@ pub struct BlockServiceDependencies {
     pub booking_service: MockBookingService,
     pub slot_service: MockSlotService,
     pub sales_person_service: MockSalesPersonService,
+    pub ical_service: MockIcalService,
+    pub clock_service: MockClockService,
     pub transaction_dao: MockTransactionDao,
 }
 
@@ -26,6 +31,8 @@ impl crate::block::BlockServiceDeps for BlockServiceDependencies {
     type BookingService = MockBookingService;
     type SlotService = MockSlotService;
     type SalesPersonService = MockSalesPersonService;
+    type IcalService = MockIcalService;
+    type ClockService = MockClockService;
     type TransactionDao = MockTransactionDao;
     // If you also want to enforce permission checks here, you can add:
     // type PermissionService = MockPermissionService;
@@ -38,6 +45,8 @@ impl BlockServiceDependencies {
             booking_service: self.booking_service.into(),
             slot_service: self.slot_service.into(),
             sales_person_service: self.sales_person_service.into(),
+            ical_service: self.ical_service.into(),
+            clock_service: self.clock_service.into(),
             transaction_dao: self.transaction_dao.into(),
         }
     }
@@ -159,10 +168,19 @@ pub fn build_dependencies() -> BlockServiceDependencies {
         .returning(|_| Ok(MockTransaction));
     transaction_dao.expect_commit().returning(|_| Ok(()));
 
+    let ical_service = MockIcalService::new();
+
+    let mut clock_service = MockClockService::new();
+    clock_service
+        .expect_date_now()
+        .returning(|| date!(2025 - 01 - 01));
+
     BlockServiceDependencies {
         booking_service,
         slot_service,
         sales_person_service,
+        ical_service,
+        clock_service,
         transaction_dao,
     }
 }

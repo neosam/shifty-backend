@@ -7,6 +7,7 @@ use axum::{extract::State, response::Response};
 use axum::{Extension, Json, Router};
 use rest_types::{SalesPersonTO, SalesPersonUnavailableTO};
 use serde::Deserialize;
+use service::block::BlockService;
 use service::sales_person::SalesPersonService;
 use service::sales_person_unavailable::SalesPersonUnavailableService;
 use tracing::instrument;
@@ -18,6 +19,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_sales_persons::<RestState>))
         .route("/:id", get(get_sales_person::<RestState>))
+        .route("/:id/ical", get(ical_for_sales_person::<RestState>))
         .route("/", post(create_sales_person::<RestState>))
         .route("/:id", put(update_sales_person::<RestState>))
         .route("/:id", delete(delete_sales_person::<RestState>))
@@ -314,6 +316,28 @@ pub async fn delete_sales_person_unavailable<RestState: RestStateDef>(
                 .delete(unavailable_id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+pub async fn ical_for_sales_person<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(sales_person_id): Path<Uuid>,
+) -> Response {
+    error_handler(
+        (async {
+            let ical = rest_state
+                .block_service()
+                .get_blocks_for_next_weeks_as_ical(sales_person_id, context.into(), None)
+                .await?;
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "text/calendar")
+                .body(Body::new(ical.as_ref().to_string()))
+                .unwrap())
         })
         .await,
     )
