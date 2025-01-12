@@ -1,4 +1,6 @@
 #[cfg(test)]
+pub mod block;
+#[cfg(test)]
 pub mod booking;
 #[cfg(test)]
 pub mod carryover;

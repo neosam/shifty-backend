@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use mockall::automock;
 use time::PrimitiveDateTime;
 use uuid::Uuid;
 
@@ -51,6 +52,7 @@ impl TryFrom<&Booking> for dao::booking::BookingEntity {
     }
 }
 
+#[automock(type Context = (); type Transaction = dao::MockTransaction;)]
 #[async_trait]
 pub trait BookingService {
     type Context: Clone + PartialEq + Eq + Debug + Send + Sync;
