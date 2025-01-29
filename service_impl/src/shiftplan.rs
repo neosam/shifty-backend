@@ -1,22 +1,25 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::TransactionDao;
 use service::{
     booking::BookingService,
     permission::Authentication,
     sales_person::SalesPersonService,
-    ServiceError,
-    shiftplan::{ShiftplanService, ShiftplanWeek, ShiftplanDay, ShiftplanSlot, ShiftplanBooking},
+    shiftplan::{ShiftplanBooking, ShiftplanDay, ShiftplanService, ShiftplanSlot, ShiftplanWeek},
     slot::{DayOfWeek, SlotService},
+    ServiceError,
 };
-use dao::TransactionDao;
 
 pub trait ShiftplanServiceDeps {
     type Context: Clone + std::fmt::Debug + PartialEq + Eq + Send + Sync + 'static;
     type Transaction: dao::Transaction;
-    type SlotService: SlotService<Context = Self::Context>;
-    type BookingService: BookingService<Context = Self::Context>;
-    type SalesPersonService: SalesPersonService<Context = Self::Context>;
+    type SlotService: SlotService<Context = Self::Context, Transaction = Self::Transaction>;
+    type BookingService: BookingService<Context = Self::Context, Transaction = Self::Transaction>;
+    type SalesPersonService: SalesPersonService<
+        Context = Self::Context,
+        Transaction = Self::Transaction,
+    >;
     type TransactionDao: TransactionDao<Transaction = Self::Transaction>;
 }
 
@@ -40,11 +43,20 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
         tx: Option<Self::Transaction>,
     ) -> Result<ShiftplanWeek, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
-        
+
         // Get all required data
-        let slots = self.slot_service.get_slots(context.clone(), Some(tx.clone())).await?;
-        let bookings = self.booking_service.find_by_week(year, week, context.clone(), Some(tx.clone())).await?;
-        let sales_persons = self.sales_person_service.get_all(context.clone(), Some(tx.clone())).await?;
+        let slots = self
+            .slot_service
+            .get_slots(context.clone(), Some(tx.clone()))
+            .await?;
+        let bookings = self
+            .booking_service
+            .get_for_week(week, year, context.clone(), Some(tx.clone()))
+            .await?;
+        let sales_persons = self
+            .sales_person_service
+            .get_all(context.clone(), Some(tx.clone()))
+            .await?;
 
         // Build days
         let mut days = Vec::new();
@@ -72,9 +84,7 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
                         let sales_person = sales_persons
                             .iter()
                             .find(|sp| sp.id == booking.sales_person_id)
-                            .ok_or_else(|| {
-                                ServiceError::EntityNotFound(booking.sales_person_id)
-                            })?
+                            .ok_or_else(|| ServiceError::EntityNotFound(booking.sales_person_id))?
                             .clone();
 
                         Ok(ShiftplanBooking {
