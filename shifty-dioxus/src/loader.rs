@@ -121,10 +121,33 @@ pub async fn load_shift_plan(
     week: u8,
     year: u32,
 ) -> Result<Shiftplan, ShiftyError> {
-    let sales_persons = load_sales_persons(config.clone()).await?;
-    let bookings = load_bookings(config.clone(), sales_persons.clone(), week, year).await?;
-    let slots = load_slots(config.clone(), year, week, bookings.clone()).await?;
-
+    let shiftplan_week = api::get_shiftplan_week(config, year, week).await?;
+    let slots = shiftplan_week
+        .days
+        .iter()
+        .flat_map(|day| day.slots.iter())
+        .map(|slot| Slot {
+            id: slot.slot.id,
+            day_of_week: slot.slot.day_of_week.into(),
+            from: slot.slot.from,
+            to: slot.slot.to,
+            min_resources: slot.slot.min_resources,
+            bookings: slot
+                .bookings
+                .iter()
+                .map(|booking| Booking {
+                    id: booking.booking.id,
+                    sales_person_id: booking.booking.sales_person_id,
+                    slot_id: booking.booking.slot_id,
+                    week: booking.booking.calendar_week as u8,
+                    year: booking.booking.year,
+                    label: booking.sales_person.name.as_ref().into(),
+                    background_color: booking.sales_person.background_color.as_ref().into(),
+                })
+                .collect(),
+        })
+        .collect();
+    tracing::info!("Slots: {:?}", &slots);
     Ok(Shiftplan { week, year, slots })
 }
 

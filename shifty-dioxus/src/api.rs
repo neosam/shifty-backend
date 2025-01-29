@@ -655,3 +655,17 @@ pub async fn add_vacation(
     info!("Added");
     Ok(())
 }
+
+pub async fn get_shiftplan_week(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<rest_types::ShiftplanWeekTO, reqwest::Error> {
+    info!("Fetching shiftplan for week {week} in year {year}");
+    let url = format!("{}/shiftplan-info/{year}/{week}", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}

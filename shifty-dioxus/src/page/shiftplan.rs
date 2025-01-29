@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::dropdown_base::DropdownTrigger;
-use crate::component::overlay::Overlay;
 use crate::component::slot_edit::SlotEdit;
 use crate::component::week_view::WeekViewButtonTypes;
 use crate::component::working_hours_mini_overview::WorkingHoursMiniOverview;
