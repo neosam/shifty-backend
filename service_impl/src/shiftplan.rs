@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use dao::TransactionDao;
 
 use async_trait::async_trait;
 use service::{
