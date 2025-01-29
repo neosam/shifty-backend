@@ -251,6 +251,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
     type BlockService: service::block::BlockService<Context = Context> + Send + Sync + 'static;
+    type ShiftplanService: service::shiftplan::ShiftplanService<Context = Context> + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -268,6 +269,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService>;
     fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService>;
     fn block_service(&self) -> Arc<Self::BlockService>;
+    fn shiftplan_service(&self) -> Arc<Self::ShiftplanService>;
 }
 
 pub struct OidcConfig {
