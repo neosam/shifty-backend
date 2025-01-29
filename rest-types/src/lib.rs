@@ -766,6 +766,72 @@ impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShiftplanBookingTO {
+    pub booking: BookingTO,
+    pub sales_person: Arc<SalesPersonTO>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShiftplanSlotTO {
+    pub slot: SlotTO,
+    pub bookings: Vec<ShiftplanBookingTO>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShiftplanDayTO {
+    pub day_of_week: DayOfWeekTO,
+    pub slots: Vec<ShiftplanSlotTO>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShiftplanWeekTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub days: Vec<ShiftplanDayTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::ShiftplanBooking> for ShiftplanBookingTO {
+    fn from(booking: &service::shiftplan::ShiftplanBooking) -> Self {
+        Self {
+            booking: (&booking.booking).into(),
+            sales_person: Arc::new((&*booking.sales_person).into()),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::ShiftplanSlot> for ShiftplanSlotTO {
+    fn from(slot: &service::shiftplan::ShiftplanSlot) -> Self {
+        Self {
+            slot: (&slot.slot).into(),
+            bookings: slot.bookings.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::ShiftplanDay> for ShiftplanDayTO {
+    fn from(day: &service::shiftplan::ShiftplanDay) -> Self {
+        Self {
+            day_of_week: day.day_of_week.into(),
+            slots: day.slots.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::ShiftplanWeek> for ShiftplanWeekTO {
+    fn from(week: &service::shiftplan::ShiftplanWeek) -> Self {
+        Self {
+            year: week.year,
+            calendar_week: week.calendar_week,
+            days: week.days.iter().map(Into::into).collect(),
+        }
+    }
+}
+
 pub struct SpecialDayTO {
     #[serde(default)]
     pub id: Uuid,
