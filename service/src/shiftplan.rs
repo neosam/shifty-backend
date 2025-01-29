@@ -1,8 +1,8 @@
-use crate::{ServiceError, permission::Authentication};
-use dao::Transaction;
-use std::fmt::Debug;
 use crate::slot::DayOfWeek;
+use crate::{permission::Authentication, ServiceError};
+use dao::Transaction;
 use mockall::automock;
+use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub struct ShiftplanWeek {
@@ -29,7 +29,7 @@ pub struct ShiftplanBooking {
     pub sales_person: crate::sales_person::SalesPerson,
 }
 
-#[automock(type Context=();)]
+#[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait::async_trait]
 pub trait ShiftplanService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;

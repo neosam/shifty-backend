@@ -765,7 +765,6 @@ impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShiftplanBookingTO {
     pub booking: BookingTO,
@@ -796,7 +795,7 @@ impl From<&service::shiftplan::ShiftplanBooking> for ShiftplanBookingTO {
     fn from(booking: &service::shiftplan::ShiftplanBooking) -> Self {
         Self {
             booking: (&booking.booking).into(),
-            sales_person: Arc::new((&*booking.sales_person).into()),
+            sales_person: Arc::new((&booking.sales_person).into()),
         }
     }
 }
@@ -832,6 +831,7 @@ impl From<&service::shiftplan::ShiftplanWeek> for ShiftplanWeekTO {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpecialDayTO {
     #[serde(default)]
     pub id: Uuid,

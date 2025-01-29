@@ -17,6 +17,7 @@ pub mod sales_person;
 pub mod sales_person_unavailable;
 pub mod scheduler;
 pub mod session;
+pub mod shiftplan;
 pub mod shiftplan_edit;
 pub mod shiftplan_report;
 pub mod slot;

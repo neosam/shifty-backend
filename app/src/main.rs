@@ -10,7 +10,11 @@ use dao_impl::{
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
 use service::{scheduler::SchedulerService, shiftplan::ShiftplanService};
-use service_impl::{carryover::CarryoverServiceDeps, permission::PermissionServiceDeps, shiftplan::ShiftplanServiceDeps};
+use service_impl::{
+    carryover::CarryoverServiceDeps,
+    permission::PermissionServiceDeps,
+    shiftplan::{ShiftplanServiceDeps, ShiftplanServiceImpl},
+};
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;
 

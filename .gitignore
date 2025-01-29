@@ -4,3 +4,5 @@ target
 result
 mutants.out
 mutants.out.old
+.aider*
+.env
