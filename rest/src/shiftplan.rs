@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::{error_handler, Context, RestStateDef, Response};
-use service::permission::Authentication;
+use service::{permission::Authentication, shiftplan::ShiftplanService};
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new().route("/:year/:week", get(get_shiftplan_week::<RestState>))

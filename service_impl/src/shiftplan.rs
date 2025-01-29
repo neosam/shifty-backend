@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use async_trait::async_trait;
 use dao::TransactionDao;
+use std::sync::Arc;
 use service::{
     booking::BookingService,
     permission::Authentication,
