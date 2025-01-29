@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::TransactionDao;
 use service::{
     booking::BookingService,
     permission::Authentication,
@@ -11,23 +10,15 @@ use service::{
     ServiceError,
 };
 
-pub trait ShiftplanServiceDeps {
-    type Context: Clone + std::fmt::Debug + PartialEq + Eq + Send + Sync + 'static;
-    type Transaction: dao::Transaction;
-    type SlotService: SlotService<Context = Self::Context, Transaction = Self::Transaction>;
-    type BookingService: BookingService<Context = Self::Context, Transaction = Self::Transaction>;
-    type SalesPersonService: SalesPersonService<
-        Context = Self::Context,
-        Transaction = Self::Transaction,
-    >;
-    type TransactionDao: TransactionDao<Transaction = Self::Transaction>;
-}
+use crate::gen_service_impl;
 
-pub struct ShiftplanServiceImpl<Deps: ShiftplanServiceDeps> {
-    pub slot_service: Arc<Deps::SlotService>,
-    pub booking_service: Arc<Deps::BookingService>,
-    pub sales_person_service: Arc<Deps::SalesPersonService>,
-    pub transaction_dao: Arc<Deps::TransactionDao>,
+gen_service_impl! {
+    struct ShiftplanServiceImpl: service::shiftplan::ShiftplanService = ShiftplanServiceDeps {
+        SlotService: service::slot::SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
+        BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
+        SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
+    }
 }
 
 #[async_trait]
