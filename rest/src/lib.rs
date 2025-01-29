@@ -252,7 +252,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
     type BlockService: service::block::BlockService<Context = Context> + Send + Sync + 'static;
-    type ShiftplanService: service::shiftplan::ShiftplanService<Context = Context> + Send + Sync + 'static;
+    type ShiftplanService: service::shiftplan::ShiftplanService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -400,7 +403,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/special-days", special_day::generate_route())
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
-        .nest("/shiftplan", shiftplan::generate_route())
+        .nest("/shiftplan-info", shiftplan::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state,
