@@ -8,6 +8,7 @@ mod permission;
 mod report;
 mod sales_person;
 mod session;
+mod shiftplan;
 mod shiftplan_edit;
 mod slot;
 mod special_day;
@@ -399,6 +400,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/special-days", special_day::generate_route())
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
+        .nest("/shiftplan", shiftplan::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state,
