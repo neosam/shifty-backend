@@ -1,8 +1,8 @@
 use crate::{ServiceError, permission::Authentication};
 use dao::Transaction;
 use std::fmt::Debug;
-use uuid::Uuid;
 use crate::slot::DayOfWeek;
+use mockall::automock;
 
 #[derive(Debug, Clone)]
 pub struct ShiftplanWeek {
