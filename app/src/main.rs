@@ -9,8 +9,8 @@ use dao_impl::{
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
-use service::scheduler::SchedulerService;
-use service_impl::{carryover::CarryoverServiceDeps, permission::PermissionServiceDeps};
+use service::{scheduler::SchedulerService, shiftplan::ShiftplanService};
+use service_impl::{carryover::CarryoverServiceDeps, permission::PermissionServiceDeps, shiftplan::ShiftplanServiceDeps};
 use sqlx::SqlitePool;
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -168,6 +168,16 @@ type CarryoverService = service_impl::carryover::CarryoverServiceImpl<CarryoverS
 
 type IcalService = service_impl::ical::IcalServiceImpl;
 
+pub struct ShiftplanServiceDependencies;
+impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type SlotService = SlotService;
+    type BookingService = BookingService;
+    type SalesPersonService = SalesPersonService;
+    type TransactionDao = TransactionDao;
+}
+
 pub struct BlockServiceDependencies;
 impl service_impl::block::BlockServiceDeps for BlockServiceDependencies {
     type Context = Context;
@@ -257,6 +267,7 @@ pub struct RestStateImpl {
     extra_hours_service: Arc<ExtraHoursService>,
     shiftplan_edit_service: Arc<ShiftplanEditService>,
     block_service: Arc<BlockService>,
+    shiftplan_service: Arc<ShiftplanServiceImpl<ShiftplanServiceDependencies>>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -273,6 +284,7 @@ impl rest::RestStateDef for RestStateImpl {
     type ExtraHoursService = ExtraHoursService;
     type ShiftplanEditService = ShiftplanEditService;
     type BlockService = BlockService;
+    type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -319,6 +331,10 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn block_service(&self) -> Arc<Self::BlockService> {
         self.block_service.clone()
+    }
+
+    fn shiftplan_service(&self) -> Arc<Self::ShiftplanService> {
+        self.shiftplan_service.clone()
     }
 }
 impl RestStateImpl {
@@ -465,6 +481,13 @@ impl RestStateImpl {
                 extra_hours_service: extra_hours_service.clone(),
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
             });
+        let shiftplan_service = Arc::new(service_impl::shiftplan::ShiftplanServiceImpl {
+            slot_service: slot_service.clone(),
+            booking_service: booking_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let block_service = Arc::new(service_impl::block::BlockServiceImpl {
             slot_service: slot_service.clone(),
             booking_service: booking_service.clone(),
@@ -488,6 +511,7 @@ impl RestStateImpl {
             extra_hours_service,
             shiftplan_edit_service,
             block_service,
+            shiftplan_service,
         }
     }
 }
