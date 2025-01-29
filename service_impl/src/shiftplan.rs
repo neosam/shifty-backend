@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use dao::TransactionDao;
-use std::sync::Arc;
 use service::{
     booking::BookingService,
     permission::Authentication,
@@ -34,6 +33,9 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
         tx: Option<Self::Transaction>,
     ) -> Result<ShiftplanWeek, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Test if the date is valid
+        time::Date::from_iso_week_date(year as i32, week, time::Weekday::Thursday)?;
 
         // Get all required data
         let slots = self

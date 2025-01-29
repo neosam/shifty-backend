@@ -9,7 +9,7 @@ use dao_impl::{
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
-use service::{scheduler::SchedulerService, shiftplan::ShiftplanService};
+use service::scheduler::SchedulerService;
 use service_impl::{
     carryover::CarryoverServiceDeps,
     permission::PermissionServiceDeps,
