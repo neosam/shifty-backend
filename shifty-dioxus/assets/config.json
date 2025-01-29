@@ -1,3 +1,4 @@
 {
-    "backend": "http://localhost:8080"
+    "backend": "http://localhost:8080",
+    "show_vacation": true
 }
