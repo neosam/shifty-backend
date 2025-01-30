@@ -80,8 +80,8 @@ impl ShiftplanServiceDependencies {
 pub fn build_dependencies() -> ShiftplanServiceDependencies {
     let mut slot_service = MockSlotService::new();
     slot_service
-        .expect_get_slots()
-        .returning(|_, _| Ok(Arc::new([default_slot()])));
+        .expect_get_slots_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([default_slot()])));
 
     let booking_service = MockBookingService::new();
 
@@ -142,8 +142,8 @@ async fn test_get_shiftplan_week_no_permission() {
     // Override slot service to return forbidden error
     deps.slot_service.checkpoint();
     deps.slot_service
-        .expect_get_slots()
-        .returning(|_, _| Err(service::ServiceError::Forbidden));
+        .expect_get_slots_for_week()
+        .returning(|_, _, _, _| Err(service::ServiceError::Forbidden));
 
     // Set up booking service expectations since it gets called after slot service
     deps.booking_service
