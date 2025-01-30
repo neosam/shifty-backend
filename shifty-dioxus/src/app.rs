@@ -35,7 +35,7 @@ pub fn App() -> Element {
         });
 
         rsx! {
-            document::Stylesheet { href: asset!("/assets/tailwind.css") }
+            document::Stylesheet { href: asset!("./assets/tailwind.css") }
             div { class: "flex flex-col",
                 DropdownBase {}
                 Auth {
