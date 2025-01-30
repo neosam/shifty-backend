@@ -6,6 +6,7 @@ use service::{
     sales_person::SalesPersonService,
     shiftplan::{ShiftplanBooking, ShiftplanDay, ShiftplanService, ShiftplanSlot, ShiftplanWeek},
     slot::{DayOfWeek, SlotService},
+    special_days::SpecialDayService,
     ServiceError,
 };
 
@@ -16,6 +17,7 @@ gen_service_impl! {
         SlotService: service::slot::SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
         BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
         SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        SpecialDayService: service::special_days::SpecialDayService<Context = Self::Context> = special_day_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
@@ -37,11 +39,41 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
         // Test if the date is valid
         time::Date::from_iso_week_date(year as i32, week, time::Weekday::Thursday)?;
 
-        // Get all required data
-        let slots = self
+        // Get all required data including special days
+        let special_days = self
+            .special_day_service
+            .get_by_week(year, week, context.clone())
+            .await?;
+
+        let slots_arc = self
             .slot_service
             .get_slots_for_week(year, week, context.clone(), Some(tx.clone()))
             .await?;
+
+        // Convert Arc<[Slot]> to Vec<Slot> so we can filter
+        let mut slots = slots_arc.to_vec();
+        slots.retain(|slot| {
+            // Check if there's a holiday on this day
+            let is_holiday = special_days.iter().any(|sd| {
+                sd.day_of_week == slot.day_of_week 
+                && sd.day_type == service::special_days::SpecialDayType::Holiday
+            });
+            if is_holiday {
+                return false;
+            }
+
+            // Check if it's a short day and adjust slots accordingly
+            if let Some(short_day) = special_days.iter().find(|sd| {
+                sd.day_of_week == slot.day_of_week 
+                && sd.day_type == service::special_days::SpecialDayType::ShortDay
+                && sd.time_of_day.is_some()
+            }) {
+                // Only keep slots that end before or at the early closing time
+                return slot.to <= short_day.time_of_day.unwrap();
+            }
+
+            true
+        });
         let bookings = self
             .booking_service
             .get_for_week(week, year, context.clone(), Some(tx.clone()))

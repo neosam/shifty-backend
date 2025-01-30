@@ -179,6 +179,7 @@ impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
     type SlotService = SlotService;
     type BookingService = BookingService;
     type SalesPersonService = SalesPersonService;
+    type SpecialDayService = SpecialDayService;
     type TransactionDao = TransactionDao;
 }
 
@@ -489,6 +490,7 @@ impl RestStateImpl {
             slot_service: slot_service.clone(),
             booking_service: booking_service.clone(),
             sales_person_service: sales_person_service.clone(),
+            special_day_service: special_day_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
 
