@@ -40,7 +40,7 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
         // Get all required data
         let slots = self
             .slot_service
-            .get_slots(context.clone(), Some(tx.clone()))
+            .get_slots_for_week(year, week, context.clone(), Some(tx.clone()))
             .await?;
         let bookings = self
             .booking_service
