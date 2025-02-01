@@ -525,50 +525,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         }
 
 
-        if is_shiftplanner && weekly_summary.data_loaded
-            && weekly_summary.weekly_summary.len() > 0
-        {
-            div { class: "m-4 overflow-x-auto",
-                table { class: "min-w-full table-auto border-collapse",
-                    thead {
-                        tr { class: "bg-gray-100",
-                            th { class: "border px-4 py-2", "Monday" }
-                            th { class: "border px-4 py-2", "Tuesday" }
-                            th { class: "border px-4 py-2", "Wednesday" }
-                            th { class: "border px-4 py-2", "Thursday" }
-                            th { class: "border px-4 py-2", "Friday" }
-                            th { class: "border px-4 py-2", "Saturday" }
-                            th { class: "border px-4 py-2", "Sunday" }
-                        }
-                    }
-                    tbody {
-                        tr {
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours)}
-                            }
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours)}
-                            }
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours)}
-                            }
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours)}
-                            }
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours)}
-                            }
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours)}
-                            }
-                            td { class: "border px-4 py-2 text-center",
-                                {format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours)}
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         {
             match &*shift_plan_context.read_unchecked() {
@@ -588,6 +544,19 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     .collect(),
                                 button_types: button_mode,
                                 dropdown_entries: field_dropdown_entries,
+                                weekday_headers: if weekly_summary.data_loaded && weekly_summary.weekly_summary.len() > 0 {
+                                    vec![
+                                        (Weekday::Monday, format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours).into()),
+                                        (Weekday::Tuesday, format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours).into()),
+                                        (Weekday::Wednesday, format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours).into()),
+                                        (Weekday::Thursday, format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours).into()),
+                                        (Weekday::Friday, format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours).into()),
+                                        (Weekday::Saturday, format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours).into()),
+                                        (Weekday::Sunday, format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours).into()),
+                                    ]
+                                } else {
+                                    vec![]
+                                },
                                 add_event: move |slot: state::Slot| {
                                     to_owned![current_sales_person];
                                     info!("Register to slot");

@@ -341,6 +341,7 @@ pub struct DayViewProps {
     pub date: Option<time::Date>,
     pub button_types: WeekViewButtonTypes,
     pub dropdown_entries: Option<Rc<[DropdownEntry]>>,
+    pub header: Option<Rc<str>>,
 
     pub discourage: bool,
 }
@@ -348,11 +349,13 @@ pub struct DayViewProps {
 #[component]
 pub fn DayView(props: DayViewProps) -> Element {
     let i18n = I18N.read().clone();
-    let date_string = if let Some(date) = props.date {
-        format!(", {}", i18n.format_date(&date))
-    } else {
-        "".into()
-    };
+    let mut title = format!("{}", props.weekday.i18n_string(&i18n));
+    if let Some(date) = props.date {
+        title.push_str(&format!(", {}", i18n.format_date(&date)));
+    }
+    if let Some(header) = &props.header {
+        title.push_str(&format!("| {}", header));
+    }
     rsx! {
         ColumnView::<Slot> {
             height: (props.day_end - props.day_start) as f32 * SCALING + SCALING / 2.0,
@@ -373,7 +376,7 @@ pub fn DayView(props: DayViewProps) -> Element {
                     dropdown_entries: props.dropdown_entries.clone(),
                 })
                 .collect(),
-            title: Some(format!("{}{}", props.weekday.i18n_string(&i18n), date_string).into()),
+            title: Some(title.into()),
             highlight_item_id: props.highlight_item_id,
             add_event: props.add_event.clone(),
             remove_event: props.remove_event.clone(),
@@ -410,6 +413,9 @@ pub struct WeekViewProps {
 
     #[props(default = Rc::new([]))]
     pub discourage_weekdays: Rc<[Weekday]>,
+
+    #[props(default = Vec::new())]
+    pub weekday_headers: Vec<(Weekday, Rc<str>)>,
 }
 
 enum Zoom {
@@ -482,6 +488,11 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             discourage: props.discourage_weekdays.contains(weekday),
                             button_types: props.button_types.clone(),
                             dropdown_entries: props.dropdown_entries.clone(),
+                            header: props
+                                .weekday_headers
+                                .iter()
+                                .find(|(day, _)| day == weekday)
+                                .map(|(_, text)| text.clone()),
                         }
                     }
                 }

@@ -7,7 +7,7 @@ use crate::{
 use rest_types::{BookingConflictTO, BookingTO, DayOfWeekTO, SalesPersonTO, SlotTO};
 use uuid::Uuid;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Weekday {
     Monday,
     Tuesday,
