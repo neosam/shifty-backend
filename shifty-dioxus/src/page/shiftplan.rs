@@ -169,6 +169,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
                     }
                 };
+                
+                // Initial load of weekly summary
+                if is_shiftplanner {
+                    weekly_summary_service
+                        .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
+                }
 
                 let sales_person = loader::load_current_sales_person(config.to_owned())
                     .await

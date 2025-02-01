@@ -354,7 +354,7 @@ pub fn DayView(props: DayViewProps) -> Element {
         title.push_str(&format!(", {}", i18n.format_date(&date)));
     }
     if let Some(header) = &props.header {
-        title.push_str(&format!("| {}", header));
+        title.push_str(&format!(" | {}", header));
     }
     rsx! {
         ColumnView::<Slot> {
