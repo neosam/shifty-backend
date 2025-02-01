@@ -55,8 +55,8 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
         slots.retain(|slot| {
             // Check if there's a holiday on this day
             let is_holiday = special_days.iter().any(|sd| {
-                sd.day_of_week == slot.day_of_week 
-                && sd.day_type == service::special_days::SpecialDayType::Holiday
+                sd.day_of_week == slot.day_of_week
+                    && sd.day_type == service::special_days::SpecialDayType::Holiday
             });
             if is_holiday {
                 return false;
@@ -64,9 +64,9 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
 
             // Check if it's a short day and adjust slots accordingly
             if let Some(short_day) = special_days.iter().find(|sd| {
-                sd.day_of_week == slot.day_of_week 
-                && sd.day_type == service::special_days::SpecialDayType::ShortDay
-                && sd.time_of_day.is_some()
+                sd.day_of_week == slot.day_of_week
+                    && sd.day_type == service::special_days::SpecialDayType::ShortDay
+                    && sd.time_of_day.is_some()
             }) {
                 // Only keep slots that end before or at the early closing time
                 return slot.to <= short_day.time_of_day.unwrap();

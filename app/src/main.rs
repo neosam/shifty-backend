@@ -139,6 +139,7 @@ impl service_impl::booking_information::BookingInformationServiceDeps
     type ClockService = ClockService;
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
+    type EmployeeWorkDetailsService = WorkingHoursService;
 }
 type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
     BookingInformationServiceDependencies,
@@ -466,6 +467,7 @@ impl RestStateImpl {
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
                 reporting_service: reporting_service.clone(),
                 special_day_service: special_day_service.clone(),
+                employee_work_details_service: working_hours_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),

@@ -34,6 +34,14 @@ pub struct WeeklySummary {
     pub overall_available_hours: f32,
     pub required_hours: f32,
 
+    pub monday_available_hours: f32,
+    pub tuesday_available_hours: f32,
+    pub wednesday_available_hours: f32,
+    pub thursday_available_hours: f32,
+    pub friday_available_hours: f32,
+    pub saturday_available_hours: f32,
+    pub sunday_available_hours: f32,
+
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPerson]>,
 }
 
@@ -84,4 +92,12 @@ pub trait BookingInformationService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[WeeklySummary]>, ServiceError>;
+
+    async fn get_summery_for_week(
+        &self,
+        years: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<WeeklySummary, ServiceError>;
 }

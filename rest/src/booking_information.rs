@@ -21,6 +21,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             "/weekly-resource-report/:year",
             get(get_weekly_summary::<RestState>),
         )
+        .route(
+            "/weekly-resource-report/:year/:week",
+            get(get_summary_for_week::<RestState>),
+        )
 }
 
 #[instrument(skip(rest_state))]
@@ -67,6 +71,29 @@ pub async fn get_weekly_summary<RestState: RestStateDef>(
             Ok(Response::builder()
                 .status(200)
                 .body(Body::new(serde_json::to_string(&weekly_summary).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+pub async fn get_summary_for_week<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path((year, week)): Path<(u32, u8)>,
+) -> Response {
+    error_handler(
+        (async {
+            let weekly_summary = rest_state
+                .booking_information_service()
+                .get_summery_for_week(year, week, context.into(), None)
+                .await?;
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(
+                    serde_json::to_string(&WeeklySummaryTO::from(&weekly_summary)).unwrap(),
+                ))
                 .unwrap())
         })
         .await,
