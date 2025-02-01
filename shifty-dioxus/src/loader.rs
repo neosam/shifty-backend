@@ -398,6 +398,15 @@ pub async fn load_weekly_summary_for_year(
     Ok(extra_hours_to.into())
 }
 
+pub async fn load_summary_for_week(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<WeeklySummary, ShiftyError> {
+    let summary = api::get_summary_for_week(config, year, week).await?;
+    Ok(WeeklySummary::from(&summary))
+}
+
 pub async fn load_employee_work_details(
     config: Config,
     employee_id: Uuid,

@@ -22,6 +22,8 @@ use crate::service::booking_conflict::BOOKING_CONFLICTS_STORE;
 use crate::service::config::CONFIG;
 use crate::service::i18n::I18N;
 use crate::service::slot_edit::SlotEditAction;
+use crate::service::weekly_summary::WeeklySummaryAction;
+use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::service::working_hours_mini::WorkingHoursMiniAction;
 use crate::service::working_hours_mini::WORKING_HOURS_MINI;
 use crate::state;
@@ -71,6 +73,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let booking_conflicts = BOOKING_CONFLICTS_STORE.read().clone();
     let working_hours_mini_service = use_coroutine_handle::<WorkingHoursMiniAction>();
     let booking_conflict_service = use_coroutine_handle::<BookingConflictAction>();
+    let weekly_summary_service = use_coroutine_handle::<WeeklySummaryAction>();
+    let weekly_summary = WEEKLY_SUMMARY_STORE.read().clone();
     let slot_edit_service = use_coroutine_handle::<SlotEditAction>();
     let is_shiftplanner = auth_info
         .as_ref()
@@ -161,6 +165,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     if is_shiftplanner {
                         booking_conflict_service
                             .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
+                        weekly_summary_service
+                            .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
                     }
                 };
 
@@ -511,6 +517,52 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     class: "cursor-pointer",
                                     "{unique_booking_conflict.0} - {unique_booking_conflict.1}"
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        if is_shiftplanner && weekly_summary.data_loaded
+            && weekly_summary.weekly_summary.len() > 0
+        {
+            div { class: "m-4 overflow-x-auto",
+                table { class: "min-w-full table-auto border-collapse",
+                    thead {
+                        tr { class: "bg-gray-100",
+                            th { class: "border px-4 py-2", "Monday" }
+                            th { class: "border px-4 py-2", "Tuesday" }
+                            th { class: "border px-4 py-2", "Wednesday" }
+                            th { class: "border px-4 py-2", "Thursday" }
+                            th { class: "border px-4 py-2", "Friday" }
+                            th { class: "border px-4 py-2", "Saturday" }
+                            th { class: "border px-4 py-2", "Sunday" }
+                        }
+                    }
+                    tbody {
+                        tr {
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours)}
+                            }
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours)}
+                            }
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours)}
+                            }
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours)}
+                            }
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours)}
+                            }
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours)}
+                            }
+                            td { class: "border px-4 py-2 text-center",
+                                {format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours)}
                             }
                         }
                     }

@@ -569,6 +569,21 @@ pub async fn get_weekly_overview(
     Ok(res)
 }
 
+pub async fn get_summary_for_week(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<WeeklySummaryTO, reqwest::Error> {
+    let url = format!(
+        "{}/booking-information/weekly-resource-report/{}/{}",
+        config.backend, year, week,
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    Ok(res)
+}
+
 pub async fn get_special_days_for_week(
     config: Config,
     year: u32,

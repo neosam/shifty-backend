@@ -718,7 +718,13 @@ pub struct WeeklySummaryTO {
     pub week: u8,
     pub overall_available_hours: f32,
     pub required_hours: f32,
-
+    pub monday_available_hours: f32,
+    pub tuesday_available_hours: f32,
+    pub wednesday_available_hours: f32,
+    pub thursday_available_hours: f32,
+    pub friday_available_hours: f32,
+    pub saturday_available_hours: f32,
+    pub sunday_available_hours: f32,
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPersonTO]>,
 }
 #[cfg(feature = "service-impl")]
@@ -729,6 +735,13 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
             week: weekly_summary.week,
             overall_available_hours: weekly_summary.overall_available_hours,
             required_hours: weekly_summary.required_hours,
+            monday_available_hours: weekly_summary.monday_available_hours,
+            tuesday_available_hours: weekly_summary.tuesday_available_hours,
+            wednesday_available_hours: weekly_summary.wednesday_available_hours,
+            thursday_available_hours: weekly_summary.thursday_available_hours,
+            friday_available_hours: weekly_summary.friday_available_hours,
+            saturday_available_hours: weekly_summary.saturday_available_hours,
+            sunday_available_hours: weekly_summary.sunday_available_hours,
             working_hours_per_sales_person: weekly_summary
                 .working_hours_per_sales_person
                 .iter()
