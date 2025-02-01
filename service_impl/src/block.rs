@@ -202,7 +202,7 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
         }
         let ical = self
             .ical_service
-            .convert_blocks_to_ical_string(blocks.into())?;
+            .convert_blocks_to_ical_string(blocks.into(), "Schicht".into())?;
 
         self.transaction_dao.commit(tx).await?;
         Ok(ical)

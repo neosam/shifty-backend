@@ -9,6 +9,7 @@ impl IcalService for IcalServiceImpl {
     fn convert_blocks_to_ical_string(
         &self,
         blocks: Arc<[Block]>,
+        title: Arc<str>,
     ) -> Result<Arc<str>, ServiceError> {
         let datetime_format = format_description!("[year][month][day]T[hour][minute][second]");
 
@@ -27,7 +28,7 @@ impl IcalService for IcalServiceImpl {
                 "DTEND:{}\n",
                 block.datetime_to()?.format(&datetime_format)?
             ));
-            ical_string.push_str(&format!("SUMMARY:{}\n", "Shift"));
+            ical_string.push_str(&format!("SUMMARY:{}\n", title.as_ref()));
             ical_string.push_str("END:VEVENT\n");
         }
         ical_string.push_str("END:VCALENDAR\n");

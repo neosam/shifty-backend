@@ -8,6 +8,9 @@ use crate::block::Block;
 
 #[automock]
 pub trait IcalService {
-    fn convert_blocks_to_ical_string(&self, blocks: Arc<[Block]>)
-        -> Result<Arc<str>, ServiceError>;
+    fn convert_blocks_to_ical_string(
+        &self,
+        blocks: Arc<[Block]>,
+        title: Arc<str>,
+    ) -> Result<Arc<str>, ServiceError>;
 }
