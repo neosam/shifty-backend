@@ -371,30 +371,27 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .await?
             .iter()
             .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
-            .fold(
-                (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-                |mut acc, report| {
-                    match report.day_of_week {
-                        service::slot::DayOfWeek::Monday => acc.0 += report.hours,
-                        service::slot::DayOfWeek::Tuesday => acc.1 += report.hours,
-                        service::slot::DayOfWeek::Wednesday => acc.2 += report.hours,
-                        service::slot::DayOfWeek::Thursday => acc.3 += report.hours,
-                        service::slot::DayOfWeek::Friday => acc.4 += report.hours,
-                        service::slot::DayOfWeek::Saturday => acc.5 += report.hours,
-                        service::slot::DayOfWeek::Sunday => acc.6 += report.hours,
-                    }
-                    acc
-                },
-            );
+            .fold((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), |mut acc, report| {
+                match report.day_of_week {
+                    service::slot::DayOfWeek::Monday => acc.0 += report.hours,
+                    service::slot::DayOfWeek::Tuesday => acc.1 += report.hours,
+                    service::slot::DayOfWeek::Wednesday => acc.2 += report.hours,
+                    service::slot::DayOfWeek::Thursday => acc.3 += report.hours,
+                    service::slot::DayOfWeek::Friday => acc.4 += report.hours,
+                    service::slot::DayOfWeek::Saturday => acc.5 += report.hours,
+                    service::slot::DayOfWeek::Sunday => acc.6 += report.hours,
+                }
+                acc
+            });
 
-        // Subtract volunteer hours from each day's available hours
-        monday_hours -= volunteer_hours_by_day.0;
-        tuesday_hours -= volunteer_hours_by_day.1;
-        wednesday_hours -= volunteer_hours_by_day.2;
-        thursday_hours -= volunteer_hours_by_day.3;
-        friday_hours -= volunteer_hours_by_day.4;
-        saturday_hours -= volunteer_hours_by_day.5;
-        sunday_hours -= volunteer_hours_by_day.6;
+        // Add volunteer hours from each day's available hours
+        monday_hours += volunteer_hours_by_day.0;
+        tuesday_hours += volunteer_hours_by_day.1;
+        wednesday_hours += volunteer_hours_by_day.2;
+        thursday_hours += volunteer_hours_by_day.3;
+        friday_hours += volunteer_hours_by_day.4;
+        saturday_hours += volunteer_hours_by_day.5;
+        sunday_hours += volunteer_hours_by_day.6;
 
         // Calculate required hours per day from slots
         let required_hours_by_day =
