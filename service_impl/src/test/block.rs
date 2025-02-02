@@ -6,6 +6,7 @@ use service::booking::Booking;
 use service::clock::MockClockService;
 use service::ical::MockIcalService;
 use service::sales_person::MockSalesPersonService;
+use service::shiftplan::MockShiftplanService;
 use service::slot::{DayOfWeek, MockSlotService, Slot};
 use service::ServiceError;
 use service::{booking::MockBookingService, sales_person::SalesPerson};
@@ -23,6 +24,7 @@ pub struct BlockServiceDependencies {
     pub ical_service: MockIcalService,
     pub clock_service: MockClockService,
     pub transaction_dao: MockTransactionDao,
+    pub shiftplan_service: MockShiftplanService,
 }
 
 impl crate::block::BlockServiceDeps for BlockServiceDependencies {
@@ -34,6 +36,7 @@ impl crate::block::BlockServiceDeps for BlockServiceDependencies {
     type IcalService = MockIcalService;
     type ClockService = MockClockService;
     type TransactionDao = MockTransactionDao;
+    type ShiftplanService = MockShiftplanService;
     // If you also want to enforce permission checks here, you can add:
     // type PermissionService = MockPermissionService;
 }
@@ -48,6 +51,7 @@ impl BlockServiceDependencies {
             ical_service: self.ical_service.into(),
             clock_service: self.clock_service.into(),
             transaction_dao: self.transaction_dao.into(),
+            shiftplan_service: self.shiftplan_service.into(),
         }
     }
 }
@@ -169,6 +173,8 @@ pub fn build_dependencies() -> BlockServiceDependencies {
     transaction_dao.expect_commit().returning(|_| Ok(()));
 
     let ical_service = MockIcalService::new();
+    
+    let shiftplan_service = MockShiftplanService::new();
 
     let mut clock_service = MockClockService::new();
     clock_service
@@ -182,6 +188,7 @@ pub fn build_dependencies() -> BlockServiceDependencies {
         ical_service,
         clock_service,
         transaction_dao,
+        shiftplan_service,
     }
 }
 
@@ -238,7 +245,7 @@ async fn test_get_blocks_consecutive_bookings() {
 
     // Check that the block covers 9:00-11:00
     let block = &blocks[0];
-    assert_eq!(block.sales_person.id, default_sales_person_id());
+    assert_eq!(block.sales_person.as_ref().unwrap().id, default_sales_person_id());
     assert_eq!(block.from, Time::from_hms(9, 0, 0).unwrap());
     assert_eq!(block.to, Time::from_hms(11, 0, 0).unwrap());
     assert_eq!(block.bookings.len(), 2, "Should merge both bookings");

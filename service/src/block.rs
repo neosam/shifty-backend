@@ -22,7 +22,7 @@ pub struct Block {
     pub year: u32,
     pub week: u8,
     /// The sales person to whom these consecutive bookings belong.
-    pub sales_person: Arc<SalesPerson>,
+    pub sales_person: Option<Arc<SalesPerson>>,
     /// The day of the week these bookings fall on (e.g., Monday).
     pub day_of_week: DayOfWeek,
     /// The earliest start time among all contained slots/bookings.
@@ -41,7 +41,15 @@ impl Block {
     pub fn block_identifier(&self) -> Arc<str> {
         Arc::from(format!(
             "{}-{}-{}-{}-{}-{}",
-            self.year, self.week, self.sales_person.id, self.day_of_week, self.from, self.to
+            self.year,
+            self.week,
+            self.sales_person
+                .as_ref()
+                .map(|sp| sp.id)
+                .unwrap_or(Uuid::nil()),
+            self.day_of_week,
+            self.from,
+            self.to
         ))
     }
 
@@ -89,4 +97,12 @@ pub trait BlockService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<str>, ServiceError>;
+
+    async fn get_unsufficiently_booked_blocks(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[Block]>, ServiceError>;
 }

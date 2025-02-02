@@ -194,6 +194,7 @@ impl service_impl::block::BlockServiceDeps for BlockServiceDependencies {
     type ClockService = ClockService;
     type IcalService = IcalService;
     type TransactionDao = TransactionDao;
+    type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
 }
 type BlockService = service_impl::block::BlockServiceImpl<BlockServiceDependencies>;
 
@@ -503,6 +504,7 @@ impl RestStateImpl {
             clock_service: clock_service.clone(),
             ical_service: Arc::new(service_impl::ical::IcalServiceImpl),
             transaction_dao: transaction_dao.clone(),
+            shiftplan_service: shiftplan_service.clone(),
         });
         Self {
             user_service,
