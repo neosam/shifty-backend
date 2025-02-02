@@ -112,6 +112,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let edit_as_str = i18n.t(Key::ShiftplanEditAs);
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
     let conflict_booking_entries_header = i18n.t(Key::ConflictBookingsHeader);
+    let personal_calendar_export_str = i18n.t(Key::PersonalCalendarExport);
+    let unsufficiently_booked_calendar_export_str = i18n.t(Key::UnsufficientlyBookedCalendarExport);
 
     let mut shift_plan_context = {
         let config = config.clone();
@@ -169,7 +171,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
                     }
                 };
-                
+
                 // Initial load of weekly summary
                 if is_shiftplanner {
                     weekly_summary_service
@@ -550,19 +552,43 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     .collect(),
                                 button_types: button_mode,
                                 dropdown_entries: field_dropdown_entries,
-                                weekday_headers: if weekly_summary.data_loaded && weekly_summary.weekly_summary.len() > 0 {
-                                    vec![
-                                        (Weekday::Monday, format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours).into()),
-                                        (Weekday::Tuesday, format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours).into()),
-                                        (Weekday::Wednesday, format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours).into()),
-                                        (Weekday::Thursday, format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours).into()),
-                                        (Weekday::Friday, format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours).into()),
-                                        (Weekday::Saturday, format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours).into()),
-                                        (Weekday::Sunday, format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours).into()),
-                                    ]
-                                } else {
-                                    vec![]
-                                },
+                                weekday_headers: if weekly_summary.data_loaded && weekly_summary.weekly_summary.len() > 0 { vec![
+                                    (
+                                        Weekday::Monday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours)
+                                            .into(),
+                                    ),
+                                    (
+                                        Weekday::Tuesday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours)
+                                            .into(),
+                                    ),
+                                    (
+                                        Weekday::Wednesday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours)
+                                            .into(),
+                                    ),
+                                    (
+                                        Weekday::Thursday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours)
+                                            .into(),
+                                    ),
+                                    (
+                                        Weekday::Friday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours)
+                                            .into(),
+                                    ),
+                                    (
+                                        Weekday::Saturday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours)
+                                            .into(),
+                                    ),
+                                    (
+                                        Weekday::Sunday,
+                                        format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours)
+                                            .into(),
+                                    ),
+                                ] } else { vec![] },
                                 add_event: move |slot: state::Slot| {
                                     to_owned![current_sales_person];
                                     info!("Register to slot");
@@ -613,7 +639,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         class: "text-blue-600/75 decoration-solid",
                                         target: "_blank",
                                         href: format!("{}/sales-person/{}/ical", backend_url, sales_person.id),
-                                        "Kalender-Export"
+                                        "{personal_calendar_export_str}"
+                                    }
+                                }
+                                div { class: "mt-8 mb-8 print:hidden",
+                                    a {
+                                        class: "text-blue-600/75 decoration-solid",
+                                        target: "_blank",
+                                        href: format!("{}/sales-person/{}/ical", backend_url, Uuid::nil()),
+                                        "{unsufficiently_booked_calendar_export_str}"
                                     }
                                 }
                             }

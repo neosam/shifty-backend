@@ -39,6 +39,16 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::ConflictBookingsHeader,
         "Fehlerhafte Zuweisungen",
     );
+    i18n.add_text(
+        Locale::En,
+        Key::PersonalCalendarExport,
+        "Persönlichen Kalender exportieren (iCal)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::UnsufficientlyBookedCalendarExport,
+        "Unterbesetzte Schichten Kalender exportieren (iCal)",
+    );
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Jahresübersicht");

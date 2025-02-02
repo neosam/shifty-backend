@@ -74,6 +74,8 @@ pub enum Key {
     ShiftplanEditAs,
     ShiftplanYouAre,
     ConflictBookingsHeader,
+    PersonalCalendarExport,
+    UnsufficientlyBookedCalendarExport,
 
     // Weekly overview page
     WeeklyOverviewTitle,

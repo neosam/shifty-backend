@@ -35,6 +35,16 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::ConflictBookingsHeader,
         "Invalid booked slots",
     );
+    i18n.add_text(
+        Locale::En,
+        Key::PersonalCalendarExport,
+        "Personal calendar export (iCal)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::UnsufficientlyBookedCalendarExport,
+        "Unsufficiently booked slots calendar export (iCal)",
+    );
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
