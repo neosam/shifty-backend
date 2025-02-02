@@ -389,10 +389,13 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         }
 
         // Get volunteer hours per day from shiftplan report
-        let volunteer_hours_by_day = self
+        let volunteer_reports = self
             .shiftplan_report_service
             .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone().into())
-            .await?
+            .await?;
+
+        // Accumulate hours by day for volunteers
+        let volunteer_hours_by_day = volunteer_reports
             .iter()
             .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
             .fold((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), |mut acc, report| {

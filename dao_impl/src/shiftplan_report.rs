@@ -147,7 +147,7 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
                 WHERE booking.year = ?
                   AND booking.calendar_week = ?
-                GROUP BY sales_person_id, year
+                GROUP BY sales_person_id, year, day_of_week
                         "#,
             year,
             calendar_week
