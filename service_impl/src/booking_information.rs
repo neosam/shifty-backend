@@ -319,7 +319,31 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     && (d.from_year < year || (d.from_year == year && d.from_calendar_week <= week))
                     && (d.to_year > year || (d.to_year == year && d.to_calendar_week >= week))
             }) {
-                let working_days = details.potential_weekday_list().len() as f32;
+                // Check each day if employee is available (not in unavailable_days)
+                let is_unavailable = |day: service::slot::DayOfWeek| {
+                    unavailable_days
+                        .iter()
+                        .any(|ud| ud.sales_person_id == employee_id && ud.day_of_week == day)
+                };
+
+                // Count working days excluding unavailable days
+                let working_days = details
+                    .potential_weekday_list()
+                    .iter()
+                    .filter(|&day| {
+                        let service_day = match day {
+                            time::Weekday::Monday => service::slot::DayOfWeek::Monday,
+                            time::Weekday::Tuesday => service::slot::DayOfWeek::Tuesday,
+                            time::Weekday::Wednesday => service::slot::DayOfWeek::Wednesday,
+                            time::Weekday::Thursday => service::slot::DayOfWeek::Thursday,
+                            time::Weekday::Friday => service::slot::DayOfWeek::Friday,
+                            time::Weekday::Saturday => service::slot::DayOfWeek::Saturday,
+                            time::Weekday::Sunday => service::slot::DayOfWeek::Sunday,
+                        };
+                        !is_unavailable(service_day)
+                    })
+                    .count() as f32;
+
                 if working_days > 0.0 {
                     let hours_per_day = details.expected_hours / working_days;
 
