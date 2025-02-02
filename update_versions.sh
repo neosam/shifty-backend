@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Check if version argument is provided
 if [ $# -ne 1 ]; then
@@ -13,9 +13,9 @@ NEW_VERSION=$1
 for cargo_file in */Cargo.toml; do
     if [ -f "$cargo_file" ]; then
         echo "Updating version in $cargo_file"
-        # Use sed to replace version line, handling both quoted and unquoted versions
-        sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" "$cargo_file"
-        sed -i "s/^version = .*/version = \"$NEW_VERSION\"/" "$cargo_file"
+        # Use sed to replace only the first occurrence of version line
+        sed -i "0,/^version = \".*\"/{s/^version = \".*\"/version = \"$NEW_VERSION\"/}" "$cargo_file"
+        sed -i "0,/^version = .*/{s/^version = .*/version = \"$NEW_VERSION\"/}" "$cargo_file"
     fi
 done
 
