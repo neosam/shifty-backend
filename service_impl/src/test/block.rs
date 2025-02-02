@@ -173,7 +173,7 @@ pub fn build_dependencies() -> BlockServiceDependencies {
     transaction_dao.expect_commit().returning(|_| Ok(()));
 
     let ical_service = MockIcalService::new();
-    
+
     let shiftplan_service = MockShiftplanService::new();
 
     let mut clock_service = MockClockService::new();
@@ -245,7 +245,10 @@ async fn test_get_blocks_consecutive_bookings() {
 
     // Check that the block covers 9:00-11:00
     let block = &blocks[0];
-    assert_eq!(block.sales_person.as_ref().unwrap().id, default_sales_person_id());
+    assert_eq!(
+        block.sales_person.as_ref().unwrap().id,
+        default_sales_person_id()
+    );
     assert_eq!(block.from, Time::from_hms(9, 0, 0).unwrap());
     assert_eq!(block.to, Time::from_hms(11, 0, 0).unwrap());
     assert_eq!(block.bookings.len(), 2, "Should merge both bookings");
