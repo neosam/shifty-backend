@@ -1,4 +1,6 @@
 {
     "backend": "http://localhost:8080",
-    "show_vacation": true
+    "show_my_time": true,
+    "is_prod": false,
+    "env_short_description": "LOCAL"
 }
