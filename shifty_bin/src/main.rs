@@ -3,9 +3,12 @@ mod integration_test;
 
 use std::sync::Arc;
 
-use dao_impl::{
-    carryover, employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
-    shiftplan_report::ShiftplanReportDaoImpl,
+use dao_impl_sqlite::{
+    booking::BookingDaoImpl, carryover::CarryoverDaoImpl,
+    employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
+    sales_person::SalesPersonDaoImpl, sales_person_unavailable::SalesPersonUnavailableDaoImpl,
+    session::SessionDaoImpl, shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl,
+    special_day::SpecialDayDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
@@ -26,19 +29,29 @@ type Context = MockContext;
 type UserService = service_impl::UserServiceImpl;
 #[cfg(feature = "oidc")]
 type Context = Option<Arc<str>>;
-type Transaction = dao_impl::TransactionImpl;
-type TransactionDao = dao_impl::TransactionDaoImpl;
+type Transaction = TransactionImpl;
+type TransactionDao = TransactionDaoImpl;
+type PermissionDao = PermissionDaoImpl;
+type SlotDao = SlotDaoImpl;
+type SalesPersonDao = SalesPersonDaoImpl;
+type BookingDao = BookingDaoImpl;
+type SpecialDayDao = SpecialDayDaoImpl;
+type SalesPersonUnavailableDao = SalesPersonUnavailableDaoImpl;
+type SessionDao = SessionDaoImpl;
+type ShiftplanReportDao = ShiftplanReportDaoImpl;
+type ExtraHoursDao = ExtraHoursDaoImpl;
+type CarryoverDao = CarryoverDaoImpl;
+type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
+
 pub struct PermissionServiceDependencies;
 impl PermissionServiceDeps for PermissionServiceDependencies {
     type Context = Context;
     type Transaction = Transaction;
-    type PermissionDao = dao_impl::PermissionDaoImpl;
+    type PermissionDao = PermissionDao;
     type UserService = UserService;
 }
 type PermissionService = service_impl::PermissionServiceImpl<PermissionServiceDependencies>;
 
-type SessionDao = dao_impl::session::SessionDaoImpl;
-type ShiftplanReportDao = dao_impl::shiftplan_report::ShiftplanReportDaoImpl;
 pub struct SessionServiceDependencies;
 impl service_impl::session::SessionServiceDeps for SessionServiceDependencies {
     type Context = Context;
@@ -52,7 +65,7 @@ type SessionService = service_impl::session::SessionServiceImpl<SessionServiceDe
 type ClockService = service_impl::clock::ClockServiceImpl;
 type UuidService = service_impl::uuid_service::UuidServiceImpl;
 type SlotService = service_impl::slot::SlotServiceImpl<
-    dao_impl::slot::SlotDaoImpl,
+    SlotDao,
     PermissionService,
     ClockService,
     UuidService,
@@ -63,7 +76,7 @@ pub struct SalesPersonServiceDependencies;
 impl service_impl::sales_person::SalesPersonServiceDeps for SalesPersonServiceDependencies {
     type Context = Context;
     type Transaction = Transaction;
-    type SalesPersonDao = dao_impl::sales_person::SalesPersonDaoImpl;
+    type SalesPersonDao = SalesPersonDao;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type UuidService = UuidService;
@@ -72,7 +85,7 @@ impl service_impl::sales_person::SalesPersonServiceDeps for SalesPersonServiceDe
 type SalesPersonService =
     service_impl::sales_person::SalesPersonServiceImpl<SalesPersonServiceDependencies>;
 type SpecialDayService = service_impl::special_days::SpecialDayServiceImpl<
-    dao_impl::special_day::SpecialDayDaoImpl,
+    SpecialDayDao,
     PermissionService,
     ClockService,
     UuidService,
@@ -84,8 +97,7 @@ impl service_impl::sales_person_unavailable::SalesPersonUnavailableServiceDeps
 {
     type Context = Context;
     type Transaction = Transaction;
-    type SalesPersonUnavailableDao =
-        dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl;
+    type SalesPersonUnavailableDao = SalesPersonUnavailableDao;
     type SalesPersonService = SalesPersonService;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
@@ -100,7 +112,7 @@ pub struct BookingServiceDependencies;
 impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
     type Context = Context;
     type Transaction = Transaction;
-    type BookingDao = dao_impl::booking::BookingDaoImpl;
+    type BookingDao = BookingDao;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type UuidService = UuidService;
@@ -149,7 +161,7 @@ pub struct ExtraHoursServiceDependencies;
 impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDependencies {
     type Context = Context;
     type Transaction = Transaction;
-    type ExtraHoursDao = dao_impl::extra_hours::ExtraHoursDaoImpl;
+    type ExtraHoursDao = ExtraHoursDao;
     type PermissionService = PermissionService;
     type SalesPersonService = SalesPersonService;
     type ClockService = ClockService;
@@ -158,8 +170,6 @@ impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDepen
 }
 type ExtraHoursService =
     service_impl::extra_hours::ExtraHoursServiceImpl<ExtraHoursServiceDependencies>;
-
-type CarryoverDao = dao_impl::carryover::CarryoverDaoImpl;
 
 pub struct CarryoverServiceDependencies;
 impl CarryoverServiceDeps for CarryoverServiceDependencies {
@@ -220,7 +230,7 @@ impl service_impl::employee_work_details::EmployeeWorkDetailsServiceDeps
 {
     type Context = Context;
     type Transaction = Transaction;
-    type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
+    type EmployeeWorkDetailsDao = EmployeeWorkDetailsDao;
     type SalesPersonService = SalesPersonService;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
@@ -347,15 +357,15 @@ impl rest::RestStateDef for RestStateImpl {
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
         let transaction_dao = Arc::new(TransactionDao::new(pool.clone()));
-        let permission_dao = dao_impl::PermissionDaoImpl::new(pool.clone());
-        let slot_dao = dao_impl::slot::SlotDaoImpl::new(pool.clone());
-        let carryover_dao = Arc::new(carryover::CarryoverDaoImpl::new(pool.clone()));
-        let sales_person_dao = dao_impl::sales_person::SalesPersonDaoImpl::new(pool.clone());
-        let booking_dao = dao_impl::booking::BookingDaoImpl::new(pool.clone());
-        let extra_hours_dao = Arc::new(ExtraHoursDaoImpl::new(pool.clone()));
-        let shiftplan_report_dao = Arc::new(ShiftplanReportDaoImpl::new(pool.clone()));
-        let working_hours_dao = Arc::new(EmployeeWorkDetailsDaoImpl::new(pool.clone()));
-        let special_day_dao = dao_impl::special_day::SpecialDayDaoImpl::new(pool.clone());
+        let permission_dao = PermissionDao::new(pool.clone());
+        let slot_dao = SlotDao::new(pool.clone());
+        let carryover_dao = Arc::new(CarryoverDao::new(pool.clone()));
+        let sales_person_dao = SalesPersonDao::new(pool.clone());
+        let booking_dao = BookingDao::new(pool.clone());
+        let extra_hours_dao = Arc::new(ExtraHoursDao::new(pool.clone()));
+        let shiftplan_report_dao = Arc::new(ShiftplanReportDao::new(pool.clone()));
+        let working_hours_dao = Arc::new(EmployeeWorkDetailsDao::new(pool.clone()));
+        let special_day_dao = SpecialDayDao::new(pool.clone());
         let session_dao = SessionDao::new(pool.clone());
 
         // Always authenticate with DEVUSER during development.
@@ -402,9 +412,9 @@ impl RestStateImpl {
         ));
         let sales_person_unavailable_service = Arc::new(
             service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl {
-                sales_person_unavailable_dao: Arc::new(
-                    dao_impl::sales_person_unavailable::SalesPersonUnavailableDaoImpl::new(pool),
-                ),
+                sales_person_unavailable_dao: Arc::new(SalesPersonUnavailableDao::new(
+                    pool.clone(),
+                )),
                 sales_person_service: sales_person_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
@@ -529,7 +539,7 @@ impl RestStateImpl {
 async fn create_dev_admin_user(pool: Arc<SqlitePool>) {
     use dao::PermissionDao;
     // On development create the DEVUSER and give it admin permissions.
-    let permission_dao = dao_impl::PermissionDaoImpl::new(pool);
+    let permission_dao = PermissionDaoImpl::new(pool.clone());
 
     let users = permission_dao.all_users().await.expect("Expected users");
     let contains_admin_user = users.iter().any(|user| user.name.as_ref() == "DEVUSER");

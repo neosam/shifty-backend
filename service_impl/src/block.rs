@@ -16,7 +16,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
-use dao::{sales_person, TransactionDao}; // import your transaction trait
+use dao::TransactionDao; // import your transaction trait
 use time::Time;
 
 // Automatically generate the `BlockServiceDeps` trait and the `BlockServiceImpl` struct.
