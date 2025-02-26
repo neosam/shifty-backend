@@ -22,8 +22,8 @@ version = "1.8"
 [dependencies.rest]
 path = "../rest"
 
-[dependencies.dao_impl]
-path = "../dao_impl"
+[dependencies.dao_impl_sqlite]
+path = "../dao_impl_sqlite"
 
 [dependencies.dao]
 path = "../dao"

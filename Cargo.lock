@@ -444,7 +444,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dao_impl"
+name = "dao_impl_sqlite"
 version = "0.11.0"
 dependencies = [
  "async-trait",
@@ -2284,7 +2284,7 @@ name = "shifty_bin"
 version = "0.11.0"
 dependencies = [
  "dao",
- "dao_impl",
+ "dao_impl_sqlite",
  "dotenvy",
  "proptest",
  "rest",

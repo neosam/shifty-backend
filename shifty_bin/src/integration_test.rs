@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use dao_impl::BasicDaoImpl;
+use dao_impl_sqlite::BasicDaoImpl;
 use proptest::prelude::*;
 use rest::RestStateDef;
 use service::{

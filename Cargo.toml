@@ -5,7 +5,7 @@ members = [
     "service_impl",
     "shifty_bin",
     "dao",
-    "dao_impl",
+    "dao_impl_sqlite",
     "rest-types",
 ]
 resolver = "2"
