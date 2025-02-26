@@ -57,26 +57,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55cc3b69f167a1ef2e161439aa98aed94e6028e5f9a59be9a6ffb47aef1651f9"
 
 [[package]]
-name = "app"
-version = "0.11.0"
-dependencies = [
- "dao",
- "dao_impl",
- "dotenvy",
- "proptest",
- "rest",
- "service",
- "service_impl",
- "sqlx",
- "time",
- "time-macros",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2297,6 +2277,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shifty_bin"
+version = "0.11.0"
+dependencies = [
+ "dao",
+ "dao_impl",
+ "dotenvy",
+ "proptest",
+ "rest",
+ "service",
+ "service_impl",
+ "sqlx",
+ "time",
+ "time-macros",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

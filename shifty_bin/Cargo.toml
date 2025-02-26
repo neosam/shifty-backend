@@ -1,5 +1,5 @@
 [package]
-name = "app"
+name = "shifty_bin"
 version = "0.11.0"
 edition = "2021"
 resolver = "2"

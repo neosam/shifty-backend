@@ -1,3 +1,11 @@
 [workspace]
-members = ["rest", "service", "service_impl", "app", "dao", "dao_impl", "rest-types"]
+members = [
+    "rest",
+    "service",
+    "service_impl",
+    "shifty_bin",
+    "dao",
+    "dao_impl",
+    "rest-types",
+]
 resolver = "2"
