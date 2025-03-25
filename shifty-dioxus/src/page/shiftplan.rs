@@ -418,11 +418,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     DropdownTrigger {
                         entries: [
                             (
-                                take_last_week_str,
-                                Box::new(move |_| cr.send(ShiftPlanAction::CopyFromPreviousWeek)),
-                            )
-                                .into(),
-                            (
                                 if *change_structure_mode.read() { "Normal mode" } else { "Edit structure" },
                                 Box::new(move |_| { cr.send(ShiftPlanAction::ToggleChangeStructureMode) }),
                                 !is_shift_editor,
