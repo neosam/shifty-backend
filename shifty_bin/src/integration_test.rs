@@ -273,7 +273,7 @@ impl TestSetup {
                 .await
                 .expect("Could not connect to database"),
         );
-        sqlx::migrate!("./../migrations")
+        sqlx::migrate!("./../migrations/sqlite")
             .run(pool.as_ref())
             .await
             .unwrap();

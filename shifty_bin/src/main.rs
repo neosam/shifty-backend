@@ -581,6 +581,12 @@ async fn main() {
             .expect("Could not connect to database"),
     );
 
+    // Apply SQLite-specific migrations
+    sqlx::migrate!("../migrations/sqlite")
+        .run(pool.as_ref())
+        .await
+        .expect("Failed to run migrations");
+
     let rest_state = RestStateImpl::new(pool.clone());
     create_dev_admin_user(pool.clone()).await;
 
