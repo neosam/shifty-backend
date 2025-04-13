@@ -122,6 +122,23 @@ impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
 }
 type BookingService = service_impl::booking::BookingServiceImpl<BookingServiceDependencies>;
 
+pub struct CustomExtraHoursServiceDependencies;
+impl service_impl::custom_extra_hours::CustomExtraHoursDeps
+    for CustomExtraHoursServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type CustomExtraHoursDao = dao_impl_sqlite::custom_extra_hours::CustomExtraHoursDaoImpl;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type CustomExtraHoursService = service_impl::custom_extra_hours::CustomExtraHoursServiceImpl<
+    CustomExtraHoursServiceDependencies,
+>;
+
 pub struct ShiftplanReportServiceDependencies;
 impl service_impl::shiftplan_report::ShiftplanReportServiceDeps
     for ShiftplanReportServiceDependencies
@@ -278,6 +295,7 @@ pub struct RestStateImpl {
     special_day_service: Arc<SpecialDayService>,
     sales_person_unavailable_service: Arc<SalesPersonUnavailableService>,
     booking_service: Arc<BookingService>,
+    custom_extra_hours_service: Arc<CustomExtraHoursService>,
     booking_information_service: Arc<BookingInformationService>,
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
@@ -295,6 +313,7 @@ impl rest::RestStateDef for RestStateImpl {
     type SpecialDayService = SpecialDayService;
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
     type BookingService = BookingService;
+    type CustomExtraHoursService = CustomExtraHoursService;
     type BookingInformationService = BookingInformationService;
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
@@ -330,6 +349,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn booking_service(&self) -> Arc<Self::BookingService> {
         self.booking_service.clone()
+    }
+    fn custom_extra_hours_service(&self) -> Arc<Self::CustomExtraHoursService> {
+        self.custom_extra_hours_service.clone()
     }
     fn booking_information_service(&self) -> Arc<Self::BookingInformationService> {
         self.booking_information_service.clone()
@@ -367,6 +389,8 @@ impl RestStateImpl {
         let working_hours_dao = Arc::new(EmployeeWorkDetailsDao::new(pool.clone()));
         let special_day_dao = SpecialDayDao::new(pool.clone());
         let session_dao = SessionDao::new(pool.clone());
+        let custom_extra_hours_dao =
+            Arc::new(dao_impl_sqlite::custom_extra_hours::CustomExtraHoursDaoImpl);
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -442,6 +466,16 @@ impl RestStateImpl {
         let working_hours_service = Arc::new(
             service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl {
                 employee_work_details_dao: working_hours_dao,
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+        let custom_extra_hours_service = Arc::new(
+            service_impl::custom_extra_hours::CustomExtraHoursServiceImpl {
+                custom_extra_hours_dao: custom_extra_hours_dao,
                 sales_person_service: sales_person_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
@@ -525,6 +559,7 @@ impl RestStateImpl {
             special_day_service,
             sales_person_unavailable_service,
             booking_service,
+            custom_extra_hours_service,
             booking_information_service,
             reporting_service,
             working_hours_service,

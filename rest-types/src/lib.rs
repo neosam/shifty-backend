@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
+use shifty_utils::{derive_from_reference, LazyLoad};
 use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
 
@@ -292,6 +293,7 @@ pub enum ExtraHoursReportCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCategoryTO {
@@ -303,6 +305,7 @@ impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCat
             service::reporting::ExtraHoursReportCategory::SickLeave => Self::SickLeave,
             service::reporting::ExtraHoursReportCategory::Holiday => Self::Holiday,
             service::reporting::ExtraHoursReportCategory::Unavailable => Self::Unavailable,
+            service::reporting::ExtraHoursReportCategory::Custom(lazy) => Self::Custom(*lazy.key()),
         }
     }
 }
@@ -554,6 +557,7 @@ pub enum ExtraHoursCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
@@ -564,6 +568,9 @@ impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
             service::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
             service::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
             service::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
+            service::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy) => {
+                Self::Custom(*lazy.key())
+            }
         }
     }
 }
@@ -576,6 +583,7 @@ impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
             ExtraHoursCategoryTO::SickLeave => Self::SickLeave,
             ExtraHoursCategoryTO::Holiday => Self::Holiday,
             ExtraHoursCategoryTO::Unavailable => Self::Unavailable,
+            ExtraHoursCategoryTO::Custom(id) => Self::CustomExtraHours(LazyLoad::new(*id)),
         }
     }
 }
@@ -901,3 +909,62 @@ pub struct VacationPayloadTO {
     pub to: time::Date,
     pub description: Arc<str>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CustomExtraHoursTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub name: Arc<str>,
+    pub description: Option<Arc<str>>,
+    pub modifies_balance: bool,
+    pub assigned_sales_person_ids: Arc<[Uuid]>,
+    #[serde(default)]
+    pub created: Option<PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::custom_extra_hours::CustomExtraHours> for CustomExtraHoursTO {
+    fn from(entity: &service::custom_extra_hours::CustomExtraHours) -> Self {
+        Self {
+            id: entity.id,
+            name: entity.name.clone(),
+            description: entity.description.clone(),
+            modifies_balance: entity.modifies_balance,
+            assigned_sales_person_ids: entity.assigned_sales_person_ids.clone(),
+            created: entity.created,
+            deleted: entity.deleted,
+            version: entity.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+derive_from_reference!(
+    service::custom_extra_hours::CustomExtraHours,
+    CustomExtraHoursTO
+);
+
+#[cfg(feature = "service-impl")]
+impl From<&CustomExtraHoursTO> for service::custom_extra_hours::CustomExtraHours {
+    fn from(entity: &CustomExtraHoursTO) -> Self {
+        Self {
+            id: entity.id,
+            name: entity.name.clone(),
+            description: entity.description.clone(),
+            modifies_balance: entity.modifies_balance,
+            assigned_sales_person_ids: entity.assigned_sales_person_ids.clone(),
+            created: entity.created,
+            deleted: entity.deleted,
+            version: entity.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+derive_from_reference!(
+    CustomExtraHoursTO,
+    service::custom_extra_hours::CustomExtraHours
+);

@@ -6,6 +6,7 @@ use thiserror::Error;
 
 pub mod booking;
 pub mod carryover;
+pub mod custom_extra_hours;
 pub mod employee_work_details;
 pub mod extra_hours;
 pub mod permission;

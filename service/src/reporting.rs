@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::LazyLoad;
 use uuid::Uuid;
 
 use crate::permission::Authentication;
@@ -17,6 +18,7 @@ pub enum ExtraHoursReportCategory {
     SickLeave,
     Holiday,
     Unavailable,
+    Custom(LazyLoad<Uuid, crate::custom_extra_hours::CustomExtraHours>),
 }
 
 impl From<&crate::extra_hours::ExtraHoursCategory> for ExtraHoursReportCategory {
@@ -27,6 +29,9 @@ impl From<&crate::extra_hours::ExtraHoursCategory> for ExtraHoursReportCategory 
             crate::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
             crate::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
             crate::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
+            crate::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy_laod) => {
+                Self::Custom(lazy_laod.clone())
+            }
         }
     }
 }

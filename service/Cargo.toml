@@ -18,5 +18,8 @@ version = "1.0"
 [dependencies.dao]
 path = "../dao"
 
+[dependencies.shifty-utils]
+path = "../shifty-utils"
+
 [dev-dependencies.tokio]
 version = "1.37.0"

@@ -16,9 +16,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::LazyLoad;
 use uuid::Uuid;
 
-use crate::{permission::Authentication, ServiceError};
+use crate::{custom_extra_hours::CustomExtraHours, permission::Authentication, ServiceError};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReportType {
@@ -40,6 +41,7 @@ pub enum ExtraHoursCategory {
     SickLeave,
     Holiday,
     Unavailable,
+    CustomExtraHours(LazyLoad<Uuid, CustomExtraHours>),
 }
 impl ExtraHoursCategory {
     pub fn as_report_type(&self) -> ReportType {
@@ -49,6 +51,17 @@ impl ExtraHoursCategory {
             Self::SickLeave => ReportType::AbsenceHours,
             Self::Holiday => ReportType::AbsenceHours,
             Self::Unavailable => ReportType::None,
+            Self::CustomExtraHours(custom_extra_hours) => {
+                if let Some(custom_extra_hours) = custom_extra_hours.get() {
+                    if custom_extra_hours.modifies_balance {
+                        ReportType::WorkingHours
+                    } else {
+                        ReportType::None
+                    }
+                } else {
+                    ReportType::None
+                }
+            }
         }
     }
 
@@ -59,6 +72,7 @@ impl ExtraHoursCategory {
             Self::SickLeave => Availability::Available,
             Self::Holiday => Availability::Available,
             Self::Unavailable => Availability::Unavailable,
+            Self::CustomExtraHours(_) => Availability::Available,
         }
     }
 }
@@ -71,6 +85,9 @@ impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
             dao::extra_hours::ExtraHoursCategoryEntity::SickLeave => Self::SickLeave,
             dao::extra_hours::ExtraHoursCategoryEntity::Holiday => Self::Holiday,
             dao::extra_hours::ExtraHoursCategoryEntity::Unavailable => Self::Unavailable,
+            dao::extra_hours::ExtraHoursCategoryEntity::Custom(id) => {
+                Self::CustomExtraHours(LazyLoad::new(*id))
+            }
         }
     }
 }
@@ -82,6 +99,7 @@ impl From<&ExtraHoursCategory> for dao::extra_hours::ExtraHoursCategoryEntity {
             ExtraHoursCategory::SickLeave => Self::SickLeave,
             ExtraHoursCategory::Holiday => Self::Holiday,
             ExtraHoursCategory::Unavailable => Self::Unavailable,
+            ExtraHoursCategory::CustomExtraHours(lazy) => Self::Custom(*lazy.key()),
         }
     }
 }

@@ -7,10 +7,14 @@ resolver = "2"
 [features]
 #default = ["service-impl"]
 default = []
-service-impl = ["dep:service"]
+service-impl = ["dep:service", "dep:shifty-utils"]
 
 [dependencies.service]
 path = "../service"
+optional = true
+
+[dependencies.shifty-utils]
+path = "../shifty-utils"
 optional = true
 
 [dependencies.serde]

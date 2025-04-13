@@ -18,6 +18,7 @@ struct ExtraHoursDb {
     category: String,
     description: Option<String>,
     date_time: String,
+    custom_extra_hours_id: Vec<u8>,
     created: String,
     deleted: Option<String>,
     update_version: Vec<u8>,
@@ -36,6 +37,9 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
                 "SickLeave" => ExtraHoursCategoryEntity::SickLeave,
                 "Holiday" => ExtraHoursCategoryEntity::Holiday,
                 "Unavailable" => ExtraHoursCategoryEntity::Unavailable,
+                "Custom" => ExtraHoursCategoryEntity::Custom(Uuid::from_slice(
+                    extra_hours.custom_extra_hours_id.as_ref(),
+                )?),
                 value @ _ => return Err(DaoError::EnumValueNotFound(value.into())),
             },
             description: extra_hours
@@ -80,13 +84,14 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
             id_vec,
         ).fetch_optional(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?
             .as_ref()
             .map(ExtraHoursEntity::try_from)
+
             .transpose()?)
     }
 
@@ -99,7 +104,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND deleted IS NULL",
             id_vec,
             year,
         ).fetch_all(tx.tx.lock().await.as_mut())
@@ -126,7 +131,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let next_monday_str = next_monday.format(&Iso8601::DATE_TIME)?;
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
             monday_str,
             next_monday_str,
         ).fetch_all(tx.tx.lock().await.as_mut())
@@ -152,6 +157,11 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             ExtraHoursCategoryEntity::SickLeave => "SickLeave",
             ExtraHoursCategoryEntity::Holiday => "Holiday",
             ExtraHoursCategoryEntity::Unavailable => "Unavailable",
+            ExtraHoursCategoryEntity::Custom(_) => "Custom",
+        };
+        let custom_extra_hours_id = match entity.category {
+            ExtraHoursCategoryEntity::Custom(id) => id.as_bytes().to_vec(),
+            _ => Uuid::nil().as_bytes().to_vec(),
         };
         let description = entity.description.as_ref();
         let date_time = entity.date_time.format(&Iso8601::DATE_TIME)?;
@@ -162,12 +172,13 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .transpose()?;
         let version_vec = entity.version.as_bytes().to_vec();
         query!(
-            "INSERT INTO extra_hours (id, sales_person_id, amount, category, description, date_time, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO extra_hours (id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             sales_person_id_vec,
             entity.amount,
             category,
             description,
+            custom_extra_hours_id,
             date_time,
             created,
             deleted,
