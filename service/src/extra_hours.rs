@@ -1,3 +1,16 @@
+//! This module provides functionality for managing extra hours worked by employees.
+//!
+//! It handles various categories of extra hours including:
+//! - Extra work (overtime)
+//! - Vacation time
+//! - Sick leave
+//! - Holidays
+//! - Unavailability
+//!
+//! The module defines data structures and service interfaces for creating,
+//! retrieving, updating, and deleting extra hours records, as well as
+//! determining how these hours affect reporting and employee availability.
+
 use std::fmt::Debug;
 use std::sync::Arc;
 
