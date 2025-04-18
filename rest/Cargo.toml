@@ -52,7 +52,7 @@ version = "9.0"
 features = ["axum", "vendored"]
 
 [dependencies.thiserror]
-version = "1.0"
+version = "2.0"
 
 [dependencies.tower]
 version = "0.5.2"
