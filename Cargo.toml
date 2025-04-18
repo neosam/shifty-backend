@@ -7,5 +7,6 @@ members = [
     "dao",
     "dao_impl_sqlite",
     "rest-types",
+    "shifty-utils",
 ]
 resolver = "2"
