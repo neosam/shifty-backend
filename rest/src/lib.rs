@@ -383,10 +383,6 @@ pub struct ApiDoc;
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new();
 
-    let swagger_router =
-        SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
-    let app = app.merge(swagger_router);
-
     let app = app.route("/authenticate", get(login));
 
     #[cfg(feature = "oidc")]
@@ -407,6 +403,15 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             ))
             .layer(oidc_login_service)
     };
+
+    let mut api_doc = ApiDoc::openapi();
+    let base = std::env::var("BASE_PATH").unwrap_or("http://localhost:3000/".into());
+    api_doc.servers = Some(vec![ServerBuilder::new()
+        .url(base)
+        .description(Some("Shifty backend"))
+        .build()]);
+    let swagger_router = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api_doc);
+    let app = app.merge(swagger_router);
 
     let app = app
         .route("/auth-info", get(auth_info::<RestState>))
