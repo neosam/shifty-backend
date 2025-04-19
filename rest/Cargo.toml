@@ -55,11 +55,11 @@ features = ["axum"]
 version = "1.0"
 
 [dependencies.tower]
-version = "0.4.4"
+version = "0.5.2"
 
 [dependencies.tower-sessions]
-version = "0.12"
+version = "0.14"
 
 [dependencies.axum-oidc]
-version = "0.4"
+version = "0.6"
 optional = true
