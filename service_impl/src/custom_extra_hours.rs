@@ -148,9 +148,6 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
             .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
 
-        if !custom_extra_hours.created.is_none() {
-            return Err(ServiceError::CreatedSetOnCreate);
-        }
         let mut entity = self
             .custom_extra_hours_dao
             .find_by_id(custom_extra_hours.id, tx.clone())

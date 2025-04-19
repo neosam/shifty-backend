@@ -13,6 +13,7 @@ use service::permission::HR_PRIVILEGE;
 use service::sales_person::MockSalesPersonService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
+use time::macros::datetime;
 use uuid::uuid;
 use uuid::Uuid;
 
@@ -181,8 +182,20 @@ async fn test_get_all() {
         result.unwrap().iter().cloned().collect();
     custom_extra_hours_list.sort_by(|a, b| a.id.cmp(&b.id));
     assert_eq!(custom_extra_hours_list.len(), 2);
-    assert_eq!(custom_extra_hours_list[0], default_custom_extra_hours());
-    assert_eq!(custom_extra_hours_list[1], alternative_custom_extra_hours());
+    assert_eq!(
+        custom_extra_hours_list[0],
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-01 12:00:00)),
+            ..default_custom_extra_hours()
+        }
+    );
+    assert_eq!(
+        custom_extra_hours_list[1],
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-02 12:00:00)),
+            ..alternative_custom_extra_hours()
+        }
+    );
 }
 
 #[tokio::test]
@@ -211,7 +224,13 @@ async fn test_get_by_id() {
     let result = service.get_by_id(default_id(), ().into(), None).await;
 
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), default_custom_extra_hours());
+    assert_eq!(
+        result.unwrap(),
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-01 12:00:00)),
+            ..default_custom_extra_hours()
+        }
+    );
 }
 
 #[tokio::test]
@@ -278,7 +297,13 @@ async fn test_create() {
 
     dbg!(&result);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), default_custom_extra_hours());
+    assert_eq!(
+        result.unwrap(),
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-01 12:00:00)),
+            ..default_custom_extra_hours()
+        }
+    );
 }
 
 #[tokio::test]
@@ -358,15 +383,28 @@ async fn test_update() {
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("update-version"))
-        .returning(|_| default_version());
+        .returning(|_| alternate_version());
     let service = deps.build_service();
 
     let result = service
-        .update(&default_custom_extra_hours(), ().into(), None)
+        .update(
+            &CustomExtraHours {
+                created: Some(datetime!(2023-10-01 12:00:00)),
+                ..default_custom_extra_hours()
+            },
+            ().into(),
+            None,
+        )
         .await;
 
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), default_custom_extra_hours());
+    assert_eq!(
+        result.unwrap(),
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-01 12:00:00)),
+            version: alternate_version(),
+            ..default_custom_extra_hours()
+        }
+    );
 }
 
 #[tokio::test]
