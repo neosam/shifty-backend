@@ -8,6 +8,7 @@ use dao::{
 };
 use sqlx::{query, query_as, QueryBuilder, Sqlite};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
+use tracing::info;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -81,6 +82,7 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
 
     /// Returns everything, including deleted items.
     async fn dump(&self, tx: Self::Transaction) -> Result<Arc<[CustomExtraHoursEntity]>, DaoError> {
+        info!("Dump all data from custom_extra_hours");
         let custom_hours = query_as!(
             CustomExtraHoursDb,
             r#"
@@ -123,6 +125,8 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
         let created_str = entity.created.format(&Iso8601::DEFAULT).map_db_error()?;
         let version = entity.version.as_bytes().to_vec();
 
+        info!("Running query to create custom extra hours");
+
         query!(
             r#"
             INSERT INTO custom_extra_hours (id, name, description, modifies_balance, created, deleted, update_version, update_process)
@@ -139,6 +143,8 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
         .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
+
+        info!("Assign sales_person_ids to custom extra hours");
 
         for sales_person_id in entity.assigned_sales_person_ids.iter() {
             let sales_person_id_vec = sales_person_id.as_bytes().to_vec();

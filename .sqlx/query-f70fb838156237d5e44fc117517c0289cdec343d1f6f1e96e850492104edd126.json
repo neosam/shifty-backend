@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE custom_extra_hours\n            SET name = ?, description = ?, modifies_balance = ?, created = ?, deleted = NULL, update_version = ?, update_process = ?\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "f70fb838156237d5e44fc117517c0289cdec343d1f6f1e96e850492104edd126"
+}

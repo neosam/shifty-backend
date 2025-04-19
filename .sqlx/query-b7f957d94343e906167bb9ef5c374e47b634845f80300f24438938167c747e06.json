@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT custom_extra_hours_id, sales_person_id\n            FROM custom_extra_hours_sales_person\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "custom_extra_hours_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b7f957d94343e906167bb9ef5c374e47b634845f80300f24438938167c747e06"
+}

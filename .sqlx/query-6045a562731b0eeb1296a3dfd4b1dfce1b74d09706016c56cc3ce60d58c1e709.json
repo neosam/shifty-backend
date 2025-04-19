@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, name, description, modifies_balance, created, deleted, update_version\n            FROM custom_extra_hours\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "modifies_balance",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "6045a562731b0eeb1296a3dfd4b1dfce1b74d09706016c56cc3ce60d58c1e709"
+}

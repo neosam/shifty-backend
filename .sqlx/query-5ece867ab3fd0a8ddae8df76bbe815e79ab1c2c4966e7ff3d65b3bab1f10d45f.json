@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO custom_extra_hours (id, name, description, modifies_balance, created, deleted, update_version, update_process)\n            VALUES (?, ?, ?, ?, ?, NULL, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "5ece867ab3fd0a8ddae8df76bbe815e79ab1c2c4966e7ff3d65b3bab1f10d45f"
+}

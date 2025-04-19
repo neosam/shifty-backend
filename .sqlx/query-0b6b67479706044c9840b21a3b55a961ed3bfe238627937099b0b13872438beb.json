@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, sales_person_id, amount, category, description, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+  "query": "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -29,23 +29,28 @@
         "type_info": "Text"
       },
       {
-        "name": "date_time",
+        "name": "custom_extra_hours_id",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Blob"
       },
       {
-        "name": "created",
+        "name": "date_time",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 9,
         "type_info": "Blob"
       }
     ],
@@ -60,9 +65,10 @@
       true,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "b0d0ab821f5a1b1e13c4873fdbb2e6e2796b9328d5766724e6f0d32696e1f849"
+  "hash": "0b6b67479706044c9840b21a3b55a961ed3bfe238627937099b0b13872438beb"
 }
