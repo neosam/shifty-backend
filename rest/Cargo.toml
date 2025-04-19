@@ -49,7 +49,7 @@ version = "0.2"
 
 [dependencies.utoipa-swagger-ui]
 version = "9.0"
-features = ["axum"]
+features = ["axum", "vendored"]
 
 [dependencies.thiserror]
 version = "1.0"
