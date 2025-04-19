@@ -17,10 +17,10 @@ use crate::{error_handler, Context, RestError, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_slots::<RestState>))
-        .route("/:id", get(get_slot::<RestState>))
-        .route("/week/:year/:month", get(get_slots_for_week::<RestState>))
+        .route("/{id}", get(get_slot::<RestState>))
+        .route("/week/{year}/{month}", get(get_slots_for_week::<RestState>))
         .route("/", post(create_slot::<RestState>))
-        .route("/:id", put(update_slot::<RestState>))
+        .route("/{id}", put(update_slot::<RestState>))
 }
 
 #[instrument(skip(rest_state))]

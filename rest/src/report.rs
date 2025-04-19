@@ -19,10 +19,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_short_report_for_all::<RestState>))
         .route(
-            "/week/:year/:calendar_week",
+            "/week/{year}/{calendar_week}",
             get(get_short_week_report::<RestState>),
         )
-        .route("/:id", get(get_report::<RestState>))
+        .route("/{id}", get(get_report::<RestState>))
 }
 
 #[derive(Clone, Debug, Deserialize)]

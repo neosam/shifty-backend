@@ -14,9 +14,9 @@ use crate::{error_handler, Context, RestStateDef};
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
-        .route("/slot/:year/:week", put(edit_slot::<RestState>))
+        .route("/slot/{year}/{week}", put(edit_slot::<RestState>))
         .route(
-            "/slot/:slot_id/:year/:week",
+            "/slot/{slot_id}/{year}/{week}",
             delete(delete_slot::<RestState>),
         )
         .route("/vacation", put(add_vacation::<RestState>))

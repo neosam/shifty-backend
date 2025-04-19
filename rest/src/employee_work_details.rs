@@ -18,16 +18,16 @@ use crate::{error_handler, Context, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route(
-            "/for-week/:sales_person_id/:year/:calendar_week",
+            "/for-week/{sales_person_id}/{year}/{calendar_week}",
             get(get_working_hours_for_week::<RestState>),
         )
         .route(
-            "/for-sales-person/:sales_person_id",
+            "/for-sales-person/{sales_person_id}",
             get(get_working_hours_for_sales_person::<RestState>),
         )
         .route("/", post(create_working_hours::<RestState>))
-        .route("/:id", delete(delete_employee_work_details::<RestState>))
-        .route("/:id", put(update_working_hours::<RestState>))
+        .route("/{id}", delete(delete_employee_work_details::<RestState>))
+        .route("/{id}", put(update_working_hours::<RestState>))
 }
 
 #[instrument(skip(rest_state))]

@@ -16,10 +16,13 @@ use service::booking::{Booking, BookingService};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_bookings::<RestState>))
-        .route("/week/:year/:calendar_week", get(get_by_week::<RestState>))
-        .route("/:id", get(get_booking::<RestState>))
+        .route(
+            "/week/{year}/{calendar_week}",
+            get(get_by_week::<RestState>),
+        )
+        .route("/{id}", get(get_booking::<RestState>))
         .route("/", post(create_booking::<RestState>))
-        .route("/:id", delete(delete_booking::<RestState>))
+        .route("/{id}", delete(delete_booking::<RestState>))
         .route("/copy", post(copy_calendar_week::<RestState>))
 }
 

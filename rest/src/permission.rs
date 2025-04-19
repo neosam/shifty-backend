@@ -22,7 +22,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/role", get(get_all_roles::<RestState>))
         .route("/role", post(add_role::<RestState>))
         .route("/role", delete(delete_role::<RestState>))
-        .route("/user/:user/roles", get(get_roles_for_user::<RestState>))
+        .route("/user/{user}/roles", get(get_roles_for_user::<RestState>))
         .route("/privilege/", get(get_all_privileges::<RestState>))
         .route("/user-role", post(add_user_role::<RestState>))
         .route("/user-role", delete(remove_user_role::<RestState>))

@@ -14,15 +14,15 @@ use crate::{error_handler, Context, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route(
-            "/conflicts/for-week/:year/:week",
+            "/conflicts/for-week/{year}/{week}",
             get(get_booking_conflicts_for_week::<RestState>),
         )
         .route(
-            "/weekly-resource-report/:year",
+            "/weekly-resource-report/{year}",
             get(get_weekly_summary::<RestState>),
         )
         .route(
-            "/weekly-resource-report/:year/:week",
+            "/weekly-resource-report/year/{week}",
             get(get_summary_for_week::<RestState>),
         )
 }

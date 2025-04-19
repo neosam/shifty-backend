@@ -16,11 +16,11 @@ use service::special_days::SpecialDayService;
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route(
-            "/for-week/:year/:calendar_week",
+            "/for-week/{year}/{calendar_week}",
             get(get_special_days_for_week::<RestState>),
         )
         .route("/", post(create_special_days::<RestState>))
-        .route("/:id", delete(delete_special_day::<RestState>))
+        .route("/{id}", delete(delete_special_day::<RestState>))
 }
 
 #[instrument(skip(rest_state))]

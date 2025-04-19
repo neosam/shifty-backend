@@ -42,6 +42,7 @@ use tower_cookies::CookieManagerLayer;
 use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
+use tracing::info;
 use uuid::Uuid;
 
 pub struct RoString(Arc<str>, bool);
@@ -448,6 +449,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
 
         app.layer(oidc_auth_service).layer(session_layer)
     };
+
+    info!("Running server at {}", bind_address());
 
     let listener = tokio::net::TcpListener::bind(bind_address().as_ref())
         .await

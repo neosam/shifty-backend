@@ -16,10 +16,10 @@ use crate::{error_handler, Context, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> axum::Router<RestState> {
     axum::Router::new()
         .route("/", axum::routing::get(get_all::<RestState>))
-        .route("/:id", axum::routing::get(get_by_id::<RestState>))
+        .route("/{id}", axum::routing::get(get_by_id::<RestState>))
         .route("/", axum::routing::post(create::<RestState>))
-        .route("/:id", axum::routing::put(update::<RestState>))
-        .route("/:id", axum::routing::delete(delete::<RestState>))
+        .route("/{id}", axum::routing::put(update::<RestState>))
+        .route("/{id}", axum::routing::delete(delete::<RestState>))
 }
 
 #[instrument(skip(rest_state))]

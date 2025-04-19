@@ -18,16 +18,16 @@ use crate::{error_handler, Context, RestError, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_sales_persons::<RestState>))
-        .route("/:id", get(get_sales_person::<RestState>))
-        .route("/:id/ical", get(ical_for_sales_person::<RestState>))
+        .route("/{id}", get(get_sales_person::<RestState>))
+        .route("/{id}/ical", get(ical_for_sales_person::<RestState>))
         .route("/", post(create_sales_person::<RestState>))
-        .route("/:id", put(update_sales_person::<RestState>))
-        .route("/:id", delete(delete_sales_person::<RestState>))
-        .route("/:id/user", get(get_sales_person_user::<RestState>))
-        .route("/:id/user", post(set_sales_person_user::<RestState>))
-        .route("/:id/user", delete(delete_sales_person_user::<RestState>))
+        .route("/{id}", put(update_sales_person::<RestState>))
+        .route("/{id}", delete(delete_sales_person::<RestState>))
+        .route("/{id}/user", get(get_sales_person_user::<RestState>))
+        .route("/{id}/user", post(set_sales_person_user::<RestState>))
+        .route("/{id}/user", delete(delete_sales_person_user::<RestState>))
         .route(
-            "/:id/unavailable",
+            "/{id}/unavailable",
             get(get_sales_person_unavailable::<RestState>),
         )
         .route(
@@ -35,7 +35,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             post(create_sales_person_unavailable::<RestState>),
         )
         .route(
-            "/unavailable/:id",
+            "/unavailable/{id}",
             delete(delete_sales_person_unavailable::<RestState>),
         )
         .route("/current", get(get_sales_person_current_user::<RestState>))
