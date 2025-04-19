@@ -41,6 +41,16 @@ features = ["v4", "serde"]
 version = "1.0.198"
 features = ["derive", "std", "alloc", "rc"]
 
+[dependencies.utoipa]
+version = "5"
+
+[dependencies.utoipa-axum]
+version = "0.2"
+
+[dependencies.utoipa-swagger-ui]
+version = "9.0"
+features = ["axum"]
+
 [dependencies.thiserror]
 version = "1.0"
 

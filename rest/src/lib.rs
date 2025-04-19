@@ -26,6 +26,8 @@ use axum::response::Redirect;
 use axum::routing::get;
 use axum::Extension;
 use axum::{body::Body, response::Response, Router};
+use custom_extra_hours::CustomExtraHoursApiDoc;
+use sales_person::SalesPersonApiDoc;
 use serde::{Deserialize, Serialize};
 use service::user_service::UserService;
 use service::PermissionService;
@@ -43,6 +45,8 @@ use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use tracing::info;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 use uuid::Uuid;
 
 pub struct RoString(Arc<str>, bool);
@@ -367,8 +371,22 @@ pub async fn auth_info<RestState: RestStateDef>(
     )
 }
 
+#[derive(OpenApi)]
+#[openapi(
+    nest(
+        (path = "/custom-extra-hours", api = CustomExtraHoursApiDoc),
+        (path = "/sales-person", api = SalesPersonApiDoc),
+    )
+)]
+pub struct ApiDoc;
+
 pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = Router::new();
+
+    let swagger_router =
+        SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
+    let app = app.merge(swagger_router);
+
     let app = app.route("/authenticate", get(login));
 
     #[cfg(feature = "oidc")]

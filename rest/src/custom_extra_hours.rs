@@ -9,6 +9,7 @@ use axum::{
 use rest_types::CustomExtraHoursTO;
 use service::custom_extra_hours::CustomExtraHoursService;
 use tracing::instrument;
+use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -23,6 +24,15 @@ pub fn generate_route<RestState: RestStateDef>() -> axum::Router<RestState> {
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "",
+    tags = ["Custom Extra Hours"],
+    responses(
+        (status = 200, description = "Get all custom extra hours", body = [CustomExtraHoursTO]),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
 pub async fn get_all<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -38,6 +48,7 @@ pub async fn get_all<RestState: RestStateDef>(
                 .collect();
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(serde_json::to_string(&weekly_summary).unwrap()))
                 .unwrap())
         })
@@ -46,6 +57,15 @@ pub async fn get_all<RestState: RestStateDef>(
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/{id}",
+    tags = ["Custom Extra Hours"],
+    responses(
+        (status = 200, description = "Get custom extra hours by ID", body = CustomExtraHoursTO),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
 pub async fn get_by_id<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -60,6 +80,7 @@ pub async fn get_by_id<RestState: RestStateDef>(
                 .into();
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(
                     serde_json::to_string(&custom_extra_hours).unwrap(),
                 ))
@@ -70,6 +91,16 @@ pub async fn get_by_id<RestState: RestStateDef>(
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    post,
+    path = "",
+    tags = ["Custom Extra Hours"],
+    request_body = CustomExtraHoursTO,
+    responses(
+        (status = 201, description = "Create custom extra hours", body = CustomExtraHoursTO),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
 pub async fn create<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -84,6 +115,7 @@ pub async fn create<RestState: RestStateDef>(
                 .into();
             Ok(Response::builder()
                 .status(201)
+                .header("Content-Type", "application/json")
                 .body(Body::new(
                     serde_json::to_string(&custom_extra_hours).unwrap(),
                 ))
@@ -94,6 +126,16 @@ pub async fn create<RestState: RestStateDef>(
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    put,
+    path = "/{id}",
+    tags = ["Custom Extra Hours"],
+    request_body = CustomExtraHoursTO,
+    responses(
+        (status = 200, description = "Update custom extra hours", body = CustomExtraHoursTO),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
 pub async fn update<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -109,6 +151,7 @@ pub async fn update<RestState: RestStateDef>(
                 .into();
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(
                     serde_json::to_string(&custom_extra_hours).unwrap(),
                 ))
@@ -119,6 +162,15 @@ pub async fn update<RestState: RestStateDef>(
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    delete,
+    path = "/custom-extra-hours/{id}",
+    tags = ["Custom Extra Hours"],
+    responses(
+        (status = 204, description = "Delete custom extra hours"),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
 pub async fn delete<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -135,3 +187,23 @@ pub async fn delete<RestState: RestStateDef>(
         .await,
     )
 }
+
+#[derive(OpenApi)]
+#[openapi(
+    tags(
+        (name = "Custom Extra Hours", description = "Custom Extra Hours API"),
+    ),
+    paths(
+        get_all,
+        get_by_id,
+        create,
+        update,
+        delete,
+    ),
+    components(
+        schemas(
+            CustomExtraHoursTO,
+        ),
+    ),
+)]
+pub struct CustomExtraHoursApiDoc;

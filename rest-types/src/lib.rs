@@ -7,6 +7,7 @@ use service::booking_information::{BookingInformation, WeeklySummary, WorkingHou
 use service::{booking::Booking, sales_person::SalesPerson};
 use shifty_utils::{derive_from_reference, LazyLoad};
 use time::{PrimitiveDateTime, Weekday};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -107,7 +108,7 @@ impl From<&BookingTO> for Booking {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct SalesPersonTO {
     #[serde(default)]
     pub id: Uuid,
@@ -152,7 +153,7 @@ impl From<&SalesPersonTO> for SalesPerson {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, ToSchema)]
 pub enum DayOfWeekTO {
     Monday,
     Tuesday,
@@ -638,7 +639,7 @@ impl From<&ExtraHoursTO> for service::extra_hours::ExtraHours {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct SalesPersonUnavailableTO {
     #[serde(default)]
     pub id: Uuid,
@@ -910,7 +911,7 @@ pub struct VacationPayloadTO {
     pub description: Arc<str>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct CustomExtraHoursTO {
     #[serde(default)]
     pub id: Uuid,
