@@ -32,8 +32,8 @@ use serde::{Deserialize, Serialize};
 use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
-use session::context_extractor;
 pub use session::Context;
+use session::{context_extractor, forbid_unauthenticated};
 use thiserror::Error;
 #[cfg(feature = "oidc")]
 use time::Duration;
@@ -45,6 +45,7 @@ use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use tracing::info;
+use utoipa::openapi::ServerBuilder;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use uuid::Uuid;
@@ -436,6 +437,10 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
         .nest("/shiftplan-info", shiftplan::generate_route())
         .with_state(rest_state.clone())
+        .layer(middleware::from_fn_with_state(
+            rest_state.clone(),
+            forbid_unauthenticated::<RestState>,
+        ))
         .layer(middleware::from_fn_with_state(
             rest_state,
             context_extractor::<RestState>,

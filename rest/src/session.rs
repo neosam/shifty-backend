@@ -2,7 +2,6 @@
 use std::sync::Arc;
 
 use axum::extract::Request;
-#[cfg(feature = "oidc")]
 use axum::extract::State;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -10,6 +9,7 @@ use axum::response::Response;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
+use service::session::SessionService;
 #[cfg(feature = "oidc")]
 use tower_cookies::Cookies;
 
@@ -26,7 +26,6 @@ pub async fn register_session<RestState: RestStateDef>(
     request: Request,
     next: Next,
 ) -> Response {
-    use service::session::SessionService;
     use time::OffsetDateTime;
     use tower_cookies::Cookie;
 
@@ -64,8 +63,6 @@ pub async fn context_extractor<RestState: RestStateDef>(
     mut request: Request,
     next: Next,
 ) -> Response {
-    use service::session::SessionService;
-
     let cookies = request
         .extensions()
         .get::<Cookies>()
@@ -102,4 +99,37 @@ pub async fn context_extractor<RestState: RestStateDef>(
 ) -> Response {
     request.extensions_mut().insert(MockContext);
     next.run(request).await
+}
+
+#[cfg(feature = "mock_auth")]
+pub async fn forbid_unauthenticated<RestState: RestStateDef>(
+    State(_rest_state): State<RestState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    next.run(request).await
+}
+#[cfg(feature = "oidc")]
+pub async fn forbid_unauthenticated<RestState: RestStateDef>(
+    State(rest_state): State<RestState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    use tracing::{info, warn};
+
+    info!("Checking authentication");
+    if request.extensions().get::<Context>().is_some()
+        && request.extensions().get::<Context>().unwrap().is_some()
+        || request.uri().path().ends_with("/ical")
+        || request.uri().path().ends_with("/authenticate")
+    {
+        info!("Authenticated: {:?}", request.extensions().get::<Context>());
+        next.run(request).await
+    } else {
+        warn!("Not atuhenticated");
+        Response::builder()
+            .status(401)
+            .body("Unauthorized".into())
+            .unwrap()
+    }
 }
