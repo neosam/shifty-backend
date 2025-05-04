@@ -21,7 +21,7 @@
       {
         "name": "modifies_balance",
         "ordinal": 3,
-        "type_info": "Integer"
+        "type_info": "Bool"
       },
       {
         "name": "created",
@@ -36,7 +36,7 @@
       {
         "name": "update_version",
         "ordinal": 6,
-        "type_info": "Text"
+        "type_info": "Blob"
       }
     ],
     "parameters": {

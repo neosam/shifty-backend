@@ -19,6 +19,7 @@ use service_impl::{
     shiftplan::{ShiftplanServiceDeps, ShiftplanServiceImpl},
 };
 use sqlx::SqlitePool;
+#[cfg(feature = "json_logging")]
 use tracing_subscriber::fmt::format::FmtSpan;
 
 #[cfg(feature = "mock_auth")]
@@ -599,6 +600,14 @@ async fn create_dev_admin_user(pool: Arc<SqlitePool>) {
 async fn main() {
     let version = env!("CARGO_PKG_VERSION");
 
+    #[cfg(feature = "local_logging")]
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .pretty()
+        .with_file(true)
+        .finish();
+
+    #[cfg(feature = "json_logging")]
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
         .with_max_level(tracing::Level::INFO)
         .json()

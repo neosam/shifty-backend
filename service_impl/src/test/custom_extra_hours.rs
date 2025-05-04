@@ -150,6 +150,7 @@ fn build_dependencies() -> CustomExtraHoursDependencies {
     transaction_dao
         .expect_use_transaction()
         .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
 
     CustomExtraHoursDependencies {
         custom_extra_hours_dao,
