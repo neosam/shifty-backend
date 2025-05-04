@@ -9,6 +9,7 @@ use axum::response::Response;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
+#[cfg(feature = "oidc")]
 use service::session::SessionService;
 #[cfg(feature = "oidc")]
 use tower_cookies::Cookies;

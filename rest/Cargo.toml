@@ -38,7 +38,7 @@ version = "1.8.0"
 features = ["v4", "serde"]
 
 [dependencies.serde]
-version = "1.0.198"
+version = "1.0"
 features = ["derive", "std", "alloc", "rc"]
 
 [dependencies.utoipa]

@@ -8,13 +8,13 @@ resolver = "2"
 
 [dependencies]
 async-trait = "0.1.80"
-mockall = "0.12.1"
+mockall = "0.13"
 thiserror = "2.0"
 tracing = "0.1.40"
 uuid = "1.8"
 
 [dependencies.tokio]
-version = "1.42.0"
+version = "1.44"
 features = ["test-util", "macros"]
 
 [dependencies.time]
