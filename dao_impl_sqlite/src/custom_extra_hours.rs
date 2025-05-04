@@ -8,7 +8,6 @@ use dao::{
 };
 use sqlx::{query, query_as, QueryBuilder, Sqlite};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
-use tracing::info;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -16,7 +15,7 @@ struct CustomExtraHoursDb {
     id: Vec<u8>,
     name: String,
     description: Option<String>,
-    modifies_balance: i64,
+    modifies_balance: bool,
 
     created: String,
     deleted: Option<String>,
@@ -42,12 +41,12 @@ fn combine(
             .description
             .as_ref()
             .map(|d| Arc::from(d.as_str()));
-        let modifies_balance = custom_hours.modifies_balance != 0;
+        let modifies_balance = custom_hours.modifies_balance;
 
-        let created = PrimitiveDateTime::parse(&custom_hours.created, &Iso8601::DEFAULT).unwrap();
+        let created = PrimitiveDateTime::parse(&custom_hours.created, &Iso8601::DATE_TIME).unwrap();
 
         let deleted = match &custom_hours.deleted {
-            Some(deleted) => Some(PrimitiveDateTime::parse(deleted, &Iso8601::DEFAULT).unwrap()),
+            Some(deleted) => Some(PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME).unwrap()),
             None => None,
         };
 
@@ -82,7 +81,6 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
 
     /// Returns everything, including deleted items.
     async fn dump(&self, tx: Self::Transaction) -> Result<Arc<[CustomExtraHoursEntity]>, DaoError> {
-        info!("Dump all data from custom_extra_hours");
         let custom_hours = query_as!(
             CustomExtraHoursDb,
             r#"
@@ -122,10 +120,8 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
         let name = entity.name.as_ref();
         let description = entity.description.as_ref().map(|d| d.as_ref());
         let modifies_balance = if entity.modifies_balance { 1 } else { 0 };
-        let created_str = entity.created.format(&Iso8601::DEFAULT).map_db_error()?;
+        let created_str = entity.created.format(&Iso8601::DATE_TIME).map_db_error()?;
         let version = entity.version.as_bytes().to_vec();
-
-        info!("Running query to create custom extra hours");
 
         query!(
             r#"
@@ -143,8 +139,6 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
         .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
-
-        info!("Assign sales_person_ids to custom extra hours");
 
         for sales_person_id in entity.assigned_sales_person_ids.iter() {
             let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
@@ -177,7 +171,7 @@ impl CustomExtraHoursDao for CustomExtraHoursDaoImpl {
         let name = entity.name.as_ref();
         let description = entity.description.as_ref().map(|d| d.as_ref());
         let modifies_balance = if entity.modifies_balance { 1 } else { 0 };
-        let created_str = entity.created.format(&Iso8601::DEFAULT).map_db_error()?;
+        let created_str = entity.created.format(&Iso8601::DATE_TIME).map_db_error()?;
         let version = entity.version.as_bytes().to_vec();
 
         query!(

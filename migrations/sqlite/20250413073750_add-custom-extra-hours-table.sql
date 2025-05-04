@@ -1,21 +1,21 @@
 -- Special type of extra hours which can be defined additional to the default ones
 CREATE TABLE IF NOT EXISTS custom_extra_hours (
-    id BLOB NOT NULL,
+    id BLOB(16) NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    modifies_balance INTEGER NOT NULL,
+    modifies_balance BOOLEAN NOT NULL,
 
     created TEXT NOT NULL,
     deleted TEXT,
-    update_version TEXT NOT NULL,
+    update_version BLOB(16) NOT NULL,
     update_process TEXT NOT NULL,
     PRIMARY KEY (id)
 );
 
 -- A table which conntects the custom extra hours to the sales person
 CREATE TABLE IF NOT EXISTS custom_extra_hours_sales_person (
-    sales_person_id BLOB NOT NULL,
-    custom_extra_hours_id BLOB NOT NULL,
+    sales_person_id BLOB(16) NOT NULL,
+    custom_extra_hours_id BLOB(16) NOT NULL,
     created TEXT NOT NULL,
     deleted TEXT,
     update_process TEXT NOT NULL,

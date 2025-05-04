@@ -44,14 +44,17 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
         self.permission_service
             .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
-        Ok(self
+        let res = Ok(self
             .custom_extra_hours_dao
             .find_all(tx.clone())
             .await?
             .iter()
             .filter(|entity| entity.deleted.is_none())
             .map(CustomExtraHours::from)
-            .collect())
+            .collect());
+
+        self.transaction_dao.commit(tx).await?;
+        res
     }
 
     async fn get_by_id(
@@ -69,7 +72,10 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
             .find_by_id(id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(id))?;
-        Ok(CustomExtraHours::from(&entity))
+        let res = Ok(CustomExtraHours::from(&entity));
+
+        self.transaction_dao.commit(tx).await?;
+        res
     }
 
     async fn get_by_sales_person_id(
@@ -98,7 +104,10 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
             .filter(|entity| entity.deleted.is_none())
             .map(CustomExtraHours::from)
             .collect();
-        Ok(entity)
+        let res = Ok(entity);
+
+        self.transaction_dao.commit(tx).await?;
+        res
     }
 
     async fn create(
@@ -134,7 +143,10 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
         self.custom_extra_hours_dao
             .create(&entity, CARRYOVER_SERVICE_PROCESS, tx.clone())
             .await?;
-        Ok((&entity).into())
+        let res = Ok((&entity).into());
+
+        self.transaction_dao.commit(tx).await?;
+        res
     }
 
     async fn update(
@@ -170,7 +182,10 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
             )
             .await?;
 
-        Ok(entity.into())
+        let res = Ok(entity.into());
+
+        self.transaction_dao.commit(tx).await?;
+        res
     }
 
     async fn delete(
@@ -195,6 +210,8 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
         self.custom_extra_hours_dao
             .update(entity, CARRYOVER_SERVICE_PROCESS, tx.clone())
             .await?;
+
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 }
