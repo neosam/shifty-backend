@@ -86,7 +86,7 @@ pub async fn get_extra_hours_for_sales_person<RestState: RestStateDef>(
 #[instrument(skip(rest_state))]
 #[utoipa::path(
     post,
-    path = "/",
+    path = "",
     tags = ["Extra Hours"],
     request_body = ExtraHoursTO,
     responses(
