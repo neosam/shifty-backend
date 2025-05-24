@@ -49,6 +49,9 @@ impl WorkingHoursCategory {
     pub fn is_unavailable(&self) -> bool {
         matches!(self, WorkingHoursCategory::Unavailable)
     }
+    pub fn is_custom_with_id(&self, id: Uuid) -> bool {
+        matches!(self, WorkingHoursCategory::Custom(custom_id) if *custom_id == id)
+    }
     pub fn identifier(&self) -> Rc<str> {
         match self {
             WorkingHoursCategory::Shiftplan => "shiftplan".into(),
@@ -123,6 +126,7 @@ impl From<&WorkingHoursCategory> for ExtraHoursCategoryTO {
             WorkingHoursCategory::SickLeave => ExtraHoursCategoryTO::SickLeave,
             WorkingHoursCategory::Holiday => ExtraHoursCategoryTO::Holiday,
             WorkingHoursCategory::Unavailable => ExtraHoursCategoryTO::Unavailable,
+            WorkingHoursCategory::Custom(id) => ExtraHoursCategoryTO::Custom(*id),
             _ => panic!(
                 "Cannot convert working hours category to extra hours category: {:?}",
                 category
@@ -202,6 +206,26 @@ pub struct CustomExtraHours {
     pub name: Rc<str>,
     pub hours: f32,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CustomExtraHoursDefinition {
+    pub id: Uuid,
+    pub name: Rc<str>,
+    pub description: Option<Rc<str>>,
+    pub modifies_balance: bool,
+}
+
+impl From<&rest_types::CustomExtraHoursTO> for CustomExtraHoursDefinition {
+    fn from(custom_extra_hours: &rest_types::CustomExtraHoursTO) -> Self {
+        CustomExtraHoursDefinition {
+            id: custom_extra_hours.id,
+            name: custom_extra_hours.name.as_ref().into(),
+            description: custom_extra_hours.description.as_ref().map(|d| d.as_ref().into()),
+            modifies_balance: custom_extra_hours.modifies_balance,
+        }
+    }
+}
+
 impl From<&ReportingCustomExtraHoursTO> for CustomExtraHours {
     fn from(custom_extra_hours: &ReportingCustomExtraHoursTO) -> Self {
         CustomExtraHours {

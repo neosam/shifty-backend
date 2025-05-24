@@ -8,6 +8,7 @@ pub mod shiftplan;
 pub mod user_details;
 pub mod user_management;
 pub mod weekly_overview;
+pub mod custom_extra_hours_management;
 
 pub use employee_details::EmployeeDetails;
 pub use employees::Employees;
@@ -20,3 +21,4 @@ pub use shiftplan::ShiftPlanDeep;
 pub use user_details::UserDetails;
 pub use user_management::UserManagementPage;
 pub use weekly_overview::WeeklyOverview;
+pub use custom_extra_hours_management::CustomExtraHoursManagement;

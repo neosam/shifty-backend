@@ -201,6 +201,16 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::En,
         Key::SlotEditSaveError,
-        "Could not save.  Please verify that the slot does not overlap with other slots.",
+        "Error saving slot",
     );
+
+    // Custom extra hours management
+    i18n.add_text(Locale::En, Key::CustomExtraHoursManagement, "Custom Extra Hours Management");
+    i18n.add_text(Locale::En, Key::Name, "Name");
+    i18n.add_text(Locale::En, Key::ModifiesBalance, "Modifies Balance");
+    i18n.add_text(Locale::En, Key::Actions, "Actions");
+    i18n.add_text(Locale::En, Key::AddNew, "Add New");
+    i18n.add_text(Locale::En, Key::Save, "Save");
+    i18n.add_text(Locale::En, Key::Edit, "Edit");
+    i18n.add_text(Locale::En, Key::Delete, "Delete");
 }

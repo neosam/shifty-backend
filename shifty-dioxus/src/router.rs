@@ -10,6 +10,7 @@ pub use crate::page::ShiftPlanDeep;
 pub use crate::page::UserDetails;
 pub use crate::page::UserManagementPage;
 pub use crate::page::WeeklyOverview;
+pub use crate::page::CustomExtraHoursManagement;
 
 #[derive(Clone, Routable, Debug, PartialEq)]
 pub enum Route {
@@ -33,4 +34,6 @@ pub enum Route {
     UserDetails { user_id: String },
     #[route("/sales_person_details/:sales_person_id/")]
     SalesPersonDetails { sales_person_id: String },
+    #[route("/custom_extra_hours/")]
+    CustomExtraHoursManagement {},
 }

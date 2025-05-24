@@ -49,6 +49,8 @@ backend = "http://localhost:3000/auth-info"
 [[web.proxy]]
 backend = "http://localhost:3000/booking"
 [[web.proxy]]
+backend = "http://localhost:3000/custom-extra-hours"
+[[web.proxy]]
 backend = "http://localhost:3000/special-days"
 [[web.proxy]]
 backend = "http://localhost:3000/booking-information"

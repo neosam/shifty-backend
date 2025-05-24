@@ -10,7 +10,7 @@ use crate::{
     error::ShiftyError,
     js, loader,
     state::{
-        employee::{Employee, ExtraHours},
+        employee::{Employee, ExtraHours, CustomExtraHoursDefinition},
         shiftplan::SalesPerson,
     },
 };
@@ -27,6 +27,7 @@ pub struct EmployeeStore {
 
     pub employee: Employee,
     pub extra_hours: Rc<[ExtraHours]>,
+    pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
 }
 
 pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| EmployeeStore {
@@ -51,6 +52,7 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
         custom_extra_hours: [].into(),
     },
     extra_hours: Rc::new([]),
+    custom_extra_hours_definitions: Rc::new([]),
 });
 
 #[derive(Debug)]
@@ -59,6 +61,7 @@ pub enum EmployeeAction {
     LoadCurrentEmployeeDataUntilNow,
     Refresh,
     DeleteExtraHours(Uuid),
+    DeleteCustomExtraHour(Uuid),
     FullYear,
     UntilNow,
     NextYear,
@@ -75,10 +78,24 @@ pub async fn load_employee_data(
             .await?;
     let extra_hours =
         loader::load_extra_hours_per_year(CONFIG.read().clone(), year, sales_person_id).await?;
+    let custom_extra_hours_definitions = match api::get_custom_extra_hours_by_sales_person(CONFIG.read().clone(), sales_person_id).await {
+        Ok(hours) => {
+            let definitions: Rc<[CustomExtraHoursDefinition]> = hours
+                .iter()
+                .map(|h| h.into())
+                .collect();
+            definitions
+        }
+        Err(e) => {
+            info!("Failed to load custom extra hours definitions: {}", e);
+            Rc::new([])
+        }
+    };
     super::employee_work_details::load_employee_work_details(sales_person_id).await?;
     *EMPLOYEE_STORE.write() = EmployeeStore {
         employee,
         extra_hours,
+        custom_extra_hours_definitions,
         year,
         until_week,
     };
@@ -106,6 +123,11 @@ pub async fn delete_extra_hours(extra_hours_id: Uuid) -> Result<(), ShiftyError>
     Ok(())
 }
 
+pub async fn delete_custom_extra_hours(custom_extra_hours_id: Uuid) -> Result<(), ShiftyError> {
+    api::delete_custom_extra_hours(CONFIG.read().clone(), custom_extra_hours_id).await?;
+    Ok(())
+}
+
 pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
     while let Some(action) = rx.next().await {
         info!("EmployeeAction: {:?}", &action);
@@ -119,6 +141,9 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
             EmployeeAction::Refresh => refresh_employee_data().await,
             EmployeeAction::DeleteExtraHours(extra_hours_id) => {
                 delete_extra_hours(extra_hours_id).await
+            }
+            EmployeeAction::DeleteCustomExtraHour(extra_hours_id) => {
+                delete_custom_extra_hours(extra_hours_id).await
             }
             EmployeeAction::FullYear => {
                 let sales_person_id: Uuid = EMPLOYEE_STORE.read().employee.sales_person.id;

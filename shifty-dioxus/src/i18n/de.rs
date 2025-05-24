@@ -224,6 +224,16 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::En,
         Key::SlotEditSaveError,
-        "Konnte nicht speichern.  Bitte prüfen, dass der Slot nicht mit anderen Slots überlappt.",
+        "Fehler beim Speichern",
     );
+
+    // Custom extra hours management
+    i18n.add_text(Locale::En, Key::CustomExtraHoursManagement, "Verwaltung benutzerdefinierter Zusatzstunden");
+    i18n.add_text(Locale::En, Key::Name, "Name");
+    i18n.add_text(Locale::En, Key::ModifiesBalance, "Ändert Saldo");
+    i18n.add_text(Locale::En, Key::Actions, "Aktionen");
+    i18n.add_text(Locale::En, Key::AddNew, "Neu hinzufügen");
+    i18n.add_text(Locale::En, Key::Save, "Speichern");
+    i18n.add_text(Locale::En, Key::Edit, "Bearbeiten");
+    i18n.add_text(Locale::En, Key::Delete, "Löschen");
 }

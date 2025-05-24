@@ -3,6 +3,7 @@ use futures_util::StreamExt;
 use time::macros::{date, format_description};
 use tracing::info;
 use uuid::Uuid;
+use std::rc::Rc;
 
 use crate::{
     api,
@@ -10,11 +11,12 @@ use crate::{
     i18n::Key,
     js,
     service::{config::CONFIG, i18n::I18N},
-    state::employee::WorkingHoursCategory,
+    state::employee::{WorkingHoursCategory, CustomExtraHoursDefinition},
 };
 
 pub enum AddExtraHoursFormAction {
     Submit,
+    LoadCustomExtraHours,
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -34,6 +36,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let mut when = use_signal(|| js::current_datetime().format(&format).unwrap());
     let mut from = use_signal(|| js::current_datetime().date().format(&date_format).unwrap());
     let mut to = use_signal(|| js::current_datetime().date().format(&date_format).unwrap());
+    let custom_extra_hours = use_signal(|| Rc::<[CustomExtraHoursDefinition]>::from([]));
 
     let config = CONFIG.read().clone();
     let sales_person_id = props.sales_person_id;
@@ -54,10 +57,27 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let unavailable_str = i18n.t(Key::CategoryUnavailable);
 
     let cr = use_coroutine(move |mut rx: UnboundedReceiver<AddExtraHoursFormAction>| {
-        to_owned![category, amount, description, when, config];
+        to_owned![category, amount, description, when, config, custom_extra_hours];
         async move {
             while let Some(action) = rx.next().await {
                 match action {
+                    AddExtraHoursFormAction::LoadCustomExtraHours => {
+                        info!("AddExtraHoursForm: Executing LoadCustomExtraHours action for sales_person_id: {}", sales_person_id);
+                        match api::get_custom_extra_hours_by_sales_person(config.clone(), sales_person_id).await {
+                            Ok(hours) => {
+                                info!("AddExtraHoursForm: Successfully loaded {} custom extra hours", hours.len());
+                                let definitions: Rc<[CustomExtraHoursDefinition]> = hours
+                                    .iter()
+                                    .map(|h| h.into())
+                                    .collect();
+                                *custom_extra_hours.write() = definitions;
+                                info!("AddExtraHoursForm: Custom extra hours stored in signal");
+                            }
+                            Err(e) => {
+                                info!("AddExtraHoursForm: Failed to load custom extra hours: {}", e);
+                            }
+                        }
+                    }
                     AddExtraHoursFormAction::Submit => {
                         let category: WorkingHoursCategory = (*category.read()).clone();
                         let amount = *amount.read();
@@ -104,6 +124,36 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
         }
     });
 
+    // Load custom extra hours when component mounts
+    use_effect(move || {
+        info!("AddExtraHoursForm: Loading custom extra hours for sales_person_id: {}", sales_person_id);
+        cr.send(AddExtraHoursFormAction::LoadCustomExtraHours);
+    });
+
+    // Helper function to parse category from identifier
+    let parse_category = move |identifier: &str| -> WorkingHoursCategory {
+        if identifier.starts_with("custom_") {
+            if let Ok(uuid) = Uuid::parse_str(&identifier[7..]) {
+                WorkingHoursCategory::Custom(uuid)
+            } else {
+                WorkingHoursCategory::ExtraWork("".into())
+            }
+        } else {
+            WorkingHoursCategory::from_identifier(identifier)
+        }
+    };
+
+    // Helper function to get category identifier
+    let get_category_identifier = |category: &WorkingHoursCategory| -> String {
+        match category {
+            WorkingHoursCategory::Custom(id) => format!("custom_{}", id),
+            _ => category.identifier().to_string(),
+        }
+    };
+
+    // Debug: Log current state
+    info!("AddExtraHoursForm: Component initialized, custom_extra_hours count: {}", custom_extra_hours.read().len());
+
     rsx! {
         form {
             h1 { class: "text-2xl font-bold", "{form_title}" }
@@ -112,16 +162,25 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                 label { class: "block mt-4 mr-4 grow", "{category_str}" }
                 select {
                     class: "block mt-2 pl-2 pr-2 w-full md:w-1/2",
-                    value: "{category.read().identifier()}",
+                    value: "{get_category_identifier(&category.read())}",
                     onchange: move |event| {
                         let value = event.data.value();
-                        *category.write() = WorkingHoursCategory::from_identifier(&value);
+                        *category.write() = parse_category(&value);
                     },
                     option { value: "extra_work", "{extra_work_str}" }
                     option { value: "holiday", "{holidays_str}" }
                     option { value: "sick_leave", "{sick_leave_str}" }
                     option { value: "vacation_days", "{vacation_days_str}" }
                     option { value: "unavailable", "{unavailable_str}" }
+                    if !custom_extra_hours.read().is_empty() {
+                        option { disabled: true, "──────────" }
+                        for custom_hour in custom_extra_hours.read().iter() {
+                            option { 
+                                value: "custom_{custom_hour.id}", 
+                                "{custom_hour.name}"
+                            }
+                        }
+                    }
                     option { disabled: true, "──────────" }
                     option { value: "vacation", "{vacation_str}" }
                 }

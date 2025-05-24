@@ -68,6 +68,7 @@ pub fn MyEmployeeDetails() -> Element {
                 show_vacation: config.show_vacation,
                 onupdate: move |_| cr.send(MyEmployeeDetailsAction::Update),
                 on_extra_hour_delete: move |uuid| cr.send(MyEmployeeDetailsAction::DeleteExtraHour(uuid)),
+                on_custom_delete: move |_uuid| cr.send(MyEmployeeDetailsAction::Update),
                 on_employee_work_details_clicked: move |id| cr.send(MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
             }
         }

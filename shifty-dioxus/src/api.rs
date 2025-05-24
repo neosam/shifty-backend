@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BookingConflictTO, BookingTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
+    BookingConflictTO, BookingTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, VacationPayloadTO,
     WeeklySummaryTO,
@@ -683,4 +683,56 @@ pub async fn get_shiftplan_week(
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn get_custom_extra_hours_by_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Rc<[CustomExtraHoursTO]>, reqwest::Error> {
+    info!("Fetching custom extra hours for sales person {sales_person_id}");
+    let url = format!("{}/custom-extra-hours/by-sales-person/{sales_person_id}", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn post_custom_extra_hours(
+    config: Config,
+    custom_extra_hours: CustomExtraHoursTO,
+) -> Result<(), reqwest::Error> {
+    info!("Creating custom extra hours: {}", custom_extra_hours.name);
+    let url = format!("{}/custom-extra-hours", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&custom_extra_hours).send().await?;
+    response.error_for_status_ref()?;
+    info!("Created");
+    Ok(())
+}
+
+pub async fn put_custom_extra_hours(
+    config: Config,
+    custom_extra_hours: CustomExtraHoursTO,
+) -> Result<(), reqwest::Error> {
+    info!("Updating custom extra hours: {}", custom_extra_hours.name);
+    let url = format!("{}/custom-extra-hours/{}", config.backend, custom_extra_hours.id);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&custom_extra_hours).send().await?;
+    response.error_for_status_ref()?;
+    info!("Updated");
+    Ok(())
+}
+
+pub async fn delete_custom_extra_hours(
+    config: Config,
+    custom_extra_hours_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Deleting custom extra hours {custom_extra_hours_id}");
+    let url = format!("{}/custom-extra-hours/{custom_extra_hours_id}", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
 }

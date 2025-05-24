@@ -170,6 +170,16 @@ pub enum Key {
     SaveLabel,
     CancelLabel,
     SlotEditSaveError,
+
+    // Custom extra hours management
+    CustomExtraHoursManagement,
+    Name,
+    ModifiesBalance,
+    Actions,
+    AddNew,
+    Save,
+    Edit,
+    Delete,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

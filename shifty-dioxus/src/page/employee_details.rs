@@ -96,6 +96,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                 show_vacation: true,
                 show_delete_employee_work_details: true,
                 on_extra_hour_delete: move |id| cr.send(EmployeeDetailsAction::DeleteExtraHour(id)),
+                on_custom_delete: move |_id| cr.send(EmployeeDetailsAction::Update),
                 on_add_employee_work_details: move |_| cr.send(EmployeeDetailsAction::NewEmployeeWorkDetails),
                 on_employee_work_details_clicked: move |id| cr.send(EmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
                 on_delete_employee_work_details_clicked: move |_id| cr.send(EmployeeDetailsAction::Update),

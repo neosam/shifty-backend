@@ -13,7 +13,7 @@ use crate::service::{
     employee_work_details::EmployeeWorkDetailsAction,
     employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
 };
-use crate::state::employee::{CustomExtraHours, WorkingHours};
+use crate::state::employee::{CustomExtraHours, CustomExtraHoursDefinition, WorkingHours};
 use crate::state::employee::{Employee, ExtraHours};
 
 use crate::component::{AddExtraHoursForm, Modal};
@@ -30,9 +30,11 @@ pub struct EmployeeViewPlainProps {
     pub show_vacation: bool,
     pub full_year: bool,
     pub custom_hours: Rc<[CustomExtraHours]>,
+    pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
+    pub on_custom_delete: EventHandler<Uuid>,
     pub on_full_year: EventHandler<()>,
     pub on_until_now: EventHandler<()>,
     pub on_add_employee_work_details: Option<EventHandler<()>>,
@@ -121,7 +123,10 @@ pub fn TripleView(props: TripleViewProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct ExtraHoursViewProps {
     pub extra_hours: Rc<[ExtraHours]>,
+    pub custom_hours: Rc<[CustomExtraHours]>,
+    pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
     pub ondelete: EventHandler<Uuid>,
+    pub on_custom_delete: EventHandler<Uuid>,
 }
 
 #[component]
@@ -233,6 +238,37 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                                     value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
                                     description: format!("{}", extra_hours.description).into(),
                                     ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Custom Extra Hours Section
+            for custom_hour_category in props.custom_hours.iter() {
+                h2 { class: "text-lg font-bold mt-8", "{custom_hour_category.name}" }
+                
+                // Find and display description from definitions
+                if let Some(definition) = props.custom_extra_hours_definitions.iter()
+                    .find(|def| def.id == custom_hour_category.id) {
+                    if let Some(ref description) = definition.description {
+                        p { class: "text-sm text-gray-500 mb-4", "{description}" }
+                    }
+                }
+                
+                ul {
+                    for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_custom_with_id(custom_hour_category.id)) {
+                        {
+                            let extra_hours_id = extra_hours.id;
+                            rsx! {
+                                li { key: "{extra_hours_id}", class: "mb-1",
+                                    TripleView {
+                                        label: i18n.format_date(&extra_hours.date_time.date()),
+                                        value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                        description: format!("{}", extra_hours.description).into(),
+                                        ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                    }
                                 }
                             }
                         }
@@ -582,6 +618,10 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                                 TupleView {
                                     label: custom_hour.name.clone(),
                                     value: format!("{:.2} {}", custom_hour.hours, hours_str.clone()).into(),
+                                    ondelete: {
+                                        let custom_hour_id = custom_hour.id;
+                                        move |_| props.on_custom_delete.call(custom_hour_id)
+                                    },
                                 }
                             }
                         }
@@ -674,9 +714,14 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
 
                 ExtraHoursView {
                     extra_hours: props.extra_hours.clone(),
+                    custom_hours: props.custom_hours.clone(),
+                    custom_extra_hours_definitions: props.custom_extra_hours_definitions.clone(),
                     ondelete: move |uuid| {
                         props.on_extra_hour_delete.call(uuid);
                         props.onupdate.call(());
+                    },
+                    on_custom_delete: move |uuid| {
+                        props.on_custom_delete.call(uuid);
                     },
                 }
             }
@@ -690,6 +735,7 @@ pub struct EmployeeViewProps {
     pub show_vacation: bool,
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
+    pub on_custom_delete: EventHandler<Uuid>,
     pub on_add_employee_work_details: Option<EventHandler<()>>,
     pub on_employee_work_details_clicked: EventHandler<Uuid>,
     pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
@@ -708,6 +754,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let year = employee_store.year;
     let full_year = employee_store.until_week >= time::util::weeks_in_year(year as i32);
     let custom_hours = employee_store.employee.custom_extra_hours.clone();
+    let custom_extra_hours_definitions = employee_store.custom_extra_hours_definitions.clone();
 
     rsx! {
         EmployeeViewPlain {
@@ -719,8 +766,13 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             show_vacation: props.show_vacation,
             show_delete_employee_work_details: props.show_delete_employee_work_details,
             custom_hours,
+            custom_extra_hours_definitions,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
+            on_custom_delete: move |uuid| {
+                employee_service.send(EmployeeAction::DeleteCustomExtraHour(uuid));
+                props.on_custom_delete.call(uuid);
+            },
             on_full_year: move |_| {
                 employee_service.send(EmployeeAction::FullYear);
             },
