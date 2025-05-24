@@ -5,8 +5,7 @@ use std::{
 };
 
 use rest_types::{
-    EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursReportCategoryTO, ExtraHoursTO,
-    ShortEmployeeReportTO, WorkingHoursReportTO,
+    EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursReportCategoryTO, ExtraHoursTO, ReportingCustomExtraHoursTO, ShortEmployeeReportTO, WorkingHoursReportTO
 };
 use uuid::Uuid;
 
@@ -198,6 +197,22 @@ impl From<&WorkingHoursReportTO> for WorkingHours {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct CustomExtraHours {
+    pub id: Uuid,
+    pub name: Rc<str>,
+    pub hours: f32,
+}
+impl From<&ReportingCustomExtraHoursTO> for CustomExtraHours {
+    fn from(custom_extra_hours: &ReportingCustomExtraHoursTO) -> Self {
+        CustomExtraHours {
+            id: custom_extra_hours.id,
+            name: custom_extra_hours.name.clone().into(),
+            hours: custom_extra_hours.hours,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Employee {
     pub sales_person: SalesPerson,
     pub working_hours_by_week: Rc<[WorkingHours]>,
@@ -217,6 +232,8 @@ pub struct Employee {
     pub vacation_days: f32,
     pub vacation_entitlement: f32,
     pub vacation_carryover: i32,
+
+    pub custom_extra_hours: Rc<[CustomExtraHours]>,
 }
 
 impl From<&ShortEmployeeReportTO> for Employee {
@@ -237,6 +254,7 @@ impl From<&ShortEmployeeReportTO> for Employee {
             vacation_days: 0.0,
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
+            custom_extra_hours: [].into(),
         }
     }
 }
@@ -264,6 +282,7 @@ impl From<&EmployeeReportTO> for Employee {
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
             vacation_carryover: report.vacation_carryover,
+            custom_extra_hours: report.custom_extra_hours.iter().map(CustomExtraHours::from).collect(),
         }
     }
 }

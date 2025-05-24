@@ -13,7 +13,7 @@ use crate::service::{
     employee_work_details::EmployeeWorkDetailsAction,
     employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
 };
-use crate::state::employee::WorkingHours;
+use crate::state::employee::{CustomExtraHours, WorkingHours};
 use crate::state::employee::{Employee, ExtraHours};
 
 use crate::component::{AddExtraHoursForm, Modal};
@@ -29,6 +29,7 @@ pub struct EmployeeViewPlainProps {
     pub year: u32,
     pub show_vacation: bool,
     pub full_year: bool,
+    pub custom_hours: Rc<[CustomExtraHours]>,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -576,7 +577,14 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                                 value: format!("{:.2} {}", props.employee.carryover_balance, hours_str.clone()).into(),
                             }
                         }
-
+                        for custom_hour in props.custom_hours.iter() {
+                            li {
+                                TupleView {
+                                    label: custom_hour.name.clone(),
+                                    value: format!("{:.2} {}", custom_hour.hours, hours_str.clone()).into(),
+                                }
+                            }
+                        }
                         if props.show_vacation {
                             h2 { class: "text-lg font-bold mt-8", "{vacation_str}" }
                             li {
@@ -699,6 +707,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let employee_service = use_coroutine_handle::<EmployeeAction>();
     let year = employee_store.year;
     let full_year = employee_store.until_week >= time::util::weeks_in_year(year as i32);
+    let custom_hours = employee_store.employee.custom_extra_hours.clone();
 
     rsx! {
         EmployeeViewPlain {
@@ -709,6 +718,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             full_year,
             show_vacation: props.show_vacation,
             show_delete_employee_work_details: props.show_delete_employee_work_details,
+            custom_hours,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
             on_full_year: move |_| {

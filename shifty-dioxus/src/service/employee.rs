@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -47,10 +48,12 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
         vacation_days: 0.0,
         vacation_entitlement: 0.0,
         vacation_carryover: 0,
+        custom_extra_hours: [].into(),
     },
     extra_hours: Rc::new([]),
 });
 
+#[derive(Debug)]
 pub enum EmployeeAction {
     LoadEmployeeDataUntilNow { sales_person_id: Uuid },
     LoadCurrentEmployeeDataUntilNow,
@@ -105,9 +108,10 @@ pub async fn delete_extra_hours(extra_hours_id: Uuid) -> Result<(), ShiftyError>
 
 pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
     while let Some(action) = rx.next().await {
+        info!("EmployeeAction: {:?}", &action);
         match match action {
             EmployeeAction::LoadEmployeeDataUntilNow { sales_person_id } => {
-                let year = js::get_current_year();
+                let year: u32 = js::get_current_year();
                 let until_week = js::get_current_week();
                 load_employee_data(sales_person_id, year, until_week).await
             }
