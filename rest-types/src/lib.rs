@@ -286,6 +286,25 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct ReportingCustomExtraHoursTO {
+    pub id: Uuid,
+    pub name: String,
+    pub hours: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::reporting::CustomExtraHours> for ReportingCustomExtraHoursTO {
+    fn from(custom_hours: &service::reporting::CustomExtraHours) -> Self {
+        Self {
+            id: custom_hours.id,
+            name: custom_hours.name.clone(),
+            hours: custom_hours.hours,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExtraHoursReportCategoryTO {
     Shiftplan,
@@ -349,6 +368,8 @@ pub struct WorkingHoursReportTO {
     pub holiday_days: f32,
     pub absence_days: f32,
 
+    pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
+
     pub days: Arc<[WorkingHoursDayTO]>,
 }
 
@@ -361,10 +382,8 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             expected_hours: hours.expected_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,
-
             days_per_week: hours.days_per_week,
             workdays_per_week: hours.workdays_per_week,
-
             shiftplan_hours: hours.shiftplan_hours,
             extra_work_hours: hours.extra_work_hours,
             vacation_hours: hours.vacation_hours,
@@ -374,12 +393,12 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             holiday_hours: hours.holiday_hours,
             holiday_days: hours.holiday_days(),
             absence_days: hours.absence_days(),
-            days: hours
-                .days
+            custom_extra_hours: hours
+                .custom_extra_hours
                 .iter()
-                .map(|day| WorkingHoursDayTO::from(day))
-                .collect::<Vec<_>>()
-                .into(),
+                .map(ReportingCustomExtraHoursTO::from)
+                .collect(),
+            days: hours.days.iter().map(WorkingHoursDayTO::from).collect(),
         }
     }
 }
@@ -407,11 +426,12 @@ pub struct EmployeeReportTO {
 
     pub carryover_hours: f32,
 
+    pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
+
     pub by_week: Arc<[WorkingHoursReportTO]>,
     pub by_month: Arc<[WorkingHoursReportTO]>,
 }
 #[cfg(feature = "service-impl")]
-
 impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
     fn from(report: &service::reporting::EmployeeReport) -> Self {
         Self {
@@ -421,28 +441,31 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             expected_hours: report.expected_hours,
             shiftplan_hours: report.shiftplan_hours,
             extra_work_hours: report.extra_work_hours,
-            vacation_carryover: report.vacation_carryover,
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
+            holiday_hours: report.holiday_hours,
+            vacation_carryover: report.vacation_carryover,
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
             sick_leave_days: report.sick_leave_days,
             holiday_days: report.holiday_days,
-            holiday_hours: report.holiday_hours,
             absence_days: report.absence_days,
             carryover_hours: report.carryover_hours,
+            custom_extra_hours: report
+                .custom_extra_hours
+                .iter()
+                .map(ReportingCustomExtraHoursTO::from)
+                .collect(),
             by_week: report
                 .by_week
                 .iter()
-                .map(|hours| WorkingHoursReportTO::from(hours))
-                .collect::<Vec<_>>()
-                .into(),
+                .map(WorkingHoursReportTO::from)
+                .collect(),
             by_month: report
                 .by_month
                 .iter()
-                .map(|hours| WorkingHoursReportTO::from(hours))
-                .collect::<Vec<_>>()
-                .into(),
+                .map(WorkingHoursReportTO::from)
+                .collect(),
         }
     }
 }

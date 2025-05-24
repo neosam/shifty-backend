@@ -6,6 +6,8 @@ use mockall::automock;
 use shifty_utils::LazyLoad;
 use uuid::Uuid;
 
+use crate::custom_extra_hours::CustomExtraHours as CustomExtraHoursDefinition;
+use crate::extra_hours::ExtraHours;
 use crate::permission::Authentication;
 use crate::sales_person::SalesPerson;
 use crate::ServiceError;
@@ -44,6 +46,33 @@ pub struct WorkingHoursDay {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct CustomExtraHours {
+    pub id: Uuid,
+    pub name: String,
+    pub hours: f32,
+}
+
+impl
+    From<(
+        &crate::extra_hours::ExtraHours,
+        &crate::custom_extra_hours::CustomExtraHours,
+    )> for CustomExtraHours // This refers to crate::reporting::CustomExtraHours
+{
+    fn from(
+        (extra_hours_entry, custom_extra_hours_def): (
+            &crate::extra_hours::ExtraHours,
+            &crate::custom_extra_hours::CustomExtraHours,
+        ),
+    ) -> Self {
+        Self {
+            id: custom_extra_hours_def.id,
+            name: custom_extra_hours_def.name.to_string(), // Convert Arc<str> to String
+            hours: extra_hours_entry.amount,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct GroupedReportHours {
     pub from: time::Date,
     pub to: time::Date,
@@ -62,6 +91,8 @@ pub struct GroupedReportHours {
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+
+    pub custom_extra_hours: Arc<[CustomExtraHours]>,
 
     pub days: Arc<[WorkingHoursDay]>,
 }
@@ -138,6 +169,8 @@ pub struct EmployeeReport {
     pub absence_days: f32,
 
     pub carryover_hours: f32,
+
+    pub custom_extra_hours: Arc<[CustomExtraHours]>,
 
     pub by_week: Arc<[GroupedReportHours]>,
     pub by_month: Arc<[GroupedReportHours]>,

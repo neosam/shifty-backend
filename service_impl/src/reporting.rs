@@ -10,8 +10,8 @@ use service::{
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType},
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
-        EmployeeReport, ExtraHoursReportCategory, GroupedReportHours, ShortEmployeeReport,
-        WorkingHoursDay,
+        CustomExtraHours, EmployeeReport, ExtraHoursReportCategory, GroupedReportHours,
+        ShortEmployeeReport, WorkingHoursDay,
     },
     sales_person::SalesPersonService,
     shiftplan_report::{ShiftplanReportDay, ShiftplanReportService},
@@ -391,6 +391,24 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .map(|c| (c.carryover_hours, c.vacation))
             .unwrap_or((0.0, 0));
 
+        // Calculate custom extra hours that modify balance
+        let custom_extra_work_hours = extra_hours
+            .iter()
+            .filter_map(|eh| {
+                if let ExtraHoursCategory::CustomExtraHours(lazy_load) = &eh.category {
+                    if let Some(custom_eh) = lazy_load.get() {
+                        if custom_eh.modifies_balance {
+                            return Some(eh.amount);
+                        }
+                    }
+                }
+                None
+            })
+            .sum::<f32>();
+
+        // Add custom_extra_work_hours to overall_extra_work_hours
+        let overall_extra_work_hours = overall_extra_work_hours + custom_extra_work_hours;
+
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
             balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours
@@ -427,6 +445,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             carryover_hours: previous_year_carryover,
             by_week,
             by_month: Arc::new([]),
+            custom_extra_hours: Arc::new([]),
         };
 
         Ok(employee_report)
@@ -645,7 +664,7 @@ fn hours_per_week(
             .iter()
             .map(|r: &&ShiftplanReportDay| r.hours)
             .sum::<f32>();
-        let (working_hours, days_per_week, workdays_per_week) =
+        let (working_hours_for_week, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, year, week)
                 .map(|wh| weight_for_week(target_year, year, week, &wh))
                 .fold(
@@ -659,13 +678,12 @@ fn hours_per_week(
                         )
                     },
                 );
-        //.unwrap_or((0.0, 1, 1));
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
             .map(|eh| eh.amount)
             .sum::<f32>();
-        let absence_hours = if working_hours <= 0.0 {
+        let absence_hours = if working_hours_for_week <= 0.0 {
             0.0f32
         } else {
             filtered_extra_hours_list
@@ -702,10 +720,10 @@ fn hours_per_week(
             )
             .collect::<Result<Vec<WorkingHoursDay>, ServiceError>>()?;
         day_list.sort_by_key(|day| day.date);
-        let expected_hours = if working_hours == 0.0 {
+        let expected_hours = if working_hours_for_week == 0.0 {
             shiftplan_hours + extra_work_hours
         } else {
-            working_hours
+            working_hours_for_week
         };
 
         let mut from =
@@ -725,6 +743,22 @@ fn hours_per_week(
         if from > to {
             continue;
         }
+
+        let custom_extra_hours: Arc<[service::reporting::CustomExtraHours]> =
+            filtered_extra_hours_list
+                .iter()
+                .filter_map(|eh_entry| {
+                    if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
+                        &eh_entry.category
+                    {
+                        lazy_load_custom_def
+                            .get()
+                            .map(|custom_def| (*eh_entry, custom_def).into())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
         weeks.push(GroupedReportHours {
             from,
@@ -758,11 +792,8 @@ fn hours_per_week(
                 .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
                 .map(|eh| eh.amount)
                 .sum(),
-            days: day_list
-                .iter()
-                //.filter(|day| day.date.iso_week() == week && day.date.year() == year as i32)
-                .cloned()
-                .collect(),
+            custom_extra_hours,
+            days: day_list.iter().cloned().collect(),
         });
     }
     Ok(weeks.into())
