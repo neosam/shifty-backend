@@ -3,8 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     component::{
-        employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
-        EmployeeWorkDetailsForm, Modal, TopBar,
+        employee_work_details_form::EmployeeWorkDetailsFormType, error_view::ErrorView, EmployeeView, EmployeeWorkDetailsForm, Modal, TopBar
     },
     service::{
         config::CONFIG, employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction,
@@ -52,6 +51,8 @@ pub fn MyEmployeeDetails() -> Element {
 
     rsx! {
         TopBar {}
+
+        ErrorView {}
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
             if *show_add_employee_work_details_dialog.read() {

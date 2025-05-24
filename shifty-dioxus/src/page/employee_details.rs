@@ -2,8 +2,7 @@ use futures_util::StreamExt;
 
 use crate::{
     component::{
-        employee_work_details_form::EmployeeWorkDetailsFormType, EmployeeView,
-        EmployeeWorkDetailsForm, Modal, TopBar,
+        employee_work_details_form::EmployeeWorkDetailsFormType, error_view::ErrorView, EmployeeView, EmployeeWorkDetailsForm, Modal, TopBar
     },
     service::{employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction},
 };
@@ -80,6 +79,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
 
     rsx! {
         TopBar {}
+        ErrorView {}
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
             if *show_add_employee_work_details_dialog.read() {

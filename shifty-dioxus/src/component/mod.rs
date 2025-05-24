@@ -12,6 +12,7 @@ pub mod overlay;
 pub mod slot_edit;
 pub mod top_bar;
 pub mod week_view;
+pub mod error_view;
 pub mod working_hours_mini_overview;
 
 pub use add_extra_hours_form::AddExtraHoursForm;
