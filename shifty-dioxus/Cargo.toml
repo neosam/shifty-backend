@@ -7,32 +7,31 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
-dioxus = { version = "0.6.0", features = ["web", "router"] }
+dioxus = { version = "0.6.1", features = ["web", "router"] }
 
 # Debug
-tracing = "0.1.40"
-dioxus-logger = "0.6.0"
-reqwest = { version = "0.12.4", features = ["json"] }
-serde = { version = "1.0.203", features = ["rc"] }
-serde_json = "1.0.117"
+tracing = "0.1.41"
+dioxus-logger = "0.6.2"
+reqwest = { version = "0.12.15", features = ["json"] }
+serde = { version = "1.0.219", features = ["rc"] }
+serde_json = "1.0.140"
 async-recursion = "1.1.1"
 futures = "0.3.30"
-thiserror = "2.0.9"
+thiserror = "2.0.12"
 futures-util = "0.3.30"
-js-sys = "0.3.69"
-manganis = "0.6.0"
+js-sys = "0.3.77"
+manganis = "0.6.2"
 
 [dependencies.rest-types]
 path = "rest-types"
 [dependencies.uuid]
-version = "*"
+version = "1.17"
 features = ["v4", "js"]
 [dependencies.time]
-version = "0.3.36"
+version = "0.3.41"
 features = ["macros"]
 [dependencies.web-sys]
-version = "0.3.69"
+version = "0.3.77"
 features = ["Window", "Navigator"]
 
 [profile]
