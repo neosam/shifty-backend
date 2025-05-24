@@ -409,6 +409,20 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         // Add custom_extra_work_hours to overall_extra_work_hours
         let overall_extra_work_hours = overall_extra_work_hours + custom_extra_work_hours;
 
+        let aggregated_custom_extra_hours: Arc<[CustomExtraHours]> = {
+            let mut map: HashMap<(Uuid, String), f32> = HashMap::new();
+            for week_report in by_week.iter() {
+                for custom_hour_entry in week_report.custom_extra_hours.iter() {
+                    *map.entry((custom_hour_entry.id, custom_hour_entry.name.clone()))
+                        .or_insert(0.0) += custom_hour_entry.hours;
+                }
+            }
+            map.into_iter()
+                .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
+                .collect::<Vec<_>>()
+                .into()
+        };
+
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
             balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours
@@ -445,7 +459,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             carryover_hours: previous_year_carryover,
             by_week,
             by_month: Arc::new([]),
-            custom_extra_hours: Arc::new([]),
+            custom_extra_hours: aggregated_custom_extra_hours,
         };
 
         Ok(employee_report)
@@ -744,21 +758,24 @@ fn hours_per_week(
             continue;
         }
 
-        let custom_extra_hours: Arc<[service::reporting::CustomExtraHours]> =
-            filtered_extra_hours_list
-                .iter()
-                .filter_map(|eh_entry| {
-                    if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
-                        &eh_entry.category
-                    {
-                        lazy_load_custom_def
-                            .get()
-                            .map(|custom_def| (*eh_entry, custom_def).into())
-                    } else {
-                        None
+        let custom_extra_hours: Arc<[service::reporting::CustomExtraHours]> = {
+            let mut map: HashMap<(Uuid, String), f32> = HashMap::new();
+            for eh_entry in filtered_extra_hours_list.iter() {
+                if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
+                    &eh_entry.category
+                {
+                    dbg!(&lazy_load_custom_def);
+                    if let Some(custom_def) = lazy_load_custom_def.get() {
+                        let key = (custom_def.id, custom_def.name.to_string());
+                        *map.entry(key).or_insert(0.0) += eh_entry.amount;
                     }
-                })
-                .collect();
+                }
+            }
+            map.into_iter()
+                .map(|((id, name), hours)| service::reporting::CustomExtraHours { id, name, hours })
+                .collect::<Vec<_>>()
+                .into()
+        };
 
         weeks.push(GroupedReportHours {
             from,

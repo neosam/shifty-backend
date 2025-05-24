@@ -182,6 +182,7 @@ impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDepen
     type ExtraHoursDao = ExtraHoursDao;
     type PermissionService = PermissionService;
     type SalesPersonService = SalesPersonService;
+    type CustomExtraHoursService = CustomExtraHoursService;
     type ClockService = ClockService;
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
@@ -456,17 +457,9 @@ impl RestStateImpl {
             sales_person_service: sales_person_service.clone(),
             slot_service: slot_service.clone(),
         });
-        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
-            extra_hours_dao: extra_hours_dao,
-            permission_service: permission_service.clone(),
-            sales_person_service: sales_person_service.clone(),
-            clock_service: clock_service.clone(),
-            uuid_service: uuid_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
-        let working_hours_service = Arc::new(
-            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl {
-                employee_work_details_dao: working_hours_dao,
+        let custom_extra_hours_service = Arc::new(
+            service_impl::custom_extra_hours::CustomExtraHoursServiceImpl {
+                custom_extra_hours_dao: custom_extra_hours_dao,
                 sales_person_service: sales_person_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
@@ -474,9 +467,18 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
-        let custom_extra_hours_service = Arc::new(
-            service_impl::custom_extra_hours::CustomExtraHoursServiceImpl {
-                custom_extra_hours_dao: custom_extra_hours_dao,
+        let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
+            extra_hours_dao: extra_hours_dao,
+            permission_service: permission_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            custom_extra_hours_service: custom_extra_hours_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+        let working_hours_service = Arc::new(
+            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl {
+                employee_work_details_dao: working_hours_dao,
                 sales_person_service: sales_person_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
