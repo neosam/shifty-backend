@@ -267,7 +267,7 @@ impl From<&SlotTO> for service::slot::Slot {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShortEmployeeReportTO {
     pub sales_person: SalesPersonTO,
     pub balance_hours: f32,
@@ -287,7 +287,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReportingCustomExtraHoursTO {
     pub id: Uuid,
     pub name: String,
@@ -305,7 +305,7 @@ impl From<&service::reporting::CustomExtraHours> for ReportingCustomExtraHoursTO
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub enum ExtraHoursReportCategoryTO {
     Shiftplan,
     ExtraWork,
@@ -330,7 +330,7 @@ impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCat
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WorkingHoursDayTO {
     pub date: time::Date,
     pub hours: f32,
@@ -347,7 +347,7 @@ impl From<&service::reporting::WorkingHoursDay> for WorkingHoursDayTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WorkingHoursReportTO {
     pub from: time::Date,
     pub to: time::Date,
@@ -403,7 +403,7 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EmployeeReportTO {
     pub sales_person: Arc<SalesPersonTO>,
 
