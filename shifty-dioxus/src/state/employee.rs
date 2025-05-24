@@ -32,6 +32,7 @@ pub enum WorkingHoursCategory {
     SickLeave,
     Holiday,
     Unavailable,
+    Custom(Uuid),
 }
 impl WorkingHoursCategory {
     pub fn is_extra_work(&self) -> bool {
@@ -58,6 +59,7 @@ impl WorkingHoursCategory {
             WorkingHoursCategory::SickLeave => "sick_leave".into(),
             WorkingHoursCategory::Holiday => "holiday".into(),
             WorkingHoursCategory::Unavailable => "unavailable".into(),
+            WorkingHoursCategory::Custom(_) => "custom".into(),
         }
     }
     pub fn from_identifier(identifier: &str) -> Self {
@@ -81,6 +83,7 @@ impl WorkingHoursCategory {
             WorkingHoursCategory::SickLeave => i18n::Key::CategorySickLeave,
             WorkingHoursCategory::Holiday => i18n::Key::CategoryHolidays,
             WorkingHoursCategory::Unavailable => i18n::Key::CategoryUnavailable,
+            WorkingHoursCategory::Custom(_) => i18n::Key::CategoryCustom,
         }
     }
 }
@@ -95,6 +98,7 @@ impl Display for WorkingHoursCategory {
             WorkingHoursCategory::SickLeave => write!(f, "Sick leave"),
             WorkingHoursCategory::Holiday => write!(f, "Holiday"),
             WorkingHoursCategory::Unavailable => write!(f, "Unavailable"),
+            WorkingHoursCategory::Custom(id) => write!(f, "Custom: {}", id),
         }
     }
 }
@@ -108,6 +112,7 @@ impl From<&ExtraHoursReportCategoryTO> for WorkingHoursCategory {
             ExtraHoursReportCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursReportCategoryTO::Holiday => WorkingHoursCategory::Holiday,
             ExtraHoursReportCategoryTO::Unavailable => WorkingHoursCategory::Unavailable,
+            ExtraHoursReportCategoryTO::Custom(id) => WorkingHoursCategory::Custom(*id),
         }
     }
 }
@@ -134,6 +139,7 @@ impl From<&ExtraHoursCategoryTO> for WorkingHoursCategory {
             ExtraHoursCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursCategoryTO::Holiday => WorkingHoursCategory::Holiday,
             ExtraHoursCategoryTO::Unavailable => WorkingHoursCategory::Unavailable,
+            ExtraHoursCategoryTO::Custom(id) => WorkingHoursCategory::Custom(*id),
         }
     }
 }

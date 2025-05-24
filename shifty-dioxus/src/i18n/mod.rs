@@ -101,6 +101,7 @@ pub enum Key {
     CategorySickLeave,
     CategoryHolidays,
     CategoryUnavailable,
+    CategoryCustom,
 
     VacationDaysLabel,
     VacationCarryoverLabel,

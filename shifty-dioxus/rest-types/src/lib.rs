@@ -6,6 +6,7 @@ use service::booking_information::{BookingInformation, WeeklySummary, WorkingHou
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 use time::{PrimitiveDateTime, Weekday};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -106,7 +107,7 @@ impl From<&BookingTO> for Booking {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct SalesPersonTO {
     #[serde(default)]
     pub id: Uuid,
@@ -151,7 +152,7 @@ impl From<&SalesPersonTO> for SalesPerson {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, ToSchema)]
 pub enum DayOfWeekTO {
     Monday,
     Tuesday,
@@ -265,7 +266,7 @@ impl From<&SlotTO> for service::slot::Slot {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShortEmployeeReportTO {
     pub sales_person: SalesPersonTO,
     pub balance_hours: f32,
@@ -284,7 +285,26 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
         }
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ReportingCustomExtraHoursTO {
+    pub id: Uuid,
+    pub name: String,
+    pub hours: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::reporting::CustomExtraHours> for ReportingCustomExtraHoursTO {
+    fn from(custom_hours: &service::reporting::CustomExtraHours) -> Self {
+        Self {
+            id: custom_hours.id,
+            name: custom_hours.name.clone(),
+            hours: custom_hours.hours,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub enum ExtraHoursReportCategoryTO {
     Shiftplan,
     ExtraWork,
@@ -292,6 +312,7 @@ pub enum ExtraHoursReportCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCategoryTO {
@@ -303,11 +324,12 @@ impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCat
             service::reporting::ExtraHoursReportCategory::SickLeave => Self::SickLeave,
             service::reporting::ExtraHoursReportCategory::Holiday => Self::Holiday,
             service::reporting::ExtraHoursReportCategory::Unavailable => Self::Unavailable,
+            service::reporting::ExtraHoursReportCategory::Custom(lazy) => Self::Custom(*lazy.key()),
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WorkingHoursDayTO {
     pub date: time::Date,
     pub hours: f32,
@@ -324,7 +346,7 @@ impl From<&service::reporting::WorkingHoursDay> for WorkingHoursDayTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WorkingHoursReportTO {
     pub from: time::Date,
     pub to: time::Date,
@@ -345,6 +367,8 @@ pub struct WorkingHoursReportTO {
     pub holiday_days: f32,
     pub absence_days: f32,
 
+    pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
+
     pub days: Arc<[WorkingHoursDayTO]>,
 }
 
@@ -357,10 +381,8 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             expected_hours: hours.expected_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,
-
             days_per_week: hours.days_per_week,
             workdays_per_week: hours.workdays_per_week,
-
             shiftplan_hours: hours.shiftplan_hours,
             extra_work_hours: hours.extra_work_hours,
             vacation_hours: hours.vacation_hours,
@@ -370,17 +392,17 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             holiday_hours: hours.holiday_hours,
             holiday_days: hours.holiday_days(),
             absence_days: hours.absence_days(),
-            days: hours
-                .days
+            custom_extra_hours: hours
+                .custom_extra_hours
                 .iter()
-                .map(|day| WorkingHoursDayTO::from(day))
-                .collect::<Vec<_>>()
-                .into(),
+                .map(ReportingCustomExtraHoursTO::from)
+                .collect(),
+            days: hours.days.iter().map(WorkingHoursDayTO::from).collect(),
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EmployeeReportTO {
     pub sales_person: Arc<SalesPersonTO>,
 
@@ -403,11 +425,12 @@ pub struct EmployeeReportTO {
 
     pub carryover_hours: f32,
 
+    pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
+
     pub by_week: Arc<[WorkingHoursReportTO]>,
     pub by_month: Arc<[WorkingHoursReportTO]>,
 }
 #[cfg(feature = "service-impl")]
-
 impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
     fn from(report: &service::reporting::EmployeeReport) -> Self {
         Self {
@@ -417,28 +440,31 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             expected_hours: report.expected_hours,
             shiftplan_hours: report.shiftplan_hours,
             extra_work_hours: report.extra_work_hours,
-            vacation_carryover: report.vacation_carryover,
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
+            holiday_hours: report.holiday_hours,
+            vacation_carryover: report.vacation_carryover,
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
             sick_leave_days: report.sick_leave_days,
             holiday_days: report.holiday_days,
-            holiday_hours: report.holiday_hours,
             absence_days: report.absence_days,
             carryover_hours: report.carryover_hours,
+            custom_extra_hours: report
+                .custom_extra_hours
+                .iter()
+                .map(ReportingCustomExtraHoursTO::from)
+                .collect(),
             by_week: report
                 .by_week
                 .iter()
-                .map(|hours| WorkingHoursReportTO::from(hours))
-                .collect::<Vec<_>>()
-                .into(),
+                .map(WorkingHoursReportTO::from)
+                .collect(),
             by_month: report
                 .by_month
                 .iter()
-                .map(|hours| WorkingHoursReportTO::from(hours))
-                .collect::<Vec<_>>()
-                .into(),
+                .map(WorkingHoursReportTO::from)
+                .collect(),
         }
     }
 }
@@ -547,13 +573,14 @@ impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWo
     }
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, ToSchema)]
 pub enum ExtraHoursCategoryTO {
     ExtraWork,
     Vacation,
     SickLeave,
     Holiday,
     Unavailable,
+    Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
@@ -564,6 +591,9 @@ impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
             service::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
             service::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
             service::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
+            service::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy) => {
+                Self::Custom(*lazy.key())
+            }
         }
     }
 }
@@ -576,11 +606,12 @@ impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
             ExtraHoursCategoryTO::SickLeave => Self::SickLeave,
             ExtraHoursCategoryTO::Holiday => Self::Holiday,
             ExtraHoursCategoryTO::Unavailable => Self::Unavailable,
+            ExtraHoursCategoryTO::Custom(id) => Self::CustomExtraHours(LazyLoad::new(*id)),
         }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct ExtraHoursTO {
     #[serde(default)]
     pub id: Uuid,
@@ -630,7 +661,7 @@ impl From<&ExtraHoursTO> for service::extra_hours::ExtraHours {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct SalesPersonUnavailableTO {
     #[serde(default)]
     pub id: Uuid,
@@ -901,3 +932,62 @@ pub struct VacationPayloadTO {
     pub to: time::Date,
     pub description: Arc<str>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CustomExtraHoursTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub name: Arc<str>,
+    pub description: Option<Arc<str>>,
+    pub modifies_balance: bool,
+    pub assigned_sales_person_ids: Arc<[Uuid]>,
+    #[serde(default)]
+    pub created: Option<PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::custom_extra_hours::CustomExtraHours> for CustomExtraHoursTO {
+    fn from(entity: &service::custom_extra_hours::CustomExtraHours) -> Self {
+        Self {
+            id: entity.id,
+            name: entity.name.clone(),
+            description: entity.description.clone(),
+            modifies_balance: entity.modifies_balance,
+            assigned_sales_person_ids: entity.assigned_sales_person_ids.clone(),
+            created: entity.created,
+            deleted: entity.deleted,
+            version: entity.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+derive_from_reference!(
+    service::custom_extra_hours::CustomExtraHours,
+    CustomExtraHoursTO
+);
+
+#[cfg(feature = "service-impl")]
+impl From<&CustomExtraHoursTO> for service::custom_extra_hours::CustomExtraHours {
+    fn from(entity: &CustomExtraHoursTO) -> Self {
+        Self {
+            id: entity.id,
+            name: entity.name.clone(),
+            description: entity.description.clone(),
+            modifies_balance: entity.modifies_balance,
+            assigned_sales_person_ids: entity.assigned_sales_person_ids.clone(),
+            created: entity.created,
+            deleted: entity.deleted,
+            version: entity.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+derive_from_reference!(
+    CustomExtraHoursTO,
+    service::custom_extra_hours::CustomExtraHours
+);
