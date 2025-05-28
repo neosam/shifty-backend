@@ -265,6 +265,99 @@ async fn test_get_by_id_no_permission() {
 }
 
 #[tokio::test]
+async fn test_get_by_sales_person_id() {
+    let mut deps = build_dependencies();
+    deps.custom_extra_hours_dao
+        .expect_find_by_sales_person_id()
+        .returning(|_, _| {
+            Ok([
+                default_custom_extra_hours_entity(),
+                alternative_custom_extra_hours_entity(),
+            ]
+            .into())
+        });
+    let service = deps.build_service();
+
+    let result = service
+        .get_by_sales_person_id(default_sales_person_id(), ().into(), None)
+        .await;
+
+    assert!(result.is_ok());
+    let mut custom_extra_hours_list: Vec<CustomExtraHours> =
+        result.unwrap().iter().cloned().collect();
+    custom_extra_hours_list.sort_by(|a, b| a.id.cmp(&b.id));
+    assert_eq!(custom_extra_hours_list.len(), 2);
+    assert_eq!(
+        custom_extra_hours_list[0],
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-01 12:00:00)),
+            ..default_custom_extra_hours()
+        }
+    );
+    assert_eq!(
+        custom_extra_hours_list[1],
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-02 12:00:00)),
+            ..alternative_custom_extra_hours()
+        }
+    );
+}
+
+#[tokio::test]
+async fn test_get_by_sales_person_id_no_permission() {
+    let mut deps = build_dependencies();
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .with(eq(HR_PRIVILEGE), always())
+        .returning(|_, _| Err(service::ServiceError::Forbidden));
+    deps.sales_person_service.checkpoint();
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Err(service::ServiceError::Forbidden));
+    let service = deps.build_service();
+
+    let result = service
+        .get_by_sales_person_id(default_sales_person_id(), ().into(), None)
+        .await;
+
+    test_forbidden(&result);
+}
+
+#[tokio::test]
+async fn test_get_by_sales_person_id_sales_person_permission() {
+    let mut deps = build_dependencies();
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .with(eq(HR_PRIVILEGE), always())
+        .returning(|_, _| Err(service::ServiceError::Forbidden));
+    deps.sales_person_service.checkpoint();
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    deps.custom_extra_hours_dao
+        .expect_find_by_sales_person_id()
+        .returning(|_, _| Ok([default_custom_extra_hours_entity()].into()));
+    let service = deps.build_service();
+
+    let result = service
+        .get_by_sales_person_id(default_sales_person_id(), ().into(), None)
+        .await;
+
+    assert!(result.is_ok());
+    let custom_extra_hours_list: Vec<CustomExtraHours> = result.unwrap().iter().cloned().collect();
+    assert_eq!(custom_extra_hours_list.len(), 1);
+    assert_eq!(
+        custom_extra_hours_list[0],
+        CustomExtraHours {
+            created: Some(datetime!(2023-10-01 12:00:00)),
+            ..default_custom_extra_hours()
+        }
+    );
+}
+
+#[tokio::test]
 async fn test_create() {
     let mut deps = build_dependencies();
     deps.custom_extra_hours_dao.checkpoint();

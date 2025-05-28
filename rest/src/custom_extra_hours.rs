@@ -18,6 +18,10 @@ pub fn generate_route<RestState: RestStateDef>() -> axum::Router<RestState> {
     axum::Router::new()
         .route("/", axum::routing::get(get_all::<RestState>))
         .route("/{id}", axum::routing::get(get_by_id::<RestState>))
+        .route(
+            "/by-sales-person/{sales_person_id}",
+            axum::routing::get(get_by_sales_person_id::<RestState>),
+        )
         .route("/", axum::routing::post(create::<RestState>))
         .route("/{id}", axum::routing::put(update::<RestState>))
         .route("/{id}", axum::routing::delete(delete::<RestState>))
@@ -78,6 +82,47 @@ pub async fn get_by_id<RestState: RestStateDef>(
                 .get_by_id(*id, context.into(), None)
                 .await?
                 .into();
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::new(
+                    serde_json::to_string(&custom_extra_hours).unwrap(),
+                ))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/by-sales-person/{sales_person_id}",
+    tags = ["Custom Extra Hours"],
+    params(
+        ("sales_person_id", description = "Sales person ID", example = "1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6")
+    ),
+    responses(
+        (status = 200, description = "Get custom extra hours for sales person", body = [CustomExtraHoursTO]),
+        (status = 403, description = "Forbidden - insufficient permissions"),
+        (status = 404, description = "Sales person not found"),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
+pub async fn get_by_sales_person_id<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(sales_person_id): Path<Uuid>,
+) -> Response {
+    error_handler(
+        (async {
+            let custom_extra_hours: Arc<[CustomExtraHoursTO]> = rest_state
+                .custom_extra_hours_service()
+                .get_by_sales_person_id(sales_person_id, context.into(), None)
+                .await?
+                .iter()
+                .map(CustomExtraHoursTO::from)
+                .collect();
             Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
@@ -196,6 +241,7 @@ pub async fn delete<RestState: RestStateDef>(
     paths(
         get_all,
         get_by_id,
+        get_by_sales_person_id,
         create,
         update,
         delete,
