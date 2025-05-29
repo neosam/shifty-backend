@@ -22,6 +22,6 @@ jobs:
     - name: Build local version
       run: cargo build --verbose
     - name: Build OIDC version
-      run: cargo build --verbose --no-default-features --features oidc
+      run: cargo build --verbose --no-default-features --features oidc,json_logging
     - name: Run tests
       run: cargo test --verbose
