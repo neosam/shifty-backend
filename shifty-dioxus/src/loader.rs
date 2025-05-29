@@ -403,8 +403,25 @@ pub async fn load_summary_for_week(
     year: u32,
     week: u8,
 ) -> Result<WeeklySummary, ShiftyError> {
-    let summary = api::get_summary_for_week(config, year, week).await?;
-    Ok(WeeklySummary::from(&summary))
+    let yearly_summaries = api::get_weekly_overview(config, year).await?;
+    if let Some(summary) = yearly_summaries.iter().find(|s| s.week == week) {
+        Ok(WeeklySummary::from(summary))
+    } else {
+        // If no summary found for the specific week, create a default one
+        Ok(WeeklySummary {
+            year,
+            week,
+            available_hours: 0.0,
+            required_hours: 0.0,
+            monday_available_hours: 0.0,
+            tuesday_available_hours: 0.0,
+            wednesday_available_hours: 0.0,
+            thursday_available_hours: 0.0,
+            friday_available_hours: 0.0,
+            saturday_available_hours: 0.0,
+            sunday_available_hours: 0.0,
+        })
+    }
 }
 
 pub async fn load_employee_work_details(
