@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, year, calendar_week, message, created, deleted, update_version\n               FROM week_message\n               WHERE id = ? AND deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "year",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "message",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 6,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "afd995547f55fdc59397c3d2de96623a98d7adb5ab23b87390b674910bff214c"
+}

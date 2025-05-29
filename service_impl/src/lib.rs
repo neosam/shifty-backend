@@ -25,6 +25,7 @@ pub mod slot;
 pub mod special_days;
 mod test;
 pub mod uuid_service;
+pub mod week_message;
 
 pub use permission::PermissionServiceImpl;
 use service::permission::MockContext;

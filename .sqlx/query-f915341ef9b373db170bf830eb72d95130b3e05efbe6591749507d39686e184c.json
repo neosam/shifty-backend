@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE week_message \n               SET deleted = ?, update_process = ?\n               WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "f915341ef9b373db170bf830eb72d95130b3e05efbe6591749507d39686e184c"
+}

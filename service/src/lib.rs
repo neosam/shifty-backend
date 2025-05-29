@@ -27,6 +27,7 @@ pub mod slot;
 pub mod special_days;
 pub mod user_service;
 pub mod uuid_service;
+pub mod week_message;
 
 pub use permission::MockPermissionService;
 pub use permission::PermissionService;

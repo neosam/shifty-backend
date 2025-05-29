@@ -43,6 +43,7 @@ type ShiftplanReportDao = ShiftplanReportDaoImpl;
 type ExtraHoursDao = ExtraHoursDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
+type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
 
 pub struct PermissionServiceDependencies;
 impl PermissionServiceDeps for PermissionServiceDependencies {
@@ -259,6 +260,20 @@ impl service_impl::employee_work_details::EmployeeWorkDetailsServiceDeps
 type WorkingHoursService = service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl<
     WorkingHoursServiceDependencies,
 >;
+
+pub struct WeekMessageServiceDependencies;
+impl service_impl::week_message::WeekMessageServiceDeps for WeekMessageServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type WeekMessageDao = WeekMessageDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type WeekMessageService =
+    service_impl::week_message::WeekMessageServiceImpl<WeekMessageServiceDependencies>;
+
 pub struct ShiftplanEditServiceDependencies;
 impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditServiceDependencies {
     type Context = Context;
@@ -305,6 +320,7 @@ pub struct RestStateImpl {
     shiftplan_edit_service: Arc<ShiftplanEditService>,
     block_service: Arc<BlockService>,
     shiftplan_service: Arc<ShiftplanServiceImpl<ShiftplanServiceDependencies>>,
+    week_message_service: Arc<WeekMessageService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -323,6 +339,7 @@ impl rest::RestStateDef for RestStateImpl {
     type ShiftplanEditService = ShiftplanEditService;
     type BlockService = BlockService;
     type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
+    type WeekMessageService = WeekMessageService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -376,6 +393,9 @@ impl rest::RestStateDef for RestStateImpl {
 
     fn shiftplan_service(&self) -> Arc<Self::ShiftplanService> {
         self.shiftplan_service.clone()
+    }
+    fn week_message_service(&self) -> Arc<Self::WeekMessageService> {
+        self.week_message_service.clone()
     }
 }
 impl RestStateImpl {
@@ -553,6 +573,15 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
             shiftplan_service: shiftplan_service.clone(),
         });
+
+        let week_message_service = Arc::new(WeekMessageService {
+            week_message_dao: Arc::new(WeekMessageDao::new(pool.clone())),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         Self {
             user_service,
             session_service,
@@ -570,6 +599,7 @@ impl RestStateImpl {
             shiftplan_edit_service,
             block_service,
             shiftplan_service,
+            week_message_service,
         }
     }
 }

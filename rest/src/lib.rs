@@ -13,6 +13,7 @@ mod shiftplan;
 mod shiftplan_edit;
 mod slot;
 mod special_day;
+mod week_message;
 
 #[cfg(feature = "oidc")]
 use axum::error_handling::HandleErrorLayer;
@@ -267,6 +268,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type WeekMessageService: service::week_message::WeekMessageService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -286,6 +291,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService>;
     fn block_service(&self) -> Arc<Self::BlockService>;
     fn shiftplan_service(&self) -> Arc<Self::ShiftplanService>;
+    fn week_message_service(&self) -> Arc<Self::WeekMessageService>;
 }
 
 pub struct OidcConfig {
@@ -379,6 +385,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
         (path = "/report", api = report::ReportApiDoc),
+        (path = "/week-message", api = week_message::WeekMessageApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -438,6 +445,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/special-days", special_day::generate_route())
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
         .nest("/shiftplan-info", shiftplan::generate_route())
+        .nest("/week-message", week_message::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state.clone(),

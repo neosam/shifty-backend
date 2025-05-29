@@ -16,6 +16,7 @@ pub mod session;
 pub mod shiftplan_report;
 pub mod slot;
 pub mod special_day;
+pub mod week_message;
 
 pub use permission::MockPermissionDao;
 pub use permission::PermissionDao;
