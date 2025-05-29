@@ -76,11 +76,13 @@ pub enum Key {
     ConflictBookingsHeader,
     PersonalCalendarExport,
     UnsufficientlyBookedCalendarExport,
+    WeekMessage,
 
     // Weekly overview page
     WeeklyOverviewTitle,
     AvailableRequiredHours,
     MissingHours,
+    UnsavedChanges,
 
     // Employee report
     OverallHeading,

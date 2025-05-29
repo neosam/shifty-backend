@@ -72,6 +72,10 @@ pub struct BookingTO {
     pub created: Option<PrimitiveDateTime>,
     #[serde(default)]
     pub deleted: Option<PrimitiveDateTime>,
+    #[serde(default)]
+    pub created_by: Option<Arc<str>>,
+    #[serde(default)]
+    pub deleted_by: Option<Arc<str>>,
     #[serde(rename = "$version")]
     #[serde(default)]
     pub version: Uuid,
@@ -87,6 +91,8 @@ impl From<&Booking> for BookingTO {
             year: booking.year,
             created: booking.created,
             deleted: booking.deleted,
+            created_by: booking.created_by.clone(),
+            deleted_by: booking.deleted_by.clone(),
             version: booking.version,
         }
     }
@@ -102,6 +108,8 @@ impl From<&BookingTO> for Booking {
             year: booking.year,
             created: booking.created,
             deleted: booking.deleted,
+            created_by: booking.created_by.clone(),
+            deleted_by: booking.deleted_by.clone(),
             version: booking.version,
         }
     }
@@ -991,3 +999,49 @@ derive_from_reference!(
     CustomExtraHoursTO,
     service::custom_extra_hours::CustomExtraHours
 );
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct WeekMessageTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub year: u32,
+    pub calendar_week: u8,
+    pub message: Arc<str>,
+    #[serde(default)]
+    pub created: Option<PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::week_message::WeekMessage> for WeekMessageTO {
+    fn from(entity: &service::week_message::WeekMessage) -> Self {
+        Self {
+            id: entity.id,
+            year: entity.year,
+            calendar_week: entity.calendar_week,
+            message: entity.message.clone(),
+            created: entity.created,
+            deleted: entity.deleted,
+            version: entity.version,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&WeekMessageTO> for service::week_message::WeekMessage {
+    fn from(entity: &WeekMessageTO) -> Self {
+        Self {
+            id: entity.id,
+            year: entity.year,
+            calendar_week: entity.calendar_week,
+            message: entity.message.clone(),
+            created: entity.created,
+            deleted: entity.deleted,
+            version: entity.version,
+        }
+    }
+}

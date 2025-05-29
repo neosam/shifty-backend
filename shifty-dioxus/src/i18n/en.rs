@@ -45,6 +45,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::UnsufficientlyBookedCalendarExport,
         "Unsufficiently booked slots calendar export (iCal)",
     );
+    i18n.add_text(Locale::En, Key::WeekMessage, "Week Message");
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
@@ -54,6 +55,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Available / Requested Hours",
     );
     i18n.add_text(Locale::En, Key::MissingHours, "Difference");
+    i18n.add_text(Locale::En, Key::UnsavedChanges, "Unsaved changes");
 
     // Employee report
     i18n.add_text(Locale::En, Key::OverallHeading, "Overall");

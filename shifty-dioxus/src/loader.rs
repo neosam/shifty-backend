@@ -1,4 +1,4 @@
-use rest_types::{ExtraHoursTO, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO};
+use rest_types::{ExtraHoursTO, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -454,4 +454,34 @@ pub async fn save_slot(
 
 pub async fn create_slot(config: Config, slot: Rc<SlotEditItem>) -> Result<bool, ShiftyError> {
     Ok(api::post_slot(config, slot.as_ref().into()).await?)
+}
+
+pub async fn load_week_message(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Option<String>, ShiftyError> {
+    match api::get_week_message(config, year, week).await? {
+        Some(week_message) => Ok(Some(week_message.message.to_string())),
+        None => Ok(None),
+    }
+}
+
+pub async fn save_week_message(
+    config: Config,
+    year: u32,
+    week: u8,
+    message: String,
+) -> Result<(), ShiftyError> {
+    let week_message = WeekMessageTO {
+        id: uuid::Uuid::nil(),
+        year,
+        calendar_week: week,
+        message: message.into(),
+        created: None,
+        deleted: None,
+        version: uuid::Uuid::nil(),
+    };
+    api::post_week_message(config, week_message).await?;
+    Ok(())
 }

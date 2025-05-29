@@ -4,7 +4,7 @@ use rest_types::{
     BookingConflictTO, BookingTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, VacationPayloadTO,
-    WeeklySummaryTO,
+    WeeklySummaryTO, WeekMessageTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -151,6 +151,8 @@ pub async fn add_booking(
         year,
         created: None,
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: Uuid::nil(),
     };
     let client = reqwest::Client::new();
@@ -729,10 +731,40 @@ pub async fn delete_custom_extra_hours(
     custom_extra_hours_id: Uuid,
 ) -> Result<(), reqwest::Error> {
     info!("Deleting custom extra hours {custom_extra_hours_id}");
-    let url = format!("{}/custom-extra-hours/{custom_extra_hours_id}", config.backend);
+    let url = format!("{}/custom-extra-hours/{}", config.backend, custom_extra_hours_id);
     let client = reqwest::Client::new();
     let response = client.delete(url).send().await?;
     response.error_for_status_ref()?;
-    info!("Deleted");
+    info!("Deleted custom extra hours");
+    Ok(())
+}
+
+pub async fn get_week_message(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Option<WeekMessageTO>, reqwest::Error> {
+    info!("Fetching week message for {year}/{week}");
+    let url = format!("{}/week-message/by-year-and-week/{}/{}", config.backend, year, week);
+    let response = reqwest::get(url).await?;
+    if response.status() == 404 {
+        return Ok(None);
+    }
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched week message");
+    Ok(Some(res))
+}
+
+pub async fn post_week_message(
+    config: Config,
+    week_message: WeekMessageTO,
+) -> Result<(), reqwest::Error> {
+    info!("Posting week message for {}/{}", week_message.year, week_message.calendar_week);
+    let url = format!("{}/week-message", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&week_message).send().await?;
+    response.error_for_status_ref()?;
+    info!("Posted week message");
     Ok(())
 }

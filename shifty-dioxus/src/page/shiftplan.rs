@@ -50,6 +50,8 @@ pub enum ShiftPlanAction {
     CopyFromPreviousWeek,
     ToggleAvailability(Weekday),
     ToggleChangeStructureMode,
+    LoadWeekMessage,
+    SaveWeekMessage(String),
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -108,7 +110,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         ]
         .into(),
     );
-    let take_last_week_str: ImStr = i18n.t(Key::ShiftplanTakeLastWeek).into();
+    let _take_last_week_str: ImStr = i18n.t(Key::ShiftplanTakeLastWeek).into();
     let edit_as_str = i18n.t(Key::ShiftplanEditAs);
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
     let conflict_booking_entries_header = i18n.t(Key::ConflictBookingsHeader);
@@ -134,6 +136,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
     let unavailable_days: Signal<Rc<[SalesPersonUnavailable]>> = use_signal(|| [].into());
     let mut change_structure_mode: Signal<bool> = use_signal(|| false);
+    let week_message = use_signal(|| String::new());
+    let mut week_message_draft = use_signal(|| String::new());
 
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
@@ -156,7 +160,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let cr = use_coroutine({
         move |mut rx: UnboundedReceiver<ShiftPlanAction>| {
-            to_owned![year, week, current_sales_person, unavailable_days, config];
+            to_owned![year, week, current_sales_person, unavailable_days, config, week_message, week_message_draft];
             async move {
                 let mut update_shiftplan = move || {
                     shift_plan_context.restart();
@@ -176,6 +180,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 if is_shiftplanner {
                     weekly_summary_service
                         .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
+                }
+
+                // Load week message initially and when week changes
+                if let Ok(Some(message)) = loader::load_week_message(config.clone(), *year.read(), *week.read()).await {
+                    week_message.set(message.clone());
+                    week_message_draft.set(message);
+                } else {
+                    week_message.set(String::new());
+                    week_message_draft.set(String::new());
                 }
 
                 let sales_person = loader::load_current_sales_person(config.to_owned())
@@ -283,6 +296,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             week.set(next_weeks_week);
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
+
+                            // Load week message for new week
+                            if let Ok(Some(message)) = loader::load_week_message(config.clone(), *year.read(), *week.read()).await {
+                                week_message.set(message.clone());
+                                week_message_draft.set(message);
+                            } else {
+                                week_message.set(String::new());
+                                week_message_draft.set(String::new());
+                            }
                         }
                         ShiftPlanAction::PreviousWeek => {
                             info!("Previous week");
@@ -299,6 +321,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             week.set(previous_weeks_week);
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
+
+                            // Load week message for new week
+                            if let Ok(Some(message)) = loader::load_week_message(config.clone(), *year.read(), *week.read()).await {
+                                week_message.set(message.clone());
+                                week_message_draft.set(message);
+                            } else {
+                                week_message.set(String::new());
+                                week_message_draft.set(String::new());
+                            }
                         }
                         ShiftPlanAction::UpdateSalesPerson(uuid) => {
                             info!("Update sales person");
@@ -356,6 +387,27 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         ShiftPlanAction::ToggleChangeStructureMode => {
                             let new_change_structure_mode = !*change_structure_mode.read();
                             change_structure_mode.set(new_change_structure_mode);
+                        }
+                        ShiftPlanAction::LoadWeekMessage => {
+                            if let Ok(message) = loader::load_week_message(
+                                config.clone(),
+                                *year.read(),
+                                *week.read(),
+                            )
+                            .await
+                            {
+                                let message = message.unwrap_or_default();
+                                week_message.set(message.clone());
+                                week_message_draft.set(message);
+                            }
+                        }
+                        ShiftPlanAction::SaveWeekMessage(message) => {
+                            if let Err(e) = loader::save_week_message(config.clone(), *year.read(), *week.read(), message.clone()).await {
+                                tracing::error!("Failed to save week message: {:?}", e);
+                            } else {
+                                week_message.set(message.clone());
+                                week_message_draft.set(message);
+                            }
                         }
                     }
                 }
@@ -527,8 +579,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             }
         }
 
-
-
         {
             match &*shift_plan_context.read_unchecked() {
                 Some(Ok(shift_plan)) => {
@@ -619,6 +669,63 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     }
                                 },
                             }
+                            
+                            // Week Message Section
+                            div {
+                                class: "mt-4 mb-4 p-4 border rounded",
+                                h3 {
+                                    class: "text-lg font-semibold mb-2",
+                                    {i18n.t(Key::WeekMessage)}
+                                }
+                                if is_shiftplanner {
+                                    div {
+                                        class: "space-y-2",
+                                        textarea {
+                                            class: "w-full p-2 border rounded resize-none",
+                                            rows: "3",
+                                            placeholder: "Enter week message...",
+                                            value: "{week_message_draft}",
+                                            oninput: move |event| {
+                                                week_message_draft.set(event.value());
+                                            }
+                                        }
+                                        div {
+                                            class: "flex gap-2",
+                                            button {
+                                                class: "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                                                disabled: week_message_draft() == week_message(),
+                                                onclick: move |_| {
+                                                    let message = week_message_draft();
+                                                    cr.send(ShiftPlanAction::SaveWeekMessage(message));
+                                                },
+                                                {i18n.t(Key::Save)}
+                                            }
+                                            if week_message_draft() != week_message() {
+                                                span {
+                                                    class: "text-sm text-orange-600 self-center",
+                                                    {i18n.t(Key::UnsavedChanges)}
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    div {
+                                        class: "p-2 bg-gray-50 rounded",
+                                        if week_message().is_empty() {
+                                            span {
+                                                class: "text-gray-500 italic",
+                                                "No message for this week"
+                                            }
+                                        } else {
+                                            pre {
+                                                class: "whitespace-pre-wrap",
+                                                {week_message()}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
                             div { class: "mt-4 print:hidden",
                                 WorkingHoursMiniOverview {
                                     working_hours: WORKING_HOURS_MINI.read().clone(),

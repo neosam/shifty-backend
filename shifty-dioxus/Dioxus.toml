@@ -72,3 +72,5 @@ backend = "http://localhost:3000/permission"
 backend = "http://localhost:3000/shiftplan-edit"
 [[web.proxy]]
 backend = "http://localhost:3000/shiftplan-info"
+[[web.proxy]]
+backend = "http://localhost:3000/week-message"
