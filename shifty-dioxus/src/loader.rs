@@ -473,15 +473,34 @@ pub async fn save_week_message(
     week: u8,
     message: String,
 ) -> Result<(), ShiftyError> {
-    let week_message = WeekMessageTO {
-        id: uuid::Uuid::nil(),
-        year,
-        calendar_week: week,
-        message: message.into(),
-        created: None,
-        deleted: None,
-        version: uuid::Uuid::nil(),
-    };
-    api::post_week_message(config, week_message).await?;
+    // First check if a week message already exists
+    match api::get_week_message(config.clone(), year, week).await? {
+        Some(existing_message) => {
+            // Update existing message using PUT
+            let week_message = WeekMessageTO {
+                id: existing_message.id,
+                year,
+                calendar_week: week,
+                message: message.into(),
+                created: existing_message.created,
+                deleted: None,
+                version: existing_message.version,
+            };
+            api::put_week_message(config, week_message).await?;
+        }
+        None => {
+            // Create new message using POST
+            let week_message = WeekMessageTO {
+                id: uuid::Uuid::nil(),
+                year,
+                calendar_week: week,
+                message: message.into(),
+                created: None,
+                deleted: None,
+                version: uuid::Uuid::nil(),
+            };
+            api::post_week_message(config, week_message).await?;
+        }
+    }
     Ok(())
 }

@@ -768,3 +768,16 @@ pub async fn post_week_message(
     info!("Posted week message");
     Ok(())
 }
+
+pub async fn put_week_message(
+    config: Config,
+    week_message: WeekMessageTO,
+) -> Result<(), reqwest::Error> {
+    info!("Updating week message for {}/{}", week_message.year, week_message.calendar_week);
+    let url = format!("{}/week-message/{}", config.backend, week_message.id);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&week_message).send().await?;
+    response.error_for_status_ref()?;
+    info!("Updated week message");
+    Ok(())
+}
