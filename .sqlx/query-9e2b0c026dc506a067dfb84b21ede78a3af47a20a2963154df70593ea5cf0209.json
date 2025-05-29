@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO week_message (id, year, calendar_week, message, created, deleted, update_process, update_version)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "9e2b0c026dc506a067dfb84b21ede78a3af47a20a2963154df70593ea5cf0209"
+}
