@@ -47,6 +47,8 @@ pub fn default_booking() -> Booking {
             Time::from_hms(0, 0, 0).unwrap(),
         )),
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: default_version(),
     }
 }
@@ -63,6 +65,8 @@ pub fn default_booking_entity() -> BookingEntity {
             Time::from_hms(0, 0, 0).unwrap(),
         ),
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: default_version(),
     }
 }
@@ -120,6 +124,9 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
     permission_service
         .expect_check_permission()
         .returning(move |_, _| Err(service::ServiceError::Forbidden));
+    permission_service
+        .expect_current_user_id()
+        .returning(|_| Ok(Some("test_user".into())));
     let mut clock_service = MockClockService::new();
     clock_service
         .expect_time_now()
@@ -269,6 +276,7 @@ async fn test_create() {
         .with(
             eq(BookingEntity {
                 created: generate_default_datetime(),
+                created_by: Some("test_user".into()),
                 ..default_booking_entity()
             }),
             eq("booking-service"),
@@ -301,6 +309,7 @@ async fn test_create() {
         result.unwrap(),
         Booking {
             created: Some(generate_default_datetime()),
+            created_by: Some("test_user".into()),
             ..default_booking()
         }
     );
@@ -314,6 +323,7 @@ async fn test_create_sales_user() {
         .with(
             eq(BookingEntity {
                 created: generate_default_datetime(),
+                created_by: Some("test_user".into()),
                 ..default_booking_entity()
             }),
             eq("booking-service"),
@@ -354,6 +364,7 @@ async fn test_create_sales_user() {
         result.unwrap(),
         Booking {
             created: Some(generate_default_datetime()),
+            created_by: Some("test_user".into()),
             ..default_booking()
         }
     );
@@ -367,6 +378,7 @@ async fn test_create_sales_user_not_exist() {
         .with(
             eq(BookingEntity {
                 created: generate_default_datetime(),
+                created_by: Some("test_user".into()),
                 ..default_booking_entity()
             }),
             eq("booking-service"),
@@ -413,6 +425,7 @@ async fn test_create_sales_user_no_permission() {
         .with(
             eq(BookingEntity {
                 created: generate_default_datetime(),
+                created_by: Some("test_user".into()),
                 ..default_booking_entity()
             }),
             eq("booking-service"),
@@ -648,6 +661,7 @@ async fn test_delete() {
         .with(
             eq(BookingEntity {
                 deleted: Some(generate_default_datetime()),
+                deleted_by: Some("test_user".into()),
                 version: alternate_version(),
                 ..default_booking_entity()
             }),
@@ -677,6 +691,7 @@ async fn test_delete_sales_user() {
         .with(
             eq(BookingEntity {
                 deleted: Some(generate_default_datetime()),
+                deleted_by: Some("test_user".into()),
                 version: alternate_version(),
                 ..default_booking_entity()
             }),
@@ -714,6 +729,7 @@ async fn test_delete_sales_user_not_exists() {
         .with(
             eq(BookingEntity {
                 deleted: Some(generate_default_datetime()),
+                deleted_by: Some("test_user".into()),
                 version: alternate_version(),
                 ..default_booking_entity()
             }),
@@ -746,6 +762,7 @@ async fn test_delete_sales_user_not_allowed() {
         .with(
             eq(BookingEntity {
                 deleted: Some(generate_default_datetime()),
+                deleted_by: Some("test_user".into()),
                 version: alternate_version(),
                 ..default_booking_entity()
             }),

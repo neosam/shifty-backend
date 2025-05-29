@@ -18,6 +18,8 @@ pub struct Booking {
     pub year: u32,
     pub created: Option<PrimitiveDateTime>,
     pub deleted: Option<PrimitiveDateTime>,
+    pub created_by: Option<Arc<str>>,
+    pub deleted_by: Option<Arc<str>>,
     pub version: Uuid,
 }
 
@@ -31,6 +33,8 @@ impl From<&dao::booking::BookingEntity> for Booking {
             year: booking.year,
             created: Some(booking.created),
             deleted: booking.deleted,
+            created_by: booking.created_by.clone(),
+            deleted_by: booking.deleted_by.clone(),
             version: booking.version,
         }
     }
@@ -47,6 +51,8 @@ impl TryFrom<&Booking> for dao::booking::BookingEntity {
             year: booking.year,
             created: booking.created.ok_or_else(|| ServiceError::InternalError)?,
             deleted: booking.deleted,
+            created_by: booking.created_by.clone(),
+            deleted_by: booking.deleted_by.clone(),
             version: booking.version,
         })
     }

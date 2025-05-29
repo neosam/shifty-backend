@@ -6,8 +6,6 @@ use mockall::automock;
 use shifty_utils::LazyLoad;
 use uuid::Uuid;
 
-use crate::custom_extra_hours::CustomExtraHours as CustomExtraHoursDefinition;
-use crate::extra_hours::ExtraHours;
 use crate::permission::Authentication;
 use crate::sales_person::SalesPerson;
 use crate::ServiceError;

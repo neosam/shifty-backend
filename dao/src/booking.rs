@@ -16,6 +16,8 @@ pub struct BookingEntity {
     pub year: u32,
     pub created: PrimitiveDateTime,
     pub deleted: Option<PrimitiveDateTime>,
+    pub created_by: Option<Arc<str>>,
+    pub deleted_by: Option<Arc<str>>,
     pub version: Uuid,
 }
 

@@ -183,7 +183,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
         tx: Option<Self::Transaction>,
     ) -> Result<Booking, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
-        self.check_booking_permission(booking.sales_person_id, context, tx.clone().into())
+        self.check_booking_permission(booking.sales_person_id, context.clone(), tx.clone().into())
             .await?;
 
         if booking.id != Uuid::nil() {
@@ -256,10 +256,15 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
 
         let new_id = self.uuid_service.new_uuid("booking-id");
         let new_version = self.uuid_service.new_uuid("booking-version");
+        let current_user = self
+            .permission_service
+            .current_user_id(context.clone())
+            .await?;
         let new_booking = Booking {
             id: new_id,
             version: new_version,
             created: Some(self.clock_service.date_time_now()),
+            created_by: current_user,
             ..booking.clone()
         };
 
@@ -319,6 +324,8 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
                 new_booking.calendar_week = to_calendar_week as i32;
                 new_booking.year = to_year;
                 new_booking.created = None;
+                new_booking.created_by = None;
+                new_booking.deleted_by = None;
                 new_booking.version = Uuid::nil();
                 new_booking
             })
@@ -346,10 +353,19 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .await?
             .ok_or_else(move || ServiceError::EntityNotFound(id))?;
 
-        self.check_booking_permission(booking_entity.sales_person_id, context, tx.clone().into())
-            .await?;
+        self.check_booking_permission(
+            booking_entity.sales_person_id,
+            context.clone(),
+            tx.clone().into(),
+        )
+        .await?;
 
+        let current_user = self
+            .permission_service
+            .current_user_id(context.clone())
+            .await?;
         booking_entity.deleted = Some(self.clock_service.date_time_now());
+        booking_entity.deleted_by = current_user;
         booking_entity.version = self.uuid_service.new_uuid("booking-version");
         self.booking_dao
             .update(&booking_entity, BOOKING_SERVICE_PROCESS, tx.clone())

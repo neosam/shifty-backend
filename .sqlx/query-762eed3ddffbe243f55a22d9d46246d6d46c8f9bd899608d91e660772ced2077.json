@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE booking SET deleted = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "762eed3ddffbe243f55a22d9d46246d6d46c8f9bd899608d91e660772ced2077"
+}

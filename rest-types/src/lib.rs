@@ -73,6 +73,10 @@ pub struct BookingTO {
     pub created: Option<PrimitiveDateTime>,
     #[serde(default)]
     pub deleted: Option<PrimitiveDateTime>,
+    #[serde(default)]
+    pub created_by: Option<Arc<str>>,
+    #[serde(default)]
+    pub deleted_by: Option<Arc<str>>,
     #[serde(rename = "$version")]
     #[serde(default)]
     pub version: Uuid,
@@ -88,6 +92,8 @@ impl From<&Booking> for BookingTO {
             year: booking.year,
             created: booking.created,
             deleted: booking.deleted,
+            created_by: booking.created_by.clone(),
+            deleted_by: booking.deleted_by.clone(),
             version: booking.version,
         }
     }
@@ -103,6 +109,8 @@ impl From<&BookingTO> for Booking {
             year: booking.year,
             created: booking.created,
             deleted: booking.deleted,
+            created_by: booking.created_by.clone(),
+            deleted_by: booking.deleted_by.clone(),
             version: booking.version,
         }
     }

@@ -448,6 +448,8 @@ impl TestSetup {
                     year,
                     created: None,
                     deleted: None,
+                    created_by: None,
+                    deleted_by: None,
                     version: Uuid::nil(),
                 };
                 let slot_duration = (slot.to - slot.from).as_seconds_f32() / 3600.0;

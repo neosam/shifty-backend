@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO booking (id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "fa20444cbf13c10b848ec1a92dd9f934e62bf8f2671dc85b080341697a733df3"
+}

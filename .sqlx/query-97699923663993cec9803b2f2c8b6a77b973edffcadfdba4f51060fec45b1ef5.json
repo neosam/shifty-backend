@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE slot_id = ? AND year * 100 + calendar_week >= ? AND deleted IS NULL",
+  "query": "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version FROM booking WHERE slot_id = ? AND year * 100 + calendar_week >= ? AND deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -39,8 +39,18 @@
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "created_by",
         "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted_by",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 9,
         "type_info": "Blob"
       }
     ],
@@ -55,8 +65,10 @@
       false,
       false,
       true,
+      true,
+      true,
       false
     ]
   },
-  "hash": "a2e88a809d90f76437f45b3cbf9685141ff94eb1dad5c91b235974e2cfb8a97a"
+  "hash": "97699923663993cec9803b2f2c8b6a77b973edffcadfdba4f51060fec45b1ef5"
 }

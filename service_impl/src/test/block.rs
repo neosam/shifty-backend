@@ -129,6 +129,8 @@ pub fn default_booking() -> Booking {
             Time::from_hms(0, 0, 0).unwrap(),
         )),
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: Uuid::nil(),
     }
 }
@@ -146,12 +148,14 @@ pub fn second_booking() -> Booking {
             Time::from_hms(0, 0, 0).unwrap(),
         )),
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: Uuid::nil(),
     }
 }
 
 /// Build dependencies with or without permission to emulate the approach
-/// in your booking tests. If you’re not checking permissions here, you can ignore it.
+/// in your booking tests. If you're not checking permissions here, you can ignore it.
 pub fn build_dependencies() -> BlockServiceDependencies {
     // 1) booking_service mock
     let booking_service = MockBookingService::new();
@@ -288,16 +292,20 @@ async fn test_get_blocks_non_consecutive_bookings() {
         year: 2025,
         created: None,
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: Uuid::nil(),
     };
     let booking2 = Booking {
         id: second_booking_id(),
         sales_person_id: default_sales_person_id(),
-        slot_id: second_slot_id(), // we’ll override to 11:00–12:00 below
+        slot_id: second_slot_id(), // we'll override to 11:00–12:00 below
         calendar_week: 3,
         year: 2025,
         created: None,
         deleted: None,
+        created_by: None,
+        deleted_by: None,
         version: Uuid::nil(),
     };
 

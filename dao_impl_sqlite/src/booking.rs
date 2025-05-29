@@ -19,6 +19,8 @@ struct BookingDb {
     year: i64,
     created: String,
     deleted: Option<String>,
+    created_by: Option<String>,
+    deleted_by: Option<String>,
     update_version: Vec<u8>,
 }
 impl TryFrom<&BookingDb> for BookingEntity {
@@ -36,6 +38,8 @@ impl TryFrom<&BookingDb> for BookingEntity {
                 .as_ref()
                 .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
                 .transpose()?,
+            created_by: booking.created_by.as_ref().map(|s| s.as_str().into()),
+            deleted_by: booking.deleted_by.as_ref().map(|s| s.as_str().into()),
             version: Uuid::from_slice(&booking.update_version).unwrap(),
         })
     }
@@ -57,7 +61,7 @@ impl BookingDao for BookingDaoImpl {
     async fn all(&self, tx: Self::Transaction) -> Result<Arc<[BookingEntity]>, DaoError> {
         Ok(query_as!(
             BookingDb,
-            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE deleted IS NULL"
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version FROM booking WHERE deleted IS NULL"
         )
             .fetch_all(tx.tx.lock().await.as_mut())
             .await
@@ -75,7 +79,7 @@ impl BookingDao for BookingDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             BookingDb,
-            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE id = ?",
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version FROM booking WHERE id = ?",
             id_vec,
         )
         .fetch_optional(tx.tx.lock().await.as_mut())
@@ -97,7 +101,7 @@ impl BookingDao for BookingDaoImpl {
         let until = year * 100 + week as u32;
         Ok(query_as!(
             BookingDb,
-            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE slot_id = ? AND year * 100 + calendar_week >= ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version FROM booking WHERE slot_id = ? AND year * 100 + calendar_week >= ? AND deleted IS NULL",
             slot_id_vec,
             until,
         )
@@ -123,7 +127,7 @@ impl BookingDao for BookingDaoImpl {
         let slot_id_vec = slot_id.as_bytes().to_vec();
         Ok(query_as!(
             BookingDb,
-            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE sales_person_id = ? AND slot_id = ? AND calendar_week = ? AND year = ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version FROM booking WHERE sales_person_id = ? AND slot_id = ? AND calendar_week = ? AND year = ? AND deleted IS NULL",
             sales_person_id_vec,
             slot_id_vec,
             calendar_week,
@@ -145,7 +149,7 @@ impl BookingDao for BookingDaoImpl {
     ) -> Result<Arc<[BookingEntity]>, DaoError> {
         Ok(query_as!(
             BookingDb,
-            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version FROM booking WHERE calendar_week = ? AND year = ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version FROM booking WHERE calendar_week = ? AND year = ? AND deleted IS NULL",
             calendar_week,
             year,
         )
@@ -174,9 +178,11 @@ impl BookingDao for BookingDaoImpl {
             .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
             .transpose()
             .map_db_error()?;
+        let created_by = entity.created_by.as_ref().map(|s| s.as_ref());
+        let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
         let version_vec = entity.version.as_bytes().to_vec();
-        query!("INSERT INTO booking (id, sales_person_id, slot_id, calendar_week, year, created, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            id_vec, sales_person_id_vec, slot_id_vec, entity.calendar_week, entity.year, created, deleted, version_vec, process
+        query!("INSERT INTO booking (id, sales_person_id, slot_id, calendar_week, year, created, deleted, created_by, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            id_vec, sales_person_id_vec, slot_id_vec, entity.calendar_week, entity.year, created, deleted, created_by, deleted_by, version_vec, process
         ).execute(tx.tx.lock().await.as_mut()).await.map_db_error()?;
         Ok(())
     }
@@ -194,9 +200,11 @@ impl BookingDao for BookingDaoImpl {
             .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
             .transpose()
             .map_db_error()?;
+        let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
         query!(
-            "UPDATE booking SET deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
+            "UPDATE booking SET deleted = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ?",
             deleted,
+            deleted_by,
             version_vec,
             process,
             id_vec
