@@ -32,6 +32,7 @@ pub enum ReportType {
 pub enum Availability {
     Available,
     Unavailable,
+    None,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -72,7 +73,17 @@ impl ExtraHoursCategory {
             Self::SickLeave => Availability::Available,
             Self::Holiday => Availability::Available,
             Self::Unavailable => Availability::Unavailable,
-            Self::CustomExtraHours(_) => Availability::Available,
+            Self::CustomExtraHours(hours) => {
+                if let Some(hours) = hours.get() {
+                    if hours.modifies_balance {
+                        Availability::Available
+                    } else {
+                        Availability::None
+                    }
+                } else {
+                    Availability::None
+                }
+            }
         }
     }
 }

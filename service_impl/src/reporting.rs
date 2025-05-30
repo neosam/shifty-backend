@@ -20,6 +20,7 @@ use service::{
     PermissionService, ServiceError,
 };
 use tokio::join;
+use tracing::info;
 use uuid::Uuid;
 
 pub trait IteratorExt {
@@ -406,9 +407,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             })
             .sum::<f32>();
 
-        // Add custom_extra_work_hours to overall_extra_work_hours
-        let overall_extra_work_hours = overall_extra_work_hours + custom_extra_work_hours;
-
         let aggregated_custom_extra_hours: Arc<[CustomExtraHours]> = {
             let mut map: HashMap<(Uuid, String), f32> = HashMap::new();
             for week_report in by_week.iter() {
@@ -491,6 +489,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .extra_hours_service
             .find_by_week(year, week, Authentication::Full, tx.clone().into())
             .await?;
+        info!("Extra hours: {:?}", &extra_hours);
         let extra_hours = extra_hours
             .iter()
             .collect_to_hash_map_by(|eh| eh.sales_person_id);

@@ -30,6 +30,48 @@ gen_service_impl! {
     }
 }
 
+impl<Deps: ExtraHoursServiceDeps> ExtraHoursServiceImpl<Deps> {
+    /// Helper method to load custom extra hours definitions for lazy loaded entries
+    async fn load_custom_extra_hours_definitions(
+        &self,
+        extra_hours_list: &mut [ExtraHours],
+        tx: <Self as ExtraHoursService>::Transaction,
+    ) -> Result<(), ServiceError> {
+        for eh in extra_hours_list.iter_mut() {
+            if let service::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy_load) =
+                &mut eh.category
+            {
+                if !lazy_load.is_loaded() {
+                    let key = *lazy_load.key();
+                    // Using Authentication::Full for internal service calls to fetch definitions
+                    match self
+                        .custom_extra_hours_service
+                        .get_by_id(key, Authentication::Full, tx.clone().into())
+                        .await
+                    {
+                        Ok(definition) => {
+                            lazy_load.set(definition);
+                        }
+                        Err(ServiceError::EntityNotFound(_)) => {
+                            // Log this? If a CustomExtraHour refers to a non-existent definition, it's an integrity issue.
+                            // For now, it will remain unloaded, and .get() will return None.
+                            tracing::warn!("CustomExtraHoursDefinition with id {} not found for ExtraHours entry {}", key, eh.id);
+                        }
+                        Err(e) => {
+                            // For other errors, we might want to propagate them.
+                            // Rolling back or failing the whole operation might be too drastic for a reporting query.
+                            // Logging and continuing seems reasonable for now.
+                            tracing::error!("Error loading CustomExtraHoursDefinition with id {} for ExtraHours entry {}: {:?}", key, eh.id, e);
+                            // Potentially return the error: return Err(e);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<Deps> {
     type Context = Deps::Context;
@@ -88,40 +130,8 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
             .map(ExtraHours::from)
             .collect::<Vec<ExtraHours>>();
 
-        for eh in extra_hours_list.iter_mut() {
-            if let service::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy_load) =
-                &mut eh.category
-            {
-                if !lazy_load.is_loaded() {
-                    let key = *lazy_load.key();
-                    // Using a new context for this internal service call.
-                    // The original `context` is for the main `find_by_sales_person_id_and_year` permission check.
-                    // For fetching definitions, typically full auth or a specific internal auth is used.
-                    // Here, we use Authentication::Full assuming internal system trust.
-                    match self
-                        .custom_extra_hours_service
-                        .get_by_id(key, Authentication::Full, tx.clone().into())
-                        .await
-                    {
-                        Ok(definition) => {
-                            lazy_load.set(definition);
-                        }
-                        Err(ServiceError::EntityNotFound(_)) => {
-                            // Log this? If a CustomExtraHour refers to a non-existent definition, it's an integrity issue.
-                            // For now, it will remain unloaded, and .get() will return None.
-                            tracing::warn!("CustomExtraHoursDefinition with id {} not found for ExtraHours entry {}", key, eh.id);
-                        }
-                        Err(e) => {
-                            // For other errors, we might want to propagate them.
-                            // Rolling back or failing the whole operation might be too drastic for a reporting query.
-                            // Logging and continuing seems reasonable for now.
-                            tracing::error!("Error loading CustomExtraHoursDefinition with id {} for ExtraHours entry {}: {:?}", key, eh.id, e);
-                            // Potentially return the error: return Err(e);
-                        }
-                    }
-                }
-            }
-        }
+        self.load_custom_extra_hours_definitions(&mut extra_hours_list, tx.clone())
+            .await?;
 
         self.transaction_dao.commit(tx).await?;
         Ok(extra_hours_list.into())
@@ -138,16 +148,19 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         self.permission_service
             .check_only_full_authentication(context)
             .await?;
-        let ret = Ok(self
+        let mut extra_hours_list = self
             .extra_hours_dao
             .find_by_week(week, year, tx.clone())
             .await?
             .iter()
             .map(ExtraHours::from)
-            .collect());
+            .collect::<Vec<ExtraHours>>();
+
+        self.load_custom_extra_hours_definitions(&mut extra_hours_list, tx.clone())
+            .await?;
 
         self.transaction_dao.commit(tx).await?;
-        ret
+        Ok(extra_hours_list.into())
     }
 
     async fn create(
