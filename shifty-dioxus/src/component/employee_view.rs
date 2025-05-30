@@ -618,10 +618,6 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                                 TupleView {
                                     label: custom_hour.name.clone(),
                                     value: format!("{:.2} {}", custom_hour.hours, hours_str.clone()).into(),
-                                    ondelete: {
-                                        let custom_hour_id = custom_hour.id;
-                                        move |_| props.on_custom_delete.call(custom_hour_id)
-                                    },
                                 }
                             }
                         }
