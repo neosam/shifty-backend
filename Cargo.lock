@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "dao"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "async-trait",
  "mockall",
@@ -491,7 +491,7 @@ dependencies = [
 
 [[package]]
 name = "dao_impl_sqlite"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "async-trait",
  "dao",
@@ -2020,7 +2020,7 @@ dependencies = [
 
 [[package]]
 name = "rest"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "axum",
  "axum-oidc",
@@ -2046,7 +2046,7 @@ dependencies = [
 
 [[package]]
 name = "rest-types"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "serde",
  "service",
@@ -2368,7 +2368,7 @@ dependencies = [
 
 [[package]]
 name = "service"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "async-trait",
  "dao",
@@ -2382,7 +2382,7 @@ dependencies = [
 
 [[package]]
 name = "service_impl"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2429,11 +2429,11 @@ dependencies = [
 
 [[package]]
 name = "shifty-utils"
-version = "0.12.0"
+version = "1.0.0-dev"
 
 [[package]]
 name = "shifty_bin"
-version = "0.12.0"
+version = "1.0.0-dev"
 dependencies = [
  "dao",
  "dao_impl_sqlite",
