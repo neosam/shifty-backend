@@ -284,8 +284,8 @@ pub async fn delete_user_from_sales_person(
     config: Config,
     sales_person_id: Uuid,
 ) -> Result<(), reqwest::Error> {
-    info!("Deleting user from sales person {sales_person_id}");
-    let url = format!("{}/sales-person/{sales_person_id}/user", config.backend);
+    info!("Delete user for sales person {sales_person_id}");
+    let url = format!("{}/sales-person/{}/user", config.backend, sales_person_id);
     let client = reqwest::Client::new();
     let response = client.delete(url).send().await?;
     response.error_for_status_ref()?;
@@ -542,6 +542,16 @@ pub async fn add_user(config: Config, user: UserTO) -> Result<(), reqwest::Error
     Ok(())
 }
 
+pub async fn delete_user(config: Config, user_id: ImStr) -> Result<(), reqwest::Error> {
+    info!("Deleting user {user_id}");
+    let url = format!("{}/permission/user/", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).json(&user_id.to_string()).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted user");
+    Ok(())
+}
+
 pub async fn get_booking_conflicts_for_week(
     config: Config,
     year: u32,
@@ -765,4 +775,20 @@ pub async fn put_week_message(
     response.error_for_status_ref()?;
     info!("Updated week message");
     Ok(())
+}
+
+pub async fn get_sales_person_by_user(
+    config: Config,
+    username: ImStr,
+) -> Result<Option<SalesPersonTO>, reqwest::Error> {
+    info!("Fetching sales person for user {username}");
+    let url = format!("{}/sales-person/by-user/{}", config.backend, username);
+    let response = reqwest::get(url).await?;
+    if response.status() == 404 {
+        return Ok(None);
+    }
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched sales person for user");
+    Ok(Some(res))
 }

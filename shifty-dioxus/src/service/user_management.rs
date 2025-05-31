@@ -198,6 +198,20 @@ pub async fn add_user(user: ImStr) -> Result<(), ShiftyError> {
     Ok(())
 }
 
+pub async fn delete_user(user: ImStr) -> Result<(), ShiftyError> {
+    // First check if the user is connected to a sales person
+    let sales_person = loader::load_sales_person_by_user(CONFIG.read().clone(), user.clone()).await?;
+    
+    // If connected to a sales person, remove the connection first
+    if let Some(sales_person) = sales_person {
+        loader::remove_user_from_sales_person(CONFIG.read().clone(), sales_person.id).await?;
+    }
+    
+    // Now proceed with deleting the user
+    loader::delete_user(CONFIG.read().clone(), user).await?;
+    Ok(())
+}
+
 pub enum UserManagementAction {
     LoadAllUsers,
     LoadAllSalesPersons,
@@ -213,6 +227,7 @@ pub enum UserManagementAction {
     AssignUserToRole(ImStr, ImStr),
     RemoveUserFromRole(ImStr, ImStr),
     AddUser(ImStr),
+    DeleteUser(ImStr),
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
@@ -307,6 +322,13 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                 remove_user_from_role(user, role).await
             }
             UserManagementAction::AddUser(user) => match add_user(user).await {
+                Ok(()) => {
+                    load_all_users().await;
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            },
+            UserManagementAction::DeleteUser(user) => match delete_user(user).await {
                 Ok(()) => {
                     load_all_users().await;
                     Ok(())

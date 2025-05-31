@@ -374,6 +374,11 @@ pub async fn add_user(config: Config, user: ImStr) -> Result<(), ShiftyError> {
     Ok(())
 }
 
+pub async fn delete_user(config: Config, user: ImStr) -> Result<(), ShiftyError> {
+    api::delete_user(config, user).await?;
+    Ok(())
+}
+
 pub async fn load_bookings_conflicts_for_week(
     config: Config,
     year: u32,
@@ -520,4 +525,13 @@ pub async fn save_week_message(
         }
     }
     Ok(())
+}
+
+pub async fn load_sales_person_by_user(
+    config: Config,
+    username: ImStr,
+) -> Result<Option<SalesPerson>, ShiftyError> {
+    let sales_person_to = api::get_sales_person_by_user(config, username).await?;
+    let sales_person = sales_person_to.as_ref().map(SalesPerson::from);
+    Ok(sales_person)
 }
