@@ -386,6 +386,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
         (path = "/report", api = report::ReportApiDoc),
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
+        (path = "/permission", api = permission::PermissionApiDoc),
     )
 )]
 pub struct ApiDoc;

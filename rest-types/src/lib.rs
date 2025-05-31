@@ -10,7 +10,7 @@ use time::{PrimitiveDateTime, Weekday};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserTO {
     pub name: String,
 }
@@ -23,7 +23,7 @@ impl From<&service::User> for UserTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RoleTO {
     pub name: String,
 }
@@ -36,7 +36,7 @@ impl From<&service::Role> for RoleTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PrivilegeTO {
     pub name: String,
 }
@@ -49,13 +49,13 @@ impl From<&service::Privilege> for PrivilegeTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserRole {
     pub user: String,
     pub role: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RolePrivilege {
     pub role: String,
     pub privilege: String,
