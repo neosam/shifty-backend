@@ -28,6 +28,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/{id}/user", post(set_sales_person_user::<RestState>))
         .route("/{id}/user", delete(delete_sales_person_user::<RestState>))
         .route(
+            "/by-user/{username}",
+            get(get_sales_person_by_username::<RestState>),
+        )
+        .route(
             "/{id}/unavailable",
             get(get_sales_person_unavailable::<RestState>),
         )
@@ -533,6 +537,47 @@ pub async fn ical_for_sales_person<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/by-user/{username}",
+    tags = ["Sales persons"],
+    description = "Get sales person by username",
+    params(
+        ("username", description = "Username", example = "john.doe"),
+    ),
+    responses(
+        (status = 200, description = "Get sales person by username", body = SalesPersonTO),
+        (status = 404, description = "Sales person not found"),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
+pub async fn get_sales_person_by_username<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(username): Path<Arc<str>>,
+) -> Response {
+    error_handler(
+        (async {
+            let sales_person = rest_state
+                .sales_person_service()
+                .get_sales_person_for_user(username, context.into(), None)
+                .await?
+                .map(|sales_person| SalesPersonTO::from(&sales_person));
+
+            match sales_person {
+                Some(sales_person) => Ok(Response::builder()
+                    .status(200)
+                    .header("Content-Type", "application/json")
+                    .body(Body::new(serde_json::to_string(&sales_person).unwrap()))
+                    .unwrap()),
+                None => Ok(Response::builder().status(404).body(Body::empty()).unwrap()),
+            }
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     tags(
@@ -552,6 +597,7 @@ pub async fn ical_for_sales_person<RestState: RestStateDef>(
         delete_sales_person_unavailable,
         get_sales_person_current_user,
         ical_for_sales_person,
+        get_sales_person_by_username,
     ),
     components(
         schemas(
