@@ -3,6 +3,7 @@ use dioxus::prelude::*;
 use crate::{
     base_types::ImStr,
     component::{base_components::*, TopBar},
+    router::Route,
     service::{self, user_management::UserManagementAction},
     state::shiftplan::SalesPerson,
 };
@@ -15,9 +16,7 @@ pub struct SalesPersonDetailsProps {
 #[component]
 pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
-    let user_management = service::user_management::USER_MANAGEMENT_STORE
-        .read()
-        .clone();
+    let nav = navigator();
 
     use_effect(move || {
         if props.sales_person_id.is_empty() {
@@ -27,7 +26,19 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                 uuid::Uuid::parse_str(&props.sales_person_id).unwrap(),
             ));
         }
+        // Clear any previous save success status
+        user_management_service.send(UserManagementAction::ClearSaveSuccess);
     });
+
+    // Redirect immediately when save is successful
+    use_effect(move || {
+        let user_management = service::user_management::USER_MANAGEMENT_STORE.read();
+        if user_management.save_success {
+            nav.push(Route::UserManagementPage {});
+        }
+    });
+
+    let user_management = service::user_management::USER_MANAGEMENT_STORE.read();
 
     rsx! {
         TopBar {}
@@ -35,7 +46,19 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
         div { class: "m-4",
             div {
                 h1 { class: "text-2xl font-bold", "Sales Person Details" }
-                if let Some(sales_person) = user_management.sales_person {
+                
+                // Success message - this will show briefly before redirect
+                if user_management.save_success {
+                    div { 
+                        class: "mb-4 p-4 bg-green-100 border-l-4 border-green-500 text-green-700",
+                        div { class: "flex items-center",
+                            div { class: "mr-2", "✅" }
+                            div { "Sales person saved successfully!" }
+                        }
+                    }
+                }
+                
+                if let Some(sales_person) = &user_management.sales_person {
                     Form {
                         FormPair { label: "Name".into(),
                             TextInput {
@@ -95,7 +118,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                             }
                         }
                         FormPair { label: "Connected user".into(),
-                            if let Some(user_id) = sales_person.user_id {
+                            if let Some(user_id) = &sales_person.user_id {
                                 div {
                                     TextInput {
                                         on_change: {
@@ -135,10 +158,19 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 on_click: {
                                     to_owned![user_management_service];
                                     move |_| {
-                                        user_management_service.send(UserManagementAction::SaveSalesPerson);
+                                        user_management_service.send(UserManagementAction::SaveSalesPersonAndNavigate);
                                     }
                                 },
                                 "Save"
+                            }
+                            Button {
+                                on_click: {
+                                    to_owned![nav];
+                                    move |_| {
+                                        nav.push(Route::UserManagementPage {});
+                                    }
+                                },
+                                "Cancel"
                             }
                         }
                     }

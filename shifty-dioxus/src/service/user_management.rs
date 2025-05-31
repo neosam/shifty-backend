@@ -43,6 +43,7 @@ pub struct UserManagementStore {
     pub sales_person: Option<SelectedSalesPerson>,
     pub loaded_sales_person: Option<SelectedSalesPerson>,
     pub role_assignements: Rc<[RoleAssignment]>,
+    pub save_success: bool,
 }
 pub static USER_MANAGEMENT_STORE: GlobalSignal<UserManagementStore> =
     Signal::global(|| UserManagementStore::default());
@@ -117,83 +118,53 @@ pub async fn load_sales_person(sales_person_id: Uuid) {
     }
 }
 
-pub async fn save_sales_person() {
+pub async fn save_sales_person() -> Result<(), ShiftyError> {
     let selected_sales_person = USER_MANAGEMENT_STORE.read().sales_person.clone();
     let loaded_sales_person = USER_MANAGEMENT_STORE.read().loaded_sales_person.clone();
     if let (Some(selected_sales_person), Some(loaded_sales_person)) =
         (selected_sales_person, loaded_sales_person)
     {
         if selected_sales_person != loaded_sales_person {
-            match loader::save_sales_person(
+            loader::save_sales_person(
                 CONFIG.read().clone(),
                 selected_sales_person.sales_person.clone(),
             )
-            .await
-            {
-                Ok(_) => {}
-                Err(err) => {
-                    *ERROR_STORE.write() = ErrorStore {
-                        error: Some(err.into()),
-                    };
-                }
-            }
+            .await?;
+            
             match (
                 selected_sales_person.user_id.clone(),
                 loaded_sales_person.user_id.clone(),
             ) {
                 (Some(new_user_id), Some(old_user_id)) => {
                     if new_user_id != old_user_id {
-                        match loader::save_user_for_sales_person(
+                        loader::save_user_for_sales_person(
                             CONFIG.read().clone(),
                             selected_sales_person.sales_person.id,
                             new_user_id,
                         )
-                        .await
-                        {
-                            Ok(_) => {}
-                            Err(err) => {
-                                *ERROR_STORE.write() = ErrorStore {
-                                    error: Some(err.into()),
-                                };
-                            }
-                        }
+                        .await?;
                     }
                 }
                 (Some(user_id), None) => {
-                    match loader::save_user_for_sales_person(
+                    loader::save_user_for_sales_person(
                         CONFIG.read().clone(),
                         selected_sales_person.sales_person.id,
                         user_id,
                     )
-                    .await
-                    {
-                        Ok(_) => {}
-                        Err(err) => {
-                            *ERROR_STORE.write() = ErrorStore {
-                                error: Some(err.into()),
-                            };
-                        }
-                    }
+                    .await?;
                 }
                 (None, Some(_)) => {
-                    match loader::remove_user_from_sales_person(
+                    loader::remove_user_from_sales_person(
                         CONFIG.read().clone(),
                         selected_sales_person.sales_person.id,
                     )
-                    .await
-                    {
-                        Ok(_) => {}
-                        Err(err) => {
-                            *ERROR_STORE.write() = ErrorStore {
-                                error: Some(err.into()),
-                            };
-                        }
-                    }
+                    .await?;
                 }
                 _ => {}
             }
         }
     }
+    Ok(())
 }
 
 pub async fn load_role_assignments(user: ImStr) -> Result<(), ShiftyError> {
@@ -235,6 +206,8 @@ pub enum UserManagementAction {
     UpdateSalesPersonUser(ImStr),
     RemoveSalesPersonUser,
     SaveSalesPerson,
+    SaveSalesPersonAndNavigate,
+    ClearSaveSuccess,
     CreateNewSalesPerson,
     LoadUserRoleAssignments(ImStr),
     AssignUserToRole(ImStr, ImStr),
@@ -290,7 +263,24 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                 Ok(())
             }
             UserManagementAction::SaveSalesPerson => {
-                save_sales_person().await;
+                match save_sales_person().await {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(err),
+                }
+            }
+            UserManagementAction::SaveSalesPersonAndNavigate => {
+                match save_sales_person().await {
+                    Ok(_) => {
+                        // Refresh the sales persons list after successful save
+                        load_all_sales_persons().await;
+                        USER_MANAGEMENT_STORE.write().save_success = true;
+                        Ok(())
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+            UserManagementAction::ClearSaveSuccess => {
+                USER_MANAGEMENT_STORE.write().save_success = false;
                 Ok(())
             }
             UserManagementAction::CreateNewSalesPerson => {
