@@ -80,8 +80,13 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
             div { class: "bg-white rounded-lg shadow-sm border p-4 md:p-6",
                 if let Some(sales_person) = &user_management.sales_person {
                     Form {
-                        FormPair { label: "Name".into(),
-                            div { class: "w-full", style: "min-width: 0;",
+                        // Basic Information Section
+                        div { class: "mb-6",
+                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200", 
+                                "Basic Information" 
+                            }
+                            
+                            FormPair { label: "Name".into(),
                                 TextInput {
                                     value: sales_person.sales_person.name.clone().into(),
                                     on_change: {
@@ -98,112 +103,120 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                     },
                                 }
                             }
-                        }
-                        FormPair { label: "Shiftplan color".into(),
-                            div { class: "flex items-center flex-row gap-2",
-                                div { class: "flex-1", style: "min-width: 0;",
-                                    TextInput {
-                                        value: sales_person.sales_person.background_color.clone().into(),
-                                        on_change: {
-                                            to_owned![user_management_service, sales_person];
-                                            move |background_color: ImStr| {
-                                                user_management_service
-                                                    .send(
-                                                        UserManagementAction::UpdateSalesPerson(SalesPerson {
-                                                            background_color: background_color.as_rc(),
-                                                            ..sales_person.sales_person.clone()
-                                                        }),
-                                                    );
-                                            }
-                                        },
+                            
+                            FormPair { label: "Shiftplan Color".into(),
+                                div { class: "flex items-center gap-3",
+                                    div {
+                                        class: "w-6 h-6 border border-gray-300 rounded flex-shrink-0",
+                                        style: format!("background-color: {}", sales_person.sales_person.background_color.clone()),
+                                        title: "Color preview",
                                     }
-                                }
-                                div {
-                                    class: "w-8 h-8 flex-shrink-0 border border-gray-300 rounded",
-                                    style: format!("background-color: {}", sales_person.sales_person.background_color.clone()),
-                                }
-                            }
-                        }
-                        FormPair { label: "Is paid".into(),
-                            Checkbox {
-                                value: sales_person.sales_person.is_paid,
-                                on_change: {
-                                    to_owned![user_management_service, sales_person];
-                                    move |is_paid: bool| {
-                                        user_management_service
-                                            .send(
-                                                UserManagementAction::UpdateSalesPerson(SalesPerson {
-                                                    is_paid,
-                                                    ..sales_person.sales_person.clone()
-                                                }),
-                                            );
-                                    }
-                                },
-                            }
-                        }
-                        FormPair { label: "Connected user".into(),
-                            if let Some(user_id) = &sales_person.user_id {
-                                div { class: "flex flex-col sm:flex-row gap-2",
-                                    div { class: "flex-1", style: "min-width: 0;",
+                                    div { class: "flex-1",
                                         TextInput {
+                                            value: sales_person.sales_person.background_color.clone().into(),
                                             on_change: {
-                                                to_owned![user_management_service];
-                                                move |value: ImStr| {
+                                                to_owned![user_management_service, sales_person];
+                                                move |background_color: ImStr| {
                                                     user_management_service
-                                                        .send(UserManagementAction::UpdateSalesPersonUser(value));
+                                                        .send(
+                                                            UserManagementAction::UpdateSalesPerson(SalesPerson {
+                                                                background_color: background_color.as_rc(),
+                                                                ..sales_person.sales_person.clone()
+                                                            }),
+                                                        );
                                                 }
                                             },
-                                            value: user_id.clone().into(),
                                         }
                                     }
-                                    div { class: "flex-shrink-0",
-                                        Button {
-                                            on_click: {
-                                                to_owned![user_management_service];
-                                                move |_| {
-                                                    user_management_service.send(UserManagementAction::RemoveSalesPersonUser);
-                                                }
-                                            },
-                                            "🗑️ Remove"
-                                        }
-                                    }
-                                }
-                            } else {
-                                Button {
-                                    on_click: {
-                                        to_owned![user_management_service];
-                                        move |_| {
-                                            user_management_service
-                                                .send(UserManagementAction::UpdateSalesPersonUser("".into()));
-                                        }
-                                    },
-                                    "Connect user"
                                 }
                             }
                         }
                         
-                        // Action buttons
-                        div { class: "flex flex-col sm:flex-row gap-3 pt-6 border-t",
-                            button {
-                                class: "w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white border-2 border-gray-200 p-2 rounded",
-                                onclick: move |_| {
-                                    user_management_service.send(UserManagementAction::SaveSalesPersonAndNavigate);
-                                },
-                                "Save Changes"
+                        // Settings Section
+                        div { class: "mb-6",
+                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200", 
+                                "Settings" 
                             }
-                            button {
-                                class: "w-full sm:w-auto border-2 border-gray-200 p-2 rounded",
-                                onclick: move |_| {
-                                    nav.push(Route::UserManagementPage {});
-                                },
-                                "Cancel"
+                            
+                            div { class: "border-b-2 border-gray-200 border-dashed p-2",
+                                Checkbox {
+                                    value: Some(sales_person.sales_person.is_paid),
+                                    on_change: Some({
+                                        to_owned![user_management_service, sales_person];
+                                        EventHandler::new(move |is_paid: bool| {
+                                            user_management_service
+                                                .send(
+                                                    UserManagementAction::UpdateSalesPerson(SalesPerson {
+                                                        is_paid,
+                                                        ..sales_person.sales_person.clone()
+                                                    }),
+                                                );
+                                        })
+                                    }),
+                                    "This person receives payment"
+                                }
+                            }
+                            
+                            FormPair { label: "User Account".into(),
+                                if let Some(user_id) = &sales_person.user_id {
+                                    div { class: "flex gap-2",
+                                        Button {
+                                            on_click: move |_| {
+                                                user_management_service.send(UserManagementAction::RemoveSalesPersonUser);
+                                            },
+                                            "🗑️"
+                                        }
+                                        div { class: "flex-1",
+                                            TextInput {
+                                                on_change: {
+                                                    to_owned![user_management_service];
+                                                    move |value: ImStr| {
+                                                        user_management_service
+                                                            .send(UserManagementAction::UpdateSalesPersonUser(value));
+                                                    }
+                                                },
+                                                value: user_id.clone().into(),
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Button {
+                                        on_click: move |_| {
+                                            user_management_service
+                                                .send(UserManagementAction::UpdateSalesPersonUser("".into()));
+                                        },
+                                        "Connect User Account"
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Action buttons section
+                        div { class: "pt-6 border-t border-gray-200",
+                            div { class: "flex flex-col sm:flex-row gap-3 justify-end",
+                                Button {
+                                    on_click: move |_| {
+                                        nav.push(Route::UserManagementPage {});
+                                    },
+                                    "Cancel"
+                                }
+                                button {
+                                    class: "px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors border-2 border-blue-600 hover:border-blue-700",
+                                    onclick: move |_| {
+                                        user_management_service.send(UserManagementAction::SaveSalesPersonAndNavigate);
+                                    },
+                                    "Save Changes"
+                                }
                             }
                         }
                     }
                 } else {
-                    div { class: "text-center py-8",
-                        div { class: "text-4xl mb-4", "⏳" }
-                        p { class: "text-gray-600", "Loading sales person details..." }
+                    div { class: "text-center py-12",
+                        div { class: "text-6xl mb-4 text-gray-300", "⏳" }
+                        p { class: "text-lg text-gray-500", "Loading sales person details..." }
+                        div { class: "mt-4 animate-pulse",
+                            div { class: "h-2 bg-gray-200 rounded w-24 mx-auto" }
+                        }
                     }
                 }
             }
