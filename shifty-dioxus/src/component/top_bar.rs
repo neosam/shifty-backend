@@ -90,7 +90,7 @@ pub fn TopBar() -> Element {
                     }
                     if show_user_management {
                         li {
-                            Link { to: Route::UserManagementPage {}, {"User Management (beta)"} }
+                            Link { to: Route::UserManagementPage {}, {"User Management"} }
                         }
                     }
                     if auth_info.is_some() {

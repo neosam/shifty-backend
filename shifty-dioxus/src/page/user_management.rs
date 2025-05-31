@@ -24,11 +24,7 @@ pub fn UserManagementPage() -> Element {
         TopBar {}
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
-            h1 { class: "text-2xl font-bold mb-4", "User Management (beta)" }
-
-            p { class: "text-red-500 mb-4",
-                "User management is somehow working but not completed yet.  Please double check if changes you make are actually active."
-            }
+            h1 { class: "text-2xl font-bold mb-4", "User Management" }
 
             div { class: "flex justify-between gap-4",
                 div { class: "grow",
