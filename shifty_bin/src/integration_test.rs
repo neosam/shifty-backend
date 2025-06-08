@@ -801,3 +801,81 @@ proptest! {
         })
     }
 }
+
+#[test]
+fn test_vacation_at_end_of_year() {
+    use service::extra_hours::ExtraHoursService;
+
+    Runtime::new().unwrap().block_on(async {
+        // Test data setup
+        let mut test_setup = TestSetup::new().await;
+        let sales_person_id = Uuid::new_v4();
+        let sales_persons = vec![SalesPerson {
+            id: sales_person_id,
+            name: "Test".into(),
+            background_color: "#000000".into(),
+            is_paid: Some(true),
+            inactive: false,
+            deleted: None,
+            version: Uuid::nil(),
+        }];
+        let working_hours = vec![vec![EmployeeWorkDetails {
+            id: Uuid::nil(),
+            sales_person_id: sales_person_id,
+            expected_hours: 40.0,
+            from_year: 2025,
+            from_calendar_week: 1,
+            from_day_of_week: DayOfWeek::Monday,
+            to_year: 2026,
+            to_calendar_week: 52,
+            to_day_of_week: DayOfWeek::Sunday,
+            workdays_per_week: 5,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 25,
+            created: Some(time::PrimitiveDateTime::new(
+                date!(2020 - 01 - 01),
+                time::Time::MIDNIGHT,
+            )),
+            deleted: None,
+            version: Uuid::nil(),
+        }]
+        .into()];
+
+        let bookings = Vec::new();
+        test_setup
+            .insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings)
+            .await;
+
+        // Extract newly generated sales person id and add the vacation at the end of the year.
+        let rest_state = &test_setup.rest_state;
+        let sales_person_id = rest_state
+            .sales_person_service()
+            .get_all(Authentication::Full, None)
+            .await
+            .unwrap()[0]
+            .id;
+
+        // Check if can get the extra hours
+        let extra_hours = rest_state
+            .extra_hours_service()
+            .find_by_sales_person_id_and_year(sales_person_id, 2025, 52, Authentication::Full, None)
+            .await
+            .unwrap();
+        assert_eq!(extra_hours.len(), 1);
+        assert_eq!(extra_hours[0].amount, 10.0);
+
+        // Generate the report and check if the extra hours is included
+        let report = rest_state
+            .reporting_service()
+            .get_report_for_employee(&sales_person_id, 2025, 53, Authentication::Full, None)
+            .await
+            .unwrap();
+        assert_eq!(report.holiday_hours, 10.0);
+    })
+}
