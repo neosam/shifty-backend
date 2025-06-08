@@ -103,30 +103,7 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
             .await?;
         let mut extra_hours_list = extra_hours_entities
             .iter()
-            .filter(|extra_hours_entity| {
-                // Ensure consistent filtering based on until_week
-                let date_to_check = extra_hours_entity.date_time;
-                let iso_week_of_date = date_to_check.iso_week();
-                let year_of_iso_week = date_to_check.to_iso_week_date().0;
-
-                // This logic ensures we only include extra_hours up to and including the 'until_week' of the given 'year'.
-                // It correctly handles cases where 'until_week' is in a different calendar year than 'year'
-                // (e.g. 'year' is 2024, 'until_week' is 1, meaning first week of 2024 which might include dates from Dec 2023)
-                if year_of_iso_week < year as i32 {
-                    false // Belongs to a previous ISO year
-                } else if year_of_iso_week == year as i32 {
-                    iso_week_of_date <= until_week // Belongs to the target ISO year, check week
-                } else {
-                    // This case would mean year_of_iso_week > year, which shouldn't happen if DAO query is correct for 'year'
-                    // but as a safeguard, we can consider it out of range.
-                    // However, the primary filter is the DAO fetching for 'year'.
-                    // The until_week filter is what we refine here.
-                    // If the DAO fetched for 'year', and until_week is, say, 52,
-                    // an entry from week 1 of year+1 should not appear if DAO is strict.
-                    // The until_week filter is more about capping within the fetched year's weeks.
-                    false
-                }
-            })
+            .filter(|extra_hours| extra_hours.date_time.iso_week() <= until_week)
             .map(ExtraHours::from)
             .collect::<Vec<ExtraHours>>();
 

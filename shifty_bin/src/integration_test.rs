@@ -861,14 +861,62 @@ fn test_vacation_at_end_of_year() {
             .unwrap()[0]
             .id;
 
+        // Add the vacation at the end of the year
+        rest_state
+            .extra_hours_service()
+            .create(
+                &ExtraHours {
+                    id: Uuid::nil(),
+                    sales_person_id: sales_person_id,
+                    amount: 10.0,
+                    category: ExtraHoursCategory::Vacation,
+                    description: "Test".into(),
+                    date_time: time::PrimitiveDateTime::new(
+                        date!(2025 - 12 - 31),
+                        time::Time::MIDNIGHT,
+                    ),
+                    created: None,
+                    deleted: None,
+                    version: Uuid::nil(),
+                },
+                Authentication::Full,
+                None,
+            )
+            .await
+            .unwrap();
+        // Add vacation at the last full week of the year
+        rest_state
+            .extra_hours_service()
+            .create(
+                &ExtraHours {
+                    id: Uuid::nil(),
+                    sales_person_id: sales_person_id,
+                    amount: 10.0,
+                    category: ExtraHoursCategory::Vacation,
+                    description: "Test".into(),
+                    date_time: time::PrimitiveDateTime::new(
+                        date!(2025 - 10 - 28),
+                        time::Time::MIDNIGHT,
+                    ),
+                    created: None,
+                    deleted: None,
+                    version: Uuid::nil(),
+                },
+                Authentication::Full,
+                None,
+            )
+            .await
+            .unwrap();
+
         // Check if can get the extra hours
         let extra_hours = rest_state
             .extra_hours_service()
-            .find_by_sales_person_id_and_year(sales_person_id, 2025, 52, Authentication::Full, None)
+            .find_by_sales_person_id_and_year(sales_person_id, 2025, 53, Authentication::Full, None)
             .await
             .unwrap();
-        assert_eq!(extra_hours.len(), 1);
+        assert_eq!(extra_hours.len(), 2);
         assert_eq!(extra_hours[0].amount, 10.0);
+        assert_eq!(extra_hours[1].amount, 10.0);
 
         // Generate the report and check if the extra hours is included
         let report = rest_state
@@ -876,6 +924,6 @@ fn test_vacation_at_end_of_year() {
             .get_report_for_employee(&sales_person_id, 2025, 53, Authentication::Full, None)
             .await
             .unwrap();
-        assert_eq!(report.holiday_hours, 10.0);
+        assert_eq!(report.vacation_hours, 20.0);
     })
 }
