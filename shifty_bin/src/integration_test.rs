@@ -18,7 +18,7 @@ use time_macros::date;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
-use crate::{create_dev_admin_user, RestStateImpl};
+use crate::{create_admin_user, RestStateImpl};
 use dao::BasicDao;
 use service::booking::BookingService;
 use service::employee_work_details::EmployeeWorkDetailsService;
@@ -279,7 +279,7 @@ impl TestSetup {
             .unwrap();
 
         let rest_state = RestStateImpl::new(pool.clone());
-        create_dev_admin_user(pool.clone()).await;
+        create_admin_user(pool.clone(), "DEVUSER").await;
 
         let basic_dao = BasicDaoImpl::new(pool.clone());
         basic_dao.clear_all().await.unwrap();

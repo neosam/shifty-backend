@@ -604,27 +604,27 @@ impl RestStateImpl {
     }
 }
 
-async fn create_dev_admin_user(pool: Arc<SqlitePool>) {
+async fn create_admin_user(pool: Arc<SqlitePool>, username: &str) {
     use dao::PermissionDao;
     // On development create the DEVUSER and give it admin permissions.
     let permission_dao = PermissionDaoImpl::new(pool.clone());
 
     let users = permission_dao.all_users().await.expect("Expected users");
-    let contains_admin_user = users.iter().any(|user| user.name.as_ref() == "DEVUSER");
+    let contains_admin_user = users.iter().any(|user| user.name.as_ref() == username);
     if !contains_admin_user {
         permission_dao
             .create_user(
                 &dao::UserEntity {
-                    name: "DEVUSER".into(),
+                    name: username.into(),
                 },
                 "dev-first-start",
             )
             .await
-            .expect("Expected being able to create the DEVUSER");
+            .expect(&format!("Expected being able to create the {}", username));
         permission_dao
-            .add_user_role("DEVUSER", "admin", "dev-first-start")
+            .add_user_role(username, "admin", "dev-first-start")
             .await
-            .expect("Expected being able to make DEVUSER an admin");
+            .expect(&format!("Expected being able to make {} an admin", username));
     }
 }
 
@@ -664,7 +664,8 @@ async fn main() {
         .expect("Failed to run migrations");
 
     let rest_state = RestStateImpl::new(pool.clone());
-    create_dev_admin_user(pool.clone()).await;
+    create_admin_user(pool.clone(), "DEVUSER").await;
+    create_admin_user(pool.clone(), "admin").await;
 
     let scheduler_service = SchedulerServiceImpl::new(rest_state.shiftplan_edit_service.clone());
     scheduler_service
