@@ -173,13 +173,22 @@ pub struct ButtonProps {
     pub children: Element,
 
     pub on_click: Option<EventHandler<()>>,
+    
+    #[props(default = false)]
+    pub primary: bool,
 }
 
 #[component]
 pub fn Button(props: ButtonProps) -> Element {
+    let button_class = if props.primary {
+        "px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors border-2 border-blue-600 hover:border-blue-700"
+    } else {
+        "border-2 border-gray-200 p-2"
+    };
+    
     rsx! {
         button {
-            class: "border-2 border-gray-200 p-2",
+            class: button_class,
             onclick: move |evt| {
                 evt.prevent_default();
                 if let Some(on_click) = &props.on_click {

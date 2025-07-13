@@ -200,9 +200,9 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                     },
                                     "Cancel"
                                 }
-                                button {
-                                    class: "px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors border-2 border-blue-600 hover:border-blue-700",
-                                    onclick: move |_| {
+                                Button {
+                                    primary: true,
+                                    on_click: move |_| {
                                         user_management_service.send(UserManagementAction::SaveSalesPersonAndNavigate);
                                     },
                                     "Save Changes"
