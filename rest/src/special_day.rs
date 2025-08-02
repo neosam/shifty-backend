@@ -8,6 +8,7 @@ use axum::{
 use rest_types::SpecialDayTO;
 use std::sync::Arc;
 use tracing::instrument;
+use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -24,6 +25,19 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/for-week/{year}/{calendar_week}",
+    tags = ["Special Days"],
+    params(
+        ("year" = u32, Path, description = "The year"),
+        ("calendar_week" = u8, Path, description = "The calendar week")
+    ),
+    responses(
+        (status = 200, description = "Get special days for a week", body = [SpecialDayTO], content_type = "application/json"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub async fn get_special_days_for_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -48,6 +62,16 @@ pub async fn get_special_days_for_week<RestState: RestStateDef>(
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    post,
+    path = "",
+    tags = ["Special Days"],
+    request_body = SpecialDayTO,
+    responses(
+        (status = 201, description = "Create a special day", body = SpecialDayTO, content_type = "application/json"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub async fn create_special_days<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -71,6 +95,18 @@ pub async fn create_special_days<RestState: RestStateDef>(
 }
 
 #[instrument(skip(rest_state))]
+#[utoipa::path(
+    delete,
+    path = "/{id}",
+    tags = ["Special Days"],
+    params(
+        ("id" = Uuid, Path, description = "Special day ID")
+    ),
+    responses(
+        (status = 204, description = "Special day deleted successfully"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub async fn delete_special_day<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
@@ -87,3 +123,17 @@ pub async fn delete_special_day<RestState: RestStateDef>(
         .await,
     )
 }
+
+#[derive(OpenApi)]
+#[openapi(
+    tags(
+        (name = "Special Days", description = "Special Days API")
+    ),
+    paths(
+        get_special_days_for_week,
+        create_special_days,
+        delete_special_day
+    ),
+    components(schemas(SpecialDayTO))
+)]
+pub struct SpecialDayApiDoc;

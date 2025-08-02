@@ -794,7 +794,7 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub enum SpecialDayTypeTO {
     Holiday,
     ShortDay,
@@ -884,7 +884,7 @@ impl From<&service::shiftplan::ShiftplanWeek> for ShiftplanWeekTO {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct SpecialDayTO {
     #[serde(default)]
     pub id: Uuid,
@@ -892,10 +892,13 @@ pub struct SpecialDayTO {
     pub calendar_week: u8,
     pub day_of_week: DayOfWeekTO,
     pub day_type: SpecialDayTypeTO,
+    #[schema(value_type = Option<String>, format = "time")]
     pub time_of_day: Option<time::Time>,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
     pub created: Option<time::PrimitiveDateTime>,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
     pub deleted: Option<time::PrimitiveDateTime>,
     #[serde(rename = "$version")]
     #[serde(default)]
