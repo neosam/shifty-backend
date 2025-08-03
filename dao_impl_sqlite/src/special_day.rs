@@ -3,10 +3,8 @@ use std::sync::Arc;
 use crate::DaoError;
 use crate::ResultDbErrorExt;
 use async_trait::async_trait;
-use dao::{
-    slot::DayOfWeek,
-    special_day::{SpecialDayDao, SpecialDayEntity, SpecialDayTypeEntity},
-};
+use dao::special_day::{SpecialDayDao, SpecialDayEntity, SpecialDayTypeEntity};
+use shifty_utils::DayOfWeek;
 use sqlx::query_as;
 use time::macros::format_description;
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime, Time};

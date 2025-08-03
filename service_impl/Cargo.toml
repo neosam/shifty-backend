@@ -20,6 +20,9 @@ path = "../service"
 [dependencies.dao]
 path = "../dao"
 
+[dependencies.shifty-utils]
+path = "../shifty-utils"
+
 [dependencies.time]
 version = "0.3.36"
 features = ["std", "formatting", "macros"]

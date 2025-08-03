@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use std::sync::Arc;
 use time::error::ComponentRange;
 use uuid::Uuid;
 
-use crate::slot::DayOfWeek;
 use crate::DaoError;
 
 #[derive(Clone, Debug, PartialEq)]

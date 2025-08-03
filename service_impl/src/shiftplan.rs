@@ -5,10 +5,11 @@ use service::{
     permission::Authentication,
     sales_person::SalesPersonService,
     shiftplan::{ShiftplanBooking, ShiftplanDay, ShiftplanService, ShiftplanSlot, ShiftplanWeek},
-    slot::{DayOfWeek, SlotService},
+    slot::SlotService,
     special_days::SpecialDayService,
     ServiceError,
 };
+use shifty_utils::DayOfWeek;
 
 use crate::gen_service_impl;
 

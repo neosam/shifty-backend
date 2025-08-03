@@ -4,9 +4,9 @@ use crate::ResultDbErrorExt;
 use async_trait::async_trait;
 use dao::{
     sales_person_unavailable::{SalesPersonUnavailableDao, SalesPersonUnavailableEntity},
-    slot::DayOfWeek,
     DaoError,
 };
+use shifty_utils::DayOfWeek;
 use sqlx::{query, query_as};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;

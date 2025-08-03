@@ -1,6 +1,7 @@
-use crate::{slot::DayOfWeek, DaoError};
+use crate::DaoError;
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use std::sync::Arc;
 use time::PrimitiveDateTime;
 use uuid::Uuid;

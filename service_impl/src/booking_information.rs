@@ -21,6 +21,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
+use shifty_utils::DayOfWeek;
 use tokio::join;
 use uuid::Uuid;
 
@@ -320,7 +321,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     && (d.to_year > year || (d.to_year == year && d.to_calendar_week >= week))
             }) {
                 // Check each day if employee is available (not in unavailable_days)
-                let is_unavailable = |day: service::slot::DayOfWeek| {
+                let is_unavailable = |day: DayOfWeek| {
                     unavailable_days
                         .iter()
                         .any(|ud| ud.sales_person_id == employee_id && ud.day_of_week == day)
@@ -332,13 +333,13 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     .iter()
                     .filter(|&day| {
                         let service_day = match day {
-                            time::Weekday::Monday => service::slot::DayOfWeek::Monday,
-                            time::Weekday::Tuesday => service::slot::DayOfWeek::Tuesday,
-                            time::Weekday::Wednesday => service::slot::DayOfWeek::Wednesday,
-                            time::Weekday::Thursday => service::slot::DayOfWeek::Thursday,
-                            time::Weekday::Friday => service::slot::DayOfWeek::Friday,
-                            time::Weekday::Saturday => service::slot::DayOfWeek::Saturday,
-                            time::Weekday::Sunday => service::slot::DayOfWeek::Sunday,
+                            time::Weekday::Monday => DayOfWeek::Monday,
+                            time::Weekday::Tuesday => DayOfWeek::Tuesday,
+                            time::Weekday::Wednesday => DayOfWeek::Wednesday,
+                            time::Weekday::Thursday => DayOfWeek::Thursday,
+                            time::Weekday::Friday => DayOfWeek::Friday,
+                            time::Weekday::Saturday => DayOfWeek::Saturday,
+                            time::Weekday::Sunday => DayOfWeek::Sunday,
                         };
                         !is_unavailable(service_day)
                     })
@@ -348,7 +349,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     let hours_per_day = details.expected_hours / working_days;
 
                     // Check each day if employee is available (not in unavailable_days)
-                    let is_unavailable = |day: service::slot::DayOfWeek| {
+                    let is_unavailable = |day: DayOfWeek| {
                         unavailable_days
                             .iter()
                             .any(|ud| ud.sales_person_id == employee_id && ud.day_of_week == day)
@@ -357,30 +358,24 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     // Add hours to each working day if employee is available
                     for day in details.potential_weekday_list().iter() {
                         let service_day = match day {
-                            time::Weekday::Monday => service::slot::DayOfWeek::Monday,
-                            time::Weekday::Tuesday => service::slot::DayOfWeek::Tuesday,
-                            time::Weekday::Wednesday => service::slot::DayOfWeek::Wednesday,
-                            time::Weekday::Thursday => service::slot::DayOfWeek::Thursday,
-                            time::Weekday::Friday => service::slot::DayOfWeek::Friday,
-                            time::Weekday::Saturday => service::slot::DayOfWeek::Saturday,
-                            time::Weekday::Sunday => service::slot::DayOfWeek::Sunday,
+                            time::Weekday::Monday => DayOfWeek::Monday,
+                            time::Weekday::Tuesday => DayOfWeek::Tuesday,
+                            time::Weekday::Wednesday => DayOfWeek::Wednesday,
+                            time::Weekday::Thursday => DayOfWeek::Thursday,
+                            time::Weekday::Friday => DayOfWeek::Friday,
+                            time::Weekday::Saturday => DayOfWeek::Saturday,
+                            time::Weekday::Sunday => DayOfWeek::Sunday,
                         };
 
                         if !is_unavailable(service_day) {
                             match service_day {
-                                service::slot::DayOfWeek::Monday => monday_hours += hours_per_day,
-                                service::slot::DayOfWeek::Tuesday => tuesday_hours += hours_per_day,
-                                service::slot::DayOfWeek::Wednesday => {
-                                    wednesday_hours += hours_per_day
-                                }
-                                service::slot::DayOfWeek::Thursday => {
-                                    thursday_hours += hours_per_day
-                                }
-                                service::slot::DayOfWeek::Friday => friday_hours += hours_per_day,
-                                service::slot::DayOfWeek::Saturday => {
-                                    saturday_hours += hours_per_day
-                                }
-                                service::slot::DayOfWeek::Sunday => sunday_hours += hours_per_day,
+                                DayOfWeek::Monday => monday_hours += hours_per_day,
+                                DayOfWeek::Tuesday => tuesday_hours += hours_per_day,
+                                DayOfWeek::Wednesday => wednesday_hours += hours_per_day,
+                                DayOfWeek::Thursday => thursday_hours += hours_per_day,
+                                DayOfWeek::Friday => friday_hours += hours_per_day,
+                                DayOfWeek::Saturday => saturday_hours += hours_per_day,
+                                DayOfWeek::Sunday => sunday_hours += hours_per_day,
                             }
                         }
                     }
@@ -400,13 +395,13 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
             .fold((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), |mut acc, report| {
                 match report.day_of_week {
-                    service::slot::DayOfWeek::Monday => acc.0 += report.hours,
-                    service::slot::DayOfWeek::Tuesday => acc.1 += report.hours,
-                    service::slot::DayOfWeek::Wednesday => acc.2 += report.hours,
-                    service::slot::DayOfWeek::Thursday => acc.3 += report.hours,
-                    service::slot::DayOfWeek::Friday => acc.4 += report.hours,
-                    service::slot::DayOfWeek::Saturday => acc.5 += report.hours,
-                    service::slot::DayOfWeek::Sunday => acc.6 += report.hours,
+                    DayOfWeek::Monday => acc.0 += report.hours,
+                    DayOfWeek::Tuesday => acc.1 += report.hours,
+                    DayOfWeek::Wednesday => acc.2 += report.hours,
+                    DayOfWeek::Thursday => acc.3 += report.hours,
+                    DayOfWeek::Friday => acc.4 += report.hours,
+                    DayOfWeek::Saturday => acc.5 += report.hours,
+                    DayOfWeek::Sunday => acc.6 += report.hours,
                 }
                 acc
             });
@@ -428,13 +423,13 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     let hours =
                         (slot.to - slot.from).as_seconds_f32() / 3600.0 * slot.min_resources as f32;
                     match slot.day_of_week {
-                        service::slot::DayOfWeek::Monday => acc.0 += hours,
-                        service::slot::DayOfWeek::Tuesday => acc.1 += hours,
-                        service::slot::DayOfWeek::Wednesday => acc.2 += hours,
-                        service::slot::DayOfWeek::Thursday => acc.3 += hours,
-                        service::slot::DayOfWeek::Friday => acc.4 += hours,
-                        service::slot::DayOfWeek::Saturday => acc.5 += hours,
-                        service::slot::DayOfWeek::Sunday => acc.6 += hours,
+                        DayOfWeek::Monday => acc.0 += hours,
+                        DayOfWeek::Tuesday => acc.1 += hours,
+                        DayOfWeek::Wednesday => acc.2 += hours,
+                        DayOfWeek::Thursday => acc.3 += hours,
+                        DayOfWeek::Friday => acc.4 += hours,
+                        DayOfWeek::Saturday => acc.5 += hours,
+                        DayOfWeek::Sunday => acc.6 += hours,
                     }
                     acc
                 });

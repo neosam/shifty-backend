@@ -11,6 +11,7 @@ use service::{
     clock::MockClockService, slot::*, uuid_service::MockUuidService, MockPermissionService,
     ValidationFailureItem,
 };
+use shifty_utils::DayOfWeek;
 use time::{Date, Month, PrimitiveDateTime, Time};
 use tokio;
 use uuid::{uuid, Uuid};
@@ -41,7 +42,7 @@ pub fn generate_default_slot() -> Slot {
 pub fn generate_default_slot_entity() -> SlotEntity {
     SlotEntity {
         id: uuid!("682DA62E-20CB-49D9-A2A7-3F53C6842405"),
-        day_of_week: dao::slot::DayOfWeek::Monday,
+        day_of_week: DayOfWeek::Monday,
         from: time::Time::from_hms(10, 0, 0).unwrap(),
         to: time::Time::from_hms(11, 0, 0).unwrap(),
         min_resources: 2,
@@ -794,7 +795,7 @@ async fn test_update_slot_day_of_week_forbidden() {
     let result = slot_service
         .update_slot(
             &service::slot::Slot {
-                day_of_week: service::slot::DayOfWeek::Friday,
+                day_of_week: DayOfWeek::Friday,
                 ..generate_default_slot()
             },
             ().auth(),

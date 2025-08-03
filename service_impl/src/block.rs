@@ -9,9 +9,10 @@ use service::{
     permission::Authentication,
     sales_person::SalesPersonService,
     shiftplan::ShiftplanService,
-    slot::{DayOfWeek, Slot, SlotService},
+    slot::{Slot, SlotService},
     ServiceError,
 };
+use shifty_utils::DayOfWeek;
 use tracing::instrument;
 use uuid::Uuid;
 

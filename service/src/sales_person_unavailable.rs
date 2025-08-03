@@ -8,8 +8,8 @@ use mockall::automock;
 use uuid::Uuid;
 
 use crate::permission::Authentication;
-use crate::slot::DayOfWeek;
 use crate::ServiceError;
+use shifty_utils::DayOfWeek;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SalesPersonUnavailable {

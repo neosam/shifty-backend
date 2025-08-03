@@ -1,10 +1,8 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use dao::{
-    slot::{DayOfWeek, SlotEntity},
-    DaoError,
-};
+use dao::{slot::SlotEntity, DaoError};
+use shifty_utils::DayOfWeek;
 use sqlx::{query, SqlitePool};
 use time::{
     format_description::well_known::Iso8601, macros::format_description, Date, PrimitiveDateTime,

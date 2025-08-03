@@ -14,6 +14,7 @@ use service::{
     MockPermissionService, ServiceError,
 };
 
+use shifty_utils::DayOfWeek;
 use uuid::{uuid, Uuid};
 
 use crate::sales_person_unavailable::{
@@ -137,7 +138,7 @@ pub fn default_sales_person_unavailable_entity() -> SalesPersonUnavailableEntity
         sales_person_id: default_sales_person_id(),
         year: 2063,
         calendar_week: 42,
-        day_of_week: dao::slot::DayOfWeek::Friday,
+        day_of_week: DayOfWeek::Friday,
         created: time::PrimitiveDateTime::new(
             time::Date::from_calendar_date(2063, 4.try_into().unwrap(), 5).unwrap(),
             time::Time::from_hms(23, 42, 0).unwrap(),
@@ -153,7 +154,7 @@ pub fn alternate_sales_person_unavailable_entity() -> SalesPersonUnavailableEnti
         sales_person_id: default_sales_person_id(),
         year: 2063,
         calendar_week: 42,
-        day_of_week: dao::slot::DayOfWeek::Friday,
+        day_of_week: DayOfWeek::Friday,
         created: time::PrimitiveDateTime::new(
             time::Date::from_calendar_date(2063, 4.try_into().unwrap(), 5).unwrap(),
             time::Time::from_hms(23, 42, 0).unwrap(),
@@ -170,7 +171,7 @@ pub fn default_sales_person_unavailable(
         sales_person_id: default_sales_person_id(),
         year: 2063,
         calendar_week: 42,
-        day_of_week: service::slot::DayOfWeek::Friday,
+        day_of_week: DayOfWeek::Friday,
         created: Some(time::PrimitiveDateTime::new(
             time::Date::from_calendar_date(2063, 4.try_into().unwrap(), 5).unwrap(),
             time::Time::from_hms(23, 42, 0).unwrap(),
@@ -187,7 +188,7 @@ pub fn alternate_sales_person_unavailable(
         sales_person_id: default_sales_person_id(),
         year: 2063,
         calendar_week: 42,
-        day_of_week: service::slot::DayOfWeek::Friday,
+        day_of_week: DayOfWeek::Friday,
         created: Some(time::PrimitiveDateTime::new(
             time::Date::from_calendar_date(2063, 4.try_into().unwrap(), 5).unwrap(),
             time::Time::from_hms(23, 42, 0).unwrap(),

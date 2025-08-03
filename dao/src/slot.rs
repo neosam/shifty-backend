@@ -2,45 +2,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use uuid::Uuid;
 
 use crate::DaoError;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum DayOfWeek {
-    Monday,
-    Tuesday,
-    Wednesday,
-    Thursday,
-    Friday,
-    Saturday,
-    Sunday,
-}
-impl DayOfWeek {
-    pub fn from_number(number: u8) -> Option<Self> {
-        match number {
-            1 => Some(DayOfWeek::Monday),
-            2 => Some(DayOfWeek::Tuesday),
-            3 => Some(DayOfWeek::Wednesday),
-            4 => Some(DayOfWeek::Thursday),
-            5 => Some(DayOfWeek::Friday),
-            6 => Some(DayOfWeek::Saturday),
-            7 => Some(DayOfWeek::Sunday),
-            _ => None,
-        }
-    }
-    pub fn to_number(&self) -> u8 {
-        match self {
-            DayOfWeek::Monday => 1,
-            DayOfWeek::Tuesday => 2,
-            DayOfWeek::Wednesday => 3,
-            DayOfWeek::Thursday => 4,
-            DayOfWeek::Friday => 5,
-            DayOfWeek::Saturday => 6,
-            DayOfWeek::Sunday => 7,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SlotEntity {

@@ -4,9 +4,10 @@ use service::{
     booking::MockBookingService,
     sales_person::{MockSalesPersonService, SalesPerson},
     shiftplan::ShiftplanService,
-    slot::{DayOfWeek, MockSlotService, Slot},
+    slot::{MockSlotService, Slot},
     special_days::{MockSpecialDayService, SpecialDay},
 };
+use shifty_utils::DayOfWeek;
 use std::sync::Arc;
 use time::{Date, Month, Time};
 use uuid::{uuid, Uuid};

@@ -1,7 +1,7 @@
-use crate::slot::DayOfWeek;
 use crate::{permission::Authentication, ServiceError};
 use dao::Transaction;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]

@@ -4,9 +4,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::special_day::{SpecialDayEntity, SpecialDayTypeEntity};
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use uuid::Uuid;
 
-use crate::{permission::Authentication, slot::DayOfWeek, ServiceError};
+use crate::{permission::Authentication, ServiceError};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpecialDayType {

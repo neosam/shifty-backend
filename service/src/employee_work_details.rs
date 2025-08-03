@@ -4,12 +4,12 @@ use std::u32;
 
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use time::error::ComponentRange;
 use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
 
 use crate::permission::Authentication;
-use crate::slot::DayOfWeek;
 use crate::ServiceError;
 
 #[derive(Clone, Debug, PartialEq)]

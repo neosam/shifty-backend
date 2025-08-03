@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use dao::MockTransaction;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use time::Weekday;
@@ -8,102 +9,6 @@ use uuid::Uuid;
 
 use crate::permission::Authentication;
 use crate::ServiceError;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
-pub enum DayOfWeek {
-    Monday,
-    Tuesday,
-    Wednesday,
-    Thursday,
-    Friday,
-    Saturday,
-    Sunday,
-}
-
-impl Display for DayOfWeek {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                DayOfWeek::Monday => "Monday",
-                DayOfWeek::Tuesday => "Tuesday",
-                DayOfWeek::Wednesday => "Wednesday",
-                DayOfWeek::Thursday => "Thursday",
-                DayOfWeek::Friday => "Friday",
-                DayOfWeek::Saturday => "Saturday",
-                DayOfWeek::Sunday => "Sunday",
-            }
-        )
-    }
-}
-
-impl DayOfWeek {
-    pub fn to_number(&self) -> u8 {
-        match self {
-            DayOfWeek::Monday => 1,
-            DayOfWeek::Tuesday => 2,
-            DayOfWeek::Wednesday => 3,
-            DayOfWeek::Thursday => 4,
-            DayOfWeek::Friday => 5,
-            DayOfWeek::Saturday => 6,
-            DayOfWeek::Sunday => 7,
-        }
-    }
-}
-
-impl From<dao::slot::DayOfWeek> for DayOfWeek {
-    fn from(day_of_week: dao::slot::DayOfWeek) -> Self {
-        match day_of_week {
-            dao::slot::DayOfWeek::Monday => Self::Monday,
-            dao::slot::DayOfWeek::Tuesday => Self::Tuesday,
-            dao::slot::DayOfWeek::Wednesday => Self::Wednesday,
-            dao::slot::DayOfWeek::Thursday => Self::Thursday,
-            dao::slot::DayOfWeek::Friday => Self::Friday,
-            dao::slot::DayOfWeek::Saturday => Self::Saturday,
-            dao::slot::DayOfWeek::Sunday => Self::Sunday,
-        }
-    }
-}
-impl From<DayOfWeek> for dao::slot::DayOfWeek {
-    fn from(day_of_week: DayOfWeek) -> Self {
-        match day_of_week {
-            DayOfWeek::Monday => Self::Monday,
-            DayOfWeek::Tuesday => Self::Tuesday,
-            DayOfWeek::Wednesday => Self::Wednesday,
-            DayOfWeek::Thursday => Self::Thursday,
-            DayOfWeek::Friday => Self::Friday,
-            DayOfWeek::Saturday => Self::Saturday,
-            DayOfWeek::Sunday => Self::Sunday,
-        }
-    }
-}
-impl From<Weekday> for DayOfWeek {
-    fn from(weekday: Weekday) -> Self {
-        match weekday {
-            Weekday::Monday => Self::Monday,
-            Weekday::Tuesday => Self::Tuesday,
-            Weekday::Wednesday => Self::Wednesday,
-            Weekday::Thursday => Self::Thursday,
-            Weekday::Friday => Self::Friday,
-            Weekday::Saturday => Self::Saturday,
-            Weekday::Sunday => Self::Sunday,
-        }
-    }
-}
-impl From<DayOfWeek> for Weekday {
-    fn from(day_of_week: DayOfWeek) -> Self {
-        match day_of_week {
-            DayOfWeek::Monday => Self::Monday,
-            DayOfWeek::Tuesday => Self::Tuesday,
-            DayOfWeek::Wednesday => Self::Wednesday,
-            DayOfWeek::Thursday => Self::Thursday,
-            DayOfWeek::Friday => Self::Friday,
-            DayOfWeek::Saturday => Self::Saturday,
-            DayOfWeek::Sunday => Self::Sunday,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Slot {

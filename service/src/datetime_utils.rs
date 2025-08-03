@@ -1,8 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use shifty_utils::DayOfWeek;
 use time::{error::ComponentRange, Date};
-
-use crate::slot::DayOfWeek;
 
 pub fn calenar_week_to_date(
     year: i32,

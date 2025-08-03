@@ -1,10 +1,9 @@
 use crate::DaoError;
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use std::sync::Arc;
 use uuid::Uuid;
-
-use crate::slot::DayOfWeek;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpecialDayTypeEntity {

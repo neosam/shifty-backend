@@ -2,13 +2,10 @@ use std::sync::Arc;
 
 use crate::permission::Authentication;
 use crate::ServiceError;
-use crate::{
-    booking::Booking,
-    sales_person::SalesPerson,
-    slot::{DayOfWeek, Slot},
-};
+use crate::{booking::Booking, sales_person::SalesPerson, slot::Slot};
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::DayOfWeek;
 use time::Time;
 use uuid::Uuid;
 

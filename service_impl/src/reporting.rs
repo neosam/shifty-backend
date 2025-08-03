@@ -15,10 +15,10 @@ use service::{
     },
     sales_person::SalesPersonService,
     shiftplan_report::{ShiftplanReportDay, ShiftplanReportService},
-    slot::DayOfWeek,
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
+use shifty_utils::DayOfWeek;
 use tokio::join;
 use tracing::info;
 use uuid::Uuid;

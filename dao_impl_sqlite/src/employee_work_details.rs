@@ -4,9 +4,9 @@ use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
     employee_work_details::{EmployeeWorkDetailsDao, EmployeeWorkDetailsEntity},
-    slot::DayOfWeek,
     DaoError,
 };
+use shifty_utils::DayOfWeek;
 use sqlx::{query, query_as};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;

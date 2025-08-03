@@ -4,9 +4,9 @@ use crate::ResultDbErrorExt;
 use async_trait::async_trait;
 use dao::{
     shiftplan_report::{ShiftplanQuickOverviewEntity, ShiftplanReportDao, ShiftplanReportEntity},
-    slot::DayOfWeek,
     DaoError,
 };
+use shifty_utils::DayOfWeek;
 use sqlx::query_as;
 use uuid::Uuid;
 
