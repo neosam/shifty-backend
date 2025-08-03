@@ -17,6 +17,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mockall::automock;
 use shifty_utils::LazyLoad;
+use shifty_utils::ShiftyDate;
+use shifty_utils::ShiftyWeek;
 use uuid::Uuid;
 
 use crate::{custom_extra_hours::CustomExtraHours, permission::Authentication, ServiceError};
@@ -161,6 +163,12 @@ impl TryFrom<&ExtraHours> for dao::extra_hours::ExtraHoursEntity {
     }
 }
 
+impl ExtraHours {
+    pub fn to_date(&self) -> ShiftyDate {
+        ShiftyDate::from(self.date_time)
+    }
+}
+
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait ExtraHoursService {
@@ -172,6 +180,15 @@ pub trait ExtraHoursService {
         sales_person_id: Uuid,
         year: u32,
         until_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[ExtraHours]>, ServiceError>;
+
+    async fn find_by_sales_person_id_and_year_range(
+        &self,
+        sales_person_id: Uuid,
+        from_week: ShiftyWeek,
+        to_week: ShiftyWeek,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;

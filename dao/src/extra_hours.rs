@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
+use shifty_utils::ShiftyDate;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,6 +28,12 @@ pub struct ExtraHoursEntity {
     pub version: Uuid,
 }
 
+impl ExtraHoursEntity {
+    pub fn as_date(&self) -> ShiftyDate {
+        ShiftyDate::from_date(self.date_time.date())
+    }
+}
+
 #[automock(type Transaction = crate::MockTransaction;)]
 #[async_trait]
 pub trait ExtraHoursDao {
@@ -37,10 +44,11 @@ pub trait ExtraHoursDao {
         id: Uuid,
         tx: Self::Transaction,
     ) -> Result<Option<ExtraHoursEntity>, crate::DaoError>;
-    async fn find_by_sales_person_id_and_year(
+    async fn find_by_sales_person_id_and_years(
         &self,
         sales_person_id: Uuid,
-        year: u32,
+        from_year: u32,
+        to_year: u32,
         tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
     async fn find_by_week(

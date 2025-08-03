@@ -96,6 +96,9 @@ pub enum ServiceError {
     #[error("Time format error: {0}")]
     TimeFormatError(#[from] time::error::Format),
 
+    #[error("ShiftyDateUtils error: {0}")]
+    ShiftyDateUtilsError(#[from] shifty_utils::ShiftyDateUtilsError),
+
     #[error("Internal error")]
     InternalError,
 }

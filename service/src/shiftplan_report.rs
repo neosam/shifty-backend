@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use dao::MockTransaction;
 use mockall::automock;
-use shifty_utils::DayOfWeek;
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyDateUtilsError};
 use std::fmt::Debug;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -18,17 +18,8 @@ pub struct ShiftplanReportDay {
 }
 
 impl ShiftplanReportDay {
-    pub fn to_date(&self) -> Result<time::Date, time::error::ComponentRange> {
-        let weekday = match self.day_of_week {
-            DayOfWeek::Monday => time::Weekday::Monday,
-            DayOfWeek::Tuesday => time::Weekday::Tuesday,
-            DayOfWeek::Wednesday => time::Weekday::Wednesday,
-            DayOfWeek::Thursday => time::Weekday::Thursday,
-            DayOfWeek::Friday => time::Weekday::Friday,
-            DayOfWeek::Saturday => time::Weekday::Saturday,
-            DayOfWeek::Sunday => time::Weekday::Sunday,
-        };
-        time::Date::from_iso_week_date(self.year as i32, self.calendar_week, weekday)
+    pub fn to_date(&self) -> Result<ShiftyDate, ShiftyDateUtilsError> {
+        ShiftyDate::new(self.year, self.calendar_week, self.day_of_week)
     }
 }
 

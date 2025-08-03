@@ -10,9 +10,10 @@ use service::{
     permission::Authentication,
     reporting::EmployeeReport,
     sales_person::SalesPerson,
-    slot::{DayOfWeek, Slot},
+    slot::Slot,
     ServiceError, ValidationFailureItem,
 };
+use shifty_utils::DayOfWeek;
 use sqlx::SqlitePool;
 use time_macros::date;
 use tokio::runtime::Runtime;
@@ -319,44 +320,44 @@ impl TestSetup {
                     .unwrap(),
             );
         }
-        for (i, working_hours) in working_hours_test_data.iter().enumerate() {
-            for mut working_hour in working_hours.iter().cloned() {
-                working_hour.id = Uuid::nil();
-                working_hour.version = Uuid::nil();
-                working_hour.created = None;
-                working_hour.sales_person_id = created_sales_persons[i].id;
-                let possible_workdays = workdays_of_employee_work_details(&working_hour);
+        for (i, working_hour_contracts) in working_hours_test_data.iter().enumerate() {
+            for mut working_hour_contract in working_hour_contracts.iter().cloned() {
+                working_hour_contract.id = Uuid::nil();
+                working_hour_contract.version = Uuid::nil();
+                working_hour_contract.created = None;
+                working_hour_contract.sales_person_id = created_sales_persons[i].id;
+                let possible_workdays = workdays_of_employee_work_details(&working_hour_contract);
                 let mut date = time::Date::from_iso_week_date(
-                    working_hour.from_year as i32,
-                    working_hour.from_calendar_week,
-                    working_hour.from_day_of_week.into(),
+                    working_hour_contract.from_year as i32,
+                    working_hour_contract.from_calendar_week,
+                    working_hour_contract.from_day_of_week.into(),
                 )
                 .unwrap();
                 let end_date = time::Date::from_iso_week_date(
-                    working_hour.to_year as i32,
-                    working_hour.to_calendar_week,
-                    working_hour.to_day_of_week.into(),
+                    working_hour_contract.to_year as i32,
+                    working_hour_contract.to_calendar_week,
+                    working_hour_contract.to_day_of_week.into(),
                 )
                 .unwrap();
                 while date <= end_date {
-                    if employee_work_details_has_weekday(&working_hour, date.weekday()) {
+                    if employee_work_details_has_weekday(&working_hour_contract, date.weekday()) {
                         let sales_person_hours = expected_hours
-                            .entry(working_hour.sales_person_id)
+                            .entry(working_hour_contract.sales_person_id)
                             .or_insert(HashMap::new());
                         *sales_person_hours.entry(date.year() as u32).or_insert(0.0) +=
-                            working_hour.expected_hours / possible_workdays as f32;
+                            working_hour_contract.expected_hours / possible_workdays as f32;
                         let balance_hours = balance_hours
-                            .entry(working_hour.sales_person_id)
+                            .entry(working_hour_contract.sales_person_id)
                             .or_insert(HashMap::new());
                         *balance_hours.entry(date.year() as u32).or_insert(0.0) -=
-                            working_hour.expected_hours / possible_workdays as f32;
+                            working_hour_contract.expected_hours / possible_workdays as f32;
                     }
                     date += time::Duration::DAY;
                 }
 
                 rest_state
                     .working_hours_service()
-                    .create(&working_hour, Authentication::Full, None)
+                    .create(&working_hour_contract, Authentication::Full, None)
                     .await
                     .unwrap();
             }
@@ -540,20 +541,25 @@ proptest! {
             let working_hours = vec![vec![EmployeeWorkDetails {
                 id: Uuid::nil(),
                 sales_person_id: Uuid::nil(),
-                expected_hours: 40.0,
-                from_year: 2000,
-                from_calendar_week: 1,
-                from_day_of_week: DayOfWeek::Monday,
+                expected_hours: 30.0,
+
+                // 1st of January 2000
+                from_year: 1999,
+                from_calendar_week: 52,
+                from_day_of_week: DayOfWeek::Saturday,
+
+                // 31st of December 2005
                 to_year: 2005,
                 to_calendar_week: 52,
-                to_day_of_week: DayOfWeek::Sunday,
-                workdays_per_week: 5,
+                to_day_of_week: DayOfWeek::Saturday,
+
+                workdays_per_week: 6,
                 monday: true,
                 tuesday: true,
                 wednesday: true,
                 thursday: true,
                 friday: true,
-                saturday: false,
+                saturday: true,
                 sunday: false,
                 vacation_days: 25,
                 created: Some(time::PrimitiveDateTime::new(date!(2020-01-01), time::Time::MIDNIGHT)),
@@ -571,18 +577,18 @@ proptest! {
             let bookings = rest_state.booking_service().get_all(Authentication::Full, None).await.unwrap();
             assert_eq!(bookings.len(), 1);
 
-            let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 53, Authentication::Full, None).await.unwrap();
+            let report = rest_state.reporting_service().get_reports_for_all_employees(2000, 52, Authentication::Full, None).await.unwrap();
             assert_eq!(report.len(), 1);
             let sales_person_report = &report[0];
             assert_eq!(sales_person_report.sales_person.name, testdata.0.name);
             let working_hours = test_setup.working_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
             let expected_hours = test_setup.expected_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
             let balance_hours = test_setup.balance_hours.get(&sales_person_report.sales_person.id).unwrap().get(&2000).copied().unwrap_or(0.0);
-            assert_eq!(sales_person_report.overall_hours, working_hours);
-            assert_eq!(sales_person_report.expected_hours, expected_hours);
-            assert_eq!(sales_person_report.balance_hours, balance_hours);
+            assert_eq!(sales_person_report.overall_hours, working_hours, "Expect that working hours {} match {}", sales_person_report.overall_hours, working_hours);
+            assert_eq!(sales_person_report.expected_hours, expected_hours, "Expect that expected hours {} match {}", sales_person_report.expected_hours, expected_hours);
+            assert_eq!(sales_person_report.balance_hours, balance_hours, "Expect that balance hours {} match {}", sales_person_report.balance_hours, balance_hours);
 
-            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2000, 53, Authentication::Full, None).await.unwrap();
+            let detailed_report = rest_state.reporting_service().get_report_for_employee(&sales_person_id, 2000, 52, Authentication::Full, None).await.unwrap();
             assert_eq!(detailed_report.sales_person.name, testdata.0.name);
             assert_eq!(floor_f32(detailed_report.overall_hours), floor_f32(sales_person_report.overall_hours));
             assert_eq!(floor_f32(detailed_report.expected_hours), floor_f32(sales_person_report.expected_hours));
@@ -667,12 +673,16 @@ proptest! {
                 id: Uuid::nil(),
                 sales_person_id: Uuid::nil(),
                 expected_hours: 40.0,
-                from_year: 2000,
-                from_calendar_week: 1,
-                from_day_of_week: DayOfWeek::Monday,
+
+                // 1st of January 2000
+                from_year: 1999,
+                from_calendar_week: 52,
+                from_day_of_week: DayOfWeek::Saturday,
+
+                // 31st of December 2005
                 to_year: 2005,
                 to_calendar_week: 52,
-                to_day_of_week: DayOfWeek::Sunday,
+                to_day_of_week: DayOfWeek::Saturday,
                 workdays_per_week: 5,
                 monday: true,
                 tuesday: true,
@@ -891,7 +901,7 @@ fn test_vacation_at_end_of_year() {
                 &ExtraHours {
                     id: Uuid::nil(),
                     sales_person_id: sales_person_id,
-                    amount: 10.0,
+                    amount: 5.0,
                     category: ExtraHoursCategory::Vacation,
                     description: "Test".into(),
                     date_time: time::PrimitiveDateTime::new(
@@ -909,13 +919,18 @@ fn test_vacation_at_end_of_year() {
             .unwrap();
 
         // Check if can get the extra hours
-        let extra_hours = rest_state
+        let mut extra_hours: Vec<ExtraHours> = rest_state
             .extra_hours_service()
             .find_by_sales_person_id_and_year(sales_person_id, 2025, 53, Authentication::Full, None)
             .await
-            .unwrap();
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect();
+        extra_hours.sort_by_key(|extra_hour| extra_hour.date_time);
+        dbg!(&extra_hours);
         assert_eq!(extra_hours.len(), 2);
-        assert_eq!(extra_hours[0].amount, 10.0);
+        assert_eq!(extra_hours[0].amount, 5.0);
         assert_eq!(extra_hours[1].amount, 10.0);
 
         // Generate the report and check if the extra hours is included
@@ -924,6 +939,6 @@ fn test_vacation_at_end_of_year() {
             .get_report_for_employee(&sales_person_id, 2025, 53, Authentication::Full, None)
             .await
             .unwrap();
-        assert_eq!(report.vacation_hours, 20.0);
+        assert_eq!(report.vacation_hours, 15.0);
     })
 }

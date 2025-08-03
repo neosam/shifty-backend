@@ -172,21 +172,21 @@ pub enum DayOfWeekTO {
     Sunday,
 }
 #[cfg(feature = "service-impl")]
-impl From<service::slot::DayOfWeek> for DayOfWeekTO {
-    fn from(day_of_week: service::slot::DayOfWeek) -> Self {
+impl From<shifty_utils::DayOfWeek> for DayOfWeekTO {
+    fn from(day_of_week: shifty_utils::DayOfWeek) -> Self {
         match day_of_week {
-            service::slot::DayOfWeek::Monday => Self::Monday,
-            service::slot::DayOfWeek::Tuesday => Self::Tuesday,
-            service::slot::DayOfWeek::Wednesday => Self::Wednesday,
-            service::slot::DayOfWeek::Thursday => Self::Thursday,
-            service::slot::DayOfWeek::Friday => Self::Friday,
-            service::slot::DayOfWeek::Saturday => Self::Saturday,
-            service::slot::DayOfWeek::Sunday => Self::Sunday,
+            shifty_utils::DayOfWeek::Monday => Self::Monday,
+            shifty_utils::DayOfWeek::Tuesday => Self::Tuesday,
+            shifty_utils::DayOfWeek::Wednesday => Self::Wednesday,
+            shifty_utils::DayOfWeek::Thursday => Self::Thursday,
+            shifty_utils::DayOfWeek::Friday => Self::Friday,
+            shifty_utils::DayOfWeek::Saturday => Self::Saturday,
+            shifty_utils::DayOfWeek::Sunday => Self::Sunday,
         }
     }
 }
 #[cfg(feature = "service-impl")]
-impl From<DayOfWeekTO> for service::slot::DayOfWeek {
+impl From<DayOfWeekTO> for shifty_utils::DayOfWeek {
     fn from(day_of_week: DayOfWeekTO) -> Self {
         match day_of_week {
             DayOfWeekTO::Monday => Self::Monday,
@@ -385,8 +385,8 @@ pub struct WorkingHoursReportTO {
 impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
     fn from(hours: &service::reporting::GroupedReportHours) -> Self {
         Self {
-            from: hours.from,
-            to: hours.to,
+            from: hours.from.to_date(),
+            to: hours.to.to_date(),
             expected_hours: hours.expected_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,

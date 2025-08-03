@@ -95,18 +95,20 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .transpose()?)
     }
 
-    async fn find_by_sales_person_id_and_year(
+    async fn find_by_sales_person_id_and_years(
         &self,
         sales_person_id: Uuid,
-        year: u32,
+        from_year: u32,
+        to_year: u32,
         tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) = ? AND deleted IS NULL",
+            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) >= ? AND CAST(strftime('%Y', date_time) AS INTEGER) <= ? AND deleted IS NULL",
             id_vec,
-            year,
+            from_year,
+            to_year,
         ).fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?

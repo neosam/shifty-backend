@@ -36,6 +36,9 @@ path = "../service_impl"
 [dependencies.service]
 path = "../service"
 
+[dependencies.shifty-utils]
+path = "../shifty-utils"
+
 [dependencies.tokio]
 version = "1.44"
 features = ["full"]

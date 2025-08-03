@@ -4,7 +4,7 @@ use std::u32;
 
 use async_trait::async_trait;
 use mockall::automock;
-use shifty_utils::DayOfWeek;
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyDateUtilsError};
 use time::error::ComponentRange;
 use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
@@ -109,20 +109,34 @@ impl EmployeeWorkDetails {
         self.expected_hours / self.potential_days_per_week() as f32
     }
 
-    pub fn from_date(&self) -> Result<time::Date, ComponentRange> {
-        time::Date::from_iso_week_date(
-            self.from_year as i32,
+    pub fn from_date(&self) -> Result<ShiftyDate, ShiftyDateUtilsError> {
+        ShiftyDate::new(
+            self.from_year,
             self.from_calendar_week,
-            self.from_day_of_week.into(),
+            self.from_day_of_week,
         )
     }
 
-    pub fn to_date(&self) -> Result<time::Date, ComponentRange> {
-        time::Date::from_iso_week_date(
-            self.to_year as i32,
-            self.to_calendar_week,
-            self.to_day_of_week.into(),
-        )
+    pub fn to_date(&self) -> Result<ShiftyDate, ShiftyDateUtilsError> {
+        ShiftyDate::new(self.to_year, self.to_calendar_week, self.to_day_of_week)
+    }
+
+    pub fn with_from_date(&self, date: ShiftyDate) -> Self {
+        Self {
+            from_year: date.year() as u32,
+            from_calendar_week: date.week(),
+            from_day_of_week: date.day_of_week(),
+            ..self.clone()
+        }
+    }
+
+    pub fn with_to_date(&self, date: ShiftyDate) -> Self {
+        Self {
+            to_year: date.year() as u32,
+            to_calendar_week: date.week(),
+            to_day_of_week: date.day_of_week(),
+            ..self.clone()
+        }
     }
 
     pub fn has_day_of_week(&self, weekday: Weekday) -> bool {
@@ -152,8 +166,8 @@ impl EmployeeWorkDetails {
         }
         if from_year == year {
             if let Ok(from_date) = self.from_date() {
-                let relation =
-                    from_date.ordinal() as f32 / time::util::days_in_year(year as i32) as f32;
+                let relation = from_date.to_date().ordinal() as f32
+                    / time::util::days_in_year(year as i32) as f32;
                 days -= self.vacation_days as f32 * relation as f32;
                 //let month: u8 = from_date.month().into();
                 //days -= self.vacation_days as f32 / 12.0 * (month - 1) as f32;
@@ -161,8 +175,9 @@ impl EmployeeWorkDetails {
         }
         if to_year == year {
             if let Ok(to_date) = self.to_date() {
-                let relation =
-                    1.0 - to_date.ordinal() as f32 / time::util::days_in_year(year as i32) as f32;
+                let relation = 1.0
+                    - to_date.to_date().ordinal() as f32
+                        / time::util::days_in_year(year as i32) as f32;
                 days -= self.vacation_days as f32 * relation as f32;
                 //let month: u8 = to_date.month().into();
                 //days -= self.vacation_days as f32 / 12.0 * (12 - month) as f32;

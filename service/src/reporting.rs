@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::automock;
-use shifty_utils::LazyLoad;
+use shifty_utils::{LazyLoad, ShiftyDate};
 use uuid::Uuid;
 
 use crate::permission::Authentication;
@@ -72,8 +72,8 @@ impl
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct GroupedReportHours {
-    pub from: time::Date,
-    pub to: time::Date,
+    pub from: ShiftyDate,
+    pub to: ShiftyDate,
     pub year: u32,
     pub week: u8,
     pub contract_weekly_hours: f32,
@@ -193,6 +193,15 @@ pub trait ReportingService {
         sales_person_id: &Uuid,
         years: u32,
         until_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<EmployeeReport, ServiceError>;
+
+    async fn get_report_for_employee_range(
+        &self,
+        sales_person_id: &Uuid,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<EmployeeReport, ServiceError>;

@@ -15,6 +15,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
+use shifty_utils::{ShiftyDate, ShiftyWeek};
 use tokio::join;
 use uuid::Uuid;
 
@@ -85,6 +86,24 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError> {
+        self.find_by_sales_person_id_and_year_range(
+            sales_person_id,
+            ShiftyDate::first_day_in_year(year).as_shifty_week(),
+            ShiftyWeek::new(year, until_week),
+            context,
+            tx,
+        )
+        .await
+    }
+
+    async fn find_by_sales_person_id_and_year_range(
+        &self,
+        sales_person_id: Uuid,
+        from_week: ShiftyWeek,
+        to_week: ShiftyWeek,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[ExtraHours]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         let (hr_permission, sales_person_permission) = join!(
             self.permission_service
@@ -99,11 +118,20 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
 
         let extra_hours_entities = self
             .extra_hours_dao
-            .find_by_sales_person_id_and_year(sales_person_id, year, tx.clone())
+            .find_by_sales_person_id_and_years(
+                sales_person_id,
+                from_week.year,
+                to_week.year,
+                tx.clone(),
+            )
             .await?;
+
         let mut extra_hours_list = extra_hours_entities
             .iter()
-            .filter(|extra_hours| extra_hours.date_time.iso_week() <= until_week)
+            .filter(|extra_hours| {
+                extra_hours.as_date().as_shifty_week() >= from_week
+                    && extra_hours.as_date().as_shifty_week() <= to_week
+            })
             .map(ExtraHours::from)
             .collect::<Vec<ExtraHours>>();
 
