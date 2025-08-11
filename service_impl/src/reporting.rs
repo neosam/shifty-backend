@@ -18,7 +18,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
-use shifty_utils::{DayOfWeek, ShiftyDate};
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 use tokio::join;
 use tracing::info;
 use uuid::Uuid;
@@ -573,6 +573,14 @@ fn weight_for_week(
         || (year == employee_work_details.to_year && week > employee_work_details.to_calendar_week)
     {
         Arc::new([])
+    } else if employee_work_details.from_year == employee_work_details.to_year
+        && employee_work_details.from_calendar_week == employee_work_details.to_calendar_week 
+    {
+        workdays
+            .iter()
+            .map(|workday| DayOfWeek::from(*workday))
+            .filter(|workday| *workday >= employee_work_details.from_day_of_week && *workday <= employee_work_details.to_day_of_week)
+            .collect()
     } else if year == employee_work_details.from_year
         && week == employee_work_details.from_calendar_week
     {
