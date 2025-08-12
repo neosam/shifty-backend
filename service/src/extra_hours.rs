@@ -187,8 +187,8 @@ pub trait ExtraHoursService {
     async fn find_by_sales_person_id_and_year_range(
         &self,
         sales_person_id: Uuid,
-        from_week: ShiftyWeek,
-        to_week: ShiftyWeek,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;

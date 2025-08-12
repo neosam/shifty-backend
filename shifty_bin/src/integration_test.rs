@@ -1183,6 +1183,14 @@ fn test_extra_hours_beginning_of_year() {
             .collect();
         extra_hours.sort_by_key(|extra_hour| extra_hour.date_time);
         assert_eq!(extra_hours.len(), 0);
+
+        // Generate the report and check if the extra hours is included
+        let report = rest_state
+            .reporting_service()
+            .get_report_for_employee(&sales_person_id, 2024, 53, Authentication::Full, None)
+            .await
+            .unwrap();
+        assert_eq!(report.extra_work_hours, 0.0);
     })
 }
 

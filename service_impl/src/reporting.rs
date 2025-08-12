@@ -343,8 +343,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .extra_hours_service
             .find_by_sales_person_id_and_year_range(
                 *sales_person_id,
-                from_date.as_shifty_week(),
-                to_date.as_shifty_week(),
+                from_date,
+                to_date,
                 Authentication::Full,
                 tx.clone().into(),
             )

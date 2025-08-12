@@ -15,7 +15,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
-use shifty_utils::{ShiftyDate, ShiftyWeek};
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 use tokio::join;
 use uuid::Uuid;
 
@@ -89,8 +89,8 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         Ok(self
             .find_by_sales_person_id_and_year_range(
                 sales_person_id,
-                ShiftyDate::first_day_in_year(year).as_shifty_week(),
-                ShiftyWeek::new(year, until_week),
+                ShiftyDate::first_day_in_year(year),
+                ShiftyWeek::new(year, until_week).as_date(DayOfWeek::Sunday),
                 context,
                 tx,
             )
@@ -105,8 +105,8 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
     async fn find_by_sales_person_id_and_year_range(
         &self,
         sales_person_id: Uuid,
-        from_week: ShiftyWeek,
-        to_week: ShiftyWeek,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError> {
@@ -126,8 +126,8 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
             .extra_hours_dao
             .find_by_sales_person_id_and_years(
                 sales_person_id,
-                from_week.year,
-                to_week.year,
+                from_date.year(),
+                to_date.year(),
                 tx.clone(),
             )
             .await?;
@@ -135,8 +135,7 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         let mut extra_hours_list = extra_hours_entities
             .iter()
             .filter(|extra_hours| {
-                extra_hours.as_date().as_shifty_week() >= from_week
-                    && extra_hours.as_date().as_shifty_week() <= to_week
+                extra_hours.as_date() >= from_date && extra_hours.as_date() <= to_date
             })
             .map(ExtraHours::from)
             .collect::<Vec<ExtraHours>>();
