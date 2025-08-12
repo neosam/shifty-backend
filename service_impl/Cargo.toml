@@ -34,3 +34,7 @@ features = ["v4"]
 [dev-dependencies.tokio]
 version = "1.44"
 features = ["full"]
+
+[dependencies.time-tz]
+version = "2"
+features = ["db"]

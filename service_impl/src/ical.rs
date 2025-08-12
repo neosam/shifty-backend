@@ -10,6 +10,7 @@ impl IcalService for IcalServiceImpl {
         &self,
         blocks: Arc<[Block]>,
         title: Arc<str>,
+        timezone: Arc<str>,
     ) -> Result<Arc<str>, ServiceError> {
         let datetime_format = format_description!("[year][month][day]T[hour][minute][second]");
 
@@ -21,7 +22,8 @@ impl IcalService for IcalServiceImpl {
             ical_string.push_str("BEGIN:VEVENT\n");
             ical_string.push_str(&format!("UID:{}\n", block.block_identifier()));
             ical_string.push_str(&format!(
-                "DTSTART:{}\n",
+                "DTSTART;TZID={}:{}\n",
+                timezone.as_ref(),
                 block.datetime_from()?.format(&datetime_format)?
             ));
             ical_string.push_str(&format!(

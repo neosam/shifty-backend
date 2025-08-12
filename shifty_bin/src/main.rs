@@ -45,6 +45,8 @@ type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
 
+type ConfigService = service_impl::config::ConfigServiceImpl;
+
 pub struct PermissionServiceDependencies;
 impl PermissionServiceDeps for PermissionServiceDependencies {
     type Context = Context;
@@ -225,6 +227,7 @@ impl service_impl::block::BlockServiceDeps for BlockServiceDependencies {
     type IcalService = IcalService;
     type TransactionDao = TransactionDao;
     type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
+    type ConfigService = ConfigService;
 }
 type BlockService = service_impl::block::BlockServiceImpl<BlockServiceDependencies>;
 
@@ -436,6 +439,7 @@ impl RestStateImpl {
             clock_service: clock_service.clone(),
             uuid_service: uuid_service.clone(),
         });
+        let config_service = Arc::new(service_impl::config::ConfigServiceImpl);
         let slot_service = Arc::new(service_impl::slot::SlotServiceImpl::new(
             slot_dao.into(),
             permission_service.clone(),
@@ -572,6 +576,7 @@ impl RestStateImpl {
             ical_service: Arc::new(service_impl::ical::IcalServiceImpl),
             transaction_dao: transaction_dao.clone(),
             shiftplan_service: shiftplan_service.clone(),
+            config_service: config_service.clone(),
         });
 
         let week_message_service = Arc::new(WeekMessageService {
@@ -624,7 +629,10 @@ async fn create_admin_user(pool: Arc<SqlitePool>, username: &str) {
         permission_dao
             .add_user_role(username, "admin", "dev-first-start")
             .await
-            .expect(&format!("Expected being able to make {} an admin", username));
+            .expect(&format!(
+                "Expected being able to make {} an admin",
+                username
+            ));
     }
 }
 

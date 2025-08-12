@@ -9,6 +9,7 @@ pub mod booking;
 pub mod booking_information;
 pub mod carryover;
 pub mod clock;
+pub mod config;
 pub mod custom_extra_hours;
 pub mod datetime_utils;
 pub mod employee_work_details;

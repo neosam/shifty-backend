@@ -12,5 +12,6 @@ pub trait IcalService {
         &self,
         blocks: Arc<[Block]>,
         title: Arc<str>,
+        timezone: Arc<str>,
     ) -> Result<Arc<str>, ServiceError>;
 }

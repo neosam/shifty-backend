@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use crate::{block::BlockServiceImpl, test::error_test::*};
 use dao::{MockTransaction, MockTransactionDao};
 use mockall::predicate::{always, eq};
 use service::block::BlockService;
 use service::booking::Booking;
 use service::clock::MockClockService;
+use service::config::MockConfigService;
 use service::ical::MockIcalService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan::MockShiftplanService;
@@ -20,6 +23,7 @@ use uuid::{uuid, Uuid};
 /// to hold mocks.
 pub struct BlockServiceDependencies {
     pub booking_service: MockBookingService,
+    pub config_service: MockConfigService,
     pub slot_service: MockSlotService,
     pub sales_person_service: MockSalesPersonService,
     pub ical_service: MockIcalService,
@@ -32,6 +36,7 @@ impl crate::block::BlockServiceDeps for BlockServiceDependencies {
     type Context = ();
     type Transaction = MockTransaction;
     type BookingService = MockBookingService;
+    type ConfigService = MockConfigService;
     type SlotService = MockSlotService;
     type SalesPersonService = MockSalesPersonService;
     type IcalService = MockIcalService;
@@ -47,6 +52,7 @@ impl BlockServiceDependencies {
     pub fn build_service(self) -> BlockServiceImpl<BlockServiceDependencies> {
         BlockServiceImpl {
             booking_service: self.booking_service.into(),
+            config_service: self.config_service.into(),
             slot_service: self.slot_service.into(),
             sales_person_service: self.sales_person_service.into(),
             ical_service: self.ical_service.into(),
@@ -186,6 +192,14 @@ pub fn build_dependencies() -> BlockServiceDependencies {
         .expect_date_now()
         .returning(|| date!(2025 - 01 - 01));
 
+    let mut config_service = MockConfigService::new();
+    config_service.expect_get_config().returning(|| {
+        Ok(service::config::Config {
+            timezone: Arc::from("UTC"),
+            ical_label: Arc::from("Shift"),
+        })
+    });
+
     BlockServiceDependencies {
         booking_service,
         slot_service,
@@ -194,6 +208,7 @@ pub fn build_dependencies() -> BlockServiceDependencies {
         clock_service,
         transaction_dao,
         shiftplan_service,
+        config_service,
     }
 }
 

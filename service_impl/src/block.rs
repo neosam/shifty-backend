@@ -5,6 +5,7 @@ use service::{
     block::{Block, BlockService},
     booking::{Booking, BookingService},
     clock::ClockService,
+    config::ConfigService,
     ical::IcalService,
     permission::Authentication,
     sales_person::SalesPersonService,
@@ -31,6 +32,7 @@ gen_service_impl! {
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
         ShiftplanService: ShiftplanService<Context = Self::Context, Transaction = Self::Transaction> = shiftplan_service,
         IcalService: IcalService = ical_service,
+        ConfigService: ConfigService = config_service,
         ClockService: ClockService = clock_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
@@ -212,9 +214,11 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             blocks.extend_from_slice(&week_blocks);
             now += time::Duration::weeks(1);
         }
-        let ical = self
-            .ical_service
-            .convert_blocks_to_ical_string(blocks.into(), "Schicht".into())?;
+        let ical = self.ical_service.convert_blocks_to_ical_string(
+            blocks.into(),
+            self.config_service.get_config().await?.ical_label.clone(),
+            self.config_service.get_config().await?.timezone.clone(),
+        )?;
 
         self.transaction_dao.commit(tx).await?;
         Ok(ical)
