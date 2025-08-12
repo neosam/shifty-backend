@@ -86,14 +86,20 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError> {
-        self.find_by_sales_person_id_and_year_range(
-            sales_person_id,
-            ShiftyDate::first_day_in_year(year).as_shifty_week(),
-            ShiftyWeek::new(year, until_week),
-            context,
-            tx,
-        )
-        .await
+        Ok(self
+            .find_by_sales_person_id_and_year_range(
+                sales_person_id,
+                ShiftyDate::first_day_in_year(year).as_shifty_week(),
+                ShiftyWeek::new(year, until_week),
+                context,
+                tx,
+            )
+            .await?
+            .iter()
+            .filter(|extra_hours| extra_hours.date_time.year() == year as i32)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into())
     }
 
     async fn find_by_sales_person_id_and_year_range(
