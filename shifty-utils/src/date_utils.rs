@@ -156,6 +156,10 @@ impl ShiftyDate {
         if self > &o { *self } else { o }
     }
 
+    pub fn calendar_year(&self) -> u32 {
+        self.to_date().year() as u32
+    }
+
     pub fn year(&self) -> u32 {
         self.year
     }

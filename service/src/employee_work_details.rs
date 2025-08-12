@@ -155,11 +155,11 @@ impl EmployeeWorkDetails {
         let mut days = self.vacation_days as f32;
         let from_year = self
             .from_date()
-            .map(|date| date.year() as u32)
+            .map(|date| date.calendar_year() as u32)
             .unwrap_or(u32::MAX) as u32;
         let to_year = self
             .to_date()
-            .map(|date| date.year() as u32)
+            .map(|date| date.calendar_year() as u32)
             .unwrap_or(u32::MIN) as u32;
         if year < from_year || year > to_year {
             return 0.0;

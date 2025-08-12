@@ -18,7 +18,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
-use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
+use shifty_utils::{DayOfWeek, ShiftyDate};
 use tokio::join;
 use tracing::info;
 use uuid::Uuid;
