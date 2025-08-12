@@ -6,6 +6,7 @@ use service::{
     shiftplan_report::{ShiftplanQuickOverview, ShiftplanReportDay, ShiftplanReportService},
     ServiceError,
 };
+use shifty_utils::ShiftyDate;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -24,10 +25,8 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
     async fn extract_shiftplan_report(
         &self,
         sales_person_id: Uuid,
-        from_year: u32,
-        from_week: u8,
-        to_year: u32,
-        to_week: u8,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
         _context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError> {
@@ -36,13 +35,22 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
             .shiftplan_report_dao
             .extract_shiftplan_report(
                 sales_person_id,
-                from_year,
-                from_week,
-                to_year,
-                to_week,
+                from_date.year(),
+                from_date.week(),
+                to_date.year(),
+                to_date.week(),
                 tx.clone(),
             )
-            .await?; // Directly use ? since ServiceError implements From<DaoError>
+            .await?;
+        let entities = entities
+            .into_iter()
+            .filter(|entity| {
+                entity
+                    .to_date()
+                    .map(|date| date >= from_date && date <= to_date)
+                    .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
 
         let ret = Ok(entities
             .iter()

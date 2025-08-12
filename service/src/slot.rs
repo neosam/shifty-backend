@@ -2,9 +2,8 @@ use async_trait::async_trait;
 use dao::MockTransaction;
 use mockall::automock;
 use shifty_utils::DayOfWeek;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::sync::Arc;
-use time::Weekday;
 use uuid::Uuid;
 
 use crate::permission::Authentication;

@@ -18,7 +18,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
-use shifty_utils::{DayOfWeek, ShiftyDate};
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 use tokio::join;
 use tracing::info;
 use uuid::Uuid;
@@ -114,24 +114,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .iter()
             .filter(|employee| employee.is_paid.unwrap_or(false))
         {
-            let last_year = year - 1;
-            let last_years_last_week = time::util::weeks_in_year(last_year as i32);
             let detailed_shiftplan_report = self
                 .shiftplan_report_service
                 .extract_shiftplan_report(
                     paid_employee.id,
-                    last_year,
-                    last_years_last_week,
-                    if until_week == time::util::weeks_in_year(year as i32) {
-                        year + 1
-                    } else {
-                        year
-                    },
-                    if until_week == time::util::weeks_in_year(year as i32) {
-                        1
-                    } else {
-                        until_week
-                    },
+                    ShiftyDate::first_day_in_year(year),
+                    ShiftyWeek::new(year, until_week).as_date(DayOfWeek::Sunday),
                     Authentication::Full,
                     tx.clone().into(),
                 )
@@ -307,7 +295,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         self.get_report_for_employee_range(
             sales_person_id,
             first_day_of_year,
-            to_date,
+            to_date.min(ShiftyDate::last_day_in_year(year)),
             context,
             tx,
         )
@@ -345,10 +333,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .shiftplan_report_service
             .extract_shiftplan_report(
                 *sales_person_id,
-                from_date.year(),
-                from_date.week(),
-                to_date.year(),
-                to_date.week(),
+                from_date,
+                to_date,
                 Authentication::Full,
                 tx.clone().into(),
             )

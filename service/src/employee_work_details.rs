@@ -5,7 +5,6 @@ use std::u32;
 use async_trait::async_trait;
 use mockall::automock;
 use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyDateUtilsError};
-use time::error::ComponentRange;
 use time::{PrimitiveDateTime, Weekday};
 use uuid::Uuid;
 

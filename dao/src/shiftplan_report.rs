@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 use mockall::automock;
-use shifty_utils::DayOfWeek;
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyDateUtilsError};
 use std::sync::Arc;
-use time::error::ComponentRange;
 use uuid::Uuid;
 
 use crate::DaoError;
@@ -17,19 +16,8 @@ pub struct ShiftplanReportEntity {
 }
 
 impl ShiftplanReportEntity {
-    pub fn to_date(&self) -> Result<time::Date, ComponentRange> {
-        let result = time::Date::from_iso_week_date(
-            self.year as i32,
-            self.calendar_week,
-            time::Weekday::Monday.nth_next(self.day_of_week.to_number() - 1),
-        );
-        if result.is_err() {
-            tracing::warn!(
-                "Failed to convert ShiftplanReportEntity to time::Date: {:?}",
-                self
-            );
-        }
-        result
+    pub fn to_date(&self) -> Result<ShiftyDate, ShiftyDateUtilsError> {
+        ShiftyDate::new(self.year, self.calendar_week, self.day_of_week)
     }
 }
 

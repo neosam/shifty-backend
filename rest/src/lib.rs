@@ -1,4 +1,3 @@
-use std::f32::consts::E;
 use std::{convert::Infallible, sync::Arc};
 
 mod booking;

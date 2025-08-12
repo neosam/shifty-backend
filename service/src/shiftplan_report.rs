@@ -39,10 +39,8 @@ pub trait ShiftplanReportService {
     async fn extract_shiftplan_report(
         &self,
         sales_person_id: Uuid,
-        from_year: u32,
-        from_week: u8,
-        to_year: u32,
-        to_week: u8,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError>;
