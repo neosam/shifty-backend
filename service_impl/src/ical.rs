@@ -27,7 +27,8 @@ impl IcalService for IcalServiceImpl {
                 block.datetime_from()?.format(&datetime_format)?
             ));
             ical_string.push_str(&format!(
-                "DTEND:{}\n",
+                "DTEND;TZID={}:{}\n",
+                timezone.as_ref(),
                 block.datetime_to()?.format(&datetime_format)?
             ));
             ical_string.push_str(&format!("SUMMARY:{}\n", title.as_ref()));
