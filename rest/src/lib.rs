@@ -1,5 +1,6 @@
 use std::{convert::Infallible, sync::Arc};
 
+mod billing_period;
 mod booking;
 mod booking_information;
 mod custom_extra_hours;
@@ -278,6 +279,14 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type BillingPeriodService: service::billing_period::BillingPeriodService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
+    type BillingPeriodReportService: service::billing_period_report::BillingPeriodReportService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -298,6 +307,8 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn block_service(&self) -> Arc<Self::BlockService>;
     fn shiftplan_service(&self) -> Arc<Self::ShiftplanService>;
     fn week_message_service(&self) -> Arc<Self::WeekMessageService>;
+    fn billing_period_service(&self) -> Arc<Self::BillingPeriodService>;
+    fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService>;
 }
 
 pub struct OidcConfig {
@@ -387,6 +398,7 @@ pub async fn auth_info<RestState: RestStateDef>(
 #[derive(OpenApi)]
 #[openapi(
     nest(
+        (path = "/billing-period", api = billing_period::BillingPeriodApiDoc),
         (path = "/custom-extra-hours", api = CustomExtraHoursApiDoc),
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
@@ -438,6 +450,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())
+        .nest("/billing-period", billing_period::generate_route())
         .nest("/custom-extra-hours", custom_extra_hours::generate_route())
         .nest(
             "/booking-information",

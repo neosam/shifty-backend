@@ -4,6 +4,8 @@ use time::Date;
 use time::Time;
 use uuid::Uuid;
 
+pub mod billing_period;
+pub mod billing_period_report;
 pub mod block;
 pub mod booking;
 pub mod booking_information;

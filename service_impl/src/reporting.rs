@@ -410,7 +410,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .unwrap_or((0.0, 0));
 
         let aggregated_custom_extra_hours: Arc<[CustomExtraHours]> = {
-            let mut map: HashMap<(Uuid, String), f32> = HashMap::new();
+            let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
             for week_report in by_week.iter() {
                 for custom_hour_entry in week_report.custom_extra_hours.iter() {
                     *map.entry((custom_hour_entry.id, custom_hour_entry.name.clone()))
@@ -707,13 +707,13 @@ fn hours_per_week(
         };
 
         let custom_extra_hours: Arc<[service::reporting::CustomExtraHours]> = {
-            let mut map: HashMap<(Uuid, String), f32> = HashMap::new();
+            let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
             for eh_entry in filtered_extra_hours_list.iter() {
                 if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
                     &eh_entry.category
                 {
                     if let Some(custom_def) = lazy_load_custom_def.get() {
-                        let key = (custom_def.id, custom_def.name.to_string());
+                        let key = (custom_def.id, custom_def.name.clone());
                         *map.entry(key).or_insert(0.0) += eh_entry.amount;
                     }
                 }

@@ -33,6 +33,9 @@ path = "../service"
 path = "../rest-types"
 features = ["service-impl"]
 
+[dependencies.shifty-utils]
+path = "../shifty-utils"
+
 [dependencies.uuid]
 version = "1.8.0"
 features = ["v4", "serde"]

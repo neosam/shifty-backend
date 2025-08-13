@@ -4,11 +4,13 @@ mod integration_test;
 use std::sync::Arc;
 
 use dao_impl_sqlite::{
-    booking::BookingDaoImpl, carryover::CarryoverDaoImpl,
-    employee_work_details::EmployeeWorkDetailsDaoImpl, extra_hours::ExtraHoursDaoImpl,
-    sales_person::SalesPersonDaoImpl, sales_person_unavailable::SalesPersonUnavailableDaoImpl,
-    session::SessionDaoImpl, shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl,
-    special_day::SpecialDayDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
+    billing_period::BillingPeriodDaoImpl,
+    billing_period_sales_person::BillingPeriodSalesPersonDaoImpl, booking::BookingDaoImpl,
+    carryover::CarryoverDaoImpl, employee_work_details::EmployeeWorkDetailsDaoImpl,
+    extra_hours::ExtraHoursDaoImpl, sales_person::SalesPersonDaoImpl,
+    sales_person_unavailable::SalesPersonUnavailableDaoImpl, session::SessionDaoImpl,
+    shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl, special_day::SpecialDayDaoImpl,
+    PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
@@ -44,6 +46,8 @@ type ExtraHoursDao = ExtraHoursDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
+type BillingPeriodDao = BillingPeriodDaoImpl;
+type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -305,6 +309,39 @@ impl service_impl::scheduler::SchedulerServiceDeps for SchedulerServiceDependenc
 type SchedulerServiceImpl =
     service_impl::scheduler::SchedulerServiceImpl<SchedulerServiceDependencies>;
 
+pub struct BillingPeriodServiceDependencies;
+impl service_impl::billing_period::BillingPeriodServiceDeps for BillingPeriodServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type BillingPeriodDao = BillingPeriodDao;
+    type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDao;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type UuidService = UuidService;
+    type ClockService = ClockService;
+    type TransactionDao = TransactionDao;
+}
+type BillingPeriodService =
+    service_impl::billing_period::BillingPeriodServiceImpl<BillingPeriodServiceDependencies>;
+
+pub struct BillingPeriodReportServiceDependencies;
+impl service_impl::billing_period_report::BillingPeriodReportServiceDeps
+    for BillingPeriodReportServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type BillingPeriodService = BillingPeriodService;
+    type ReportingService = ReportingService;
+    type SalesPersonService = SalesPersonService;
+    type UuidService = UuidService;
+    type ClockService = ClockService;
+    type TransactionDao = TransactionDao;
+}
+type BillingPeriodReportService =
+    service_impl::billing_period_report::BillingPeriodReportServiceImpl<
+        BillingPeriodReportServiceDependencies,
+    >;
+
 #[derive(Clone)]
 pub struct RestStateImpl {
     user_service: Arc<UserService>,
@@ -324,6 +361,8 @@ pub struct RestStateImpl {
     block_service: Arc<BlockService>,
     shiftplan_service: Arc<ShiftplanServiceImpl<ShiftplanServiceDependencies>>,
     week_message_service: Arc<WeekMessageService>,
+    billing_period_service: Arc<BillingPeriodService>,
+    billing_period_report_service: Arc<BillingPeriodReportService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -343,6 +382,8 @@ impl rest::RestStateDef for RestStateImpl {
     type BlockService = BlockService;
     type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
     type WeekMessageService = WeekMessageService;
+    type BillingPeriodService = BillingPeriodService;
+    type BillingPeriodReportService = BillingPeriodReportService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -399,6 +440,12 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn week_message_service(&self) -> Arc<Self::WeekMessageService> {
         self.week_message_service.clone()
+    }
+    fn billing_period_service(&self) -> Arc<Self::BillingPeriodService> {
+        self.billing_period_service.clone()
+    }
+    fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService> {
+        self.billing_period_report_service.clone()
     }
 }
 impl RestStateImpl {
@@ -587,6 +634,27 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
+        let billing_period_service = Arc::new(BillingPeriodService {
+            sales_person_service: sales_person_service.clone(),
+            permission_service: permission_service.clone(),
+            billing_period_dao: Arc::new(BillingPeriodDao::new(pool.clone())),
+            billing_period_sales_person_dao: Arc::new(BillingPeriodSalesPersonDao::new(
+                pool.clone(),
+            )),
+            uuid_service: uuid_service.clone(),
+            clock_service: clock_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
+        let billing_period_report_service = Arc::new(BillingPeriodReportService {
+            billing_period_service: billing_period_service.clone(),
+            reporting_service: reporting_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            uuid_service: uuid_service.clone(),
+            clock_service: clock_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         Self {
             user_service,
             session_service,
@@ -605,6 +673,8 @@ impl RestStateImpl {
             block_service,
             shiftplan_service,
             week_message_service,
+            billing_period_service,
+            billing_period_report_service,
         }
     }
 }

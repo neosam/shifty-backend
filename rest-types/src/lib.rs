@@ -298,7 +298,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReportingCustomExtraHoursTO {
     pub id: Uuid,
-    pub name: String,
+    pub name: Arc<str>,
     pub hours: f32,
 }
 
@@ -1048,4 +1048,97 @@ impl From<&WeekMessageTO> for service::week_message::WeekMessage {
             version: entity.version,
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BillingPeriodValueTO {
+    pub value_delta: f32,
+    pub value_ytd_from: f32,
+    pub value_ytd_to: f32,
+    pub value_full_year: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::billing_period::BillingPeriodValue> for BillingPeriodValueTO {
+    fn from(value: &service::billing_period::BillingPeriodValue) -> Self {
+        Self {
+            value_delta: value.value_delta,
+            value_ytd_from: value.value_ytd_from,
+            value_ytd_to: value.value_ytd_to,
+            value_full_year: value.value_full_year,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BillingPeriodSalesPersonTO {
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub values: std::collections::BTreeMap<String, BillingPeriodValueTO>,
+    #[schema(value_type = String, format = "date-time")]
+    pub created_at: time::PrimitiveDateTime,
+    pub created_by: Arc<str>,
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted_at: Option<time::PrimitiveDateTime>,
+    pub deleted_by: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::billing_period::BillingPeriodSalesPerson> for BillingPeriodSalesPersonTO {
+    fn from(sp: &service::billing_period::BillingPeriodSalesPerson) -> Self {
+        let values = sp
+            .values
+            .iter()
+            .map(|(k, v)| (k.as_str().to_string(), BillingPeriodValueTO::from(v)))
+            .collect();
+
+        Self {
+            id: sp.id,
+            sales_person_id: sp.sales_person_id,
+            values,
+            created_at: sp.created_at,
+            created_by: sp.created_by.clone(),
+            deleted_at: sp.deleted_at,
+            deleted_by: sp.deleted_by.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BillingPeriodTO {
+    pub id: Uuid,
+    pub start_date: time::Date,
+    pub end_date: time::Date,
+    pub sales_persons: Arc<[BillingPeriodSalesPersonTO]>,
+    #[schema(value_type = String, format = "date-time")]
+    pub created_at: time::PrimitiveDateTime,
+    pub created_by: Arc<str>,
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted_at: Option<time::PrimitiveDateTime>,
+    pub deleted_by: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::billing_period::BillingPeriod> for BillingPeriodTO {
+    fn from(bp: &service::billing_period::BillingPeriod) -> Self {
+        Self {
+            id: bp.id,
+            start_date: bp.start_date.to_date(),
+            end_date: bp.end_date.to_date(),
+            sales_persons: bp
+                .sales_persons
+                .iter()
+                .map(BillingPeriodSalesPersonTO::from)
+                .collect(),
+            created_at: bp.created_at,
+            created_by: bp.created_by.clone(),
+            deleted_at: bp.deleted_at,
+            deleted_by: bp.deleted_by.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateBillingPeriodRequestTO {
+    pub end_date: time::Date,
 }

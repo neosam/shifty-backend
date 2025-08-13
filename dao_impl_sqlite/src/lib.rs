@@ -5,6 +5,8 @@ use dao::{BasicDao, DaoError, PrivilegeEntity, RoleEntity, Transaction};
 use sqlx::{query, query_as, SqlitePool};
 use tokio::sync::Mutex;
 
+pub mod billing_period;
+pub mod billing_period_sales_person;
 pub mod booking;
 pub mod carryover;
 pub mod custom_extra_hours;

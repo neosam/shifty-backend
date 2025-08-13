@@ -46,7 +46,7 @@ pub struct WorkingHoursDay {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CustomExtraHours {
     pub id: Uuid,
-    pub name: String,
+    pub name: Arc<str>,
     pub hours: f32,
 }
 
@@ -64,7 +64,7 @@ impl
     ) -> Self {
         Self {
             id: custom_extra_hours_def.id,
-            name: custom_extra_hours_def.name.to_string(), // Convert Arc<str> to String
+            name: custom_extra_hours_def.name.clone(),
             hours: extra_hours_entry.amount,
         }
     }

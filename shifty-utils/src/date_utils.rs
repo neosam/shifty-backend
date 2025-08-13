@@ -148,6 +148,14 @@ impl ShiftyDate {
         ShiftyWeek::new(self.year, self.week)
     }
 
+    pub fn next_day(&self) -> Self {
+        let next_date = self
+            .to_date()
+            .next_day()
+            .expect("Next day should always be valid");
+        ShiftyDate::from_date(next_date)
+    }
+
     pub fn min(&self, o: ShiftyDate) -> ShiftyDate {
         if self < &o { *self } else { o }
     }
