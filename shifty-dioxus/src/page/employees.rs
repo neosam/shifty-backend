@@ -143,7 +143,7 @@ pub fn Employees() -> Element {
             // Billing Periods Section
             div { class: "mb-8",
                 div { class: "flex justify-between items-center mb-4",
-                    h2 { class: "text-2xl font-bold", "Billing Periods" }
+                    h2 { class: "text-2xl font-bold mb-4", "Billing Periods (unfinished)" }
                     button {
                         class: "px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors",
                         onclick: move |_| page_action_handler.send(EmployeesPageAction::ShowCreateBillingPeriodDialog),
