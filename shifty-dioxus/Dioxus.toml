@@ -43,6 +43,8 @@ script = []
 script = []
 
 [[web.proxy]]
+backend = "http://localhost:3000/billing-period"
+[[web.proxy]]
 backend = "http://localhost:3000/slot"
 [[web.proxy]]
 backend = "http://localhost:3000/auth-info"

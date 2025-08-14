@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BookingConflictTO, BookingTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
+    BillingPeriodTO, BookingConflictTO, BookingTO, CreateBillingPeriodRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, VacationPayloadTO,
     WeeklySummaryTO, WeekMessageTO,
@@ -791,4 +791,38 @@ pub async fn get_sales_person_by_user(
     let res = response.json().await?;
     info!("Fetched sales person for user");
     Ok(Some(res))
+}
+
+pub async fn get_billing_periods(config: Config) -> Result<Rc<[BillingPeriodTO]>, reqwest::Error> {
+    info!("Fetching billing periods");
+    let url = format!("{}/billing-period", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_billing_period(config: Config, billing_period_id: Uuid) -> Result<BillingPeriodTO, reqwest::Error> {
+    info!("Fetching billing period {billing_period_id}");
+    let url = format!("{}/billing-period/{}", config.backend, billing_period_id);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn post_billing_period(
+    config: Config,
+    end_date: time::Date,
+) -> Result<(), reqwest::Error> {
+    info!("Creating billing period with end date {end_date}");
+    let url = format!("{}/billing-period", config.backend);
+    let request_payload = CreateBillingPeriodRequestTO { end_date };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&request_payload).send().await?;
+    response.error_for_status_ref()?;
+    info!("Created billing period");
+    Ok(())
 }

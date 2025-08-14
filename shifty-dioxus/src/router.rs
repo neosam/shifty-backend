@@ -11,6 +11,7 @@ pub use crate::page::UserDetails;
 pub use crate::page::UserManagementPage;
 pub use crate::page::WeeklyOverview;
 pub use crate::page::CustomExtraHoursManagement;
+pub use crate::page::BillingPeriodDetails;
 
 #[derive(Clone, Routable, Debug, PartialEq)]
 pub enum Route {
@@ -36,4 +37,6 @@ pub enum Route {
     SalesPersonDetails { sales_person_id: String },
     #[route("/custom_extra_hours/")]
     CustomExtraHoursManagement {},
+    #[route("/billing_period/:billing_period_id/")]
+    BillingPeriodDetails { billing_period_id: String },
 }

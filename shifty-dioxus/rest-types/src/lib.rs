@@ -5,11 +5,13 @@ use serde::{Deserialize, Serialize};
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
+#[cfg(feature = "service-impl")]
+use shifty_utils::{derive_from_reference, LazyLoad};
 use time::{PrimitiveDateTime, Weekday};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserTO {
     pub name: String,
 }
@@ -22,7 +24,7 @@ impl From<&service::User> for UserTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RoleTO {
     pub name: String,
 }
@@ -35,7 +37,7 @@ impl From<&service::Role> for RoleTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PrivilegeTO {
     pub name: String,
 }
@@ -48,13 +50,13 @@ impl From<&service::Privilege> for PrivilegeTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserRole {
     pub user: String,
     pub role: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RolePrivilege {
     pub role: String,
     pub privilege: String,
@@ -171,21 +173,21 @@ pub enum DayOfWeekTO {
     Sunday,
 }
 #[cfg(feature = "service-impl")]
-impl From<service::slot::DayOfWeek> for DayOfWeekTO {
-    fn from(day_of_week: service::slot::DayOfWeek) -> Self {
+impl From<shifty_utils::DayOfWeek> for DayOfWeekTO {
+    fn from(day_of_week: shifty_utils::DayOfWeek) -> Self {
         match day_of_week {
-            service::slot::DayOfWeek::Monday => Self::Monday,
-            service::slot::DayOfWeek::Tuesday => Self::Tuesday,
-            service::slot::DayOfWeek::Wednesday => Self::Wednesday,
-            service::slot::DayOfWeek::Thursday => Self::Thursday,
-            service::slot::DayOfWeek::Friday => Self::Friday,
-            service::slot::DayOfWeek::Saturday => Self::Saturday,
-            service::slot::DayOfWeek::Sunday => Self::Sunday,
+            shifty_utils::DayOfWeek::Monday => Self::Monday,
+            shifty_utils::DayOfWeek::Tuesday => Self::Tuesday,
+            shifty_utils::DayOfWeek::Wednesday => Self::Wednesday,
+            shifty_utils::DayOfWeek::Thursday => Self::Thursday,
+            shifty_utils::DayOfWeek::Friday => Self::Friday,
+            shifty_utils::DayOfWeek::Saturday => Self::Saturday,
+            shifty_utils::DayOfWeek::Sunday => Self::Sunday,
         }
     }
 }
 #[cfg(feature = "service-impl")]
-impl From<DayOfWeekTO> for service::slot::DayOfWeek {
+impl From<DayOfWeekTO> for shifty_utils::DayOfWeek {
     fn from(day_of_week: DayOfWeekTO) -> Self {
         match day_of_week {
             DayOfWeekTO::Monday => Self::Monday,
@@ -297,7 +299,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReportingCustomExtraHoursTO {
     pub id: Uuid,
-    pub name: String,
+    pub name: Arc<str>,
     pub hours: f32,
 }
 
@@ -384,8 +386,8 @@ pub struct WorkingHoursReportTO {
 impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
     fn from(hours: &service::reporting::GroupedReportHours) -> Self {
         Self {
-            from: hours.from,
-            to: hours.to,
+            from: hours.from.to_date(),
+            to: hours.to.to_date(),
             expected_hours: hours.expected_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,
@@ -793,7 +795,7 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub enum SpecialDayTypeTO {
     Holiday,
     ShortDay,
@@ -883,7 +885,7 @@ impl From<&service::shiftplan::ShiftplanWeek> for ShiftplanWeekTO {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct SpecialDayTO {
     #[serde(default)]
     pub id: Uuid,
@@ -891,10 +893,13 @@ pub struct SpecialDayTO {
     pub calendar_week: u8,
     pub day_of_week: DayOfWeekTO,
     pub day_type: SpecialDayTypeTO,
+    #[schema(value_type = Option<String>, format = "time")]
     pub time_of_day: Option<time::Time>,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
     pub created: Option<time::PrimitiveDateTime>,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
     pub deleted: Option<time::PrimitiveDateTime>,
     #[serde(rename = "$version")]
     #[serde(default)]
@@ -1044,4 +1049,97 @@ impl From<&WeekMessageTO> for service::week_message::WeekMessage {
             version: entity.version,
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BillingPeriodValueTO {
+    pub value_delta: f32,
+    pub value_ytd_from: f32,
+    pub value_ytd_to: f32,
+    pub value_full_year: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::billing_period::BillingPeriodValue> for BillingPeriodValueTO {
+    fn from(value: &service::billing_period::BillingPeriodValue) -> Self {
+        Self {
+            value_delta: value.value_delta,
+            value_ytd_from: value.value_ytd_from,
+            value_ytd_to: value.value_ytd_to,
+            value_full_year: value.value_full_year,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BillingPeriodSalesPersonTO {
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub values: std::collections::BTreeMap<String, BillingPeriodValueTO>,
+    #[schema(value_type = String, format = "date-time")]
+    pub created_at: time::PrimitiveDateTime,
+    pub created_by: Arc<str>,
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted_at: Option<time::PrimitiveDateTime>,
+    pub deleted_by: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::billing_period::BillingPeriodSalesPerson> for BillingPeriodSalesPersonTO {
+    fn from(sp: &service::billing_period::BillingPeriodSalesPerson) -> Self {
+        let values = sp
+            .values
+            .iter()
+            .map(|(k, v)| (k.as_str().to_string(), BillingPeriodValueTO::from(v)))
+            .collect();
+
+        Self {
+            id: sp.id,
+            sales_person_id: sp.sales_person_id,
+            values,
+            created_at: sp.created_at,
+            created_by: sp.created_by.clone(),
+            deleted_at: sp.deleted_at,
+            deleted_by: sp.deleted_by.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BillingPeriodTO {
+    pub id: Uuid,
+    pub start_date: time::Date,
+    pub end_date: time::Date,
+    pub sales_persons: Arc<[BillingPeriodSalesPersonTO]>,
+    #[schema(value_type = String, format = "date-time")]
+    pub created_at: time::PrimitiveDateTime,
+    pub created_by: Arc<str>,
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted_at: Option<time::PrimitiveDateTime>,
+    pub deleted_by: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::billing_period::BillingPeriod> for BillingPeriodTO {
+    fn from(bp: &service::billing_period::BillingPeriod) -> Self {
+        Self {
+            id: bp.id,
+            start_date: bp.start_date.to_date(),
+            end_date: bp.end_date.to_date(),
+            sales_persons: bp
+                .sales_persons
+                .iter()
+                .map(BillingPeriodSalesPersonTO::from)
+                .collect(),
+            created_at: bp.created_at,
+            created_by: bp.created_by.clone(),
+            deleted_at: bp.deleted_at,
+            deleted_by: bp.deleted_by.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateBillingPeriodRequestTO {
+    pub end_date: time::Date,
 }

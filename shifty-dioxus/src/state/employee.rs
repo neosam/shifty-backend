@@ -230,7 +230,7 @@ impl From<&ReportingCustomExtraHoursTO> for CustomExtraHours {
     fn from(custom_extra_hours: &ReportingCustomExtraHoursTO) -> Self {
         CustomExtraHours {
             id: custom_extra_hours.id,
-            name: custom_extra_hours.name.clone().into(),
+            name: custom_extra_hours.name.as_ref().into(),
             hours: custom_extra_hours.hours,
         }
     }

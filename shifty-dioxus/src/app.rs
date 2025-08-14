@@ -19,6 +19,7 @@ pub fn App() -> Element {
     use_coroutine(service::employee_work_details::employee_work_details_service);
     use_coroutine(service::employee::employee_service);
     use_coroutine(service::slot_edit::slot_edit_service);
+    use_coroutine(service::billing_period::billing_period_service);
     let config = CONFIG.read();
     if !config.backend.is_empty() {
         let title = config.application_title.clone();

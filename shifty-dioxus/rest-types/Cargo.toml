@@ -1,16 +1,20 @@
 [package]
 name = "rest-types"
-version = "0.1.0"
+version = "1.0.5-dev"
 edition = "2021"
 resolver = "2"
 
 [features]
 #default = ["service-impl"]
 default = []
-service-impl = ["dep:service"]
+service-impl = ["dep:service", "dep:shifty-utils"]
 
 [dependencies.service]
 path = "../service"
+optional = true
+
+[dependencies.shifty-utils]
+path = "../shifty-utils"
 optional = true
 
 [dependencies.serde]
@@ -26,5 +30,5 @@ version = "0.3.36"
 features = ["serde-human-readable"]
 
 [dependencies.utoipa]
-version = "5.3.1"
+version = "5"
 features = ["time", "rc_schema", "uuid"]

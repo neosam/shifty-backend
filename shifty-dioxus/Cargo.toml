@@ -24,6 +24,7 @@ manganis = "0.6.2"
 
 [dependencies.rest-types]
 path = "rest-types"
+
 [dependencies.uuid]
 version = "1.17"
 features = ["v4", "js"]
