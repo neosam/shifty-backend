@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, billing_period_id, sales_person_id, value_type, value_delta, value_ytd_from, value_ytd_to, value_full_year, created_at, created_by, deleted_at, deleted_by, update_version FROM billing_period_sales_person",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "billing_period_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "value_type",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "value_delta",
+        "ordinal": 4,
+        "type_info": "Float"
+      },
+      {
+        "name": "value_ytd_from",
+        "ordinal": 5,
+        "type_info": "Float"
+      },
+      {
+        "name": "value_ytd_to",
+        "ordinal": 6,
+        "type_info": "Float"
+      },
+      {
+        "name": "value_full_year",
+        "ordinal": 7,
+        "type_info": "Float"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_by",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted_at",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted_by",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 12,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "d26bbdd63ac89a4cb5d6b797ce8fe131791c84882fb79117c0faf6c86d27c083"
+}

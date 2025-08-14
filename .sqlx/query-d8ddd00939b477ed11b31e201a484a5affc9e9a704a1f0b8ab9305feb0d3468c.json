@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO billing_period_sales_person (id, billing_period_id, sales_person_id, value_type, value_delta, value_ytd_from, value_ytd_to, value_full_year, created_at, created_by, deleted_at, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 14
+    },
+    "nullable": []
+  },
+  "hash": "d8ddd00939b477ed11b31e201a484a5affc9e9a704a1f0b8ab9305feb0d3468c"
+}

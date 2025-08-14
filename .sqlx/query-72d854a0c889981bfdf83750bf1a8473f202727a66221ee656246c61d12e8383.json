@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE billing_period_sales_person SET value_type = ?, value_delta = ?, value_ytd_from = ?, value_ytd_to = ?, value_full_year = ?, deleted_at = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "72d854a0c889981bfdf83750bf1a8473f202727a66221ee656246c61d12e8383"
+}
