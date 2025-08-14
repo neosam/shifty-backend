@@ -54,6 +54,8 @@ impl BillingPeriodValueType {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "overall" => Some(BillingPeriodValueType::Overall),
+            "expected_hours" => Some(BillingPeriodValueType::ExpectedHours),
+            "balance" => Some(BillingPeriodValueType::Balance),
             "extra_work" => Some(BillingPeriodValueType::ExtraWork),
             "vacation_hours" => Some(BillingPeriodValueType::VacationHours),
             "sick_leave" => Some(BillingPeriodValueType::SickLeave),

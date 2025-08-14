@@ -138,6 +138,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
             &entity,
             sales_person_report.into(),
         ));
+        dbg!(&res);
 
         self.transaction_dao.commit(tx).await?;
         res
