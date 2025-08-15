@@ -7,7 +7,7 @@ use dao::{
     DaoError,
 };
 use sqlx::{query, query_as};
-use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
+use time::{format_description::well_known::Iso8601, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -176,5 +176,29 @@ impl BillingPeriodSalesPersonDao for BillingPeriodSalesPersonDaoImpl {
         .map_db_error()?;
 
         Ok(entity.clone())
+    }
+
+    async fn clear_all(
+        &self,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
+        let now = OffsetDateTime::now_utc()
+            .format(&Iso8601::DATE_TIME)
+            .map_db_error()?;
+        let version_vec = Uuid::new_v4().as_bytes().to_vec();
+
+        query!(
+            "UPDATE billing_period_sales_person SET deleted_at = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE deleted_at IS NULL",
+            now,
+            process,
+            version_vec,
+            process
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        Ok(())
     }
 }

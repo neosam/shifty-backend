@@ -176,4 +176,11 @@ pub trait BillingPeriodService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Option<ShiftyDate>, ServiceError>;
+
+    /// Clear all billing periods (soft delete).
+    async fn clear_all_billing_periods(
+        &self,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }

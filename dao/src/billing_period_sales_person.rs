@@ -42,6 +42,11 @@ pub trait BillingPeriodSalesPersonDao {
         process: &str,
         tx: Self::Transaction,
     ) -> Result<BillingPeriodSalesPersonEntity, crate::DaoError>;
+    async fn clear_all(
+        &self,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
 
     async fn all(
         &self,

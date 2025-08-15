@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::billing_period::{self, BillingPeriodDao, BillingPeriodEntity};
+use dao::billing_period::{BillingPeriodDao, BillingPeriodEntity};
 use dao::billing_period_sales_person::{
     BillingPeriodSalesPersonDao, BillingPeriodSalesPersonEntity,
 };
@@ -91,7 +91,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
     /// Returns all not deleted `BillingPeriod`s but no sales person data.
     async fn get_billing_period_overview(
         &self,
-        context: Authentication<Self::Context>,
+        _context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[BillingPeriod]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
@@ -211,5 +211,37 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
 
         self.transaction_dao.commit(tx).await?;
         res
+    }
+
+    /// Clear all billing periods (soft delete).
+    async fn clear_all_billing_periods(
+        &self,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission("HR", context.clone())
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let user = self
+            .permission_service
+            .current_user_id(context)
+            .await?
+            .unwrap_or("Unauthenticated".into());
+
+        // Clear all billing period sales person entries first
+        self.billing_period_sales_person_dao
+            .clear_all(&user, tx.clone().into())
+            .await?;
+
+        // Then clear all billing periods
+        self.billing_period_dao
+            .clear_all(&user, tx.clone().into())
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
     }
 }

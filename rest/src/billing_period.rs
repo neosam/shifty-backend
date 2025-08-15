@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::Path;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{extract::State, response::Response};
 use axum::{Extension, Json, Router};
 use rest_types::{
@@ -22,6 +22,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/", get(get_all_billing_periods::<RestState>))
         .route("/{id}", get(get_billing_period::<RestState>))
         .route("/", post(create_billing_period::<RestState>))
+        .route("/", delete(clear_all_billing_periods::<RestState>))
 }
 
 #[utoipa::path(
@@ -134,12 +135,44 @@ pub async fn create_billing_period<RestState: RestStateDef>(
     )
 }
 
+#[utoipa::path(
+    delete,
+    path = "",
+    responses(
+        (status = 204, description = "All billing periods cleared successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - HR permission required"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+#[instrument(skip(rest_state))]
+pub async fn clear_all_billing_periods<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+) -> Response {
+    error_handler(
+        (async {
+            rest_state
+                .billing_period_service()
+                .clear_all_billing_periods(context.into(), None)
+                .await?;
+            Ok(Response::builder()
+                .status(204)
+                .body(Body::empty())
+                .unwrap())
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     paths(
         get_all_billing_periods,
         get_billing_period,
         create_billing_period,
+        clear_all_billing_periods,
     ),
     components(
         schemas(BillingPeriodTO, BillingPeriodSalesPersonTO, BillingPeriodValueTO, CreateBillingPeriodRequestTO)
