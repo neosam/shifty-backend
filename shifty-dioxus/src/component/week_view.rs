@@ -213,21 +213,32 @@ where
 
 impl From<Slot> for ColumnViewItem<Slot> {
     fn from(slot: Slot) -> Self {
+        let mut bookings: Vec<ColumnViewContentItem> = slot.bookings
+            .iter()
+            .map(|booking| ColumnViewContentItem {
+                id: booking.sales_person_id,
+                title: booking.label.clone(),
+                background_color: booking.background_color.clone(),
+            })
+            .collect();
+        
+        // Add min_resources indicator as the first item
+        bookings.insert(0, ColumnViewContentItem {
+            id: uuid::Uuid::nil(), // Use nil UUID for the indicator
+            title: format!("({}/{})", slot.bookings.len(), slot.min_resources).into(),
+            background_color: if slot.bookings.len() < slot.min_resources as usize {
+                "#ffcccc".into() // Light red background when understaffed
+            } else {
+                "#ccffcc".into() // Light green background when adequately staffed
+            },
+        });
+        
         ColumnViewItem {
             start: slot.from_hour(),
             end: slot.to_hour(),
             show_add: true,
             show_remove: true,
-            title: ColumnViewContent::Items(
-                slot.bookings
-                    .iter()
-                    .map(|booking| ColumnViewContentItem {
-                        id: booking.sales_person_id,
-                        title: booking.label.clone(),
-                        background_color: booking.background_color.clone(),
-                    })
-                    .collect::<Rc<[ColumnViewContentItem]>>(),
-            ),
+            title: ColumnViewContent::Items(bookings.into()),
             warning: if slot.evaluation().is_faulty() {
                 Some("Too few resources".into())
             } else {
