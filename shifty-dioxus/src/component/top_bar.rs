@@ -90,7 +90,7 @@ pub fn TopBar() -> Element {
                     }
                     if show_user_management {
                         li {
-                            Link { to: Route::UserManagementPage {}, {"User Management"} }
+                            Link { to: Route::UserManagementPage {}, {i18n.t(Key::UserManagement)} }
                         }
                     }
                     if auth_info.is_some() {
@@ -100,9 +100,11 @@ pub fn TopBar() -> Element {
                 ul { class: "ml-1",
                     li { class: "flex",
                         if let Some(auth_info) = auth_info {
-                            a { href: "{backend_url}/logout", "Logout {auth_info.user}" }
+                            a { href: "{backend_url}/logout", 
+                                { i18n.t(Key::LogoutUser).replace("{user}", &auth_info.user) }
+                            }
                         } else {
-                            a { href: "/authenticate", "Login" }
+                            a { href: "/authenticate", {i18n.t(Key::Login)} }
                         }
                     }
                 }

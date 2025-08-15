@@ -4,8 +4,12 @@ use crate::{
         base_components::{Button, TextInput},
         TopBar,
     },
+    i18n::Key,
     router::Route,
-    service::user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
+    service::{
+        user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
+        i18n::I18N,
+    },
 };
 use dioxus::prelude::*;
 
@@ -14,6 +18,7 @@ pub fn UserManagementPage() -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
     let add_user_value: Signal<ImStr> = use_signal(|| "".into());
+    let i18n = I18N.read().clone();
 
     use_effect(move || {
         user_management_service.send(UserManagementAction::LoadAllUsers);
@@ -24,7 +29,7 @@ pub fn UserManagementPage() -> Element {
         TopBar {}
 
         div { class: "px-4 py-4 md:px-6 lg:px-8 max-w-5xl mx-auto",
-            h1 { class: "text-2xl md:text-3xl font-bold mb-6 text-center md:text-left", "User Management" }
+            h1 { class: "text-2xl md:text-3xl font-bold mb-6 text-center md:text-left", "{i18n.t(Key::UserManagement)}" }
 
             // Mobile-first responsive layout: stack vertically on mobile, side by side on desktop
             div { class: "flex flex-col lg:flex-row gap-4 lg:gap-6",
@@ -32,9 +37,11 @@ pub fn UserManagementPage() -> Element {
                 // Users Section
                 div { class: "flex-1 bg-white rounded-lg shadow-sm border p-4 md:p-6",
                     div { class: "flex items-center justify-between mb-4",
-                        h2 { class: "text-xl font-bold text-gray-800", "Users" }
+                        h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::Users)}" }
                         span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
-                            "{user_management.users.len()} users" 
+                            {
+                                i18n.t(Key::UsersCount).replace("{count}", &user_management.users.len().to_string())
+                            } 
                         }
                     }
 
@@ -42,8 +49,8 @@ pub fn UserManagementPage() -> Element {
                     if user_management.users.is_empty() {
                         div { class: "text-center py-8 text-gray-500",
                             div { class: "text-4xl mb-2", "👥" }
-                            p { "No users found" }
-                            p { class: "text-sm", "Add your first user below" }
+                            p { "{i18n.t(Key::NoUsersFound)}" }
+                            p { class: "text-sm", "{i18n.t(Key::AddFirstUserBelow)}" }
                         }
                     } else {
                         ul { class: "space-y-2 mb-4",
@@ -65,7 +72,7 @@ pub fn UserManagementPage() -> Element {
                                                     .send(UserManagementAction::DeleteUser(user.username.clone()));
                                             }
                                         },
-                                        title: "Delete user",
+                                        title: "{i18n.t(Key::DeleteUser)}",
                                         "🗑️"
                                     }
                                 }
@@ -75,7 +82,7 @@ pub fn UserManagementPage() -> Element {
 
                     // Add User Form
                     div { class: "border-t pt-4",
-                        h3 { class: "text-sm font-semibold text-gray-700 mb-3", "Add New User" }
+                        h3 { class: "text-sm font-semibold text-gray-700 mb-3", "{i18n.t(Key::AddNewUser)}" }
                         div { class: "flex flex-col sm:flex-row gap-2",
                             div { class: "flex-1",
                                 div { class: "w-full", style: "min-width: 0;",
@@ -101,7 +108,7 @@ pub fn UserManagementPage() -> Element {
                                         }
                                     }
                                 },
-                                "Create User"
+                                "{i18n.t(Key::CreateUser)}"
                             }
                         }
                     }
@@ -110,9 +117,11 @@ pub fn UserManagementPage() -> Element {
                 // Sales Persons Section
                 div { class: "flex-1 bg-white rounded-lg shadow-sm border p-4 md:p-6",
                     div { class: "flex items-center justify-between mb-4",
-                        h2 { class: "text-xl font-bold text-gray-800", "Sales Persons" }
+                        h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::SalesPersons)}" }
                         span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
-                            "{user_management.sales_persons.len()} persons" 
+                            {
+                                i18n.t(Key::SalesPersonsCount).replace("{count}", &user_management.sales_persons.len().to_string())
+                            } 
                         }
                     }
 
@@ -120,8 +129,8 @@ pub fn UserManagementPage() -> Element {
                     if user_management.sales_persons.is_empty() {
                         div { class: "text-center py-8 text-gray-500 mb-4",
                             div { class: "text-4xl mb-2", "👤" }
-                            p { "No sales persons found" }
-                            p { class: "text-sm", "Create your first sales person below" }
+                            p { "{i18n.t(Key::NoSalesPersonsFound)}" }
+                            p { class: "text-sm", "{i18n.t(Key::CreateFirstSalesPersonBelow)}" }
                         }
                     } else {
                         ul { class: "space-y-2 mb-4",
@@ -140,7 +149,7 @@ pub fn UserManagementPage() -> Element {
                                         }
                                         if sales_person.is_paid {
                                             span { class: "ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full flex-shrink-0", 
-                                                "Paid" 
+                                                "{i18n.t(Key::Paid)}" 
                                             }
                                         }
                                     }
@@ -157,7 +166,7 @@ pub fn UserManagementPage() -> Element {
                             },
                             div { class: "w-full sm:w-auto",
                                 Button { 
-                                    "Create New Sales Person" 
+                                    "{i18n.t(Key::CreateNewSalesPerson)}" 
                                 }
                             }
                         }

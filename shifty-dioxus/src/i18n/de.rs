@@ -269,4 +269,40 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::FullYear, "Ganzes Jahr");
     i18n.add_text(Locale::En, Key::InvalidBillingPeriodId, "Ungültige Abrechnungszeitraum ID");
     i18n.add_text(Locale::En, Key::SelectEndDateForNewBillingPeriod, "Wählen Sie das Enddatum für den neuen Abrechnungszeitraum. Das Startdatum wird automatisch berechnet.");
+
+    // User management
+    i18n.add_text(Locale::En, Key::UserManagement, "Benutzerverwaltung");
+    i18n.add_text(Locale::En, Key::UserDetails, "Benutzer Details");
+    i18n.add_text(Locale::En, Key::SalesPersonDetails, "Verkäufer Details");
+    i18n.add_text(Locale::En, Key::Users, "Benutzer");
+    i18n.add_text(Locale::En, Key::UsersCount, "{count} Benutzer");
+    i18n.add_text(Locale::En, Key::SalesPersonsCount, "{count} Personen");
+    i18n.add_text(Locale::En, Key::NoUsersFound, "Keine Benutzer gefunden");
+    i18n.add_text(Locale::En, Key::AddFirstUserBelow, "Fügen Sie Ihren ersten Benutzer unten hinzu");
+    i18n.add_text(Locale::En, Key::NoSalesPersonsFound, "Keine Verkäufer gefunden");
+    i18n.add_text(Locale::En, Key::CreateFirstSalesPersonBelow, "Erstellen Sie Ihren ersten Verkäufer unten");
+    i18n.add_text(Locale::En, Key::DeleteUser, "Benutzer löschen");
+    i18n.add_text(Locale::En, Key::AddNewUser, "Neuen Benutzer hinzufügen");
+    i18n.add_text(Locale::En, Key::CreateUser, "Benutzer erstellen");
+    i18n.add_text(Locale::En, Key::CreateNewSalesPerson, "Neuen Verkäufer erstellen");
+    i18n.add_text(Locale::En, Key::ManageRolesAndPermissions, "Rollen und Berechtigungen für diesen Benutzer verwalten.");
+    i18n.add_text(Locale::En, Key::RoleAssignments, "Rollenzuweisungen");
+    i18n.add_text(Locale::En, Key::RolesCount, "{assigned} von {total} Rollen");
+    i18n.add_text(Locale::En, Key::NoRolesAvailable, "Keine Rollen verfügbar");
+    i18n.add_text(Locale::En, Key::ContactAdministratorForRoles, "Wenden Sie sich an Ihren Administrator, um Rollen einzurichten");
+    i18n.add_text(Locale::En, Key::BackToUserManagement, "Zurück zur Benutzerverwaltung");
+    i18n.add_text(Locale::En, Key::ShiftplanColor, "Schichtplan Farbe");
+    i18n.add_text(Locale::En, Key::ColorPreview, "Farbvorschau");
+    i18n.add_text(Locale::En, Key::Settings, "Einstellungen");
+    i18n.add_text(Locale::En, Key::ThisPersonReceivesPayment, "Diese Person erhält Bezahlung");
+    i18n.add_text(Locale::En, Key::UserAccount, "Benutzerkonto");
+    i18n.add_text(Locale::En, Key::ConnectUserAccount, "Benutzerkonto verbinden");
+    i18n.add_text(Locale::En, Key::SaveChanges, "Änderungen speichern");
+    i18n.add_text(Locale::En, Key::LoadingSalesPersonDetails, "Lade Verkäufer Details...");
+    i18n.add_text(Locale::En, Key::SalesPersonSavedSuccessfully, "Verkäufer erfolgreich gespeichert!");
+    i18n.add_text(Locale::En, Key::EditSalesPersonInformation, "Verkäufer Informationen bearbeiten");
+    i18n.add_text(Locale::En, Key::CreateNewSalesPersonTitle, "Neuen Verkäufer erstellen");
+    i18n.add_text(Locale::En, Key::Paid, "Bezahlt");
+    i18n.add_text(Locale::En, Key::Login, "Anmelden");
+    i18n.add_text(Locale::En, Key::LogoutUser, "Abmelden {user}");
 }

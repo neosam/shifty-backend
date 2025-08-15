@@ -246,4 +246,40 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::FullYear, "Full Year");
     i18n.add_text(Locale::En, Key::InvalidBillingPeriodId, "Invalid billing period id");
     i18n.add_text(Locale::En, Key::SelectEndDateForNewBillingPeriod, "Select the end date for the new billing period. The start date will be calculated automatically.");
+
+    // User management
+    i18n.add_text(Locale::En, Key::UserManagement, "User Management");
+    i18n.add_text(Locale::En, Key::UserDetails, "User Details");
+    i18n.add_text(Locale::En, Key::SalesPersonDetails, "Sales Person Details");
+    i18n.add_text(Locale::En, Key::Users, "Users");
+    i18n.add_text(Locale::En, Key::UsersCount, "{count} users");
+    i18n.add_text(Locale::En, Key::SalesPersonsCount, "{count} persons");
+    i18n.add_text(Locale::En, Key::NoUsersFound, "No users found");
+    i18n.add_text(Locale::En, Key::AddFirstUserBelow, "Add your first user below");
+    i18n.add_text(Locale::En, Key::NoSalesPersonsFound, "No sales persons found");
+    i18n.add_text(Locale::En, Key::CreateFirstSalesPersonBelow, "Create your first sales person below");
+    i18n.add_text(Locale::En, Key::DeleteUser, "Delete user");
+    i18n.add_text(Locale::En, Key::AddNewUser, "Add New User");
+    i18n.add_text(Locale::En, Key::CreateUser, "Create User");
+    i18n.add_text(Locale::En, Key::CreateNewSalesPerson, "Create New Sales Person");
+    i18n.add_text(Locale::En, Key::ManageRolesAndPermissions, "Manage roles and permissions for this user.");
+    i18n.add_text(Locale::En, Key::RoleAssignments, "Role Assignments");
+    i18n.add_text(Locale::En, Key::RolesCount, "{assigned} of {total} roles");
+    i18n.add_text(Locale::En, Key::NoRolesAvailable, "No roles available");
+    i18n.add_text(Locale::En, Key::ContactAdministratorForRoles, "Contact your administrator to set up roles");
+    i18n.add_text(Locale::En, Key::BackToUserManagement, "Back to User Management");
+    i18n.add_text(Locale::En, Key::ShiftplanColor, "Shiftplan Color");
+    i18n.add_text(Locale::En, Key::ColorPreview, "Color preview");
+    i18n.add_text(Locale::En, Key::Settings, "Settings");
+    i18n.add_text(Locale::En, Key::ThisPersonReceivesPayment, "This person receives payment");
+    i18n.add_text(Locale::En, Key::UserAccount, "User Account");
+    i18n.add_text(Locale::En, Key::ConnectUserAccount, "Connect User Account");
+    i18n.add_text(Locale::En, Key::SaveChanges, "Save Changes");
+    i18n.add_text(Locale::En, Key::LoadingSalesPersonDetails, "Loading sales person details...");
+    i18n.add_text(Locale::En, Key::SalesPersonSavedSuccessfully, "Sales person saved successfully!");
+    i18n.add_text(Locale::En, Key::EditSalesPersonInformation, "Edit sales person information");
+    i18n.add_text(Locale::En, Key::CreateNewSalesPersonTitle, "Create new sales person");
+    i18n.add_text(Locale::En, Key::Paid, "Paid");
+    i18n.add_text(Locale::En, Key::Login, "Login");
+    i18n.add_text(Locale::En, Key::LogoutUser, "Logout {user}");
 }

@@ -3,8 +3,12 @@ use dioxus::prelude::*;
 use crate::{
     component::base_components::*,
     component::TopBar,
+    i18n::Key,
     router::Route,
-    service::user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
+    service::{
+        user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
+        i18n::I18N,
+    },
 };
 
 #[derive(Clone, PartialEq, Props)]
@@ -17,6 +21,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
     let nav = navigator();
+    let i18n = I18N.read().clone();
 
     use_effect({
         to_owned![user_management_service, props];
@@ -36,11 +41,11 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                 button {
                     class: "mr-3 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors",
                     onclick: move |_| { nav.push(Route::UserManagementPage {}); },
-                    title: "Back to User Management",
-                    "← Back"
+                    title: "{i18n.t(Key::BackToUserManagement)}",
+                    "← {i18n.t(Key::BackToUserManagement)}"
                 }
                 div {
-                    h1 { class: "text-2xl md:text-3xl font-bold text-gray-800", "User Details" }
+                    h1 { class: "text-2xl md:text-3xl font-bold text-gray-800", "{i18n.t(Key::UserDetails)}" }
                     p { class: "text-lg text-gray-600 mt-1", "{props.user_id}" }
                 }
             }
@@ -48,23 +53,27 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
             // Main content card
             div { class: "bg-white rounded-lg shadow-sm border p-4 md:p-6",
                 div { class: "mb-6",
-                    p { class: "text-gray-600", "Manage roles and permissions for this user." }
+                    p { class: "text-gray-600", "{i18n.t(Key::ManageRolesAndPermissions)}" }
                 }
 
                 // Role Assignments Section
                 div {
                     div { class: "flex items-center justify-between mb-4",
-                        h2 { class: "text-xl font-bold text-gray-800", "Role Assignments" }
+                        h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::RoleAssignments)}" }
                         span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
-                            "{user_management.role_assignements.iter().filter(|r| r.assigned).count()} of {user_management.role_assignements.len()} roles" 
+                            {
+                                let assigned = user_management.role_assignements.iter().filter(|r| r.assigned).count();
+                                let total = user_management.role_assignements.len();
+                                i18n.t(Key::RolesCount).replace("{assigned}", &assigned.to_string()).replace("{total}", &total.to_string())
+                            } 
                         }
                     }
 
                     if user_management.role_assignements.is_empty() {
                         div { class: "text-center py-8 text-gray-500",
                             div { class: "text-4xl mb-2", "🔐" }
-                            p { "No roles available" }
-                            p { class: "text-sm", "Contact your administrator to set up roles" }
+                            p { "{i18n.t(Key::NoRolesAvailable)}" }
+                            p { class: "text-sm", "{i18n.t(Key::ContactAdministratorForRoles)}" }
                         }
                     } else {
                         div { class: "space-y-3",
@@ -107,7 +116,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                     }
                                     if role_assignment.assigned {
                                         span { class: "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full", 
-                                            "Active" 
+                                            "{i18n.t(Key::Active)}" 
                                         }
                                     }
                                 }
