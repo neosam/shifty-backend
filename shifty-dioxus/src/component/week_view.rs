@@ -209,6 +209,8 @@ where
     pub discourage: bool,
     pub button_types: WeekViewButtonTypes,
     pub dropdown_entries: Option<Rc<[DropdownEntry]>>,
+    #[props(default = "relative min-w-48 flex-grow print:min-w-0".into())]
+    pub custom_class: ImStr,
 }
 
 impl From<Slot> for ColumnViewItem<Slot> {
@@ -257,7 +259,7 @@ where
 {
     rsx! {
         div {
-            class: "relative min-w-48 flex-grow print:min-w-0",
+            class: props.custom_class.as_str(),
             style: format!("height: {}px;", props.height),
             ColumnViewSlot::<()> {
                 item_data: ColumnViewItem {
@@ -334,6 +336,7 @@ pub fn TimeView(props: TimeViewProps) -> Element {
             offset: SCALING / 2.0,
             button_types: WeekViewButtonTypes::None,
             slots,
+            custom_class: "relative min-w-28 flex-shrink-0 print:min-w-0".into(),
         }
     }
 }
@@ -454,7 +457,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
         div {
             class: "overflow-y-scroll overflow-visible no-scrollbar print:width-full print:overflow-visible",
             style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
-            div { class: "fixed bottom-4 left-4 z-10 border bg-white p-2 rounded-md shadow-md 2xl:hidden print:hidden",
+            div { class: "fixed bottom-4 left-4 z-50 border bg-white p-2 rounded-md shadow-lg 2xl:hidden print:hidden",
                 label { "Zoom: " }
                 select {
                     onchange: move |event| {
@@ -472,38 +475,44 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                 }
             }
             div { class: format!("flex flex-row {}", zoom_class),
-                TimeView { start: day_start.ceil() as u8, end: day_end.ceil() as u8 }
-                for weekday in [
-                    Weekday::Monday,
-                    Weekday::Tuesday,
-                    Weekday::Wednesday,
-                    Weekday::Thursday,
-                    Weekday::Friday,
-                    Weekday::Saturday,
-                    Weekday::Sunday,
-                ]
-                    .iter()
-                {
-                    if !(*weekday == Weekday::Sunday && !has_sunday) {
-                        DayView {
-                            weekday: weekday.clone(),
-                            date: props.date_of_monday.map(|date| date + time::Duration::days(weekday.clone() as i64)),
-                            slots: props.shiftplan_data.slots_by_weekday(weekday.clone()),
-                            day_start,
-                            day_end,
-                            highlight_item_id: props.highlight_item_id,
-                            add_event: props.add_event.clone(),
-                            remove_event: props.remove_event.clone(),
-                            item_clicked: props.item_clicked.clone(),
-                            title_double_clicked: props.title_double_clicked.clone(),
-                            discourage: props.discourage_weekdays.contains(weekday),
-                            button_types: props.button_types.clone(),
-                            dropdown_entries: props.dropdown_entries.clone(),
-                            header: props
-                                .weekday_headers
-                                .iter()
-                                .find(|(day, _)| day == weekday)
-                                .map(|(_, text)| text.clone()),
+                // Fixed time column
+                div { class: "flex-shrink-0 sticky left-0 z-10 bg-white border-r border-gray-200",
+                    TimeView { start: day_start.ceil() as u8, end: day_end.ceil() as u8 }
+                }
+                // Scrollable weekdays container
+                div { class: "flex flex-row overflow-x-auto flex-grow",
+                    for weekday in [
+                        Weekday::Monday,
+                        Weekday::Tuesday,
+                        Weekday::Wednesday,
+                        Weekday::Thursday,
+                        Weekday::Friday,
+                        Weekday::Saturday,
+                        Weekday::Sunday,
+                    ]
+                        .iter()
+                    {
+                        if !(*weekday == Weekday::Sunday && !has_sunday) {
+                            DayView {
+                                weekday: weekday.clone(),
+                                date: props.date_of_monday.map(|date| date + time::Duration::days(weekday.clone() as i64)),
+                                slots: props.shiftplan_data.slots_by_weekday(weekday.clone()),
+                                day_start,
+                                day_end,
+                                highlight_item_id: props.highlight_item_id,
+                                add_event: props.add_event.clone(),
+                                remove_event: props.remove_event.clone(),
+                                item_clicked: props.item_clicked.clone(),
+                                title_double_clicked: props.title_double_clicked.clone(),
+                                discourage: props.discourage_weekdays.contains(weekday),
+                                button_types: props.button_types.clone(),
+                                dropdown_entries: props.dropdown_entries.clone(),
+                                header: props
+                                    .weekday_headers
+                                    .iter()
+                                    .find(|(day, _)| day == weekday)
+                                    .map(|(_, text)| text.clone()),
+                            }
                         }
                     }
                 }
