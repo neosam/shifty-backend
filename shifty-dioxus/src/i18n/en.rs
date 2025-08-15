@@ -215,4 +215,35 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Save, "Save");
     i18n.add_text(Locale::En, Key::Edit, "Edit");
     i18n.add_text(Locale::En, Key::Delete, "Delete");
+
+    // Billing period management
+    i18n.add_text(Locale::En, Key::BillingPeriods, "Billing Periods");
+    i18n.add_text(Locale::En, Key::BillingPeriodDetails, "Billing Period Details");
+    i18n.add_text(Locale::En, Key::CreateNewBillingPeriod, "➕ Create New Billing Period");
+    i18n.add_text(Locale::En, Key::BillingPeriod, "Billing Period");
+    i18n.add_text(Locale::En, Key::StartDate, "Start Date");
+    i18n.add_text(Locale::En, Key::EndDate, "End Date");
+    i18n.add_text(Locale::En, Key::CreatedAt, "Created At");
+    i18n.add_text(Locale::En, Key::CreatedBy, "Created By");
+    i18n.add_text(Locale::En, Key::DeletedAt, "Deleted At");
+    i18n.add_text(Locale::En, Key::DeletedBy, "Deleted By");
+    i18n.add_text(Locale::En, Key::Active, "Active");
+    i18n.add_text(Locale::En, Key::Deleted, "Deleted");
+    i18n.add_text(Locale::En, Key::SalesPersons, "Sales Persons");
+    i18n.add_text(Locale::En, Key::BasicInformation, "Basic Information");
+    i18n.add_text(Locale::En, Key::LoadingBillingPeriods, "Loading billing periods...");
+    i18n.add_text(Locale::En, Key::LoadingBillingPeriodDetails, "Loading billing period details...");
+    i18n.add_text(Locale::En, Key::CreateBillingPeriod, "Create Billing Period");
+    i18n.add_text(Locale::En, Key::Period, "Period");
+    i18n.add_text(Locale::En, Key::NoSalesPersonsInBillingPeriod, "No sales persons in this billing period.");
+    i18n.add_text(Locale::En, Key::SalesPersonsIncluded, "{count} sales persons included");
+    i18n.add_text(Locale::En, Key::FilterSalesPersonsByName, "Filter sales persons by name...");
+    i18n.add_text(Locale::En, Key::NoSalesPersonsMatchFilter, "No sales persons match the filter '{filter}'.");
+    i18n.add_text(Locale::En, Key::Values, "Values");
+    i18n.add_text(Locale::En, Key::Delta, "Delta");
+    i18n.add_text(Locale::En, Key::YtdFrom, "YTD From");
+    i18n.add_text(Locale::En, Key::YtdTo, "YTD To");
+    i18n.add_text(Locale::En, Key::FullYear, "Full Year");
+    i18n.add_text(Locale::En, Key::InvalidBillingPeriodId, "Invalid billing period id");
+    i18n.add_text(Locale::En, Key::SelectEndDateForNewBillingPeriod, "Select the end date for the new billing period. The start date will be calculated automatically.");
 }

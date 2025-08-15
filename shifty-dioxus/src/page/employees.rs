@@ -1,10 +1,12 @@
 use crate::{
     component::{EmployeeShort, Modal, TopBar},
+    i18n::Key,
     js, loader,
     router::Route,
     service::{
         billing_period::{BillingPeriodAction, BILLING_PERIOD_STORE},
         config::CONFIG,
+        i18n::I18N,
     },
 };
 use dioxus::prelude::*;
@@ -31,6 +33,7 @@ pub fn Employees() -> Element {
     
     let billing_period_service = use_coroutine_handle::<BillingPeriodAction>();
     let billing_periods = BILLING_PERIOD_STORE.read().clone();
+    let i18n = I18N.read().clone();
     
     // Dialog state
     let mut show_create_billing_period_dialog = use_signal(|| false);
@@ -76,10 +79,10 @@ pub fn Employees() -> Element {
         if *show_create_billing_period_dialog.read() {
             Modal {
                 div { class: "space-y-6",
-                    h2 { class: "text-xl font-bold mb-4", "Create New Billing Period" }
+                    h2 { class: "text-xl font-bold mb-4", "{i18n.t(Key::CreateBillingPeriod)}" }
                     
                     div {
-                        label { class: "block text-sm font-medium text-gray-700 mb-2", "End Date" }
+                        label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::EndDate)}" }
                         input {
                             class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
                             r#type: "date",
@@ -88,7 +91,7 @@ pub fn Employees() -> Element {
                             required: true
                         }
                         p { class: "text-sm text-gray-500 mt-1", 
-                            "Select the end date for the new billing period. The start date will be calculated automatically." 
+                            "{i18n.t(Key::SelectEndDateForNewBillingPeriod)}" 
                         }
                     }
                     
@@ -96,14 +99,14 @@ pub fn Employees() -> Element {
                         button {
                             class: "px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500",
                             onclick: move |_| page_action_handler.send(EmployeesPageAction::HideCreateBillingPeriodDialog),
-                            "Cancel"
+                            "{i18n.t(Key::Cancel)}"
                         }
                         button {
                             class: "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500",
                             onclick: move |_| {
                                 page_action_handler.send(EmployeesPageAction::CreateBillingPeriod(end_date.read().clone()));
                             },
-                            "Create Billing Period"
+                            "{i18n.t(Key::CreateBillingPeriod)}"
                         }
                     }
                 }
@@ -113,7 +116,7 @@ pub fn Employees() -> Element {
         div { class: "ml-1 mr-1 pt-4 md:m-8",
             // Employees Section
             div { class: "mb-8",
-                h2 { class: "text-2xl font-bold mb-4", "Employees" }
+                h2 { class: "text-2xl font-bold mb-4", "{i18n.t(Key::Employees)}" }
                 match &*employees.read_unchecked() {
                     Some(Ok(employee)) => {
                         let mut employee = employee.iter().cloned().collect::<Vec<_>>();
@@ -143,15 +146,15 @@ pub fn Employees() -> Element {
             // Billing Periods Section
             div { class: "mb-8",
                 div { class: "flex justify-between items-center mb-4",
-                    h2 { class: "text-2xl font-bold mb-4", "Billing Periods (unfinished)" }
+                    h2 { class: "text-2xl font-bold mb-4", "{i18n.t(Key::BillingPeriods)}" }
                     button {
                         class: "px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors",
                         onclick: move |_| page_action_handler.send(EmployeesPageAction::ShowCreateBillingPeriodDialog),
-                        "➕ Create New Billing Period"
+                        "{i18n.t(Key::CreateNewBillingPeriod)}"
                     }
                 }
                 if billing_periods.billing_periods.is_empty() {
-                    div { class: "text-gray-500", "Loading billing periods..." }
+                    div { class: "text-gray-500", "{i18n.t(Key::LoadingBillingPeriods)}" }
                 } else {
                     div { class: "grid gap-4",
                         for billing_period in billing_periods.billing_periods.iter() {
@@ -164,28 +167,30 @@ pub fn Employees() -> Element {
                                     div { class: "flex justify-between items-center",
                                         div {
                                             h3 { class: "text-lg font-semibold text-blue-600 hover:text-blue-800", 
-                                                "Period: {billing_period.start_date} - {billing_period.end_date}"
+                                                "{i18n.t(Key::Period)}: {billing_period.start_date} - {billing_period.end_date}"
                                             }
                                             p { class: "text-sm text-gray-600", 
-                                                "Created: {billing_period.created_at.date()}"
+                                                "{i18n.t(Key::CreatedAt)}: {billing_period.created_at.date()}"
                                             }
                                             p { class: "text-sm text-gray-600", 
-                                                "Created by: {billing_period.created_by.as_ref()}"
+                                                "{i18n.t(Key::CreatedBy)}: {billing_period.created_by.as_ref()}"
                                             }
                                             if !billing_period.sales_persons.is_empty() {
                                                 p { class: "text-sm text-gray-500 mt-1", 
-                                                    "{billing_period.sales_persons.len()} sales persons included"
+                                                    {
+                                                        i18n.t(Key::SalesPersonsIncluded).replace("{count}", &billing_period.sales_persons.len().to_string())
+                                                    }
                                                 }
                                             }
                                         }
                                         div { class: "flex items-center space-x-2",
                                             if billing_period.deleted_at.is_none() {
                                                 span { class: "px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full", 
-                                                    "Active" 
+                                                    "{i18n.t(Key::Active)}" 
                                                 }
                                             } else {
                                                 span { class: "px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full", 
-                                                    "Deleted" 
+                                                    "{i18n.t(Key::Deleted)}" 
                                                 }
                                             }
                                             svg { 

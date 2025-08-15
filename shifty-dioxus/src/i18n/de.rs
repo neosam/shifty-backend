@@ -238,4 +238,35 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Save, "Speichern");
     i18n.add_text(Locale::En, Key::Edit, "Bearbeiten");
     i18n.add_text(Locale::En, Key::Delete, "Löschen");
+
+    // Billing period management
+    i18n.add_text(Locale::En, Key::BillingPeriods, "Abrechnungszeiträume");
+    i18n.add_text(Locale::En, Key::BillingPeriodDetails, "Abrechnungszeitraum Details");
+    i18n.add_text(Locale::En, Key::CreateNewBillingPeriod, "➕ Neuen Abrechnungszeitraum erstellen");
+    i18n.add_text(Locale::En, Key::BillingPeriod, "Abrechnungszeitraum");
+    i18n.add_text(Locale::En, Key::StartDate, "Startdatum");
+    i18n.add_text(Locale::En, Key::EndDate, "Enddatum");
+    i18n.add_text(Locale::En, Key::CreatedAt, "Erstellt am");
+    i18n.add_text(Locale::En, Key::CreatedBy, "Erstellt von");
+    i18n.add_text(Locale::En, Key::DeletedAt, "Gelöscht am");
+    i18n.add_text(Locale::En, Key::DeletedBy, "Gelöscht von");
+    i18n.add_text(Locale::En, Key::Active, "Aktiv");
+    i18n.add_text(Locale::En, Key::Deleted, "Gelöscht");
+    i18n.add_text(Locale::En, Key::SalesPersons, "Verkäufer");
+    i18n.add_text(Locale::En, Key::BasicInformation, "Grundinformationen");
+    i18n.add_text(Locale::En, Key::LoadingBillingPeriods, "Lade Abrechnungszeiträume...");
+    i18n.add_text(Locale::En, Key::LoadingBillingPeriodDetails, "Lade Abrechnungszeitraum Details...");
+    i18n.add_text(Locale::En, Key::CreateBillingPeriod, "Abrechnungszeitraum erstellen");
+    i18n.add_text(Locale::En, Key::Period, "Zeitraum");
+    i18n.add_text(Locale::En, Key::NoSalesPersonsInBillingPeriod, "Keine Verkäufer in diesem Abrechnungszeitraum.");
+    i18n.add_text(Locale::En, Key::SalesPersonsIncluded, "{count} Verkäufer enthalten");
+    i18n.add_text(Locale::En, Key::FilterSalesPersonsByName, "Verkäufer nach Name filtern...");
+    i18n.add_text(Locale::En, Key::NoSalesPersonsMatchFilter, "Keine Verkäufer entsprechen dem Filter '{filter}'.");
+    i18n.add_text(Locale::En, Key::Values, "Werte");
+    i18n.add_text(Locale::En, Key::Delta, "Delta");
+    i18n.add_text(Locale::En, Key::YtdFrom, "YTD Von");
+    i18n.add_text(Locale::En, Key::YtdTo, "YTD Bis");
+    i18n.add_text(Locale::En, Key::FullYear, "Ganzes Jahr");
+    i18n.add_text(Locale::En, Key::InvalidBillingPeriodId, "Ungültige Abrechnungszeitraum ID");
+    i18n.add_text(Locale::En, Key::SelectEndDateForNewBillingPeriod, "Wählen Sie das Enddatum für den neuen Abrechnungszeitraum. Das Startdatum wird automatisch berechnet.");
 }
