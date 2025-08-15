@@ -227,11 +227,11 @@ impl From<Slot> for ColumnViewItem<Slot> {
         // Add min_resources indicator as the first item
         bookings.insert(0, ColumnViewContentItem {
             id: uuid::Uuid::nil(), // Use nil UUID for the indicator
-            title: format!("({}/{})", slot.bookings.len(), slot.min_resources).into(),
-            background_color: if slot.bookings.len() < slot.min_resources as usize {
+            title: format!("{}/{}", slot.bookings.len(), slot.min_resources).into(),
+            background_color: if slot.bookings.len() != slot.min_resources as usize {
                 "#ffcccc".into() // Light red background when understaffed
             } else {
-                "#ccffcc".into() // Light green background when adequately staffed
+                "#fff".into() // Light green background when adequately staffed
             },
         });
         
