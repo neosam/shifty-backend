@@ -1,3 +1,4 @@
+pub mod cs;
 pub mod de;
 pub mod en;
 pub mod i18n;
@@ -13,12 +14,14 @@ use crate::{error::ShiftyError, state::week::Week};
 pub enum Locale {
     En,
     De,
+    Cs,
 }
 impl Locale {
     pub fn from_str(locale: &str) -> Self {
         match locale {
             "en" => Locale::En,
             "de" => Locale::De,
+            "cs" => Locale::Cs,
             _ => Locale::En,
         }
     }
@@ -33,6 +36,7 @@ impl LocaleDef for Locale {
         let formatter = match self {
             Locale::En => format_description!("[year]-[month]-[day]"),
             Locale::De => format_description!("[day].[month].[year]"),
+            Locale::Cs => format_description!("[day]. [month]. [year]"),
         };
         date.format(formatter).unwrap_or(date.to_string()).into()
     }
@@ -257,6 +261,7 @@ pub fn generate(locale: Locale) -> I18n<Key, Locale> {
     match locale {
         Locale::En => en::add_i18n_en(&mut i18n),
         Locale::De => de::add_i18n_de(&mut i18n),
+        Locale::Cs => cs::add_i18n_cs(&mut i18n),
     }
 
     i18n
