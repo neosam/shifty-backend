@@ -112,6 +112,7 @@ pub struct SalesPerson {
     pub name: Rc<str>,
     pub background_color: Rc<str>,
     pub is_paid: bool,
+    pub inactive: bool,
     pub version: Uuid,
 }
 impl From<&SalesPersonTO> for SalesPerson {
@@ -121,6 +122,7 @@ impl From<&SalesPersonTO> for SalesPerson {
             name: sales_person.name.as_ref().into(),
             background_color: sales_person.background_color.as_ref().into(),
             is_paid: sales_person.is_paid.unwrap_or(false),
+            inactive: sales_person.inactive,
             version: sales_person.version,
         }
     }
@@ -132,7 +134,7 @@ impl From<&SalesPerson> for SalesPersonTO {
             name: sales_person.name.to_string().into(),
             background_color: sales_person.background_color.to_string().into(),
             is_paid: Some(sales_person.is_paid),
-            inactive: false,
+            inactive: sales_person.inactive,
             deleted: None,
             version: sales_person.version,
         }

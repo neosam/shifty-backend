@@ -243,6 +243,7 @@ pub enum Key {
     ColorPreview,
     Settings,
     ThisPersonReceivesPayment,
+    ThisPersonIsInactive,
     UserAccount,
     ConnectUserAccount,
     SaveChanges,
@@ -251,6 +252,7 @@ pub enum Key {
     EditSalesPersonInformation,
     CreateNewSalesPersonTitle,
     Paid,
+    Inactive,
     Login,
     LogoutUser,
 }

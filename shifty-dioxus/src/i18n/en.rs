@@ -272,6 +272,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ColorPreview, "Color preview");
     i18n.add_text(Locale::En, Key::Settings, "Settings");
     i18n.add_text(Locale::En, Key::ThisPersonReceivesPayment, "This person receives payment");
+    i18n.add_text(Locale::En, Key::ThisPersonIsInactive, "This person is inactive");
     i18n.add_text(Locale::En, Key::UserAccount, "User Account");
     i18n.add_text(Locale::En, Key::ConnectUserAccount, "Connect User Account");
     i18n.add_text(Locale::En, Key::SaveChanges, "Save Changes");
@@ -280,6 +281,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::EditSalesPersonInformation, "Edit sales person information");
     i18n.add_text(Locale::En, Key::CreateNewSalesPersonTitle, "Create new sales person");
     i18n.add_text(Locale::En, Key::Paid, "Paid");
+    i18n.add_text(Locale::En, Key::Inactive, "Inactive");
     i18n.add_text(Locale::En, Key::Login, "Login");
     i18n.add_text(Locale::En, Key::LogoutUser, "Logout {user}");
 }

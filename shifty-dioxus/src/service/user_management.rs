@@ -304,6 +304,7 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     name: "Name".into(),
                     background_color: "#FFF".into(),
                     is_paid: false,
+                    inactive: false,
                     version: Uuid::nil(),
                 };
                 USER_MANAGEMENT_STORE.write().sales_person =

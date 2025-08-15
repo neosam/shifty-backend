@@ -159,6 +159,25 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 }
                             }
                             
+                            div { class: "border-b-2 border-gray-200 border-dashed p-2",
+                                Checkbox {
+                                    value: Some(sales_person.sales_person.inactive),
+                                    on_change: Some({
+                                        to_owned![user_management_service, sales_person];
+                                        EventHandler::new(move |inactive: bool| {
+                                            user_management_service
+                                                .send(
+                                                    UserManagementAction::UpdateSalesPerson(SalesPerson {
+                                                        inactive,
+                                                        ..sales_person.sales_person.clone()
+                                                    }),
+                                                );
+                                        })
+                                    }),
+                                    "{i18n.t(Key::ThisPersonIsInactive)}"
+                                }
+                            }
+                            
                             FormPair { label: i18n.t(Key::UserAccount).into(),
                                 if let Some(user_id) = &sales_person.user_id {
                                     div { class: "flex gap-2",

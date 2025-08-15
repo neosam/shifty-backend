@@ -272,6 +272,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ColorPreview, "Náhled barvy");
     i18n.add_text(Locale::Cs, Key::Settings, "Nastavení");
     i18n.add_text(Locale::Cs, Key::ThisPersonReceivesPayment, "Tato osoba dostává mzdu");
+    i18n.add_text(Locale::Cs, Key::ThisPersonIsInactive, "Tato osoba je neaktivní");
     i18n.add_text(Locale::Cs, Key::UserAccount, "Uživatelský účet");
     i18n.add_text(Locale::Cs, Key::ConnectUserAccount, "Připojit uživatelský účet");
     i18n.add_text(Locale::Cs, Key::SaveChanges, "Uložit změny");
@@ -280,6 +281,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::EditSalesPersonInformation, "Upravit informace o prodejci");
     i18n.add_text(Locale::Cs, Key::CreateNewSalesPersonTitle, "Vytvořit nového prodejce");
     i18n.add_text(Locale::Cs, Key::Paid, "Placený");
+    i18n.add_text(Locale::Cs, Key::Inactive, "Neaktivní");
     i18n.add_text(Locale::Cs, Key::Login, "Přihlásit se");
     i18n.add_text(Locale::Cs, Key::LogoutUser, "Odhlásit {user}");
 }

@@ -147,9 +147,16 @@ pub fn UserManagementPage() -> Element {
                                         span { class: "font-medium text-blue-600 hover:text-blue-800 truncate", 
                                             "{sales_person.name}" 
                                         }
-                                        if sales_person.is_paid {
-                                            span { class: "ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full flex-shrink-0", 
-                                                "{i18n.t(Key::Paid)}" 
+                                        div { class: "ml-auto flex items-center gap-2 flex-shrink-0",
+                                            if sales_person.is_paid {
+                                                span { class: "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full", 
+                                                    "💰" 
+                                                }
+                                            }
+                                            if sales_person.inactive {
+                                                span { class: "text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full", 
+                                                    "{i18n.t(Key::Inactive)}" 
+                                                }
                                             }
                                         }
                                     }
