@@ -48,7 +48,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
             .get_report_for_employee_range(
                 &sales_person.id,
                 ShiftyDate::first_day_in_year(start_date.calendar_year()),
-                start_date,
+                start_date.previous_day(),
                 true,
                 context.clone(),
                 tx.clone().into(),

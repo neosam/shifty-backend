@@ -156,6 +156,14 @@ impl ShiftyDate {
         ShiftyDate::from_date(next_date)
     }
 
+    pub fn previous_day(&self) -> Self {
+        let previous_date = self
+            .to_date()
+            .previous_day()
+            .expect("Previous day should always be valid");
+        ShiftyDate::from_date(previous_date)
+    }
+
     pub fn min(&self, o: ShiftyDate) -> ShiftyDate {
         if self < &o { *self } else { o }
     }
