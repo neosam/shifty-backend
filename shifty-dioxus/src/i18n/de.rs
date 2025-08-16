@@ -23,29 +23,29 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Shiftplan
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::ShiftplanCalendarWeek,
         "{week}/{year} - vom {date}",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::ShiftplanTakeLastWeek,
         "Letzte Woche hinzufügen",
     );
     i18n.add_text(Locale::De, Key::ShiftplanEditAs, "Du bearbeitest:");
     i18n.add_text(Locale::De, Key::ShiftplanYouAre, "Du bist ");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::ConflictBookingsHeader,
         "Fehlerhafte Zuweisungen",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::PersonalCalendarExport,
         "Persönlichen Kalender exportieren (iCal)",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::UnsufficientlyBookedCalendarExport,
         "Unterbesetzte Schichten Kalender exportieren (iCal)",
     );
@@ -54,7 +54,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // Weekly overview page
     i18n.add_text(Locale::De, Key::WeeklyOverviewTitle, "Jahresübersicht");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::AvailableRequiredHours,
         "Verfügbare / Benötigte Stunden",
     );
@@ -64,12 +64,12 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // Employee report
     i18n.add_text(Locale::De, Key::OverallHeading, "Gesamtansicht");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::WorkingHoursPerWeekHeading,
         "Stunden pro Woche",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::WorkingHoursPerDayHeading,
         "Stunden pro Tag",
     );
@@ -101,40 +101,40 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     i18n.add_text(Locale::De, Key::AddEntry, "Sonstige Stunden hinzufügen");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::WorkHoursDescription,
         "(Arbeitsstunden, die nicht im Schichtplan enthalten sind)",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::UnavailableDescription,
         "(Stunden, die nicht das Zeitkonto beeinflussen aber dem Schichtplanner zeigen, dass du nicht verfügbar bist)",
     );
     i18n.add_text(Locale::De, Key::ActionsLabel, "Mehr");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::ShowFullYearLabel,
         "Bericht des vollständigen Jahres",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::ShowUntilNowLabel,
         "Bericht bis zur heutigen Woche",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::AddWorkDetailsLabel,
         "Arbeitvertrag hinzufügen",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::CurrentWeekNote,
         "Nur Daten bis zur aktuellen Woche werden angezeigt.",
     );
 
     // Add extra hours form
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::AddExtraHoursFormTitle,
         "Extra Stunden hinzufügen",
     );
@@ -147,14 +147,14 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::Cancel, "Abbrechen");
 
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::AddExtraHoursChoiceTitle,
         "Bitte Kategorie auswählen",
     );
     i18n.add_text(Locale::De, Key::AddVacationTitle, "Urlaub hinzufügen");
     i18n.add_text(Locale::De, Key::AddHolidaysTitle, "Feiertag hinzufügen");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::AddSickLeaveTitle,
         "Krankheitstage hinzufügen",
     );
@@ -174,14 +174,14 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::WelcomeTitle, "Willkommen zu Shifty!");
     i18n.add_text(Locale::De, Key::PleaseLogin, "Hier klicken zum Einloggen.");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::PleaseChoose,
         "Bitte wähle eine Ansicht von der oberen Leiste.",
     );
 
     // Employee work details form
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::AddWorkDetailsFormTitle,
         "Arbeitsvertrag von {name}",
     );
@@ -189,20 +189,20 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::ToLabel, "Bis");
     i18n.add_text(Locale::De, Key::WorkdaysLabel, "Wochentage");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::ExpectedHoursPerWeekLabel,
         "Wochenarbeitsstunden",
     );
     i18n.add_text(Locale::De, Key::ExpectedHours, "Sollstunden");
     i18n.add_text(Locale::De, Key::DaysPerWeekLabel, "Arbeitstage pro Woche");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::VacationEntitlementsPerYearLabel,
         "Urlaubsanspruch im Jahr",
     );
     i18n.add_text(Locale::De, Key::HolidaysInHoursLabel, "Feiertag in Stunden");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::WorkdaysInHoursLabel,
         "Arbeitstag in Stunden",
     );
@@ -211,12 +211,12 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::SlotEditTitle, "Slot bearbeiten");
     i18n.add_text(Locale::De, Key::SlotNewTitle, "Neuen Slot erstellen");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::SlotEditExplanation,
         "Diese Änderungen werden ab der Kalenderwoche {week}/{year} angewendet.  Vorherige Woche bleiben unverändert.",
     );
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::SlotEditValidUntilExplanation,
         "Die Änderungen werden nur bis zum {date} angewendet.  Nachfolgende Wochen bleiben unverändert.",
     );
@@ -225,7 +225,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::SaveLabel, "Speichern");
     i18n.add_text(Locale::De, Key::CancelLabel, "Abbrechen");
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::SlotEditSaveError,
         "Fehler beim Speichern",
     );
