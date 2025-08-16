@@ -1142,3 +1142,66 @@ impl From<&service::billing_period::BillingPeriod> for BillingPeriodTO {
 pub struct CreateBillingPeriodRequestTO {
     pub end_date: time::Date,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct TextTemplateTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub template_type: Arc<str>,
+    pub template_text: Arc<str>,
+    #[serde(default)]
+    pub created_at: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub created_by: Option<Arc<str>>,
+    #[serde(default)]
+    pub deleted: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted_by: Option<Arc<str>>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::text_template::TextTemplate> for TextTemplateTO {
+    fn from(text_template: &service::text_template::TextTemplate) -> Self {
+        Self {
+            id: text_template.id,
+            template_type: text_template.template_type.clone(),
+            template_text: text_template.template_text.clone(),
+            created_at: text_template.created_at,
+            created_by: text_template.created_by.clone(),
+            deleted: text_template.deleted,
+            deleted_by: text_template.deleted_by.clone(),
+            version: text_template.version,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&TextTemplateTO> for service::text_template::TextTemplate {
+    fn from(text_template: &TextTemplateTO) -> Self {
+        Self {
+            id: text_template.id,
+            template_type: text_template.template_type.clone(),
+            template_text: text_template.template_text.clone(),
+            created_at: text_template.created_at,
+            created_by: text_template.created_by.clone(),
+            deleted: text_template.deleted,
+            deleted_by: text_template.deleted_by.clone(),
+            version: text_template.version,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct CreateTextTemplateRequestTO {
+    pub template_type: Arc<str>,
+    pub template_text: Arc<str>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct UpdateTextTemplateRequestTO {
+    pub template_type: Arc<str>,
+    pub template_text: Arc<str>,
+}

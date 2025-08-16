@@ -36,4 +36,19 @@ pub trait BillingPeriodReportService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Uuid, ServiceError>;
+
+    /// Generate a custom report using a text template
+    ///
+    /// Loads the text template with the given ID, loads the billing report
+    /// with the given ID, and uses Tera to render the template with the
+    /// billing report data.
+    ///
+    /// Only HR is allowed to generate custom reports.
+    async fn generate_custom_report(
+        &self,
+        template_id: Uuid,
+        billing_period_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<std::sync::Arc<str>, ServiceError>;
 }

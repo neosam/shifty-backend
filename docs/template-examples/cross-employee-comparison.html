@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Employee Comparison Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            border-bottom: 3px solid #6f42c1;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .comparison-table th {
+            background: #6f42c1;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+        }
+        .comparison-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .comparison-table tr:hover {
+            background: #e9ecef;
+        }
+        .metric-cell {
+            text-align: right;
+            font-weight: bold;
+        }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .neutral { color: #6c757d; }
+        .employee-id {
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #495057;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            border-left: 4px solid #6f42c1;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Cross-Employee Comparison Report</h1>
+        <p>Compare specific metrics across multiple employees</p>
+        <p><strong>Period:</strong> {{ billing_period.start_date }} to {{ billing_period.end_date }}</p>
+        <p><strong>Generated:</strong> {{ "now" | date(format="%Y-%m-%d %H:%M:%S") }}</p>
+    </div>
+
+    {# 
+        EXAMPLE: Define which employees and metrics you want to compare
+        Replace these with actual sales person IDs from your system
+    #}
+    {% set target_employees = [
+        "12345678-1234-1234-1234-123456789012",
+        "87654321-4321-4321-4321-210987654321", 
+        "11111111-2222-3333-4444-555555555555",
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    ] %}
+
+    {# Collect data for target employees #}
+    {% set employee_data = [] %}
+    {% for target_id in target_employees %}
+        {% for person in billing_period.sales_persons %}
+            {% if person.sales_person_id == target_id %}
+                {% set_global employee_data = employee_data | concat([person]) %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+
+    {% if employee_data | length > 0 %}
+        <h2>Overall Hours Comparison</h2>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Employee ID</th>
+                    <th>Overall Hours (Period)</th>
+                    <th>Overall Hours (YTD)</th>
+                    <th>Expected Hours</th>
+                    <th>Efficiency %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for person in employee_data %}
+                    {% set overall_delta = 0 %}
+                    {% set overall_ytd = 0 %}
+                    {% set expected_delta = 0 %}
+                    
+                    {% for value in person.values %}
+                        {% if value.type == "overall" %}
+                            {% set overall_delta = value.value_delta %}
+                            {% set overall_ytd = value.value_ytd_to %}
+                        {% elif value.type == "expected_hours" %}
+                            {% set expected_delta = value.value_delta %}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% set efficiency = 0 %}
+                    {% if expected_delta > 0 %}
+                        {% set efficiency = (overall_delta / expected_delta * 100) | round(precision=1) %}
+                    {% endif %}
+                    
+                    <tr>
+                        <td class="employee-id">{{ person.sales_person_id }}</td>
+                        <td class="metric-cell">{{ overall_delta | round(precision=1) }}h</td>
+                        <td class="metric-cell">{{ overall_ytd | round(precision=1) }}h</td>
+                        <td class="metric-cell">{{ expected_delta | round(precision=1) }}h</td>
+                        <td class="metric-cell {% if efficiency >= 100 %}positive{% elif efficiency >= 80 %}neutral{% else %}negative{% endif %}">
+                            {{ efficiency }}%
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Balance Hours Analysis</h2>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Employee ID</th>
+                    <th>Balance (Period)</th>
+                    <th>Balance (YTD)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for person in employee_data %}
+                    {% set balance_delta = 0 %}
+                    {% set balance_ytd = 0 %}
+                    
+                    {% for value in person.values %}
+                        {% if value.type == "balance" %}
+                            {% set balance_delta = value.value_delta %}
+                            {% set balance_ytd = value.value_ytd_to %}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <tr>
+                        <td class="employee-id">{{ person.sales_person_id }}</td>
+                        <td class="metric-cell {% if balance_delta > 0 %}positive{% elif balance_delta < -10 %}negative{% else %}neutral{% endif %}">
+                            {{ balance_delta | round(precision=1) }}h
+                        </td>
+                        <td class="metric-cell {% if balance_ytd > 0 %}positive{% elif balance_ytd < -20 %}negative{% else %}neutral{% endif %}">
+                            {{ balance_ytd | round(precision=1) }}h
+                        </td>
+                        <td>
+                            {% if balance_delta > 20 %}
+                                <span class="positive">✅ Overtime</span>
+                            {% elif balance_delta < -20 %}
+                                <span class="negative">⚠️ Deficit</span>
+                            {% else %}
+                                <span class="neutral">📊 Normal</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Custom Extra Hours Summary</h2>
+        {% set has_custom_hours = false %}
+        {% for person in employee_data %}
+            {% for value in person.values %}
+                {% if value.type starts_with "custom_extra_hours:" %}
+                    {% set_global has_custom_hours = true %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+
+        {% if has_custom_hours %}
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Custom Hours Types</th>
+                        <th>Total Custom Hours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for person in employee_data %}
+                        {% set custom_types = [] %}
+                        {% set total_custom = 0 %}
+                        
+                        {% for value in person.values %}
+                            {% if value.type starts_with "custom_extra_hours:" %}
+                                {% set custom_name = value.type | replace(from="custom_extra_hours:", to="") %}
+                                {% set_global custom_types = custom_types | concat([custom_name ~ ": " ~ (value.value_delta | round(precision=1)) ~ "h"]) %}
+                                {% set_global total_custom = total_custom + value.value_delta %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <tr>
+                            <td class="employee-id">{{ person.sales_person_id }}</td>
+                            <td>
+                                {% if custom_types | length > 0 %}
+                                    {{ custom_types | join(", ") }}
+                                {% else %}
+                                    <em class="neutral">No custom hours</em>
+                                {% endif %}
+                            </td>
+                            <td class="metric-cell {% if total_custom > 0 %}positive{% elif total_custom < 0 %}negative{% else %}neutral{% endif %}">
+                                {{ total_custom | round(precision=1) }}h
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="no-data">
+                No custom extra hours found for any of the target employees in this period.
+            </div>
+        {% endif %}
+
+        <div class="summary-card">
+            <h3>📈 Quick Statistics</h3>
+            {% set total_overall = 0 %}
+            {% set total_expected = 0 %}
+            {% set total_balance = 0 %}
+            
+            {% for person in employee_data %}
+                {% for value in person.values %}
+                    {% if value.type == "overall" %}
+                        {% set_global total_overall = total_overall + value.value_delta %}
+                    {% elif value.type == "expected_hours" %}
+                        {% set_global total_expected = total_expected + value.value_delta %}
+                    {% elif value.type == "balance" %}
+                        {% set_global total_balance = total_balance + value.value_delta %}
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+            
+            <ul>
+                <li><strong>Employees analyzed:</strong> {{ employee_data | length }}</li>
+                <li><strong>Total hours worked:</strong> {{ total_overall | round(precision=1) }}h</li>
+                <li><strong>Total expected hours:</strong> {{ total_expected | round(precision=1) }}h</li>
+                <li><strong>Combined balance:</strong> 
+                    <span class="{% if total_balance > 0 %}positive{% elif total_balance < -10 %}negative{% else %}neutral{% endif %}">
+                        {{ total_balance | round(precision=1) }}h
+                    </span>
+                </li>
+                {% if total_expected > 0 %}
+                    <li><strong>Average efficiency:</strong> {{ (total_overall / total_expected * 100) | round(precision=1) }}%</li>
+                {% endif %}
+            </ul>
+        </div>
+
+    {% else %}
+        <div class="no-data">
+            <h2>⚠️ No Data Found</h2>
+            <p>None of the target employees were found in this billing period:</p>
+            <ul>
+                {% for target_id in target_employees %}
+                    <li class="employee-id">{{ target_id }}</li>
+                {% endfor %}
+            </ul>
+            <p><em>Total employees in period: {{ billing_period.sales_persons | length }}</em></p>
+        </div>
+    {% endif %}
+
+    <div style="margin-top: 40px; border-top: 1px solid #e9ecef; padding-top: 20px; color: #6c757d; font-size: 0.9em;">
+        <p><strong>Template:</strong> {{ template.template_type }} ({{ template.id }})</p>
+        <p><strong>Report Period:</strong> {{ billing_period.start_date }} to {{ billing_period.end_date }}</p>
+        <p><em>Generated by Shifty Backend Billing System</em></p>
+    </div>
+</body>
+</html>

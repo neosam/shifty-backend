@@ -23,6 +23,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/{id}", get(get_billing_period::<RestState>))
         .route("/", post(create_billing_period::<RestState>))
         .route("/", delete(clear_all_billing_periods::<RestState>))
+        .route("/{id}/custom-report/{template_id}", post(generate_custom_report::<RestState>))
 }
 
 #[utoipa::path(
@@ -166,6 +167,50 @@ pub async fn clear_all_billing_periods<RestState: RestStateDef>(
     )
 }
 
+#[utoipa::path(
+    post,
+    path = "/{id}/custom-report/{template_id}",
+    params(
+        ("id" = Uuid, Path, description = "Billing period ID"),
+        ("template_id" = Uuid, Path, description = "Text template ID")
+    ),
+    responses(
+        (status = 200, description = "Custom report generated successfully", body = String, content_type = "text/plain"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - HR permission required"),
+        (status = 404, description = "Billing period or template not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+#[instrument(skip(rest_state))]
+pub async fn generate_custom_report<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path((billing_period_id, template_id)): Path<(Uuid, Uuid)>,
+) -> Response {
+    error_handler(
+        (async {
+            let custom_report = rest_state
+                .billing_period_report_service()
+                .generate_custom_report(
+                    template_id,
+                    billing_period_id,
+                    context.into(),
+                    None,
+                )
+                .await?;
+
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "text/plain; charset=utf-8")
+                .body(Body::new(custom_report.to_string()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     paths(
@@ -173,6 +218,7 @@ pub async fn clear_all_billing_periods<RestState: RestStateDef>(
         get_billing_period,
         create_billing_period,
         clear_all_billing_periods,
+        generate_custom_report,
     ),
     components(
         schemas(BillingPeriodTO, BillingPeriodSalesPersonTO, BillingPeriodValueTO, CreateBillingPeriodRequestTO)

@@ -38,3 +38,9 @@ features = ["full"]
 [dependencies.time-tz]
 version = "2"
 features = ["db"]
+
+[dependencies.tera]
+version = "1.20.0"
+
+[dependencies.serde_json]
+version = "1.0"

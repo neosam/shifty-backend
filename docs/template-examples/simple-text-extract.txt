@@ -1,0 +1,108 @@
+SELECTIVE EMPLOYEE REPORT
+========================
+
+Period: {{ billing_period.start_date }} to {{ billing_period.end_date }}
+Generated: {{ "now" | date(format="%Y-%m-%d %H:%M:%S") }}
+
+{# Define specific employee IDs and metrics you need #}
+{% set employee_john = "12345678-1234-1234-1234-123456789012" %}
+{% set employee_jane = "87654321-4321-4321-4321-210987654321" %}
+
+SPECIFIC EMPLOYEE DATA EXTRACTION
+=================================
+
+{# Extract John's overall hours #}
+{% for person in billing_period.sales_persons %}
+  {% if person.sales_person_id == employee_john %}
+John's Data ({{ person.sales_person_id }}):
+    {% for value in person.values %}
+      {% if value.type == "overall" %}
+  - Overall Hours: {{ value.value_delta | round(precision=2) }}h (Period)
+  - Overall Hours YTD: {{ value.value_ytd_to | round(precision=2) }}h
+      {% elif value.type == "balance" %}
+  - Balance Hours: {{ value.value_delta | round(precision=2) }}h
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
+{# Extract Jane's custom hours #}
+{% for person in billing_period.sales_persons %}
+  {% if person.sales_person_id == employee_jane %}
+Jane's Data ({{ person.sales_person_id }}):
+    {% for value in person.values %}
+      {% if value.type starts_with "custom_extra_hours:" %}
+  - {{ value.type | replace(from="custom_extra_hours:", to="") | title }}: {{ value.value_delta | round(precision=2) }}h
+      {% elif value.type == "vacation_hours" %}
+  - Vacation Hours: {{ value.value_delta | round(precision=2) }}h
+      {% elif value.type == "sick_leave" %}
+  - Sick Leave: {{ value.value_delta | round(precision=2) }}h
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
+COMBINED CALCULATION EXAMPLE
+============================
+
+{# Calculate combined values from multiple employees #}
+{% set john_overall = 0 %}
+{% set jane_custom_total = 0 %}
+
+{% for person in billing_period.sales_persons %}
+  {% if person.sales_person_id == employee_john %}
+    {% for value in person.values %}
+      {% if value.type == "overall" %}
+        {% set_global john_overall = value.value_delta %}
+      {% endif %}
+    {% endfor %}
+  {% elif person.sales_person_id == employee_jane %}
+    {% for value in person.values %}
+      {% if value.type starts_with "custom_extra_hours:" %}
+        {% set_global jane_custom_total = jane_custom_total + value.value_delta %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
+Combined Analysis:
+- John's Overall Hours: {{ john_overall | round(precision=2) }}h
+- Jane's Total Custom Hours: {{ jane_custom_total | round(precision=2) }}h
+- Combined Total: {{ (john_overall + jane_custom_total) | round(precision=2) }}h
+
+{% if john_overall > 160 %}
+⚠️ John has worked overtime ({{ john_overall | round(precision=1) }}h > 160h)
+{% endif %}
+
+{% if jane_custom_total > 40 %}
+⚠️ Jane has significant custom hours ({{ jane_custom_total | round(precision=1) }}h)
+{% endif %}
+
+EXTRACTION FOR EXTERNAL SYSTEMS
+===============================
+
+{# Format data for easy parsing by external systems #}
+CSV_DATA_START
+Employee_ID,Metric_Type,Hours
+{% for person in billing_period.sales_persons %}
+  {% if person.sales_person_id == employee_john %}
+    {% for value in person.values %}
+      {% if value.type == "overall" %}
+{{ person.sales_person_id }},overall,{{ value.value_delta }}
+      {% endif %}
+    {% endfor %}
+  {% elif person.sales_person_id == employee_jane %}
+    {% for value in person.values %}
+      {% if value.type starts_with "custom_extra_hours:" %}
+{{ person.sales_person_id }},{{ value.type }},{{ value.value_delta }}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+CSV_DATA_END
+
+TEMPLATE INFO
+=============
+Template: {{ template.template_type }}
+Template ID: {{ template.id }}
+Period ID: {{ billing_period.id }}

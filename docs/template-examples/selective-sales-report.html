@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selective Sales Person Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            border-bottom: 3px solid #007acc;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #007acc;
+            margin: 0;
+        }
+        .period-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #007acc;
+        }
+        .employee-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .employee-card h3 {
+            color: #495057;
+            margin-top: 0;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .metric-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+        .metric-card.negative {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        .metric-card.warning {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+        .metric-label {
+            font-weight: 600;
+            color: #6c757d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #212529;
+        }
+        .no-data {
+            color: #6c757d;
+            font-style: italic;
+            text-align: center;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .footer {
+            margin-top: 50px;
+            border-top: 1px solid #e9ecef;
+            padding-top: 20px;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Selective Sales Person Report</h1>
+        <p>Custom report showing specific metrics for targeted employees</p>
+        <p><strong>Generated:</strong> {{ "now" | date(format="%Y-%m-%d %H:%M:%S") }}</p>
+    </div>
+
+    <div class="period-info">
+        <h2>Billing Period Information</h2>
+        <p><strong>Period:</strong> {{ billing_period.start_date }} to {{ billing_period.end_date }}</p>
+        <p><strong>Report ID:</strong> {{ billing_period.id }}</p>
+        <p><strong>Created:</strong> {{ billing_period.created_at }} by {{ billing_period.created_by }}</p>
+    </div>
+
+    {# 
+        EXAMPLE: Define specific sales person IDs you want to report on
+        Replace these UUIDs with actual sales person IDs from your system
+    #}
+    {% set target_person_overall = "12345678-1234-1234-1234-123456789012" %}
+    {% set target_person_custom = "87654321-4321-4321-4321-210987654321" %}
+    {% set target_person_balance = "11111111-2222-3333-4444-555555555555" %}
+
+    <h2>Targeted Employee Metrics</h2>
+
+    {# Section 1: Overall Hours for Specific Person #}
+    {% set found_overall = false %}
+    {% for person in billing_period.sales_persons %}
+        {% if person.sales_person_id == target_person_overall %}
+            {% set_global found_overall = true %}
+            <div class="employee-card">
+                <h3>👤 Employee {{ person.sales_person_id }} - Overall Performance</h3>
+                <div class="metric-grid">
+                    {% for value in person.values %}
+                        {% if value.type == "overall" %}
+                            <div class="metric-card {% if value.value_delta < 0 %}negative{% elif value.value_delta > 160 %}warning{% endif %}">
+                                <div class="metric-label">Overall Hours (Period)</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Overall Hours (YTD)</div>
+                                <div class="metric-value">{{ value.value_ytd_to | round(precision=1) }}h</div>
+                            </div>
+                        {% elif value.type == "expected_hours" %}
+                            <div class="metric-card">
+                                <div class="metric-label">Expected Hours</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    {% if not found_overall %}
+        <div class="employee-card">
+            <h3>👤 Employee {{ target_person_overall }} - Overall Performance</h3>
+            <div class="no-data">
+                ⚠️ No data found for this employee in the current billing period.
+            </div>
+        </div>
+    {% endif %}
+
+    {# Section 2: Custom Hours for Another Person #}
+    {% set found_custom = false %}
+    {% for person in billing_period.sales_persons %}
+        {% if person.sales_person_id == target_person_custom %}
+            {% set_global found_custom = true %}
+            <div class="employee-card">
+                <h3>⏰ Employee {{ person.sales_person_id }} - Custom Extra Hours</h3>
+                <div class="metric-grid">
+                    {% for value in person.values %}
+                        {% if value.type starts_with "custom_extra_hours:" %}
+                            {% set custom_type = value.type | replace(from="custom_extra_hours:", to="") %}
+                            <div class="metric-card {% if value.value_delta < 0 %}negative{% elif value.value_delta > 40 %}warning{% endif %}">
+                                <div class="metric-label">{{ custom_type | title | replace(from="_", to=" ") }}</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                        {% elif value.type == "vacation_hours" %}
+                            <div class="metric-card">
+                                <div class="metric-label">Vacation Hours</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                        {% elif value.type == "sick_leave" %}
+                            <div class="metric-card">
+                                <div class="metric-label">Sick Leave</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    {% if not found_custom %}
+        <div class="employee-card">
+            <h3>⏰ Employee {{ target_person_custom }} - Custom Extra Hours</h3>
+            <div class="no-data">
+                ⚠️ No data found for this employee in the current billing period.
+            </div>
+        </div>
+    {% endif %}
+
+    {# Section 3: Balance Hours for Third Person #}
+    {% set found_balance = false %}
+    {% for person in billing_period.sales_persons %}
+        {% if person.sales_person_id == target_person_balance %}
+            {% set_global found_balance = true %}
+            <div class="employee-card">
+                <h3>⚖️ Employee {{ person.sales_person_id }} - Balance Analysis</h3>
+                <div class="metric-grid">
+                    {% for value in person.values %}
+                        {% if value.type == "balance" %}
+                            <div class="metric-card {% if value.value_delta < -20 %}negative{% elif value.value_delta > 20 %}warning{% endif %}">
+                                <div class="metric-label">Balance Hours (Period)</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Balance Hours (YTD)</div>
+                                <div class="metric-value">{{ value.value_ytd_to | round(precision=1) }}h</div>
+                            </div>
+                        {% elif value.type == "overall" %}
+                            <div class="metric-card">
+                                <div class="metric-label">Actual Hours Worked</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                        {% elif value.type == "expected_hours" %}
+                            <div class="metric-card">
+                                <div class="metric-label">Expected Hours</div>
+                                <div class="metric-value">{{ value.value_delta | round(precision=1) }}h</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    {% if not found_balance %}
+        <div class="employee-card">
+            <h3>⚖️ Employee {{ target_person_balance }} - Balance Analysis</h3>
+            <div class="no-data">
+                ⚠️ No data found for this employee in the current billing period.
+            </div>
+        </div>
+    {% endif %}
+
+    {# Optional: Summary of all targeted employees found #}
+    <div class="employee-card">
+        <h3>📊 Summary</h3>
+        <ul>
+            <li><strong>Overall Performance Target:</strong> {{ target_person_overall }} {% if found_overall %}✅{% else %}❌{% endif %}</li>
+            <li><strong>Custom Hours Target:</strong> {{ target_person_custom }} {% if found_custom %}✅{% else %}❌{% endif %}</li>
+            <li><strong>Balance Analysis Target:</strong> {{ target_person_balance }} {% if found_balance %}✅{% else %}❌{% endif %}</li>
+        </ul>
+        <p><em>Total employees in period: {{ billing_period.sales_persons | length }}</em></p>
+    </div>
+
+    <div class="footer">
+        <p><strong>Template Information:</strong></p>
+        <ul>
+            <li>Template Type: {{ template.template_type }}</li>
+            <li>Template ID: {{ template.id }}</li>
+            <li>Created: {{ template.created_at }} by {{ template.created_by }}</li>
+        </ul>
+        <p><em>Generated by Shifty Backend Billing System</em></p>
+    </div>
+</body>
+</html>

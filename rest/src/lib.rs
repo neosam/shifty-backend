@@ -14,6 +14,7 @@ mod shiftplan;
 mod shiftplan_edit;
 mod slot;
 mod special_day;
+mod text_template;
 mod week_message;
 
 #[cfg(feature = "oidc")]
@@ -30,6 +31,7 @@ use axum::Extension;
 use axum::{body::Body, response::Response, Router};
 use custom_extra_hours::CustomExtraHoursApiDoc;
 use sales_person::SalesPersonApiDoc;
+use text_template::TextTemplateApiDoc;
 use serde::{Deserialize, Serialize};
 use service::user_service::UserService;
 use service::PermissionService;
@@ -287,6 +289,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type TextTemplateService: service::text_template::TextTemplateService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -309,6 +315,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn week_message_service(&self) -> Arc<Self::WeekMessageService>;
     fn billing_period_service(&self) -> Arc<Self::BillingPeriodService>;
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService>;
+    fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
 }
 
 pub struct OidcConfig {
@@ -406,6 +413,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
+        (path = "/text-templates", api = TextTemplateApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -466,6 +474,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/special-days", special_day::generate_route())
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
         .nest("/shiftplan-info", shiftplan::generate_route())
+        .nest("/text-templates", text_template::generate_route())
         .nest("/week-message", week_message::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(

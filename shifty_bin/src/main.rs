@@ -48,6 +48,7 @@ type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
 type BillingPeriodDao = BillingPeriodDaoImpl;
 type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDaoImpl;
+type TextTemplateDao = dao_impl_sqlite::text_template::TextTemplateDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -333,6 +334,8 @@ impl service_impl::billing_period_report::BillingPeriodReportServiceDeps
     type BillingPeriodService = BillingPeriodService;
     type ReportingService = ReportingService;
     type SalesPersonService = SalesPersonService;
+    type TextTemplateService = TextTemplateService;
+    type PermissionService = PermissionService;
     type UuidService = UuidService;
     type ClockService = ClockService;
     type TransactionDao = TransactionDao;
@@ -341,6 +344,16 @@ type BillingPeriodReportService =
     service_impl::billing_period_report::BillingPeriodReportServiceImpl<
         BillingPeriodReportServiceDependencies,
     >;
+
+pub struct TextTemplateServiceDependencies;
+impl service_impl::text_template::TextTemplateServiceDeps for TextTemplateServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type TextTemplateDao = TextTemplateDao;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type TextTemplateService = service_impl::text_template::TextTemplateServiceImpl<TextTemplateServiceDependencies>;
 
 #[derive(Clone)]
 pub struct RestStateImpl {
@@ -363,6 +376,7 @@ pub struct RestStateImpl {
     week_message_service: Arc<WeekMessageService>,
     billing_period_service: Arc<BillingPeriodService>,
     billing_period_report_service: Arc<BillingPeriodReportService>,
+    text_template_service: Arc<TextTemplateService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -384,6 +398,7 @@ impl rest::RestStateDef for RestStateImpl {
     type WeekMessageService = WeekMessageService;
     type BillingPeriodService = BillingPeriodService;
     type BillingPeriodReportService = BillingPeriodReportService;
+    type TextTemplateService = TextTemplateService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -447,6 +462,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService> {
         self.billing_period_report_service.clone()
     }
+    fn text_template_service(&self) -> Arc<Self::TextTemplateService> {
+        self.text_template_service.clone()
+    }
 }
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
@@ -463,6 +481,7 @@ impl RestStateImpl {
         let session_dao = SessionDao::new(pool.clone());
         let custom_extra_hours_dao =
             Arc::new(dao_impl_sqlite::custom_extra_hours::CustomExtraHoursDaoImpl);
+        let text_template_dao = Arc::new(TextTemplateDao::new(pool.clone()));
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -646,10 +665,18 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
+        let text_template_service = Arc::new(TextTemplateService {
+            text_template_dao: text_template_dao.clone(),
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let billing_period_report_service = Arc::new(BillingPeriodReportService {
             billing_period_service: billing_period_service.clone(),
             reporting_service: reporting_service.clone(),
             sales_person_service: sales_person_service.clone(),
+            text_template_service: text_template_service.clone(),
+            permission_service: permission_service.clone(),
             uuid_service: uuid_service.clone(),
             clock_service: clock_service.clone(),
             transaction_dao: transaction_dao.clone(),
@@ -675,6 +702,7 @@ impl RestStateImpl {
             week_message_service,
             billing_period_service,
             billing_period_report_service,
+            text_template_service,
         }
     }
 }

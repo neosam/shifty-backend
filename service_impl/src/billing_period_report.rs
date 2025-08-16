@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde_json::json;
+use tera::{Context, Tera};
 use dao::TransactionDao;
 use service::billing_period::{
     BillingPeriod, BillingPeriodSalesPerson, BillingPeriodService, BillingPeriodValue,
@@ -8,10 +11,12 @@ use service::billing_period::{
 };
 use service::billing_period_report::BillingPeriodReportService;
 use service::clock::ClockService;
-use service::permission::Authentication;
+use service::permission::{Authentication, HR_PRIVILEGE};
 use service::reporting::ReportingService;
 use service::sales_person::{SalesPerson, SalesPersonService};
+use service::text_template::TextTemplateService;
 use service::uuid_service::UuidService;
+use service::PermissionService;
 use service::ServiceError;
 use shifty_utils::ShiftyDate;
 use time::macros::datetime;
@@ -26,6 +31,8 @@ gen_service_impl! {
         BillingPeriodService: BillingPeriodService<Context = Self::Context, Transaction = Self::Transaction> = billing_period_service,
         ReportingService: ReportingService<Context = Self::Context, Transaction = Self::Transaction> = reporting_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        TextTemplateService: TextTemplateService<Context = Self::Context, Transaction = Self::Transaction> = text_template_service,
+        PermissionService: PermissionService<Context = Self::Context> = permission_service,
         UuidService: UuidService = uuid_service,
         ClockService: ClockService = clock_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
@@ -237,5 +244,86 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
 
         self.transaction_dao.commit(tx).await?;
         Ok(billing_period_id)
+    }
+
+    async fn generate_custom_report(
+        &self,
+        template_id: Uuid,
+        billing_period_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<str>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Check HR permission
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await?;
+
+        // Load the text template
+        let text_template = self
+            .text_template_service
+            .get_by_id(template_id, context.clone(), tx.clone().into())
+            .await?;
+
+        // Load the billing period
+        let billing_period = self
+            .billing_period_service
+            .get_billing_period_by_id(billing_period_id, context.clone(), tx.clone().into())
+            .await?;
+
+        // Create Tera instance and render template
+        let mut tera = Tera::new("**/*").map_err(|_e| {
+            ServiceError::InternalError
+        })?;
+
+        // Add the template to Tera
+        tera.add_raw_template("custom_report", &text_template.template_text)
+            .map_err(|_e| ServiceError::InternalError)?;
+
+        // Prepare context data for template rendering
+        let mut template_context = Context::new();
+        
+        // Add billing period data
+        template_context.insert("billing_period", &json!({
+            "id": billing_period.id.to_string(),
+            "start_date": billing_period.start_date.to_date().to_string(),
+            "end_date": billing_period.end_date.to_date().to_string(),
+            "created_at": billing_period.created_at.to_string(),
+            "created_by": billing_period.created_by.as_ref(),
+            "sales_persons": billing_period.sales_persons.iter().map(|sp| {
+                json!({
+                    "id": sp.id.to_string(),
+                    "sales_person_id": sp.sales_person_id.to_string(),
+                    "values": sp.values.iter().map(|(key, value)| {
+                        json!({
+                            "type": key.as_str().as_ref(),
+                            "value_delta": value.value_delta,
+                            "value_ytd_from": value.value_ytd_from,
+                            "value_ytd_to": value.value_ytd_to,
+                            "value_full_year": value.value_full_year,
+                        })
+                    }).collect::<Vec<_>>(),
+                    "created_at": sp.created_at.to_string(),
+                    "created_by": sp.created_by.as_ref(),
+                })
+            }).collect::<Vec<_>>(),
+        }));
+
+        // Add template metadata
+        template_context.insert("template", &json!({
+            "id": text_template.id.to_string(),
+            "template_type": text_template.template_type.as_ref(),
+            "created_at": text_template.created_at.map(|dt| dt.to_string()),
+            "created_by": text_template.created_by.as_ref().map(|s| s.as_ref()),
+        }));
+
+        // Render the template
+        let rendered = tera
+            .render("custom_report", &template_context)
+            .map_err(|_e| ServiceError::InternalError)?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(rendered.into())
     }
 }
