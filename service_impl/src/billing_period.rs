@@ -12,7 +12,7 @@ use service::billing_period::{
     BillingPeriodValueType,
 };
 use service::clock::ClockService;
-use service::permission::Authentication;
+use service::permission::{Authentication, HR_PRIVILEGE};
 use service::sales_person::SalesPersonService;
 use service::uuid_service::UuidService;
 use service::{PermissionService, ServiceError};
@@ -220,7 +220,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
         self.permission_service
-            .check_permission("HR", context.clone())
+            .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
 
         let tx = self.transaction_dao.use_transaction(tx).await?;
