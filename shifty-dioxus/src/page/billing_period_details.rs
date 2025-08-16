@@ -91,7 +91,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                         }
                         div { class: "flex items-center space-x-4",
                             span { class: "text-lg text-gray-600",
-                                "{billing_period.start_date} - {billing_period.end_date}"
+                                "{i18n.format_date(&billing_period.start_date)} - {i18n.format_date(&billing_period.end_date)}"
                             }
                             if billing_period.deleted_at.is_none() {
                                 span { class: "px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full", 
@@ -111,15 +111,15 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                         div { class: "grid grid-cols-1 md:grid-cols-2 gap-4",
                             div {
                                 label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::StartDate)}" }
-                                p { class: "text-sm text-gray-900", "{billing_period.start_date}" }
+                                p { class: "text-sm text-gray-900", "{i18n.format_date(&billing_period.start_date)}" }
                             }
                             div {
                                 label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::EndDate)}" }
-                                p { class: "text-sm text-gray-900", "{billing_period.end_date}" }
+                                p { class: "text-sm text-gray-900", "{i18n.format_date(&billing_period.end_date)}" }
                             }
                             div {
                                 label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::CreatedAt)}" }
-                                p { class: "text-sm text-gray-900", "{billing_period.created_at}" }
+                                p { class: "text-sm text-gray-900", "{i18n.format_date(&billing_period.created_at.date())}" }
                             }
                             div {
                                 label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::CreatedBy)}" }
@@ -128,7 +128,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                             if let Some(deleted_at) = billing_period.deleted_at {
                                 div {
                                     label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::DeletedAt)}" }
-                                    p { class: "text-sm text-gray-900", "{deleted_at}" }
+                                    p { class: "text-sm text-gray-900", "{i18n.format_date(&deleted_at.date())}" }
                                 }
                             }
                             if let Some(deleted_by) = &billing_period.deleted_by {
@@ -200,9 +200,6 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                             h3 { class: "text-lg font-medium text-blue-600", 
                                                                 "{get_sales_person_name(sales_person.sales_person_id)}" 
                                                             }
-                                                            p { class: "text-xs text-gray-500", "ID: {sales_person.sales_person_id}" }
-                                                            p { class: "text-sm text-gray-600", "Created: {sales_person.created_at}" }
-                                                            p { class: "text-sm text-gray-600", "Created by: {sales_person.created_by.as_ref()}" }
                                                         }
                                                         if sales_person.deleted_at.is_none() {
                                                             span { class: "px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full", "{i18n.t(Key::Active)}" }
@@ -220,10 +217,10 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                                     div { class: "bg-gray-50 p-3 rounded",
                                                                         div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide", "{key}" }
                                                                         div { class: "mt-1",
-                                                                            p { class: "text-sm", "{i18n.t(Key::Delta)}: {value.value_delta}" }
-                                                                            p { class: "text-sm", "{i18n.t(Key::YtdFrom)}: {value.value_ytd_from}" }
-                                                                            p { class: "text-sm", "{i18n.t(Key::YtdTo)}: {value.value_ytd_to}" }
-                                                                            p { class: "text-sm", "{i18n.t(Key::FullYear)}: {value.value_full_year}" }
+                                                                            p { class: "text-sm", "{i18n.t(Key::Delta)}: {value.value_delta:.2}" }
+                                                                            p { class: "text-sm", "{i18n.t(Key::YtdFrom)}: {value.value_ytd_from:.2}" }
+                                                                            p { class: "text-sm", "{i18n.t(Key::YtdTo)}: {value.value_ytd_to:.2}" }
+                                                                            p { class: "text-sm", "{i18n.t(Key::FullYear)}: {value.value_full_year:.2}" }
                                                                         }
                                                                     }
                                                                 }

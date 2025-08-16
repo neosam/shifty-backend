@@ -167,10 +167,10 @@ pub fn Employees() -> Element {
                                     div { class: "flex justify-between items-center",
                                         div {
                                             h3 { class: "text-lg font-semibold text-blue-600 hover:text-blue-800", 
-                                                "{i18n.t(Key::Period)}: {billing_period.start_date} - {billing_period.end_date}"
+                                                "{i18n.t(Key::Period)}: {i18n.format_date(&billing_period.start_date)} - {i18n.format_date(&billing_period.end_date)}"
                                             }
                                             p { class: "text-sm text-gray-600", 
-                                                "{i18n.t(Key::CreatedAt)}: {billing_period.created_at.date()}"
+                                                "{i18n.t(Key::CreatedAt)}: {i18n.format_date(&billing_period.created_at.date())}"
                                             }
                                             p { class: "text-sm text-gray-600", 
                                                 "{i18n.t(Key::CreatedBy)}: {billing_period.created_by.as_ref()}"
