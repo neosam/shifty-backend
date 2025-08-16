@@ -296,6 +296,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             sales_person_id,
             first_day_of_year,
             to_date.min(ShiftyDate::last_day_in_year(year)),
+            true,
             context,
             tx,
         )
@@ -307,6 +308,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         sales_person_id: &Uuid,
         from_date: ShiftyDate,
         to_date: ShiftyDate,
+        include_carryover: bool,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<EmployeeReport, ServiceError> {
@@ -397,7 +399,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .map(|wh| wh.vacation_days_for_year(from_date.year()))
             .sum::<f32>()
             .round();
-        let (previous_year_carryover, previous_year_vacation) = self
+        let (previous_year_carryover, previous_year_vacation) = if include_carryover { self
             .carryover_service
             .get_carryover(
                 *sales_person_id,
@@ -407,7 +409,10 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             )
             .await?
             .map(|c| (c.carryover_hours, c.vacation))
-            .unwrap_or((0.0, 0));
+            .unwrap_or((0.0, 0))
+        } else {
+            (0.0, 0)
+        };
 
         let aggregated_custom_extra_hours: Arc<[CustomExtraHours]> = {
             let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();

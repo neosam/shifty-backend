@@ -49,6 +49,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 &sales_person.id,
                 ShiftyDate::first_day_in_year(start_date.calendar_year()),
                 start_date,
+                true,
                 context.clone(),
                 tx.clone().into(),
             )
@@ -59,6 +60,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 &sales_person.id,
                 ShiftyDate::first_day_in_year(end_date.calendar_year()),
                 end_date,
+                true,
                 context.clone(),
                 tx.clone().into(),
             )
@@ -69,6 +71,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 &sales_person.id,
                 ShiftyDate::first_day_in_year(end_date.calendar_year()),
                 ShiftyDate::last_day_in_year(end_date.calendar_year()),
+                true,
                 context.clone(),
                 tx.clone().into(),
             )
@@ -79,6 +82,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 &sales_person.id,
                 start_date,
                 end_date,
+                false,
                 context.clone(),
                 tx.clone().into(),
             )

@@ -202,6 +202,7 @@ pub trait ReportingService {
         sales_person_id: &Uuid,
         from_date: ShiftyDate,
         to_date: ShiftyDate,
+        include_carryover: bool,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<EmployeeReport, ServiceError>;
