@@ -217,12 +217,14 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                                     div { class: "bg-gray-50 p-3 rounded",
                                                                         div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide", 
                                                                             {
-                                                                                match key.as_str() {
+                                                                                // Translate known value types
+                                                                                let translated = match key.to_uppercase().as_str() {
                                                                                     "BALANCE" => i18n.t(Key::Balance).to_string(),
                                                                                     "EXPECTED_HOURS" => i18n.t(Key::ExpectedHours).to_string(),
                                                                                     "OVERALL" => i18n.t(Key::Overall).to_string(),
-                                                                                    _ => key.to_string(),
-                                                                                }
+                                                                                    _ => key.clone(),
+                                                                                };
+                                                                                translated
                                                                             }
                                                                         }
                                                                         div { class: "mt-1",

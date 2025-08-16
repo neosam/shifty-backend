@@ -163,7 +163,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Non-prod warnings
     i18n.add_text(
-        Locale::En,
+        Locale::De,
         Key::NonProdWarning,
         "Das ist nur eine Seite zum Testen❗",
     );
@@ -193,7 +193,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::ExpectedHoursPerWeekLabel,
         "Wochenarbeitsstunden",
     );
-    i18n.add_text(Locale::De, Key::ExpectedHours, "Erwartete Stunden");
+    i18n.add_text(Locale::De, Key::ExpectedHours, "Sollstunden");
     i18n.add_text(Locale::De, Key::DaysPerWeekLabel, "Arbeitstage pro Woche");
     i18n.add_text(
         Locale::En,
