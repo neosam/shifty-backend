@@ -18,3 +18,5 @@ pub mod sales_person_unavailable;
 pub mod shiftplan;
 #[cfg(test)]
 pub mod slot;
+#[cfg(test)]
+pub mod billing_period_report;

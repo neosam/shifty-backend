@@ -1395,3 +1395,6 @@ fn test_shiftyplan_hours_end_of_year() {
         assert_eq!(report.by_week[52].shiftplan_hours, 0.0);
     })
 }
+
+#[cfg(test)]
+mod billing_period_custom_reports;

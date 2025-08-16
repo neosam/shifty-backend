@@ -272,10 +272,8 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
             .get_billing_period_by_id(billing_period_id, context.clone(), tx.clone().into())
             .await?;
 
-        // Create Tera instance and render template
-        let mut tera = Tera::new("**/*").map_err(|_e| {
-            ServiceError::InternalError
-        })?;
+        // Create Tera instance for string-based templates
+        let mut tera = Tera::default();
 
         // Add the template to Tera
         tera.add_raw_template("custom_report", &text_template.template_text)
