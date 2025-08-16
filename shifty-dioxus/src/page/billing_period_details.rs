@@ -215,7 +215,16 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                             div { class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3",
                                                                 for (key, value) in sales_person.values.iter() {
                                                                     div { class: "bg-gray-50 p-3 rounded",
-                                                                        div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide", "{key}" }
+                                                                        div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide", 
+                                                                            {
+                                                                                match key.as_str() {
+                                                                                    "BALANCE" => i18n.t(Key::Balance).to_string(),
+                                                                                    "EXPECTED_HOURS" => i18n.t(Key::ExpectedHours).to_string(),
+                                                                                    "OVERALL" => i18n.t(Key::Overall).to_string(),
+                                                                                    _ => key.to_string(),
+                                                                                }
+                                                                            }
+                                                                        }
                                                                         div { class: "mt-1",
                                                                             p { class: "text-sm", "{i18n.t(Key::Delta)}: {value.value_delta:.2}" }
                                                                             p { class: "text-sm", "{i18n.t(Key::YtdFrom)}: {value.value_ytd_from:.2}" }

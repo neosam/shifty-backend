@@ -174,6 +174,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::ExpectedHoursPerWeekLabel,
         "Expected hours per week",
     );
+    i18n.add_text(Locale::En, Key::ExpectedHours, "Expected Hours");
     i18n.add_text(Locale::En, Key::DaysPerWeekLabel, "Days per week");
     i18n.add_text(
         Locale::En,

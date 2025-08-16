@@ -174,6 +174,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::ExpectedHoursPerWeekLabel,
         "Očekávané hodiny týdně",
     );
+    i18n.add_text(Locale::Cs, Key::ExpectedHours, "Očekávané hodiny");
     i18n.add_text(Locale::Cs, Key::DaysPerWeekLabel, "Dny týdně");
     i18n.add_text(
         Locale::Cs,

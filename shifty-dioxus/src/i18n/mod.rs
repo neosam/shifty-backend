@@ -161,6 +161,7 @@ pub enum Key {
     ToLabel,
     WorkdaysLabel,
     ExpectedHoursPerWeekLabel,
+    ExpectedHours,
     DaysPerWeekLabel,
     VacationEntitlementsPerYearLabel,
     HolidaysInHoursLabel,
