@@ -6,12 +6,12 @@ use tera::{Context, Tera};
 use uuid::Uuid;
 
 use dao::TransactionDao;
-use service::permission::{Authentication, HR_PRIVILEGE};
-use service::{ServiceError, block_report::BlockReportService};
 use service::block::{Block, BlockService};
+use service::clock::ClockService;
+use service::permission::{Authentication, HR_PRIVILEGE, SHIFTPLANNER_PRIVILEGE};
 use service::text_template::TextTemplateService;
 use service::PermissionService;
-use service::clock::ClockService;
+use service::{block_report::BlockReportService, ServiceError};
 
 use crate::gen_service_impl;
 
@@ -65,7 +65,7 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
 
         // Check HR permission
         self.permission_service
-            .check_permission(HR_PRIVILEGE, context.clone())
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
             .await?;
 
         // Get the template
@@ -86,7 +86,7 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
         } else {
             (current_year, current_week + 1)
         };
-        
+
         let (week_after_next_year, week_after_next_week) = if next_week == 53 {
             (next_year + 1, 1)
         } else {
@@ -99,15 +99,30 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
         // Get unsufficiently booked blocks for all three weeks
         let current_week_unbooked = self
             .block_service
-            .get_unsufficiently_booked_blocks(current_year, current_week, context.clone(), Some(tx.clone()))
+            .get_unsufficiently_booked_blocks(
+                current_year,
+                current_week,
+                context.clone(),
+                Some(tx.clone()),
+            )
             .await?;
         let next_week_unbooked = self
             .block_service
-            .get_unsufficiently_booked_blocks(next_year, next_week, context.clone(), Some(tx.clone()))
+            .get_unsufficiently_booked_blocks(
+                next_year,
+                next_week,
+                context.clone(),
+                Some(tx.clone()),
+            )
             .await?;
         let week_after_next_unbooked = self
             .block_service
-            .get_unsufficiently_booked_blocks(week_after_next_year, week_after_next_week, context.clone(), Some(tx.clone()))
+            .get_unsufficiently_booked_blocks(
+                week_after_next_year,
+                week_after_next_week,
+                context.clone(),
+                Some(tx.clone()),
+            )
             .await?;
 
         unsufficiently_booked_blocks.extend(current_week_unbooked.iter().cloned());
@@ -115,19 +130,25 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
         unsufficiently_booked_blocks.extend(week_after_next_unbooked.iter().cloned());
 
         // Filter blocks by week and convert to SimpleBlock for template serialization
-        let current_week_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks.iter()
+        let current_week_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks
+            .iter()
             .filter(|b| b.year == current_year && b.week == current_week)
             .map(SimpleBlock::from)
             .collect();
-        let next_week_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks.iter()
+        let next_week_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks
+            .iter()
             .filter(|b| b.year == next_year && b.week == next_week)
             .map(SimpleBlock::from)
             .collect();
-        let week_after_next_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks.iter()
+        let week_after_next_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks
+            .iter()
             .filter(|b| b.year == week_after_next_year && b.week == week_after_next_week)
             .map(SimpleBlock::from)
             .collect();
-        let all_simple_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks.iter().map(SimpleBlock::from).collect();
+        let all_simple_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks
+            .iter()
+            .map(SimpleBlock::from)
+            .collect();
 
         // Create template context
         let mut tera_context = Context::new();
@@ -146,7 +167,14 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
         let mut tera = Tera::default();
         let rendered = tera
             .render_str(&template.template_text, &tera_context)
-            .map_err(|e| ServiceError::ValidationError(Arc::new([service::ValidationFailureItem::InvalidValue(Arc::from(format!("Template rendering error: {}", e)))])))?;
+            .map_err(|e| {
+                ServiceError::ValidationError(Arc::new([
+                    service::ValidationFailureItem::InvalidValue(Arc::from(format!(
+                        "Template rendering error: {}",
+                        e
+                    ))),
+                ]))
+            })?;
 
         self.transaction_dao.commit(tx).await?;
         Ok(Arc::from(rendered))
