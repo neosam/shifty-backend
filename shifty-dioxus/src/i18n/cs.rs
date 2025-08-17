@@ -216,6 +216,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::Save, "Uložit");
     i18n.add_text(Locale::Cs, Key::Edit, "Upravit");
     i18n.add_text(Locale::Cs, Key::Delete, "Smazat");
+    i18n.add_text(Locale::Cs, Key::ConfirmDelete, "Potvrdit smazání");
 
     // Billing period management
     i18n.add_text(Locale::Cs, Key::BillingPeriods, "Fakturační období");

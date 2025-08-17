@@ -66,6 +66,11 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let mut edit_template_text = use_signal(|| "".to_string());
     let mut updating_template = use_signal(|| false);
     
+    // Template deletion states
+    let mut show_delete_confirmation = use_signal(|| false);
+    let mut deleting_template_id = use_signal(|| None::<Uuid>);
+    let mut deleting_template = use_signal(|| false);
+    
     // Load all templates so users can edit any template type
     use_effect(move || {
         spawn(async move {
@@ -187,6 +192,34 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         }
     };
 
+    // Helper functions for template deletion
+    let mut start_delete_template = move |template_id: Uuid| {
+        deleting_template_id.set(Some(template_id));
+        show_delete_confirmation.set(true);
+    };
+
+    let mut cancel_delete_template = move || {
+        show_delete_confirmation.set(false);
+        deleting_template_id.set(None);
+    };
+
+    let confirm_delete_template = move |_| {
+        if let Some(template_id) = *deleting_template_id.read() {
+            spawn(async move {
+                deleting_template.set(true);
+                handle_text_template_action(TextTemplateAction::DeleteTemplate(template_id)).await;
+                // Clear selection if the deleted template was selected
+                if *selected_template_id.read() == Some(template_id) {
+                    selected_template_id.set(None);
+                }
+                // Reload templates to reflect changes
+                handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
+                deleting_template.set(false);
+                cancel_delete_template();
+            });
+        }
+    };
+
     rsx! {
         TopBar {}
 
@@ -288,17 +321,26 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         }
                                     }
                                     
-                                    // Edit Template Button
+                                    // Edit and Delete Template Buttons
                                     if let Some(template_id) = *selected_template_id.read() {
-                                        button {
-                                            onclick: move |_| {
-                                                let template_id = template_id;
-                                                if let Some(template) = TEXT_TEMPLATE_STORE.read().templates.iter().find(|t| t.id == template_id) {
-                                                    start_edit_template(template.clone());
-                                                }
-                                            },
-                                            class: "mb-4 bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded",
-                                            "{i18n.t(Key::Edit)} Selected Template"
+                                        div { class: "mb-4 flex gap-2",
+                                            button {
+                                                onclick: move |_| {
+                                                    let template_id = template_id;
+                                                    if let Some(template) = TEXT_TEMPLATE_STORE.read().templates.iter().find(|t| t.id == template_id) {
+                                                        start_edit_template(template.clone());
+                                                    }
+                                                },
+                                                class: "bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded",
+                                                "{i18n.t(Key::Edit)}"
+                                            }
+                                            button {
+                                                onclick: move |_| {
+                                                    start_delete_template(template_id);
+                                                },
+                                                class: "bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded",
+                                                "{i18n.t(Key::Delete)}"
+                                            }
                                         }
                                     }
                                     
@@ -594,6 +636,39 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                     div { class: "text-center",
                         div { class: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" }
                         p { class: "text-gray-500", "{i18n.t(Key::LoadingBillingPeriodDetails)}" }
+                    }
+                }
+            }
+        }
+        
+        // Delete Confirmation Dialog
+        if *show_delete_confirmation.read() {
+            div { class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+                div { class: "bg-white rounded-lg p-6 max-w-md mx-4",
+                    h3 { class: "text-lg font-medium mb-4", "{i18n.t(Key::ConfirmDelete)}" }
+                    p { class: "text-gray-600 mb-6", 
+                        "Are you sure you want to delete this template? This action cannot be undone."
+                    }
+                    div { class: "flex gap-3 justify-end",
+                        button {
+                            onclick: move |_| cancel_delete_template(),
+                            class: "px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded",
+                            "{i18n.t(Key::Cancel)}"
+                        }
+                        button {
+                            onclick: confirm_delete_template,
+                            disabled: *deleting_template.read(),
+                            class: if *deleting_template.read() {
+                                "px-4 py-2 bg-gray-400 text-white rounded cursor-not-allowed"
+                            } else {
+                                "px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded"
+                            },
+                            if *deleting_template.read() {
+                                "Deleting..."
+                            } else {
+                                "{i18n.t(Key::Delete)}"
+                            }
+                        }
                     }
                 }
             }

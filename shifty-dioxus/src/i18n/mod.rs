@@ -187,6 +187,7 @@ pub enum Key {
     Save,
     Edit,
     Delete,
+    ConfirmDelete,
 
     // Billing period management
     BillingPeriods,

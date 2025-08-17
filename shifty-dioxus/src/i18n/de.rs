@@ -239,6 +239,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::Save, "Speichern");
     i18n.add_text(Locale::De, Key::Edit, "Bearbeiten");
     i18n.add_text(Locale::De, Key::Delete, "Löschen");
+    i18n.add_text(Locale::De, Key::ConfirmDelete, "Löschen bestätigen");
 
     // Billing period management
     i18n.add_text(Locale::De, Key::BillingPeriods, "Abrechnungszeiträume");
