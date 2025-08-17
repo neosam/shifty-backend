@@ -56,7 +56,6 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     // New template creation states
     let mut show_new_template_form = use_signal(|| false);
     let mut new_template_name = use_signal(|| "".to_string());
-    let mut new_template_type = use_signal(|| "billing-period".to_string());
     let mut new_template_text = use_signal(|| "".to_string());
     let mut saving_template = use_signal(|| false);
     
@@ -64,7 +63,6 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let mut editing_template_id = use_signal(|| None::<Uuid>);
     let mut show_edit_template_form = use_signal(|| false);
     let mut edit_template_name = use_signal(|| "".to_string());
-    let mut edit_template_type = use_signal(|| "billing-period".to_string());
     let mut edit_template_text = use_signal(|| "".to_string());
     let mut updating_template = use_signal(|| false);
     
@@ -110,16 +108,14 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let mut reset_new_template_form = move || {
         show_new_template_form.set(false);
         new_template_name.set("".to_string());
-        new_template_type.set("billing-period".to_string());
         new_template_text.set("".to_string());
     };
 
     let save_new_template = move |_| {
         let name = new_template_name.read().clone();
-        let template_type = new_template_type.read().clone();
         let template_text = new_template_text.read().clone();
 
-        if template_type.trim().is_empty() || template_text.trim().is_empty() {
+        if template_text.trim().is_empty() {
             return;
         }
 
@@ -128,7 +124,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         let template = crate::state::text_template::TextTemplate {
             id: Uuid::nil(),
             name: name_rc,
-            template_type: template_type.into(),
+            template_type: "billing-period".into(), // Fixed to billing-period in this context
             template_text: template_text.into(),
             created_at: None,
             created_by: None,
@@ -149,14 +145,12 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         show_edit_template_form.set(false);
         editing_template_id.set(None);
         edit_template_name.set("".to_string());
-        edit_template_type.set("billing-period".to_string());
         edit_template_text.set("".to_string());
     };
 
     let mut start_edit_template = move |template: crate::state::text_template::TextTemplate| {
         editing_template_id.set(Some(template.id));
         edit_template_name.set(template.name.as_ref().map(|s| s.to_string()).unwrap_or_default());
-        edit_template_type.set(template.template_type.to_string());
         edit_template_text.set(template.template_text.to_string());
         show_edit_template_form.set(true);
         show_new_template_form.set(false); // Hide create form if open
@@ -165,10 +159,9 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let save_edit_template = move |_| {
         if let Some(template_id) = *editing_template_id.read() {
             let name = edit_template_name.read().clone();
-            let template_type = edit_template_type.read().clone();
             let template_text = edit_template_text.read().clone();
 
-            if template_type.trim().is_empty() || template_text.trim().is_empty() {
+            if template_text.trim().is_empty() {
                 return;
             }
 
@@ -177,7 +170,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
             let template = crate::state::text_template::TextTemplate {
                 id: template_id,
                 name: name_rc,
-                template_type: template_type.into(),
+                template_type: "billing-period".into(), // Fixed to billing-period in this context
                 template_text: template_text.into(),
                 created_at: None,
                 created_by: None,
@@ -388,13 +381,8 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         
                                         div { class: "mb-4",
                                             label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
-                                            select {
-                                                class: "w-full p-2 border border-gray-300 rounded-md",
-                                                value: new_template_type.read().clone(),
-                                                onchange: move |event| new_template_type.set(event.value()),
-                                                option { value: "billing-period", "Billing Period" }
-                                                option { value: "employee-report", "Employee Report" }
-                                                option { value: "shift-plan", "Shift Plan" }
+                                            div { class: "w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-gray-600",
+                                                "Billing Period (fixed for this context)"
                                             }
                                         }
                                         
@@ -411,7 +399,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         div { class: "flex gap-2",
                                             button {
                                                 onclick: save_new_template,
-                                                disabled: new_template_type.read().trim().is_empty() || new_template_text.read().trim().is_empty() || *saving_template.read(),
+                                                disabled: new_template_text.read().trim().is_empty() || *saving_template.read(),
                                                 class: if *saving_template.read() {
                                                     "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
                                                 } else {
@@ -452,13 +440,8 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         
                                         div { class: "mb-4",
                                             label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
-                                            select {
-                                                class: "w-full p-2 border border-gray-300 rounded-md",
-                                                value: edit_template_type.read().clone(),
-                                                onchange: move |event| edit_template_type.set(event.value()),
-                                                option { value: "billing-period", "Billing Period" }
-                                                option { value: "employee-report", "Employee Report" }
-                                                option { value: "shift-plan", "Shift Plan" }
+                                            div { class: "w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-gray-600",
+                                                "Billing Period (fixed for this context)"
                                             }
                                         }
                                         
@@ -475,7 +458,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         div { class: "flex gap-2",
                                             button {
                                                 onclick: save_edit_template,
-                                                disabled: edit_template_type.read().trim().is_empty() || edit_template_text.read().trim().is_empty() || *updating_template.read(),
+                                                disabled: edit_template_text.read().trim().is_empty() || *updating_template.read(),
                                                 class: if *updating_template.read() {
                                                     "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
                                                 } else {
