@@ -93,6 +93,11 @@ pub fn TopBar() -> Element {
                             Link { to: Route::UserManagementPage {}, {i18n.t(Key::UserManagement)} }
                         }
                     }
+                    if show_reports {
+                        li {
+                            Link { to: Route::TextTemplateManagement {}, {i18n.t(Key::TextTemplateManagement)} }
+                        }
+                    }
                     if auth_info.is_some() {
                         div { class: "mb-6 md:mb-0" }
                     }

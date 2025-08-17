@@ -60,10 +60,18 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let mut new_template_text = use_signal(|| "".to_string());
     let mut saving_template = use_signal(|| false);
     
-    // Load billing period templates
+    // Template editing states
+    let mut editing_template_id = use_signal(|| None::<Uuid>);
+    let mut show_edit_template_form = use_signal(|| false);
+    let mut edit_template_name = use_signal(|| "".to_string());
+    let mut edit_template_type = use_signal(|| "billing-period".to_string());
+    let mut edit_template_text = use_signal(|| "".to_string());
+    let mut updating_template = use_signal(|| false);
+    
+    // Load all templates so users can edit any template type
     use_effect(move || {
         spawn(async move {
-            handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
+            handle_text_template_action(TextTemplateAction::LoadTemplates).await;
         });
     });
 
@@ -134,6 +142,56 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
             saving_template.set(false);
             reset_new_template_form();
         });
+    };
+
+    // Helper functions for template editing
+    let mut reset_edit_template_form = move || {
+        show_edit_template_form.set(false);
+        editing_template_id.set(None);
+        edit_template_name.set("".to_string());
+        edit_template_type.set("billing-period".to_string());
+        edit_template_text.set("".to_string());
+    };
+
+    let mut start_edit_template = move |template: crate::state::text_template::TextTemplate| {
+        editing_template_id.set(Some(template.id));
+        edit_template_name.set(template.name.as_ref().map(|s| s.to_string()).unwrap_or_default());
+        edit_template_type.set(template.template_type.to_string());
+        edit_template_text.set(template.template_text.to_string());
+        show_edit_template_form.set(true);
+        show_new_template_form.set(false); // Hide create form if open
+    };
+
+    let save_edit_template = move |_| {
+        if let Some(template_id) = *editing_template_id.read() {
+            let name = edit_template_name.read().clone();
+            let template_type = edit_template_type.read().clone();
+            let template_text = edit_template_text.read().clone();
+
+            if template_type.trim().is_empty() || template_text.trim().is_empty() {
+                return;
+            }
+
+            let name_rc = if name.trim().is_empty() { None } else { Some(name.into()) };
+
+            let template = crate::state::text_template::TextTemplate {
+                id: template_id,
+                name: name_rc,
+                template_type: template_type.into(),
+                template_text: template_text.into(),
+                created_at: None,
+                created_by: None,
+            };
+
+            spawn(async move {
+                updating_template.set(true);
+                handle_text_template_action(TextTemplateAction::UpdateTemplate(template_id, template)).await;
+                // Reload templates to reflect changes
+                handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
+                updating_template.set(false);
+                reset_edit_template_form();
+            });
+        }
     };
 
     rsx! {
@@ -210,7 +268,9 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                     
                                     // Template Selection
                                     div { class: "mb-4",
-                                        label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::SelectTemplate)}" }
+                                        label { class: "block text-sm font-medium text-gray-700 mb-2", 
+                                            "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == \"billing-period\").count()} billing period templates available)" 
+                                        }
                                         select {
                                             class: "w-full p-2 border border-gray-300 rounded-md",
                                             value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
@@ -222,7 +282,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                 }
                                             },
                                             option { value: "", "Select a template..." }
-                                            for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
+                                            for template in TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == "billing-period") {
                                                 option { 
                                                     value: "{template.id}",
                                                     if let Some(ref name) = template.name {
@@ -232,6 +292,20 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                     }
                                                 }
                                             }
+                                        }
+                                    }
+                                    
+                                    // Edit Template Button
+                                    if let Some(template_id) = *selected_template_id.read() {
+                                        button {
+                                            onclick: move |_| {
+                                                let template_id = template_id;
+                                                if let Some(template) = TEXT_TEMPLATE_STORE.read().templates.iter().find(|t| t.id == template_id) {
+                                                    start_edit_template(template.clone());
+                                                }
+                                            },
+                                            class: "mb-4 bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded",
+                                            "{i18n.t(Key::Edit)} Selected Template"
                                         }
                                     }
                                     
@@ -287,9 +361,12 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                             div { class: "border-t pt-6",
                                 div { class: "flex justify-between items-center mb-4",
                                     h3 { class: "text-lg font-medium", "{i18n.t(Key::CreateNewTemplate)}" }
-                                    if !*show_new_template_form.read() {
+                                    if !*show_new_template_form.read() && !*show_edit_template_form.read() {
                                         button {
-                                            onclick: move |_| show_new_template_form.set(true),
+                                            onclick: move |_| {
+                                                show_new_template_form.set(true);
+                                                show_edit_template_form.set(false); // Hide edit form if open
+                                            },
                                             class: "bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded",
                                             "{i18n.t(Key::AddNew)}"
                                         }
@@ -348,6 +425,70 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             }
                                             button {
                                                 onclick: move |_| reset_new_template_form(),
+                                                class: "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded",
+                                                "{i18n.t(Key::Cancel)}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Edit Template Section
+                            if *show_edit_template_form.read() {
+                                div { class: "border-t pt-6",
+                                    h3 { class: "text-lg font-medium mb-4", "{i18n.t(Key::EditTemplate)}" }
+                                    
+                                    div { class: "bg-blue-50 p-4 rounded-lg",
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateName)}" }
+                                            input {
+                                                class: "w-full p-2 border border-gray-300 rounded-md",
+                                                r#type: "text",
+                                                value: edit_template_name.read().clone(),
+                                                oninput: move |event| edit_template_name.set(event.value()),
+                                                placeholder: "Enter template name (optional)..."
+                                            }
+                                        }
+                                        
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
+                                            select {
+                                                class: "w-full p-2 border border-gray-300 rounded-md",
+                                                value: edit_template_type.read().clone(),
+                                                onchange: move |event| edit_template_type.set(event.value()),
+                                                option { value: "billing-period", "Billing Period" }
+                                                option { value: "employee-report", "Employee Report" }
+                                                option { value: "shift-plan", "Shift Plan" }
+                                            }
+                                        }
+                                        
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateText)}" }
+                                            textarea {
+                                                class: "w-full p-2 border border-gray-300 rounded-md h-32",
+                                                value: edit_template_text.read().clone(),
+                                                oninput: move |event| edit_template_text.set(event.value()),
+                                                placeholder: "Enter your template text here..."
+                                            }
+                                        }
+                                        
+                                        div { class: "flex gap-2",
+                                            button {
+                                                onclick: save_edit_template,
+                                                disabled: edit_template_type.read().trim().is_empty() || edit_template_text.read().trim().is_empty() || *updating_template.read(),
+                                                class: if *updating_template.read() {
+                                                    "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
+                                                } else {
+                                                    "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                                },
+                                                if *updating_template.read() {
+                                                    "{i18n.t(Key::Saving)}"
+                                                } else {
+                                                    "{i18n.t(Key::Save)}"
+                                                }
+                                            }
+                                            button {
+                                                onclick: move |_| reset_edit_template_form(),
                                                 class: "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded",
                                                 "{i18n.t(Key::Cancel)}"
                                             }
