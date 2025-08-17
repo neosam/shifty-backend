@@ -26,15 +26,37 @@ impl TryFrom<&BillingPeriodDb> for BillingPeriodEntity {
     type Error = DaoError;
 
     fn try_from(db: &BillingPeriodDb) -> Result<Self, Self::Error> {
-        let created_at = PrimitiveDateTime::parse(&db.created, &Iso8601::DATE_TIME)?;
+        // Parse OffsetDateTime first (with timezone info), then convert to PrimitiveDateTime
+        let created_at = time::OffsetDateTime::parse(&db.created, &Iso8601::DATE_TIME)
+            .map(|odt| PrimitiveDateTime::new(odt.date(), odt.time()))
+            .or_else(|_| {
+                // Fall back to direct PrimitiveDateTime parsing for backwards compatibility
+                PrimitiveDateTime::parse(&db.created, &Iso8601::DATE_TIME)
+            })?;
+            
         let deleted_at = db
             .deleted
             .as_ref()
-            .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
+            .map(|deleted| {
+                time::OffsetDateTime::parse(deleted, &Iso8601::DATE_TIME)
+                    .map(|odt| PrimitiveDateTime::new(odt.date(), odt.time()))
+                    .or_else(|_| {
+                        PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME)
+                    })
+            })
             .transpose()?;
 
-        let start_date = PrimitiveDateTime::parse(&db.from_date_time, &Iso8601::DATE_TIME)?.date();
-        let end_date = PrimitiveDateTime::parse(&db.to_date_time, &Iso8601::DATE_TIME)?.date();
+        let start_date = time::OffsetDateTime::parse(&db.from_date_time, &Iso8601::DATE_TIME)
+            .map(|odt| odt.date())
+            .or_else(|_| {
+                PrimitiveDateTime::parse(&db.from_date_time, &Iso8601::DATE_TIME).map(|pdt| pdt.date())
+            })?;
+            
+        let end_date = time::OffsetDateTime::parse(&db.to_date_time, &Iso8601::DATE_TIME)
+            .map(|odt| odt.date())
+            .or_else(|_| {
+                PrimitiveDateTime::parse(&db.to_date_time, &Iso8601::DATE_TIME).map(|pdt| pdt.date())
+            })?;
 
         Ok(Self {
             id: Uuid::from_slice(&db.id).unwrap(),
@@ -89,14 +111,12 @@ impl BillingPeriodDao for BillingPeriodDaoImpl {
             .start_date
             .with_hms(0, 0, 0)
             .unwrap()
-            .assume_utc()
             .format(&Iso8601::DATE_TIME)
             .map_db_error()?;
         let to_date_time = entity
             .end_date
             .with_hms(23, 59, 59)
             .unwrap()
-            .assume_utc()
             .format(&Iso8601::DATE_TIME)
             .map_db_error()?;
         let created = entity
@@ -143,14 +163,12 @@ impl BillingPeriodDao for BillingPeriodDaoImpl {
             .start_date
             .with_hms(0, 0, 0)
             .unwrap()
-            .assume_utc()
             .format(&Iso8601::DATE_TIME)
             .map_db_error()?;
         let to_date_time = entity
             .end_date
             .with_hms(23, 59, 59)
             .unwrap()
-            .assume_utc()
             .format(&Iso8601::DATE_TIME)
             .map_db_error()?;
         let deleted = entity

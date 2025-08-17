@@ -43,13 +43,25 @@ impl TryFrom<&TextTemplateDb> for TextTemplateEntity {
             created_at: text_template
                 .created_at
                 .as_ref()
-                .map(|created_at| PrimitiveDateTime::parse(created_at, &Iso8601::DATE_TIME))
+                .map(|created_at| {
+                    time::OffsetDateTime::parse(created_at, &Iso8601::DATE_TIME)
+                        .map(|odt| PrimitiveDateTime::new(odt.date(), odt.time()))
+                        .or_else(|_| {
+                            PrimitiveDateTime::parse(created_at, &Iso8601::DATE_TIME)
+                        })
+                })
                 .transpose()?,
             created_by: text_template.created_by.as_ref().map(|s| s.as_str().into()),
             deleted: text_template
                 .deleted
                 .as_ref()
-                .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
+                .map(|deleted| {
+                    time::OffsetDateTime::parse(deleted, &Iso8601::DATE_TIME)
+                        .map(|odt| PrimitiveDateTime::new(odt.date(), odt.time()))
+                        .or_else(|_| {
+                            PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME)
+                        })
+                })
                 .transpose()?,
             deleted_by: text_template.deleted_by.as_ref().map(|s| s.as_str().into()),
             version: Uuid::from_slice(&text_template.update_version).unwrap(),
@@ -122,9 +134,9 @@ impl TextTemplateDao for TextTemplateDaoImpl {
         let name = entity.name.as_ref().map(|s| s.as_ref());
         let template_type = entity.template_type.as_ref();
         let template_text = entity.template_text.as_ref();
-        let created_at = entity.created_at.as_ref().map(|created_at| created_at.to_string());
+        let created_at = entity.created_at.as_ref().map(|created_at| created_at.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let created_by = entity.created_by.as_ref().map(|s| s.as_ref());
-        let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
+        let deleted = entity.deleted.as_ref().map(|deleted| deleted.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
 
         query!(
@@ -148,9 +160,9 @@ impl TextTemplateDao for TextTemplateDaoImpl {
         let name = entity.name.as_ref().map(|s| s.as_ref());
         let template_type = entity.template_type.as_ref();
         let template_text = entity.template_text.as_ref();
-        let created_at = entity.created_at.as_ref().map(|created_at| created_at.to_string());
+        let created_at = entity.created_at.as_ref().map(|created_at| created_at.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let created_by = entity.created_by.as_ref().map(|s| s.as_ref());
-        let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
+        let deleted = entity.deleted.as_ref().map(|deleted| deleted.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
 
         query!(
