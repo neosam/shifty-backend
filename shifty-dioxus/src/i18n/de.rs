@@ -331,4 +331,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::ShiftplanReport, "Schichtplan Bericht");
     i18n.add_text(Locale::De, Key::GenerateShiftplanReport, "Schichtplan Bericht generieren");
     i18n.add_text(Locale::De, Key::ShiftplanReportGenerated, "Schichtplan Bericht generiert");
+    i18n.add_text(Locale::De, Key::CopyToClipboard, "In Zwischenablage kopieren");
+    i18n.add_text(Locale::De, Key::CopiedToClipboard, "In Zwischenablage kopiert!");
+    i18n.add_text(Locale::De, Key::CopyFailed, "Fehler beim Kopieren in die Zwischenablage");
 }

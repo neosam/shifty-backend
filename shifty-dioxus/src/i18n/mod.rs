@@ -279,6 +279,9 @@ pub enum Key {
     ShiftplanReport,
     GenerateShiftplanReport,
     ShiftplanReportGenerated,
+    CopyToClipboard,
+    CopiedToClipboard,
+    CopyFailed,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

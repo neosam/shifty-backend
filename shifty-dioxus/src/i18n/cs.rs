@@ -293,4 +293,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ShiftplanReport, "Zpráva plánu směn");
     i18n.add_text(Locale::Cs, Key::GenerateShiftplanReport, "Generovat zprávu plánu směn");
     i18n.add_text(Locale::Cs, Key::ShiftplanReportGenerated, "Zpráva plánu směn vygenerována");
+    i18n.add_text(Locale::Cs, Key::CopyToClipboard, "Kopírovat do schránky");
+    i18n.add_text(Locale::Cs, Key::CopiedToClipboard, "Zkopírováno do schránky!");
+    i18n.add_text(Locale::Cs, Key::CopyFailed, "Chyba při kopírování do schránky");
 }

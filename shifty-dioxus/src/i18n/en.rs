@@ -308,4 +308,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ShiftplanReport, "Shiftplan Report");
     i18n.add_text(Locale::En, Key::GenerateShiftplanReport, "Generate Shiftplan Report");
     i18n.add_text(Locale::En, Key::ShiftplanReportGenerated, "Shiftplan Report Generated");
+    i18n.add_text(Locale::En, Key::CopyToClipboard, "Copy to Clipboard");
+    i18n.add_text(Locale::En, Key::CopiedToClipboard, "Copied to clipboard!");
+    i18n.add_text(Locale::En, Key::CopyFailed, "Failed to copy to clipboard");
 }

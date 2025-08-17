@@ -144,6 +144,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut selected_template_id = use_signal(|| None::<Uuid>);
     let mut shiftplan_report_result = use_signal(|| None::<String>);
     let mut generating_report = use_signal(|| false);
+    let mut copy_status = use_signal(|| None::<String>);
 
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
@@ -840,12 +841,46 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         }
                                         
                                         // Report Result
-                                        if let Some(ref report) = *shiftplan_report_result.read() {
-                                            div { class: "border-t pt-4",
-                                                h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::ShiftplanReportGenerated)}" }
-                                                div { class: "bg-gray-50 p-4 rounded-lg border",
-                                                    pre { class: "whitespace-pre-wrap text-sm font-mono overflow-x-auto", "{report}" }
+                                        {
+                                            let report_opt = shiftplan_report_result.read().clone();
+                                            if let Some(report) = report_opt {
+                                                rsx! {
+                                                    div { class: "border-t pt-4",
+                                                        div { class: "flex justify-between items-center mb-3",
+                                                            h3 { class: "text-lg font-medium", "{i18n.t(Key::ShiftplanReportGenerated)}" }
+                                                            div { class: "flex items-center gap-2",
+                                                                button {
+                                                                    onclick: move |_| {
+                                                                        let report_text = report.clone();
+                                                                        let i18n_copy = I18N.read().clone();
+                                                                        spawn(async move {
+                                                                            copy_status.set(None);
+                                                                            match crate::js::copy_to_clipboard(&report_text).await {
+                                                                                Ok(_) => copy_status.set(Some(i18n_copy.t(Key::CopiedToClipboard).to_string())),
+                                                                                Err(_) => copy_status.set(Some(i18n_copy.t(Key::CopyFailed).to_string())),
+                                                                            }
+                                                                            // Clear status after 3 seconds
+                                                                            spawn(async move {
+                                                                                gloo_timers::future::sleep(std::time::Duration::from_secs(3)).await;
+                                                                                copy_status.set(None);
+                                                                            });
+                                                                        });
+                                                                    },
+                                                                    class: "bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-sm",
+                                                                    "{i18n.t(Key::CopyToClipboard)}"
+                                                                }
+                                                                if let Some(status) = copy_status.read().clone() {
+                                                                    span { class: "text-sm text-green-600 font-medium", "{status}" }
+                                                                }
+                                                            }
+                                                        }
+                                                        div { class: "bg-gray-50 p-4 rounded-lg border",
+                                                            pre { class: "whitespace-pre-wrap text-sm font-mono overflow-x-auto", "{report}" }
+                                                        }
+                                                    }
                                                 }
+                                            } else {
+                                                rsx! { div {} }
                                             }
                                         }
                                     }
