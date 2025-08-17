@@ -305,4 +305,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Inactive, "Inactive");
     i18n.add_text(Locale::En, Key::Login, "Login");
     i18n.add_text(Locale::En, Key::LogoutUser, "Logout {user}");
+    i18n.add_text(Locale::En, Key::ShiftplanReport, "Shiftplan Report");
+    i18n.add_text(Locale::En, Key::GenerateShiftplanReport, "Generate Shiftplan Report");
+    i18n.add_text(Locale::En, Key::ShiftplanReportGenerated, "Shiftplan Report Generated");
 }

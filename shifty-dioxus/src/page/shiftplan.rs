@@ -22,6 +22,7 @@ use crate::service::booking_conflict::BOOKING_CONFLICTS_STORE;
 use crate::service::config::CONFIG;
 use crate::service::i18n::I18N;
 use crate::service::slot_edit::SlotEditAction;
+use crate::service::text_template::{handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE};
 use crate::service::weekly_summary::WeeklySummaryAction;
 use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::service::working_hours_mini::WorkingHoursMiniAction;
@@ -138,6 +139,11 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut change_structure_mode: Signal<bool> = use_signal(|| false);
     let week_message = use_signal(|| String::new());
     let mut week_message_draft = use_signal(|| String::new());
+    
+    // Shiftplan report state
+    let mut selected_template_id = use_signal(|| None::<Uuid>);
+    let mut shiftplan_report_result = use_signal(|| None::<String>);
+    let mut generating_report = use_signal(|| false);
 
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
@@ -146,6 +152,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     } else {
         WeekViewButtonTypes::AddRemove
     };
+
+    // Load shiftplan-report templates for report generation
+    use_effect(move || {
+        if is_shiftplanner {
+            spawn(async move {
+                handle_text_template_action(TextTemplateAction::LoadTemplatesByType("shiftplan-report".to_string())).await;
+            });
+        }
+    });
 
     //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
     //    match &*current_sales_person_resource.read_unchecked() {
@@ -750,6 +765,89 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         target: "_blank",
                                         href: format!("{}/sales-person/{}/ical", backend_url, Uuid::nil()),
                                         "{unsufficiently_booked_calendar_export_str}"
+                                    }
+                                }
+                            }
+                            
+                            // Shiftplan Report Section (only visible for shiftplanner role)
+                            if is_shiftplanner {
+                                div { class: "bg-white shadow rounded-lg p-6 mt-6 print:hidden",
+                                    h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::ShiftplanReport)}" }
+                                    
+                                    div { class: "space-y-4",
+                                        // Template Selection
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", 
+                                                "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} shiftplan report templates available)" 
+                                            }
+                                            select {
+                                                class: "w-full p-2 border border-gray-300 rounded-md",
+                                                value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
+                                                onchange: move |event| {
+                                                    if let Ok(uuid) = Uuid::parse_str(&event.value()) {
+                                                        selected_template_id.set(Some(uuid));
+                                                    } else {
+                                                        selected_template_id.set(None);
+                                                    }
+                                                },
+                                                option { value: "", "Select a template..." }
+                                                for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
+                                                    option { 
+                                                        value: "{template.id}",
+                                                        if let Some(ref name) = template.name {
+                                                            "{name} ({template.template_type})"
+                                                        } else {
+                                                            "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Generate Button
+                                        button {
+                                            onclick: move |_| {
+                                                if let Some(template_id) = *selected_template_id.read() {
+                                                    let config = CONFIG.read().clone();
+                                                    spawn(async move {
+                                                        generating_report.set(true);
+                                                        shiftplan_report_result.set(None);
+                                                        
+                                                        match loader::generate_block_report(config, template_id).await {
+                                                            Ok(report) => {
+                                                                shiftplan_report_result.set(Some(report));
+                                                            }
+                                                            Err(e) => {
+                                                                shiftplan_report_result.set(Some(format!("Error generating report: {}", e)));
+                                                            }
+                                                        }
+                                                        
+                                                        generating_report.set(false);
+                                                    });
+                                                }
+                                            },
+                                            disabled: selected_template_id.read().is_none() || *generating_report.read(),
+                                            class: if *generating_report.read() {
+                                                "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
+                                            } else {
+                                                "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                            },
+                                            if *generating_report.read() {
+                                                "{i18n.t(Key::GeneratingReport)}"
+                                            } else {
+                                                "{i18n.t(Key::GenerateShiftplanReport)}"
+                                            }
+                                        }
+                                        
+                                        // Report Result
+                                        if let Some(ref report) = *shiftplan_report_result.read() {
+                                            div { class: "border-t pt-4",
+                                                h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::ShiftplanReportGenerated)}" }
+                                                div { class: "bg-gray-50 p-4 rounded-lg border",
+                                                    pre { class: "whitespace-pre-wrap text-sm font-mono overflow-x-auto", "{report}" }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

@@ -902,3 +902,14 @@ pub async fn generate_custom_report(config: Config, billing_period_id: Uuid, tem
     info!("Generated custom report");
     Ok(res)
 }
+
+pub async fn generate_block_report(config: Config, template_id: Uuid) -> Result<String, reqwest::Error> {
+    info!("Generating block report with template {template_id}");
+    let url = format!("{}/block-report/{}", config.backend, template_id);
+    let client = reqwest::Client::new();
+    let response = client.get(url).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.text().await?;
+    info!("Generated block report");
+    Ok(res)
+}

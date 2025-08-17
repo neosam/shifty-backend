@@ -592,3 +592,11 @@ pub async fn generate_custom_report(
     let report = api::generate_custom_report(config, billing_period_id, template_id).await?;
     Ok(report)
 }
+
+pub async fn generate_block_report(
+    config: Config,
+    template_id: Uuid,
+) -> Result<String, ShiftyError> {
+    let report = api::generate_block_report(config, template_id).await?;
+    Ok(report)
+}

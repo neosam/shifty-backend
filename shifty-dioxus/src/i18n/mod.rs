@@ -276,6 +276,9 @@ pub enum Key {
     Inactive,
     Login,
     LogoutUser,
+    ShiftplanReport,
+    GenerateShiftplanReport,
+    ShiftplanReportGenerated,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
