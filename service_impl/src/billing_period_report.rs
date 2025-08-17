@@ -277,7 +277,10 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
 
         // Add the template to Tera
         tera.add_raw_template("custom_report", &text_template.template_text)
-            .map_err(|_e| ServiceError::InternalError)?;
+            .map_err(|e| {
+                tracing::error!("Failed to parse Tera template: {}", e);
+                ServiceError::InternalError
+            })?;
 
         // Prepare context data for template rendering
         let mut template_context = Context::new();
@@ -319,7 +322,10 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
         // Render the template
         let rendered = tera
             .render("custom_report", &template_context)
-            .map_err(|_e| ServiceError::InternalError)?;
+            .map_err(|e| {
+                tracing::error!("Failed to render Tera template: {}", e);
+                ServiceError::InternalError
+            })?;
 
         self.transaction_dao.commit(tx).await?;
         Ok(rendered.into())

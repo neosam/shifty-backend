@@ -115,7 +115,24 @@ async fn test_custom_report_generation_end_to_end() {
 
     // 3. Create German text template
     let template_text = format!(
-        "Hallo Frau Saur,\\n\\nhiermit sende ich Ihnen die Stunden für den Abrechnungszeitraum vom {{{{ billing_period.start_date }}}} bis {{{{ billing_period.end_date }}}}.\\n{{% for person in billing_period.sales_persons %}}{{% if person.sales_person_id == \\\"{}\\\" %}}{{% for value in person.values %}}{{% if value.type == \\\"overall\\\" %}}Natalie: {{{{ value.value_delta | round(precision=0) }}}} Stunden\\n{{% endif %}}{{% endfor %}}{{% elif person.sales_person_id == \\\"{}\\\" %}}{{% for value in person.values %}}{{% if value.type == \\\"overall\\\" %}}Dany: {{{{ value.value_delta | round(precision=0) }}}} Stunden\\n{{% endif %}}{{% endfor %}}{{% endif %}}{{% endfor %}}\\nViele Grüße,",
+        "Hallo Frau Saur,
+
+hiermit sende ich Ihnen die Stunden für den Abrechnungszeitraum vom {{{{ billing_period.start_date }}}} bis {{{{ billing_period.end_date }}}}.
+{{% for person in billing_period.sales_persons %}}
+  {{% if person.sales_person_id == \"{}\" %}}
+    {{% for value in person.values %}}
+      {{% if value.type == \"overall\" %}}Natalie: {{{{ value.value_delta | round(precision=0) }}}} Stunden
+      {{% endif %}}
+    {{% endfor %}}
+  {{% elif person.sales_person_id == \"{}\" %}}
+    {{% for value in person.values %}}
+      {{% if value.type == \"overall\" %}}Dany: {{{{ value.value_delta | round(precision=0) }}}} Stunden
+      {{% endif %}}
+    {{% endfor %}}
+  {{% endif %}}
+{{% endfor %}}
+
+Viele Grüße,",
         sp1.id, sp2.id
     );
 
@@ -242,7 +259,15 @@ async fn test_custom_report_with_custom_extra_hours() {
 
     // Create template that extracts custom hours
     let template_text = format!(
-        "Custom Hours Report for {{{{ billing_period.start_date }}}} - {{{{ billing_period.end_date }}}}:\\n{{% for person in billing_period.sales_persons %}}{{% if person.sales_person_id == \\\"{}\\\" %}}{{% for value in person.values %}}{{% if value.type starts_with \\\"custom_extra_hours:\\\" %}}{{{{ value.type | replace(from=\\\"custom_extra_hours:\\\", to=\\\"\\\") | title }}}}: {{{{ value.value_delta }}}}h\\n{{% endif %}}{{% endfor %}}{{% endif %}}{{% endfor %}}",
+        "Custom Hours Report for {{{{ billing_period.start_date }}}} - {{{{ billing_period.end_date }}}}:
+{{% for person in billing_period.sales_persons %}}
+  {{% if person.sales_person_id == \"{}\" %}}
+    {{% for value in person.values %}}
+      {{% if value.type is starting_with(\"custom_extra_hours:\") %}}{{{{ value.type | replace(from=\"custom_extra_hours:\", to=\"\") | title }}}}: {{{{ value.value_delta }}}}h
+      {{% endif %}}
+    {{% endfor %}}
+  {{% endif %}}
+{{% endfor %}}",
         sp.id
     );
 
