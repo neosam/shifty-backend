@@ -241,6 +241,10 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::SalesPersonsIncluded, "{count} sales persons included");
     i18n.add_text(Locale::En, Key::FilterSalesPersonsByName, "Filter sales persons by name...");
     i18n.add_text(Locale::En, Key::NoSalesPersonsMatchFilter, "No sales persons match the filter '{filter}'.");
+    i18n.add_text(Locale::En, Key::ShowActive, "Active");
+    i18n.add_text(Locale::En, Key::ShowInactive, "Show Inactive");
+    i18n.add_text(Locale::En, Key::ShowPaid, "Paid");
+    i18n.add_text(Locale::En, Key::ShowUnpaid, "Show Unpaid");
     i18n.add_text(Locale::En, Key::Values, "Values");
     i18n.add_text(Locale::En, Key::Delta, "Delta");
     i18n.add_text(Locale::En, Key::YtdFrom, "YTD From");

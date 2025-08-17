@@ -264,6 +264,10 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::SalesPersonsIncluded, "{count} Verkäufer enthalten");
     i18n.add_text(Locale::De, Key::FilterSalesPersonsByName, "Verkäufer nach Name filtern...");
     i18n.add_text(Locale::De, Key::NoSalesPersonsMatchFilter, "Keine Verkäufer entsprechen dem Filter '{filter}'.");
+    i18n.add_text(Locale::De, Key::ShowActive, "Aktiv");
+    i18n.add_text(Locale::De, Key::ShowInactive, "Inaktive anzeigen");
+    i18n.add_text(Locale::De, Key::ShowPaid, "Bezahlt");
+    i18n.add_text(Locale::De, Key::ShowUnpaid, "Unbezahlte anzeigen");
     i18n.add_text(Locale::De, Key::Values, "Werte");
     i18n.add_text(Locale::De, Key::Delta, "Unterschied");
     i18n.add_text(Locale::De, Key::YtdFrom, "YTD Von");

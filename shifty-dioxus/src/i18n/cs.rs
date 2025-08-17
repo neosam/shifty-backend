@@ -241,6 +241,10 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::SalesPersonsIncluded, "{count} prodejců zahrnuto");
     i18n.add_text(Locale::Cs, Key::FilterSalesPersonsByName, "Filtrovat prodejce podle jména...");
     i18n.add_text(Locale::Cs, Key::NoSalesPersonsMatchFilter, "Žádní prodejci neodpovídají filtru '{filter}'.");
+    i18n.add_text(Locale::Cs, Key::ShowActive, "Aktivní");
+    i18n.add_text(Locale::Cs, Key::ShowInactive, "Zobrazit neaktivní");
+    i18n.add_text(Locale::Cs, Key::ShowPaid, "Placené");
+    i18n.add_text(Locale::Cs, Key::ShowUnpaid, "Zobrazit neplacené");
     i18n.add_text(Locale::Cs, Key::Values, "Hodnoty");
     i18n.add_text(Locale::Cs, Key::Delta, "Delta");
     i18n.add_text(Locale::Cs, Key::YtdFrom, "YTD Od");

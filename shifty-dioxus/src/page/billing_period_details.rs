@@ -47,6 +47,8 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
 
     // Filter state for sales persons
     let mut filter_text = use_signal(|| String::new());
+    let mut show_paid = use_signal(|| true); // Default: checked - show only paid
+    let mut show_active = use_signal(|| true); // Default: checked - show only active
     
     // Custom report states
     let mut selected_template_id = use_signal(|| None::<Uuid>);
@@ -88,6 +90,32 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                 .unwrap_or_else(|| format!("Unknown ({})", sales_person_id))
         } else {
             sales_person_id.to_string()
+        }
+    };
+
+    // Helper function to get sales person paid status by ID
+    let get_sales_person_is_paid = |sales_person_id: Uuid| -> bool {
+        if let Some(Ok(persons)) = sales_persons.read().as_ref() {
+            if let Some(person) = persons.iter().find(|person| person.id == sales_person_id) {
+                person.is_paid
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    };
+
+    // Helper function to get sales person active status by ID
+    let get_sales_person_is_active = |sales_person_id: Uuid| -> bool {
+        if let Some(Ok(persons)) = sales_persons.read().as_ref() {
+            if let Some(person) = persons.iter().find(|person| person.id == sales_person_id) {
+                !person.inactive // Note: inactive field is inverted (inactive = false means active = true)
+            } else {
+                true // Default to active if not found
+            }
+        } else {
+            true // Default to active if data not loaded
         }
     };
 
@@ -243,17 +271,44 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
 
                     // Sales Persons Section
                     div { class: "bg-white shadow rounded-lg p-6 mb-6",
-                        div { class: "flex justify-between items-center mb-4",
-                            h2 { class: "text-xl font-semibold", 
-                                "{i18n.t(Key::SalesPersons)} ({billing_period.sales_persons.len()})"
+                        div { class: "mb-4",
+                            h2 { class: "text-xl font-semibold mb-4", 
+                                "{i18n.t(Key::SalesPersons)} ({billing_period.sales_persons.len()} total)"
                             }
-                            div { class: "w-80",
-                                input {
-                                    class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-                                    r#type: "text",
-                                    placeholder: "{i18n.t(Key::FilterSalesPersonsByName)}",
-                                    value: "{filter_text.read()}",
-                                    oninput: move |event| filter_text.set(event.value()),
+                            
+                            // Filter controls
+                            div { class: "flex flex-col md:flex-row gap-4 items-start md:items-center",
+                                // Checkbox filters
+                                div { class: "flex gap-6",
+                                    label { class: "flex items-center gap-2 text-sm",
+                                        input {
+                                            r#type: "checkbox",
+                                            class: "rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50",
+                                            checked: *show_paid.read(),
+                                            onchange: move |event| show_paid.set(event.checked()),
+                                        }
+                                        span { "{i18n.t(Key::ShowPaid)}" }
+                                    }
+                                    label { class: "flex items-center gap-2 text-sm",
+                                        input {
+                                            r#type: "checkbox",
+                                            class: "rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50",
+                                            checked: *show_active.read(),
+                                            onchange: move |event| show_active.set(event.checked()),
+                                        }
+                                        span { "{i18n.t(Key::ShowActive)}" }
+                                    }
+                                }
+                                
+                                // Text filter
+                                div { class: "w-full md:w-80",
+                                    input {
+                                        class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+                                        r#type: "text",
+                                        placeholder: "{i18n.t(Key::FilterSalesPersonsByName)}",
+                                        value: "{filter_text.read()}",
+                                        oninput: move |event| filter_text.set(event.value()),
+                                    }
                                 }
                             }
                         }
@@ -264,15 +319,40 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                             // Filter and sort sales persons
                             {
                                 let filter_text_lower = filter_text.read().to_lowercase();
+                                let show_paid_val = *show_paid.read();
+                                let show_active_val = *show_active.read();
+                                
                                 let mut filtered_sales_persons: Vec<_> = billing_period.sales_persons
                                     .iter()
                                     .filter(|sales_person| {
-                                        if filter_text_lower.is_empty() {
+                                        // Name filter
+                                        let name_matches = if filter_text_lower.is_empty() {
                                             true
                                         } else {
                                             let sales_person_name = get_sales_person_name(sales_person.sales_person_id).to_lowercase();
                                             sales_person_name.contains(&filter_text_lower)
-                                        }
+                                        };
+                                        
+                                        // Active filter - be very explicit about the logic
+                                        let is_active = get_sales_person_is_active(sales_person.sales_person_id);
+                                        let active_filter_matches = if show_active_val {
+                                            // When "Active" checkbox is checked: only show active employees
+                                            // This means: exclude inactive employees
+                                            is_active
+                                        } else {
+                                            // When "Active" checkbox is unchecked: show all employees
+                                            true
+                                        };
+                                        
+                                        // Paid filter
+                                        let is_paid = get_sales_person_is_paid(sales_person.sales_person_id);
+                                        let paid_filter_matches = if show_paid_val {
+                                            is_paid // Only show paid when checked
+                                        } else {
+                                            true // Show all (paid and unpaid) when unchecked
+                                        };
+                                        
+                                        name_matches && active_filter_matches && paid_filter_matches
                                     })
                                     .collect();
 
@@ -286,13 +366,18 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 if filtered_sales_persons.is_empty() {
                                     rsx! {
                                         p { class: "text-gray-500 italic", 
-                                            {
-                                                i18n.t(Key::NoSalesPersonsMatchFilter).replace("{filter}", &filter_text.read())
+                                            if filter_text.read().is_empty() {
+                                                "No sales persons match the current filters."
+                                            } else {
+                                                {i18n.t(Key::NoSalesPersonsMatchFilter).replace("{filter}", &filter_text.read())}
                                             }
                                         }
                                     }
                                 } else {
                                     rsx! {
+                                        p { class: "text-sm text-gray-600 mb-4", 
+                                            "Showing {filtered_sales_persons.len()} of {billing_period.sales_persons.len()} sales persons"
+                                        }
                                         div { class: "space-y-4",
                                             for sales_person in filtered_sales_persons.iter() {
                                                 div { class: "border border-gray-200 rounded-lg p-4",
