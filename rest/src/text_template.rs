@@ -163,6 +163,7 @@ pub async fn create_text_template<RestState: RestStateDef>(
         (async {
             let text_template = service::text_template::TextTemplate {
                 id: Uuid::new_v4(), // Will be overwritten in service
+                name: payload.name,
                 template_type: payload.template_type,
                 template_text: payload.template_text,
                 created_at: None,
@@ -224,6 +225,7 @@ pub async fn update_text_template<RestState: RestStateDef>(
 
             let updated_template = service::text_template::TextTemplate {
                 id: text_template_id,
+                name: payload.name,
                 template_type: payload.template_type,
                 template_text: payload.template_text,
                 created_at: existing_template.created_at,

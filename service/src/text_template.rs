@@ -11,6 +11,7 @@ use crate::ServiceError;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextTemplate {
     pub id: Uuid,
+    pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
     pub created_at: Option<time::PrimitiveDateTime>,
@@ -24,6 +25,7 @@ impl From<&dao::text_template::TextTemplateEntity> for TextTemplate {
     fn from(text_template: &dao::text_template::TextTemplateEntity) -> Self {
         Self {
             id: text_template.id,
+            name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
             created_at: text_template.created_at,
@@ -39,6 +41,7 @@ impl From<&TextTemplate> for dao::text_template::TextTemplateEntity {
     fn from(text_template: &TextTemplate) -> Self {
         Self {
             id: text_template.id,
+            name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
             created_at: text_template.created_at,

@@ -55,6 +55,7 @@ fn create_test_text_template(template_text: &str) -> TextTemplate {
     TextTemplate {
         id: Uuid::new_v4(),
         version: Uuid::new_v4(),
+        name: Some("Test Template".into()),
         template_type: "test_template".into(),
         template_text: template_text.into(),
         created_at: Some(datetime!(2024-01-01 10:00:00)),

@@ -122,6 +122,7 @@ async fn test_custom_report_generation_end_to_end() {
     let text_template = service::text_template::TextTemplate {
         id: Uuid::nil(),
         version: Uuid::nil(),
+        name: Some("German Hours Report".into()),
         template_type: "german_hours_report".into(),
         template_text: template_text.into(),
         created_at: None,
@@ -248,6 +249,7 @@ async fn test_custom_report_with_custom_extra_hours() {
     let text_template = service::text_template::TextTemplate {
         id: Uuid::nil(),
         version: Uuid::nil(),
+        name: Some("Custom Hours Report".into()),
         template_type: "custom_hours_report".into(),
         template_text: template_text.into(),
         created_at: None,

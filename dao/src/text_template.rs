@@ -9,6 +9,7 @@ use crate::DaoError;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextTemplateEntity {
     pub id: Uuid,
+    pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
     pub created_at: Option<time::PrimitiveDateTime>,

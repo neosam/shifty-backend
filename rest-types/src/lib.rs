@@ -1147,6 +1147,8 @@ pub struct CreateBillingPeriodRequestTO {
 pub struct TextTemplateTO {
     #[serde(default)]
     pub id: Uuid,
+    #[serde(default)]
+    pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
     #[serde(default)]
@@ -1167,6 +1169,7 @@ impl From<&service::text_template::TextTemplate> for TextTemplateTO {
     fn from(text_template: &service::text_template::TextTemplate) -> Self {
         Self {
             id: text_template.id,
+            name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
             created_at: text_template.created_at,
@@ -1183,6 +1186,7 @@ impl From<&TextTemplateTO> for service::text_template::TextTemplate {
     fn from(text_template: &TextTemplateTO) -> Self {
         Self {
             id: text_template.id,
+            name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
             created_at: text_template.created_at,
@@ -1196,12 +1200,14 @@ impl From<&TextTemplateTO> for service::text_template::TextTemplate {
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct CreateTextTemplateRequestTO {
+    pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct UpdateTextTemplateRequestTO {
+    pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
 }
