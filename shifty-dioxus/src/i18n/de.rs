@@ -273,7 +273,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::SelectEndDateForNewBillingPeriod, "Wählen Sie das Enddatum für den neuen Abrechnungszeitraum. Das Startdatum wird automatisch berechnet.");
 
     // Text templates
-    i18n.add_text(Locale::De, Key::TextTemplateManagement, "Textvorlagen-Verwaltung");
+    i18n.add_text(Locale::De, Key::TextTemplateManagement, "Textvorlagen");
     i18n.add_text(Locale::De, Key::TemplateType, "Vorlagentyp");
     i18n.add_text(Locale::De, Key::TemplateText, "Vorlagentext");
     i18n.add_text(Locale::De, Key::AddNewTemplate, "Neue Vorlage hinzufügen");

@@ -45,6 +45,11 @@ pub fn TopBar() -> Element {
     } else {
         false
     };
+    let show_templates = if let Some(ref auth_info) = auth_info {
+        auth_info.has_privilege("admin")
+    } else {
+        false
+    };
 
     rsx! {
         div { class: "flex bg-gray-800 text-white p-4 md:p-0 items-center print:hidden",
@@ -93,7 +98,7 @@ pub fn TopBar() -> Element {
                             Link { to: Route::UserManagementPage {}, {i18n.t(Key::UserManagement)} }
                         }
                     }
-                    if show_reports {
+                    if show_templates {
                         li {
                             Link { to: Route::TextTemplateManagement {}, {i18n.t(Key::TextTemplateManagement)} }
                         }

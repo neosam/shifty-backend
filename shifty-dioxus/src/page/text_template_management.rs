@@ -3,6 +3,7 @@ use futures_util::StreamExt;
 use uuid::Uuid;
 
 use crate::{
+    component::TopBar,
     i18n::Key,
     service::{
         i18n::I18N,
@@ -104,7 +105,9 @@ pub fn TextTemplateManagement() -> Element {
     };
 
     rsx! {
-        div { class: "p-6",
+        TopBar {}
+        
+        div { class: "ml-1 mr-1 pt-4 md:m-8",
             h1 { class: "text-2xl font-bold mb-4", "{title}" }
             
             if !*show_form.read() {
