@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE text_template SET deleted = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "6382bfc9b823f9a20d82d97c78b76d428abcb688dcdc3e7c124e40113d19cbe8"
+}

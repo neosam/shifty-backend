@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, template_type, template_text, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE id = ? AND deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "template_type",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "template_text",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_by",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted_by",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 8,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "ae997b7e8e4e73f5c7cb9a1373ad71ab0bf256f13675ccc11a74f00a445afd52"
+}
