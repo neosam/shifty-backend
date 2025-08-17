@@ -53,28 +53,10 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let mut custom_report_result = use_signal(|| None::<String>);
     let mut generating_report = use_signal(|| false);
     
-    // New template creation states
-    let mut show_new_template_form = use_signal(|| false);
-    let mut new_template_name = use_signal(|| "".to_string());
-    let mut new_template_text = use_signal(|| "".to_string());
-    let mut saving_template = use_signal(|| false);
-    
-    // Template editing states
-    let mut editing_template_id = use_signal(|| None::<Uuid>);
-    let mut show_edit_template_form = use_signal(|| false);
-    let mut edit_template_name = use_signal(|| "".to_string());
-    let mut edit_template_text = use_signal(|| "".to_string());
-    let mut updating_template = use_signal(|| false);
-    
-    // Template deletion states
-    let mut show_delete_confirmation = use_signal(|| false);
-    let mut deleting_template_id = use_signal(|| None::<Uuid>);
-    let mut deleting_template = use_signal(|| false);
-    
-    // Load all templates so users can edit any template type
+    // Load billing period templates for report generation
     use_effect(move || {
         spawn(async move {
-            handle_text_template_action(TextTemplateAction::LoadTemplates).await;
+            handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
         });
     });
 
@@ -109,116 +91,6 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         }
     };
 
-    // Helper functions for new template creation
-    let mut reset_new_template_form = move || {
-        show_new_template_form.set(false);
-        new_template_name.set("".to_string());
-        new_template_text.set("".to_string());
-    };
-
-    let save_new_template = move |_| {
-        let name = new_template_name.read().clone();
-        let template_text = new_template_text.read().clone();
-
-        if template_text.trim().is_empty() {
-            return;
-        }
-
-        let name_rc = if name.trim().is_empty() { None } else { Some(name.into()) };
-
-        let template = crate::state::text_template::TextTemplate {
-            id: Uuid::nil(),
-            name: name_rc,
-            template_type: "billing-period".into(), // Fixed to billing-period in this context
-            template_text: template_text.into(),
-            created_at: None,
-            created_by: None,
-        };
-
-        spawn(async move {
-            saving_template.set(true);
-            handle_text_template_action(TextTemplateAction::SaveTemplate(template)).await;
-            // Reload templates to include the new one
-            handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
-            saving_template.set(false);
-            reset_new_template_form();
-        });
-    };
-
-    // Helper functions for template editing
-    let mut reset_edit_template_form = move || {
-        show_edit_template_form.set(false);
-        editing_template_id.set(None);
-        edit_template_name.set("".to_string());
-        edit_template_text.set("".to_string());
-    };
-
-    let mut start_edit_template = move |template: crate::state::text_template::TextTemplate| {
-        editing_template_id.set(Some(template.id));
-        edit_template_name.set(template.name.as_ref().map(|s| s.to_string()).unwrap_or_default());
-        edit_template_text.set(template.template_text.to_string());
-        show_edit_template_form.set(true);
-        show_new_template_form.set(false); // Hide create form if open
-    };
-
-    let save_edit_template = move |_| {
-        if let Some(template_id) = *editing_template_id.read() {
-            let name = edit_template_name.read().clone();
-            let template_text = edit_template_text.read().clone();
-
-            if template_text.trim().is_empty() {
-                return;
-            }
-
-            let name_rc = if name.trim().is_empty() { None } else { Some(name.into()) };
-
-            let template = crate::state::text_template::TextTemplate {
-                id: template_id,
-                name: name_rc,
-                template_type: "billing-period".into(), // Fixed to billing-period in this context
-                template_text: template_text.into(),
-                created_at: None,
-                created_by: None,
-            };
-
-            spawn(async move {
-                updating_template.set(true);
-                handle_text_template_action(TextTemplateAction::UpdateTemplate(template_id, template)).await;
-                // Reload templates to reflect changes
-                handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
-                updating_template.set(false);
-                reset_edit_template_form();
-            });
-        }
-    };
-
-    // Helper functions for template deletion
-    let mut start_delete_template = move |template_id: Uuid| {
-        deleting_template_id.set(Some(template_id));
-        show_delete_confirmation.set(true);
-    };
-
-    let mut cancel_delete_template = move || {
-        show_delete_confirmation.set(false);
-        deleting_template_id.set(None);
-    };
-
-    let confirm_delete_template = move |_| {
-        if let Some(template_id) = *deleting_template_id.read() {
-            spawn(async move {
-                deleting_template.set(true);
-                handle_text_template_action(TextTemplateAction::DeleteTemplate(template_id)).await;
-                // Clear selection if the deleted template was selected
-                if *selected_template_id.read() == Some(template_id) {
-                    selected_template_id.set(None);
-                }
-                // Reload templates to reflect changes
-                handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
-                deleting_template.set(false);
-                cancel_delete_template();
-            });
-        }
-    };
 
     rsx! {
         TopBar {}
@@ -288,236 +160,81 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                         
                         div { class: "space-y-6",
                             // Template Selection and Generation
-                            div { class: "grid grid-cols-1 lg:grid-cols-2 gap-6",
-                                div {
-                                    h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GenerateReport)}" }
-                                    
-                                    // Template Selection
-                                    div { class: "mb-4",
-                                        label { class: "block text-sm font-medium text-gray-700 mb-2", 
-                                            "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == \"billing-period\").count()} billing period templates available)" 
-                                        }
-                                        select {
-                                            class: "w-full p-2 border border-gray-300 rounded-md",
-                                            value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
-                                            onchange: move |event| {
-                                                if let Ok(uuid) = Uuid::parse_str(&event.value()) {
-                                                    selected_template_id.set(Some(uuid));
+                            div {
+                                h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GenerateReport)}" }
+                                
+                                // Template Selection
+                                div { class: "mb-4",
+                                    label { class: "block text-sm font-medium text-gray-700 mb-2", 
+                                        "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == \"billing-period\").count()} billing period templates available)" 
+                                    }
+                                    select {
+                                        class: "w-full p-2 border border-gray-300 rounded-md",
+                                        value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
+                                        onchange: move |event| {
+                                            if let Ok(uuid) = Uuid::parse_str(&event.value()) {
+                                                selected_template_id.set(Some(uuid));
+                                            } else {
+                                                selected_template_id.set(None);
+                                            }
+                                        },
+                                        option { value: "", "Select a template..." }
+                                        for template in TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == "billing-period") {
+                                            option { 
+                                                value: "{template.id}",
+                                                if let Some(ref name) = template.name {
+                                                    "{name} ({template.template_type})"
                                                 } else {
-                                                    selected_template_id.set(None);
-                                                }
-                                            },
-                                            option { value: "", "Select a template..." }
-                                            for template in TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == "billing-period") {
-                                                option { 
-                                                    value: "{template.id}",
-                                                    if let Some(ref name) = template.name {
-                                                        "{name} ({template.template_type})"
-                                                    } else {
-                                                        "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
-                                                    }
+                                                    "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
                                                 }
                                             }
-                                        }
-                                    }
-                                    
-                                    // Edit and Delete Template Buttons
-                                    if let Some(template_id) = *selected_template_id.read() {
-                                        div { class: "mb-4 flex gap-2",
-                                            button {
-                                                onclick: move |_| {
-                                                    let template_id = template_id;
-                                                    if let Some(template) = TEXT_TEMPLATE_STORE.read().templates.iter().find(|t| t.id == template_id) {
-                                                        start_edit_template(template.clone());
-                                                    }
-                                                },
-                                                class: "bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded",
-                                                "{i18n.t(Key::Edit)}"
-                                            }
-                                            button {
-                                                onclick: move |_| {
-                                                    start_delete_template(template_id);
-                                                },
-                                                class: "bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded",
-                                                "{i18n.t(Key::Delete)}"
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Generate Button
-                                    button {
-                                        onclick: move |_| {
-                                            if let Some(template_id) = *selected_template_id.read() {
-                                                let config = CONFIG.read().clone();
-                                                let billing_period_id = billing_period_id;
-                                                spawn(async move {
-                                                    generating_report.set(true);
-                                                    custom_report_result.set(None);
-                                                    
-                                                    match loader::generate_custom_report(config, billing_period_id, template_id).await {
-                                                        Ok(report) => {
-                                                            custom_report_result.set(Some(report));
-                                                        }
-                                                        Err(e) => {
-                                                            custom_report_result.set(Some(format!("Error generating report: {}", e)));
-                                                        }
-                                                    }
-                                                    
-                                                    generating_report.set(false);
-                                                });
-                                            }
-                                        },
-                                        disabled: selected_template_id.read().is_none() || *generating_report.read(),
-                                        class: if *generating_report.read() {
-                                            "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
-                                        } else {
-                                            "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                                        },
-                                        if *generating_report.read() {
-                                            "{i18n.t(Key::GeneratingReport)}"
-                                        } else {
-                                            "{i18n.t(Key::GenerateReport)}"
                                         }
                                     }
                                 }
                                 
-                                // Report Result
-                                if let Some(ref report) = *custom_report_result.read() {
-                                    div {
-                                        h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GeneratedReport)}" }
-                                        div { class: "bg-gray-50 p-4 rounded-lg border",
-                                            pre { class: "whitespace-pre-wrap text-sm font-mono", "{report}" }
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Create New Template Section
-                            div { class: "border-t pt-6",
-                                div { class: "flex justify-between items-center mb-4",
-                                    h3 { class: "text-lg font-medium", "{i18n.t(Key::CreateNewTemplate)}" }
-                                    if !*show_new_template_form.read() && !*show_edit_template_form.read() {
-                                        button {
-                                            onclick: move |_| {
-                                                show_new_template_form.set(true);
-                                                show_edit_template_form.set(false); // Hide edit form if open
-                                            },
-                                            class: "bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded",
-                                            "{i18n.t(Key::AddNew)}"
-                                        }
-                                    }
-                                }
-                                
-                                if *show_new_template_form.read() {
-                                    div { class: "bg-gray-50 p-4 rounded-lg",
-                                        div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateName)}" }
-                                            input {
-                                                class: "w-full p-2 border border-gray-300 rounded-md",
-                                                r#type: "text",
-                                                value: new_template_name.read().clone(),
-                                                oninput: move |event| new_template_name.set(event.value()),
-                                                placeholder: "Enter template name (optional)..."
-                                            }
-                                        }
-                                        
-                                        div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
-                                            div { class: "w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-gray-600",
-                                                "Billing Period (fixed for this context)"
-                                            }
-                                        }
-                                        
-                                        div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateText)}" }
-                                            textarea {
-                                                class: "w-full p-2 border border-gray-300 rounded-md h-32",
-                                                value: new_template_text.read().clone(),
-                                                oninput: move |event| new_template_text.set(event.value()),
-                                                placeholder: "Enter your template text here..."
-                                            }
-                                        }
-                                        
-                                        div { class: "flex gap-2",
-                                            button {
-                                                onclick: save_new_template,
-                                                disabled: new_template_text.read().trim().is_empty() || *saving_template.read(),
-                                                class: if *saving_template.read() {
-                                                    "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
-                                                } else {
-                                                    "bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-                                                },
-                                                if *saving_template.read() {
-                                                    "{i18n.t(Key::Saving)}"
-                                                } else {
-                                                    "{i18n.t(Key::Save)}"
+                                // Generate Button
+                                button {
+                                    onclick: move |_| {
+                                        if let Some(template_id) = *selected_template_id.read() {
+                                            let config = CONFIG.read().clone();
+                                            let billing_period_id = billing_period_id;
+                                            spawn(async move {
+                                                generating_report.set(true);
+                                                custom_report_result.set(None);
+                                                
+                                                match loader::generate_custom_report(config, billing_period_id, template_id).await {
+                                                    Ok(report) => {
+                                                        custom_report_result.set(Some(report));
+                                                    }
+                                                    Err(e) => {
+                                                        custom_report_result.set(Some(format!("Error generating report: {}", e)));
+                                                    }
                                                 }
-                                            }
-                                            button {
-                                                onclick: move |_| reset_new_template_form(),
-                                                class: "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded",
-                                                "{i18n.t(Key::Cancel)}"
-                                            }
+                                                
+                                                generating_report.set(false);
+                                            });
                                         }
+                                    },
+                                    disabled: selected_template_id.read().is_none() || *generating_report.read(),
+                                    class: if *generating_report.read() {
+                                        "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
+                                    } else {
+                                        "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                    },
+                                    if *generating_report.read() {
+                                        "{i18n.t(Key::GeneratingReport)}"
+                                    } else {
+                                        "{i18n.t(Key::GenerateReport)}"
                                     }
                                 }
                             }
                             
-                            // Edit Template Section
-                            if *show_edit_template_form.read() {
+                            // Report Result (moved below generation form for full width)
+                            if let Some(ref report) = *custom_report_result.read() {
                                 div { class: "border-t pt-6",
-                                    h3 { class: "text-lg font-medium mb-4", "{i18n.t(Key::EditTemplate)}" }
-                                    
-                                    div { class: "bg-blue-50 p-4 rounded-lg",
-                                        div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateName)}" }
-                                            input {
-                                                class: "w-full p-2 border border-gray-300 rounded-md",
-                                                r#type: "text",
-                                                value: edit_template_name.read().clone(),
-                                                oninput: move |event| edit_template_name.set(event.value()),
-                                                placeholder: "Enter template name (optional)..."
-                                            }
-                                        }
-                                        
-                                        div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
-                                            div { class: "w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-gray-600",
-                                                "Billing Period (fixed for this context)"
-                                            }
-                                        }
-                                        
-                                        div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateText)}" }
-                                            textarea {
-                                                class: "w-full p-2 border border-gray-300 rounded-md h-32",
-                                                value: edit_template_text.read().clone(),
-                                                oninput: move |event| edit_template_text.set(event.value()),
-                                                placeholder: "Enter your template text here..."
-                                            }
-                                        }
-                                        
-                                        div { class: "flex gap-2",
-                                            button {
-                                                onclick: save_edit_template,
-                                                disabled: edit_template_text.read().trim().is_empty() || *updating_template.read(),
-                                                class: if *updating_template.read() {
-                                                    "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
-                                                } else {
-                                                    "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                                                },
-                                                if *updating_template.read() {
-                                                    "{i18n.t(Key::Saving)}"
-                                                } else {
-                                                    "{i18n.t(Key::Save)}"
-                                                }
-                                            }
-                                            button {
-                                                onclick: move |_| reset_edit_template_form(),
-                                                class: "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded",
-                                                "{i18n.t(Key::Cancel)}"
-                                            }
-                                        }
+                                    h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GeneratedReport)}" }
+                                    div { class: "bg-gray-50 p-4 rounded-lg border",
+                                        pre { class: "whitespace-pre-wrap text-sm font-mono overflow-x-auto", "{report}" }
                                     }
                                 }
                             }
@@ -636,39 +353,6 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                     div { class: "text-center",
                         div { class: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" }
                         p { class: "text-gray-500", "{i18n.t(Key::LoadingBillingPeriodDetails)}" }
-                    }
-                }
-            }
-        }
-        
-        // Delete Confirmation Dialog
-        if *show_delete_confirmation.read() {
-            div { class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
-                div { class: "bg-white rounded-lg p-6 max-w-md mx-4",
-                    h3 { class: "text-lg font-medium mb-4", "{i18n.t(Key::ConfirmDelete)}" }
-                    p { class: "text-gray-600 mb-6", 
-                        "Are you sure you want to delete this template? This action cannot be undone."
-                    }
-                    div { class: "flex gap-3 justify-end",
-                        button {
-                            onclick: move |_| cancel_delete_template(),
-                            class: "px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded",
-                            "{i18n.t(Key::Cancel)}"
-                        }
-                        button {
-                            onclick: confirm_delete_template,
-                            disabled: *deleting_template.read(),
-                            class: if *deleting_template.read() {
-                                "px-4 py-2 bg-gray-400 text-white rounded cursor-not-allowed"
-                            } else {
-                                "px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded"
-                            },
-                            if *deleting_template.read() {
-                                "Deleting..."
-                            } else {
-                                "{i18n.t(Key::Delete)}"
-                            }
-                        }
                     }
                 }
             }
