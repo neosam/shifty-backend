@@ -1,0 +1,3 @@
+Week,Year,Day,Date,From,To,Status,Employee
+{% for block in unsufficiently_booked_blocks %}{{ block.week }},{{ block.year }},{{ block.day_of_week }},{{ block.date }},{{ block.from }},{{ block.to }},{% if block.sales_person_name %}Partially Assigned,{{ block.sales_person_name }}{% else %}Unassigned,N/A{% endif %}
+{% endfor %}

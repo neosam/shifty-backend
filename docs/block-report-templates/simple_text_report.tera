@@ -1,0 +1,17 @@
+SHIFT COVERAGE REPORT - WEEK {{ current_week }}/{{ current_year }}
+
+{% if current_week_blocks | length > 0 %}CURRENT WEEK GAPS:
+{% for block in current_week_blocks %}{{ block.day_of_week }} {{ block.from }}-{{ block.to }}{% if block.sales_person_name %} ({{ block.sales_person_name }}){% endif %}
+{% endfor %}
+{% endif %}
+{% if next_week_blocks | length > 0 %}
+NEXT WEEK GAPS:
+{% for block in next_week_blocks %}{{ block.day_of_week }} {{ block.from }}-{{ block.to }}{% if block.sales_person_name %} ({{ block.sales_person_name }}){% endif %}
+{% endfor %}
+{% endif %}
+{% if week_after_next_blocks | length > 0 %}
+WEEK {{ week_after_next_week }} GAPS:
+{% for block in week_after_next_blocks %}{{ block.day_of_week }} {{ block.from }}-{{ block.to }}{% if block.sales_person_name %} ({{ block.sales_person_name }}){% endif %}
+{% endfor %}
+{% endif %}
+{% if unsufficiently_booked_blocks | length == 0 %}All shifts covered for the next 3 weeks!{% endif %}

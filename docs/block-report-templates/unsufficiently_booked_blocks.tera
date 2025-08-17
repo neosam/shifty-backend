@@ -1,0 +1,80 @@
+UNSUFFICIENTLY BOOKED BLOCKS REPORT
+=====================================
+Generated on: {{ "now" | date(format="%Y-%m-%d %H:%M") }}
+
+SUMMARY
+-------
+Current Week (Week {{ current_week }}/{{ current_year }}): {{ current_week_blocks | length }} unsufficiently booked blocks
+Next Week (Week {{ next_week }}/{{ next_year }}): {{ next_week_blocks | length }} unsufficiently booked blocks  
+Week After Next (Week {{ week_after_next_week }}/{{ week_after_next_year }}): {{ week_after_next_blocks | length }} unsufficiently booked blocks
+
+Total Unsufficiently Booked Blocks: {{ unsufficiently_booked_blocks | length }}
+
+{% if current_week_blocks | length > 0 %}
+CURRENT WEEK - WEEK {{ current_week }}/{{ current_year }}
+--------------------------------------------------
+{% for block in current_week_blocks %}
+📅 {{ block.day_of_week }} ({{ block.date }})
+   ⏰ Time: {{ block.from }} - {{ block.to }}
+   {% if block.sales_person_name %}👤 Assigned to: {{ block.sales_person_name }}{% else %}⚠️  UNASSIGNED{% endif %}
+   
+{% endfor %}
+{% else %}
+✅ Current week is fully booked!
+{% endif %}
+
+{% if next_week_blocks | length > 0 %}
+NEXT WEEK - WEEK {{ next_week }}/{{ next_year }}
+--------------------------------------------------
+{% for block in next_week_blocks %}
+📅 {{ block.day_of_week }} ({{ block.date }})
+   ⏰ Time: {{ block.from }} - {{ block.to }}
+   {% if block.sales_person_name %}👤 Assigned to: {{ block.sales_person_name }}{% else %}⚠️  UNASSIGNED{% endif %}
+   
+{% endfor %}
+{% else %}
+✅ Next week is fully booked!
+{% endif %}
+
+{% if week_after_next_blocks | length > 0 %}
+WEEK AFTER NEXT - WEEK {{ week_after_next_week }}/{{ week_after_next_year }}
+--------------------------------------------------
+{% for block in week_after_next_blocks %}
+📅 {{ block.day_of_week }} ({{ block.date }})
+   ⏰ Time: {{ block.from }} - {{ block.to }}
+   {% if block.sales_person_name %}👤 Assigned to: {{ block.sales_person_name }}{% else %}⚠️  UNASSIGNED{% endif %}
+   
+{% endfor %}
+{% else %}
+✅ Week after next is fully booked!
+{% endif %}
+
+{% if unsufficiently_booked_blocks | length > 0 %}
+ACTION REQUIRED
+---------------
+Please ensure all unsufficiently booked blocks are assigned to available staff members.
+Priority should be given to current week blocks.
+
+STATISTICS BY DAY
+-----------------
+{% set monday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Monday") | length %}
+{% set tuesday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Tuesday") | length %}
+{% set wednesday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Wednesday") | length %}
+{% set thursday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Thursday") | length %}
+{% set friday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Friday") | length %}
+{% set saturday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Saturday") | length %}
+{% set sunday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Sunday") | length %}
+
+Monday:    {{ "█" | repeat(times=monday_count) }} ({{ monday_count }})
+Tuesday:   {{ "█" | repeat(times=tuesday_count) }} ({{ tuesday_count }})
+Wednesday: {{ "█" | repeat(times=wednesday_count) }} ({{ wednesday_count }})
+Thursday:  {{ "█" | repeat(times=thursday_count) }} ({{ thursday_count }})
+Friday:    {{ "█" | repeat(times=friday_count) }} ({{ friday_count }})
+Saturday:  {{ "█" | repeat(times=saturday_count) }} ({{ saturday_count }})
+Sunday:    {{ "█" | repeat(times=sunday_count) }} ({{ sunday_count }})
+{% else %}
+🎉 EXCELLENT! All blocks for the next three weeks are sufficiently booked!
+{% endif %}
+
+---
+End of Report

@@ -345,6 +345,18 @@ type BillingPeriodReportService =
         BillingPeriodReportServiceDependencies,
     >;
 
+pub struct BlockReportServiceDependencies;
+impl service_impl::block_report::BlockReportServiceDeps for BlockReportServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type BlockService = BlockService;
+    type TextTemplateService = TextTemplateService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type TransactionDao = TransactionDao;
+}
+type BlockReportService = service_impl::block_report::BlockReportServiceImpl<BlockReportServiceDependencies>;
+
 pub struct TextTemplateServiceDependencies;
 impl service_impl::text_template::TextTemplateServiceDeps for TextTemplateServiceDependencies {
     type Context = Context;
@@ -376,6 +388,7 @@ pub struct RestStateImpl {
     week_message_service: Arc<WeekMessageService>,
     billing_period_service: Arc<BillingPeriodService>,
     billing_period_report_service: Arc<BillingPeriodReportService>,
+    block_report_service: Arc<BlockReportService>,
     text_template_service: Arc<TextTemplateService>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -398,6 +411,7 @@ impl rest::RestStateDef for RestStateImpl {
     type WeekMessageService = WeekMessageService;
     type BillingPeriodService = BillingPeriodService;
     type BillingPeriodReportService = BillingPeriodReportService;
+    type BlockReportService = BlockReportService;
     type TextTemplateService = TextTemplateService;
 
     fn backend_version(&self) -> Arc<str> {
@@ -461,6 +475,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService> {
         self.billing_period_report_service.clone()
+    }
+    fn block_report_service(&self) -> Arc<Self::BlockReportService> {
+        self.block_report_service.clone()
     }
     fn text_template_service(&self) -> Arc<Self::TextTemplateService> {
         self.text_template_service.clone()
@@ -682,6 +699,14 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
+        let block_report_service = Arc::new(BlockReportService {
+            block_service: block_service.clone(),
+            text_template_service: text_template_service.clone(),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         Self {
             user_service,
             session_service,
@@ -702,6 +727,7 @@ impl RestStateImpl {
             week_message_service,
             billing_period_service,
             billing_period_report_service,
+            block_report_service,
             text_template_service,
         }
     }

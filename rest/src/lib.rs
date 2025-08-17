@@ -1,6 +1,7 @@
 use std::{convert::Infallible, sync::Arc};
 
 mod billing_period;
+mod block_report;
 mod booking;
 mod booking_information;
 mod custom_extra_hours;
@@ -289,6 +290,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type BlockReportService: service::block_report::BlockReportService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type TextTemplateService: service::text_template::TextTemplateService<Context = Context>
         + Send
         + Sync
@@ -315,6 +320,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn week_message_service(&self) -> Arc<Self::WeekMessageService>;
     fn billing_period_service(&self) -> Arc<Self::BillingPeriodService>;
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService>;
+    fn block_report_service(&self) -> Arc<Self::BlockReportService>;
     fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
 }
 
@@ -406,6 +412,7 @@ pub async fn auth_info<RestState: RestStateDef>(
 #[openapi(
     nest(
         (path = "/billing-period", api = billing_period::BillingPeriodApiDoc),
+        (path = "/block-report", api = block_report::BlockReportApiDoc),
         (path = "/custom-extra-hours", api = CustomExtraHoursApiDoc),
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
@@ -459,6 +466,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())
         .nest("/billing-period", billing_period::generate_route())
+        .nest("/block-report", block_report::generate_route())
         .nest("/custom-extra-hours", custom_extra_hours::generate_route())
         .nest(
             "/booking-information",

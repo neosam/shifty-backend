@@ -1,0 +1,66 @@
+Subject: Shift Planning Update - Week {{ current_week }}/{{ current_year }}
+
+Dear Team,
+
+This is an automated notification regarding the shift planning status for the upcoming weeks.
+
+URGENT ATTENTION REQUIRED
+=========================
+{% if current_week_blocks | length > 0 %}
+⚠️ We have {{ current_week_blocks | length }} unsufficiently booked block(s) for the CURRENT WEEK that need immediate attention:
+
+{% for block in current_week_blocks %}
+• {{ block.day_of_week }}, {{ block.date }} from {{ block.from }} to {{ block.to }}
+  Status: {% if block.sales_person_name %}Partially assigned to {{ block.sales_person_name }}{% else %}UNASSIGNED{% endif %}
+{% endfor %}
+
+Please assign available staff to these blocks as soon as possible.
+{% else %}
+✅ Current week is fully staffed.
+{% endif %}
+
+UPCOMING WEEKS PLANNING
+=======================
+{% if next_week_blocks | length > 0 %}
+Week {{ next_week }}/{{ next_year }} Status:
+--------------------------------
+We have {{ next_week_blocks | length }} block(s) that need assignment:
+
+{% for block in next_week_blocks %}
+• {{ block.day_of_week }} ({{ block.date }}): {{ block.from }} - {{ block.to }}
+{% endfor %}
+{% endif %}
+
+{% if week_after_next_blocks | length > 0 %}
+Week {{ week_after_next_week }}/{{ week_after_next_year }} Status:
+--------------------------------
+We have {{ week_after_next_blocks | length }} block(s) that need assignment:
+
+{% for block in week_after_next_blocks %}
+• {{ block.day_of_week }} ({{ block.date }}): {{ block.from }} - {{ block.to }}
+{% endfor %}
+{% endif %}
+
+OVERALL STATISTICS
+==================
+Total unsufficiently booked blocks across all three weeks: {{ unsufficiently_booked_blocks | length }}
+
+{% if unsufficiently_booked_blocks | length > 0 %}
+Distribution by Week:
+• Current Week ({{ current_week }}): {{ current_week_blocks | length }} blocks
+• Next Week ({{ next_week }}): {{ next_week_blocks | length }} blocks
+• Week After Next ({{ week_after_next_week }}): {{ week_after_next_blocks | length }} blocks
+
+ACTION ITEMS:
+1. Review and assign staff to all unassigned blocks
+2. Ensure adequate coverage for all shifts
+3. Contact HR if additional staff resources are needed
+{% else %}
+Great news! All shifts for the next three weeks are adequately staffed.
+{% endif %}
+
+---
+This is an automated message from the Shifty Scheduling System.
+For questions, please contact your HR department.
+
+Generated on: {{ "now" | date(format="%Y-%m-%d at %H:%M") }}

@@ -5,6 +5,7 @@ use async_trait::async_trait;
 pub mod billing_period;
 pub mod billing_period_report;
 pub mod block;
+pub mod block_report;
 pub mod booking;
 pub mod booking_information;
 pub mod carryover;
