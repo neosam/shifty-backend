@@ -76,3 +76,5 @@ backend = "http://localhost:3000/shiftplan-edit"
 backend = "http://localhost:3000/shiftplan-info"
 [[web.proxy]]
 backend = "http://localhost:3000/week-message"
+[[web.proxy]]
+backend = "http://localhost:3000/text-templates"

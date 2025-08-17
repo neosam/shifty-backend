@@ -6,6 +6,7 @@ pub mod employee_work_details;
 pub mod sales_person_available;
 pub mod shiftplan;
 pub mod slot_edit;
+pub mod text_template;
 pub mod user_management;
 pub mod week;
 pub mod weekly_overview;

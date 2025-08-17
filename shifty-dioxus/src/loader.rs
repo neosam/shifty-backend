@@ -13,6 +13,7 @@ use crate::{
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
         slot_edit::SlotEditItem,
+        text_template::TextTemplate,
         week::Week,
         weekly_overview::WeeklySummary,
         Config, Shiftplan, Slot, User, Weekday,
@@ -534,4 +535,60 @@ pub async fn load_sales_person_by_user(
     let sales_person_to = api::get_sales_person_by_user(config, username).await?;
     let sales_person = sales_person_to.as_ref().map(SalesPerson::from);
     Ok(sales_person)
+}
+
+pub async fn load_text_templates(config: Config) -> Result<Rc<[TextTemplate]>, ShiftyError> {
+    let template_tos = api::get_text_templates(config).await?;
+    let templates: Vec<TextTemplate> = template_tos.iter().map(TextTemplate::from).collect();
+    Ok(templates.into())
+}
+
+pub async fn load_text_templates_by_type(
+    config: Config,
+    template_type: &str,
+) -> Result<Rc<[TextTemplate]>, ShiftyError> {
+    let template_tos = api::get_text_templates_by_type(config, template_type).await?;
+    let templates: Vec<TextTemplate> = template_tos.iter().map(TextTemplate::from).collect();
+    Ok(templates.into())
+}
+
+pub async fn load_text_template(
+    config: Config,
+    template_id: Uuid,
+) -> Result<TextTemplate, ShiftyError> {
+    let template_to = api::get_text_template(config, template_id).await?;
+    Ok(TextTemplate::from(&template_to))
+}
+
+pub async fn save_text_template(
+    config: Config,
+    template: &TextTemplate,
+) -> Result<TextTemplate, ShiftyError> {
+    let request = template.to_create_request();
+    let result_to = api::create_text_template(config, request).await?;
+    Ok(TextTemplate::from(&result_to))
+}
+
+pub async fn update_text_template(
+    config: Config,
+    template_id: Uuid,
+    template: &TextTemplate,
+) -> Result<TextTemplate, ShiftyError> {
+    let request = template.to_update_request();
+    let result_to = api::update_text_template(config, template_id, request).await?;
+    Ok(TextTemplate::from(&result_to))
+}
+
+pub async fn delete_text_template(config: Config, template_id: Uuid) -> Result<(), ShiftyError> {
+    api::delete_text_template(config, template_id).await?;
+    Ok(())
+}
+
+pub async fn generate_custom_report(
+    config: Config,
+    billing_period_id: Uuid,
+    template_id: Uuid,
+) -> Result<String, ShiftyError> {
+    let report = api::generate_custom_report(config, billing_period_id, template_id).await?;
+    Ok(report)
 }

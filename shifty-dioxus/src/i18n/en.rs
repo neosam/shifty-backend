@@ -248,6 +248,20 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::InvalidBillingPeriodId, "Invalid billing period id");
     i18n.add_text(Locale::En, Key::SelectEndDateForNewBillingPeriod, "Select the end date for the new billing period. The start date will be calculated automatically.");
 
+    // Text templates
+    i18n.add_text(Locale::En, Key::TextTemplateManagement, "Text Template Management");
+    i18n.add_text(Locale::En, Key::TemplateType, "Template Type");
+    i18n.add_text(Locale::En, Key::TemplateText, "Template Text");
+    i18n.add_text(Locale::En, Key::AddNewTemplate, "Add New Template");
+    i18n.add_text(Locale::En, Key::EditTemplate, "Edit Template");
+    i18n.add_text(Locale::En, Key::CustomReports, "Custom Reports");
+    i18n.add_text(Locale::En, Key::GenerateReport, "Generate Report");
+    i18n.add_text(Locale::En, Key::SelectTemplate, "Select Template");
+    i18n.add_text(Locale::En, Key::GeneratingReport, "Generating...");
+    i18n.add_text(Locale::En, Key::GeneratedReport, "Generated Report");
+    i18n.add_text(Locale::En, Key::CreateNewTemplate, "Create New Template");
+    i18n.add_text(Locale::En, Key::Saving, "Saving...");
+
     // User management
     i18n.add_text(Locale::En, Key::UserManagement, "User Management");
     i18n.add_text(Locale::En, Key::UserDetails, "User Details");

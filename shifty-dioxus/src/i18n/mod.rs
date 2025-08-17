@@ -219,6 +219,20 @@ pub enum Key {
     InvalidBillingPeriodId,
     SelectEndDateForNewBillingPeriod,
 
+    // Text templates
+    TextTemplateManagement,
+    TemplateType,
+    TemplateText,
+    AddNewTemplate,
+    EditTemplate,
+    CustomReports,
+    GenerateReport,
+    SelectTemplate,
+    GeneratingReport,
+    GeneratedReport,
+    CreateNewTemplate,
+    Saving,
+
     // User management
     UserManagement,
     UserDetails,

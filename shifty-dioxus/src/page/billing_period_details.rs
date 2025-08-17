@@ -8,6 +8,7 @@ use crate::{
         billing_period::{BillingPeriodAction, BILLING_PERIOD_STORE},
         config::CONFIG,
         i18n::I18N,
+        text_template::{handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE},
     },
 };
 use dioxus::prelude::*;
@@ -46,6 +47,24 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
 
     // Filter state for sales persons
     let mut filter_text = use_signal(|| String::new());
+    
+    // Custom report states
+    let mut selected_template_id = use_signal(|| None::<Uuid>);
+    let mut custom_report_result = use_signal(|| None::<String>);
+    let mut generating_report = use_signal(|| false);
+    
+    // New template creation states
+    let mut show_new_template_form = use_signal(|| false);
+    let mut new_template_type = use_signal(|| "billing-period".to_string());
+    let mut new_template_text = use_signal(|| "".to_string());
+    let mut saving_template = use_signal(|| false);
+    
+    // Load billing period templates
+    use_effect(move || {
+        spawn(async move {
+            handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
+        });
+    });
 
     let _billing_period_loader = use_coroutine({
         to_owned![billing_period_id];
@@ -76,6 +95,39 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         } else {
             sales_person_id.to_string()
         }
+    };
+
+    // Helper functions for new template creation
+    let mut reset_new_template_form = move || {
+        show_new_template_form.set(false);
+        new_template_type.set("billing-period".to_string());
+        new_template_text.set("".to_string());
+    };
+
+    let save_new_template = move |_| {
+        let template_type = new_template_type.read().clone();
+        let template_text = new_template_text.read().clone();
+
+        if template_type.trim().is_empty() || template_text.trim().is_empty() {
+            return;
+        }
+
+        let template = crate::state::text_template::TextTemplate {
+            id: Uuid::nil(),
+            template_type: template_type.into(),
+            template_text: template_text.into(),
+            created_at: None,
+            created_by: None,
+        };
+
+        spawn(async move {
+            saving_template.set(true);
+            handle_text_template_action(TextTemplateAction::SaveTemplate(template)).await;
+            // Reload templates to include the new one
+            handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
+            saving_template.set(false);
+            reset_new_template_form();
+        });
     };
 
     rsx! {
@@ -135,6 +187,151 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 div {
                                     label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::DeletedBy)}" }
                                     p { class: "text-sm text-gray-900", "{deleted_by.as_ref()}" }
+                                }
+                            }
+                        }
+                    }
+
+                    // Custom Report Section
+                    div { class: "bg-white shadow rounded-lg p-6 mb-6",
+                        h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::CustomReports)}" }
+                        
+                        div { class: "space-y-6",
+                            // Template Selection and Generation
+                            div { class: "grid grid-cols-1 lg:grid-cols-2 gap-6",
+                                div {
+                                    h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GenerateReport)}" }
+                                    
+                                    // Template Selection
+                                    div { class: "mb-4",
+                                        label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::SelectTemplate)}" }
+                                        select {
+                                            class: "w-full p-2 border border-gray-300 rounded-md",
+                                            value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
+                                            onchange: move |event| {
+                                                if let Ok(uuid) = Uuid::parse_str(&event.value()) {
+                                                    selected_template_id.set(Some(uuid));
+                                                } else {
+                                                    selected_template_id.set(None);
+                                                }
+                                            },
+                                            option { value: "", "Select a template..." }
+                                            for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
+                                                option { 
+                                                    value: "{template.id}",
+                                                    "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Generate Button
+                                    button {
+                                        onclick: move |_| {
+                                            if let Some(template_id) = *selected_template_id.read() {
+                                                let config = CONFIG.read().clone();
+                                                let billing_period_id = billing_period_id;
+                                                spawn(async move {
+                                                    generating_report.set(true);
+                                                    custom_report_result.set(None);
+                                                    
+                                                    match loader::generate_custom_report(config, billing_period_id, template_id).await {
+                                                        Ok(report) => {
+                                                            custom_report_result.set(Some(report));
+                                                        }
+                                                        Err(e) => {
+                                                            custom_report_result.set(Some(format!("Error generating report: {}", e)));
+                                                        }
+                                                    }
+                                                    
+                                                    generating_report.set(false);
+                                                });
+                                            }
+                                        },
+                                        disabled: selected_template_id.read().is_none() || *generating_report.read(),
+                                        class: if *generating_report.read() {
+                                            "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
+                                        } else {
+                                            "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                        },
+                                        if *generating_report.read() {
+                                            "{i18n.t(Key::GeneratingReport)}"
+                                        } else {
+                                            "{i18n.t(Key::GenerateReport)}"
+                                        }
+                                    }
+                                }
+                                
+                                // Report Result
+                                if let Some(ref report) = *custom_report_result.read() {
+                                    div {
+                                        h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GeneratedReport)}" }
+                                        div { class: "bg-gray-50 p-4 rounded-lg border",
+                                            pre { class: "whitespace-pre-wrap text-sm font-mono", "{report}" }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Create New Template Section
+                            div { class: "border-t pt-6",
+                                div { class: "flex justify-between items-center mb-4",
+                                    h3 { class: "text-lg font-medium", "{i18n.t(Key::CreateNewTemplate)}" }
+                                    if !*show_new_template_form.read() {
+                                        button {
+                                            onclick: move |_| show_new_template_form.set(true),
+                                            class: "bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded",
+                                            "{i18n.t(Key::AddNew)}"
+                                        }
+                                    }
+                                }
+                                
+                                if *show_new_template_form.read() {
+                                    div { class: "bg-gray-50 p-4 rounded-lg",
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
+                                            select {
+                                                class: "w-full p-2 border border-gray-300 rounded-md",
+                                                value: new_template_type.read().clone(),
+                                                onchange: move |event| new_template_type.set(event.value()),
+                                                option { value: "billing-period", "Billing Period" }
+                                                option { value: "employee-report", "Employee Report" }
+                                                option { value: "shift-plan", "Shift Plan" }
+                                            }
+                                        }
+                                        
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateText)}" }
+                                            textarea {
+                                                class: "w-full p-2 border border-gray-300 rounded-md h-32",
+                                                value: new_template_text.read().clone(),
+                                                oninput: move |event| new_template_text.set(event.value()),
+                                                placeholder: "Enter your template text here..."
+                                            }
+                                        }
+                                        
+                                        div { class: "flex gap-2",
+                                            button {
+                                                onclick: save_new_template,
+                                                disabled: new_template_type.read().trim().is_empty() || new_template_text.read().trim().is_empty() || *saving_template.read(),
+                                                class: if *saving_template.read() {
+                                                    "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
+                                                } else {
+                                                    "bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                                                },
+                                                if *saving_template.read() {
+                                                    "{i18n.t(Key::Saving)}"
+                                                } else {
+                                                    "{i18n.t(Key::Save)}"
+                                                }
+                                            }
+                                            button {
+                                                onclick: move |_| reset_new_template_form(),
+                                                class: "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded",
+                                                "{i18n.t(Key::Cancel)}"
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

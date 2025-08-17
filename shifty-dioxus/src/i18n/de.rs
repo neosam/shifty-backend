@@ -271,6 +271,20 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::InvalidBillingPeriodId, "Ungültige Abrechnungszeitraum ID");
     i18n.add_text(Locale::De, Key::SelectEndDateForNewBillingPeriod, "Wählen Sie das Enddatum für den neuen Abrechnungszeitraum. Das Startdatum wird automatisch berechnet.");
 
+    // Text templates
+    i18n.add_text(Locale::De, Key::TextTemplateManagement, "Textvorlagen-Verwaltung");
+    i18n.add_text(Locale::De, Key::TemplateType, "Vorlagentyp");
+    i18n.add_text(Locale::De, Key::TemplateText, "Vorlagentext");
+    i18n.add_text(Locale::De, Key::AddNewTemplate, "Neue Vorlage hinzufügen");
+    i18n.add_text(Locale::De, Key::EditTemplate, "Vorlage bearbeiten");
+    i18n.add_text(Locale::De, Key::CustomReports, "Benutzerdefinierte Berichte");
+    i18n.add_text(Locale::De, Key::GenerateReport, "Bericht generieren");
+    i18n.add_text(Locale::De, Key::SelectTemplate, "Vorlage auswählen");
+    i18n.add_text(Locale::De, Key::GeneratingReport, "Generiere...");
+    i18n.add_text(Locale::De, Key::GeneratedReport, "Generierter Bericht");
+    i18n.add_text(Locale::De, Key::CreateNewTemplate, "Neue Vorlage erstellen");
+    i18n.add_text(Locale::De, Key::Saving, "Speichere...");
+
     // User management
     i18n.add_text(Locale::De, Key::UserManagement, "Benutzerverwaltung");
     i18n.add_text(Locale::De, Key::UserDetails, "Benutzer Details");

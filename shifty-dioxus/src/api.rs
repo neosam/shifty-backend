@@ -1,10 +1,12 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BillingPeriodTO, BookingConflictTO, BookingTO, CreateBillingPeriodRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
-    ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
-    ShortEmployeeReportTO, SlotTO, SpecialDayTO, UserRole, UserTO, VacationPayloadTO,
-    WeeklySummaryTO, WeekMessageTO,
+    BillingPeriodTO, BookingConflictTO, BookingTO, CreateBillingPeriodRequestTO, 
+    CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, 
+    EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, 
+    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
+    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeeklySummaryTO, 
+    WeekMessageTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -825,4 +827,78 @@ pub async fn post_billing_period(
     response.error_for_status_ref()?;
     info!("Created billing period");
     Ok(())
+}
+
+// Text Template APIs
+pub async fn get_text_templates(config: Config) -> Result<Rc<[TextTemplateTO]>, reqwest::Error> {
+    info!("Fetching all text templates");
+    let url = format!("{}/text-templates", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched text templates");
+    Ok(res)
+}
+
+pub async fn get_text_templates_by_type(config: Config, template_type: &str) -> Result<Rc<[TextTemplateTO]>, reqwest::Error> {
+    info!("Fetching text templates by type: {template_type}");
+    let url = format!("{}/text-templates/by-type/{}", config.backend, template_type);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched text templates by type");
+    Ok(res)
+}
+
+pub async fn get_text_template(config: Config, template_id: Uuid) -> Result<TextTemplateTO, reqwest::Error> {
+    info!("Fetching text template {template_id}");
+    let url = format!("{}/text-templates/{}", config.backend, template_id);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched text template");
+    Ok(res)
+}
+
+pub async fn create_text_template(config: Config, template: CreateTextTemplateRequestTO) -> Result<TextTemplateTO, reqwest::Error> {
+    info!("Creating text template");
+    let url = format!("{}/text-templates", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&template).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Created text template");
+    Ok(res)
+}
+
+pub async fn update_text_template(config: Config, template_id: Uuid, template: UpdateTextTemplateRequestTO) -> Result<TextTemplateTO, reqwest::Error> {
+    info!("Updating text template {template_id}");
+    let url = format!("{}/text-templates/{}", config.backend, template_id);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&template).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Updated text template");
+    Ok(res)
+}
+
+pub async fn delete_text_template(config: Config, template_id: Uuid) -> Result<(), reqwest::Error> {
+    info!("Deleting text template {template_id}");
+    let url = format!("{}/text-templates/{}", config.backend, template_id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted text template");
+    Ok(())
+}
+
+pub async fn generate_custom_report(config: Config, billing_period_id: Uuid, template_id: Uuid) -> Result<String, reqwest::Error> {
+    info!("Generating custom report for billing period {billing_period_id} with template {template_id}");
+    let url = format!("{}/billing-period/{}/custom-report/{}", config.backend, billing_period_id, template_id);
+    let client = reqwest::Client::new();
+    let response = client.post(url).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.text().await?;
+    info!("Generated custom report");
+    Ok(res)
 }

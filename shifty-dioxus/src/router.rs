@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+pub use crate::page::BillingPeriodDetails;
+pub use crate::page::CustomExtraHoursManagement;
 pub use crate::page::EmployeeDetails;
 pub use crate::page::Employees;
 pub use crate::page::Home;
@@ -7,11 +9,10 @@ pub use crate::page::MyEmployeeDetails;
 pub use crate::page::SalesPersonDetails;
 pub use crate::page::ShiftPlan;
 pub use crate::page::ShiftPlanDeep;
+pub use crate::page::TextTemplateManagement;
 pub use crate::page::UserDetails;
 pub use crate::page::UserManagementPage;
 pub use crate::page::WeeklyOverview;
-pub use crate::page::CustomExtraHoursManagement;
-pub use crate::page::BillingPeriodDetails;
 
 #[derive(Clone, Routable, Debug, PartialEq)]
 pub enum Route {
@@ -37,6 +38,8 @@ pub enum Route {
     SalesPersonDetails { sales_person_id: String },
     #[route("/custom_extra_hours/")]
     CustomExtraHoursManagement {},
+    #[route("/text_templates/")]
+    TextTemplateManagement {},
     #[route("/billing_period/:billing_period_id/")]
     BillingPeriodDetails { billing_period_id: String },
 }
