@@ -261,6 +261,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::GeneratedReport, "Generated Report");
     i18n.add_text(Locale::En, Key::CreateNewTemplate, "Create New Template");
     i18n.add_text(Locale::En, Key::Saving, "Saving...");
+    i18n.add_text(Locale::En, Key::TemplateName, "Template Name");
 
     // User management
     i18n.add_text(Locale::En, Key::UserManagement, "User Management");

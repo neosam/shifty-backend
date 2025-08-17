@@ -15,6 +15,7 @@ use crate::{
 pub fn TextTemplateManagement() -> Element {
     let mut show_form = use_signal(|| false);
     let mut editing_id = use_signal(|| None::<Uuid>);
+    let mut form_name = use_signal(|| "".to_string());
     let mut form_template_type = use_signal(|| "billing-period".to_string());
     let mut form_template_text = use_signal(|| "".to_string());
 
@@ -48,11 +49,13 @@ pub fn TextTemplateManagement() -> Element {
     let mut reset_form = move || {
         show_form.set(false);
         editing_id.set(None);
+        form_name.set("".to_string());
         form_template_type.set("billing-period".to_string());
         form_template_text.set("".to_string());
     };
 
     let save_template = move |_| {
+        let name = form_name.read().clone();
         let template_type = form_template_type.read().clone();
         let template_text = form_template_text.read().clone();
 
@@ -60,10 +63,13 @@ pub fn TextTemplateManagement() -> Element {
             return;
         }
 
+        let name_rc = if name.trim().is_empty() { None } else { Some(name.into()) };
+
         if let Some(id) = *editing_id.read() {
             // Update existing template
             let template = TextTemplate {
                 id,
+                name: name_rc,
                 template_type: template_type.into(),
                 template_text: template_text.into(),
                 created_at: None,
@@ -74,6 +80,7 @@ pub fn TextTemplateManagement() -> Element {
             // Create new template
             let template = TextTemplate {
                 id: Uuid::nil(),
+                name: name_rc,
                 template_type: template_type.into(),
                 template_text: template_text.into(),
                 created_at: None,
@@ -85,6 +92,7 @@ pub fn TextTemplateManagement() -> Element {
     };
 
     let mut edit_template = move |template: TextTemplate| {
+        form_name.set(template.name.as_ref().map(|s| s.to_string()).unwrap_or_default());
         form_template_type.set(template.template_type.to_string());
         form_template_text.set(template.template_text.to_string());
         editing_id.set(Some(template.id));
@@ -114,6 +122,17 @@ pub fn TextTemplateManagement() -> Element {
                             "{i18n.t(Key::EditTemplate)}"
                         } else {
                             "{i18n.t(Key::AddNewTemplate)}"
+                        }
+                    }
+                    
+                    div { class: "mb-4",
+                        label { class: "block text-sm font-medium mb-2", "{i18n.t(Key::TemplateName)}" }
+                        input {
+                            class: "w-full p-2 border border-gray-300 rounded-md",
+                            r#type: "text",
+                            value: form_name.read().clone(),
+                            oninput: move |event| form_name.set(event.value()),
+                            placeholder: "Enter template name (optional)..."
                         }
                     }
                     
@@ -159,6 +178,7 @@ pub fn TextTemplateManagement() -> Element {
                     thead { class: "bg-gray-50",
                         tr {
                             th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "ID" }
+                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "{i18n.t(Key::TemplateName)}" }
                             th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "{template_type_str}" }
                             th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "Preview" }
                             th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "{actions_str}" }
@@ -168,6 +188,13 @@ pub fn TextTemplateManagement() -> Element {
                         for template in store.filtered_templates.iter() {
                             tr { key: "{template.id}",
                                 td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", "{template.id}" }
+                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", 
+                                    if let Some(ref name) = template.name {
+                                        "{name}"
+                                    } else {
+                                        span { class: "text-gray-400 italic", "No name" }
+                                    }
+                                }
                                 td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", "{template.template_type}" }
                                 td { class: "px-6 py-4 text-sm text-gray-900 max-w-xs truncate", 
                                     "{template.template_text}"

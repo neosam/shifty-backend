@@ -55,6 +55,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     
     // New template creation states
     let mut show_new_template_form = use_signal(|| false);
+    let mut new_template_name = use_signal(|| "".to_string());
     let mut new_template_type = use_signal(|| "billing-period".to_string());
     let mut new_template_text = use_signal(|| "".to_string());
     let mut saving_template = use_signal(|| false);
@@ -100,11 +101,13 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     // Helper functions for new template creation
     let mut reset_new_template_form = move || {
         show_new_template_form.set(false);
+        new_template_name.set("".to_string());
         new_template_type.set("billing-period".to_string());
         new_template_text.set("".to_string());
     };
 
     let save_new_template = move |_| {
+        let name = new_template_name.read().clone();
         let template_type = new_template_type.read().clone();
         let template_text = new_template_text.read().clone();
 
@@ -112,8 +115,11 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
             return;
         }
 
+        let name_rc = if name.trim().is_empty() { None } else { Some(name.into()) };
+
         let template = crate::state::text_template::TextTemplate {
             id: Uuid::nil(),
+            name: name_rc,
             template_type: template_type.into(),
             template_text: template_text.into(),
             created_at: None,
@@ -219,7 +225,11 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
                                                 option { 
                                                     value: "{template.id}",
-                                                    "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
+                                                    if let Some(ref name) = template.name {
+                                                        "{name} ({template.template_type})"
+                                                    } else {
+                                                        "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
+                                                    }
                                                 }
                                             }
                                         }
@@ -288,6 +298,17 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 
                                 if *show_new_template_form.read() {
                                     div { class: "bg-gray-50 p-4 rounded-lg",
+                                        div { class: "mb-4",
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateName)}" }
+                                            input {
+                                                class: "w-full p-2 border border-gray-300 rounded-md",
+                                                r#type: "text",
+                                                value: new_template_name.read().clone(),
+                                                oninput: move |event| new_template_name.set(event.value()),
+                                                placeholder: "Enter template name (optional)..."
+                                            }
+                                        }
+                                        
                                         div { class: "mb-4",
                                             label { class: "block text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::TemplateType)}" }
                                             select {

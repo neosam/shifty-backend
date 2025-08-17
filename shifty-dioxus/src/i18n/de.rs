@@ -284,6 +284,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::GeneratedReport, "Generierter Bericht");
     i18n.add_text(Locale::De, Key::CreateNewTemplate, "Neue Vorlage erstellen");
     i18n.add_text(Locale::De, Key::Saving, "Speichere...");
+    i18n.add_text(Locale::De, Key::TemplateName, "Vorlagenname");
 
     // User management
     i18n.add_text(Locale::De, Key::UserManagement, "Benutzerverwaltung");

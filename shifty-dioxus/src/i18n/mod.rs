@@ -232,6 +232,7 @@ pub enum Key {
     GeneratedReport,
     CreateNewTemplate,
     Saving,
+    TemplateName,
 
     // User management
     UserManagement,
