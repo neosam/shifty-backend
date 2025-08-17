@@ -63,8 +63,8 @@ fn create_test_blocks() -> Vec<Block> {
             week: 33,
             sales_person: None,
             day_of_week: DayOfWeek::Monday,
-            from: time::Time::from_hms(9, 0, 0).unwrap(),
-            to: time::Time::from_hms(12, 0, 0).unwrap(),
+            from: time::Time::from_hms(14, 0, 0).unwrap(),  // Future time (after mocked 12:00)
+            to: time::Time::from_hms(17, 0, 0).unwrap(),
             bookings: Arc::new([]),
             slots: Arc::new([]),
         },
@@ -119,10 +119,16 @@ async fn test_generate_block_report_success() {
         .times(1)
         .returning(move |_, _, _| Ok(template.clone()));
 
+    // Set the mock date to early in week 33 so the test blocks are in the future
     deps.clock_service
         .expect_date_now()
         .times(1)
-        .returning(|| time::Date::from_calendar_date(2024, time::Month::August, 17).unwrap());
+        .returning(|| time::Date::from_calendar_date(2024, time::Month::August, 12).unwrap()); // Monday of week 33
+
+    deps.clock_service
+        .expect_date_time_now()
+        .times(1)
+        .returning(|| time::Date::from_calendar_date(2024, time::Month::August, 12).unwrap().with_time(time::Time::from_hms(9, 0, 0).unwrap())); // Early morning
 
     // Mock get_unsufficiently_booked_blocks for three weeks
     deps.block_service
@@ -165,8 +171,9 @@ async fn test_generate_block_report_success() {
     // Assert
     assert!(result.is_ok());
     let report = result.unwrap();
+    println!("Generated report: {}", report);
     assert!(report.contains("Block Report:"));
-    assert!(report.contains("Week 33: Monday 9:00:00.0-12:00:00.0"));
+    assert!(report.contains("Week 33: Monday 14:00:00.0-17:00:00.0"));
 }
 
 #[tokio::test]

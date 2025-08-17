@@ -8,7 +8,7 @@ use uuid::Uuid;
 use dao::TransactionDao;
 use service::block::{Block, BlockService};
 use service::clock::ClockService;
-use service::permission::{Authentication, HR_PRIVILEGE, SHIFTPLANNER_PRIVILEGE};
+use service::permission::{Authentication, HR_PRIVILEGE};
 use service::text_template::TextTemplateService;
 use service::PermissionService;
 use service::{block_report::BlockReportService, ServiceError};
@@ -40,6 +40,14 @@ impl From<&Block> for SimpleBlock {
     }
 }
 
+/// Checks if a block is in the future (has not ended yet)
+fn is_block_in_future(block: &Block, current_datetime: time::PrimitiveDateTime) -> bool {
+    match block.datetime_to() {
+        Ok(block_end_datetime) => block_end_datetime > current_datetime,
+        Err(_) => true, // If we can't determine the datetime, include the block by default
+    }
+}
+
 gen_service_impl! {
     struct BlockReportServiceImpl: BlockReportService = BlockReportServiceDeps {
         BlockService: BlockService<Context = Self::Context, Transaction = Self::Transaction> = block_service,
@@ -65,7 +73,7 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
 
         // Check HR permission
         self.permission_service
-            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
+            .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
 
         // Get the template
@@ -74,8 +82,9 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
             .get_by_id(template_id, context.clone(), Some(tx.clone()))
             .await?;
 
-        // Get current date and calculate weeks
+        // Get current date and time for filtering
         let current_date = self.clock_service.date_now();
+        let current_datetime = self.clock_service.date_time_now();
         let (current_year, current_week, _) = current_date.to_iso_week_date();
         let current_year = current_year as u32;
         let current_week = current_week;
@@ -125,9 +134,25 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
             )
             .await?;
 
-        unsufficiently_booked_blocks.extend(current_week_unbooked.iter().cloned());
-        unsufficiently_booked_blocks.extend(next_week_unbooked.iter().cloned());
-        unsufficiently_booked_blocks.extend(week_after_next_unbooked.iter().cloned());
+        // Filter to only include future blocks (not yet ended)
+        unsufficiently_booked_blocks.extend(
+            current_week_unbooked
+                .iter()
+                .filter(|block| is_block_in_future(block, current_datetime))
+                .cloned(),
+        );
+        unsufficiently_booked_blocks.extend(
+            next_week_unbooked
+                .iter()
+                .filter(|block| is_block_in_future(block, current_datetime))
+                .cloned(),
+        );
+        unsufficiently_booked_blocks.extend(
+            week_after_next_unbooked
+                .iter()
+                .filter(|block| is_block_in_future(block, current_datetime))
+                .cloned(),
+        );
 
         // Filter blocks by week and convert to SimpleBlock for template serialization
         let current_week_blocks: Vec<SimpleBlock> = unsufficiently_booked_blocks
