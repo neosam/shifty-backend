@@ -194,7 +194,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 // Template Selection
                                 div { class: "mb-4",
                                     label { class: "block text-sm font-medium text-gray-700 mb-2", 
-                                        "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == \"billing-period\").count()} billing period templates available)" 
+                                        "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} billing period templates available)" 
                                     }
                                     select {
                                         class: "w-full p-2 border border-gray-300 rounded-md",
@@ -207,7 +207,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             }
                                         },
                                         option { value: "", "Select a template..." }
-                                        for template in TEXT_TEMPLATE_STORE.read().templates.iter().filter(|t| t.template_type.as_ref() == "billing-period") {
+                                        for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
                                             option { 
                                                 value: "{template.id}",
                                                 if let Some(ref name) = template.name {
