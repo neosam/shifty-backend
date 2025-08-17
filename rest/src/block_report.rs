@@ -1,22 +1,21 @@
 use axum::body::Body;
 use axum::extract::Path;
-use axum::routing::post;
+use axum::routing::get;
 use axum::{extract::State, response::Response};
 use axum::{Extension, Router};
 use tracing::instrument;
 use utoipa::OpenApi;
 use uuid::Uuid;
 
-use service::block_report::BlockReportService;
 use crate::{error_handler, Context, RestStateDef};
+use service::block_report::BlockReportService;
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
-    Router::new()
-        .route("/{template_id}", post(generate_block_report::<RestState>))
+    Router::new().route("/{template_id}", get(generate_block_report::<RestState>))
 }
 
 #[utoipa::path(
-    post,
+    get,
     path = "/{template_id}",
     params(
         ("template_id" = Uuid, Path, description = "Text template ID")

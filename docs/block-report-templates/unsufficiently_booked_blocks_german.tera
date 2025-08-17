@@ -1,0 +1,80 @@
+BERICHT ÜBER UNZUREICHEND BESETZTE SCHICHTEN
+=============================================
+Erstellt am: {{ "now" | date(format="%d.%m.%Y um %H:%M") }}
+
+ZUSAMMENFASSUNG
+---------------
+Aktuelle Woche (KW {{ current_week }}/{{ current_year }}): {{ current_week_blocks | length }} unzureichend besetzte Blöcke
+Nächste Woche (KW {{ next_week }}/{{ next_year }}): {{ next_week_blocks | length }} unzureichend besetzte Blöcke  
+Übernächste Woche (KW {{ week_after_next_week }}/{{ week_after_next_year }}): {{ week_after_next_blocks | length }} unzureichend besetzte Blöcke
+
+Gesamt unzureichend besetzte Blöcke: {{ unsufficiently_booked_blocks | length }}
+
+{% if current_week_blocks | length > 0 %}
+AKTUELLE WOCHE - KW {{ current_week }}/{{ current_year }}
+--------------------------------------------------
+{% for block in current_week_blocks %}
+📅 {% if block.day_of_week == "Monday" %}Montag{% elif block.day_of_week == "Tuesday" %}Dienstag{% elif block.day_of_week == "Wednesday" %}Mittwoch{% elif block.day_of_week == "Thursday" %}Donnerstag{% elif block.day_of_week == "Friday" %}Freitag{% elif block.day_of_week == "Saturday" %}Samstag{% elif block.day_of_week == "Sunday" %}Sonntag{% else %}{{ block.day_of_week }}{% endif %}, {{ block.date | split(pat="-") | reverse | join(sep=".") }}
+   ⏰ Zeit: {{ block.from | truncate(length=8, end="") }} - {{ block.to | truncate(length=8, end="") }} Uhr
+   {% if block.sales_person_name %}👤 Zugewiesen an: {{ block.sales_person_name }}{% else %}⚠️  NICHT ZUGEWIESEN{% endif %}
+   
+{% endfor %}
+{% else %}
+✅ Aktuelle Woche ist vollständig besetzt!
+{% endif %}
+
+{% if next_week_blocks | length > 0 %}
+NÄCHSTE WOCHE - KW {{ next_week }}/{{ next_year }}
+--------------------------------------------------
+{% for block in next_week_blocks %}
+📅 {% if block.day_of_week == "Monday" %}Montag{% elif block.day_of_week == "Tuesday" %}Dienstag{% elif block.day_of_week == "Wednesday" %}Mittwoch{% elif block.day_of_week == "Thursday" %}Donnerstag{% elif block.day_of_week == "Friday" %}Freitag{% elif block.day_of_week == "Saturday" %}Samstag{% elif block.day_of_week == "Sunday" %}Sonntag{% else %}{{ block.day_of_week }}{% endif %}, {{ block.date | split(pat="-") | reverse | join(sep=".") }}
+   ⏰ Zeit: {{ block.from | truncate(length=8, end="") }} - {{ block.to | truncate(length=8, end="") }} Uhr
+   {% if block.sales_person_name %}👤 Zugewiesen an: {{ block.sales_person_name }}{% else %}⚠️  NICHT ZUGEWIESEN{% endif %}
+   
+{% endfor %}
+{% else %}
+✅ Nächste Woche ist vollständig besetzt!
+{% endif %}
+
+{% if week_after_next_blocks | length > 0 %}
+ÜBERNÄCHSTE WOCHE - KW {{ week_after_next_week }}/{{ week_after_next_year }}
+--------------------------------------------------
+{% for block in week_after_next_blocks %}
+📅 {% if block.day_of_week == "Monday" %}Montag{% elif block.day_of_week == "Tuesday" %}Dienstag{% elif block.day_of_week == "Wednesday" %}Mittwoch{% elif block.day_of_week == "Thursday" %}Donnerstag{% elif block.day_of_week == "Friday" %}Freitag{% elif block.day_of_week == "Saturday" %}Samstag{% elif block.day_of_week == "Sunday" %}Sonntag{% else %}{{ block.day_of_week }}{% endif %}, {{ block.date | split(pat="-") | reverse | join(sep=".") }}
+   ⏰ Zeit: {{ block.from | truncate(length=8, end="") }} - {{ block.to | truncate(length=8, end="") }} Uhr
+   {% if block.sales_person_name %}👤 Zugewiesen an: {{ block.sales_person_name }}{% else %}⚠️  NICHT ZUGEWIESEN{% endif %}
+   
+{% endfor %}
+{% else %}
+✅ Übernächste Woche ist vollständig besetzt!
+{% endif %}
+
+{% if unsufficiently_booked_blocks | length > 0 %}
+HANDLUNGSBEDARF
+---------------
+Bitte stellen Sie sicher, dass alle unzureichend besetzten Blöcke verfügbaren Mitarbeitern zugewiesen werden.
+Priorität sollte den Blöcken der aktuellen Woche gegeben werden.
+
+STATISTIK NACH WOCHENTAG
+------------------------
+{% set monday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Monday") | length %}
+{% set tuesday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Tuesday") | length %}
+{% set wednesday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Wednesday") | length %}
+{% set thursday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Thursday") | length %}
+{% set friday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Friday") | length %}
+{% set saturday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Saturday") | length %}
+{% set sunday_count = unsufficiently_booked_blocks | filter(attribute="day_of_week", value="Sunday") | length %}
+
+Montag:     {{ "█" | repeat(times=monday_count) }} ({{ monday_count }})
+Dienstag:   {{ "█" | repeat(times=tuesday_count) }} ({{ tuesday_count }})
+Mittwoch:   {{ "█" | repeat(times=wednesday_count) }} ({{ wednesday_count }})
+Donnerstag: {{ "█" | repeat(times=thursday_count) }} ({{ thursday_count }})
+Freitag:    {{ "█" | repeat(times=friday_count) }} ({{ friday_count }})
+Samstag:    {{ "█" | repeat(times=saturday_count) }} ({{ saturday_count }})
+Sonntag:    {{ "█" | repeat(times=sunday_count) }} ({{ sunday_count }})
+{% else %}
+🎉 AUSGEZEICHNET! Alle Blöcke für die nächsten drei Wochen sind ausreichend besetzt!
+{% endif %}
+
+---
+Ende des Berichts

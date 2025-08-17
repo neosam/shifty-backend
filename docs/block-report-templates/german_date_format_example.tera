@@ -1,0 +1,9 @@
+SCHICHTLÜCKEN BERICHT
+=====================
+
+{% for block in unsufficiently_booked_blocks %}
+{% if block.day_of_week == "Monday" %}Montag{% elif block.day_of_week == "Tuesday" %}Dienstag{% elif block.day_of_week == "Wednesday" %}Mittwoch{% elif block.day_of_week == "Thursday" %}Donnerstag{% elif block.day_of_week == "Friday" %}Freitag{% elif block.day_of_week == "Saturday" %}Samstag{% elif block.day_of_week == "Sunday" %}Sonntag{% endif %}, {{ block.date | split(pat="-") | reverse | join(sep=".") }}
+{{ block.from | truncate(length=5, end="") }} - {{ block.to | truncate(length=5, end="") }} Uhr
+{% if block.sales_person_name %}Mitarbeiter: {{ block.sales_person_name }}{% else %}NICHT BESETZT{% endif %}
+
+{% endfor %}

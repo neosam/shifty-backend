@@ -1,0 +1,15 @@
+Hallo zusammen,
+wir hätten noch ein paar Lücken im Schichtplan. Und zwar:
+{% for block in unsufficiently_booked_blocks %}
+{%- set date_parts = block.date | split(pat="-") -%}
+{%- set day_name = "" -%}
+{%- if block.day_of_week == "Monday" -%}{%- set day_name = "Montag" -%}
+{%- elif block.day_of_week == "Tuesday" -%}{%- set day_name = "Dienstag" -%}
+{%- elif block.day_of_week == "Wednesday" -%}{%- set day_name = "Mittwoch" -%}
+{%- elif block.day_of_week == "Thursday" -%}{%- set day_name = "Donnerstag" -%}
+{%- elif block.day_of_week == "Friday" -%}{%- set day_name = "Freitag" -%}
+{%- elif block.day_of_week == "Saturday" -%}{%- set day_name = "Samstag" -%}
+{%- elif block.day_of_week == "Sunday" -%}{%- set day_name = "Sonntag" -%}
+{%- endif -%}
+- {{ day_name }}, {{ date_parts[2] }}.{{ date_parts[1] }} von {{ block.from | truncate(length=5, end="") }} Uhr bis {{ block.to | truncate(length=5, end="") }} Uhr
+{% endfor %}

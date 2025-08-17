@@ -50,6 +50,48 @@ This directory contains sample Tera templates for the Block Report Service. Thes
 
 **Use Case**: Data export for analysis, integration with other HR systems
 
+### 5. `unsufficiently_booked_blocks_german.tera`
+**Purpose**: German language version of the comprehensive report
+
+**Features**:
+- Complete German translation
+- German date format (dd.mm.yyyy)
+- German day names (Montag, Dienstag, etc.)
+- Proper German time format (HH:MM Uhr)
+- German terminology for HR/scheduling
+
+**Use Case**: German-speaking organizations or multi-language support
+
+### 6. `german_date_format_example.tera`
+**Purpose**: Simple example demonstrating German date formatting
+
+**Features**:
+- Minimal template focusing on date/time formatting
+- Shows conversion from ISO format to German format
+- Useful as a reference for custom templates
+
+**Use Case**: Template development reference, German localization
+
+### 7. `german_shift_gaps.tera`
+**Purpose**: German informal notification format for team communication
+
+**Features**:
+- Friendly German greeting ("Hallo zusammen")
+- Casual tone suitable for team chats/emails
+- Short date format (dd.mm without year)
+- Clean bullet-point list format
+- Compact output perfect for messaging
+
+**Use Case**: Team notifications, Slack/Teams messages, informal emails
+
+**Example Output**:
+```
+Hallo zusammen,
+wir hätten noch ein paar Lücken im Schichtplan. Und zwar:
+- Montag, 18.08 von 12:00 Uhr bis 16:00 Uhr
+- Mittwoch, 20.08 von 17:00 Uhr bis 19:00 Uhr
+```
+
 ## Template Variables Available
 
 All templates have access to the following variables:
@@ -111,6 +153,47 @@ Each block object in the arrays contains:
 - `| filter(attribute="field", value="value")`: Filter arrays
 - `| date(format="%Y-%m-%d")`: Format dates
 - `"text" | repeat(times=number)`: Repeat text
+- `| split(pat="-")`: Split string by delimiter
+- `| reverse`: Reverse array order
+- `| join(sep=".")`: Join array elements
+- `| truncate(length=8, end="")`: Truncate strings
+
+## German Date and Time Formatting
+
+Since the block dates come as ISO format strings (e.g., "2025-08-17"), you can convert them to German format using Tera filters:
+
+### Convert ISO Date to German Format (dd.mm.yyyy)
+```tera
+{{ block.date | split(pat="-") | reverse | join(sep=".") }}
+```
+This converts "2025-08-17" to "17.08.2025"
+
+### German Day Names
+```tera
+{% if block.day_of_week == "Monday" %}Montag
+{% elif block.day_of_week == "Tuesday" %}Dienstag
+{% elif block.day_of_week == "Wednesday" %}Mittwoch
+{% elif block.day_of_week == "Thursday" %}Donnerstag
+{% elif block.day_of_week == "Friday" %}Freitag
+{% elif block.day_of_week == "Saturday" %}Samstag
+{% elif block.day_of_week == "Sunday" %}Sonntag
+{% endif %}
+```
+
+### German Time Format (without microseconds)
+```tera
+{{ block.from | truncate(length=5, end="") }} Uhr
+```
+This converts "09:30:00.0" to "09:30 Uhr"
+
+### Complete German Date/Time Example
+```tera
+{% for block in current_week_blocks %}
+{% if block.day_of_week == "Sunday" %}Sonntag{% elif block.day_of_week == "Monday" %}Montag{% endif %}, {{ block.date | split(pat="-") | reverse | join(sep=".") }}
+{{ block.from | truncate(length=5, end="") }} - {{ block.to | truncate(length=5, end="") }} Uhr
+{% endfor %}
+```
+Output: "Sonntag, 17.08.2025\n09:30 - 17:30 Uhr"
 
 ## Current Limitations
 
