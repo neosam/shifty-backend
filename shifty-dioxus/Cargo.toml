@@ -36,7 +36,7 @@ version = "0.3.41"
 features = ["macros"]
 [dependencies.web-sys]
 version = "0.3.77"
-features = ["Window", "Navigator"]
+features = ["Window", "Navigator", "Document", "Element", "HtmlElement", "HtmlTextAreaElement", "CssStyleDeclaration", "Node"]
 
 [profile]
 
