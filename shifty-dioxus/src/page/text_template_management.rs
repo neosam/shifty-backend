@@ -148,8 +148,6 @@ pub fn TextTemplateManagement() -> Element {
                             value: form_template_type.read().clone(),
                             onchange: move |event| form_template_type.set(event.value()),
                             option { value: "billing-period", "Billing Period" }
-                            option { value: "employee-report", "Employee Report" }
-                            option { value: "shift-plan", "Shift Plan" }
                             option { value: "shiftplan-report", "Shiftplan Report" }
                         }
                     }

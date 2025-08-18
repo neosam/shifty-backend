@@ -796,7 +796,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                     option { 
                                                         value: "{template.id}",
                                                         if let Some(ref name) = template.name {
-                                                            "{name} ({template.template_type})"
+                                                            "{name}"
                                                         } else {
                                                             "{template.template_type} - {template.template_text.chars().take(50).collect::<String>()}..."
                                                         }
