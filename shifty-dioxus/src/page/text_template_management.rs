@@ -23,7 +23,9 @@ pub fn TextTemplateManagement() -> Element {
     let i18n = I18N.read().clone();
     let store = TEXT_TEMPLATE_STORE.read().clone();
 
-    use_effect(move || {
+    // Load templates when component mounts
+    // Using use_hook ensures this runs every time the component is mounted
+    use_hook(|| {
         spawn(async move {
             handle_text_template_action(TextTemplateAction::LoadTemplates).await;
         });

@@ -51,10 +51,12 @@ pub enum TextTemplateAction {
 pub async fn load_text_templates() -> Result<(), ShiftyError> {
     info!("Loading text templates");
     let templates = loader::load_text_templates(CONFIG.read().clone()).await?;
-    TEXT_TEMPLATE_STORE.write().templates = templates.clone();
-    if TEXT_TEMPLATE_STORE.read().current_filter_type.is_none() {
-        TEXT_TEMPLATE_STORE.write().filtered_templates = templates;
-    }
+    let mut store = TEXT_TEMPLATE_STORE.write();
+    store.templates = templates.clone();
+    // Always update filtered_templates and clear filter when loading all templates
+    store.filtered_templates = templates;
+    store.current_filter_type = None;
+    drop(store);
     info!("Loaded text templates");
     Ok(())
 }
