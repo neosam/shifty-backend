@@ -212,7 +212,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             option { 
                                                 value: "{template.id}",
                                                 if let Some(ref name) = template.name {
-                                                    "{name})"
+                                                    "{name}"
                                                 } else {
                                                     "{template.template_text.chars().take(50).collect::<String>()}..."
                                                 }
