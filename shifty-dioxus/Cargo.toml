@@ -49,3 +49,8 @@ inherits = "dev"
 
 [profile.android-dev]
 inherits = "dev"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+tokio-test = "0.4"
+mockito = "1.2"

@@ -13,20 +13,14 @@
     }
 
     .scale-down-50 {
-        transform-origin: top left;
-        transform: scale(0.50);
-        transition: transform 0.25s ease;
+        zoom: 0.5;
     }
 
     .scale-down-75 {
-        transform-origin: top left;
-        transform: scale(0.75);
-        transition: transform 0.25s ease;
+        zoom: 0.75;
     }
 
     .scale-down-100 {
-        transform-origin: top left;
-        transform: scale(1.0);
-        transition: transform 0.25s ease;
+        zoom: 1.0;
     }
 }

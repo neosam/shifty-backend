@@ -1492,6 +1492,11 @@ video {
   font-style: italic;
 }
 
+.ordinal {
+  --tw-ordinal: ordinal;
+  font-variant-numeric: var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction);
+}
+
 .tracking-wide {
   letter-spacing: 0.025em;
 }
@@ -1651,21 +1656,15 @@ video {
 }
 
 .scale-down-50 {
-  transform-origin: top left;
-  transform: scale(0.50);
-  transition: transform 0.25s ease;
+  zoom: 0.5;
 }
 
 .scale-down-75 {
-  transform-origin: top left;
-  transform: scale(0.75);
-  transition: transform 0.25s ease;
+  zoom: 0.75;
 }
 
 .scale-down-100 {
-  transform-origin: top left;
-  transform: scale(1.0);
-  transition: transform 0.25s ease;
+  zoom: 1.0;
 }
 
 .hover\:border-blue-300:hover {

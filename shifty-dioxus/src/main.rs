@@ -19,6 +19,9 @@ mod router;
 mod service;
 mod state;
 
+#[cfg(test)]
+mod tests;
+
 fn main() {
     // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");

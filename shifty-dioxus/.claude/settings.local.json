@@ -3,7 +3,8 @@
     "allow": [
       "Bash(dx build)",
       "Bash(cargo check:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cargo test:*)"
     ],
     "deny": [],
     "ask": [],
