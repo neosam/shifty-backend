@@ -1,6 +1,6 @@
 [package]
 name = "shifty-dioxus"
-version = "1.2.2-dev"
+version = "1.2.2"
 authors = ["Simon Goller <neosam+github@posteo.de>"]
 edition = "2021"
 
