@@ -72,8 +72,8 @@ impl ExtraHoursCategory {
         match self {
             Self::ExtraWork => Availability::Available,
             Self::Vacation => Availability::Unavailable,
-            Self::SickLeave => Availability::Available,
-            Self::Holiday => Availability::Available,
+            Self::SickLeave => Availability::Unavailable,
+            Self::Holiday => Availability::Unavailable,
             Self::Unavailable => Availability::Unavailable,
             Self::CustomExtraHours(hours) => {
                 if let Some(hours) = hours.get() {
