@@ -112,7 +112,7 @@ impl BillingPeriod {
 }
 
 impl BillingPeriodSalesPerson {
-    pub fn from_entities(entity: &[BillingPeriodSalesPersonEntity]) -> Self {
+    pub fn from_entities(entity: &[BillingPeriodSalesPersonEntity]) -> Option<Self> {
         let mut values = BTreeMap::new();
         for sp in entity.iter() {
             if let Some(value_type) = BillingPeriodValueType::from_str(&sp.value_type) {
@@ -128,7 +128,10 @@ impl BillingPeriodSalesPerson {
             }
         }
 
-        Self {
+        if entity.is_empty() {
+            return None;
+        }
+        Some(Self {
             id: entity[0].id,
             sales_person_id: entity[0].sales_person_id,
             values,
@@ -136,7 +139,7 @@ impl BillingPeriodSalesPerson {
             created_by: Arc::clone(&entity[0].created_by),
             deleted_at: entity[0].deleted_at,
             deleted_by: entity[0].deleted_by.clone(),
-        }
+        })
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::billing_period::{BillingPeriodDao, BillingPeriodEntity};
+use dao::billing_period::{self, BillingPeriodDao, BillingPeriodEntity};
 use dao::billing_period_sales_person::{
     BillingPeriodSalesPersonDao, BillingPeriodSalesPersonEntity,
 };
@@ -129,9 +129,11 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
                 .billing_period_sales_person_dao
                 .find_by_billing_period_and_sales_person(id, sales_person_id, tx.clone().into())
                 .await?;
-            sales_person_report.push(BillingPeriodSalesPerson::from_entities(
-                &sales_person_entities,
-            ));
+            if let Some(billing_period_sales_person) =
+                BillingPeriodSalesPerson::from_entities(&sales_person_entities)
+            {
+                sales_person_report.push(billing_period_sales_person);
+            }
         }
 
         let res = Ok(BillingPeriod::from_billing_period_entity(
