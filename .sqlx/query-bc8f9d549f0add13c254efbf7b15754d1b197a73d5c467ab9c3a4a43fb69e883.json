@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            DELETE FROM user_invitation\n            WHERE expiration_date < ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "bc8f9d549f0add13c254efbf7b15754d1b197a73d5c467ab9c3a4a43fb69e883"
+}

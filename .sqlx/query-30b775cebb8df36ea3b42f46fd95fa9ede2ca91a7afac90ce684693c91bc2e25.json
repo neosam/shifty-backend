@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, username, token, expiration_date, \n                created_date, update_process\n            FROM user_invitation\n            WHERE token = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "username",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "token",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "expiration_date",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_date",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_process",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "30b775cebb8df36ea3b42f46fd95fa9ede2ca91a7afac90ce684693c91bc2e25"
+}

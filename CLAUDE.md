@@ -173,3 +173,4 @@ The system handles sophisticated time calculations:
 - Special day handling affecting working hour expectations
 
 This architecture ensures clean separation of concerns, comprehensive testing, and production-ready deployment capabilities while maintaining developer productivity through hot reload and mock authentication.
+- Always execute cargo build, cargo test and cargo run (with some timeout) when you implement new features.

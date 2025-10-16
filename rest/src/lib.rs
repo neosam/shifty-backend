@@ -16,6 +16,7 @@ mod shiftplan_edit;
 mod slot;
 mod special_day;
 mod text_template;
+mod user_invitation;
 mod week_message;
 
 #[cfg(feature = "oidc")]
@@ -32,14 +33,15 @@ use axum::Extension;
 use axum::{body::Body, response::Response, Router};
 use custom_extra_hours::CustomExtraHoursApiDoc;
 use sales_person::SalesPersonApiDoc;
-use text_template::TextTemplateApiDoc;
 use serde::{Deserialize, Serialize};
 use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
 pub use session::Context;
 use session::{context_extractor, forbid_unauthenticated};
+use text_template::TextTemplateApiDoc;
 use thiserror::Error;
+use user_invitation::UserInvitationApiDoc;
 #[cfg(feature = "oidc")]
 use time::Duration;
 #[cfg(feature = "oidc")]
@@ -298,6 +300,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type UserInvitationService: service::user_invitation::UserInvitationService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -322,6 +328,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService>;
     fn block_report_service(&self) -> Arc<Self::BlockReportService>;
     fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
+    fn user_invitation_service(&self) -> Arc<Self::UserInvitationService>;
 }
 
 pub struct OidcConfig {
@@ -421,6 +428,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/permission", api = permission::PermissionApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
         (path = "/text-templates", api = TextTemplateApiDoc),
+        (path = "/api/users", api = UserInvitationApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -484,13 +492,14 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/shiftplan-info", shiftplan::generate_route())
         .nest("/text-templates", text_template::generate_route())
         .nest("/week-message", week_message::generate_route())
+        .nest("/api/users", user_invitation::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state.clone(),
             forbid_unauthenticated::<RestState>,
         ))
         .layer(middleware::from_fn_with_state(
-            rest_state,
+            rest_state.clone(),
             context_extractor::<RestState>,
         ))
         .layer(CookieManagerLayer::new());
@@ -525,6 +534,14 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
 
         app.layer(oidc_auth_service).layer(session_layer)
     };
+    // Public auth invitation route (no authentication required)
+    let app = app
+        .route(
+            "/auth/invitation/{token}",
+            get(user_invitation::authenticate_with_invitation::<RestState>),
+        )
+        .with_state(rest_state.clone())
+        .layer(CookieManagerLayer::new());
 
     info!("Running server at {}", bind_address());
 

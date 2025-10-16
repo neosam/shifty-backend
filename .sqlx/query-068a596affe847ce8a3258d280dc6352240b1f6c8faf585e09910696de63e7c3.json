@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO user_invitation (\n                id, username, token, expiration_date, created_date, update_process\n            ) VALUES (?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "068a596affe847ce8a3258d280dc6352240b1f6c8faf585e09910696de63e7c3"
+}

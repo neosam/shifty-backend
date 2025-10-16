@@ -14,7 +14,7 @@ use service::session::SessionService;
 #[cfg(feature = "oidc")]
 use tower_cookies::Cookies;
 
-#[cfg(feature = "mock_auth")]
+#[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
 pub type Context = MockContext;
 #[cfg(feature = "oidc")]
 pub type Context = Option<Arc<str>>;
@@ -93,7 +93,7 @@ pub async fn context_extractor<RestState: RestStateDef>(
     };
     next.run(request).await
 }
-#[cfg(feature = "mock_auth")]
+#[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
 pub async fn context_extractor<RestState: RestStateDef>(
     mut request: Request,
     next: Next,
@@ -102,7 +102,7 @@ pub async fn context_extractor<RestState: RestStateDef>(
     next.run(request).await
 }
 
-#[cfg(feature = "mock_auth")]
+#[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
 pub async fn forbid_unauthenticated<RestState: RestStateDef>(
     State(_rest_state): State<RestState>,
     request: Request,

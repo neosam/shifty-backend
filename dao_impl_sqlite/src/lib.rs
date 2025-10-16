@@ -19,6 +19,7 @@ pub mod shiftplan_report;
 pub mod slot;
 pub mod special_day;
 pub mod text_template;
+pub mod user_invitation;
 pub mod week_message;
 
 pub trait ResultDbErrorExt<T, E> {

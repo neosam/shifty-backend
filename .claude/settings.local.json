@@ -3,7 +3,14 @@
     "allow": [
       "Bash(cargo:*)",
       "Bash(grep:*)",
-      "Bash(RUST_BACKTRACE=1 cargo test test_custom_report_generation_end_to_end -- --nocapture)"
+      "Bash(RUST_BACKTRACE=1 cargo test test_custom_report_generation_end_to_end -- --nocapture)",
+      "Bash(nix-shell:*)",
+      "Bash(timeout 30 cargo test --lib --package dao_impl_sqlite user_invitation)",
+      "Bash(timeout 30 cargo run)",
+      "Bash(timeout 30 cargo run --bin shifty_bin)",
+      "Bash(timeout 30 cargo run --package shifty_bin)",
+      "Bash(timeout 30 cargo run -p shifty_bin)",
+      "Bash(timeout 5 cargo run)"
     ],
     "deny": []
   }

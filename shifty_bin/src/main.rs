@@ -49,6 +49,7 @@ type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
 type BillingPeriodDao = BillingPeriodDaoImpl;
 type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDaoImpl;
 type TextTemplateDao = dao_impl_sqlite::text_template::TextTemplateDaoImpl;
+type UserInvitationDao = dao_impl_sqlite::user_invitation::UserInvitationDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -70,6 +71,19 @@ impl service_impl::session::SessionServiceDeps for SessionServiceDependencies {
     type UuidService = service_impl::uuid_service::UuidServiceImpl;
 }
 type SessionService = service_impl::session::SessionServiceImpl<SessionServiceDependencies>;
+
+pub struct UserInvitationServiceDependencies;
+impl service_impl::user_invitation::UserInvitationServiceDeps for UserInvitationServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type UserInvitationDao = UserInvitationDao;
+    type PermissionDao = PermissionDao;
+    type PermissionService = PermissionService;
+    type UuidService = service_impl::uuid_service::UuidServiceImpl;
+    type ClockService = service_impl::clock::ClockServiceImpl;
+    type TransactionDao = TransactionDao;
+}
+type UserInvitationService = service_impl::user_invitation::UserInvitationServiceImpl<UserInvitationServiceDependencies>;
 
 type ClockService = service_impl::clock::ClockServiceImpl;
 type UuidService = service_impl::uuid_service::UuidServiceImpl;
@@ -390,6 +404,7 @@ pub struct RestStateImpl {
     billing_period_report_service: Arc<BillingPeriodReportService>,
     block_report_service: Arc<BlockReportService>,
     text_template_service: Arc<TextTemplateService>,
+    user_invitation_service: Arc<UserInvitationService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -413,6 +428,7 @@ impl rest::RestStateDef for RestStateImpl {
     type BillingPeriodReportService = BillingPeriodReportService;
     type BlockReportService = BlockReportService;
     type TextTemplateService = TextTemplateService;
+    type UserInvitationService = UserInvitationService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -482,11 +498,14 @@ impl rest::RestStateDef for RestStateImpl {
     fn text_template_service(&self) -> Arc<Self::TextTemplateService> {
         self.text_template_service.clone()
     }
+    fn user_invitation_service(&self) -> Arc<Self::UserInvitationService> {
+        self.user_invitation_service.clone()
+    }
 }
 impl RestStateImpl {
     pub fn new(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) -> Self {
         let transaction_dao = Arc::new(TransactionDao::new(pool.clone()));
-        let permission_dao = PermissionDao::new(pool.clone());
+        let permission_dao = Arc::new(PermissionDao::new(pool.clone()));
         let slot_dao = SlotDao::new(pool.clone());
         let carryover_dao = Arc::new(CarryoverDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
@@ -499,6 +518,7 @@ impl RestStateImpl {
         let custom_extra_hours_dao =
             Arc::new(dao_impl_sqlite::custom_extra_hours::CustomExtraHoursDaoImpl);
         let text_template_dao = Arc::new(TextTemplateDao::new(pool.clone()));
+        let user_invitation_dao = Arc::new(UserInvitationDao::new(pool.clone()));
 
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
@@ -512,7 +532,7 @@ impl RestStateImpl {
         let user_service = service_impl::UserServiceImpl;
         let user_service = Arc::new(user_service);
         let permission_service = Arc::new(service_impl::PermissionServiceImpl {
-            permission_dao: permission_dao.into(),
+            permission_dao: permission_dao.clone(),
             user_service: user_service.clone(),
         });
         let clock_service = Arc::new(service_impl::clock::ClockServiceImpl);
@@ -707,6 +727,15 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
+        let user_invitation_service = Arc::new(service_impl::user_invitation::UserInvitationServiceImpl {
+            user_invitation_dao,
+            permission_dao: permission_dao.clone(),
+            permission_service: permission_service.clone(),
+            uuid_service: uuid_service.clone(),
+            clock_service: clock_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         Self {
             user_service,
             session_service,
@@ -729,6 +758,7 @@ impl RestStateImpl {
             billing_period_report_service,
             block_report_service,
             text_template_service,
+            user_invitation_service,
         }
     }
 }
@@ -779,6 +809,12 @@ async fn main() {
         .with_span_list(true)
         .with_file(true)
         .finish();
+
+    #[cfg(not(any(feature = "local_logging", feature = "json_logging")))]
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::INFO)
+        .finish();
+
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     tracing::info!("Shifty backend version: {}", version);
