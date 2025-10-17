@@ -63,6 +63,17 @@ pub async fn authenticate_with_invitation<RestState: RestStateDef>(
             {
                 Ok(session) => {
                     let session_id = session.id.to_string();
+                    
+                    // Mark the token as redeemed with the session ID
+                    if let Err(_) = rest_state
+                        .user_invitation_service()
+                        .mark_token_redeemed(&token, &session_id, None)
+                        .await
+                    {
+                        // Log error but don't fail the authentication
+                        tracing::warn!("Failed to mark invitation token as redeemed");
+                    }
+                    
                     let now = OffsetDateTime::now_utc();
                     let expires = now + time::Duration::days(365);
                     let cookie = Cookie::build(("app_session", session_id))
@@ -101,7 +112,16 @@ pub async fn authenticate_with_invitation<RestState: RestStateDef>(
         .await
     {
         Ok(_username) => {
-            // Mock auth mode: Just redirect (authentication is bypassed globally)
+            // Mock auth mode: Mark token as redeemed with a mock session ID
+            let mock_session_id = format!("mock-session-{}", uuid::Uuid::new_v4());
+            if let Err(_) = rest_state
+                .user_invitation_service()
+                .mark_token_redeemed(&token, &mock_session_id, None)
+                .await
+            {
+                tracing::warn!("Failed to mark invitation token as redeemed");
+            }
+            // Just redirect (authentication is bypassed globally)
             Redirect::to("/").into_response()
         }
         Err(_) => Response::builder()

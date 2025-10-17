@@ -15,6 +15,8 @@ pub struct UserInvitationEntity {
     pub expiration_date: OffsetDateTime,
     pub created_date: OffsetDateTime,
     pub update_process: Arc<str>,
+    pub redeemed_at: Option<OffsetDateTime>,
+    pub session_id: Option<Arc<str>>,
 }
 
 #[automock]
@@ -24,12 +26,16 @@ pub trait UserInvitationDao {
 
     async fn find_by_token(&self, token: &Uuid) -> Result<Option<UserInvitationEntity>, DaoError>;
 
+    async fn mark_as_redeemed(&self, token: &Uuid, session_id: &str) -> Result<(), DaoError>;
+
     async fn delete_by_token(&self, token: &Uuid) -> Result<(), DaoError>;
 
     async fn delete_expired(&self, current_time: &OffsetDateTime) -> Result<u64, DaoError>;
 
     async fn find_by_username(&self, username: &str)
         -> Result<Vec<UserInvitationEntity>, DaoError>;
+
+    async fn find_by_session_id(&self, session_id: &str) -> Result<Option<UserInvitationEntity>, DaoError>;
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DaoError>;
 }

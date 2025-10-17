@@ -26,6 +26,8 @@ struct UserInvitationDb {
     expiration_date: String,
     created_date: String,
     update_process: String,
+    redeemed_at: Option<String>,
+    session_id: Option<String>,
 }
 
 impl TryFrom<&UserInvitationDb> for UserInvitationEntity {
@@ -44,6 +46,17 @@ impl TryFrom<&UserInvitationDb> for UserInvitationEntity {
                 PrimitiveDateTime::parse(&db.created_date, &Iso8601::DATE_TIME)
                     .map(|pdt| pdt.assume_utc())
             })?;
+            
+        let redeemed_at = db.redeemed_at
+            .as_ref()
+            .map(|date_str| {
+                OffsetDateTime::parse(date_str, &Iso8601::DATE_TIME)
+                    .or_else(|_| {
+                        PrimitiveDateTime::parse(date_str, &Iso8601::DATE_TIME)
+                            .map(|pdt| pdt.assume_utc())
+                    })
+            })
+            .transpose()?;
 
         Ok(Self {
             id: db.id.parse()?,
@@ -52,6 +65,8 @@ impl TryFrom<&UserInvitationDb> for UserInvitationEntity {
             expiration_date,
             created_date,
             update_process: Arc::from(db.update_process.as_str()),
+            redeemed_at,
+            session_id: db.session_id.as_ref().map(|s| Arc::from(s.as_str())),
         })
     }
 }
@@ -65,19 +80,26 @@ impl UserInvitationDao for UserInvitationDaoImpl {
         let update_process_str = invitation.update_process.to_string();
         let expiration_date_str = invitation.expiration_date.format(&Iso8601::DATE_TIME).map_db_error()?;
         let created_date_str = invitation.created_date.format(&Iso8601::DATE_TIME).map_db_error()?;
+        let redeemed_at_str = invitation.redeemed_at
+            .map(|dt| dt.format(&Iso8601::DATE_TIME))
+            .transpose()
+            .map_db_error()?;
+        let session_id_str = invitation.session_id.as_ref().map(|s| s.to_string());
 
         sqlx::query!(
             r#"
             INSERT INTO user_invitation (
-                id, username, token, expiration_date, created_date, update_process
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                id, username, token, expiration_date, created_date, update_process, redeemed_at, session_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             id_str,
             username_str,
             token_str,
             expiration_date_str,
             created_date_str,
-            update_process_str
+            update_process_str,
+            redeemed_at_str,
+            session_id_str
         )
         .execute(&*self.connection_pool)
         .await
@@ -94,7 +116,7 @@ impl UserInvitationDao for UserInvitationDaoImpl {
             r#"
             SELECT 
                 id, username, token, expiration_date, 
-                created_date, update_process
+                created_date, update_process, redeemed_at, session_id
             FROM user_invitation
             WHERE token = ?
             "#,
@@ -106,6 +128,27 @@ impl UserInvitationDao for UserInvitationDaoImpl {
         .as_ref()
         .map(UserInvitationEntity::try_from)
         .transpose()?)
+    }
+
+    async fn mark_as_redeemed(&self, token: &Uuid, session_id: &str) -> Result<(), DaoError> {
+        let token_str = token.to_string();
+        let redeemed_at = OffsetDateTime::now_utc().format(&Iso8601::DATE_TIME).map_db_error()?;
+
+        sqlx::query!(
+            r#"
+            UPDATE user_invitation
+            SET redeemed_at = ?, session_id = ?
+            WHERE token = ?
+            "#,
+            redeemed_at,
+            session_id,
+            token_str
+        )
+        .execute(&*self.connection_pool)
+        .await
+        .map_db_error()?;
+
+        Ok(())
     }
 
     async fn delete_by_token(&self, token: &Uuid) -> Result<(), DaoError> {
@@ -151,7 +194,7 @@ impl UserInvitationDao for UserInvitationDaoImpl {
             r#"
             SELECT 
                 id, username, token, expiration_date, 
-                created_date, update_process
+                created_date, update_process, redeemed_at, session_id
             FROM user_invitation
             WHERE username = ?
             ORDER BY created_date DESC
@@ -165,6 +208,26 @@ impl UserInvitationDao for UserInvitationDaoImpl {
         rows.iter()
             .map(UserInvitationEntity::try_from)
             .collect::<Result<Vec<_>, _>>()
+    }
+
+    async fn find_by_session_id(&self, session_id: &str) -> Result<Option<UserInvitationEntity>, DaoError> {
+        Ok(query_as!(
+            UserInvitationDb,
+            r#"
+            SELECT 
+                id, username, token, expiration_date, 
+                created_date, update_process, redeemed_at, session_id
+            FROM user_invitation
+            WHERE session_id = ?
+            "#,
+            session_id
+        )
+        .fetch_optional(&*self.connection_pool)
+        .await
+        .map_db_error()?
+        .as_ref()
+        .map(UserInvitationEntity::try_from)
+        .transpose()?)
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DaoError> {

@@ -40,6 +40,20 @@ pub trait UserInvitationService {
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<str>, ServiceError>;
 
+    async fn mark_token_redeemed(
+        &self,
+        token: &Uuid,
+        session_id: &str,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
+
+    async fn find_invitation_by_session(
+        &self,
+        session_id: &str,
+        tx: Option<Self::Transaction>,
+        auth: Authentication<Self::Context>,
+    ) -> Result<Option<UserInvitation>, ServiceError>;
+
     async fn list_invitations_for_user(
         &self,
         username: &str,

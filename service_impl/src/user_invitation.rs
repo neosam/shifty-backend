@@ -4,7 +4,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::user_invitation::{UserInvitationDao, UserInvitationEntity};
 use dao::{PermissionDao, TransactionDao, UserEntity};
-use service::clock::ClockService;
 use service::permission::Authentication;
 use service::user_invitation::{UserInvitation, UserInvitationService};
 use service::uuid_service::UuidService;
@@ -55,6 +54,8 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
             expiration_date,
             created_date: now,
             update_process: Arc::from(USER_INVITATION_SERVICE_PROCESS),
+            redeemed_at: None,
+            session_id: None,
         };
 
         self.user_invitation_dao.create_invitation(&entity).await?;
@@ -85,6 +86,13 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
                 ServiceError::EntityNotFoundGeneric("Invalid invitation token".into())
             })?;
 
+        // Check if already redeemed
+        if invitation.session_id.is_some() {
+            return Err(ServiceError::EntityNotFoundGeneric(
+                "Invitation token has already been used".into(),
+            ));
+        }
+
         let now = OffsetDateTime::now_utc();
         if invitation.expiration_date < now {
             return Err(ServiceError::EntityNotFoundGeneric(
@@ -108,8 +116,8 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
                 .await?;
         }
 
-        // Delete the token after successful validation
-        self.user_invitation_dao.delete_by_token(token).await?;
+        // Note: We no longer delete the token here - it will be marked as redeemed
+        // after the session is created
 
         self.transaction_dao.commit(tx).await?;
 
@@ -161,6 +169,44 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
         self.transaction_dao.commit(tx).await?;
 
         Ok(())
+    }
+
+    async fn mark_token_redeemed(
+        &self,
+        token: &Uuid,
+        session_id: &str,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        self.user_invitation_dao.mark_as_redeemed(token, session_id).await?;
+
+        self.transaction_dao.commit(tx).await?;
+
+        Ok(())
+    }
+
+    async fn find_invitation_by_session(
+        &self,
+        session_id: &str,
+        tx: Option<Self::Transaction>,
+        auth: Authentication<Self::Context>,
+    ) -> Result<Option<UserInvitation>, ServiceError> {
+        self.permission_service
+            .check_permission("admin", auth)
+            .await?;
+
+        let _tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let entity = self.user_invitation_dao.find_by_session_id(session_id).await?;
+
+        Ok(entity.map(|e| UserInvitation {
+            id: e.id,
+            username: e.username.to_string(),
+            token: e.token,
+            expiration_date: e.expiration_date,
+            created_date: e.created_date,
+        }))
     }
 
     async fn cleanup_expired_invitations(
