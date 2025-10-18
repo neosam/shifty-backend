@@ -1,6 +1,6 @@
 [package]
 name = "shifty-dioxus"
-version = "1.2.2"
+version = "1.2.6-dev"
 authors = ["Simon Goller <neosam+github@posteo.de>"]
 edition = "2021"
 
@@ -36,7 +36,16 @@ version = "0.3.41"
 features = ["macros"]
 [dependencies.web-sys]
 version = "0.3.77"
-features = ["Window", "Navigator", "Document", "Element", "HtmlElement", "HtmlTextAreaElement", "CssStyleDeclaration", "Node"]
+features = [
+    "Window",
+    "Navigator",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "CssStyleDeclaration",
+    "Node",
+]
 
 [profile]
 
