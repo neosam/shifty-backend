@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE user_invitation\n            SET session_revoked_at = ?\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "d6cc9cbcfaaae97d8ac2d130924a5432c08572006e958abf51cd818e8d90589a"
+}

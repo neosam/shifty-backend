@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use dao::user_invitation::{UserInvitationDao, UserInvitationEntity};
 use dao::{PermissionDao, TransactionDao, UserEntity};
 use service::permission::Authentication;
-use service::user_invitation::{UserInvitation, UserInvitationService};
+use service::session::SessionService;
+use service::user_invitation::{InvitationStatus, UserInvitation, UserInvitationService};
 use service::uuid_service::UuidService;
 use service::{PermissionService, ServiceError};
 use time::{Duration, OffsetDateTime};
@@ -16,13 +17,25 @@ gen_service_impl! {
         UserInvitationDao: dao::user_invitation::UserInvitationDao = user_invitation_dao,
         PermissionDao: dao::PermissionDao = permission_dao,
         PermissionService: service::PermissionService<Context = Self::Context> = permission_service,
+        SessionService: service::session::SessionService<Context = Self::Context> = session_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
-        ClockService: service::clock::ClockService = clock_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
 
 const USER_INVITATION_SERVICE_PROCESS: &str = "user-invitation-service";
+
+fn compute_invitation_status(entity: &UserInvitationEntity) -> InvitationStatus {
+    if entity.session_revoked_at.is_some() {
+        InvitationStatus::SessionRevoked
+    } else if entity.redeemed_at.is_some() {
+        InvitationStatus::Redeemed
+    } else if entity.expiration_date < OffsetDateTime::now_utc() {
+        InvitationStatus::Expired
+    } else {
+        InvitationStatus::Valid
+    }
+}
 
 #[async_trait]
 impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationServiceImpl<Deps> {
@@ -56,6 +69,7 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
             update_process: Arc::from(USER_INVITATION_SERVICE_PROCESS),
             redeemed_at: None,
             session_id: None,
+            session_revoked_at: None,
         };
 
         self.user_invitation_dao.create_invitation(&entity).await?;
@@ -68,6 +82,8 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
             token: entity.token,
             expiration_date: entity.expiration_date,
             created_date: entity.created_date,
+            redeemed_at: entity.redeemed_at,
+            status: compute_invitation_status(&entity),
         })
     }
 
@@ -146,6 +162,8 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
                 token: entity.token,
                 expiration_date: entity.expiration_date,
                 created_date: entity.created_date,
+                redeemed_at: entity.redeemed_at,
+                status: compute_invitation_status(&entity),
             })
             .collect();
 
@@ -206,6 +224,8 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
             token: e.token,
             expiration_date: e.expiration_date,
             created_date: e.created_date,
+            redeemed_at: e.redeemed_at,
+            status: compute_invitation_status(&e),
         }))
     }
 
@@ -221,5 +241,41 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
         self.transaction_dao.commit(tx).await?;
 
         Ok(deleted_count)
+    }
+
+    async fn revoke_session_for_invitation(
+        &self,
+        invitation_id: &Uuid,
+        tx: Option<Self::Transaction>,
+        auth: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        // Check admin permission
+        self.permission_service
+            .check_permission("admin", auth)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Find the invitation by ID
+        let invitation = self.user_invitation_dao
+            .find_by_id(invitation_id)
+            .await?
+            .ok_or_else(|| ServiceError::EntityNotFoundGeneric("Invitation not found".into()))?;
+
+        // Check if the invitation has an associated session
+        if let Some(session_id) = invitation.session_id.as_ref() {
+            // Invalidate the session
+            self.session_service.invalidate_user_session(session_id).await?;
+            
+            // Mark the invitation as session revoked
+            self.user_invitation_dao.mark_session_revoked(invitation_id).await?;
+            
+            self.transaction_dao.commit(tx).await?;
+            Ok(())
+        } else {
+            Err(ServiceError::EntityNotFoundGeneric(
+                "No session associated with this invitation".into(),
+            ))
+        }
     }
 }

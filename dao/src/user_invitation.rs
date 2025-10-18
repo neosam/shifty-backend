@@ -17,12 +17,15 @@ pub struct UserInvitationEntity {
     pub update_process: Arc<str>,
     pub redeemed_at: Option<OffsetDateTime>,
     pub session_id: Option<Arc<str>>,
+    pub session_revoked_at: Option<OffsetDateTime>,
 }
 
 #[automock]
 #[async_trait]
 pub trait UserInvitationDao {
     async fn create_invitation(&self, invitation: &UserInvitationEntity) -> Result<(), DaoError>;
+
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<UserInvitationEntity>, DaoError>;
 
     async fn find_by_token(&self, token: &Uuid) -> Result<Option<UserInvitationEntity>, DaoError>;
 
@@ -38,4 +41,6 @@ pub trait UserInvitationDao {
     async fn find_by_session_id(&self, session_id: &str) -> Result<Option<UserInvitationEntity>, DaoError>;
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DaoError>;
+
+    async fn mark_session_revoked(&self, id: &Uuid) -> Result<(), DaoError>;
 }

@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, username, token, expiration_date, \n                created_date, update_process, redeemed_at, session_id, session_revoked_at\n            FROM user_invitation\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "username",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "token",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "expiration_date",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_date",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_process",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "redeemed_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "session_id",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "session_revoked_at",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "8573be6d72d9eb9463dc377713d0a72120ec5dffb853c628e60243378926acef"
+}

@@ -428,7 +428,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/permission", api = permission::PermissionApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
         (path = "/text-templates", api = TextTemplateApiDoc),
-        (path = "/api/users", api = UserInvitationApiDoc),
+        (path = "/user-invitation", api = UserInvitationApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -492,7 +492,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/shiftplan-info", shiftplan::generate_route())
         .nest("/text-templates", text_template::generate_route())
         .nest("/week-message", week_message::generate_route())
-        .nest("/api/users", user_invitation::generate_route())
+        .nest("/user-invitation", user_invitation::generate_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state.clone(),

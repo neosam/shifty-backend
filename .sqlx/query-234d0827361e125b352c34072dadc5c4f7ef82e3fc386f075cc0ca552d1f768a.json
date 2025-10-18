@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE user_invitation\n            SET redeemed_at = ?, session_id = ?\n            WHERE token = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "234d0827361e125b352c34072dadc5c4f7ef82e3fc386f075cc0ca552d1f768a"
+}

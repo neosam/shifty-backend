@@ -11,7 +11,8 @@
       "Bash(timeout 30 cargo run --package shifty_bin)",
       "Bash(timeout 30 cargo run -p shifty_bin)",
       "Bash(timeout 5 cargo run)",
-      "Bash(timeout 3 cargo run)"
+      "Bash(timeout 3 cargo run)",
+      "Bash(timeout 30 cargo build)"
     ],
     "deny": []
   }

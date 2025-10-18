@@ -79,8 +79,8 @@ impl service_impl::user_invitation::UserInvitationServiceDeps for UserInvitation
     type UserInvitationDao = UserInvitationDao;
     type PermissionDao = PermissionDao;
     type PermissionService = PermissionService;
+    type SessionService = SessionService;
     type UuidService = service_impl::uuid_service::UuidServiceImpl;
-    type ClockService = service_impl::clock::ClockServiceImpl;
     type TransactionDao = TransactionDao;
 }
 type UserInvitationService = service_impl::user_invitation::UserInvitationServiceImpl<UserInvitationServiceDependencies>;
@@ -731,8 +731,8 @@ impl RestStateImpl {
             user_invitation_dao,
             permission_dao: permission_dao.clone(),
             permission_service: permission_service.clone(),
+            session_service: session_service.clone(),
             uuid_service: uuid_service.clone(),
-            clock_service: clock_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
 
