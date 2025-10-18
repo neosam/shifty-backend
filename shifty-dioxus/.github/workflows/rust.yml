@@ -29,7 +29,7 @@ jobs:
         if which dx > /dev/null; then
           echo "dioxus is already installed"
         else
-          cargo install dioxus-cli
+          cargo install dioxus-cli --locked
         fi
     # - name: Formatting
     #   run: cargo fmt --all -- --check

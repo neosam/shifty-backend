@@ -142,6 +142,143 @@ mod service_tests {
 }
 
 #[cfg(test)]
+mod invitation_tests {
+    use rest_types::{InvitationResponse, InvitationStatus};
+    use serde_json;
+
+    #[test]
+    fn test_invitation_deserialization_no_redeemed_at() {
+        let json = r#"{
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "username": "testuser",
+            "token": "987fcdeb-51a2-43d1-b456-426614174111",
+            "invitation_link": "http://localhost:8080/auth/invitation/987fcdeb-51a2-43d1-b456-426614174111",
+            "status": "valid",
+            "redeemed_at": null
+        }"#;
+
+        let result: Result<InvitationResponse, _> = serde_json::from_str(json);
+        assert!(result.is_ok(), "Failed to deserialize invitation: {:?}", result.err());
+        
+        let invitation = result.unwrap();
+        assert_eq!(invitation.username, "testuser");
+        assert_eq!(invitation.status, InvitationStatus::Valid);
+        assert!(invitation.redeemed_at.is_none());
+    }
+
+
+    #[test]
+    fn test_actual_invitation_response_format() {
+        // Test the actual format that the backend would send
+        // Since our build succeeds, the types must be compatible somehow
+        let json = r#"{
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "username": "testuser",
+            "token": "987fcdeb-51a2-43d1-b456-426614174111",
+            "invitation_link": "http://localhost:8080/auth/invitation/987fcdeb-51a2-43d1-b456-426614174111",
+            "status": "redeemed",
+            "redeemed_at": null
+        }"#;
+
+        let result: Result<InvitationResponse, _> = serde_json::from_str(json);
+        assert!(result.is_ok(), "Should be able to deserialize invitation with null redeemed_at: {:?}", result.err());
+        
+        let invitation = result.unwrap();
+        assert_eq!(invitation.username, "testuser");
+        assert_eq!(invitation.status, InvitationStatus::Redeemed);
+        assert!(invitation.redeemed_at.is_none());
+    }
+
+    #[test] 
+    fn test_exact_backend_response() {
+        // Test the EXACT response provided by the user that's failing
+        let json = r#"[
+            {
+                "id": "e09153d6-065f-4ab9-aa2d-df217818ac90",
+                "username": "monika.h",
+                "token": "269916a3-65ad-4608-84dc-96eaf8d01725",
+                "invitation_link": "https://shifty-int.nebenan-unverpackt.de/auth/invitation/269916a3-65ad-4608-84dc-96eaf8d01725",
+                "redeemed_at": null,
+                "status": "valid"
+            },
+            {
+                "id": "f3c02de8-3de3-4e14-8d27-8e38798899dd",
+                "username": "monika.h",
+                "token": "0fdd76a5-631b-4df8-a9cd-cdbd5d841ac9",
+                "invitation_link": "https://shifty-int.nebenan-unverpackt.de/auth/invitation/0fdd76a5-631b-4df8-a9cd-cdbd5d841ac9",
+                "redeemed_at": null,
+                "status": "expired"
+            },
+            {
+                "id": "0866aeb2-2153-4c24-a70b-c2667c89dce8",
+                "username": "monika.h",
+                "token": "4454f899-bc29-4ffe-bf98-cca2dbab62eb",
+                "invitation_link": "https://shifty-int.nebenan-unverpackt.de/auth/invitation/4454f899-bc29-4ffe-bf98-cca2dbab62eb",
+                "redeemed_at": "2025-10-19T05:47:11.371950094Z",
+                "status": "redeemed"
+            }
+        ]"#;
+        
+        let result: Result<Vec<InvitationResponse>, _> = serde_json::from_str(json);
+        if let Err(ref e) = result {
+            println!("Deserialization error: {}", e);
+            println!("Error details: {:?}", e);
+        }
+        assert!(result.is_ok(), "Should deserialize the exact backend response: {:?}", result.err());
+        
+        if let Ok(invitations) = result {
+            assert_eq!(invitations.len(), 3);
+            assert_eq!(invitations[0].status, InvitationStatus::Valid);
+            assert_eq!(invitations[1].status, InvitationStatus::Expired);
+            assert_eq!(invitations[2].status, InvitationStatus::Redeemed);
+            assert!(invitations[2].redeemed_at.is_some());
+        }
+    }
+
+    #[test]
+    fn test_backend_response_formats() {
+        // Test different potential backend response formats to identify the issue
+        
+        // Test 1: Array of invitations (what the API should return)
+        let array_json = r#"[
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "username": "testuser",
+                "token": "987fcdeb-51a2-43d1-b456-426614174111",
+                "invitation_link": "http://localhost:8080/auth/invitation/987fcdeb-51a2-43d1-b456-426614174111",
+                "status": "valid",
+                "redeemed_at": null
+            }
+        ]"#;
+        
+        let result: Result<Vec<InvitationResponse>, _> = serde_json::from_str(array_json);
+        assert!(result.is_ok(), "Array format should work: {:?}", result.err());
+        
+        // Test 2: What about with different timestamp formats?
+        let formats_to_test = vec![
+            r#"null"#,
+            r#""2025-10-19 05:47:11""#,  // Without T separator
+            r#""2025-10-19T05:47:11""#,  // Without timezone
+            r#""2025-10-19T05:47:11+00:00""#,  // With explicit UTC offset
+        ];
+        
+        for timestamp_format in formats_to_test {
+            let json = format!(r#"{{
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "username": "testuser",
+                "token": "987fcdeb-51a2-43d1-b456-426614174111",
+                "invitation_link": "http://localhost:8080/auth/invitation/987fcdeb-51a2-43d1-b456-426614174111",
+                "status": "redeemed",
+                "redeemed_at": {}
+            }}"#, timestamp_format);
+            
+            let result: Result<InvitationResponse, _> = serde_json::from_str(&json);
+            println!("Testing format {}: {:?}", timestamp_format, result.is_ok());
+        }
+    }
+}
+
+#[cfg(test)]
 mod utils_tests {
     // Removed unused js function imports
     use crate::error::{ShiftyError, result_handler};

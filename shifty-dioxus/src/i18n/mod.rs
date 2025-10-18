@@ -279,6 +279,7 @@ pub enum Key {
     Valid,
     Expired,
     Redeemed,
+    SessionRevoked,
     NoInvitationsFound,
     GenerateFirstInvitation,
     InvitationsCount,

@@ -33,7 +33,7 @@ version = "1.17"
 features = ["v4", "js"]
 [dependencies.time]
 version = "0.3.41"
-features = ["macros"]
+features = ["macros", "serde-human-readable", "parsing", "formatting", "serde", "std"]
 [dependencies.web-sys]
 version = "0.3.77"
 features = [

@@ -7,8 +7,9 @@ use crate::{
     i18n::Key,
     router::Route,
     service::{
-        user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
+        error::ERROR_STORE,
         i18n::I18N,
+        user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
     },
 };
 
@@ -21,6 +22,7 @@ pub struct UserDetailsProps {
 pub fn UserDetails(props: UserDetailsProps) -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
+    let error_store = ERROR_STORE.read();
     let nav = navigator();
     let i18n = I18N.read().clone();
     let mut expiration_hours = use_signal(|| "24".to_string());
@@ -46,12 +48,16 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
             div { class: "flex items-center mb-6",
                 button {
                     class: "mr-3 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors",
-                    onclick: move |_| { nav.push(Route::UserManagementPage {}); },
+                    onclick: move |_| {
+                        nav.push(Route::UserManagementPage {});
+                    },
                     title: "{i18n.t(Key::BackToUserManagement)}",
                     "← {i18n.t(Key::BackToUserManagement)}"
                 }
                 div {
-                    h1 { class: "text-2xl md:text-3xl font-bold text-gray-800", "{i18n.t(Key::UserDetails)}" }
+                    h1 { class: "text-2xl md:text-3xl font-bold text-gray-800",
+                        "{i18n.t(Key::UserDetails)}"
+                    }
                     p { class: "text-lg text-gray-600 mt-1", "{props.user_id}" }
                 }
             }
@@ -65,13 +71,21 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                 // Role Assignments Section
                 div {
                     div { class: "flex items-center justify-between mb-4",
-                        h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::RoleAssignments)}" }
-                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
+                        h2 { class: "text-xl font-bold text-gray-800",
+                            "{i18n.t(Key::RoleAssignments)}"
+                        }
+                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded",
                             {
-                                let assigned = user_management.role_assignements.iter().filter(|r| r.assigned).count();
+                                let assigned = user_management
+                                    .role_assignements
+                                    .iter()
+                                    .filter(|r| r.assigned)
+                                    .count();
                                 let total = user_management.role_assignements.len();
-                                i18n.t(Key::RolesCount).replace("{assigned}", &assigned.to_string()).replace("{total}", &total.to_string())
-                            } 
+                                i18n.t(Key::RolesCount)
+                                    .replace("{assigned}", &assigned.to_string())
+                                    .replace("{total}", &total.to_string())
+                            }
                         }
                     }
 
@@ -111,18 +125,13 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                 }
                                             },
                                         }
-                                        span { 
-                                            class: if role_assignment.assigned { 
-                                                "ml-3 font-medium text-gray-800" 
-                                            } else { 
-                                                "ml-3 text-gray-600" 
-                                            },
-                                            "{role_assignment.role}" 
+                                        span { class: if role_assignment.assigned { "ml-3 font-medium text-gray-800" } else { "ml-3 text-gray-600" },
+                                            "{role_assignment.role}"
                                         }
                                     }
                                     if role_assignment.assigned {
-                                        span { class: "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full", 
-                                            "{i18n.t(Key::Active)}" 
+                                        span { class: "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full",
+                                            "{i18n.t(Key::Active)}"
                                         }
                                     }
                                 }
@@ -134,13 +143,17 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                 // User Invitations Section
                 div { class: "mt-8 border-t pt-6",
                     div { class: "flex items-center justify-between mb-4",
-                        h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::UserInvitations)}" }
-                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
+                        h2 { class: "text-xl font-bold text-gray-800",
+                            "{i18n.t(Key::UserInvitations)}"
+                        }
+                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded",
                             {
-                                i18n.t(Key::InvitationsCount).replace("{count}", &user_management.user_invitations.len().to_string())
-                            } 
+                                i18n.t(Key::InvitationsCount)
+                                    .replace("{count}", &user_management.user_invitations.len().to_string())
+                            }
                         }
                     }
+
 
                     if user_management.user_invitations.is_empty() {
                         div { class: "text-center py-8 text-gray-500",
@@ -152,20 +165,31 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                         div { class: "space-y-3 mb-4",
                             for invitation in user_management.user_invitations.iter() {
                                 div { class: "p-4 bg-gray-50 rounded-lg",
-                                    div { class: "flex items-start justify-between",
+                                    div { class: "flex flex-col",
+                                        // Main content section
                                         div { class: "flex-1",
                                             div { class: "flex items-center gap-2 mb-2",
-                                                span { 
+                                                span {
                                                     class: match invitation.status {
-                                                        InvitationStatus::Valid => "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full",
-                                                        InvitationStatus::Expired => "text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full",
-                                                        InvitationStatus::Redeemed => "text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full",
+                                                        InvitationStatus::Valid => {
+                                                            "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full"
+                                                        }
+                                                        InvitationStatus::Expired => {
+                                                            "text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full"
+                                                        }
+                                                        InvitationStatus::Redeemed => {
+                                                            "text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full"
+                                                        }
+                                                        InvitationStatus::SessionRevoked => {
+                                                            "text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full"
+                                                        }
                                                     },
                                                     {
                                                         match invitation.status {
                                                             InvitationStatus::Valid => i18n.t(Key::Valid),
                                                             InvitationStatus::Expired => i18n.t(Key::Expired),
                                                             InvitationStatus::Redeemed => i18n.t(Key::Redeemed),
+                                                            InvitationStatus::SessionRevoked => i18n.t(Key::SessionRevoked),
                                                         }
                                                     }
                                                 }
@@ -176,7 +200,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                 }
                                             }
                                             div { class: "flex items-center gap-2",
-                                                input { 
+                                                input {
                                                     class: "flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-md font-mono text-gray-600",
                                                     readonly: true,
                                                     value: "{invitation.invitation_link}",
@@ -191,7 +215,6 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                             spawn(async move {
                                                                 if let Ok(_) = crate::js::copy_to_clipboard(&link).await {
                                                                     copied_invitation_id.set(Some(id));
-                                                                    // Reset after 2 seconds
                                                                     gloo_timers::future::sleep(std::time::Duration::from_secs(2)).await;
                                                                     copied_invitation_id.set(None);
                                                                 }
@@ -206,29 +229,33 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                 }
                                             }
                                         }
-                                        div { class: "flex gap-2 ml-4",
-                                            if invitation.status == InvitationStatus::Valid {
-                                                button {
-                                                    class: "px-3 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors",
-                                                    onclick: {
-                                                        to_owned![user_management_service, invitation];
-                                                        move |_| {
-                                                            user_management_service.send(UserManagementAction::RevokeInvitation(invitation.id));
-                                                        }
-                                                    },
-                                                    "{i18n.t(Key::RevokeInvitation)}"
+                                        
+                                        // Action buttons section at bottom - only show for Valid or Redeemed status
+                                        if invitation.status == InvitationStatus::Valid || invitation.status == InvitationStatus::Redeemed {
+                                            div { class: "flex justify-end mt-3",
+                                                if invitation.status == InvitationStatus::Valid {
+                                                    Button {
+                                                        on_click: {
+                                                            to_owned![user_management_service, invitation];
+                                                            move |_| {
+                                                                user_management_service
+                                                                    .send(UserManagementAction::RevokeInvitation(invitation.id));
+                                                            }
+                                                        },
+                                                        "{i18n.t(Key::RevokeInvitation)}"
+                                                    }
                                                 }
-                                            }
-                                            if invitation.status == InvitationStatus::Redeemed {
-                                                button {
-                                                    class: "px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors",
-                                                    onclick: {
-                                                        to_owned![user_management_service, invitation];
-                                                        move |_| {
-                                                            user_management_service.send(UserManagementAction::RevokeInvitationSession(invitation.id));
-                                                        }
-                                                    },
-                                                    "{i18n.t(Key::RevokeSession)}"
+                                                if invitation.status == InvitationStatus::Redeemed {
+                                                    Button {
+                                                        on_click: {
+                                                            to_owned![user_management_service, invitation];
+                                                            move |_| {
+                                                                user_management_service
+                                                                    .send(UserManagementAction::RevokeInvitationSession(invitation.id));
+                                                            }
+                                                        },
+                                                        "{i18n.t(Key::RevokeSession)}"
+                                                    }
                                                 }
                                             }
                                         }
@@ -240,12 +267,13 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
 
                     // Generate New Invitation
                     div { class: "border-t pt-4",
-                        h3 { class: "text-sm font-semibold text-gray-700 mb-3", "{i18n.t(Key::GenerateNewInvitation)}" }
+                        h3 { class: "text-sm font-semibold text-gray-700 mb-3",
+                            "{i18n.t(Key::GenerateNewInvitation)}"
+                        }
                         div { class: "flex flex-col sm:flex-row gap-2",
                             div { class: "flex-1",
-                                label { 
-                                    class: "block text-sm font-medium text-gray-700 mb-1", 
-                                    "{i18n.t(Key::ExpirationHours)}" 
+                                label { class: "block text-sm font-medium text-gray-700 mb-1",
+                                    "{i18n.t(Key::ExpirationHours)}"
                                 }
                                 input {
                                     class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
@@ -263,12 +291,13 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                     to_owned![user_management_service, props, expiration_hours];
                                     move |_| {
                                         let hours = expiration_hours.read().parse::<i64>().ok();
-                                        user_management_service.send(
-                                            UserManagementAction::GenerateInvitation(
-                                                props.user_id.to_owned().into(),
-                                                hours,
-                                            )
-                                        );
+                                        user_management_service
+                                            .send(
+                                                UserManagementAction::GenerateInvitation(
+                                                    props.user_id.to_owned().into(),
+                                                    hours,
+                                                ),
+                                            );
                                         expiration_hours.set("24".to_string());
                                     }
                                 },

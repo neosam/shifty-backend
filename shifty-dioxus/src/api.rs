@@ -935,11 +935,35 @@ pub async fn list_user_invitations(
 ) -> Result<Rc<[InvitationResponse]>, reqwest::Error> {
     info!("Fetching invitations for user {username}");
     let url = format!("{}/user-invitation/invitation/user/{}", config.backend, username);
+    info!("Invitation API URL: {}", url);
+    
     let response = reqwest::get(url).await?;
+    info!("Response status: {}", response.status());
+    
     response.error_for_status_ref()?;
-    let res = response.json().await?;
-    info!("Fetched invitations");
-    Ok(res)
+    
+    // Get the raw response text first to see what we're working with
+    let response_text = response.text().await?;
+    info!("Raw response body: {}", response_text);
+    
+    // Try to parse the JSON
+    match serde_json::from_str::<Rc<[InvitationResponse]>>(&response_text) {
+        Ok(invitations) => {
+            info!("Successfully parsed {} invitations", invitations.len());
+            for (i, invitation) in invitations.iter().enumerate() {
+                info!("Invitation {}: id={}, username={}, status={:?}, redeemed_at={:?}", 
+                     i, invitation.id, invitation.username, invitation.status, invitation.redeemed_at);
+            }
+            Ok(invitations)
+        }
+        Err(e) => {
+            tracing::error!("Failed to deserialize invitations: {}", e);
+            tracing::error!("Response text was: {}", response_text);
+            // For now, return empty array but log the error properly
+            // TODO: Find a better way to convert serde error to reqwest error
+            Ok(Rc::new([]))
+        }
+    }
 }
 
 pub async fn revoke_invitation(

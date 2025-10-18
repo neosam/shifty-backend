@@ -309,6 +309,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Valid, "Valid");
     i18n.add_text(Locale::En, Key::Expired, "Expired");
     i18n.add_text(Locale::En, Key::Redeemed, "Redeemed");
+    i18n.add_text(Locale::En, Key::SessionRevoked, "Session Revoked");
     i18n.add_text(Locale::En, Key::NoInvitationsFound, "No invitations found");
     i18n.add_text(Locale::En, Key::GenerateFirstInvitation, "Generate the first invitation below");
     i18n.add_text(Locale::En, Key::InvitationsCount, "{count} invitations");

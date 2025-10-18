@@ -4,7 +4,9 @@
       "Bash(dx build)",
       "Bash(cargo check:*)",
       "Bash(grep:*)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(cargo search:*)",
+      "Bash(cargo:*)"
     ],
     "deny": [],
     "ask": [],

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 #[cfg(feature = "service-impl")]
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
@@ -1226,7 +1226,8 @@ pub struct InvitationResponse {
     pub token: Uuid,
     pub invitation_link: String,
     pub status: InvitationStatus,
-    pub redeemed_at: Option<time::PrimitiveDateTime>,
+    #[serde(with = "optional_timestamp")]
+    pub redeemed_at: Option<time::OffsetDateTime>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema, PartialEq)]
@@ -1235,4 +1236,62 @@ pub enum InvitationStatus {
     Valid,
     Expired,
     Redeemed,
+    #[serde(rename = "sessionrevoked")]
+    SessionRevoked,
+}
+
+mod optional_timestamp {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use time::OffsetDateTime;
+
+    pub fn serialize<S>(date: &Option<OffsetDateTime>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match date {
+            Some(dt) => {
+                let formatted = dt
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .map_err(serde::ser::Error::custom)?;
+                serializer.serialize_str(&formatted)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<OffsetDateTime>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt: Option<String> = Option::deserialize(deserializer)?;
+        match opt {
+            Some(s) => {
+                // Try to parse the timestamp with RFC3339 format first (handles Z)
+                if let Ok(dt) =
+                    OffsetDateTime::parse(&s, &time::format_description::well_known::Rfc3339)
+                {
+                    return Ok(Some(dt));
+                }
+
+                // If RFC3339 fails, try other common formats
+                // Remove Z and try parsing as naive datetime, then assume UTC
+                let naive_str = s.replace('Z', "");
+                if let Ok(pdt) = time::PrimitiveDateTime::parse(
+                    &naive_str,
+                    &time::format_description::parse(
+                        "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]",
+                    )
+                    .unwrap(),
+                ) {
+                    return Ok(Some(pdt.assume_utc()));
+                }
+
+                Err(serde::de::Error::custom(format!(
+                    "Unable to parse timestamp: {}",
+                    s
+                )))
+            }
+            None => Ok(None),
+        }
+    }
 }

@@ -293,6 +293,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::Valid, "Platná");
     i18n.add_text(Locale::Cs, Key::Expired, "Vypršela");
     i18n.add_text(Locale::Cs, Key::Redeemed, "Uplatněna");
+    i18n.add_text(Locale::Cs, Key::SessionRevoked, "Relace zrušena");
     i18n.add_text(Locale::Cs, Key::NoInvitationsFound, "Žádné pozvánky nenalezeny");
     i18n.add_text(Locale::Cs, Key::GenerateFirstInvitation, "Vytvořte první pozvánku níže");
     i18n.add_text(Locale::Cs, Key::InvitationsCount, "{count} pozvánky");

@@ -26,8 +26,8 @@ version = "1.8.0"
 features = ["v4", "serde"]
 
 [dependencies.time]
-version = "0.3.36"
-features = ["serde-human-readable"]
+version = "0.3.41"
+features = ["serde-human-readable", "parsing", "formatting", "serde", "std"]
 
 [dependencies.utoipa]
 version = "5"

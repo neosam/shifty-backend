@@ -416,6 +416,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::Valid, "Gültig");
     i18n.add_text(Locale::De, Key::Expired, "Abgelaufen");
     i18n.add_text(Locale::De, Key::Redeemed, "Eingelöst");
+    i18n.add_text(Locale::De, Key::SessionRevoked, "Sitzung widerrufen");
     i18n.add_text(
         Locale::De,
         Key::NoInvitationsFound,
