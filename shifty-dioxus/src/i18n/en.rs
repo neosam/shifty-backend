@@ -296,6 +296,24 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ThisPersonIsInactive, "This person is inactive");
     i18n.add_text(Locale::En, Key::UserAccount, "User Account");
     i18n.add_text(Locale::En, Key::ConnectUserAccount, "Connect User Account");
+    // User invitations
+    i18n.add_text(Locale::En, Key::UserInvitations, "User Invitations");
+    i18n.add_text(Locale::En, Key::GenerateInvitation, "Generate Invitation");
+    i18n.add_text(Locale::En, Key::InvitationLink, "Invitation Link");
+    i18n.add_text(Locale::En, Key::RevokeInvitation, "Revoke");
+    i18n.add_text(Locale::En, Key::RevokeSession, "Revoke Session");
+    i18n.add_text(Locale::En, Key::InvitationStatus, "Status");
+    i18n.add_text(Locale::En, Key::ExpirationHours, "Expiration (hours)");
+    i18n.add_text(Locale::En, Key::CopyToClipboard, "Copy");
+    i18n.add_text(Locale::En, Key::InvitationCopied, "Copied!");
+    i18n.add_text(Locale::En, Key::Valid, "Valid");
+    i18n.add_text(Locale::En, Key::Expired, "Expired");
+    i18n.add_text(Locale::En, Key::Redeemed, "Redeemed");
+    i18n.add_text(Locale::En, Key::NoInvitationsFound, "No invitations found");
+    i18n.add_text(Locale::En, Key::GenerateFirstInvitation, "Generate the first invitation below");
+    i18n.add_text(Locale::En, Key::InvitationsCount, "{count} invitations");
+    i18n.add_text(Locale::En, Key::GenerateNewInvitation, "Generate New Invitation");
+    i18n.add_text(Locale::En, Key::OptionalExpirationHours, "Expiration (hours)");
     i18n.add_text(Locale::En, Key::SaveChanges, "Save Changes");
     i18n.add_text(Locale::En, Key::LoadingSalesPersonDetails, "Loading sales person details...");
     i18n.add_text(Locale::En, Key::SalesPersonSavedSuccessfully, "Sales person saved successfully!");

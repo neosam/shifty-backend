@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
+use rest_types::InvitationResponse;
 use uuid::Uuid;
 
 use crate::{
@@ -43,6 +44,7 @@ pub struct UserManagementStore {
     pub sales_person: Option<SelectedSalesPerson>,
     pub loaded_sales_person: Option<SelectedSalesPerson>,
     pub role_assignements: Rc<[RoleAssignment]>,
+    pub user_invitations: Rc<[InvitationResponse]>,
     pub save_success: bool,
 }
 pub static USER_MANAGEMENT_STORE: GlobalSignal<UserManagementStore> =
@@ -212,6 +214,41 @@ pub async fn delete_user(user: ImStr) -> Result<(), ShiftyError> {
     Ok(())
 }
 
+pub async fn load_user_invitations(username: ImStr) {
+    let invitations = loader::load_user_invitations(CONFIG.read().clone(), username).await;
+    match invitations {
+        Ok(invitations) => {
+            USER_MANAGEMENT_STORE.write().user_invitations = invitations;
+        }
+        Err(err) => {
+            *ERROR_STORE.write() = ErrorStore {
+                error: Some(err.into()),
+            };
+        }
+    }
+}
+
+pub async fn generate_user_invitation(username: ImStr, expiration_hours: Option<i64>) -> Result<(), ShiftyError> {
+    loader::generate_invitation(CONFIG.read().clone(), username.clone(), expiration_hours).await?;
+    // Reload invitations to show the new one
+    load_user_invitations(username).await;
+    Ok(())
+}
+
+pub async fn revoke_user_invitation(invitation_id: Uuid, username: ImStr) -> Result<(), ShiftyError> {
+    loader::revoke_invitation(CONFIG.read().clone(), invitation_id).await?;
+    // Reload invitations to update the list
+    load_user_invitations(username).await;
+    Ok(())
+}
+
+pub async fn revoke_user_invitation_session(invitation_id: Uuid, username: ImStr) -> Result<(), ShiftyError> {
+    loader::revoke_invitation_session(CONFIG.read().clone(), invitation_id).await?;
+    // Reload invitations to update the status
+    load_user_invitations(username).await;
+    Ok(())
+}
+
 pub enum UserManagementAction {
     LoadAllUsers,
     LoadAllSalesPersons,
@@ -228,6 +265,10 @@ pub enum UserManagementAction {
     RemoveUserFromRole(ImStr, ImStr),
     AddUser(ImStr),
     DeleteUser(ImStr),
+    LoadUserInvitations(ImStr),
+    GenerateInvitation(ImStr, Option<i64>),
+    RevokeInvitation(Uuid),
+    RevokeInvitationSession(Uuid),
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
@@ -336,6 +377,31 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                 }
                 Err(err) => Err(err),
             },
+            UserManagementAction::LoadUserInvitations(username) => {
+                load_user_invitations(username).await;
+                Ok(())
+            }
+            UserManagementAction::GenerateInvitation(username, expiration_hours) => {
+                generate_user_invitation(username, expiration_hours).await
+            }
+            UserManagementAction::RevokeInvitation(invitation_id) => {
+                // We need to get the username from somewhere to reload invitations
+                // For now, we'll get it from the first invitation in the store
+                let username = USER_MANAGEMENT_STORE.read().user_invitations
+                    .first()
+                    .map(|inv| inv.username.clone().into())
+                    .unwrap_or_else(|| "".into());
+                revoke_user_invitation(invitation_id, username).await
+            }
+            UserManagementAction::RevokeInvitationSession(invitation_id) => {
+                // We need to get the username from somewhere to reload invitations
+                // For now, we'll get it from the first invitation in the store
+                let username = USER_MANAGEMENT_STORE.read().user_invitations
+                    .first()
+                    .map(|inv| inv.username.clone().into())
+                    .unwrap_or_else(|| "".into());
+                revoke_user_invitation_session(invitation_id, username).await
+            }
         } {
             Ok(_) => {}
             Err(err) => {

@@ -1148,6 +1148,7 @@ pub struct CreateBillingPeriodRequestTO {
 pub struct TextTemplateTO {
     #[serde(default)]
     pub id: Uuid,
+    #[serde(default)]
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
@@ -1210,4 +1211,28 @@ pub struct UpdateTextTemplateRequestTO {
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct GenerateInvitationRequest {
+    pub username: String,
+    pub expiration_hours: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema, PartialEq)]
+pub struct InvitationResponse {
+    pub id: Uuid,
+    pub username: String,
+    pub token: Uuid,
+    pub invitation_link: String,
+    pub status: InvitationStatus,
+    pub redeemed_at: Option<time::PrimitiveDateTime>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum InvitationStatus {
+    Valid,
+    Expired,
+    Redeemed,
 }

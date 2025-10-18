@@ -80,3 +80,5 @@ backend = "http://localhost:3000/shiftplan-info"
 backend = "http://localhost:3000/week-message"
 [[web.proxy]]
 backend = "http://localhost:3000/text-templates"
+[[web.proxy]]
+backend = "http://localhost:3000/user-invitation"

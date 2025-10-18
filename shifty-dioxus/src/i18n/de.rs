@@ -224,14 +224,14 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::WeekdayLabel, "Wochentag");
     i18n.add_text(Locale::De, Key::SaveLabel, "Speichern");
     i18n.add_text(Locale::De, Key::CancelLabel, "Abbrechen");
-    i18n.add_text(
-        Locale::De,
-        Key::SlotEditSaveError,
-        "Fehler beim Speichern",
-    );
+    i18n.add_text(Locale::De, Key::SlotEditSaveError, "Fehler beim Speichern");
 
     // Custom extra hours management
-    i18n.add_text(Locale::De, Key::CustomExtraHoursManagement, "Verwaltung benutzerdefinierter Zusatzstunden");
+    i18n.add_text(
+        Locale::De,
+        Key::CustomExtraHoursManagement,
+        "Verwaltung benutzerdefinierter Zusatzstunden",
+    );
     i18n.add_text(Locale::De, Key::Name, "Name");
     i18n.add_text(Locale::De, Key::ModifiesBalance, "Ändert Saldo");
     i18n.add_text(Locale::De, Key::Actions, "Aktionen");
@@ -243,8 +243,16 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Billing period management
     i18n.add_text(Locale::De, Key::BillingPeriods, "Abrechnungszeiträume");
-    i18n.add_text(Locale::De, Key::BillingPeriodDetails, "Abrechnungszeitraum Details");
-    i18n.add_text(Locale::De, Key::CreateNewBillingPeriod, "➕ Neuen Abrechnungszeitraum erstellen");
+    i18n.add_text(
+        Locale::De,
+        Key::BillingPeriodDetails,
+        "Abrechnungszeitraum Details",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CreateNewBillingPeriod,
+        "➕ Neuen Abrechnungszeitraum erstellen",
+    );
     i18n.add_text(Locale::De, Key::BillingPeriod, "Abrechnungszeitraum");
     i18n.add_text(Locale::De, Key::StartDate, "Startdatum");
     i18n.add_text(Locale::De, Key::EndDate, "Enddatum");
@@ -256,14 +264,42 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::Deleted, "Gelöscht");
     i18n.add_text(Locale::De, Key::SalesPersons, "Verkäufer");
     i18n.add_text(Locale::De, Key::BasicInformation, "Grundinformationen");
-    i18n.add_text(Locale::De, Key::LoadingBillingPeriods, "Lade Abrechnungszeiträume...");
-    i18n.add_text(Locale::De, Key::LoadingBillingPeriodDetails, "Lade Abrechnungszeitraum Details...");
-    i18n.add_text(Locale::De, Key::CreateBillingPeriod, "Abrechnungszeitraum erstellen");
+    i18n.add_text(
+        Locale::De,
+        Key::LoadingBillingPeriods,
+        "Lade Abrechnungszeiträume...",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::LoadingBillingPeriodDetails,
+        "Lade Abrechnungszeitraum Details...",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CreateBillingPeriod,
+        "Abrechnungszeitraum erstellen",
+    );
     i18n.add_text(Locale::De, Key::Period, "Zeitraum");
-    i18n.add_text(Locale::De, Key::NoSalesPersonsInBillingPeriod, "Keine Verkäufer in diesem Abrechnungszeitraum.");
-    i18n.add_text(Locale::De, Key::SalesPersonsIncluded, "{count} Verkäufer enthalten");
-    i18n.add_text(Locale::De, Key::FilterSalesPersonsByName, "Verkäufer nach Name filtern...");
-    i18n.add_text(Locale::De, Key::NoSalesPersonsMatchFilter, "Keine Verkäufer entsprechen dem Filter '{filter}'.");
+    i18n.add_text(
+        Locale::De,
+        Key::NoSalesPersonsInBillingPeriod,
+        "Keine Verkäufer in diesem Abrechnungszeitraum.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SalesPersonsIncluded,
+        "{count} Verkäufer enthalten",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::FilterSalesPersonsByName,
+        "Verkäufer nach Name filtern...",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::NoSalesPersonsMatchFilter,
+        "Keine Verkäufer entsprechen dem Filter '{filter}'.",
+    );
     i18n.add_text(Locale::De, Key::ShowActive, "Aktiv");
     i18n.add_text(Locale::De, Key::ShowInactive, "Inaktive anzeigen");
     i18n.add_text(Locale::De, Key::ShowPaid, "Bezahlt");
@@ -273,7 +309,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::YtdFrom, "YTD Von");
     i18n.add_text(Locale::De, Key::YtdTo, "YTD Bis");
     i18n.add_text(Locale::De, Key::FullYear, "Ganzes Jahr");
-    i18n.add_text(Locale::De, Key::InvalidBillingPeriodId, "Ungültige Abrechnungszeitraum ID");
+    i18n.add_text(
+        Locale::De,
+        Key::InvalidBillingPeriodId,
+        "Ungültige Abrechnungszeitraum ID",
+    );
     i18n.add_text(Locale::De, Key::SelectEndDateForNewBillingPeriod, "Wählen Sie das Enddatum für den neuen Abrechnungszeitraum. Das Startdatum wird automatisch berechnet.");
 
     // Text templates
@@ -282,7 +322,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::TemplateText, "Vorlagentext");
     i18n.add_text(Locale::De, Key::AddNewTemplate, "Neue Vorlage hinzufügen");
     i18n.add_text(Locale::De, Key::EditTemplate, "Vorlage bearbeiten");
-    i18n.add_text(Locale::De, Key::CustomReports, "Benutzerdefinierte Berichte");
+    i18n.add_text(
+        Locale::De,
+        Key::CustomReports,
+        "Benutzerdefinierte Berichte",
+    );
     i18n.add_text(Locale::De, Key::GenerateReport, "Bericht generieren");
     i18n.add_text(Locale::De, Key::SelectTemplate, "Vorlage auswählen");
     i18n.add_text(Locale::De, Key::GeneratingReport, "Generiere...");
@@ -299,39 +343,149 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::UsersCount, "{count} Benutzer");
     i18n.add_text(Locale::De, Key::SalesPersonsCount, "{count} Personen");
     i18n.add_text(Locale::De, Key::NoUsersFound, "Keine Benutzer gefunden");
-    i18n.add_text(Locale::De, Key::AddFirstUserBelow, "Fügen Sie Ihren ersten Benutzer unten hinzu");
-    i18n.add_text(Locale::De, Key::NoSalesPersonsFound, "Keine Verkäufer gefunden");
-    i18n.add_text(Locale::De, Key::CreateFirstSalesPersonBelow, "Erstellen Sie Ihren ersten Verkäufer unten");
+    i18n.add_text(
+        Locale::De,
+        Key::AddFirstUserBelow,
+        "Fügen Sie Ihren ersten Benutzer unten hinzu",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::NoSalesPersonsFound,
+        "Keine Verkäufer gefunden",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CreateFirstSalesPersonBelow,
+        "Erstellen Sie Ihren ersten Verkäufer unten",
+    );
     i18n.add_text(Locale::De, Key::DeleteUser, "Benutzer löschen");
     i18n.add_text(Locale::De, Key::AddNewUser, "Neuen Benutzer hinzufügen");
     i18n.add_text(Locale::De, Key::CreateUser, "Benutzer erstellen");
-    i18n.add_text(Locale::De, Key::CreateNewSalesPerson, "Neuen Verkäufer erstellen");
-    i18n.add_text(Locale::De, Key::ManageRolesAndPermissions, "Rollen und Berechtigungen für diesen Benutzer verwalten.");
+    i18n.add_text(
+        Locale::De,
+        Key::CreateNewSalesPerson,
+        "Neuen Verkäufer erstellen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ManageRolesAndPermissions,
+        "Rollen und Berechtigungen für diesen Benutzer verwalten.",
+    );
     i18n.add_text(Locale::De, Key::RoleAssignments, "Rollenzuweisungen");
     i18n.add_text(Locale::De, Key::RolesCount, "{assigned} von {total} Rollen");
     i18n.add_text(Locale::De, Key::NoRolesAvailable, "Keine Rollen verfügbar");
-    i18n.add_text(Locale::De, Key::ContactAdministratorForRoles, "Wenden Sie sich an Ihren Administrator, um Rollen einzurichten");
-    i18n.add_text(Locale::De, Key::BackToUserManagement, "Zurück zur Benutzerverwaltung");
+    i18n.add_text(
+        Locale::De,
+        Key::ContactAdministratorForRoles,
+        "Wenden Sie sich an Ihren Administrator, um Rollen einzurichten",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BackToUserManagement,
+        "Zurück zur Benutzerverwaltung",
+    );
     i18n.add_text(Locale::De, Key::ShiftplanColor, "Schichtplan Farbe");
     i18n.add_text(Locale::De, Key::ColorPreview, "Farbvorschau");
     i18n.add_text(Locale::De, Key::Settings, "Einstellungen");
-    i18n.add_text(Locale::De, Key::ThisPersonReceivesPayment, "Diese Person erhält Bezahlung");
-    i18n.add_text(Locale::De, Key::ThisPersonIsInactive, "Diese Person ist inaktiv");
+    i18n.add_text(
+        Locale::De,
+        Key::ThisPersonReceivesPayment,
+        "Diese Person erhält Bezahlung",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ThisPersonIsInactive,
+        "Diese Person ist inaktiv",
+    );
     i18n.add_text(Locale::De, Key::UserAccount, "Benutzerkonto");
-    i18n.add_text(Locale::De, Key::ConnectUserAccount, "Benutzerkonto verbinden");
+    i18n.add_text(
+        Locale::De,
+        Key::ConnectUserAccount,
+        "Benutzerkonto verbinden",
+    );
+    // User invitations
+    i18n.add_text(Locale::De, Key::UserInvitations, "Benutzereinladungen");
+    i18n.add_text(Locale::De, Key::GenerateInvitation, "Einladung erstellen");
+    i18n.add_text(Locale::De, Key::InvitationLink, "Einladungslink");
+    i18n.add_text(Locale::De, Key::RevokeInvitation, "Widerrufen");
+    i18n.add_text(Locale::De, Key::RevokeSession, "Sitzung widerrufen");
+    i18n.add_text(Locale::De, Key::InvitationStatus, "Status");
+    i18n.add_text(Locale::De, Key::ExpirationHours, "Gültigkeit (Stunden)");
+    i18n.add_text(Locale::De, Key::CopyToClipboard, "Kopieren");
+    i18n.add_text(Locale::De, Key::InvitationCopied, "Kopiert!");
+    i18n.add_text(Locale::De, Key::Valid, "Gültig");
+    i18n.add_text(Locale::De, Key::Expired, "Abgelaufen");
+    i18n.add_text(Locale::De, Key::Redeemed, "Eingelöst");
+    i18n.add_text(
+        Locale::De,
+        Key::NoInvitationsFound,
+        "Keine Einladungen gefunden",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::GenerateFirstInvitation,
+        "Erste Einladung unten erstellen",
+    );
+    i18n.add_text(Locale::De, Key::InvitationsCount, "{count} Einladungen");
+    i18n.add_text(
+        Locale::De,
+        Key::GenerateNewInvitation,
+        "Neue Einladung erstellen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::OptionalExpirationHours,
+        "Gültigkeit (Stunden)",
+    );
     i18n.add_text(Locale::De, Key::SaveChanges, "Änderungen speichern");
-    i18n.add_text(Locale::De, Key::LoadingSalesPersonDetails, "Lade Verkäufer Details...");
-    i18n.add_text(Locale::De, Key::SalesPersonSavedSuccessfully, "Verkäufer erfolgreich gespeichert!");
-    i18n.add_text(Locale::De, Key::EditSalesPersonInformation, "Verkäufer Informationen bearbeiten");
-    i18n.add_text(Locale::De, Key::CreateNewSalesPersonTitle, "Neuen Verkäufer erstellen");
+    i18n.add_text(
+        Locale::De,
+        Key::LoadingSalesPersonDetails,
+        "Lade Verkäufer Details...",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SalesPersonSavedSuccessfully,
+        "Verkäufer erfolgreich gespeichert!",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::EditSalesPersonInformation,
+        "Verkäufer Informationen bearbeiten",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CreateNewSalesPersonTitle,
+        "Neuen Verkäufer erstellen",
+    );
     i18n.add_text(Locale::De, Key::Paid, "Bezahlt");
     i18n.add_text(Locale::De, Key::Inactive, "Inaktiv");
     i18n.add_text(Locale::De, Key::Login, "Anmelden");
     i18n.add_text(Locale::De, Key::LogoutUser, "Abmelden {user}");
     i18n.add_text(Locale::De, Key::ShiftplanReport, "Schichtplan Bericht");
-    i18n.add_text(Locale::De, Key::GenerateShiftplanReport, "Schichtplan Bericht generieren");
-    i18n.add_text(Locale::De, Key::ShiftplanReportGenerated, "Schichtplan Bericht generiert");
-    i18n.add_text(Locale::De, Key::CopyToClipboard, "In Zwischenablage kopieren");
-    i18n.add_text(Locale::De, Key::CopiedToClipboard, "In Zwischenablage kopiert!");
-    i18n.add_text(Locale::De, Key::CopyFailed, "Fehler beim Kopieren in die Zwischenablage");
+    i18n.add_text(
+        Locale::De,
+        Key::GenerateShiftplanReport,
+        "Schichtplan Bericht generieren",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanReportGenerated,
+        "Schichtplan Bericht generiert",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CopyToClipboard,
+        "In Zwischenablage kopieren",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CopiedToClipboard,
+        "In Zwischenablage kopiert!",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CopyFailed,
+        "Fehler beim Kopieren in die Zwischenablage",
+    );
 }

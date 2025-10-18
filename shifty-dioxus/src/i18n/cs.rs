@@ -281,6 +281,23 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ThisPersonIsInactive, "Tato osoba je neaktivní");
     i18n.add_text(Locale::Cs, Key::UserAccount, "Uživatelský účet");
     i18n.add_text(Locale::Cs, Key::ConnectUserAccount, "Připojit uživatelský účet");
+    // User invitations
+    i18n.add_text(Locale::Cs, Key::UserInvitations, "Uživatelské pozvánky");
+    i18n.add_text(Locale::Cs, Key::GenerateInvitation, "Vytvořit pozvánku");
+    i18n.add_text(Locale::Cs, Key::InvitationLink, "Odkaz na pozvánku");
+    i18n.add_text(Locale::Cs, Key::RevokeInvitation, "Zrušit");
+    i18n.add_text(Locale::Cs, Key::RevokeSession, "Zrušit relaci");
+    i18n.add_text(Locale::Cs, Key::InvitationStatus, "Stav");
+    i18n.add_text(Locale::Cs, Key::ExpirationHours, "Platnost (hodiny)");
+    i18n.add_text(Locale::Cs, Key::InvitationCopied, "Zkopírováno!");
+    i18n.add_text(Locale::Cs, Key::Valid, "Platná");
+    i18n.add_text(Locale::Cs, Key::Expired, "Vypršela");
+    i18n.add_text(Locale::Cs, Key::Redeemed, "Uplatněna");
+    i18n.add_text(Locale::Cs, Key::NoInvitationsFound, "Žádné pozvánky nenalezeny");
+    i18n.add_text(Locale::Cs, Key::GenerateFirstInvitation, "Vytvořte první pozvánku níže");
+    i18n.add_text(Locale::Cs, Key::InvitationsCount, "{count} pozvánky");
+    i18n.add_text(Locale::Cs, Key::GenerateNewInvitation, "Vytvořit novou pozvánku");
+    i18n.add_text(Locale::Cs, Key::OptionalExpirationHours, "Platnost (hodiny)");
     i18n.add_text(Locale::Cs, Key::SaveChanges, "Uložit změny");
     i18n.add_text(Locale::Cs, Key::LoadingSalesPersonDetails, "Načítám detaily prodejce...");
     i18n.add_text(Locale::Cs, Key::SalesPersonSavedSuccessfully, "Prodejce byl úspěšně uložen!");

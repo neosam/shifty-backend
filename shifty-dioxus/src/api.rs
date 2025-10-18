@@ -3,8 +3,9 @@ use std::rc::Rc;
 use rest_types::{
     BillingPeriodTO, BookingConflictTO, BookingTO, CreateBillingPeriodRequestTO, 
     CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, 
-    EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, RoleTO, SalesPersonTO, 
-    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
+    EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, GenerateInvitationRequest,
+    InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, 
+    ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
     UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeeklySummaryTO, 
     WeekMessageTO,
 };
@@ -912,4 +913,57 @@ pub async fn generate_block_report(config: Config, template_id: Uuid) -> Result<
     let res = response.text().await?;
     info!("Generated block report");
     Ok(res)
+}
+
+pub async fn generate_invitation(
+    config: Config,
+    request: GenerateInvitationRequest,
+) -> Result<InvitationResponse, reqwest::Error> {
+    info!("Generating invitation for user {}", request.username);
+    let url = format!("{}/user-invitation/invitation", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&request).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Generated invitation");
+    Ok(res)
+}
+
+pub async fn list_user_invitations(
+    config: Config,
+    username: ImStr,
+) -> Result<Rc<[InvitationResponse]>, reqwest::Error> {
+    info!("Fetching invitations for user {username}");
+    let url = format!("{}/user-invitation/invitation/user/{}", config.backend, username);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched invitations");
+    Ok(res)
+}
+
+pub async fn revoke_invitation(
+    config: Config,
+    invitation_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Revoking invitation {invitation_id}");
+    let url = format!("{}/user-invitation/invitation/{}", config.backend, invitation_id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Revoked invitation");
+    Ok(())
+}
+
+pub async fn revoke_session_for_invitation(
+    config: Config,
+    invitation_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Revoking session for invitation {invitation_id}");
+    let url = format!("{}/user-invitation/invitation/{}/revoke-session", config.backend, invitation_id);
+    let client = reqwest::Client::new();
+    let response = client.post(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Revoked session for invitation");
+    Ok(())
 }

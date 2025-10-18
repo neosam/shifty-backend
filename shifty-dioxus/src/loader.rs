@@ -1,4 +1,4 @@
-use rest_types::{ExtraHoursTO, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
+use rest_types::{ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -599,4 +599,51 @@ pub async fn generate_block_report(
 ) -> Result<String, ShiftyError> {
     let report = api::generate_block_report(config, template_id).await?;
     Ok(report)
+}
+
+fn fix_invitation_link(mut invitation: InvitationResponse, backend_url: &str) -> InvitationResponse {
+    invitation.invitation_link = format!("{}/auth/invitation/{}", backend_url, invitation.token);
+    invitation
+}
+
+pub async fn generate_invitation(
+    config: Config,
+    username: ImStr,
+    expiration_hours: Option<i64>,
+) -> Result<InvitationResponse, ShiftyError> {
+    let request = GenerateInvitationRequest {
+        username: username.to_string(),
+        expiration_hours,
+    };
+    let invitation = api::generate_invitation(config.clone(), request).await?;
+    let fixed_invitation = fix_invitation_link(invitation, &config.backend);
+    Ok(fixed_invitation)
+}
+
+pub async fn load_user_invitations(
+    config: Config,
+    username: ImStr,
+) -> Result<Rc<[InvitationResponse]>, ShiftyError> {
+    let invitations = api::list_user_invitations(config.clone(), username).await?;
+    let fixed_invitations: Vec<InvitationResponse> = invitations
+        .iter()
+        .map(|inv| fix_invitation_link(inv.clone(), &config.backend))
+        .collect();
+    Ok(fixed_invitations.into())
+}
+
+pub async fn revoke_invitation(
+    config: Config,
+    invitation_id: Uuid,
+) -> Result<(), ShiftyError> {
+    api::revoke_invitation(config, invitation_id).await?;
+    Ok(())
+}
+
+pub async fn revoke_invitation_session(
+    config: Config,
+    invitation_id: Uuid,
+) -> Result<(), ShiftyError> {
+    api::revoke_session_for_invitation(config, invitation_id).await?;
+    Ok(())
 }
