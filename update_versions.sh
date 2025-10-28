@@ -19,4 +19,6 @@ for cargo_file in */Cargo.toml; do
     fi
 done
 
+sed -i "0,/version = \".*\"/{s/version = \".*\"/version = \"$NEW_VERSION\"/}" "default.nix"
+
 echo "Version update complete"
