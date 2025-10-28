@@ -30,7 +30,7 @@
         };
         frontend-build = pkgs.rustPlatform.buildRustPackage rec {
           pname = "shifty-dioxus";
-          version = "0.1.0";
+          version = "1.3.0-flakes";
           
           src = ./.;
           
@@ -119,12 +119,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Inventurly</title>
-    <link rel="stylesheet" href="tailwind.css">
+    <link rel="stylesheet" href="/tailwind.css">
 </head>
 <body>
     <div id="main"></div>
     <script type="module">
-        import init from './shifty-dioxus.js';
+        import init from '/./shifty-dioxus.js';
         init();
     </script>
 </body>
