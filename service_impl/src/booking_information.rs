@@ -173,9 +173,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     (slot.to - slot.from).as_seconds_f32() / 3600.0 * slot.min_resources as f32
                 })
                 .sum::<f32>();
-            let mut overall_available_hours = volunteer_hours;
+            let mut paid_hours = 0.0;
             for report in week_report.iter() {
-                overall_available_hours += report.expected_hours;
+                paid_hours += report.dynamic_hours;
                 if is_shiftplanner {
                     working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
                         sales_person_id: report.sales_person.id,
@@ -184,10 +184,13 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     });
                 }
             }
+            let mut overall_available_hours = volunteer_hours + paid_hours;
             weekly_report.push(WeeklySummary {
                 year,
                 week,
                 overall_available_hours,
+                paid_hours,
+                volunteer_hours,
                 working_hours_per_sales_person: working_hours_per_sales_person.into(),
                 required_hours: slot_hours,
                 monday_available_hours: 0.0,
@@ -272,9 +275,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .iter()
             .map(|slot| (slot.to - slot.from).as_seconds_f32() / 3600.0 * slot.min_resources as f32)
             .sum::<f32>();
-        let mut overall_available_hours = volunteer_hours;
+        let mut paid_hours = 0.0;
         for report in week_report.iter() {
-            overall_available_hours += report.expected_hours;
+            paid_hours += report.dynamic_hours;
             if is_shiftplanner {
                 working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
                     sales_person_id: report.sales_person.id,
@@ -283,6 +286,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 });
             }
         }
+        let mut overall_available_hours = volunteer_hours + paid_hours;
 
         // Calculate available hours per day
         let mut monday_hours = 0.0;
@@ -438,8 +442,11 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             year,
             week,
             overall_available_hours,
+            paid_hours,
+            volunteer_hours,
             working_hours_per_sales_person: working_hours_per_sales_person.into(),
             required_hours: slot_hours,
+
             monday_available_hours: monday_hours - required_hours_by_day.0,
             tuesday_available_hours: tuesday_hours - required_hours_by_day.1,
             wednesday_available_hours: wednesday_hours - required_hours_by_day.2,

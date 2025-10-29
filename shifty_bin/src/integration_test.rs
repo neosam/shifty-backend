@@ -71,6 +71,8 @@ prop_compose! {
             to_day_of_week: DayOfWeek::Sunday,
             workdays_per_week,
             //days_per_week,
+            
+            is_dynamic: false,
 
             monday: true,
             tuesday: true,
@@ -553,6 +555,8 @@ proptest! {
                 to_calendar_week: 52,
                 to_day_of_week: DayOfWeek::Saturday,
 
+                is_dynamic: false,
+
                 workdays_per_week: 6,
                 monday: true,
                 tuesday: true,
@@ -678,6 +682,8 @@ proptest! {
                 from_year: 1999,
                 from_calendar_week: 52,
                 from_day_of_week: DayOfWeek::Saturday,
+
+                is_dynamic: false,
 
                 // 31st of December 2005
                 to_year: 2005,
@@ -839,6 +845,7 @@ fn test_vacation_at_end_of_year() {
             to_year: 2026,
             to_calendar_week: 52,
             to_day_of_week: DayOfWeek::Sunday,
+            is_dynamic: false,
             workdays_per_week: 5,
             monday: true,
             tuesday: true,
@@ -974,6 +981,8 @@ fn test_multiple_contracts() {
                 to_calendar_week: 1,
                 to_day_of_week: DayOfWeek::Tuesday,
 
+                is_dynamic: false,
+
                 workdays_per_week: 6,
                 monday: true,
                 tuesday: true,
@@ -1002,6 +1011,8 @@ fn test_multiple_contracts() {
                 to_year: 2025,
                 to_calendar_week: 14,
                 to_day_of_week: DayOfWeek::Monday,
+
+                is_dynamic: false,
 
                 workdays_per_week: 4,
                 monday: false,
@@ -1116,6 +1127,8 @@ fn test_extra_hours_beginning_of_year() {
             to_calendar_week: 2,
             to_day_of_week: DayOfWeek::Sunday,
 
+            is_dynamic: false,
+
             workdays_per_week: 6,
             monday: true,
             tuesday: true,
@@ -1223,6 +1236,8 @@ fn test_vacation_entitlement_calculcation() {
                 to_calendar_week: 1,
                 to_day_of_week: DayOfWeek::Tuesday,
 
+                is_dynamic: false,
+
                 workdays_per_week: 6,
                 monday: true,
                 tuesday: true,
@@ -1252,6 +1267,8 @@ fn test_vacation_entitlement_calculcation() {
                 to_calendar_week: 14,
                 to_day_of_week: DayOfWeek::Monday,
 
+                is_dynamic: false,
+
                 workdays_per_week: 6,
                 monday: true,
                 tuesday: true,
@@ -1280,6 +1297,8 @@ fn test_vacation_entitlement_calculcation() {
                 to_year: 2025,
                 to_calendar_week: 27,
                 to_day_of_week: DayOfWeek::Monday,
+
+                is_dynamic: false,
 
                 workdays_per_week: 4,
                 monday: false,
@@ -1351,6 +1370,8 @@ fn test_shiftyplan_hours_end_of_year() {
             to_year: 2025,
             to_calendar_week: 2,
             to_day_of_week: DayOfWeek::Tuesday,
+
+            is_dynamic: false,
 
             workdays_per_week: 6,
             monday: true,

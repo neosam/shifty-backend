@@ -78,6 +78,7 @@ pub struct GroupedReportHours {
     pub week: u8,
     pub contract_weekly_hours: f32,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
     pub overall_hours: f32,
     pub balance: f32,
 
@@ -141,6 +142,7 @@ impl GroupedReportHours {
 pub struct ShortEmployeeReport {
     pub sales_person: Arc<SalesPerson>,
     pub balance_hours: f32,
+    pub dynamic_hours: f32,
     pub expected_hours: f32,
     pub overall_hours: f32,
 }
@@ -152,6 +154,7 @@ pub struct EmployeeReport {
     pub balance_hours: f32,
     pub overall_hours: f32,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,

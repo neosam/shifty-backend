@@ -22,6 +22,7 @@ pub struct EmployeeWorkDetailsDb {
     pub to_calendar_week: i64,
     pub to_year: i64,
     pub workdays_per_week: i64,
+    pub is_dynamic: i64,
 
     pub monday: i64,
     pub tuesday: i64,
@@ -57,6 +58,7 @@ impl TryFrom<&EmployeeWorkDetailsDb> for EmployeeWorkDetailsEntity {
             to_calendar_week: working_hours.to_calendar_week as u8,
             to_year: working_hours.to_year as u32,
             workdays_per_week: working_hours.workdays_per_week as u8,
+            is_dynamic: working_hours.is_dynamic != 0,
 
             monday: working_hours.monday != 0,
             tuesday: working_hours.tuesday != 0,
@@ -111,6 +113,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
+                is_dynamic,
                 
                 monday,
                 tuesday,
@@ -159,6 +162,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
+                is_dynamic,
                 
                 monday,
                 tuesday,
@@ -209,6 +213,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
+                is_dynamic,
                 
                 monday,
                 tuesday,
@@ -261,6 +266,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
+                is_dynamic,
                 
                 monday,
                 tuesday,
@@ -311,6 +317,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let to_day_of_week = entity.to_day_of_week.to_number() as i64;
         let to_calendar_week = entity.to_calendar_week as i64;
         let to_year = entity.to_year as i64;
+        let is_dynamic = entity.is_dynamic as i64;
         let monday = entity.monday as i64;
         let tuesday = entity.tuesday as i64;
         let wednesday = entity.wednesday as i64;
@@ -335,6 +342,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_calendar_week,
                 to_year,
                 workdays_per_week,
+                is_dynamic,
                 
                 monday,
                 tuesday,
@@ -349,7 +357,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 created,
                 update_process,
                 update_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             id,
             sales_person_id,
@@ -361,6 +369,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             to_calendar_week,
             to_year,
             workdays_per_week,
+            is_dynamic,
             monday,
             tuesday,
             wednesday,
@@ -395,8 +404,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let to_year = entity.to_year as i64;
         let to_calendar_week = entity.to_calendar_week as i64;
         let to_day_of_week = entity.to_day_of_week.to_number() as i64;
+        let expected_hours = entity.expected_hours as i64;
         let vacation_days = entity.vacation_days as i64;
         let workdays_per_week = entity.workdays_per_week as i64;
+        let is_dynamic = entity.is_dynamic as i64;
         query!(
             r#"
             UPDATE employee_work_details SET
@@ -405,8 +416,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 to_year = ?,
                 to_calendar_week = ?,
                 to_day_of_week = ?,
+                expected_hours = ?,
                 vacation_days = ?,
-                workdays_per_week = ?
+                workdays_per_week = ?,
+                is_dynamic = ?
             WHERE
                 id = ?
             "#,
@@ -415,8 +428,10 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             to_year,
             to_calendar_week,
             to_day_of_week,
+            expected_hours,
             vacation_days,
             workdays_per_week,
+            is_dynamic,
             id
         )
         .execute(tx.tx.lock().await.as_mut())

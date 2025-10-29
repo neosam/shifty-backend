@@ -46,6 +46,7 @@ pub async fn create_working_hours<RestState: RestStateDef>(
             );
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(serde_json::to_string(&working_hours).unwrap()))
                 .unwrap())
         })
@@ -69,6 +70,7 @@ pub async fn update_working_hours<RestState: RestStateDef>(
             );
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(serde_json::to_string(&working_hours).unwrap()))
                 .unwrap())
         })
@@ -110,6 +112,7 @@ pub async fn get_working_hours_for_week<RestState: RestStateDef>(
             );
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(serde_json::to_string(&working_hours).unwrap()))
                 .unwrap())
         })
@@ -134,6 +137,7 @@ pub async fn get_working_hours_for_sales_person<RestState: RestStateDef>(
                 .collect();
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(Body::new(serde_json::to_string(&working_hours).unwrap()))
                 .unwrap())
         })

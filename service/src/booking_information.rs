@@ -33,6 +33,8 @@ pub struct WeeklySummary {
     pub week: u8,
     pub overall_available_hours: f32,
     pub required_hours: f32,
+    pub paid_hours: f32,
+    pub volunteer_hours: f32,
 
     pub monday_available_hours: f32,
     pub tuesday_available_hours: f32,

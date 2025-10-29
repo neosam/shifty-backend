@@ -157,7 +157,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             } else {
                 0
             };
-            let (shiftplan_hours, extra_working_hours, absense_hours, planned_hours): (
+            let (shiftplan_hours, extra_working_hours, absense_hours, planned_hours, dynamic_hours): (
+                f32,
                 f32,
                 f32,
                 f32,
@@ -180,7 +181,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         week
                     };
 
-                    let expected_hours =
+                    let (expected_hours, dynamic_hours) =
                         find_working_hours_for_calendar_week(&working_hours, year, week)
                             .map(|wh| weight_for_week(year, week, 
                                 &wh.with_to_date(
@@ -193,8 +194,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                                             .max(ShiftyDate::first_day_in_year(target_year))
                                     )
                                 ))
-                            .map(|(expected_hours, _, _)| expected_hours)
-                            .sum();
+                            .map(|(expected_hours, dynamic_hours, _, _)| (expected_hours, dynamic_hours))
+                            .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
                     // If expected hours is 0 or less, the planned hours and the working hours are the same
                     // because the balance should never be affected in this case.
                     let shiftplan_hours: f32 = detailed_shiftplan_report
@@ -226,7 +227,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             .map(|extra_hours| extra_hours.amount)
                             .sum();*/
                         let overall_hours = extra_work + shiftplan_hours;// - absense_hours;
-                        (shiftplan_hours, extra_work, 0.0, overall_hours)
+                        (shiftplan_hours, extra_work, 0.0, overall_hours, dynamic_hours)
                     } else {
                         let extra_working_hours = extra_hours_array
                             .iter()
@@ -247,27 +248,31 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             extra_working_hours,
                             absense_hours,
                             expected_hours,
+                            dynamic_hours,
                         )
                     }
                 })
                 .fold(
-                    (0.0, 0.0, 0.0, 0.0),
-                    |(shiftplan_hours, extra_work, absense, planned),
-                     (shiftplan_hours_week, extra_work_week, absense_week, planned_week)| {
+                    (0.0, 0.0, 0.0, 0.0, 0.0),
+                    |(shiftplan_hours, extra_work, absense, planned, dynamic_hours),
+                     (shiftplan_hours_week, extra_work_week, absense_week, planned_week, dynamic_hours_week)| {
                         (
                             shiftplan_hours + shiftplan_hours_week,
                             extra_work + extra_work_week,
                             absense + absense_week,
                             planned + planned_week,
+                            dynamic_hours + dynamic_hours_week,
                         )
                     },
                 );
             let expected_hours = planned_hours - absense_hours;
+            let dynamic_hours = dynamic_hours - absense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours + previous_year_carryover;
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
+                dynamic_hours,
                 expected_hours,
                 overall_hours,
             });
@@ -394,6 +399,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         );
 
         let planned_hours: f32 = by_week.iter().map(|week| week.expected_hours).sum();
+        let dynamic_hours: f32 = by_week.iter().map(|week| week.dynamic_hours).sum();
         let vacation_entitlement = working_hours
             .iter()
             .map(|wh| wh.vacation_days_for_year(from_date.year()))
@@ -434,6 +440,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 + previous_year_carryover,
             overall_hours: shiftplan_hours + overall_extra_work_hours,
             expected_hours: planned_hours,
+            dynamic_hours,
             shiftplan_hours,
             holiday_days,
             vacation_carryover: previous_year_vacation,
@@ -526,11 +533,13 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .sum::<f32>()
                 })
                 .unwrap_or(0.0);
-            let planned_hours: f32 =
+            let (planned_hours, dynamic_hours): (f32, f32) =
                 find_working_hours_for_calendar_week(&working_hours, year, week)
-                    .map(|wh| weight_for_week(year, week, wh).0)
-                    .sum();
+                    .map(|wh|  weight_for_week(year, week, wh))
+                    .map(|wfw| (wfw.0, wfw.1))
+                    .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
             let expected_hours = planned_hours - abense_hours;
+            let dynamic_hours = dynamic_hours - abense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
             result.push(ShortEmployeeReport {
@@ -540,6 +549,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .await?,
                 ),
                 balance_hours,
+                dynamic_hours,
                 expected_hours,
                 overall_hours,
             });
@@ -553,7 +563,7 @@ fn weight_for_week(
     year: u32,
     week: u8,
     employee_work_details: &EmployeeWorkDetails,
-) -> (f32, u8, f32) {
+) -> (f32, f32, u8, f32) {
     let workdays: Arc<[time::Weekday]> = employee_work_details.potential_weekday_list();
     let all_potential_workdays = workdays.len() as u8;
 
@@ -598,6 +608,9 @@ fn weight_for_week(
     let num_potential_workdays_in_week = workdays.iter().count();
     let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
     (
+        if employee_work_details.is_dynamic { 0.0 } else {
+            employee_work_details.expected_hours * relation
+        },
         employee_work_details.expected_hours * relation,
         num_potential_workdays_in_week as u8,
         employee_work_details.workdays_per_week as f32 * relation,
@@ -639,7 +652,7 @@ fn hours_per_week(
             .iter()
             .map(|r: &&ShiftplanReportDay| r.hours)
             .sum::<f32>();
-        let (working_hours_for_week, days_per_week, workdays_per_week) =
+        let (working_hours_for_week, dynamic_working_hours_for_week, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, week.year, week.week)
                 .map(|wh| weight_for_week(week.year, week.week, 
                     &wh.with_to_date(
@@ -653,11 +666,12 @@ fn hours_per_week(
                         )
                     ))
                 .fold(
-                    (0.0f32, 0u8, 0f32),
-                    |(working_hours_acc, days_per_week_acc, workdays_per_week_acc),
-                     (wh, dpw, wpw)| {
+                    (0.0f32, 0.0f32, 0u8, 0f32),
+                    |(working_hours_acc, dynamic_working_hours_acc, days_per_week_acc, workdays_per_week_acc),
+                     (wh, dwh, dpw, wpw)| {
                         (
                             working_hours_acc + wh,
+                            dynamic_working_hours_acc + dwh,
                             days_per_week_acc + dpw,
                             workdays_per_week_acc + wpw,
                         )
@@ -736,6 +750,7 @@ fn hours_per_week(
             week: week.week,
             contract_weekly_hours: expected_hours,
             expected_hours: expected_hours - absence_hours,
+            dynamic_hours: dynamic_working_hours_for_week - absence_hours,
             overall_hours: shiftplan_hours + extra_work_hours,
             balance: shiftplan_hours + extra_work_hours - expected_hours + absence_hours,
             shiftplan_hours,

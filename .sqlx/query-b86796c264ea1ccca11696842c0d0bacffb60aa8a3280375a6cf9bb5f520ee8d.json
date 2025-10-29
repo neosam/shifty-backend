@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO employee_work_details (\n                id,\n                sales_person_id,\n                expected_hours,\n                from_day_of_week,\n                from_calendar_week,\n                from_year,\n                to_day_of_week,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                is_dynamic,\n                \n                monday,\n                tuesday,\n                wednesday,\n                thursday,\n                friday,\n                saturday,\n                sunday,\n\n                vacation_days,\n\n                created,\n                update_process,\n                update_version\n            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 22
+    },
+    "nullable": []
+  },
+  "hash": "b86796c264ea1ccca11696842c0d0bacffb60aa8a3280375a6cf9bb5f520ee8d"
+}

@@ -280,6 +280,7 @@ pub struct ShortEmployeeReportTO {
     pub sales_person: SalesPersonTO,
     pub balance_hours: f32,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
     pub overall_hours: f32,
 }
 
@@ -290,6 +291,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             sales_person: SalesPersonTO::from(report.sales_person.as_ref()),
             balance_hours: report.balance_hours,
             expected_hours: report.expected_hours,
+            dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
         }
     }
@@ -360,6 +362,7 @@ pub struct WorkingHoursReportTO {
     pub from: time::Date,
     pub to: time::Date,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
     pub overall_hours: f32,
     pub balance: f32,
 
@@ -388,6 +391,7 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             from: hours.from.to_date(),
             to: hours.to.to_date(),
             expected_hours: hours.expected_hours,
+            dynamic_hours: hours.dynamic_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,
             days_per_week: hours.days_per_week,
@@ -418,6 +422,7 @@ pub struct EmployeeReportTO {
     pub balance_hours: f32,
     pub overall_hours: f32,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
@@ -447,6 +452,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             balance_hours: report.balance_hours,
             overall_hours: report.overall_hours,
             expected_hours: report.expected_hours,
+            dynamic_hours: report.dynamic_hours,
             shiftplan_hours: report.shiftplan_hours,
             extra_work_hours: report.extra_work_hours,
             vacation_hours: report.vacation_hours,
@@ -491,6 +497,7 @@ pub struct EmployeeWorkDetailsTO {
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,
+    pub is_dynamic: bool,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -528,6 +535,7 @@ impl From<&service::employee_work_details::EmployeeWorkDetails> for EmployeeWork
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
+            is_dynamic: working_hours.is_dynamic,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -564,6 +572,7 @@ impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWo
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
+            is_dynamic: working_hours.is_dynamic,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -758,6 +767,8 @@ pub struct WeeklySummaryTO {
     pub week: u8,
     pub overall_available_hours: f32,
     pub required_hours: f32,
+    pub paid_hours: f32,
+    pub volunteer_hours: f32,
     pub monday_available_hours: f32,
     pub tuesday_available_hours: f32,
     pub wednesday_available_hours: f32,
@@ -775,6 +786,8 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
             week: weekly_summary.week,
             overall_available_hours: weekly_summary.overall_available_hours,
             required_hours: weekly_summary.required_hours,
+            paid_hours: weekly_summary.paid_hours,
+            volunteer_hours: weekly_summary.volunteer_hours,
             monday_available_hours: weekly_summary.monday_available_hours,
             tuesday_available_hours: weekly_summary.tuesday_available_hours,
             wednesday_available_hours: weekly_summary.wednesday_available_hours,

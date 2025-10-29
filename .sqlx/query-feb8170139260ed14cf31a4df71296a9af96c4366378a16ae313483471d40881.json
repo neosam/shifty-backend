@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_day_of_week,\n                from_calendar_week,\n                from_year,\n                to_day_of_week,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                \n                monday,\n                tuesday,\n                wednesday,\n                thursday,\n                friday,\n                saturday,\n                sunday,\n\n                vacation_days,\n\n\n\n                created,\n                deleted,\n                update_version\n            FROM\n                employee_work_details\n            WHERE\n                sales_person_id = ?\n                and deleted IS NULL\n            ",
+  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_day_of_week,\n                from_calendar_week,\n                from_year,\n                to_day_of_week,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                is_dynamic,\n                \n                monday,\n                tuesday,\n                wednesday,\n                thursday,\n                friday,\n                saturday,\n                sunday,\n\n                vacation_days,\n\n                created,\n                deleted,\n                update_version\n            FROM\n                employee_work_details\n            WHERE\n                deleted IS NULL\n                AND\n                (from_year * 100 + from_calendar_week) <= (? * 100 + ?)\n                AND (to_year * 100 + to_calendar_week) >= (? * 100 + ?)\n            ",
   "describe": {
     "columns": [
       {
@@ -54,65 +54,71 @@
         "type_info": "Integer"
       },
       {
-        "name": "monday",
+        "name": "is_dynamic",
         "ordinal": 10,
         "type_info": "Integer"
       },
       {
-        "name": "tuesday",
+        "name": "monday",
         "ordinal": 11,
         "type_info": "Integer"
       },
       {
-        "name": "wednesday",
+        "name": "tuesday",
         "ordinal": 12,
         "type_info": "Integer"
       },
       {
-        "name": "thursday",
+        "name": "wednesday",
         "ordinal": 13,
         "type_info": "Integer"
       },
       {
-        "name": "friday",
+        "name": "thursday",
         "ordinal": 14,
         "type_info": "Integer"
       },
       {
-        "name": "saturday",
+        "name": "friday",
         "ordinal": 15,
         "type_info": "Integer"
       },
       {
-        "name": "sunday",
+        "name": "saturday",
         "ordinal": 16,
         "type_info": "Integer"
       },
       {
-        "name": "vacation_days",
+        "name": "sunday",
         "ordinal": 17,
         "type_info": "Integer"
       },
       {
-        "name": "created",
+        "name": "vacation_days",
         "ordinal": 18,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 19,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 20,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 21,
         "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 4
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -136,5 +142,5 @@
       false
     ]
   },
-  "hash": "fdf4d3e668f88bf1d011ec02b03181a46d4b93e3bf5df51029aa1c8851245c41"
+  "hash": "feb8170139260ed14cf31a4df71296a9af96c4366378a16ae313483471d40881"
 }

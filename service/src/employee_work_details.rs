@@ -23,6 +23,7 @@ pub struct EmployeeWorkDetails {
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,
+    pub is_dynamic: bool,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -51,6 +52,7 @@ impl From<&dao::employee_work_details::EmployeeWorkDetailsEntity> for EmployeeWo
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
+            is_dynamic: working_hours.is_dynamic,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -200,6 +202,7 @@ impl TryFrom<&EmployeeWorkDetails> for dao::employee_work_details::EmployeeWorkD
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
+            is_dynamic: working_hours.is_dynamic,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
