@@ -74,6 +74,7 @@ pub fn WeeklyOverview() -> Element {
                         thead { class: "text-left",
                             tr { class: "border-b border-black",
                                 th { class: "pl-2 pr-2", "{week_label}" }
+                                th { class: "pl-2 pr-2", "Paid/Volunteer" }
                                 th { class: "pl-2 pr-2", "{available_required_hours}" }
                                 th { class: "pl-2 pr-2", "{missing_hours}" }
                             }
@@ -89,6 +90,7 @@ pub fn WeeklyOverview() -> Element {
                                             }
                                         }
                                     }
+                                    td { "💰{week.paid_hours:.2} | 🤝{(week.volunteer_hours+0.0):.2}" }
                                     td { "{week.available_hours:.2} / {week.required_hours:.2}" }
                                     if week.required_hours - week.available_hours < 0.0 {
                                         td { class: "text-green-500",

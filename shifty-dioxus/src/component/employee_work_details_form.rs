@@ -232,12 +232,12 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
             FormPair { label: expected_hours_per_week_label,
                 FloatInput {
                     value: employee_work_details.expected_hours,
-                    disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
+                    disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
                     step: 1.0,
                     on_change: {
                         to_owned![employee_work_details];
                         move |value: f32| {
-                            if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
+                            if props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly
                             {
                                 return ();
                             }
@@ -286,6 +286,25 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             }
                         },
                     }
+                }
+            }
+            FormPair { label: "Dynamische Stunden".into(),
+                Checkbox {
+                    value: employee_work_details.dynamic,
+                    disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
+                    on_change: {
+                        to_owned![employee_work_details];
+                        move |value: bool| {
+                            if props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly
+                            {
+                                return ();
+                            }
+                            let mut employee_work_details = employee_work_details.clone();
+                            employee_work_details.dynamic = value;
+                            props.on_update_employee_work_details.call(employee_work_details);
+                        }
+                    },
+                    ""
                 }
             }
             FormGroup {

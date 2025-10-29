@@ -309,6 +309,7 @@ pub async fn load_working_hours_minified_for_week(
             sales_person_id: report.sales_person.id,
             sales_person_name: report.sales_person.name.to_owned().as_ref().into(),
             expected_hours: report.expected_hours,
+            dynamic_hours: report.dynamic_hours,
             actual_hours: report.overall_hours,
         })
         .collect())
@@ -419,6 +420,8 @@ pub async fn load_summary_for_week(
             week,
             available_hours: 0.0,
             required_hours: 0.0,
+            paid_hours: 0.0,
+            volunteer_hours: 0.0,
             monday_available_hours: 0.0,
             tuesday_available_hours: 0.0,
             wednesday_available_hours: 0.0,

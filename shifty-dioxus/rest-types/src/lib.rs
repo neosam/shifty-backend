@@ -281,6 +281,7 @@ pub struct ShortEmployeeReportTO {
     pub sales_person: SalesPersonTO,
     pub balance_hours: f32,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
     pub overall_hours: f32,
 }
 
@@ -418,6 +419,7 @@ pub struct EmployeeReportTO {
 
     pub balance_hours: f32,
     pub overall_hours: f32,
+    pub dynamic_hours: f32,
     pub expected_hours: f32,
 
     pub shiftplan_hours: f32,
@@ -492,6 +494,7 @@ pub struct EmployeeWorkDetailsTO {
     pub to_calendar_week: u8,
     pub to_year: u32,
     pub workdays_per_week: u8,
+    pub is_dynamic: bool,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -759,6 +762,8 @@ pub struct WeeklySummaryTO {
     pub week: u8,
     pub overall_available_hours: f32,
     pub required_hours: f32,
+    pub paid_hours: f32,
+    pub volunteer_hours: f32,
     pub monday_available_hours: f32,
     pub tuesday_available_hours: f32,
     pub wednesday_available_hours: f32,

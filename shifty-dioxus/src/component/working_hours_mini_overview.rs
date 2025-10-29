@@ -24,7 +24,7 @@ pub fn WorkingHoursMiniOverview(props: WorkingHoursMiniOverviewProps) -> Element
                 {
                     let sales_person_id = working_hour.sales_person_id.clone();
                     let actual_hours = format!("{:.1}", working_hour.actual_hours);
-                    let expected_hours = format!("{:.1}", working_hour.expected_hours);
+                    let dynamic_hours = format!("{:.1}", working_hour.dynamic_hours);
                     rsx! { div {
                         class: format!("flex cusor-pointer border-b border-gray-200 border-dashed p-1 {}",
                             if Some(sales_person_id) == props.selected_sales_person_id {
@@ -35,14 +35,14 @@ pub fn WorkingHoursMiniOverview(props: WorkingHoursMiniOverviewProps) -> Element
                         ondoubleclick: move |_| props.on_dbl_click.call(sales_person_id),
                         div { class: "flex-1", "{working_hour.sales_person_name}" }
                         div {
-                            class: format!("flex flex-row {}", if working_hour.actual_hours < working_hour.expected_hours {
+                            class: format!("flex flex-row {}", if working_hour.actual_hours < working_hour.dynamic_hours {
                                 "text-red-800"
                             } else {
                                 "text-green-800"
                             }),
                             div { class: "flex-1", {actual_hours} }
                             div { class: "flex-1", "/" }
-                            div { class: "flex-1", {expected_hours} }
+                            div { class: "flex-1", {dynamic_hours} }
                         }
                     } }
                 }

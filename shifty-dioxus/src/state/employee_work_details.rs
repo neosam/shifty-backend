@@ -9,6 +9,7 @@ pub struct WorkingHoursMini {
     pub sales_person_id: Uuid,
     pub sales_person_name: ImStr,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
     pub actual_hours: f32,
 }
 
@@ -28,6 +29,8 @@ pub struct EmployeeWorkDetails {
     pub friday: bool,
     pub saturday: bool,
     pub sunday: bool,
+
+    pub dynamic: bool,
 
     pub vacation_days: u8,
 
@@ -53,6 +56,8 @@ impl EmployeeWorkDetails {
             friday: true,
             saturday: true,
             sunday: false,
+
+            dynamic: false,
 
             vacation_days: 0,
 
@@ -133,6 +138,8 @@ impl TryFrom<&EmployeeWorkDetailsTO> for EmployeeWorkDetails {
             saturday: details.saturday,
             sunday: details.sunday,
 
+            dynamic: details.is_dynamic,
+
             vacation_days: details.vacation_days,
 
             created: details.created,
@@ -166,6 +173,8 @@ impl TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO {
             friday: details.friday,
             saturday: details.saturday,
             sunday: details.sunday,
+
+            is_dynamic: details.dynamic,
 
             vacation_days: details.vacation_days,
 
