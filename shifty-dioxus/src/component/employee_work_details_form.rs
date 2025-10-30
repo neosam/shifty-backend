@@ -51,6 +51,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
     let expected_hours_per_week_label = i18n.t(i18n::Key::ExpectedHoursPerWeekLabel);
     let days_per_week_label = i18n.t(i18n::Key::DaysPerWeekLabel);
     let vacation_days_label = i18n.t(i18n::Key::VacationEntitlementsPerYearLabel);
+    let dynamic_hour_label = i18n.t(i18n::Key::DynamicHourLabel);
     let holiday_in_hours_label = i18n.t(i18n::Key::HolidaysInHoursLabel);
     let workday_in_hours_label = i18n.t(i18n::Key::WorkdaysInHoursLabel);
 
@@ -237,7 +238,8 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     on_change: {
                         to_owned![employee_work_details];
                         move |value: f32| {
-                            if props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly
+                            if props.employee_work_details_form_type
+                                == EmployeeWorkDetailsFormType::ReadOnly
                             {
                                 return ();
                             }
@@ -288,14 +290,15 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     }
                 }
             }
-            FormPair { label: "Dynamische Stunden".into(),
+            FormPair { label: dynamic_hour_label,
                 Checkbox {
                     value: employee_work_details.dynamic,
                     disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
                     on_change: {
                         to_owned![employee_work_details];
                         move |value: bool| {
-                            if props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly
+                            if props.employee_work_details_form_type
+                                == EmployeeWorkDetailsFormType::ReadOnly
                             {
                                 return ();
                             }

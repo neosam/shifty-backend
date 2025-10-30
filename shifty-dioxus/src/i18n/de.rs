@@ -53,10 +53,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview page
     i18n.add_text(Locale::De, Key::WeeklyOverviewTitle, "Jahresübersicht");
+    i18n.add_text(Locale::De, Key::PaidVolunteer, "Bezahlt / Freiwillig");
     i18n.add_text(
         Locale::De,
         Key::AvailableRequiredHours,
-        "Verfügbare / Benötigte Stunden",
+        "Verfügbar / Benötigt",
     );
     i18n.add_text(Locale::De, Key::MissingHours, "Differenz");
     i18n.add_text(Locale::De, Key::UnsavedChanges, "Ungespeicherte Änderungen");
@@ -200,6 +201,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::VacationEntitlementsPerYearLabel,
         "Urlaubsanspruch im Jahr",
     );
+    i18n.add_text(Locale::De, Key::DynamicHourLabel, "Dynamische Stunden");
     i18n.add_text(Locale::De, Key::HolidaysInHoursLabel, "Feiertag in Stunden");
     i18n.add_text(
         Locale::De,
@@ -460,6 +462,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Neuen Verkäufer erstellen",
     );
     i18n.add_text(Locale::De, Key::Paid, "Bezahlt");
+    i18n.add_text(Locale::De, Key::Volunteer, "Freiwillig");
     i18n.add_text(Locale::De, Key::Inactive, "Inaktiv");
     i18n.add_text(Locale::De, Key::Login, "Anmelden");
     i18n.add_text(Locale::De, Key::LogoutUser, "Abmelden {user}");

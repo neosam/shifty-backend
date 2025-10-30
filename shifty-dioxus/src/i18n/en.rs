@@ -49,10 +49,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
+    i18n.add_text(Locale::En, Key::PaidVolunteer, "Paid / Volunteer");
     i18n.add_text(
         Locale::En,
         Key::AvailableRequiredHours,
-        "Available / Requested Hours",
+        "Available / Required",
     );
     i18n.add_text(Locale::En, Key::MissingHours, "Difference");
     i18n.add_text(Locale::En, Key::UnsavedChanges, "Unsaved changes");
@@ -181,6 +182,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::VacationEntitlementsPerYearLabel,
         "Vacation days",
     );
+    i18n.add_text(Locale::En, Key::DynamicHourLabel, "Dynamic hours");
     i18n.add_text(Locale::En, Key::HolidaysInHoursLabel, "Holidays in hours");
     i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Workdays in hours");
 
@@ -201,14 +203,14 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::WeekdayLabel, "Weekday");
     i18n.add_text(Locale::En, Key::SaveLabel, "Save");
     i18n.add_text(Locale::En, Key::CancelLabel, "Cancel");
-    i18n.add_text(
-        Locale::En,
-        Key::SlotEditSaveError,
-        "Error saving slot",
-    );
+    i18n.add_text(Locale::En, Key::SlotEditSaveError, "Error saving slot");
 
     // Custom extra hours management
-    i18n.add_text(Locale::En, Key::CustomExtraHoursManagement, "Custom Extra Hours Management");
+    i18n.add_text(
+        Locale::En,
+        Key::CustomExtraHoursManagement,
+        "Custom Extra Hours Management",
+    );
     i18n.add_text(Locale::En, Key::Name, "Name");
     i18n.add_text(Locale::En, Key::ModifiesBalance, "Modifies Balance");
     i18n.add_text(Locale::En, Key::Actions, "Actions");
@@ -220,8 +222,16 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     // Billing period management
     i18n.add_text(Locale::En, Key::BillingPeriods, "Billing Periods");
-    i18n.add_text(Locale::En, Key::BillingPeriodDetails, "Billing Period Details");
-    i18n.add_text(Locale::En, Key::CreateNewBillingPeriod, "➕ Create New Billing Period");
+    i18n.add_text(
+        Locale::En,
+        Key::BillingPeriodDetails,
+        "Billing Period Details",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CreateNewBillingPeriod,
+        "➕ Create New Billing Period",
+    );
     i18n.add_text(Locale::En, Key::BillingPeriod, "Billing Period");
     i18n.add_text(Locale::En, Key::StartDate, "Start Date");
     i18n.add_text(Locale::En, Key::EndDate, "End Date");
@@ -233,14 +243,42 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Deleted, "Deleted");
     i18n.add_text(Locale::En, Key::SalesPersons, "Sales Persons");
     i18n.add_text(Locale::En, Key::BasicInformation, "Basic Information");
-    i18n.add_text(Locale::En, Key::LoadingBillingPeriods, "Loading billing periods...");
-    i18n.add_text(Locale::En, Key::LoadingBillingPeriodDetails, "Loading billing period details...");
-    i18n.add_text(Locale::En, Key::CreateBillingPeriod, "Create Billing Period");
+    i18n.add_text(
+        Locale::En,
+        Key::LoadingBillingPeriods,
+        "Loading billing periods...",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::LoadingBillingPeriodDetails,
+        "Loading billing period details...",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CreateBillingPeriod,
+        "Create Billing Period",
+    );
     i18n.add_text(Locale::En, Key::Period, "Period");
-    i18n.add_text(Locale::En, Key::NoSalesPersonsInBillingPeriod, "No sales persons in this billing period.");
-    i18n.add_text(Locale::En, Key::SalesPersonsIncluded, "{count} sales persons included");
-    i18n.add_text(Locale::En, Key::FilterSalesPersonsByName, "Filter sales persons by name...");
-    i18n.add_text(Locale::En, Key::NoSalesPersonsMatchFilter, "No sales persons match the filter '{filter}'.");
+    i18n.add_text(
+        Locale::En,
+        Key::NoSalesPersonsInBillingPeriod,
+        "No sales persons in this billing period.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SalesPersonsIncluded,
+        "{count} sales persons included",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::FilterSalesPersonsByName,
+        "Filter sales persons by name...",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::NoSalesPersonsMatchFilter,
+        "No sales persons match the filter '{filter}'.",
+    );
     i18n.add_text(Locale::En, Key::ShowActive, "Active");
     i18n.add_text(Locale::En, Key::ShowInactive, "Show Inactive");
     i18n.add_text(Locale::En, Key::ShowPaid, "Paid");
@@ -250,11 +288,19 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::YtdFrom, "YTD From");
     i18n.add_text(Locale::En, Key::YtdTo, "YTD To");
     i18n.add_text(Locale::En, Key::FullYear, "Full Year");
-    i18n.add_text(Locale::En, Key::InvalidBillingPeriodId, "Invalid billing period id");
+    i18n.add_text(
+        Locale::En,
+        Key::InvalidBillingPeriodId,
+        "Invalid billing period id",
+    );
     i18n.add_text(Locale::En, Key::SelectEndDateForNewBillingPeriod, "Select the end date for the new billing period. The start date will be calculated automatically.");
 
     // Text templates
-    i18n.add_text(Locale::En, Key::TextTemplateManagement, "Text Template Management");
+    i18n.add_text(
+        Locale::En,
+        Key::TextTemplateManagement,
+        "Text Template Management",
+    );
     i18n.add_text(Locale::En, Key::TemplateType, "Template Type");
     i18n.add_text(Locale::En, Key::TemplateText, "Template Text");
     i18n.add_text(Locale::En, Key::AddNewTemplate, "Add New Template");
@@ -276,24 +322,60 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::UsersCount, "{count} users");
     i18n.add_text(Locale::En, Key::SalesPersonsCount, "{count} persons");
     i18n.add_text(Locale::En, Key::NoUsersFound, "No users found");
-    i18n.add_text(Locale::En, Key::AddFirstUserBelow, "Add your first user below");
-    i18n.add_text(Locale::En, Key::NoSalesPersonsFound, "No sales persons found");
-    i18n.add_text(Locale::En, Key::CreateFirstSalesPersonBelow, "Create your first sales person below");
+    i18n.add_text(
+        Locale::En,
+        Key::AddFirstUserBelow,
+        "Add your first user below",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::NoSalesPersonsFound,
+        "No sales persons found",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CreateFirstSalesPersonBelow,
+        "Create your first sales person below",
+    );
     i18n.add_text(Locale::En, Key::DeleteUser, "Delete user");
     i18n.add_text(Locale::En, Key::AddNewUser, "Add New User");
     i18n.add_text(Locale::En, Key::CreateUser, "Create User");
-    i18n.add_text(Locale::En, Key::CreateNewSalesPerson, "Create New Sales Person");
-    i18n.add_text(Locale::En, Key::ManageRolesAndPermissions, "Manage roles and permissions for this user.");
+    i18n.add_text(
+        Locale::En,
+        Key::CreateNewSalesPerson,
+        "Create New Sales Person",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ManageRolesAndPermissions,
+        "Manage roles and permissions for this user.",
+    );
     i18n.add_text(Locale::En, Key::RoleAssignments, "Role Assignments");
     i18n.add_text(Locale::En, Key::RolesCount, "{assigned} of {total} roles");
     i18n.add_text(Locale::En, Key::NoRolesAvailable, "No roles available");
-    i18n.add_text(Locale::En, Key::ContactAdministratorForRoles, "Contact your administrator to set up roles");
-    i18n.add_text(Locale::En, Key::BackToUserManagement, "Back to User Management");
+    i18n.add_text(
+        Locale::En,
+        Key::ContactAdministratorForRoles,
+        "Contact your administrator to set up roles",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::BackToUserManagement,
+        "Back to User Management",
+    );
     i18n.add_text(Locale::En, Key::ShiftplanColor, "Shiftplan Color");
     i18n.add_text(Locale::En, Key::ColorPreview, "Color preview");
     i18n.add_text(Locale::En, Key::Settings, "Settings");
-    i18n.add_text(Locale::En, Key::ThisPersonReceivesPayment, "This person receives payment");
-    i18n.add_text(Locale::En, Key::ThisPersonIsInactive, "This person is inactive");
+    i18n.add_text(
+        Locale::En,
+        Key::ThisPersonReceivesPayment,
+        "This person receives payment",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ThisPersonIsInactive,
+        "This person is inactive",
+    );
     i18n.add_text(Locale::En, Key::UserAccount, "User Account");
     i18n.add_text(Locale::En, Key::ConnectUserAccount, "Connect User Account");
     // User invitations
@@ -311,22 +393,59 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Redeemed, "Redeemed");
     i18n.add_text(Locale::En, Key::SessionRevoked, "Session Revoked");
     i18n.add_text(Locale::En, Key::NoInvitationsFound, "No invitations found");
-    i18n.add_text(Locale::En, Key::GenerateFirstInvitation, "Generate the first invitation below");
+    i18n.add_text(
+        Locale::En,
+        Key::GenerateFirstInvitation,
+        "Generate the first invitation below",
+    );
     i18n.add_text(Locale::En, Key::InvitationsCount, "{count} invitations");
-    i18n.add_text(Locale::En, Key::GenerateNewInvitation, "Generate New Invitation");
-    i18n.add_text(Locale::En, Key::OptionalExpirationHours, "Expiration (hours)");
+    i18n.add_text(
+        Locale::En,
+        Key::GenerateNewInvitation,
+        "Generate New Invitation",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::OptionalExpirationHours,
+        "Expiration (hours)",
+    );
     i18n.add_text(Locale::En, Key::SaveChanges, "Save Changes");
-    i18n.add_text(Locale::En, Key::LoadingSalesPersonDetails, "Loading sales person details...");
-    i18n.add_text(Locale::En, Key::SalesPersonSavedSuccessfully, "Sales person saved successfully!");
-    i18n.add_text(Locale::En, Key::EditSalesPersonInformation, "Edit sales person information");
-    i18n.add_text(Locale::En, Key::CreateNewSalesPersonTitle, "Create new sales person");
+    i18n.add_text(
+        Locale::En,
+        Key::LoadingSalesPersonDetails,
+        "Loading sales person details...",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SalesPersonSavedSuccessfully,
+        "Sales person saved successfully!",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::EditSalesPersonInformation,
+        "Edit sales person information",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CreateNewSalesPersonTitle,
+        "Create new sales person",
+    );
     i18n.add_text(Locale::En, Key::Paid, "Paid");
+    i18n.add_text(Locale::En, Key::Volunteer, "Volunteer");
     i18n.add_text(Locale::En, Key::Inactive, "Inactive");
     i18n.add_text(Locale::En, Key::Login, "Login");
     i18n.add_text(Locale::En, Key::LogoutUser, "Logout {user}");
     i18n.add_text(Locale::En, Key::ShiftplanReport, "Shiftplan Report");
-    i18n.add_text(Locale::En, Key::GenerateShiftplanReport, "Generate Shiftplan Report");
-    i18n.add_text(Locale::En, Key::ShiftplanReportGenerated, "Shiftplan Report Generated");
+    i18n.add_text(
+        Locale::En,
+        Key::GenerateShiftplanReport,
+        "Generate Shiftplan Report",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanReportGenerated,
+        "Shiftplan Report Generated",
+    );
     i18n.add_text(Locale::En, Key::CopyToClipboard, "Copy to Clipboard");
     i18n.add_text(Locale::En, Key::CopiedToClipboard, "Copied to clipboard!");
     i18n.add_text(Locale::En, Key::CopyFailed, "Failed to copy to clipboard");

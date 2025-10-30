@@ -84,6 +84,7 @@ pub enum Key {
 
     // Weekly overview page
     WeeklyOverviewTitle,
+    PaidVolunteer,
     AvailableRequiredHours,
     MissingHours,
     UnsavedChanges,
@@ -164,6 +165,7 @@ pub enum Key {
     ExpectedHours,
     DaysPerWeekLabel,
     VacationEntitlementsPerYearLabel,
+    DynamicHourLabel,
     HolidaysInHoursLabel,
     WorkdaysInHoursLabel,
 
@@ -291,6 +293,7 @@ pub enum Key {
     EditSalesPersonInformation,
     CreateNewSalesPersonTitle,
     Paid,
+    Volunteer,
     Inactive,
     Login,
     LogoutUser,
