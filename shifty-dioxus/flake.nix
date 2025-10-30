@@ -30,7 +30,7 @@
         };
         frontend-build = pkgs.rustPlatform.buildRustPackage rec {
           pname = "shifty-dioxus";
-          version = "1.3.0-flakes";
+          version = "1.4.1";
           
           src = ./.;
           

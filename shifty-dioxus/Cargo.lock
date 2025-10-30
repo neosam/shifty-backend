@@ -2118,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "shifty-dioxus"
-version = "1.3.0-flakes"
+version = "1.4.1"
 dependencies = [
  "async-recursion",
  "dioxus",
