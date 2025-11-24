@@ -7,6 +7,7 @@ use thiserror::Error;
 pub mod billing_period;
 pub mod billing_period_sales_person;
 pub mod booking;
+pub mod booking_log;
 pub mod carryover;
 pub mod custom_extra_hours;
 pub mod employee_work_details;

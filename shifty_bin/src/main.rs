@@ -197,6 +197,18 @@ type BookingInformationService = service_impl::booking_information::BookingInfor
     BookingInformationServiceDependencies,
 >;
 
+pub struct BookingLogServiceDependencies;
+impl service_impl::booking_log::BookingLogServiceDeps for BookingLogServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type BookingLogDao = dao_impl_sqlite::booking_log::BookingLogDaoImpl;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type BookingLogService = service_impl::booking_log::BookingLogServiceImpl<
+    BookingLogServiceDependencies,
+>;
+
 pub struct ExtraHoursServiceDependencies;
 impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDependencies {
     type Context = Context;
@@ -393,6 +405,7 @@ pub struct RestStateImpl {
     booking_service: Arc<BookingService>,
     custom_extra_hours_service: Arc<CustomExtraHoursService>,
     booking_information_service: Arc<BookingInformationService>,
+    booking_log_service: Arc<BookingLogService>,
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
     extra_hours_service: Arc<ExtraHoursService>,
@@ -417,6 +430,7 @@ impl rest::RestStateDef for RestStateImpl {
     type BookingService = BookingService;
     type CustomExtraHoursService = CustomExtraHoursService;
     type BookingInformationService = BookingInformationService;
+    type BookingLogService = BookingLogService;
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
     type ExtraHoursService = ExtraHoursService;
@@ -464,6 +478,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn booking_information_service(&self) -> Arc<Self::BookingInformationService> {
         self.booking_information_service.clone()
     }
+    fn booking_log_service(&self) -> Arc<Self::BookingLogService> {
+        self.booking_log_service.clone()
+    }
     fn reporting_service(&self) -> Arc<Self::ReportingService> {
         self.reporting_service.clone()
     }
@@ -510,6 +527,7 @@ impl RestStateImpl {
         let carryover_dao = Arc::new(CarryoverDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
+        let booking_log_dao = Arc::new(dao_impl_sqlite::booking_log::BookingLogDaoImpl);
         let extra_hours_dao = Arc::new(ExtraHoursDao::new(pool.clone()));
         let shiftplan_report_dao = Arc::new(ShiftplanReportDao::new(pool.clone()));
         let working_hours_dao = Arc::new(EmployeeWorkDetailsDao::new(pool.clone()));
@@ -583,6 +601,11 @@ impl RestStateImpl {
             uuid_service: uuid_service.clone(),
             sales_person_service: sales_person_service.clone(),
             slot_service: slot_service.clone(),
+        });
+        let booking_log_service = Arc::new(service_impl::booking_log::BookingLogServiceImpl {
+            booking_log_dao: booking_log_dao,
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
         });
         let custom_extra_hours_service = Arc::new(
             service_impl::custom_extra_hours::CustomExtraHoursServiceImpl {
@@ -747,6 +770,7 @@ impl RestStateImpl {
             booking_service,
             custom_extra_hours_service,
             booking_information_service,
+            booking_log_service,
             reporting_service,
             working_hours_service,
             extra_hours_service,

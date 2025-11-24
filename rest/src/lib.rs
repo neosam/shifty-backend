@@ -4,6 +4,7 @@ mod billing_period;
 mod block_report;
 mod booking;
 mod booking_information;
+mod booking_log;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;
@@ -259,6 +260,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type BookingLogService: service::booking_log::BookingLogService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type ReportingService: service::reporting::ReportingService<Context = Context>
         + Send
         + Sync
@@ -317,6 +322,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn booking_service(&self) -> Arc<Self::BookingService>;
     fn custom_extra_hours_service(&self) -> Arc<Self::CustomExtraHoursService>;
     fn booking_information_service(&self) -> Arc<Self::BookingInformationService>;
+    fn booking_log_service(&self) -> Arc<Self::BookingLogService>;
     fn reporting_service(&self) -> Arc<Self::ReportingService>;
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService>;
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService>;
@@ -420,6 +426,7 @@ pub async fn auth_info<RestState: RestStateDef>(
     nest(
         (path = "/billing-period", api = billing_period::BillingPeriodApiDoc),
         (path = "/block-report", api = block_report::BlockReportApiDoc),
+        (path = "/booking-log", api = booking_log::BookingLogApiDoc),
         (path = "/custom-extra-hours", api = CustomExtraHoursApiDoc),
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
@@ -481,6 +488,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             "/booking-information",
             booking_information::generate_route(),
         )
+        .nest("/booking-log", booking_log::generate_route())
         .nest("/report", report::generate_route())
         .nest("/working-hours", employee_work_details::generate_route())
         .nest(

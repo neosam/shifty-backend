@@ -117,6 +117,44 @@ impl From<&BookingTO> for Booking {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct BookingLogTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    pub name: Arc<str>,
+    #[schema(value_type = String, format = "time")]
+    pub time_from: time::Time,
+    #[schema(value_type = String, format = "time")]
+    pub time_to: time::Time,
+    #[schema(value_type = String, format = "date-time")]
+    pub created: PrimitiveDateTime,
+    #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted: Option<PrimitiveDateTime>,
+    pub created_by: Arc<str>,
+    #[serde(default)]
+    pub deleted_by: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::booking_log::BookingLog> for BookingLogTO {
+    fn from(log: &service::booking_log::BookingLog) -> Self {
+        Self {
+            year: log.year,
+            calendar_week: log.calendar_week,
+            day_of_week: log.day_of_week.into(),
+            name: log.name.clone(),
+            time_from: log.time_from,
+            time_to: log.time_to,
+            created: log.created,
+            deleted: log.deleted,
+            created_by: log.created_by.clone(),
+            deleted_by: log.deleted_by.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct SalesPersonTO {
     #[serde(default)]
     pub id: Uuid,

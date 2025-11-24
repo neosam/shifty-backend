@@ -8,6 +8,7 @@ pub mod block;
 pub mod block_report;
 pub mod booking;
 pub mod booking_information;
+pub mod booking_log;
 pub mod carryover;
 pub mod clock;
 pub mod config;
