@@ -1,6 +1,6 @@
 [package]
 name = "rest"
-version = "v1.5.0-dev"
+version = "1.5.0-dev"
 edition = "2021"
 resolver = "2"
 
@@ -12,17 +12,17 @@ oidc = ["dep:axum-oidc"]
 mock_auth = []
 
 [dependencies]
-axum = "0.8.3"
-bytes = "1.6.0"
-http = "1.1.0"
-http-body = "1.0.0"
-serde_json = "1.0.116"
+axum = "0.8.7"
+bytes = "1.11.0"
+http = "1.4.0"
+http-body = "1.0.1"
+serde_json = "1.0.145"
 time = { version = "0.3.36", features = ["serde-human-readable"] }
 tower-cookies = "0.10.0"
-tracing = "0.1.40"
+tracing = "0.1.41"
 
 [dependencies.tokio]
-version = "1.37.0"
+version = "1.48.0"
 features = ["full"]
 
 [dependencies.service]
@@ -40,7 +40,7 @@ version = "1.8.0"
 features = ["v4", "serde"]
 
 [dependencies.serde]
-version = "1.0"
+version = "1.0.228"
 features = ["derive", "std", "alloc", "rc"]
 
 [dependencies.utoipa]
