@@ -61,7 +61,7 @@ pub struct RolePrivilege {
     pub privilege: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct BookingTO {
     #[serde(default)]
     pub id: Uuid,
@@ -226,12 +226,14 @@ impl From<DayOfWeekTO> for Weekday {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct SlotTO {
     #[serde(default)]
     pub id: Uuid,
     pub day_of_week: DayOfWeekTO,
+    #[schema(value_type = String, format = "time")]
     pub from: time::Time,
+    #[schema(value_type = String, format = "time")]
     pub to: time::Time,
     pub min_resources: u8,
     pub valid_from: time::Date,
@@ -831,25 +833,25 @@ impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanBookingTO {
     pub booking: BookingTO,
     pub sales_person: Arc<SalesPersonTO>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanSlotTO {
     pub slot: SlotTO,
     pub bookings: Vec<ShiftplanBookingTO>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanDayTO {
     pub day_of_week: DayOfWeekTO,
     pub slots: Vec<ShiftplanSlotTO>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanWeekTO {
     pub year: u32,
     pub calendar_week: u8,
