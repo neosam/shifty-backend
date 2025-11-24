@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -97,6 +98,11 @@ pub trait SalesPersonService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Option<Arc<str>>, ServiceError>;
+    async fn get_all_user_assignments(
+        &self,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<HashMap<Uuid, Arc<str>>, ServiceError>;
     async fn set_user(
         &self,
         sales_person_id: Uuid,

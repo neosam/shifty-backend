@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -51,6 +52,10 @@ pub trait SalesPersonDao {
         sales_person_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<Option<Arc<str>>, DaoError>;
+    async fn get_all_user_assignments(
+        &self,
+        tx: Self::Transaction,
+    ) -> Result<HashMap<Uuid, Arc<str>>, DaoError>;
     async fn assign_to_user(
         &self,
         sales_person_id: Uuid,

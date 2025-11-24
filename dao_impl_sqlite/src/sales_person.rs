@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::{ResultDbErrorExt, TransactionImpl};
@@ -200,6 +201,26 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         .await
         .map_db_error()?
         .map(|result| result.user_id.into()))
+    }
+
+    async fn get_all_user_assignments(
+        &self,
+        tx: Self::Transaction,
+    ) -> Result<HashMap<Uuid, Arc<str>>, DaoError> {
+        let rows = query!(
+            "SELECT sales_person_id, user_id FROM sales_person_user"
+        )
+        .fetch_all(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        rows.iter()
+            .map(|row| {
+                let sales_person_id = Uuid::from_slice(&row.sales_person_id)?;
+                let user_id: Arc<str> = row.user_id.clone().into();
+                Ok((sales_person_id, user_id))
+            })
+            .collect::<Result<HashMap<_, _>, DaoError>>()
     }
 
     async fn find_sales_person_by_user_id(

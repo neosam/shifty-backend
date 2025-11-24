@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
     booking::BookingService,
-    permission::Authentication,
+    permission::{Authentication, PermissionService, SHIFTPLANNER_PRIVILEGE},
     sales_person::SalesPersonService,
     shiftplan::{ShiftplanBooking, ShiftplanDay, ShiftplanService, ShiftplanSlot, ShiftplanWeek},
     slot::SlotService,
@@ -19,6 +19,7 @@ gen_service_impl! {
         BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
         SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
         SpecialDayService: service::special_days::SpecialDayService<Context = Self::Context> = special_day_service,
+        PermissionService: service::permission::PermissionService<Context = Self::Context> = permission_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
@@ -84,6 +85,22 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
             .get_all(context.clone(), Some(tx.clone()))
             .await?;
 
+        // Check if user has SHIFTPLANNER permission and fetch user assignments if they do
+        let user_assignments = if self
+            .permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
+            .await
+            .is_ok()
+        {
+            Some(
+                self.sales_person_service
+                    .get_all_user_assignments(Authentication::Full, Some(tx.clone()))
+                    .await?,
+            )
+        } else {
+            None
+        };
+
         // Build days
         let mut days = Vec::new();
         for day_of_week in [
@@ -113,9 +130,19 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
                             .ok_or_else(|| ServiceError::EntityNotFound(booking.sales_person_id))?
                             .clone();
 
+                        // Calculate self_added by comparing booking.created_by with assigned user
+                        let self_added = user_assignments.as_ref().and_then(|assignments| {
+                            assignments
+                                .get(&booking.sales_person_id)
+                                .and_then(|assigned_user| {
+                                    booking.created_by.as_ref().map(|created_by| created_by == assigned_user)
+                                })
+                        });
+
                         Ok(ShiftplanBooking {
                             booking: booking.clone(),
                             sales_person,
+                            self_added,
                         })
                     })
                     .collect::<Result<Vec<_>, ServiceError>>()?;

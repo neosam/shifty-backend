@@ -431,7 +431,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
         (path = "/report", api = report::ReportApiDoc),
-        (path = "/shiftplan", api = shiftplan::ShiftplanApiDoc),
+        (path = "/shiftplan-info", api = shiftplan::ShiftplanApiDoc),
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),

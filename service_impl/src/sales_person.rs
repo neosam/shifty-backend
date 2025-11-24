@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -290,6 +291,23 @@ impl<Deps: SalesPersonServiceDeps> SalesPersonService for SalesPersonServiceImpl
         let ret = Ok(self
             .sales_person_dao
             .get_assigned_user(sales_person_id, tx.clone())
+            .await?);
+        self.transaction_dao.commit(tx).await?;
+        ret
+    }
+
+    async fn get_all_user_assignments(
+        &self,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<HashMap<Uuid, Arc<str>>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        self.permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
+            .await?;
+        let ret = Ok(self
+            .sales_person_dao
+            .get_all_user_assignments(tx.clone())
             .await?);
         self.transaction_dao.commit(tx).await?;
         ret

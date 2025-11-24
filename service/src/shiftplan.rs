@@ -27,6 +27,7 @@ pub struct ShiftplanSlot {
 pub struct ShiftplanBooking {
     pub booking: crate::booking::Booking,
     pub sales_person: crate::sales_person::SalesPerson,
+    pub self_added: Option<bool>,
 }
 
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]

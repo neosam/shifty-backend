@@ -2,6 +2,7 @@ use crate::test::error_test::*;
 use dao::{MockTransaction, MockTransactionDao};
 use service::{
     booking::MockBookingService,
+    permission::MockPermissionService,
     sales_person::{MockSalesPersonService, SalesPerson},
     shiftplan::ShiftplanService,
     slot::{MockSlotService, Slot},
@@ -57,6 +58,7 @@ pub struct ShiftplanServiceDependencies {
     pub booking_service: MockBookingService,
     pub sales_person_service: MockSalesPersonService,
     pub special_day_service: MockSpecialDayService,
+    pub permission_service: MockPermissionService,
     pub transaction_dao: MockTransactionDao,
 }
 impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
@@ -66,6 +68,7 @@ impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
     type BookingService = MockBookingService;
     type SalesPersonService = MockSalesPersonService;
     type SpecialDayService = MockSpecialDayService;
+    type PermissionService = MockPermissionService;
     type TransactionDao = MockTransactionDao;
 }
 
@@ -76,6 +79,7 @@ impl ShiftplanServiceDependencies {
             booking_service: self.booking_service.into(),
             sales_person_service: self.sales_person_service.into(),
             special_day_service: self.special_day_service.into(),
+            permission_service: self.permission_service.into(),
             transaction_dao: self.transaction_dao.into(),
         }
     }
@@ -105,11 +109,17 @@ pub fn build_dependencies() -> ShiftplanServiceDependencies {
         .expect_get_by_week()
         .returning(|_, _, _| Ok(Arc::new([])));
 
+    let mut permission_service = MockPermissionService::new();
+    permission_service
+        .expect_check_permission()
+        .returning(|_, _| Err(service::ServiceError::Forbidden));
+
     ShiftplanServiceDependencies {
         slot_service,
         booking_service,
         sales_person_service,
         special_day_service,
+        permission_service,
         transaction_dao,
     }
 }
