@@ -43,6 +43,7 @@ async fn get_shiftplan_week<RestState: RestStateDef>(
 
             Ok(Response::builder()
                 .status(200)
+                .header("Content-Type", "application/json")
                 .body(axum::body::Body::from(
                     serde_json::to_string(&shiftplan_to).unwrap(),
                 ))
