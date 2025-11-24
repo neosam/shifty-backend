@@ -91,6 +91,7 @@ pub struct Booking {
     pub year: u32,
     pub label: Rc<str>,
     pub background_color: Rc<str>,
+    pub self_added: bool,
 }
 impl From<&BookingTO> for Booking {
     fn from(booking: &BookingTO) -> Self {
@@ -102,6 +103,7 @@ impl From<&BookingTO> for Booking {
             year: booking.year,
             label: "value".into(),
             background_color: "#FFF".into(),
+            self_added: false,
         }
     }
 }

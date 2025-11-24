@@ -828,6 +828,7 @@ impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
 pub struct ShiftplanBookingTO {
     pub booking: BookingTO,
     pub sales_person: Arc<SalesPersonTO>,
+    pub self_added: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

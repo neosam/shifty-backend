@@ -215,26 +215,34 @@ where
 
 impl From<Slot> for ColumnViewItem<Slot> {
     fn from(slot: Slot) -> Self {
-        let mut bookings: Vec<ColumnViewContentItem> = slot.bookings
+        let mut bookings: Vec<ColumnViewContentItem> = slot
+            .bookings
             .iter()
             .map(|booking| ColumnViewContentItem {
                 id: booking.sales_person_id,
-                title: booking.label.clone(),
+                title: if booking.self_added {
+                    format!("{}*", booking.label).into()
+                } else {
+                    booking.label.clone()
+                },
                 background_color: booking.background_color.clone(),
             })
             .collect();
-        
+
         // Add min_resources indicator as the first item
-        bookings.insert(0, ColumnViewContentItem {
-            id: uuid::Uuid::nil(), // Use nil UUID for the indicator
-            title: format!("{}/{}", slot.bookings.len(), slot.min_resources).into(),
-            background_color: if slot.bookings.len() != slot.min_resources as usize {
-                "#ffcccc".into() // Light red background when understaffed
-            } else {
-                "#fff".into() // Light green background when adequately staffed
+        bookings.insert(
+            0,
+            ColumnViewContentItem {
+                id: uuid::Uuid::nil(), // Use nil UUID for the indicator
+                title: format!("{}/{}", slot.bookings.len(), slot.min_resources).into(),
+                background_color: if slot.bookings.len() != slot.min_resources as usize {
+                    "#ffcccc".into() // Light red background when understaffed
+                } else {
+                    "#fff".into() // Light green background when adequately staffed
+                },
             },
-        });
-        
+        );
+
         ColumnViewItem {
             start: slot.from_hour(),
             end: slot.to_hour(),
@@ -477,7 +485,10 @@ pub fn WeekView(props: WeekViewProps) -> Element {
             div { class: format!("flex flex-row {}", zoom_class),
                 // Fixed time column
                 div { class: "flex-shrink-0 sticky left-0 z-10 bg-white border-r border-gray-200",
-                    TimeView { start: day_start.ceil() as u8, end: day_end.ceil() as u8 }
+                    TimeView {
+                        start: day_start.ceil() as u8,
+                        end: day_end.ceil() as u8,
+                    }
                 }
                 // Scrollable weekdays container
                 div { class: "flex flex-row overflow-x-auto flex-grow",

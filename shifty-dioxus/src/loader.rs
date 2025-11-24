@@ -144,6 +144,7 @@ pub async fn load_shift_plan(
                     year: booking.booking.year,
                     label: booking.sales_person.name.as_ref().into(),
                     background_color: booking.sales_person.background_color.as_ref().into(),
+                    self_added: booking.self_added.unwrap_or(false),
                 })
                 .collect(),
         })
