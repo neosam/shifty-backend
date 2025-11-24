@@ -1,4 +1,5 @@
 pub mod auth_info;
+pub mod booking_log;
 pub mod config;
 pub mod dropdown;
 pub mod employee;

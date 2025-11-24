@@ -8,6 +8,7 @@ use crate::{
     base_types::ImStr,
     error::ShiftyError,
     state::{
+        booking_log::BookingLog,
         employee::{Employee, ExtraHours},
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
         sales_person_available::SalesPersonUnavailable,
@@ -391,6 +392,18 @@ pub async fn load_bookings_conflicts_for_week(
         .await?
         .iter()
         .map(|booking_conflict_to| BookingConflict::from(booking_conflict_to))
+        .collect())
+}
+
+pub async fn load_booking_log(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[BookingLog]>, ShiftyError> {
+    Ok(api::get_booking_log(config, year, week)
+        .await?
+        .iter()
+        .map(|booking_log_to| BookingLog::from(booking_log_to))
         .collect())
 }
 

@@ -47,6 +47,19 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::Cs, Key::WeekMessage, "Týdenní zpráva");
 
+    // Booking log
+    i18n.add_text(Locale::Cs, Key::BookingLogTitle, "Protokol rezervací");
+    i18n.add_text(Locale::Cs, Key::BookingLogShow, "Zobrazit protokol rezervací");
+    i18n.add_text(Locale::Cs, Key::BookingLogHide, "Skrýt protokol rezervací");
+    i18n.add_text(Locale::Cs, Key::BookingLogLoading, "Načítání...");
+    i18n.add_text(Locale::Cs, Key::BookingLogDay, "Den");
+    i18n.add_text(Locale::Cs, Key::BookingLogName, "Jméno");
+    i18n.add_text(Locale::Cs, Key::BookingLogTime, "Čas");
+    i18n.add_text(Locale::Cs, Key::BookingLogCreated, "Vytvořeno");
+    i18n.add_text(Locale::Cs, Key::BookingLogCreatedBy, "Vytvořil");
+    i18n.add_text(Locale::Cs, Key::BookingLogDeleted, "Smazáno");
+    i18n.add_text(Locale::Cs, Key::BookingLogDeletedBy, "Smazal");
+
     // Weekly overview page
     i18n.add_text(Locale::Cs, Key::WeeklyOverviewTitle, "Týdenní přehled");
     i18n.add_text(

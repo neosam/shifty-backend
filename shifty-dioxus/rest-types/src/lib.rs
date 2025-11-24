@@ -162,6 +162,26 @@ impl From<&SalesPersonTO> for SalesPerson {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct BookingLogTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    pub name: Arc<str>,
+    #[schema(value_type = String, format = "time")]
+    pub time_from: time::Time,
+    #[schema(value_type = String, format = "time")]
+    pub time_to: time::Time,
+    #[schema(value_type = String, format = "date-time")]
+    pub created: PrimitiveDateTime,
+    #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted: Option<PrimitiveDateTime>,
+    pub created_by: Arc<str>,
+    #[serde(default)]
+    pub deleted_by: Option<Arc<str>>,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, ToSchema)]
 pub enum DayOfWeekTO {
     Monday,

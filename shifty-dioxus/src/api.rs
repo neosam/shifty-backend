@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BillingPeriodTO, BookingConflictTO, BookingTO, CreateBillingPeriodRequestTO, 
-    CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, 
+    BillingPeriodTO, BookingConflictTO, BookingLogTO, BookingTO, CreateBillingPeriodRequestTO,
+    CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO,
     EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, GenerateInvitationRequest,
-    InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, 
+    InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
-    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeeklySummaryTO, 
+    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeeklySummaryTO,
     WeekMessageTO,
 };
 use tracing::info;
@@ -567,6 +567,20 @@ pub async fn get_booking_conflicts_for_week(
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
+    Ok(res)
+}
+
+pub async fn get_booking_log(
+    config: Config,
+    year: u32,
+    week: u8,
+) -> Result<Rc<[BookingLogTO]>, reqwest::Error> {
+    info!("Fetching booking log for week {week} in year {year}");
+    let url = format!("{}/booking-log/{}/{}", config.backend, year, week);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched booking log");
     Ok(res)
 }
 

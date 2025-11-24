@@ -47,6 +47,19 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::WeekMessage, "Week Message");
 
+    // Booking log
+    i18n.add_text(Locale::En, Key::BookingLogTitle, "Booking Log");
+    i18n.add_text(Locale::En, Key::BookingLogShow, "Show Booking Log");
+    i18n.add_text(Locale::En, Key::BookingLogHide, "Hide Booking Log");
+    i18n.add_text(Locale::En, Key::BookingLogLoading, "Loading...");
+    i18n.add_text(Locale::En, Key::BookingLogDay, "Day");
+    i18n.add_text(Locale::En, Key::BookingLogName, "Name");
+    i18n.add_text(Locale::En, Key::BookingLogTime, "Time");
+    i18n.add_text(Locale::En, Key::BookingLogCreated, "Created");
+    i18n.add_text(Locale::En, Key::BookingLogCreatedBy, "Created By");
+    i18n.add_text(Locale::En, Key::BookingLogDeleted, "Deleted");
+    i18n.add_text(Locale::En, Key::BookingLogDeletedBy, "Deleted By");
+
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
     i18n.add_text(Locale::En, Key::PaidVolunteer, "Paid / Volunteer");

@@ -82,6 +82,19 @@ pub enum Key {
     UnsufficientlyBookedCalendarExport,
     WeekMessage,
 
+    // Booking log
+    BookingLogTitle,
+    BookingLogShow,
+    BookingLogHide,
+    BookingLogLoading,
+    BookingLogDay,
+    BookingLogName,
+    BookingLogTime,
+    BookingLogCreated,
+    BookingLogCreatedBy,
+    BookingLogDeleted,
+    BookingLogDeletedBy,
+
     // Weekly overview page
     WeeklyOverviewTitle,
     PaidVolunteer,

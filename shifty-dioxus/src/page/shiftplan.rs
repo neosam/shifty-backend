@@ -6,6 +6,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
+use crate::component::booking_log_table::BookingLogTable;
 use crate::component::dropdown_base::DropdownTrigger;
 use crate::component::slot_edit::SlotEdit;
 use crate::component::week_view::WeekViewButtonTypes;
@@ -19,6 +20,7 @@ use crate::loader;
 use crate::service::auth::AUTH;
 use crate::service::booking_conflict::BookingConflictAction;
 use crate::service::booking_conflict::BOOKING_CONFLICTS_STORE;
+use crate::service::booking_log::{BookingLogAction, BOOKING_LOG_STORE};
 use crate::service::config::CONFIG;
 use crate::service::i18n::I18N;
 use crate::service::slot_edit::SlotEditAction;
@@ -76,6 +78,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let booking_conflicts = BOOKING_CONFLICTS_STORE.read().clone();
     let working_hours_mini_service = use_coroutine_handle::<WorkingHoursMiniAction>();
     let booking_conflict_service = use_coroutine_handle::<BookingConflictAction>();
+    let booking_log_service = use_coroutine_handle::<BookingLogAction>();
     let weekly_summary_service = use_coroutine_handle::<WeeklySummaryAction>();
     let weekly_summary = WEEKLY_SUMMARY_STORE.read().clone();
     let slot_edit_service = use_coroutine_handle::<SlotEditAction>();
@@ -146,6 +149,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut generating_report = use_signal(|| false);
     let mut copy_status = use_signal(|| None::<String>);
 
+    // Booking log state
+    let mut show_booking_log = use_signal(|| false);
+
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
     } else if js::current_datetime().date() - date > time::Duration::weeks(2) && !is_hr {
@@ -161,6 +167,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 handle_text_template_action(TextTemplateAction::LoadTemplatesByType("shiftplan-report".to_string())).await;
             });
         }
+    });
+
+    // Collapse booking log when week or year changes
+    use_effect(move || {
+        let _ = week.read();
+        let _ = year.read();
+        show_booking_log.set(false);
     });
 
     //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
@@ -881,6 +894,44 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 }
                                             } else {
                                                 rsx! { div {} }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Booking Log Section (only visible for shiftplanner role)
+                            if is_shiftplanner {
+                                div { class: "bg-white shadow rounded-lg p-6 mt-6 print:hidden",
+                                    // Header with toggle button
+                                    div { class: "flex justify-between items-center mb-4",
+                                        h2 { class: "text-xl font-semibold", "{i18n.t(Key::BookingLogTitle)}" }
+                                        button {
+                                            onclick: move |_| {
+                                                let should_show = !*show_booking_log.read();
+                                                if should_show {
+                                                    // Load booking log when expanding
+                                                    booking_log_service.send(BookingLogAction::LoadBookingLog(
+                                                        *year.read(),
+                                                        *week.read(),
+                                                    ));
+                                                }
+                                                show_booking_log.set(should_show);
+                                            },
+                                            class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded",
+                                            if *show_booking_log.read() {
+                                                "{i18n.t(Key::BookingLogHide)}"
+                                            } else {
+                                                "{i18n.t(Key::BookingLogShow)}"
+                                            }
+                                        }
+                                    }
+
+                                    // Booking log table (only shown when expanded)
+                                    if *show_booking_log.read() {
+                                        div { class: "mt-4",
+                                            BookingLogTable {
+                                                bookings: BOOKING_LOG_STORE.read().clone()
                                             }
                                         }
                                     }

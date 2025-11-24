@@ -2,6 +2,7 @@ pub mod add_extra_days_form;
 pub mod add_extra_hours_choice;
 pub mod add_extra_hours_form;
 pub mod base_components;
+pub mod booking_log_table;
 pub mod dropdown_base;
 pub mod employee_short;
 pub mod employee_view;
