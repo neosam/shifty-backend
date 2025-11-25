@@ -11,6 +11,7 @@ pub mod footer;
 pub mod modal;
 pub mod overlay;
 pub mod slot_edit;
+pub mod tooltip;
 pub mod top_bar;
 pub mod week_view;
 pub mod error_view;

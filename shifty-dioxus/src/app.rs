@@ -1,5 +1,6 @@
 use crate::auth::Auth;
 use crate::component::dropdown_base::DropdownBase;
+use crate::component::tooltip::TooltipBase;
 use crate::component::{Footer, TopBar};
 use crate::page::NotAuthenticated;
 use crate::router::Route;
@@ -11,6 +12,7 @@ use web_sys::window;
 pub fn App() -> Element {
     use_coroutine(service::config::config_service);
     use_coroutine(service::dropdown::dropdown_service);
+    use_coroutine(service::tooltip::tooltip_service);
     use_coroutine(service::i18n::i18n_service);
     use_coroutine(service::working_hours_mini::working_hours_mini_service);
     use_coroutine(service::user_management::user_management_service);
@@ -40,6 +42,7 @@ pub fn App() -> Element {
             document::Stylesheet { href: asset!("./assets/tailwind.css") }
             div { class: "flex flex-col",
                 DropdownBase {}
+                TooltipBase {}
                 Auth {
                     authenticated: rsx! {
                         Router::<Route> {}

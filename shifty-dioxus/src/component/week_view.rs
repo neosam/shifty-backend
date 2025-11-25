@@ -5,9 +5,11 @@ use crate::{
     base_types::ImStr,
     component::dropdown_base::DropdownTrigger,
     service::i18n::I18N,
+    service::tooltip::TooltipAction,
     state::{self, dropdown::DropdownEntry, Slot, Weekday},
 };
 use dioxus::prelude::*;
+use gloo_timers::future::TimeoutFuture;
 use tracing::info;
 use uuid::Uuid;
 
@@ -114,11 +116,14 @@ where
                                 .collect();
                             let item_clicked = props.item_clicked.clone();
                             items.sort_by_key(|item| item.title.clone());
+                            let tooltip_service = use_coroutine_handle::<TooltipAction>();
                             rsx! {
                                 div { class: "flex flex-row overflow-scroll no-scrollbar flex-wrap gap-1 m-1",
                                     for item in items.iter() {
                                         {
                                             let item_id = item.id;
+                                            let item_tooltip = item.tooltip.clone();
+                                            let mut timeout_task = use_signal(|| None::<Task>);
                                             rsx! {
                                                 p {
                                                     class: format!(
@@ -134,8 +139,87 @@ where
                                                         info!("Item clicked");
                                                         ()
                                                     },
+                                                    onmousedown: {
+                                                        let tooltip = item_tooltip.clone();
+                                                        move |e: Event<MouseData>| {
+                                                            // Cancel any existing timeout
+                                                            if let Some(task) = timeout_task.read().as_ref() {
+                                                                task.cancel();
+                                                            }
+
+                                                            if tooltip.is_some() {
+                                                                let coords = e.data().page_coordinates();
+                                                                let tooltip_content = tooltip.clone().unwrap();
+
+                                                                // Spawn task to show tooltip after 500ms
+                                                                let task = spawn(async move {
+                                                                    TimeoutFuture::new(500).await;
+                                                                    tooltip_service.send(TooltipAction::ShowTooltip(
+                                                                        coords.x,
+                                                                        coords.y + 20.0,
+                                                                        tooltip_content,
+                                                                    ));
+                                                                });
+                                                                *timeout_task.write() = Some(task);
+                                                            }
+                                                        }
+                                                    },
+                                                    onmouseup: move |_| {
+                                                        // Cancel timeout if still pending, but keep tooltip if shown
+                                                        if let Some(task) = timeout_task.read().as_ref() {
+                                                            task.cancel();
+                                                        }
+                                                        *timeout_task.write() = None;
+                                                    },
+                                                    onmouseleave: move |_| {
+                                                        // Cancel timeout to prevent tooltip from showing
+                                                        if let Some(task) = timeout_task.read().as_ref() {
+                                                            task.cancel();
+                                                        }
+                                                        *timeout_task.write() = None;
+                                                    },
+                                                    ontouchstart: {
+                                                        let tooltip = item_tooltip.clone();
+                                                        move |_| {
+                                                            // Cancel any existing timeout
+                                                            if let Some(task) = timeout_task.read().as_ref() {
+                                                                task.cancel();
+                                                            }
+
+                                                            if tooltip.is_some() {
+                                                                let tooltip_content = tooltip.clone().unwrap();
+
+                                                                // Spawn task to show tooltip after 500ms (centered for touch)
+                                                                let task = spawn(async move {
+                                                                    TimeoutFuture::new(500).await;
+                                                                    let window = web_sys::window().unwrap();
+                                                                    let width = window.inner_width().unwrap().as_f64().unwrap();
+                                                                    let height = window.inner_height().unwrap().as_f64().unwrap();
+                                                                    tooltip_service.send(TooltipAction::ShowTooltip(
+                                                                        width / 2.0 - 100.0,
+                                                                        height / 2.0 - 50.0,
+                                                                        tooltip_content,
+                                                                    ));
+                                                                });
+                                                                *timeout_task.write() = Some(task);
+                                                            }
+                                                        }
+                                                    },
+                                                    ontouchend: move |_| {
+                                                        // Cancel timeout if still pending, but keep tooltip if shown
+                                                        if let Some(task) = timeout_task.read().as_ref() {
+                                                            task.cancel();
+                                                        }
+                                                        *timeout_task.write() = None;
+                                                    },
+                                                    ontouchcancel: move |_| {
+                                                        // Cancel timeout to prevent tooltip from showing
+                                                        if let Some(task) = timeout_task.read().as_ref() {
+                                                            task.cancel();
+                                                        }
+                                                        *timeout_task.write() = None;
+                                                    },
                                                     style: format!("background-color: {}", item.background_color),
-                                                    title: item.tooltip.as_ref().map(|t| t.as_ref()).unwrap_or(""),
                                                     "{item.title.clone()}"
                                                 }
                                             }
