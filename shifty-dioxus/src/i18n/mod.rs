@@ -94,6 +94,14 @@ pub enum Key {
     BookingLogCreatedBy,
     BookingLogDeleted,
     BookingLogDeletedBy,
+    BookingLogFilterName,
+    BookingLogFilterDay,
+    BookingLogFilterStatus,
+    BookingLogFilterCreatedBy,
+    BookingLogFilterClear,
+    BookingLogFilterAll,
+    BookingLogFilterActiveOnly,
+    BookingLogFilterDeletedOnly,
 
     // Weekly overview page
     WeeklyOverviewTitle,

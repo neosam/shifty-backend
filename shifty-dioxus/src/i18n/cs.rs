@@ -59,6 +59,14 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::BookingLogCreatedBy, "Vytvořil");
     i18n.add_text(Locale::Cs, Key::BookingLogDeleted, "Smazáno");
     i18n.add_text(Locale::Cs, Key::BookingLogDeletedBy, "Smazal");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterName, "Filtrovat podle jména");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterDay, "Filtrovat podle dne");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterStatus, "Filtrovat podle stavu");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterCreatedBy, "Filtrovat podle tvůrce");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterClear, "Vymazat filtry");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterAll, "Vše");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterActiveOnly, "Pouze aktivní");
+    i18n.add_text(Locale::Cs, Key::BookingLogFilterDeletedOnly, "Pouze smazané");
 
     // Weekly overview page
     i18n.add_text(Locale::Cs, Key::WeeklyOverviewTitle, "Týdenní přehled");

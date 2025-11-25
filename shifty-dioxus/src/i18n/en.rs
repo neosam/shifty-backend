@@ -59,6 +59,14 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::BookingLogCreatedBy, "Created By");
     i18n.add_text(Locale::En, Key::BookingLogDeleted, "Deleted");
     i18n.add_text(Locale::En, Key::BookingLogDeletedBy, "Deleted By");
+    i18n.add_text(Locale::En, Key::BookingLogFilterName, "Filter by Name");
+    i18n.add_text(Locale::En, Key::BookingLogFilterDay, "Filter by Day");
+    i18n.add_text(Locale::En, Key::BookingLogFilterStatus, "Filter by Status");
+    i18n.add_text(Locale::En, Key::BookingLogFilterCreatedBy, "Filter by Creator");
+    i18n.add_text(Locale::En, Key::BookingLogFilterClear, "Clear Filters");
+    i18n.add_text(Locale::En, Key::BookingLogFilterAll, "All");
+    i18n.add_text(Locale::En, Key::BookingLogFilterActiveOnly, "Active Only");
+    i18n.add_text(Locale::En, Key::BookingLogFilterDeletedOnly, "Deleted Only");
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");

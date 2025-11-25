@@ -151,6 +151,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     // Booking log state
     let mut show_booking_log = use_signal(|| false);
+    let mut booking_log_name_filter = use_signal(|| String::new());
+    let mut booking_log_day_filter = use_signal(|| None::<Weekday>);
+    let mut booking_log_status_filter = use_signal(|| "all".to_string());
+    let mut booking_log_created_by_filter = use_signal(|| "all".to_string());
 
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
@@ -169,11 +173,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         }
     });
 
-    // Collapse booking log when week or year changes
+    // Collapse booking log and reset filters when week or year changes
     use_effect(move || {
         let _ = week.read();
         let _ = year.read();
         show_booking_log.set(false);
+        booking_log_name_filter.set(String::new());
+        booking_log_day_filter.set(None);
+        booking_log_status_filter.set("all".to_string());
+        booking_log_created_by_filter.set("all".to_string());
     });
 
     //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
@@ -931,7 +939,29 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     if *show_booking_log.read() {
                                         div { class: "mt-4",
                                             BookingLogTable {
-                                                bookings: BOOKING_LOG_STORE.read().clone()
+                                                bookings: BOOKING_LOG_STORE.read().clone(),
+                                                name_filter: booking_log_name_filter.read().clone(),
+                                                on_name_filter_change: move |value: String| {
+                                                    booking_log_name_filter.set(value);
+                                                },
+                                                day_filter: *booking_log_day_filter.read(),
+                                                on_day_filter_change: move |value: Option<Weekday>| {
+                                                    booking_log_day_filter.set(value);
+                                                },
+                                                status_filter: booking_log_status_filter.read().clone(),
+                                                on_status_filter_change: move |value: String| {
+                                                    booking_log_status_filter.set(value);
+                                                },
+                                                created_by_filter: booking_log_created_by_filter.read().clone(),
+                                                on_created_by_filter_change: move |value: String| {
+                                                    booking_log_created_by_filter.set(value);
+                                                },
+                                                on_clear_filters: move |_| {
+                                                    booking_log_name_filter.set(String::new());
+                                                    booking_log_day_filter.set(None);
+                                                    booking_log_status_filter.set("all".to_string());
+                                                    booking_log_created_by_filter.set("all".to_string());
+                                                }
                                             }
                                         }
                                     }
