@@ -146,6 +146,8 @@ pub async fn load_shift_plan(
                     label: booking.sales_person.name.as_ref().into(),
                     background_color: booking.sales_person.background_color.as_ref().into(),
                     self_added: booking.self_added.unwrap_or(false),
+                    created: booking.booking.created,
+                    created_by: booking.booking.created_by.as_ref().map(|s| s.to_string().into()),
                 })
                 .collect(),
         })

@@ -67,6 +67,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::BookingLogFilterAll, "All");
     i18n.add_text(Locale::En, Key::BookingLogFilterActiveOnly, "Active Only");
     i18n.add_text(Locale::En, Key::BookingLogFilterDeletedOnly, "Deleted Only");
+    i18n.add_text(Locale::En, Key::BookingNoInfo, "No information available");
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");

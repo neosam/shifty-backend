@@ -102,6 +102,7 @@ pub enum Key {
     BookingLogFilterAll,
     BookingLogFilterActiveOnly,
     BookingLogFilterDeletedOnly,
+    BookingNoInfo,
 
     // Weekly overview page
     WeeklyOverviewTitle,

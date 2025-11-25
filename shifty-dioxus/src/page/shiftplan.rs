@@ -705,6 +705,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         cr.send(ShiftPlanAction::ToggleAvailability(weekday));
                                     }
                                 },
+                                is_shiftplanner,
                             }
                             
                             // Week Message Section

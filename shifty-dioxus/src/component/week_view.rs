@@ -18,6 +18,7 @@ pub struct ColumnViewContentItem {
     pub id: Uuid,
     pub title: Rc<str>,
     pub background_color: Rc<str>,
+    pub tooltip: Option<Rc<str>>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -134,6 +135,7 @@ where
                                                         ()
                                                     },
                                                     style: format!("background-color: {}", item.background_color),
+                                                    title: item.tooltip.as_ref().map(|t| t.as_ref()).unwrap_or(""),
                                                     "{item.title.clone()}"
                                                 }
                                             }
@@ -226,6 +228,7 @@ impl From<Slot> for ColumnViewItem<Slot> {
                     booking.label.clone()
                 },
                 background_color: booking.background_color.clone(),
+                tooltip: None, // Tooltip generation requires i18n context
             })
             .collect();
 
@@ -240,6 +243,7 @@ impl From<Slot> for ColumnViewItem<Slot> {
                 } else {
                     "#fff".into() // Light green background when adequately staffed
                 },
+                tooltip: None, // Min resources indicator doesn't need a tooltip
             },
         );
 
@@ -257,6 +261,82 @@ impl From<Slot> for ColumnViewItem<Slot> {
             dropdown_entries: None,
             custom_data: slot,
         }
+    }
+}
+
+/// Convert a Slot to a ColumnViewItem with tooltip support for shiftplanners
+fn slot_to_column_view_item_with_tooltips(
+    slot: Slot,
+    is_shiftplanner: bool,
+    i18n: &crate::i18n::I18n<crate::i18n::Key, crate::i18n::Locale>,
+) -> ColumnViewItem<Slot> {
+    let mut bookings: Vec<ColumnViewContentItem> = slot
+        .bookings
+        .iter()
+        .map(|booking| {
+            let tooltip = if is_shiftplanner {
+                match (&booking.created, &booking.created_by) {
+                    (Some(created), Some(created_by)) => {
+                        let date_str = i18n.format_date(&created.date());
+                        let time_str = created.time();
+                        Some(
+                            format!(
+                                "{} {} {} {}",
+                                i18n.t(crate::i18n::Key::BookingLogCreatedBy),
+                                created_by,
+                                date_str,
+                                time_str
+                            )
+                            .into(),
+                        )
+                    }
+                    _ => Some(i18n.t(crate::i18n::Key::BookingNoInfo)),
+                }
+            } else {
+                None
+            };
+
+            ColumnViewContentItem {
+                id: booking.sales_person_id,
+                title: if booking.self_added {
+                    format!("{}*", booking.label).into()
+                } else {
+                    booking.label.clone()
+                },
+                background_color: booking.background_color.clone(),
+                tooltip,
+            }
+        })
+        .collect();
+
+    // Add min_resources indicator as the first item
+    bookings.insert(
+        0,
+        ColumnViewContentItem {
+            id: uuid::Uuid::nil(),
+            title: format!("{}/{}", slot.bookings.len(), slot.min_resources).into(),
+            background_color: if slot.bookings.len() != slot.min_resources as usize {
+                "#ffcccc".into()
+            } else {
+                "#fff".into()
+            },
+            tooltip: None,
+        },
+    );
+
+    ColumnViewItem {
+        start: slot.from_hour(),
+        end: slot.to_hour(),
+        show_add: true,
+        show_remove: true,
+        title: ColumnViewContent::Items(bookings.into()),
+        warning: if slot.evaluation().is_faulty() {
+            Some("Too few resources".into())
+        } else {
+            None
+        },
+        dropdown_entries: None,
+        custom_data: slot,
     }
 }
 
@@ -366,6 +446,9 @@ pub struct DayViewProps {
     pub header: Option<Rc<str>>,
 
     pub discourage: bool,
+
+    #[props(default = false)]
+    pub is_shiftplanner: bool,
 }
 
 #[component]
@@ -386,7 +469,7 @@ pub fn DayView(props: DayViewProps) -> Element {
             slots: props
                 .slots
                 .iter()
-                .map(|slot| ColumnViewItem::from(slot.clone()))
+                .map(|slot| slot_to_column_view_item_with_tooltips(slot.clone(), props.is_shiftplanner, &i18n))
                 .map(|column| ColumnViewItem {
                     start: column.start - props.day_start,
                     end: column.end - props.day_start,
@@ -438,6 +521,9 @@ pub struct WeekViewProps {
 
     #[props(default = Vec::new())]
     pub weekday_headers: Vec<(Weekday, Rc<str>)>,
+
+    #[props(default = false)]
+    pub is_shiftplanner: bool,
 }
 
 enum Zoom {
@@ -523,6 +609,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                                     .iter()
                                     .find(|(day, _)| day == weekday)
                                     .map(|(_, text)| text.clone()),
+                                is_shiftplanner: props.is_shiftplanner,
                             }
                         }
                     }

@@ -67,6 +67,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::BookingLogFilterAll, "Vše");
     i18n.add_text(Locale::Cs, Key::BookingLogFilterActiveOnly, "Pouze aktivní");
     i18n.add_text(Locale::Cs, Key::BookingLogFilterDeletedOnly, "Pouze smazané");
+    i18n.add_text(Locale::Cs, Key::BookingNoInfo, "Žádné informace k dispozici");
 
     // Weekly overview page
     i18n.add_text(Locale::Cs, Key::WeeklyOverviewTitle, "Týdenní přehled");

@@ -6,7 +6,8 @@
       "Bash(grep:*)",
       "Bash(cargo test:*)",
       "Bash(cargo search:*)",
-      "Bash(cargo:*)"
+      "Bash(cargo:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": [],

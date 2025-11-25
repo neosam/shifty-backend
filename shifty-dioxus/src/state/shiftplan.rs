@@ -92,6 +92,8 @@ pub struct Booking {
     pub label: Rc<str>,
     pub background_color: Rc<str>,
     pub self_added: bool,
+    pub created: Option<time::PrimitiveDateTime>,
+    pub created_by: Option<Rc<str>>,
 }
 impl From<&BookingTO> for Booking {
     fn from(booking: &BookingTO) -> Self {
@@ -104,6 +106,8 @@ impl From<&BookingTO> for Booking {
             label: "value".into(),
             background_color: "#FFF".into(),
             self_added: false,
+            created: None,
+            created_by: None,
         }
     }
 }
