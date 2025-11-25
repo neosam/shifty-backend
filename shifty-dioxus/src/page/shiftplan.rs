@@ -182,6 +182,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         booking_log_day_filter.set(None);
         booking_log_status_filter.set("all".to_string());
         booking_log_created_by_filter.set("all".to_string());
+
+        // Clear booking log data to prevent showing stale data
+        *BOOKING_LOG_STORE.write() = [].into();
     });
 
     //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
