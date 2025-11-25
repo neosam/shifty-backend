@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sales_person_id, user_id FROM sales_person_user",
+  "describe": {
+    "columns": [
+      {
+        "name": "sales_person_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7b78fc49381b67d70b2ad33b1249f3bcb5ce6f1a2e26373adbc16618764030ba"
+}

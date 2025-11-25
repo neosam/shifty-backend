@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                name,\n                year,\n                calendar_week,\n                day_of_week,\n                time_from,\n                time_to,\n                created,\n                deleted,\n                created_by,\n                deleted_by\n            FROM bookings_view\n            WHERE year = ? AND calendar_week = ?\n            ORDER BY day_of_week, time_from\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "year",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "day_of_week",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "time_from",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "time_to",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_by",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted_by",
+        "ordinal": 9,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "415dcfbeb504d74106f39e2302a415680838ca36a121957e59b792ba2b5bf752"
+}
