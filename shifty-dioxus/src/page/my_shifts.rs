@@ -151,7 +151,7 @@ pub fn MyShifts() -> Element {
                                                                 rsx! {
                                                                     div { class: "flex items-center space-x-4 p-2 bg-white border rounded",
                                                                         span { class: "font-medium w-40",
-                                                                            "{weekday_name} ({date_str})"
+                                                                            "{weekday_name}, {date_str}"
                                                                         }
                                                                         span { class: "text-gray-600",
                                                                             "{time_from} - {time_to}"
