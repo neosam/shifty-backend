@@ -1266,3 +1266,36 @@ pub struct UpdateTextTemplateRequestTO {
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BlockTO {
+    pub year: u32,
+    pub week: u8,
+    pub sales_person: Option<SalesPersonTO>,
+    pub day_of_week: DayOfWeekTO,
+    #[schema(value_type = String, format = "time")]
+    pub from: time::Time,
+    #[schema(value_type = String, format = "time")]
+    pub to: time::Time,
+    pub bookings: Vec<BookingTO>,
+    pub slots: Vec<SlotTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::block::Block> for BlockTO {
+    fn from(block: &service::block::Block) -> Self {
+        Self {
+            year: block.year,
+            week: block.week,
+            sales_person: block
+                .sales_person
+                .as_ref()
+                .map(|sp| SalesPersonTO::from(sp.as_ref())),
+            day_of_week: block.day_of_week.into(),
+            from: block.from,
+            to: block.to,
+            bookings: block.bookings.iter().map(BookingTO::from).collect(),
+            slots: block.slots.iter().map(|s| SlotTO::from(s)).collect(),
+        }
+    }
+}

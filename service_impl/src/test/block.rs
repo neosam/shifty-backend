@@ -375,3 +375,155 @@ async fn test_get_blocks_non_consecutive_bookings() {
 
 // If you have other edge cases (e.g., cross-day or cross-week merges),
 // add more tests accordingly.
+
+// ========== Tests for get_blocks_for_current_user ==========
+
+use shifty_utils::ShiftyWeek;
+
+/// Test: when no sales person is associated with the current user, return empty blocks.
+#[tokio::test]
+async fn test_get_blocks_for_current_user_no_sales_person() {
+    let mut deps = build_dependencies();
+
+    // Override sales_person_service to return None for current user
+    deps.sales_person_service = MockSalesPersonService::new();
+    deps.sales_person_service
+        .expect_get_sales_person_current_user()
+        .returning(|_, _| Ok(None));
+
+    let service = deps.build_service();
+    let result = service
+        .get_blocks_for_current_user(
+            ShiftyWeek::new(2025, 3),
+            ShiftyWeek::new(2025, 5),
+            ().auth(),
+            None,
+        )
+        .await;
+
+    assert!(result.is_ok(), "Expected Ok result");
+    let blocks = result.unwrap();
+    assert!(blocks.is_empty(), "Expected no blocks when no sales person");
+}
+
+/// Test: single week with bookings returns sorted blocks.
+#[tokio::test]
+async fn test_get_blocks_for_current_user_single_week() {
+    let mut deps = build_dependencies();
+
+    // Override sales_person_service to return a sales person for current user
+    deps.sales_person_service = MockSalesPersonService::new();
+    deps.sales_person_service
+        .expect_get_sales_person_current_user()
+        .returning(|_, _| Ok(Some(default_sales_person())));
+    deps.sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(default_sales_person()));
+
+    // Mock booking service to return bookings for week 3
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(3), eq(2025), always(), always())
+        .returning(|_, _, _, _| Ok(vec![default_booking(), second_booking()].into()));
+
+    // Mock slot service
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|slot_id, _, _| {
+            if *slot_id == default_slot_id() {
+                Ok(default_slot())
+            } else {
+                Ok(second_slot())
+            }
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .get_blocks_for_current_user(
+            ShiftyWeek::new(2025, 3),
+            ShiftyWeek::new(2025, 3),
+            ().auth(),
+            None,
+        )
+        .await;
+
+    assert!(result.is_ok(), "Expected Ok result");
+    let blocks = result.unwrap();
+    assert_eq!(blocks.len(), 1, "Expected one merged block");
+    assert_eq!(blocks[0].from, Time::from_hms(9, 0, 0).unwrap());
+    assert_eq!(blocks[0].to, Time::from_hms(11, 0, 0).unwrap());
+}
+
+/// Test: multiple weeks returns all blocks sorted by date and time.
+#[tokio::test]
+async fn test_get_blocks_for_current_user_multiple_weeks() {
+    let mut deps = build_dependencies();
+
+    // Override sales_person_service
+    deps.sales_person_service = MockSalesPersonService::new();
+    deps.sales_person_service
+        .expect_get_sales_person_current_user()
+        .returning(|_, _| Ok(Some(default_sales_person())));
+    deps.sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(default_sales_person()));
+
+    // Mock booking service - return bookings for weeks 3, 4, 5
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|week, year, _, _| {
+            let mut booking = default_booking();
+            booking.calendar_week = week as i32;
+            booking.year = year;
+            Ok(vec![booking].into())
+        });
+
+    // Mock slot service
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(default_slot()));
+
+    let service = deps.build_service();
+    let result = service
+        .get_blocks_for_current_user(
+            ShiftyWeek::new(2025, 3),
+            ShiftyWeek::new(2025, 5),
+            ().auth(),
+            None,
+        )
+        .await;
+
+    assert!(result.is_ok(), "Expected Ok result");
+    let blocks = result.unwrap();
+    // Should have blocks for weeks 3, 4, and 5
+    assert_eq!(blocks.len(), 3, "Expected blocks for 3 weeks");
+
+    // Verify sorted order by week
+    assert_eq!(blocks[0].week, 3);
+    assert_eq!(blocks[1].week, 4);
+    assert_eq!(blocks[2].week, 5);
+}
+
+/// Test: forbidden error propagates correctly.
+#[tokio::test]
+async fn test_get_blocks_for_current_user_forbidden() {
+    let mut deps = build_dependencies();
+
+    // Override sales_person_service to return Forbidden
+    deps.sales_person_service = MockSalesPersonService::new();
+    deps.sales_person_service
+        .expect_get_sales_person_current_user()
+        .returning(|_, _| Err(ServiceError::Forbidden));
+
+    let service = deps.build_service();
+    let result = service
+        .get_blocks_for_current_user(
+            ShiftyWeek::new(2025, 3),
+            ShiftyWeek::new(2025, 5),
+            ().auth(),
+            None,
+        )
+        .await;
+
+    test_forbidden(&result);
+}

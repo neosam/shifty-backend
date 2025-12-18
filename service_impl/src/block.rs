@@ -13,7 +13,7 @@ use service::{
     slot::{Slot, SlotService},
     ServiceError,
 };
-use shifty_utils::DayOfWeek;
+use shifty_utils::{DayOfWeek, ShiftyWeek};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -363,5 +363,53 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
 
         self.transaction_dao.commit(tx).await?;
         Ok(insufficient_blocks.into())
+    }
+
+    #[instrument(skip(self))]
+    async fn get_blocks_for_current_user(
+        &self,
+        from: ShiftyWeek,
+        until: ShiftyWeek,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[Block]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Get the sales person for the current user
+        let sales_person = match self
+            .sales_person_service
+            .get_sales_person_current_user(context.clone(), Some(tx.clone()))
+            .await?
+        {
+            Some(sp) => sp,
+            None => {
+                self.transaction_dao.commit(tx).await?;
+                return Ok(Arc::new([]));
+            }
+        };
+
+        // Collect blocks for all weeks in the range
+        let mut all_blocks = Vec::new();
+        for week in from.iter_until(&until) {
+            let week_blocks = self
+                .get_blocks_for_sales_person_week(
+                    sales_person.id,
+                    week.year,
+                    week.week,
+                    context.clone(),
+                    Some(tx.clone()),
+                )
+                .await?;
+            all_blocks.extend_from_slice(&week_blocks);
+        }
+
+        // Sort blocks by date (year, week, day_of_week) and then by start time
+        all_blocks.sort_by(|a, b| {
+            (a.year, a.week, a.day_of_week.to_number(), a.from)
+                .cmp(&(b.year, b.week, b.day_of_week.to_number(), b.from))
+        });
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(Arc::from(all_blocks))
     }
 }

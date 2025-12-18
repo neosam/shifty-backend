@@ -8,6 +8,7 @@ mod booking_log;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;
+mod my_block;
 mod permission;
 mod report;
 mod sales_person;
@@ -430,6 +431,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/custom-extra-hours", api = CustomExtraHoursApiDoc),
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
+        (path = "/blocks", api = my_block::MyBlockApiDoc),
         (path = "/report", api = report::ReportApiDoc),
         (path = "/shiftplan-info", api = shiftplan::ShiftplanApiDoc),
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
@@ -496,6 +498,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             employee_work_details::generate_route(),
         )
         .nest("/extra-hours", extra_hours::generate_route())
+        .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
         .nest("/shiftplan-info", shiftplan::generate_route())

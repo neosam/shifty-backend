@@ -5,7 +5,7 @@ use crate::ServiceError;
 use crate::{booking::Booking, sales_person::SalesPerson, slot::Slot};
 use async_trait::async_trait;
 use mockall::automock;
-use shifty_utils::DayOfWeek;
+use shifty_utils::{DayOfWeek, ShiftyWeek};
 use time::Time;
 use uuid::Uuid;
 
@@ -99,6 +99,24 @@ pub trait BlockService {
         &self,
         year: u32,
         week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[Block]>, ServiceError>;
+
+    /// Returns all blocks for the currently logged-in user within the specified week range.
+    ///
+    /// The blocks are ordered by date (year, week, day of week) and then by start time.
+    /// If the logged-in user is not associated with a sales person, returns an empty list.
+    ///
+    /// # Arguments
+    /// * `from` - The start week (inclusive)
+    /// * `until` - The end week (inclusive)
+    /// * `context` - Authentication context to identify the current user
+    /// * `tx` - Optional transaction for database operations
+    async fn get_blocks_for_current_user(
+        &self,
+        from: ShiftyWeek,
+        until: ShiftyWeek,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Block]>, ServiceError>;
