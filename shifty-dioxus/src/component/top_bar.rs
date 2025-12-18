@@ -50,6 +50,11 @@ pub fn TopBar() -> Element {
     } else {
         false
     };
+    let show_my_shifts = if let Some(ref auth_info) = auth_info {
+        auth_info.has_privilege("sales")
+    } else {
+        false
+    };
 
     rsx! {
         div { class: "flex bg-gray-800 text-white p-4 md:p-0 items-center print:hidden",
@@ -76,6 +81,11 @@ pub fn TopBar() -> Element {
                     if show_shiftplan {
                         li {
                             Link { to: Route::ShiftPlan {}, {i18n.t(Key::Shiftplan)} }
+                        }
+                    }
+                    if show_my_shifts {
+                        li {
+                            Link { to: Route::MyShifts {}, {i18n.t(Key::MyShifts)} }
                         }
                     }
                     if is_paid && !show_reports {

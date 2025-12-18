@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "service-impl")]
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
@@ -62,7 +62,7 @@ pub struct RolePrivilege {
     pub privilege: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct BookingTO {
     #[serde(default)]
     pub id: Uuid,
@@ -118,6 +118,44 @@ impl From<&BookingTO> for Booking {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct BookingLogTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    pub name: Arc<str>,
+    #[schema(value_type = String, format = "time")]
+    pub time_from: time::Time,
+    #[schema(value_type = String, format = "time")]
+    pub time_to: time::Time,
+    #[schema(value_type = String, format = "date-time")]
+    pub created: PrimitiveDateTime,
+    #[serde(default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
+    pub deleted: Option<PrimitiveDateTime>,
+    pub created_by: Arc<str>,
+    #[serde(default)]
+    pub deleted_by: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::booking_log::BookingLog> for BookingLogTO {
+    fn from(log: &service::booking_log::BookingLog) -> Self {
+        Self {
+            year: log.year,
+            calendar_week: log.calendar_week,
+            day_of_week: log.day_of_week.into(),
+            name: log.name.clone(),
+            time_from: log.time_from,
+            time_to: log.time_to,
+            created: log.created,
+            deleted: log.deleted,
+            created_by: log.created_by.clone(),
+            deleted_by: log.deleted_by.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct SalesPersonTO {
     #[serde(default)]
     pub id: Uuid,
@@ -160,26 +198,6 @@ impl From<&SalesPersonTO> for SalesPerson {
             version: sales_person.version,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
-pub struct BookingLogTO {
-    pub year: u32,
-    pub calendar_week: u8,
-    pub day_of_week: DayOfWeekTO,
-    pub name: Arc<str>,
-    #[schema(value_type = String, format = "time")]
-    pub time_from: time::Time,
-    #[schema(value_type = String, format = "time")]
-    pub time_to: time::Time,
-    #[schema(value_type = String, format = "date-time")]
-    pub created: PrimitiveDateTime,
-    #[serde(default)]
-    #[schema(value_type = Option<String>, format = "date-time")]
-    pub deleted: Option<PrimitiveDateTime>,
-    pub created_by: Arc<str>,
-    #[serde(default)]
-    pub deleted_by: Option<Arc<str>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, ToSchema)]
@@ -247,12 +265,14 @@ impl From<DayOfWeekTO> for Weekday {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct SlotTO {
     #[serde(default)]
     pub id: Uuid,
     pub day_of_week: DayOfWeekTO,
+    #[schema(value_type = String, format = "time")]
     pub from: time::Time,
+    #[schema(value_type = String, format = "time")]
     pub to: time::Time,
     pub min_resources: u8,
     pub valid_from: time::Date,
@@ -312,6 +332,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             sales_person: SalesPersonTO::from(report.sales_person.as_ref()),
             balance_hours: report.balance_hours,
             expected_hours: report.expected_hours,
+            dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
         }
     }
@@ -382,6 +403,7 @@ pub struct WorkingHoursReportTO {
     pub from: time::Date,
     pub to: time::Date,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
     pub overall_hours: f32,
     pub balance: f32,
 
@@ -410,6 +432,7 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             from: hours.from.to_date(),
             to: hours.to.to_date(),
             expected_hours: hours.expected_hours,
+            dynamic_hours: hours.dynamic_hours,
             overall_hours: hours.overall_hours,
             balance: hours.balance,
             days_per_week: hours.days_per_week,
@@ -439,8 +462,8 @@ pub struct EmployeeReportTO {
 
     pub balance_hours: f32,
     pub overall_hours: f32,
-    pub dynamic_hours: f32,
     pub expected_hours: f32,
+    pub dynamic_hours: f32,
 
     pub shiftplan_hours: f32,
     pub extra_work_hours: f32,
@@ -470,6 +493,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             balance_hours: report.balance_hours,
             overall_hours: report.overall_hours,
             expected_hours: report.expected_hours,
+            dynamic_hours: report.dynamic_hours,
             shiftplan_hours: report.shiftplan_hours,
             extra_work_hours: report.extra_work_hours,
             vacation_hours: report.vacation_hours,
@@ -552,6 +576,7 @@ impl From<&service::employee_work_details::EmployeeWorkDetails> for EmployeeWork
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
+            is_dynamic: working_hours.is_dynamic,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -588,6 +613,7 @@ impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWo
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
+            is_dynamic: working_hours.is_dynamic,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -801,6 +827,8 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
             week: weekly_summary.week,
             overall_available_hours: weekly_summary.overall_available_hours,
             required_hours: weekly_summary.required_hours,
+            paid_hours: weekly_summary.paid_hours,
+            volunteer_hours: weekly_summary.volunteer_hours,
             monday_available_hours: weekly_summary.monday_available_hours,
             tuesday_available_hours: weekly_summary.tuesday_available_hours,
             wednesday_available_hours: weekly_summary.wednesday_available_hours,
@@ -844,26 +872,26 @@ impl From<&SpecialDayTypeTO> for service::special_days::SpecialDayType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanBookingTO {
     pub booking: BookingTO,
     pub sales_person: Arc<SalesPersonTO>,
     pub self_added: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanSlotTO {
     pub slot: SlotTO,
     pub bookings: Vec<ShiftplanBookingTO>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanDayTO {
     pub day_of_week: DayOfWeekTO,
     pub slots: Vec<ShiftplanSlotTO>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ShiftplanWeekTO {
     pub year: u32,
     pub calendar_week: u8,
@@ -876,6 +904,7 @@ impl From<&service::shiftplan::ShiftplanBooking> for ShiftplanBookingTO {
         Self {
             booking: (&booking.booking).into(),
             sales_person: Arc::new((&booking.sales_person).into()),
+            self_added: booking.self_added,
         }
     }
 }
@@ -1237,6 +1266,39 @@ pub struct UpdateTextTemplateRequestTO {
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BlockTO {
+    pub year: u32,
+    pub week: u8,
+    pub sales_person: Option<SalesPersonTO>,
+    pub day_of_week: DayOfWeekTO,
+    #[schema(value_type = String, format = "time")]
+    pub from: time::Time,
+    #[schema(value_type = String, format = "time")]
+    pub to: time::Time,
+    pub bookings: Vec<BookingTO>,
+    pub slots: Vec<SlotTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::block::Block> for BlockTO {
+    fn from(block: &service::block::Block) -> Self {
+        Self {
+            year: block.year,
+            week: block.week,
+            sales_person: block
+                .sales_person
+                .as_ref()
+                .map(|sp| SalesPersonTO::from(sp.as_ref())),
+            day_of_week: block.day_of_week.into(),
+            from: block.from,
+            to: block.to,
+            bookings: block.bookings.iter().map(BookingTO::from).collect(),
+            slots: block.slots.iter().map(|s| SlotTO::from(s)).collect(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]

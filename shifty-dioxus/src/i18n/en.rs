@@ -471,4 +471,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CopyToClipboard, "Copy to Clipboard");
     i18n.add_text(Locale::En, Key::CopiedToClipboard, "Copied to clipboard!");
     i18n.add_text(Locale::En, Key::CopyFailed, "Failed to copy to clipboard");
+
+    // My Shifts page
+    i18n.add_text(Locale::En, Key::MyShifts, "My Shifts");
+    i18n.add_text(Locale::En, Key::NoShiftsFound, "No shifts found for this period.");
 }

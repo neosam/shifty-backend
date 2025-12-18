@@ -325,6 +325,10 @@ pub enum Key {
     CopyToClipboard,
     CopiedToClipboard,
     CopyFailed,
+
+    // My Shifts page
+    MyShifts,
+    NoShiftsFound,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

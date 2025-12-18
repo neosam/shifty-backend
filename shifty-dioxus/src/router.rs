@@ -6,6 +6,7 @@ pub use crate::page::EmployeeDetails;
 pub use crate::page::Employees;
 pub use crate::page::Home;
 pub use crate::page::MyEmployeeDetails;
+pub use crate::page::MyShifts;
 pub use crate::page::SalesPersonDetails;
 pub use crate::page::ShiftPlan;
 pub use crate::page::ShiftPlanDeep;
@@ -42,4 +43,6 @@ pub enum Route {
     TextTemplateManagement {},
     #[route("/billing_period/:billing_period_id/")]
     BillingPeriodDetails { billing_period_id: String },
+    #[route("/my-shifts/")]
+    MyShifts {},
 }

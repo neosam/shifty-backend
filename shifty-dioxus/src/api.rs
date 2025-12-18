@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BillingPeriodTO, BookingConflictTO, BookingLogTO, BookingTO, CreateBillingPeriodRequestTO,
-    CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO,
-    EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, GenerateInvitationRequest,
-    InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
-    ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
+    BillingPeriodTO, BlockTO, BookingConflictTO, BookingLogTO, BookingTO,
+    CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO,
+    EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO,
+    GenerateInvitationRequest, InvitationResponse, RoleTO, SalesPersonTO,
+    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
     UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeeklySummaryTO,
     WeekMessageTO,
 };
@@ -1004,4 +1004,23 @@ pub async fn revoke_session_for_invitation(
     response.error_for_status_ref()?;
     info!("Revoked session for invitation");
     Ok(())
+}
+
+pub async fn get_blocks(
+    config: Config,
+    from_year: u32,
+    from_week: u8,
+    to_year: u32,
+    to_week: u8,
+) -> Result<Rc<[BlockTO]>, reqwest::Error> {
+    info!("Fetching blocks from {from_year}/{from_week} to {to_year}/{to_week}");
+    let url = format!(
+        "{}/blocks/{}/{}/{}/{}",
+        config.backend, from_year, from_week, to_year, to_week
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched blocks");
+    Ok(res)
 }

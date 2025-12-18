@@ -1,4 +1,4 @@
-use rest_types::{ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
+use rest_types::{BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -665,4 +665,15 @@ pub async fn revoke_invitation_session(
 ) -> Result<(), ShiftyError> {
     api::revoke_session_for_invitation(config, invitation_id).await?;
     Ok(())
+}
+
+pub async fn load_blocks(
+    config: Config,
+    from_year: u32,
+    from_week: u8,
+    to_year: u32,
+    to_week: u8,
+) -> Result<Rc<[BlockTO]>, ShiftyError> {
+    let blocks = api::get_blocks(config, from_year, from_week, to_year, to_week).await?;
+    Ok(blocks)
 }
