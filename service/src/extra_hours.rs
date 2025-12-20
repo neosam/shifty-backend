@@ -18,7 +18,6 @@ use async_trait::async_trait;
 use mockall::automock;
 use shifty_utils::LazyLoad;
 use shifty_utils::ShiftyDate;
-use shifty_utils::ShiftyWeek;
 use uuid::Uuid;
 
 use crate::{custom_extra_hours::CustomExtraHours, permission::Authentication, ServiceError};

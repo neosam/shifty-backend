@@ -65,3 +65,7 @@ version = "0.14"
 [dependencies.axum-oidc]
 version = "0.6"
 optional = true
+
+
+[lints.rust]
+warnings = "deny"

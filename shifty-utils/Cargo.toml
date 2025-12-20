@@ -6,3 +6,7 @@ edition = "2024"
 [dependencies]
 thiserror = "2.0.12"
 time = "0.3.41"
+
+
+[lints.rust]
+warnings = "deny"

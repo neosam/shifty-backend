@@ -32,3 +32,7 @@ features = ["serde-human-readable"]
 [dependencies.utoipa]
 version = "5"
 features = ["time", "rc_schema", "uuid"]
+
+
+[lints.rust]
+warnings = "deny"

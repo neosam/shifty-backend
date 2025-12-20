@@ -8,10 +8,9 @@ use axum::{
     Extension, Json, Router,
 };
 use rest_types::WeekMessageTO;
-use serde::Deserialize;
 use service::week_message::WeekMessageService;
 use tracing::instrument;
-use utoipa::{IntoParams, OpenApi};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
@@ -30,17 +29,6 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             "/by-year-and-week/{year}/{week}",
             get(get_week_message_by_year_and_week::<RestState>),
         )
-}
-
-#[derive(Clone, Debug, Deserialize, IntoParams)]
-#[into_params(parameter_in = Query)]
-pub struct WeekMessageQueryParams {
-    #[param(example = "2025")]
-    pub year: Option<u32>,
-
-    #[param(example = "3")]
-    #[serde(rename = "calendar-week")]
-    pub calendar_week: Option<u8>,
 }
 
 #[instrument(skip(rest_state))]

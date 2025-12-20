@@ -184,7 +184,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     });
                 }
             }
-            let mut overall_available_hours = volunteer_hours + paid_hours;
+            let overall_available_hours = volunteer_hours + paid_hours;
             weekly_report.push(WeeklySummary {
                 year,
                 week,
@@ -286,7 +286,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 });
             }
         }
-        let mut overall_available_hours = volunteer_hours + paid_hours;
+        let overall_available_hours = volunteer_hours + paid_hours;
 
         // Calculate available hours per day
         let mut monday_hours = 0.0;

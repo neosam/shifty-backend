@@ -19,7 +19,7 @@ struct BillingPeriodDb {
     created_by: String,
     deleted: Option<String>,
     deleted_by: Option<String>,
-    update_version: Vec<u8>,
+    _update_version: Vec<u8>,
 }
 
 impl TryFrom<&BillingPeriodDb> for BillingPeriodEntity {
@@ -90,7 +90,7 @@ impl BillingPeriodDao for BillingPeriodDaoImpl {
     ) -> Result<Arc<[BillingPeriodEntity]>, DaoError> {
         Ok(query_as!(
             BillingPeriodDb,
-            "SELECT id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version FROM billing_period"
+            "SELECT id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version as _update_version FROM billing_period"
         )
         .fetch_all(tx.tx.lock().await.as_mut())
         .await

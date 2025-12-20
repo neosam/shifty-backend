@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dao::billing_period::{self, BillingPeriodDao, BillingPeriodEntity};
+use dao::billing_period::{BillingPeriodDao, BillingPeriodEntity};
 use dao::billing_period_sales_person::{
     BillingPeriodSalesPersonDao, BillingPeriodSalesPersonEntity,
 };

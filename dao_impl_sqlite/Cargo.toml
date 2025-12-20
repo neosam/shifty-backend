@@ -25,3 +25,7 @@ path = "../dao"
 [dependencies.time]
 version = "0.3.36"
 features = ["parsing"]
+
+
+[lints.rust]
+warnings = "deny"

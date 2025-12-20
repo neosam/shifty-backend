@@ -23,3 +23,6 @@ features = ["test-util", "macros"]
 [dependencies.time]
 version = "0.3.36"
 features = ["parsing", "macros", "formatting"]
+
+[lints.rust]
+warnings = "deny"

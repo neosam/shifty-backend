@@ -24,3 +24,7 @@ path = "../shifty-utils"
 
 [dev-dependencies.tokio]
 version = "1.44"
+
+
+[lints.rust]
+warnings = "deny"
