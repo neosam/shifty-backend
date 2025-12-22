@@ -37,25 +37,25 @@ impl<Deps: BookingServiceDeps> BookingServiceImpl<Deps> {
     ) -> Result<(), ServiceError> {
         let (shiftplanner_permission, sales_permission) = join!(
             self.permission_service
-                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone().into()),
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
             self.permission_service
-                .check_permission(SALES_PRIVILEGE, context.clone().into()),
+                .check_permission(SALES_PRIVILEGE, context.clone()),
         );
         shiftplanner_permission.or(sales_permission)?;
 
         if self
             .permission_service
-            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone().into())
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
             .await
             .is_err()
         {
             if let Some(username) = self
                 .sales_person_service
-                .get_assigned_user(sales_person_id, Authentication::Full, tx.clone().into())
+                .get_assigned_user(sales_person_id, Authentication::Full, tx.clone())
                 .await?
             {
                 self.permission_service
-                    .check_user(username.as_ref(), context.clone().into())
+                    .check_user(username.as_ref(), context.clone())
                     .await?;
             } else {
                 return Err(ServiceError::Forbidden);
@@ -331,7 +331,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             })
             .collect();
 
-        for booking in from_week.into_iter() {
+        for booking in from_week.iter() {
             self.create(booking, Authentication::Full, tx.clone().into())
                 .await?;
         }

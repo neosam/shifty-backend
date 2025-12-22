@@ -40,12 +40,12 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
                 "Custom" => ExtraHoursCategoryEntity::Custom(Uuid::from_slice(
                     extra_hours.custom_extra_hours_id.as_ref(),
                 )?),
-                value @ _ => return Err(DaoError::EnumValueNotFound(value.into())),
+                value => return Err(DaoError::EnumValueNotFound(value.into())),
             },
             description: extra_hours
                 .description
                 .clone()
-                .unwrap_or_else(|| String::new())
+                .unwrap_or_default()
                 .as_str()
                 .into(),
             date_time: PrimitiveDateTime::parse(
@@ -114,8 +114,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .map_db_error()?
             .iter()
             .map(ExtraHoursEntity::try_from)
-            .collect::<Result<Arc<[_]>, _>>()?
-            .into())
+            .collect::<Result<Arc<[_]>, _>>()?)
     }
 
     async fn find_by_week(
@@ -141,8 +140,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .map_db_error()?
             .iter()
             .map(ExtraHoursEntity::try_from)
-            .collect::<Result<Arc<[_]>, _>>()?
-            .into())
+            .collect::<Result<Arc<[_]>, _>>()?)
     }
 
     async fn create(

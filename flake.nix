@@ -38,6 +38,7 @@
             rustc
             cargo
             cargo-watch
+            clippy
             rust-analyzer
             sqlx-cli
             sqlite

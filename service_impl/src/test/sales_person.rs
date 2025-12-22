@@ -832,5 +832,5 @@ async fn test_exists() {
         .exists(default_id(), ().auth(), None)
         .await
         .unwrap();
-    assert_eq!(false, !result);
+    assert!(result);
 }

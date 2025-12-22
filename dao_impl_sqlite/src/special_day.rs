@@ -36,12 +36,12 @@ impl TryFrom<&SpecialDayDb> for SpecialDayEntity {
             day_type: match entity.day_type.as_str() {
                 "Holiday" => SpecialDayTypeEntity::Holiday,
                 "ShortDay" => SpecialDayTypeEntity::ShortDay,
-                value @ _ => return Err(DaoError::EnumValueNotFound(value.into())),
+                value => return Err(DaoError::EnumValueNotFound(value.into())),
             },
             time_of_day: entity
                 .time_of_day
                 .as_ref()
-                .map(|time_of_day| Time::parse(&time_of_day, &time_format))
+                .map(|time_of_day| Time::parse(time_of_day, &time_format))
                 .transpose()?,
             created: PrimitiveDateTime::parse(&entity.created, &Iso8601::DATE_TIME)?,
             deleted: entity

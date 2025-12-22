@@ -45,10 +45,7 @@ fn combine(
 
         let created = PrimitiveDateTime::parse(&custom_hours.created, &Iso8601::DATE_TIME).unwrap();
 
-        let deleted = match &custom_hours.deleted {
-            Some(deleted) => Some(PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME).unwrap()),
-            None => None,
-        };
+        let deleted = custom_hours.deleted.as_ref().map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME).unwrap());
 
         let version = Uuid::from_slice(&custom_hours.update_version).unwrap();
 

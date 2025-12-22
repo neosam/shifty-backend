@@ -75,8 +75,8 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             .await?;
         let bookings_for_person: Vec<_> = all_bookings
             .iter()
-            .cloned()
             .filter(|b| b.sales_person_id == sales_person_id)
+            .cloned()
             .collect();
 
         dbg!(&bookings_for_person);

@@ -25,7 +25,7 @@ impl From<&dao::slot::SlotEntity> for Slot {
     fn from(slot: &dao::slot::SlotEntity) -> Self {
         Self {
             id: slot.id,
-            day_of_week: slot.day_of_week.into(),
+            day_of_week: slot.day_of_week,
             from: slot.from,
             to: slot.to,
             min_resources: slot.min_resources,
@@ -40,7 +40,7 @@ impl From<&Slot> for dao::slot::SlotEntity {
     fn from(slot: &Slot) -> Self {
         Self {
             id: slot.id,
-            day_of_week: slot.day_of_week.into(),
+            day_of_week: slot.day_of_week,
             from: slot.from,
             to: slot.to,
             min_resources: slot.min_resources,
@@ -53,24 +53,15 @@ impl From<&Slot> for dao::slot::SlotEntity {
 }
 impl PartialOrd for Slot {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.day_of_week < other.day_of_week {
-            return Some(std::cmp::Ordering::Less);
-        }
-        if self.day_of_week > other.day_of_week {
-            return Some(std::cmp::Ordering::Greater);
-        }
-        if self.from < other.from {
-            return Some(std::cmp::Ordering::Less);
-        }
-        if self.to > other.to {
-            return Some(std::cmp::Ordering::Greater);
-        }
-        return Some(std::cmp::Ordering::Equal);
+        Some(self.cmp(other))
     }
 }
 impl Ord for Slot {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        self.day_of_week
+            .cmp(&other.day_of_week)
+            .then_with(|| self.from.cmp(&other.from))
+            .then_with(|| self.to.cmp(&other.to))
     }
 }
 

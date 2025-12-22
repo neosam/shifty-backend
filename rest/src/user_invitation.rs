@@ -146,10 +146,10 @@ pub async fn authenticate_with_invitation<RestState: RestStateDef>(
         Ok(_username) => {
             // Mock auth mode: Mark token as redeemed with a mock session ID
             let mock_session_id = format!("mock-session-{}", uuid::Uuid::new_v4());
-            if let Err(_) = rest_state
+            if rest_state
                 .user_invitation_service()
                 .mark_token_redeemed(&token, &mock_session_id, None)
-                .await
+                .await.is_err()
             {
                 tracing::warn!("Failed to mark invitation token as redeemed");
             }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, billing_period_id, sales_person_id, value_type, value_delta, value_ytd_from, value_ytd_to, value_full_year, created_at, created_by, deleted_at, deleted_by, update_version FROM billing_period_sales_person",
+  "query": "SELECT id, billing_period_id, sales_person_id, value_type, value_delta, value_ytd_from, value_ytd_to, value_full_year, created_at, created_by, deleted_at, deleted_by, update_version as _update_version FROM billing_period_sales_person",
   "describe": {
     "columns": [
       {
@@ -64,7 +64,7 @@
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "_update_version",
         "ordinal": 12,
         "type_info": "Blob"
       }
@@ -88,5 +88,5 @@
       false
     ]
   },
-  "hash": "d26bbdd63ac89a4cb5d6b797ce8fe131791c84882fb79117c0faf6c86d27c083"
+  "hash": "689bb1d76c40bdef22659ab1269c8ba7d9d94b59e457a174680fc5b2accfe076"
 }

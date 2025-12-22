@@ -13,10 +13,14 @@ in
     version = "1.6.0";
     src = src;
     nativeBuildInputs = with specificPkgs; [curl pkg-config openssl];
-    buildInputs = with specificPkgs; [sqlite openssl];
+    buildInputs = with specificPkgs; [sqlite openssl clippy];
     buildFeatures = features;
     buildNoDefaultFeatures = true;
     SQLX_OFFLINE = "true";
+
+    buildPhase = ''
+      ${specificPkgs.clippy}/bin/cargo-clippy 
+    '';
 
 #    postInstall = ''
 #  cp -r $src/migrations $out/

@@ -203,8 +203,8 @@ where
             .await?
             .iter()
             .filter(|s| {
-                !(s.valid_from > slot.valid_to.unwrap_or_else(|| s.valid_from)
-                    || slot.valid_from > s.valid_to.unwrap_or_else(|| slot.valid_from))
+                !(s.valid_from > slot.valid_to.unwrap_or(s.valid_from)
+                    || slot.valid_from > s.valid_to.unwrap_or(slot.valid_from))
             })
             .any(|s| test_overlapping_slots(slot, s))
         {
@@ -217,7 +217,7 @@ where
             ..slot.clone()
         };
         self.slot_dao
-            .create_slot(&(&slot).into(), SLOT_SERVICE_PROCESS, tx.clone().into())
+            .create_slot(&(&slot).into(), SLOT_SERVICE_PROCESS, tx.clone())
             .await?;
 
         self.transaction_dao.commit(tx).await?;
@@ -278,7 +278,7 @@ where
         }
 
         let mut validation = Vec::new();
-        if persisted_slot.day_of_week != slot.day_of_week.into() {
+        if persisted_slot.day_of_week != slot.day_of_week {
             validation.push(ValidationFailureItem::ModificationNotAllowed(
                 "day_of_week".into(),
             ));

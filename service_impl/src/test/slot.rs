@@ -356,7 +356,7 @@ async fn test_create_slot_intersects() {
             },
             SlotEntity {
                 id: Uuid::new_v4(),
-                day_of_week: DayOfWeek::Wednesday.into(),
+                day_of_week: DayOfWeek::Wednesday,
                 from: Time::from_hms(11, 0, 0).unwrap(),
                 to: Time::from_hms(12, 0, 0).unwrap(),
                 ..generate_default_slot_entity()
@@ -482,7 +482,7 @@ async fn test_create_slot_intersects() {
             &Slot {
                 id: Uuid::nil(),
                 version: Uuid::nil(),
-                day_of_week: DayOfWeek::Tuesday.into(),
+                day_of_week: DayOfWeek::Tuesday,
                 ..generate_default_slot()
             },
             ().auth(),

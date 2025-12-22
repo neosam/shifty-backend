@@ -87,7 +87,7 @@ impl<Deps: SalesPersonUnavailableServiceDeps> SalesPersonUnavailableService
                 sales_person_id,
                 year,
                 calendar_week,
-                tx.clone().into(),
+                tx.clone(),
             )
             .await?
             .iter()
@@ -162,7 +162,7 @@ impl<Deps: SalesPersonUnavailableServiceDeps> SalesPersonUnavailableService
             )
             .await?
             .iter()
-            .find(|e| e.day_of_week == entity.day_of_week.into())
+            .find(|e| e.day_of_week == entity.day_of_week)
         {
             return Err(ServiceError::EntityAlreadyExists(entity.id));
         }

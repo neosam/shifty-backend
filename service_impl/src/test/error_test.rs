@@ -109,8 +109,8 @@ pub fn test_validation_error<T>(
 }
 
 pub fn test_exists_error<T>(result: &Result<T, service::ServiceError>, id: Uuid) {
-    if let Err(service::ServiceError::EntityAlreadyExists(id)) = result {
-        if id == id {
+    if let Err(service::ServiceError::EntityAlreadyExists(inner_id)) = result {
+        if id == *inner_id {
             // All good
         } else {
             panic!("Expected entity already exists with key {}", id);

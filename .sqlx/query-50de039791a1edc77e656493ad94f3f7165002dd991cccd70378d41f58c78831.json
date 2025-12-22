@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version FROM billing_period",
+  "query": "SELECT id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version as _update_version FROM billing_period",
   "describe": {
     "columns": [
       {
@@ -39,7 +39,7 @@
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "_update_version",
         "ordinal": 7,
         "type_info": "Blob"
       }
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "fbdb5253df5d9b84a2cac229e1269873cbc1d7c2efddb19e0e44ec3433bc8e88"
+  "hash": "50de039791a1edc77e656493ad94f3f7165002dd991cccd70378d41f58c78831"
 }

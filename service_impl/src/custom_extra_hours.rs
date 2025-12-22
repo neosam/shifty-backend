@@ -127,10 +127,10 @@ impl<Deps: CustomExtraHoursDeps> CustomExtraHoursService for CustomExtraHoursSer
         if !extra_hours.version.is_nil() {
             return Err(ServiceError::VersionSetOnCreate);
         }
-        if !extra_hours.deleted.is_none() {
+        if extra_hours.deleted.is_some() {
             return Err(ServiceError::DeletedSetOnCreate);
         }
-        if !extra_hours.created.is_none() {
+        if extra_hours.created.is_some() {
             return Err(ServiceError::CreatedSetOnCreate);
         }
 

@@ -46,7 +46,7 @@ impl<T> IteratorExt for T where T: Iterator {}
 
 #[test]
 pub fn iterator_test() {
-    let vec = vec![(1, 1), (2, 5), (1, 6)];
+    let vec = [(1, 1), (2, 5), (1, 6)];
     let map = vec.iter().collect_to_hash_map_by(|e| e.0);
     assert_eq!(map.len(), 2);
     let first_sum = map.get(&1).unwrap().iter().map(|e| e.1).sum::<i32>();
@@ -102,12 +102,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
 
         let working_hours = self
             .employee_work_details_service
-            .all(Authentication::Full, tx.clone().into())
+            .all(Authentication::Full, tx.clone())
             .await?;
 
         let employees = self
             .sales_person_service
-            .get_all(Authentication::Full, tx.clone().into())
+            .get_all(Authentication::Full, tx.clone())
             .await?;
         let mut short_employee_report: Vec<ShortEmployeeReport> = Vec::new();
         for paid_employee in employees
@@ -121,7 +121,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     ShiftyDate::first_day_in_year(year),
                     ShiftyWeek::new(year, until_week).as_date(DayOfWeek::Sunday),
                     Authentication::Full,
-                    tx.clone().into(),
+                    tx.clone(),
                 )
                 .await?;
 
@@ -137,7 +137,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     year,
                     until_week,
                     Authentication::Full,
-                    tx.clone().into(),
+                    tx.clone(),
                 )
                 .await?;
             let previous_year_carryover = self
@@ -146,7 +146,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     paid_employee.id,
                     year - 1,
                     Authentication::Full,
-                    tx.clone().into(),
+                    tx.clone(),
                 )
                 .await?
                 .map(|c| c.carryover_hours)
@@ -323,18 +323,18 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             self.sales_person_service.verify_user_is_sales_person(
                 *sales_person_id,
                 context.clone(),
-                tx.clone().into()
+                tx.clone()
             ),
         );
         hr_permission.or(user_permission)?;
 
         let sales_person = self
             .sales_person_service
-            .get(*sales_person_id, context.clone(), tx.clone().into())
+            .get(*sales_person_id, context.clone(), tx.clone())
             .await?;
         let working_hours = self
             .employee_work_details_service
-            .find_by_sales_person_id(*sales_person_id, Authentication::Full, tx.clone().into())
+            .find_by_sales_person_id(*sales_person_id, Authentication::Full, tx.clone())
             .await?;
         let shiftplan_report = self
             .shiftplan_report_service
@@ -343,7 +343,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 from_date,
                 to_date,
                 Authentication::Full,
-                tx.clone().into(),
+                tx.clone(),
             )
             .await?;
         let extra_hours = self
@@ -353,7 +353,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 from_date,
                 to_date,
                 Authentication::Full,
-                tx.clone().into(),
+                tx.clone(),
             )
             .await?;
 
@@ -367,7 +367,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 }
             })
             .map(|r| r.hours)
-            .sum::<f32>() as f32;
+            .sum::<f32>();
         let overall_extra_work_hours = extra_hours
             .iter()
             .filter(|eh| {
@@ -411,7 +411,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 *sales_person_id,
                 from_date.year() - 1,
                 Authentication::Full,
-                tx.clone().into(),
+                tx.clone(),
             )
             .await?
             .map(|c| (c.carryover_hours, c.vacation))
@@ -444,7 +444,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             shiftplan_hours,
             holiday_days,
             vacation_carryover: previous_year_vacation,
-            vacation_days: vacation_days,
+            vacation_days,
             vacation_entitlement: vacation_entitlement + previous_year_vacation as f32,
             sick_leave_days,
             absence_days,
@@ -487,21 +487,21 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         // Auth check is done by working_hours_service
         let working_hours = self
             .employee_work_details_service
-            .all_for_week(week, year, context.clone(), tx.clone().into())
+            .all_for_week(week, year, context.clone(), tx.clone())
             .await?
             .iter()
             .cloned()
             .collect_to_hash_map_by(|wh| wh.sales_person_id);
         let shiftplan_report = self
             .shiftplan_report_service
-            .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone().into())
+            .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone())
             .await?;
         let shiftplan_report = shiftplan_report
             .iter()
             .collect_to_hash_map_by(|r| r.sales_person_id);
         let extra_hours = self
             .extra_hours_service
-            .find_by_week(year, week, Authentication::Full, tx.clone().into())
+            .find_by_week(year, week, Authentication::Full, tx.clone())
             .await?;
         info!("Extra hours: {:?}", &extra_hours);
         let extra_hours = extra_hours
@@ -545,7 +545,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             result.push(ShortEmployeeReport {
                 sales_person: Arc::new(
                     self.sales_person_service
-                        .get(sales_person_id, Authentication::Full, tx.clone().into())
+                        .get(sales_person_id, Authentication::Full, tx.clone())
                         .await?,
                 ),
                 balance_hours,
@@ -643,9 +643,8 @@ fn hours_per_week(
                     false
                 }
             })
-            .map(|r: &ShiftplanReportDay| {
+            .inspect(|r: &&ShiftplanReportDay| {
                 tracing::info!("{:?} - {:?}", r.to_date(), r);
-                r
             })
             .collect::<Vec<_>>();
         let shiftplan_hours = filtered_shiftplan_hours_list

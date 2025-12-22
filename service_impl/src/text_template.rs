@@ -91,7 +91,7 @@ impl<Deps: TextTemplateServiceDeps> TextTemplateService for TextTemplateServiceI
         entity.version = Uuid::new_v4();
         let now = time::OffsetDateTime::now_utc();
         entity.created_at = Some(time::PrimitiveDateTime::new(now.date(), now.time()));
-        entity.created_by = Some(user.clone().into());
+        entity.created_by = Some(user.clone());
 
         self.text_template_dao
             .create(&entity, &user, tx.clone())

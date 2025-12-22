@@ -2,7 +2,6 @@ use crate::test::error_test::*;
 use crate::*;
 use mockall::predicate::eq;
 use service::PermissionService;
-use tokio;
 
 pub struct PermissionServiceDependencies {
     pub permission_dao: dao::MockPermissionDao,

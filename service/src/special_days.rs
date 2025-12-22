@@ -49,7 +49,7 @@ impl From<&SpecialDayEntity> for SpecialDay {
             id: entity.id,
             year: entity.year,
             calendar_week: entity.calendar_week,
-            day_of_week: entity.day_of_week.into(),
+            day_of_week: entity.day_of_week,
             day_type: (&entity.day_type).into(),
             time_of_day: entity.time_of_day,
             created: Some(entity.created),
@@ -66,7 +66,7 @@ impl TryFrom<&SpecialDay> for SpecialDayEntity {
             id: special_day.id,
             year: special_day.year,
             calendar_week: special_day.calendar_week,
-            day_of_week: special_day.day_of_week.into(),
+            day_of_week: special_day.day_of_week,
             day_type: (&special_day.day_type).into(),
             time_of_day: special_day.time_of_day,
             created: special_day

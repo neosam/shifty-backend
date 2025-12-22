@@ -36,3 +36,6 @@ features = ["time", "rc_schema", "uuid"]
 
 [lints.rust]
 warnings = "deny"
+
+[lints.clippy]
+all = "deny"

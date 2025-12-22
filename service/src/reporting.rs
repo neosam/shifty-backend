@@ -100,7 +100,7 @@ impl GroupedReportHours {
         if self.workdays_per_week == 0.0 {
             return 0.0;
         }
-        self.contract_weekly_hours / self.workdays_per_week as f32
+        self.contract_weekly_hours / self.workdays_per_week
     }
     pub fn hours_per_holiday(&self) -> f32 {
         if self.days_per_week == 0 {

@@ -203,7 +203,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .get_report_for_employee(
                 &sales_person_id,
                 year,
-                until_week as u8,
+                until_week,
                 Authentication::Full,
                 tx.clone().into(),
             )
@@ -311,13 +311,13 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                 let date = time::Date::from_iso_week_date(
                     current_year as i32,
                     current_week,
-                    current_weekday.into(),
+                    current_weekday,
                 )?;
-                let date_time = time::PrimitiveDateTime::new(date.clone(), time::Time::MIDNIGHT);
+                let date_time = time::PrimitiveDateTime::new(date, time::Time::MIDNIGHT);
 
                 let vacation = ExtraHours {
                     id: Uuid::nil(),
-                    sales_person_id: sales_person_id,
+                    sales_person_id,
                     amount,
                     category: ExtraHoursCategory::Vacation,
                     description: description.clone(),
@@ -358,20 +358,20 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                 Ok(_) => Ok(()),
                 Err(e) => Err(e),
             }?;
-            date = date + time::Duration::days(1);
+            date += time::Duration::days(1);
         }
         let amount = (employee_work_details.hours_per_day() * vacation_days_for_week as f32)
             .min(employee_work_details.expected_hours);
         let date = time::Date::from_iso_week_date(
             current_year as i32,
             current_week,
-            current_weekday.into(),
+            current_weekday,
         )?;
-        let date_time = time::PrimitiveDateTime::new(date.clone(), time::Time::MIDNIGHT);
+        let date_time = time::PrimitiveDateTime::new(date, time::Time::MIDNIGHT);
 
         let vacation = ExtraHours {
             id: Uuid::nil(),
-            sales_person_id: sales_person_id,
+            sales_person_id,
             amount,
             category: ExtraHoursCategory::Vacation,
             description: description.clone(),

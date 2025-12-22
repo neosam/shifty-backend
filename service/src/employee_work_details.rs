@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::u32;
 
 use async_trait::async_trait;
 use mockall::automock;
@@ -45,10 +44,10 @@ impl From<&dao::employee_work_details::EmployeeWorkDetailsEntity> for EmployeeWo
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
             expected_hours: working_hours.expected_hours,
-            from_day_of_week: working_hours.from_day_of_week.into(),
+            from_day_of_week: working_hours.from_day_of_week,
             from_calendar_week: working_hours.from_calendar_week,
             from_year: working_hours.from_year,
-            to_day_of_week: working_hours.to_day_of_week.into(),
+            to_day_of_week: working_hours.to_day_of_week,
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
@@ -124,7 +123,7 @@ impl EmployeeWorkDetails {
 
     pub fn with_from_date(&self, date: ShiftyDate) -> Self {
         Self {
-            from_year: date.year() as u32,
+            from_year: date.year(),
             from_calendar_week: date.week(),
             from_day_of_week: date.day_of_week(),
             ..self.clone()
@@ -133,7 +132,7 @@ impl EmployeeWorkDetails {
 
     pub fn with_to_date(&self, date: ShiftyDate) -> Self {
         Self {
-            to_year: date.year() as u32,
+            to_year: date.year(),
             to_calendar_week: date.week(),
             to_day_of_week: date.day_of_week(),
             ..self.clone()
@@ -156,12 +155,12 @@ impl EmployeeWorkDetails {
         let mut days = self.vacation_days as f32;
         let from_year = self
             .from_date()
-            .map(|date| date.calendar_year() as u32)
-            .unwrap_or(u32::MAX) as u32;
+            .map(|date| date.calendar_year())
+            .unwrap_or(u32::MAX);
         let to_year = self
             .to_date()
-            .map(|date| date.calendar_year() as u32)
-            .unwrap_or(u32::MIN) as u32;
+            .map(|date| date.calendar_year())
+            .unwrap_or(u32::MIN);
         if year < from_year || year > to_year {
             return 0.0;
         }
@@ -195,10 +194,10 @@ impl TryFrom<&EmployeeWorkDetails> for dao::employee_work_details::EmployeeWorkD
             id: working_hours.id,
             sales_person_id: working_hours.sales_person_id,
             expected_hours: working_hours.expected_hours,
-            from_day_of_week: working_hours.from_day_of_week.into(),
+            from_day_of_week: working_hours.from_day_of_week,
             from_calendar_week: working_hours.from_calendar_week,
             from_year: working_hours.from_year,
-            to_day_of_week: working_hours.to_day_of_week.into(),
+            to_day_of_week: working_hours.to_day_of_week,
             to_calendar_week: working_hours.to_calendar_week,
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,

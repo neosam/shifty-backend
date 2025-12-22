@@ -49,9 +49,9 @@ pub trait BillingPeriodDao {
         Ok(self
             .dump_all(tx)
             .await?
-            .into_iter()
-            .cloned()
+            .iter()
             .filter(|bp| bp.deleted_at.is_none())
+            .cloned()
             .collect())
     }
 
@@ -62,7 +62,7 @@ pub trait BillingPeriodDao {
     ) -> Result<Option<BillingPeriodEntity>, crate::DaoError> {
         self.all(tx)
             .await?
-            .into_iter()
+            .iter()
             .find(|bp| bp.id == id)
             .map_or(Ok(None), |bp| Ok(Some(bp.clone())))
     }
@@ -73,7 +73,7 @@ pub trait BillingPeriodDao {
     ) -> Result<Option<time::Date>, crate::DaoError> {
         self.all(tx)
             .await?
-            .into_iter()
+            .iter()
             .map(|bp| bp.end_date)
             .max()
             .map_or(Ok(None), |date| Ok(Some(date)))

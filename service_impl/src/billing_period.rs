@@ -75,7 +75,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodServiceImpl<Deps> {
             };
 
             self.billing_period_sales_person_dao
-                .create(&entity, BILLING_PERIOD_REPORT_SERVICE, tx.clone().into())
+                .create(&entity, BILLING_PERIOD_REPORT_SERVICE, tx.clone())
                 .await?;
         }
         self.transaction_dao.commit(tx).await?;
@@ -95,7 +95,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[BillingPeriod]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
-        let entities = self.billing_period_dao.all(tx.into()).await?;
+        let entities = self.billing_period_dao.all(tx).await?;
 
         Ok(entities
             .iter()
@@ -114,7 +114,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
         let tx = self.transaction_dao.use_transaction(tx).await?;
         let entity = self
             .billing_period_dao
-            .find_by_id(id, tx.clone().into())
+            .find_by_id(id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(id))?;
 
@@ -127,7 +127,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
             let sales_person_id = sales_person.id;
             let sales_person_entities = self
                 .billing_period_sales_person_dao
-                .find_by_billing_period_and_sales_person(id, sales_person_id, tx.clone().into())
+                .find_by_billing_period_and_sales_person(id, sales_person_id, tx.clone())
                 .await?;
             if let Some(billing_period_sales_person) =
                 BillingPeriodSalesPerson::from_entities(&sales_person_entities)
@@ -175,16 +175,16 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
 
         let created_entity = self
             .billing_period_dao
-            .create(&billing_period_entity, process, tx.clone().into())
+            .create(&billing_period_entity, process, tx.clone())
             .await?;
 
         for sales_person in entity.sales_persons.iter() {
             self.insert_billing_period_sales_person(
                 created_entity.id,
-                &sales_person,
+                sales_person,
                 sales_person.values.clone(),
                 context.clone(),
-                Some(tx.clone().into()),
+                Some(tx.clone()),
             )
             .await?;
         }
@@ -209,7 +209,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
             .billing_period_dao
             .find_latest_end_date(tx.clone())
             .await?
-            .map(|date| ShiftyDate::from_date(date)));
+            .map(ShiftyDate::from_date));
 
         self.transaction_dao.commit(tx).await?;
         res
@@ -235,12 +235,12 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
 
         // Clear all billing period sales person entries first
         self.billing_period_sales_person_dao
-            .clear_all(&user, tx.clone().into())
+            .clear_all(&user, tx.clone())
             .await?;
 
         // Then clear all billing periods
         self.billing_period_dao
-            .clear_all(&user, tx.clone().into())
+            .clear_all(&user, tx.clone())
             .await?;
 
         self.transaction_dao.commit(tx).await?;

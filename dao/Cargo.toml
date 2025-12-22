@@ -26,3 +26,7 @@ features = ["parsing", "macros", "formatting"]
 
 [lints.rust]
 warnings = "deny"
+
+
+[lints.clippy]
+all = "deny"

@@ -87,7 +87,6 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
         let current_datetime = self.clock_service.date_time_now();
         let (current_year, current_week, _) = current_date.to_iso_week_date();
         let current_year = current_year as u32;
-        let current_week = current_week;
 
         // Calculate next weeks
         let (next_year, next_week) = if current_week == 53 {

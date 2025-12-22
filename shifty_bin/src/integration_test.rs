@@ -61,7 +61,7 @@ prop_compose! {
     ) -> EmployeeWorkDetails {
         EmployeeWorkDetails {
             id: Uuid::new_v4(),
-            sales_person_id: sales_person_id.unwrap_or_else(|| Uuid::new_v4()),
+            sales_person_id: sales_person_id.unwrap_or_else(Uuid::new_v4),
             expected_hours,
             from_year,
             from_calendar_week,
@@ -210,7 +210,7 @@ prop_compose! {
     ) -> ExtraHours {
         ExtraHours {
             id: Uuid::new_v4(),
-            sales_person_id: sales_person_id.unwrap_or_else(|| Uuid::new_v4()),
+            sales_person_id: sales_person_id.unwrap_or_else(Uuid::new_v4),
             amount,
             description: description.into(),
             category,
@@ -298,10 +298,10 @@ impl TestSetup {
 
     pub async fn insert_data(
         &mut self,
-        sales_persons_test_data: &Vec<SalesPerson>,
-        working_hours_test_data: &Vec<Arc<[EmployeeWorkDetails]>>,
-        extra_hours_test_data: &Vec<Vec<ExtraHours>>,
-        bookings_test_data: &Vec<Vec<(u32, u8, usize)>>,
+        sales_persons_test_data: &[SalesPerson],
+        working_hours_test_data: &[Arc<[EmployeeWorkDetails]>],
+        extra_hours_test_data: &[Vec<ExtraHours>],
+        bookings_test_data: &[Vec<(u32, u8, usize)>],
     ) {
         let rest_state = &self.rest_state;
 
@@ -345,12 +345,12 @@ impl TestSetup {
                     if employee_work_details_has_weekday(&working_hour_contract, date.weekday()) {
                         let sales_person_hours = expected_hours
                             .entry(working_hour_contract.sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *sales_person_hours.entry(date.year() as u32).or_insert(0.0) +=
                             working_hour_contract.expected_hours / possible_workdays as f32;
                         let balance_hours = balance_hours
                             .entry(working_hour_contract.sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *balance_hours.entry(date.year() as u32).or_insert(0.0) -=
                             working_hour_contract.expected_hours / possible_workdays as f32;
                     }
@@ -382,45 +382,43 @@ impl TestSetup {
                     if extra_hour.category == ExtraHoursCategory::ExtraWork {
                         let hours = working_hours
                             .entry(extra_hour.sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *hours
                             .entry(extra_hour.date_time.year() as u32)
                             .or_insert(0.0) += extra_hour.amount;
                         let hours = expected_hours
                             .entry(extra_hour.sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *hours
                             .entry(extra_hour.date_time.year() as u32)
                             .or_insert(0.0) += extra_hour.amount;
                     }
+                } else if extra_hour.category == ExtraHoursCategory::ExtraWork {
+                    let hours = working_hours
+                        .entry(extra_hour.sales_person_id)
+                        .or_default();
+                    *hours
+                        .entry(extra_hour.date_time.year() as u32)
+                        .or_insert(0.0) += extra_hour.amount;
+                    let balance_hours = balance_hours
+                        .entry(extra_hour.sales_person_id)
+                        .or_default();
+                    *balance_hours
+                        .entry(extra_hour.date_time.year() as u32)
+                        .or_insert(0.0) += extra_hour.amount;
                 } else {
-                    if extra_hour.category == ExtraHoursCategory::ExtraWork {
-                        let hours = working_hours
-                            .entry(extra_hour.sales_person_id)
-                            .or_insert(HashMap::new());
-                        *hours
-                            .entry(extra_hour.date_time.year() as u32)
-                            .or_insert(0.0) += extra_hour.amount;
-                        let balance_hours = balance_hours
-                            .entry(extra_hour.sales_person_id)
-                            .or_insert(HashMap::new());
-                        *balance_hours
-                            .entry(extra_hour.date_time.year() as u32)
-                            .or_insert(0.0) += extra_hour.amount;
-                    } else {
-                        let hours = expected_hours
-                            .entry(extra_hour.sales_person_id)
-                            .or_insert(HashMap::new());
-                        *hours
-                            .entry(extra_hour.date_time.year() as u32)
-                            .or_insert(0.0) -= extra_hour.amount;
-                        let balance_hours = balance_hours
-                            .entry(extra_hour.sales_person_id)
-                            .or_insert(HashMap::new());
-                        *balance_hours
-                            .entry(extra_hour.date_time.year() as u32)
-                            .or_insert(0.0) += extra_hour.amount;
-                    }
+                    let hours = expected_hours
+                        .entry(extra_hour.sales_person_id)
+                        .or_default();
+                    *hours
+                        .entry(extra_hour.date_time.year() as u32)
+                        .or_insert(0.0) -= extra_hour.amount;
+                    let balance_hours = balance_hours
+                        .entry(extra_hour.sales_person_id)
+                        .or_default();
+                    *balance_hours
+                        .entry(extra_hour.date_time.year() as u32)
+                        .or_insert(0.0) += extra_hour.amount;
                 }
                 rest_state
                     .extra_hours_service()
@@ -489,20 +487,20 @@ impl TestSetup {
                         // In this case, expected hours are always equal to working hours and balance is not touched.
                         let hours = working_hours
                             .entry(sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *hours.entry(date.year() as u32).or_insert(0.0) += slot_duration;
                         let hours = expected_hours
                             .entry(sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *hours.entry(date.year() as u32).or_insert(0.0) += slot_duration;
                     } else {
                         let hours = working_hours
                             .entry(sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *hours.entry(date.year() as u32).or_insert(0.0) += slot_duration;
                         let balance_hours = balance_hours
                             .entry(sales_person_id)
-                            .or_insert(HashMap::new());
+                            .or_default();
                         *balance_hours.entry(date.year() as u32).or_insert(0.0) += slot_duration;
                     }
                 }
@@ -537,7 +535,9 @@ proptest! {
     fn test_simple_shiftplan_entries(
         testdata in (arb_sales_person(), (1..=52u8, 0..10000000usize))
     ) {
+            println!("Test");
         Runtime::new().unwrap().block_on(async {
+            println!("Test2");
             let mut test_setup = TestSetup::new().await;
             let sales_persons = vec![testdata.0.clone()];
             let working_hours = vec![vec![EmployeeWorkDetails {
@@ -573,7 +573,7 @@ proptest! {
 
             //let extra_hours = vec![vec![testdata.2]];
             let bookings = vec![vec![(2000, testdata.1.0, testdata.1.1)]];
-            test_setup.insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings).await;
+            test_setup.insert_data(&sales_persons, &working_hours, &[vec![]], &bookings).await;
 
             let sales_person_id = test_setup.created_sales_persons[0].id;
 
@@ -724,7 +724,7 @@ proptest! {
                 deleted: None,
                 version: Uuid::nil(),
             },
-            ].into()];
+            ]];
             let bookings = vec![vec![(2002, 1, 0), (2002, 1, 1)]];
             test_setup.insert_data(&sales_persons, &working_hours, &extra_hours, &bookings).await;
 
@@ -837,7 +837,7 @@ fn test_vacation_at_end_of_year() {
         }];
         let working_hours = vec![vec![EmployeeWorkDetails {
             id: Uuid::nil(),
-            sales_person_id: sales_person_id,
+            sales_person_id,
             expected_hours: 40.0,
             from_year: 2025,
             from_calendar_week: 1,
@@ -866,7 +866,7 @@ fn test_vacation_at_end_of_year() {
 
         let bookings = Vec::new();
         test_setup
-            .insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings)
+            .insert_data(&sales_persons, &working_hours, &[vec![]], &bookings)
             .await;
 
         // Extract newly generated sales person id and add the vacation at the end of the year.
@@ -884,7 +884,7 @@ fn test_vacation_at_end_of_year() {
             .create(
                 &ExtraHours {
                     id: Uuid::nil(),
-                    sales_person_id: sales_person_id,
+                    sales_person_id,
                     amount: 10.0,
                     category: ExtraHoursCategory::Vacation,
                     description: "Test".into(),
@@ -907,7 +907,7 @@ fn test_vacation_at_end_of_year() {
             .create(
                 &ExtraHours {
                     id: Uuid::nil(),
-                    sales_person_id: sales_person_id,
+                    sales_person_id,
                     amount: 5.0,
                     category: ExtraHoursCategory::Vacation,
                     description: "Test".into(),
@@ -931,7 +931,7 @@ fn test_vacation_at_end_of_year() {
             .find_by_sales_person_id_and_year(sales_person_id, 2025, 53, Authentication::Full, None)
             .await
             .unwrap()
-            .into_iter()
+            .iter()
             .cloned()
             .collect();
         extra_hours.sort_by_key(|extra_hour| extra_hour.date_time);
@@ -970,7 +970,7 @@ fn test_multiple_contracts() {
         let working_hours = vec![vec![
             EmployeeWorkDetails {
                 id: Uuid::nil(),
-                sales_person_id: sales_person_id,
+                sales_person_id,
                 expected_hours: 30.0,
 
                 from_year: 2024,
@@ -1001,7 +1001,7 @@ fn test_multiple_contracts() {
             },
             EmployeeWorkDetails {
                 id: Uuid::nil(),
-                sales_person_id: sales_person_id,
+                sales_person_id,
                 expected_hours: 20.0,
 
                 from_year: 2025,
@@ -1035,7 +1035,7 @@ fn test_multiple_contracts() {
 
         let bookings = Vec::new();
         test_setup
-            .insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings)
+            .insert_data(&sales_persons, &working_hours, &[vec![]], &bookings)
             .await;
 
         // Extract newly generated sales person id and add the vacation at the end of the year.
@@ -1053,7 +1053,7 @@ fn test_multiple_contracts() {
             .create(
                 &ExtraHours {
                     id: Uuid::nil(),
-                    sales_person_id: sales_person_id,
+                    sales_person_id,
                     amount: 7.0,
                     category: ExtraHoursCategory::ExtraWork,
                     description: "Test".into(),
@@ -1077,7 +1077,7 @@ fn test_multiple_contracts() {
             .find_by_sales_person_id_and_year(sales_person_id, 2025, 1, Authentication::Full, None)
             .await
             .unwrap()
-            .into_iter()
+            .iter()
             .cloned()
             .collect();
         extra_hours.sort_by_key(|extra_hour| extra_hour.date_time);
@@ -1116,7 +1116,7 @@ fn test_extra_hours_beginning_of_year() {
         }];
         let working_hours = vec![vec![EmployeeWorkDetails {
             id: Uuid::nil(),
-            sales_person_id: sales_person_id,
+            sales_person_id,
             expected_hours: 30.0,
 
             from_year: 2024,
@@ -1149,7 +1149,7 @@ fn test_extra_hours_beginning_of_year() {
 
         let bookings = Vec::new();
         test_setup
-            .insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings)
+            .insert_data(&sales_persons, &working_hours, &[vec![]], &bookings)
             .await;
 
         // Extract newly generated sales person id and add the vacation at the end of the year.
@@ -1167,7 +1167,7 @@ fn test_extra_hours_beginning_of_year() {
             .create(
                 &ExtraHours {
                     id: Uuid::nil(),
-                    sales_person_id: sales_person_id,
+                    sales_person_id,
                     amount: 5.0,
                     category: ExtraHoursCategory::ExtraWork,
                     description: "Test".into(),
@@ -1191,7 +1191,7 @@ fn test_extra_hours_beginning_of_year() {
             .find_by_sales_person_id_and_year(sales_person_id, 2024, 53, Authentication::Full, None)
             .await
             .unwrap()
-            .into_iter()
+            .iter()
             .cloned()
             .collect();
         extra_hours.sort_by_key(|extra_hour| extra_hour.date_time);
@@ -1225,7 +1225,7 @@ fn test_vacation_entitlement_calculcation() {
         let working_hours = vec![vec![
             EmployeeWorkDetails {
                 id: Uuid::nil(),
-                sales_person_id: sales_person_id,
+                sales_person_id,
                 expected_hours: 30.0,
 
                 from_year: 2024,
@@ -1256,7 +1256,7 @@ fn test_vacation_entitlement_calculcation() {
             },
             EmployeeWorkDetails {
                 id: Uuid::nil(),
-                sales_person_id: sales_person_id,
+                sales_person_id,
                 expected_hours: 30.0,
 
                 from_year: 2025,
@@ -1287,7 +1287,7 @@ fn test_vacation_entitlement_calculcation() {
             },
             EmployeeWorkDetails {
                 id: Uuid::nil(),
-                sales_person_id: sales_person_id,
+                sales_person_id,
                 expected_hours: 20.0,
 
                 from_year: 2025,
@@ -1321,7 +1321,7 @@ fn test_vacation_entitlement_calculcation() {
 
         let bookings = Vec::new();
         test_setup
-            .insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings)
+            .insert_data(&sales_persons, &working_hours, &[vec![]], &bookings)
             .await;
 
         // Extract newly generated sales person id and add the vacation at the end of the year.
@@ -1360,7 +1360,7 @@ fn test_shiftyplan_hours_end_of_year() {
         }];
         let working_hours = vec![vec![EmployeeWorkDetails {
             id: Uuid::nil(),
-            sales_person_id: sales_person_id,
+            sales_person_id,
             expected_hours: 30.0,
 
             from_year: 2024,
@@ -1391,10 +1391,9 @@ fn test_shiftyplan_hours_end_of_year() {
         }]
         .into()];
 
-        let mut bookings = Vec::new();
-        bookings.push(vec![(2025, 1, 40), (2025, 1, 41)]); // Booking at the end of the year
+        let bookings = vec![(vec![(2025, 1, 40), (2025, 1, 41)])]; // Booking at the end of the year
         test_setup
-            .insert_data(&sales_persons, &working_hours, &vec![vec![]], &bookings)
+            .insert_data(&sales_persons, &working_hours, &[vec![]], &bookings)
             .await;
 
         // Extract newly generated sales person id and add the vacation at the end of the year.

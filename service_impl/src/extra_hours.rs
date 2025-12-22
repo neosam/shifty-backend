@@ -215,7 +215,7 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
             .await?;
 
         self.transaction_dao.commit(tx).await?;
-        Ok(extra_hours.into())
+        Ok(extra_hours)
     }
     async fn update(
         &self,

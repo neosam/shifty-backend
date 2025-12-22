@@ -239,7 +239,7 @@ impl<Deps: EmployeeWorkDetailsServiceDeps> EmployeeWorkDetailsService
         }
 
         entity.to_calendar_week = employee_work_details.to_calendar_week;
-        entity.to_day_of_week = employee_work_details.to_day_of_week.into();
+        entity.to_day_of_week = employee_work_details.to_day_of_week;
         entity.to_year = employee_work_details.to_year;
         entity.expected_hours = employee_work_details.expected_hours;
         entity.vacation_days = employee_work_details.vacation_days;

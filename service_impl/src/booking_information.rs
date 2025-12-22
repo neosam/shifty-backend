@@ -124,8 +124,8 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .map(|sales_person| sales_person.id)
             .collect();
         for week in 1..=(weeks_in_year + 3) {
-            let (year, week) = if week > weeks_in_year as u8 {
-                (year + 1, week - weeks_in_year as u8)
+            let (year, week) = if week > weeks_in_year {
+                (year + 1, week - weeks_in_year)
             } else {
                 (year, week)
             };
@@ -148,7 +148,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 )
                 .await?
                 .iter()
-                .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
+                .filter(|report| volunteer_ids.contains(&report.sales_person_id))
                 .map(|report| report.hours)
                 .sum::<f32>();
             let slots: Arc<[Slot]> = self
@@ -252,7 +252,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone().into())
             .await?
             .iter()
-            .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
+            .filter(|report| volunteer_ids.contains(&report.sales_person_id))
             .map(|report| report.hours)
             .sum::<f32>();
         let slots: Arc<[Slot]> = self
@@ -396,7 +396,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         // Accumulate hours by day for volunteers
         let volunteer_hours_by_day = volunteer_reports
             .iter()
-            .filter(|report| volunteer_ids.iter().any(|id| *id == report.sales_person_id))
+            .filter(|report| volunteer_ids.contains(&report.sales_person_id))
             .fold((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), |mut acc, report| {
                 match report.day_of_week {
                     DayOfWeek::Monday => acc.0 += report.hours,

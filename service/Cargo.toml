@@ -28,3 +28,6 @@ version = "1.44"
 
 [lints.rust]
 warnings = "deny"
+
+[lints.clippy]
+all = "deny"

@@ -1295,7 +1295,7 @@ impl From<&service::block::Block> for BlockTO {
             from: block.from,
             to: block.to,
             bookings: block.bookings.iter().map(BookingTO::from).collect(),
-            slots: block.slots.iter().map(|s| SlotTO::from(s)).collect(),
+            slots: block.slots.iter().map(SlotTO::from).collect(),
         }
     }
 }

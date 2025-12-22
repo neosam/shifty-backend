@@ -69,3 +69,6 @@ optional = true
 
 [lints.rust]
 warnings = "deny"
+
+[lints.clippy]
+all = "deny"

@@ -43,7 +43,7 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
             )
             .await?;
         let entities = entities
-            .into_iter()
+            .iter()
             .filter(|entity| {
                 entity
                     .to_date()
@@ -59,7 +59,7 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
                 hours: entity.hours,
                 year: entity.year,
                 calendar_week: entity.calendar_week,
-                day_of_week: entity.day_of_week.into(),
+                day_of_week: entity.day_of_week,
             })
             .collect::<Vec<_>>()
             .into());
@@ -115,7 +115,7 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
                 hours: entity.hours,
                 year: entity.year,
                 calendar_week: entity.calendar_week,
-                day_of_week: entity.day_of_week.into(),
+                day_of_week: entity.day_of_week,
             })
             .collect::<Vec<_>>()
             .into());

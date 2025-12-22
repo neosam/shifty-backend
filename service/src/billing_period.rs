@@ -6,6 +6,14 @@ use dao::billing_period_sales_person::BillingPeriodSalesPersonEntity;
 use mockall::automock;
 use shifty_utils::ShiftyDate;
 use std::{collections::BTreeMap, sync::Arc};
+use std::str::FromStr;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum BillingPeriodValueTypeParseError {
+    #[error("Invalid billing period value type: {0}")]
+    InvalidValueType(String),
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BillingPeriod {
@@ -51,23 +59,28 @@ impl BillingPeriodValueType {
             BillingPeriodValueType::VacationEntitlement => "vacation_entitlement".into(),
         }
     }
-    pub fn from_str(s: &str) -> Option<Self> {
+}
+impl FromStr for BillingPeriodValueType {
+    type Err = BillingPeriodValueTypeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+
         match s {
-            "overall" => Some(BillingPeriodValueType::Overall),
-            "expected_hours" => Some(BillingPeriodValueType::ExpectedHours),
-            "balance" => Some(BillingPeriodValueType::Balance),
-            "extra_work" => Some(BillingPeriodValueType::ExtraWork),
-            "vacation_hours" => Some(BillingPeriodValueType::VacationHours),
-            "sick_leave" => Some(BillingPeriodValueType::SickLeave),
-            "holiday" => Some(BillingPeriodValueType::Holiday),
-            "vacation_days" => Some(BillingPeriodValueType::VacationDays),
-            "vacation_entitlement" => Some(BillingPeriodValueType::VacationEntitlement),
+            "overall" => Ok(BillingPeriodValueType::Overall),
+            "expected_hours" => Ok(BillingPeriodValueType::ExpectedHours),
+            "balance" => Ok(BillingPeriodValueType::Balance),
+            "extra_work" => Ok(BillingPeriodValueType::ExtraWork),
+            "vacation_hours" => Ok(BillingPeriodValueType::VacationHours),
+            "sick_leave" => Ok(BillingPeriodValueType::SickLeave),
+            "holiday" => Ok(BillingPeriodValueType::Holiday),
+            "vacation_days" => Ok(BillingPeriodValueType::VacationDays),
+            "vacation_entitlement" => Ok(BillingPeriodValueType::VacationEntitlement),
             _ if s.starts_with("custom_extra_hours:") => {
-                Some(BillingPeriodValueType::CustomExtraHours(Arc::from(
+                Ok(BillingPeriodValueType::CustomExtraHours(Arc::from(
                     s.trim_start_matches("custom_extra_hours:"),
                 )))
             }
-            _ => None,
+            _ => Err(BillingPeriodValueTypeParseError::InvalidValueType(s.into())),
         }
     }
 }
@@ -115,7 +128,7 @@ impl BillingPeriodSalesPerson {
     pub fn from_entities(entity: &[BillingPeriodSalesPersonEntity]) -> Option<Self> {
         let mut values = BTreeMap::new();
         for sp in entity.iter() {
-            if let Some(value_type) = BillingPeriodValueType::from_str(&sp.value_type) {
+            if let Ok(value_type) = BillingPeriodValueType::from_str(&sp.value_type) {
                 values.insert(
                     value_type,
                     BillingPeriodValue {

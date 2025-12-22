@@ -366,7 +366,7 @@ async fn test_create() {
         .returning(|_, _, _| Ok(()));
     deps.custom_extra_hours_dao
         .expect_find_by_id()
-        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity().into())));
+        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity())));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("create-id"))
@@ -473,7 +473,7 @@ async fn test_update() {
         .returning(|_, _, _| Ok(()));
     deps.custom_extra_hours_dao
         .expect_find_by_id()
-        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity().into())));
+        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity())));
     deps.uuid_service
         .expect_new_uuid()
         .with(eq("update-version"))
@@ -540,7 +540,7 @@ async fn test_update_version_conflict() {
     deps.custom_extra_hours_dao.checkpoint();
     deps.custom_extra_hours_dao
         .expect_find_by_id()
-        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity().into())));
+        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity())));
     let service = deps.build_service();
 
     let result = service
@@ -579,7 +579,7 @@ async fn test_delete() {
         .returning(|_, _, _| Ok(()));
     deps.custom_extra_hours_dao
         .expect_find_by_id()
-        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity().into())));
+        .returning(|_, _| Ok(Some(default_custom_extra_hours_entity())));
     deps.clock_service
         .expect_date_time_now()
         .returning(|| time::macros::datetime!(2023-10-01 12:00:00));

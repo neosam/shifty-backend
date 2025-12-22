@@ -93,6 +93,7 @@ pub async fn context_extractor<RestState: RestStateDef>(
     };
     next.run(request).await
 }
+#[allow(clippy::extra_unused_type_parameters)] // Generic required in case of OIDC feature.
 #[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
 pub async fn context_extractor<RestState: RestStateDef>(
     mut request: Request,

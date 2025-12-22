@@ -604,13 +604,13 @@ impl RestStateImpl {
             slot_service: slot_service.clone(),
         });
         let booking_log_service = Arc::new(service_impl::booking_log::BookingLogServiceImpl {
-            booking_log_dao: booking_log_dao,
+            booking_log_dao,
             permission_service: permission_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
         let custom_extra_hours_service = Arc::new(
             service_impl::custom_extra_hours::CustomExtraHoursServiceImpl {
-                custom_extra_hours_dao: custom_extra_hours_dao,
+                custom_extra_hours_dao,
                 sales_person_service: sales_person_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
@@ -619,7 +619,7 @@ impl RestStateImpl {
             },
         );
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
-            extra_hours_dao: extra_hours_dao,
+            extra_hours_dao,
             permission_service: permission_service.clone(),
             sales_person_service: sales_person_service.clone(),
             custom_extra_hours_service: custom_extra_hours_service.clone(),
@@ -805,11 +805,11 @@ async fn create_admin_user(pool: Arc<SqlitePool>, username: &str) {
                 "dev-first-start",
             )
             .await
-            .expect(&format!("Expected being able to create the {}", username));
+            .unwrap_or_else(|_| panic!("Expected being able to create the {}", username));
         permission_dao
             .add_user_role(username, "admin", "dev-first-start")
             .await
-            .expect(&format!(
+            .unwrap_or_else(|_| panic!(
                 "Expected being able to make {} an admin",
                 username
             ));
