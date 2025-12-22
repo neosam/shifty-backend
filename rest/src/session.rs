@@ -7,7 +7,7 @@ use axum::middleware::Next;
 use axum::response::Response;
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-#[cfg(feature = "mock_auth")]
+#[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
 use service::permission::MockContext;
 #[cfg(feature = "oidc")]
 use service::session::SessionService;
@@ -113,7 +113,7 @@ pub async fn forbid_unauthenticated<RestState: RestStateDef>(
 }
 #[cfg(feature = "oidc")]
 pub async fn forbid_unauthenticated<RestState: RestStateDef>(
-    State(rest_state): State<RestState>,
+    State(_rest_state): State<RestState>,
     request: Request,
     next: Next,
 ) -> Response {

@@ -42,7 +42,7 @@ impl<Deps: SchedulerServiceDeps> SchedulerService for SchedulerServiceImpl<Deps>
             let mut s = scheduler.lock().await;
             s.start().await;
         });*/
-        self.schedule_carryover_updates("0 0 * * * *").await?;
+        self.schedule_carryover_updates("0 * * * * *").await?;
         Ok(())
     }
 
@@ -63,6 +63,14 @@ impl<Deps: SchedulerServiceDeps> SchedulerService for SchedulerServiceImpl<Deps>
                     error!("Failed to update carryover for previous year: {:?}", e);
                 } else {
                     info!("Successfully updated carryover for previous year (cron job)");
+                }
+                if let Err(e) = shiftplan_edit_service
+                    .update_carryover_all_employees(year, Authentication::Full, None)
+                    .await
+                {
+                    error!("Failed to update carryover for current year: {:?}", e);
+                } else {
+                    info!("Successfully updated carryover for current year (cron job)");
                 }
             }
         }));

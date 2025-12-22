@@ -10,16 +10,19 @@ let
 in
   rustPlatform.buildRustPackage {
     pname = "shifty-service";
-    version = "1.6.0";
+    version = "1.7.0-dev";
     src = src;
-    nativeBuildInputs = with specificPkgs; [curl pkg-config openssl];
-    buildInputs = with specificPkgs; [sqlite openssl clippy];
+    nativeBuildInputs = with specificPkgs; [curl pkg-config openssl clippy];
+    buildInputs = with specificPkgs; [sqlite openssl];
     buildFeatures = features;
     buildNoDefaultFeatures = true;
     SQLX_OFFLINE = "true";
 
-    buildPhase = ''
-      ${specificPkgs.clippy}/bin/cargo-clippy 
+    #preBuild = ''
+    #  ${specificPkgs.clippy}/bin/cargo-clippy -- --deny warnings
+    #'';
+    preBuild = ''
+      cargo clippy -- --deny warnings
     '';
 
 #    postInstall = ''
