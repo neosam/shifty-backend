@@ -10,6 +10,8 @@ pub struct WorkingHoursMiniOverviewProps {
     pub working_hours: Rc<[WorkingHoursMini]>,
     #[props(!optional)]
     pub selected_sales_person_id: Option<Uuid>,
+    #[props(default = false)]
+    pub show_balance: bool,
 
     pub on_dbl_click: EventHandler<Uuid>,
 }
@@ -25,6 +27,8 @@ pub fn WorkingHoursMiniOverview(props: WorkingHoursMiniOverviewProps) -> Element
                     let sales_person_id = working_hour.sales_person_id.clone();
                     let actual_hours = format!("{:.1}", working_hour.actual_hours);
                     let dynamic_hours = format!("{:.1}", working_hour.dynamic_hours);
+                    let balance_hours = format!("{:.1}", working_hour.balance_hours);
+                    let show_balance = props.show_balance;
                     rsx! { div {
                         class: format!("flex cusor-pointer border-b border-gray-200 border-dashed p-1 {}",
                             if Some(sales_person_id) == props.selected_sales_person_id {
@@ -43,6 +47,9 @@ pub fn WorkingHoursMiniOverview(props: WorkingHoursMiniOverviewProps) -> Element
                             div { class: "flex-1", {actual_hours} }
                             div { class: "flex-1", "/" }
                             div { class: "flex-1", {dynamic_hours} }
+                            if show_balance {
+                                div { class: "flex-1 text-gray-600 ml-2", "({balance_hours})" }
+                            }
                         }
                     } }
                 }

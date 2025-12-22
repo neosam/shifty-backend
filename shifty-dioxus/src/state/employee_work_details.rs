@@ -11,6 +11,7 @@ pub struct WorkingHoursMini {
     pub expected_hours: f32,
     pub dynamic_hours: f32,
     pub actual_hours: f32,
+    pub balance_hours: f32,
 }
 
 #[derive(PartialEq, Clone, Debug)]

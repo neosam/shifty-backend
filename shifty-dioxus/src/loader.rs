@@ -1,4 +1,5 @@
 use rest_types::{BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
+use std::collections::HashMap;
 use std::rc::Rc;
 use tracing::info;
 use uuid::Uuid;
@@ -304,10 +305,21 @@ pub async fn load_working_hours_minified_for_week(
     config: Config,
     year: u32,
     week: u8,
-    //sales_persons: Rc<[SalesPerson]>,
+    fetch_balance: bool,
 ) -> Result<Rc<[WorkingHoursMini]>, ShiftyError> {
-    let reports = api::get_working_hours_minified_for_week(config, year, week).await?;
-    Ok(reports
+    let week_reports = api::get_working_hours_for_week(config.clone(), year, week).await?;
+
+    let balance_map: HashMap<Uuid, f32> = if fetch_balance {
+        let balance_reports = api::get_balance_until_week(config, year, week).await?;
+        balance_reports
+            .iter()
+            .map(|r| (r.sales_person.id, r.balance_hours))
+            .collect()
+    } else {
+        HashMap::new()
+    };
+
+    Ok(week_reports
         .iter()
         .map(move |report| WorkingHoursMini {
             sales_person_id: report.sales_person.id,
@@ -315,6 +327,7 @@ pub async fn load_working_hours_minified_for_week(
             expected_hours: report.expected_hours,
             dynamic_hours: report.dynamic_hours,
             actual_hours: report.overall_hours,
+            balance_hours: balance_map.get(&report.sales_person.id).copied().unwrap_or(0.0),
         })
         .collect())
 }

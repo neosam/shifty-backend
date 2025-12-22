@@ -207,6 +207,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
                         *year.read(),
                         *week.read(),
+                        is_hr,
                     ));
                     if is_shiftplanner {
                         booking_conflict_service
@@ -259,6 +260,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
                     *year.read(),
                     *week.read(),
+                    is_hr,
                 ));
                 if is_shiftplanner {
                     booking_conflict_service
@@ -774,6 +776,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         cr.send(ShiftPlanAction::UpdateSalesPerson(employee_id.clone()));
                                     },
                                     selected_sales_person_id: current_sales_person.read().as_ref().map(|sp| sp.id),
+                                    show_balance: is_shiftplanner && is_hr,
                                 }
                             }
                             if let Some(ref sales_person) = *current_sales_person.read() {
