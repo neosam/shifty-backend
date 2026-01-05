@@ -50,6 +50,7 @@ type BillingPeriodDao = BillingPeriodDaoImpl;
 type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDaoImpl;
 type TextTemplateDao = dao_impl_sqlite::text_template::TextTemplateDaoImpl;
 type UserInvitationDao = dao_impl_sqlite::user_invitation::UserInvitationDaoImpl;
+type ToggleDao = dao_impl_sqlite::toggle::ToggleDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -394,6 +395,16 @@ impl service_impl::text_template::TextTemplateServiceDeps for TextTemplateServic
 }
 type TextTemplateService = service_impl::text_template::TextTemplateServiceImpl<TextTemplateServiceDependencies>;
 
+pub struct ToggleServiceDependencies;
+impl service_impl::toggle::ToggleServiceDeps for ToggleServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type ToggleDao = ToggleDao;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type ToggleService = service_impl::toggle::ToggleServiceImpl<ToggleServiceDependencies>;
+
 #[derive(Clone)]
 pub struct RestStateImpl {
     user_service: Arc<UserService>,
@@ -419,6 +430,7 @@ pub struct RestStateImpl {
     block_report_service: Arc<BlockReportService>,
     text_template_service: Arc<TextTemplateService>,
     user_invitation_service: Arc<UserInvitationService>,
+    toggle_service: Arc<ToggleService>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -444,6 +456,7 @@ impl rest::RestStateDef for RestStateImpl {
     type BlockReportService = BlockReportService;
     type TextTemplateService = TextTemplateService;
     type UserInvitationService = UserInvitationService;
+    type ToggleService = ToggleService;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -518,6 +531,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn user_invitation_service(&self) -> Arc<Self::UserInvitationService> {
         self.user_invitation_service.clone()
+    }
+    fn toggle_service(&self) -> Arc<Self::ToggleService> {
+        self.toggle_service.clone()
     }
 }
 impl RestStateImpl {
@@ -761,6 +777,13 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
+        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
+        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
+            toggle_dao,
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         Self {
             user_service,
             session_service,
@@ -785,6 +808,7 @@ impl RestStateImpl {
             block_report_service,
             text_template_service,
             user_invitation_service,
+            toggle_service,
         }
     }
 }

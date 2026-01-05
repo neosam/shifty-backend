@@ -31,6 +31,7 @@ pub mod shiftplan_report;
 pub mod slot;
 pub mod special_days;
 pub mod text_template;
+pub mod toggle;
 pub mod user_invitation;
 pub mod user_service;
 pub mod uuid_service;

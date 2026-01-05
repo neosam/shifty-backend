@@ -14,7 +14,9 @@
       "Bash(timeout 3 cargo run)",
       "Bash(timeout 30 cargo build)",
       "Bash(jj show:*)",
-      "Bash(timeout 5 cargo run:*)"
+      "Bash(timeout 5 cargo run:*)",
+      "Bash(timeout 120 cargo build:*)",
+      "Bash(timeout 120 cargo test:*)"
     ],
     "deny": []
   }

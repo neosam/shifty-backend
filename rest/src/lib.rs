@@ -18,6 +18,7 @@ mod shiftplan_edit;
 mod slot;
 mod special_day;
 mod text_template;
+mod toggle;
 mod user_invitation;
 mod week_message;
 
@@ -310,6 +311,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type ToggleService: service::toggle::ToggleService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -336,6 +341,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn block_report_service(&self) -> Arc<Self::BlockReportService>;
     fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
     fn user_invitation_service(&self) -> Arc<Self::UserInvitationService>;
+    fn toggle_service(&self) -> Arc<Self::ToggleService>;
 }
 
 pub struct OidcConfig {
@@ -439,6 +445,8 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
         (path = "/text-templates", api = TextTemplateApiDoc),
         (path = "/user-invitation", api = UserInvitationApiDoc),
+        (path = "/toggle", api = toggle::ToggleApiDoc),
+        (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -505,6 +513,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/text-templates", text_template::generate_route())
         .nest("/week-message", week_message::generate_route())
         .nest("/user-invitation", user_invitation::generate_route())
+        .nest("/toggle", toggle::generate_route())
+        .nest("/toggle-group", toggle::generate_group_route())
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state.clone(),
