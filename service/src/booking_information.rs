@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::booking::Booking;
 use crate::permission::Authentication;
+use crate::reporting::CustomExtraHours;
 use crate::sales_person::SalesPerson;
 use crate::slot::Slot;
 use crate::ServiceError;
@@ -25,6 +26,12 @@ pub struct WorkingHoursPerSalesPerson {
     pub sales_person_id: Uuid,
     pub sales_person_name: Arc<str>,
     pub available_hours: f32,
+    pub absence_hours: f32,
+    pub vacation_hours: f32,
+    pub sick_leave_hours: f32,
+    pub holiday_hours: f32,
+    pub unavailable_hours: f32,
+    pub custom_absence_hours: Arc<[CustomExtraHours]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

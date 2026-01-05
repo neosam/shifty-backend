@@ -177,10 +177,20 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             for report in week_report.iter() {
                 paid_hours += report.dynamic_hours;
                 if is_shiftplanner {
+                    let absence_hours = report.vacation_hours
+                        + report.sick_leave_hours
+                        + report.holiday_hours
+                        + report.custom_absence_hours.iter().map(|c| c.hours).sum::<f32>();
                     working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
                         sales_person_id: report.sales_person.id,
                         sales_person_name: report.sales_person.name.clone(),
                         available_hours: report.expected_hours,
+                        absence_hours,
+                        vacation_hours: report.vacation_hours,
+                        sick_leave_hours: report.sick_leave_hours,
+                        holiday_hours: report.holiday_hours,
+                        unavailable_hours: report.unavailable_hours,
+                        custom_absence_hours: report.custom_absence_hours.clone(),
                     });
                 }
             }
@@ -279,10 +289,20 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         for report in week_report.iter() {
             paid_hours += report.dynamic_hours;
             if is_shiftplanner {
+                let absence_hours = report.vacation_hours
+                    + report.sick_leave_hours
+                    + report.holiday_hours
+                    + report.custom_absence_hours.iter().map(|c| c.hours).sum::<f32>();
                 working_hours_per_sales_person.push(WorkingHoursPerSalesPerson {
                     sales_person_id: report.sales_person.id,
                     sales_person_name: report.sales_person.name.clone(),
                     available_hours: report.expected_hours,
+                    absence_hours,
+                    vacation_hours: report.vacation_hours,
+                    sick_leave_hours: report.sick_leave_hours,
+                    holiday_hours: report.holiday_hours,
+                    unavailable_hours: report.unavailable_hours,
+                    custom_absence_hours: report.custom_absence_hours.clone(),
                 });
             }
         }

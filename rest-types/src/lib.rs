@@ -784,11 +784,17 @@ impl From<&BookingInformation> for BookingConflictTO {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct WorkingHoursPerSalesPersonTO {
     pub sales_person_id: Uuid,
     pub sales_person_name: Arc<str>,
     pub available_hours: f32,
+    pub absence_hours: f32,
+    pub vacation_hours: f32,
+    pub sick_leave_hours: f32,
+    pub holiday_hours: f32,
+    pub unavailable_hours: f32,
+    pub custom_absence_hours: Arc<[ReportingCustomExtraHoursTO]>,
 }
 #[cfg(feature = "service-impl")]
 impl From<&WorkingHoursPerSalesPerson> for WorkingHoursPerSalesPersonTO {
@@ -797,6 +803,17 @@ impl From<&WorkingHoursPerSalesPerson> for WorkingHoursPerSalesPersonTO {
             sales_person_id: working_hours_per_sales_person.sales_person_id,
             sales_person_name: working_hours_per_sales_person.sales_person_name.clone(),
             available_hours: working_hours_per_sales_person.available_hours,
+            absence_hours: working_hours_per_sales_person.absence_hours,
+            vacation_hours: working_hours_per_sales_person.vacation_hours,
+            sick_leave_hours: working_hours_per_sales_person.sick_leave_hours,
+            holiday_hours: working_hours_per_sales_person.holiday_hours,
+            unavailable_hours: working_hours_per_sales_person.unavailable_hours,
+            custom_absence_hours: working_hours_per_sales_person
+                .custom_absence_hours
+                .iter()
+                .map(ReportingCustomExtraHoursTO::from)
+                .collect::<Vec<_>>()
+                .into(),
         }
     }
 }

@@ -145,6 +145,11 @@ pub struct ShortEmployeeReport {
     pub dynamic_hours: f32,
     pub expected_hours: f32,
     pub overall_hours: f32,
+    pub vacation_hours: f32,
+    pub sick_leave_hours: f32,
+    pub holiday_hours: f32,
+    pub unavailable_hours: f32,
+    pub custom_absence_hours: Arc<[CustomExtraHours]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

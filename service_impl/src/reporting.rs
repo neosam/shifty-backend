@@ -157,13 +157,21 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             } else {
                 0
             };
-            let (shiftplan_hours, extra_working_hours, absense_hours, planned_hours, dynamic_hours): (
-                f32,
-                f32,
-                f32,
-                f32,
-                f32,
-            ) = (0..=until_week + additional_weeks)
+            #[derive(Default)]
+            struct WeeklyHours {
+                shiftplan_hours: f32,
+                extra_working_hours: f32,
+                absense_hours: f32,
+                planned_hours: f32,
+                dynamic_hours: f32,
+                vacation_hours: f32,
+                sick_leave_hours: f32,
+                holiday_hours: f32,
+                unavailable_hours: f32,
+                custom_absence_hours: HashMap<(Uuid, Arc<str>), f32>,
+            }
+
+            let weekly_hours = (0..=until_week + additional_weeks)
                 .map(|week| {
                     let target_year = year;
                     let year = if week == 0 {
@@ -183,7 +191,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
 
                     let (expected_hours, dynamic_hours) =
                         find_working_hours_for_calendar_week(&working_hours, year, week)
-                            .map(|wh| weight_for_week(year, week, 
+                            .map(|wh| weight_for_week(year, week,
                                 &wh.with_to_date(
                                     wh.to_date()
                                         .unwrap_or(ShiftyDate::last_day_in_year(target_year))
@@ -216,65 +224,118 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             })
                             .map(|extra_hours| extra_hours.amount)
                             .sum();
-                        /*let absense_hours: f32 = extra_hours_array
-                            .iter()
-                            .filter(|extra_hours| {
-                                extra_hours.category != ExtraHoursCategory::ExtraWork
-                                &&
-                                extra_hours.date_time.iso_week() == week
-                                    && extra_hours.date_time.year() as u32 == year
-                            })
-                            .map(|extra_hours| extra_hours.amount)
-                            .sum();*/
-                        let overall_hours = extra_work + shiftplan_hours;// - absense_hours;
-                        (shiftplan_hours, extra_work, 0.0, overall_hours, dynamic_hours)
+                        let overall_hours = extra_work + shiftplan_hours;
+                        WeeklyHours {
+                            shiftplan_hours,
+                            extra_working_hours: extra_work,
+                            absense_hours: 0.0,
+                            planned_hours: overall_hours,
+                            dynamic_hours,
+                            vacation_hours: 0.0,
+                            sick_leave_hours: 0.0,
+                            holiday_hours: 0.0,
+                            unavailable_hours: 0.0,
+                            custom_absence_hours: HashMap::new(),
+                        }
                     } else {
-                        let extra_working_hours = extra_hours_array
+                        let week_extra_hours: Vec<_> = extra_hours_array
                             .iter()
-                            .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours
-                                && eh.date_time.iso_week() == week
+                            .filter(|eh| eh.date_time.iso_week() == week
                                 && eh.date_time.year() as u32 == year)
+                            .collect();
+                        let extra_working_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
                             .map(|eh| eh.amount)
                             .sum::<f32>();
-                        let absense_hours = extra_hours_array
+                        let absense_hours = week_extra_hours
                             .iter()
-                            .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours
-                                && eh.date_time.iso_week() == week
-                                && eh.date_time.year() as u32 == year)
+                            .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
                             .map(|eh| eh.amount)
                             .sum::<f32>();
-                        (
+                        let vacation_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
+                        let sick_leave_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
+                        let holiday_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
+                        let unavailable_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::Unavailable)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
+                        let mut custom_absence_hours: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
+                        for eh_entry in week_extra_hours.iter() {
+                            if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
+                                &eh_entry.category
+                            {
+                                if let Some(custom_def) = lazy_load_custom_def.get() {
+                                    let key = (custom_def.id, custom_def.name.clone());
+                                    *custom_absence_hours.entry(key).or_insert(0.0) += eh_entry.amount;
+                                }
+                            }
+                        }
+                        WeeklyHours {
                             shiftplan_hours,
                             extra_working_hours,
                             absense_hours,
-                            expected_hours,
+                            planned_hours: expected_hours,
                             dynamic_hours,
-                        )
+                            vacation_hours,
+                            sick_leave_hours,
+                            holiday_hours,
+                            unavailable_hours,
+                            custom_absence_hours,
+                        }
                     }
                 })
                 .fold(
-                    (0.0, 0.0, 0.0, 0.0, 0.0),
-                    |(shiftplan_hours, extra_work, absense, planned, dynamic_hours),
-                     (shiftplan_hours_week, extra_work_week, absense_week, planned_week, dynamic_hours_week)| {
-                        (
-                            shiftplan_hours + shiftplan_hours_week,
-                            extra_work + extra_work_week,
-                            absense + absense_week,
-                            planned + planned_week,
-                            dynamic_hours + dynamic_hours_week,
-                        )
+                    WeeklyHours::default(),
+                    |mut acc, week| {
+                        acc.shiftplan_hours += week.shiftplan_hours;
+                        acc.extra_working_hours += week.extra_working_hours;
+                        acc.absense_hours += week.absense_hours;
+                        acc.planned_hours += week.planned_hours;
+                        acc.dynamic_hours += week.dynamic_hours;
+                        acc.vacation_hours += week.vacation_hours;
+                        acc.sick_leave_hours += week.sick_leave_hours;
+                        acc.holiday_hours += week.holiday_hours;
+                        acc.unavailable_hours += week.unavailable_hours;
+                        for ((id, name), hours) in week.custom_absence_hours {
+                            *acc.custom_absence_hours.entry((id, name)).or_insert(0.0) += hours;
+                        }
+                        acc
                     },
                 );
-            let expected_hours = planned_hours - absense_hours;
-            let dynamic_hours = dynamic_hours - absense_hours;
-            let overall_hours = shiftplan_hours + extra_working_hours;
+            let expected_hours = weekly_hours.planned_hours - weekly_hours.absense_hours;
+            let dynamic_hours = weekly_hours.dynamic_hours - weekly_hours.absense_hours;
+            let overall_hours = weekly_hours.shiftplan_hours + weekly_hours.extra_working_hours;
             let balance_hours = overall_hours - expected_hours + previous_year_carryover;
+            let custom_absence_hours: Arc<[CustomExtraHours]> = weekly_hours.custom_absence_hours
+                .into_iter()
+                .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
+                .collect::<Vec<_>>()
+                .into();
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
                 dynamic_hours,
                 expected_hours,
                 overall_hours,
+                vacation_hours: weekly_hours.vacation_hours,
+                sick_leave_hours: weekly_hours.sick_leave_hours,
+                holiday_hours: weekly_hours.holiday_hours,
+                unavailable_hours: weekly_hours.unavailable_hours,
+                custom_absence_hours,
             });
         }
         Ok(short_employee_report.into())
@@ -515,8 +576,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .get(&sales_person_id)
                 .map(|r| r.iter().map(|r| r.hours).sum::<f32>())
                 .unwrap_or(0.0);
-            let extra_working_hours = extra_hours
-                .get(&sales_person_id)
+            let employee_extra_hours = extra_hours.get(&sales_person_id);
+            let extra_working_hours = employee_extra_hours
                 .map(|eh| {
                     eh.iter()
                         .filter(|eh| eh.category.availability() == Availability::Available)
@@ -524,8 +585,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .sum::<f32>()
                 })
                 .unwrap_or(0.0);
-            let abense_hours = extra_hours
-                .get(&sales_person_id)
+            let abense_hours = employee_extra_hours
                 .map(|eh| {
                     eh.iter()
                         .filter(|eh| eh.category.availability() == Availability::Unavailable)
@@ -533,6 +593,57 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .sum::<f32>()
                 })
                 .unwrap_or(0.0);
+            let vacation_hours = employee_extra_hours
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
+            let sick_leave_hours = employee_extra_hours
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
+            let holiday_hours = employee_extra_hours
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
+            let unavailable_hours = employee_extra_hours
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category == ExtraHoursCategory::Unavailable)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
+            let custom_absence_hours: Arc<[CustomExtraHours]> = {
+                let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
+                if let Some(eh_list) = employee_extra_hours {
+                    for eh_entry in eh_list.iter() {
+                        if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
+                            &eh_entry.category
+                        {
+                            if let Some(custom_def) = lazy_load_custom_def.get() {
+                                let key = (custom_def.id, custom_def.name.clone());
+                                *map.entry(key).or_insert(0.0) += eh_entry.amount;
+                            }
+                        }
+                    }
+                }
+                map.into_iter()
+                    .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
+                    .collect::<Vec<_>>()
+                    .into()
+            };
             let (planned_hours, dynamic_hours): (f32, f32) =
                 find_working_hours_for_calendar_week(&working_hours, year, week)
                     .map(|wh|  weight_for_week(year, week, wh))
@@ -552,6 +663,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 dynamic_hours,
                 expected_hours,
                 overall_hours,
+                vacation_hours,
+                sick_leave_hours,
+                holiday_hours,
+                unavailable_hours,
+                custom_absence_hours,
             });
         }
 

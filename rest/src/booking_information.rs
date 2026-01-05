@@ -44,6 +44,7 @@ pub async fn get_booking_conflicts_for_week<RestState: RestStateDef>(
                 .collect();
             Ok(Response::builder()
                 .status(200)
+                .header("Content-type", "application/json")
                 .body(Body::new(
                     serde_json::to_string(&booking_conflicts).unwrap(),
                 ))
@@ -70,6 +71,7 @@ pub async fn get_weekly_summary<RestState: RestStateDef>(
                 .collect();
             Ok(Response::builder()
                 .status(200)
+                .header("Content-type", "application/json")
                 .body(Body::new(serde_json::to_string(&weekly_summary).unwrap()))
                 .unwrap())
         })
@@ -91,6 +93,7 @@ pub async fn get_summary_for_week<RestState: RestStateDef>(
                 .await?;
             Ok(Response::builder()
                 .status(200)
+                .header("Content-type", "application/json")
                 .body(Body::new(
                     serde_json::to_string(&WeeklySummaryTO::from(&weekly_summary)).unwrap(),
                 ))
