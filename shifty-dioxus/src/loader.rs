@@ -458,6 +458,7 @@ pub async fn load_summary_for_week(
             friday_available_hours: 0.0,
             saturday_available_hours: 0.0,
             sunday_available_hours: 0.0,
+            sales_person_absences: Vec::new(),
         })
     }
 }

@@ -1,4 +1,12 @@
+use std::sync::Arc;
+
 use rest_types::WeeklySummaryTO;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SalesPersonAbsence {
+    pub name: Arc<str>,
+    pub absence_hours: f32,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeeklySummary {
@@ -15,6 +23,7 @@ pub struct WeeklySummary {
     pub friday_available_hours: f32,
     pub saturday_available_hours: f32,
     pub sunday_available_hours: f32,
+    pub sales_person_absences: Vec<SalesPersonAbsence>,
 }
 
 impl From<&WeeklySummaryTO> for WeeklySummary {
@@ -33,6 +42,22 @@ impl From<&WeeklySummaryTO> for WeeklySummary {
             friday_available_hours: summary.friday_available_hours,
             saturday_available_hours: summary.saturday_available_hours,
             sunday_available_hours: summary.sunday_available_hours,
+            sales_person_absences: summary
+                .working_hours_per_sales_person
+                .iter()
+                .filter_map(|sp| {
+                    let effective_absence =
+                        sp.absence_hours - sp.holiday_hours + sp.unavailable_hours;
+                    if effective_absence >= 0.1 {
+                        Some(SalesPersonAbsence {
+                            name: sp.sales_person_name.clone(),
+                            absence_hours: effective_absence,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
         }
     }
 }

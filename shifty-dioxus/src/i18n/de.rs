@@ -120,6 +120,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::HideDetails, "Weniger");
 
     i18n.add_text(Locale::De, Key::Hours, "Std.");
+    i18n.add_text(Locale::De, Key::HoursShort, "Std");
     i18n.add_text(Locale::De, Key::Days, "Tage");
 
     i18n.add_text(Locale::De, Key::AddEntry, "Sonstige Stunden hinzufügen");

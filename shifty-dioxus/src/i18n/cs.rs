@@ -119,6 +119,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::HideDetails, "Méně");
 
     i18n.add_text(Locale::Cs, Key::Hours, "hodiny");
+    i18n.add_text(Locale::Cs, Key::HoursShort, "hod");
     i18n.add_text(Locale::Cs, Key::Days, "dny");
 
     i18n.add_text(Locale::Cs, Key::AddEntry, "Přidat další hodiny");

@@ -139,6 +139,7 @@ pub enum Key {
     HideDetails,
 
     Hours,
+    HoursShort,
     Days,
 
     AddEntry,

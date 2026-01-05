@@ -27,6 +27,7 @@ pub fn WeeklyOverview() -> Element {
     let paid_volunteer = i18n.t(Key::PaidVolunteer);
     let available_required_hours = i18n.t(Key::AvailableRequiredHours);
     let missing_hours = i18n.t(Key::MissingHours);
+    let hours_short = i18n.t(Key::HoursShort);
 
     let cr = use_coroutine({
         to_owned![year];
@@ -116,6 +117,17 @@ pub fn WeeklyOverview() -> Element {
                                         }
                                     } else {
                                         td { "- {week.required_hours - week.available_hours:.2}" }
+                                    }
+                                }
+                                if !week.sales_person_absences.is_empty() {
+                                    tr { class: "border-b",
+                                        td { class: "pl-4 pb-2 text-sm text-gray-600", colspan: "4",
+                                            for absence in week.sales_person_absences.iter() {
+                                                span { class: "mr-4",
+                                                    "{absence.name}: {absence.absence_hours:.2} {hours_short}"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
