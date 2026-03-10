@@ -1,0 +1,59 @@
+schema: spec-driven
+
+context: |
+  # Shifty Backend
+  Employee shift planning & HR management system.
+
+  ## Tech Stack
+  - Language: Rust
+  - Web framework: Axum
+  - Database: SQLite via SQLx (compile-time query checking)
+  - API docs: OpenAPI via utoipa
+  - Testing: mockall for mocks, in-memory SQLite for integration tests
+  - Deployment: NixOS (shifty-nix)
+
+  ## Architecture
+  Clean layered architecture: REST → Service → DAO → SQLite
+
+  Multi-crate workspace:
+  - shifty_bin: Main executable with dependency injection
+  - service: Business logic trait definitions
+  - service_impl: Concrete service implementations
+  - dao: Data access trait definitions
+  - dao_impl_sqlite: SQLite-specific DAO implementations
+  - rest: HTTP API endpoints (Axum handlers)
+  - rest-types: Transport objects (DTOs) with OpenAPI schemas
+  - shifty-utils: Shared utilities
+
+  ## Key Patterns
+  - Services defined as traits, DI via gen_service_impl! macro
+  - All service methods accept Option<Transaction> for transaction management
+  - Authentication context passed through all service calls
+  - Soft deletes (WHERE deleted IS NULL)
+  - REST endpoints require #[utoipa::path] annotations
+  - DTOs require ToSchema derive for OpenAPI
+
+  ## Domain Concepts
+  - Sales Persons: Employee entities with working hour contracts
+  - Shift Plans / Slots: Time slots defining when work can be scheduled
+  - Bookings: Assignments of employees to specific slots
+  - Extra Hours: Overtime, vacation, holidays, sick leave tracking
+  - Balance Hours: Calculated surplus/deficit of worked vs expected hours
+  - Carryover Hours: Year-end balance persistence
+  - Special Days: Holidays and company events
+  - Billing Periods: Time periods for aggregating work hours
+
+  ## Conventions
+  - i18n: Three languages (En, De, Cs) — add translations for all three
+  - Feature flags: mock_auth, oidc, local_logging, json_logging
+  - All artifacts and documentation in English
+
+rules:
+  proposal:
+    - Write all content in English
+  design:
+    - Write all content in English
+  tasks:
+    - Write all content in English
+  spec:
+    - Write all content in English
