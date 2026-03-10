@@ -27,6 +27,7 @@ context: |
 
   ## Key Patterns
   - Services defined as traits, DI via gen_service_impl! macro
+  - DAO traits: only dump_all, create, update, and delete/clear_all have concrete impls; all other methods are default trait methods that build on these
   - All service methods accept Option<Transaction> for transaction management
   - Authentication context passed through all service calls
   - Soft deletes (WHERE deleted IS NULL)

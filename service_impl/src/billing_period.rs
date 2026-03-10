@@ -95,11 +95,10 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[BillingPeriod]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
-        let entities = self.billing_period_dao.all(tx).await?;
+        let entities = self.billing_period_dao.all_ordered_desc(tx).await?;
 
         Ok(entities
             .iter()
-            .filter(|bp| bp.deleted_at.is_none())
             .map(|pb| BillingPeriod::from_billing_period_entity(pb, [].into()))
             .collect())
     }
