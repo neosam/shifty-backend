@@ -473,6 +473,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CopiedToClipboard, "Copied to clipboard!");
     i18n.add_text(Locale::En, Key::CopyFailed, "Failed to copy to clipboard");
 
+    // Delete billing period
+    i18n.add_text(Locale::En, Key::DeleteBillingPeriod, "Delete");
+    i18n.add_text(Locale::En, Key::ConfirmDeleteBillingPeriod, "Are you sure you want to delete the billing period {period}? This action cannot be undone.");
+    i18n.add_text(Locale::En, Key::DeleteBillingPeriodError, "Failed to delete billing period: {error}");
+
     // My Shifts page
     i18n.add_text(Locale::En, Key::MyShifts, "My Shifts");
     i18n.add_text(Locale::En, Key::NoShiftsFound, "No shifts found for this period.");

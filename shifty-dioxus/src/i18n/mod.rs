@@ -327,6 +327,11 @@ pub enum Key {
     CopiedToClipboard,
     CopyFailed,
 
+    // Delete billing period
+    DeleteBillingPeriod,
+    ConfirmDeleteBillingPeriod,
+    DeleteBillingPeriodError,
+
     // My Shifts page
     MyShifts,
     NoShiftsFound,

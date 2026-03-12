@@ -338,6 +338,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::CopiedToClipboard, "Zkopírováno do schránky!");
     i18n.add_text(Locale::Cs, Key::CopyFailed, "Chyba při kopírování do schránky");
 
+    // Delete billing period
+    i18n.add_text(Locale::Cs, Key::DeleteBillingPeriod, "Smazat");
+    i18n.add_text(Locale::Cs, Key::ConfirmDeleteBillingPeriod, "Opravdu chcete smazat fakturační období {period}? Tuto akci nelze vrátit zpět.");
+    i18n.add_text(Locale::Cs, Key::DeleteBillingPeriodError, "Nepodařilo se smazat fakturační období: {error}");
+
     // My Shifts page
     i18n.add_text(Locale::Cs, Key::MyShifts, "Moje směny");
     i18n.add_text(Locale::Cs, Key::NoShiftsFound, "Žádné směny pro toto období nenalezeny.");

@@ -279,6 +279,81 @@ mod invitation_tests {
 }
 
 #[cfg(test)]
+mod delete_billing_period_tests {
+    use crate::i18n::{Locale, Key, generate};
+    use crate::state::auth_info::AuthInfo;
+    use std::rc::Rc;
+
+    #[test]
+    fn test_delete_billing_period_i18n_keys_all_locales() {
+        let keys = vec![
+            Key::DeleteBillingPeriod,
+            Key::ConfirmDeleteBillingPeriod,
+            Key::DeleteBillingPeriodError,
+        ];
+
+        for locale in &[Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(*locale);
+            for key in &keys {
+                let text = i18n.t(*key);
+                assert!(
+                    !text.is_empty() && text.as_ref() != "??",
+                    "Translation missing for {:?} in locale {:?}",
+                    key,
+                    locale
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_confirm_delete_billing_period_has_period_placeholder() {
+        for locale in &[Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(*locale);
+            let text = i18n.t(Key::ConfirmDeleteBillingPeriod);
+            assert!(
+                text.contains("{period}"),
+                "ConfirmDeleteBillingPeriod in {:?} should contain {{period}} placeholder",
+                locale
+            );
+        }
+    }
+
+    #[test]
+    fn test_delete_error_has_error_placeholder() {
+        for locale in &[Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(*locale);
+            let text = i18n.t(Key::DeleteBillingPeriodError);
+            assert!(
+                text.contains("{error}"),
+                "DeleteBillingPeriodError in {:?} should contain {{error}} placeholder",
+                locale
+            );
+        }
+    }
+
+    #[test]
+    fn test_hr_privilege_visibility() {
+        let hr_user = AuthInfo {
+            user: "hr_admin".into(),
+            privileges: Rc::new(["hr".into()]),
+            authenticated: true,
+        };
+        assert!(hr_user.has_privilege("hr"));
+
+        let non_hr_user = AuthInfo {
+            user: "regular".into(),
+            privileges: Rc::new(["sales".into()]),
+            authenticated: true,
+        };
+        assert!(!non_hr_user.has_privilege("hr"));
+
+        let no_privileges = AuthInfo::default();
+        assert!(!no_privileges.has_privilege("hr"));
+    }
+}
+
+#[cfg(test)]
 mod utils_tests {
     // Removed unused js function imports
     use crate::error::{ShiftyError, result_handler};

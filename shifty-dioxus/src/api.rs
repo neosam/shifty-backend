@@ -824,6 +824,16 @@ pub async fn get_sales_person_by_user(
     Ok(Some(res))
 }
 
+pub async fn delete_billing_period(config: Config, id: Uuid) -> Result<(), reqwest::Error> {
+    info!("Deleting billing period {id}");
+    let url = format!("{}/billing-period/{}", config.backend, id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted billing period");
+    Ok(())
+}
+
 pub async fn get_billing_periods(config: Config) -> Result<Rc<[BillingPeriodTO]>, reqwest::Error> {
     info!("Fetching billing periods");
     let url = format!("{}/billing-period", config.backend);

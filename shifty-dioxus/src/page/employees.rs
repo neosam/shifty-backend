@@ -1,9 +1,11 @@
 use crate::{
+    api,
     component::{EmployeeShort, Modal, TopBar},
     i18n::Key,
     js, loader,
     router::Route,
     service::{
+        auth::AUTH,
         billing_period::{BillingPeriodAction, BILLING_PERIOD_STORE},
         config::CONFIG,
         i18n::I18N,
@@ -12,11 +14,15 @@ use crate::{
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 use time::macros::format_description;
+use uuid::Uuid;
 
 pub enum EmployeesPageAction {
     ShowCreateBillingPeriodDialog,
     HideCreateBillingPeriodDialog,
     CreateBillingPeriod(String),
+    DeleteBillingPeriod(Uuid),
+    ConfirmDeleteBillingPeriod,
+    CancelDeleteBillingPeriod,
 }
 
 #[component]
@@ -35,12 +41,23 @@ pub fn Employees() -> Element {
     let billing_periods = BILLING_PERIOD_STORE.read().clone();
     let i18n = I18N.read().clone();
 
+    let auth_info = AUTH.read().auth_info.clone();
+    let is_hr = auth_info
+        .as_ref()
+        .map(|a| a.has_privilege("hr"))
+        .unwrap_or(false);
+
     // Dialog state
     let mut show_create_billing_period_dialog = use_signal(|| false);
     let mut end_date = use_signal(|| {
         let date_format = format_description!("[year]-[month]-[day]");
         js::current_datetime().date().format(&date_format).unwrap()
     });
+
+    // Delete billing period dialog state
+    let mut show_delete_dialog = use_signal(|| false);
+    let mut delete_billing_period_id: Signal<Option<Uuid>> = use_signal(|| None);
+    let mut delete_error: Signal<Option<String>> = use_signal(|| None);
 
     let page_action_handler = use_coroutine(
         move |mut rx: UnboundedReceiver<EmployeesPageAction>| async move {
@@ -62,6 +79,34 @@ pub fn Employees() -> Element {
                             show_create_billing_period_dialog.set(false);
                         }
                     }
+                    EmployeesPageAction::DeleteBillingPeriod(id) => {
+                        delete_billing_period_id.set(Some(id));
+                        delete_error.set(None);
+                        show_delete_dialog.set(true);
+                    }
+                    EmployeesPageAction::CancelDeleteBillingPeriod => {
+                        show_delete_dialog.set(false);
+                        delete_billing_period_id.set(None);
+                        delete_error.set(None);
+                    }
+                    EmployeesPageAction::ConfirmDeleteBillingPeriod => {
+                        let bp_id = *delete_billing_period_id.read();
+                        if let Some(id) = bp_id {
+                            let config = CONFIG.read().clone();
+                            match api::delete_billing_period(config, id).await {
+                                Ok(()) => {
+                                    show_delete_dialog.set(false);
+                                    delete_billing_period_id.set(None);
+                                    delete_error.set(None);
+                                    billing_period_service
+                                        .send(BillingPeriodAction::LoadBillingPeriods);
+                                }
+                                Err(err) => {
+                                    delete_error.set(Some(err.to_string()));
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -78,6 +123,49 @@ pub fn Employees() -> Element {
 
     rsx! {
         TopBar {}
+
+        // Modal for delete billing period confirmation
+        if *show_delete_dialog.read() {
+            Modal {
+                div { class: "space-y-6",
+                    h2 { class: "text-xl font-bold mb-4 text-red-600", "{i18n.t(Key::ConfirmDelete)}" }
+                    p {
+                        {
+                            let period_text = if let Some(id) = *delete_billing_period_id.read() {
+                                billing_periods.billing_periods.iter()
+                                    .find(|bp| bp.id == id)
+                                    .map(|bp| format!("{} - {}", i18n.format_date(&bp.start_date), i18n.format_date(&bp.end_date)))
+                                    .unwrap_or_default()
+                            } else {
+                                String::new()
+                            };
+                            i18n.t(Key::ConfirmDeleteBillingPeriod).replace("{period}", &period_text)
+                        }
+                    }
+                    if let Some(error) = delete_error.read().as_ref() {
+                        p { class: "text-red-600 text-sm",
+                            {i18n.t(Key::DeleteBillingPeriodError).replace("{error}", error)}
+                        }
+                    }
+                    div { class: "flex justify-end space-x-4",
+                        button {
+                            class: "px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500",
+                            onclick: move |_| {
+                                page_action_handler.send(EmployeesPageAction::CancelDeleteBillingPeriod)
+                            },
+                            "{i18n.t(Key::Cancel)}"
+                        }
+                        button {
+                            class: "px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500",
+                            onclick: move |_| {
+                                page_action_handler.send(EmployeesPageAction::ConfirmDeleteBillingPeriod)
+                            },
+                            "{i18n.t(Key::DeleteBillingPeriod)}"
+                        }
+                    }
+                }
+            }
+        }
 
         // Modal for creating new billing period
         if *show_create_billing_period_dialog.read() {
@@ -170,7 +258,7 @@ pub fn Employees() -> Element {
                     div { class: "text-gray-500", "{i18n.t(Key::LoadingBillingPeriods)}" }
                 } else {
                     div { class: "grid gap-4",
-                        for billing_period in billing_periods.billing_periods.iter() {
+                        for (index, billing_period) in billing_periods.billing_periods.iter().enumerate() {
                             Link {
                                 to: Route::BillingPeriodDetails {
                                     billing_period_id: billing_period.id.to_string(),
@@ -197,6 +285,22 @@ pub fn Employees() -> Element {
                                             }
                                         }
                                         div { class: "flex items-center space-x-2",
+                                            if index == 0 && is_hr {
+                                                {
+                                                    let bp_id = billing_period.id;
+                                                    rsx! {
+                                                        button {
+                                                            class: "px-2 py-1 bg-red-100 text-red-600 text-xs rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500",
+                                                            onclick: move |event: Event<MouseData>| {
+                                                                event.prevent_default();
+                                                                event.stop_propagation();
+                                                                page_action_handler.send(EmployeesPageAction::DeleteBillingPeriod(bp_id));
+                                                            },
+                                                            "{i18n.t(Key::DeleteBillingPeriod)}"
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             if billing_period.deleted_at.is_none() {
                                                 span { class: "px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full",
                                                     "{i18n.t(Key::Active)}"

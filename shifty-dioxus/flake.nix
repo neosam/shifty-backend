@@ -5,9 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
+    openspec.url = "github:Fission-AI/OpenSpec";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, openspec }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -193,6 +194,7 @@ EOF
             cargo-watch
             lld
             binaryen
+            openspec.packages.${system}.default
           ];
 
           RUST_TARGET = "wasm32-unknown-unknown";

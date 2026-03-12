@@ -36,6 +36,22 @@
     },
     "nixpkgs_2": {
       "locked": {
+        "lastModified": 1767640445,
+        "narHash": "sha256-UWYqmD7JFBEDBHWYcqE6s6c77pWdcU/i+bwD6XxMb8A=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "9f0c42f8bc7151b8e7e5840fb3bd454ad850d8c5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_3": {
+      "locked": {
         "lastModified": 1744536153,
         "narHash": "sha256-awS2zRgF4uTwrOKwwiJcByDzDOdo3Q1rPZbiHQg/N38=",
         "owner": "NixOS",
@@ -50,16 +66,35 @@
         "type": "github"
       }
     },
+    "openspec": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1772182342,
+        "narHash": "sha256-9Q0iUyZGcDPLdgvnrBN3GumV8g9akV8TFb8bFkD1yYs=",
+        "owner": "Fission-AI",
+        "repo": "OpenSpec",
+        "rev": "afdca0d5dab1aa109cfd8848b2512333ccad60c3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Fission-AI",
+        "repo": "OpenSpec",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
+        "openspec": "openspec",
         "rust-overlay": "rust-overlay"
       }
     },
     "rust-overlay": {
       "inputs": {
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_3"
       },
       "locked": {
         "lastModified": 1760149850,

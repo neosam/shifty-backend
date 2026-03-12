@@ -516,6 +516,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Fehler beim Kopieren in die Zwischenablage",
     );
 
+    // Delete billing period
+    i18n.add_text(Locale::De, Key::DeleteBillingPeriod, "Löschen");
+    i18n.add_text(Locale::De, Key::ConfirmDeleteBillingPeriod, "Möchten Sie den Abrechnungszeitraum {period} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.");
+    i18n.add_text(Locale::De, Key::DeleteBillingPeriodError, "Fehler beim Löschen des Abrechnungszeitraums: {error}");
+
     // My Shifts page
     i18n.add_text(Locale::De, Key::MyShifts, "Meine Schichten");
     i18n.add_text(Locale::De, Key::NoShiftsFound, "Keine Schichten für diesen Zeitraum gefunden.");
