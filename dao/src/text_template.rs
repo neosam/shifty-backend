@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -7,11 +8,41 @@ use uuid::Uuid;
 use crate::DaoError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TemplateEngineEntity {
+    Tera,
+    MiniJinja,
+}
+
+impl TryFrom<&str> for TemplateEngineEntity {
+    type Error = DaoError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "tera" => Ok(Self::Tera),
+            "minijinja" => Ok(Self::MiniJinja),
+            other => Err(DaoError::EnumValueNotFound(
+                format!("Unknown template engine: {}", other).into(),
+            )),
+        }
+    }
+}
+
+impl fmt::Display for TemplateEngineEntity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Tera => write!(f, "tera"),
+            Self::MiniJinja => write!(f, "minijinja"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextTemplateEntity {
     pub id: Uuid,
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+    pub template_engine: TemplateEngineEntity,
     pub created_at: Option<time::PrimitiveDateTime>,
     pub created_by: Option<Arc<str>>,
     pub deleted: Option<time::PrimitiveDateTime>,

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE billing_period_sales_person SET deleted_at = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE billing_period_id = ? AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "5f2362352831006a985ed3ab28a24665f037ce30414130f8a32c80f99a246837"
+}

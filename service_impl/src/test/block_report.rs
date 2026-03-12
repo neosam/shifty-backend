@@ -48,6 +48,7 @@ fn create_test_text_template(template_text: &str) -> TextTemplate {
         name: Some("Test Block Template".into()),
         template_type: "block_report".into(),
         template_text: template_text.into(),
+        template_engine: service::text_template::TemplateEngine::Tera,
         created_at: Some(datetime!(2024-01-01 10:00:00)),
         created_by: Some("test_user".into()),
         deleted: None,

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM toggle_group_toggle WHERE toggle_group_name = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3de2b89fb23938401d6dcfdeea77a4d323be01dd2ef35e43e3d47775270022dd"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE toggle\n               SET enabled = 0, update_process = ?\n               WHERE name IN (\n                   SELECT toggle_name FROM toggle_group_toggle WHERE toggle_group_name = ?\n               )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "fb218f70d7a1654a7105ff099e401c38ba1f3c42d379a7a4d793a5daed49ae35"
+}

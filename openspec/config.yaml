@@ -56,5 +56,9 @@ rules:
     - Write all content in English
   tasks:
     - Write all content in English
+    - "Follow Test Driven Development (TDD): structure tasks in three phases:"
+    - "Phase 1 (Scaffolding): Add new fields, types, dependencies, and stub methods with todo!() or unimplemented!() — just enough to make the project compile. Do NOT write actual implementation logic (e.g., SQL queries, business logic) in this phase."
+    - "Phase 2 (Red): Write all tests based on the spec requirements. Tests should compile but fail because the stubs are not yet implemented."
+    - "Phase 3 (Green): Implement the actual logic until all tests pass."
   spec:
     - Write all content in English

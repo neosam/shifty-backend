@@ -9,11 +9,36 @@ use crate::permission::Authentication;
 use crate::ServiceError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TemplateEngine {
+    Tera,
+    MiniJinja,
+}
+
+impl From<&dao::text_template::TemplateEngineEntity> for TemplateEngine {
+    fn from(entity: &dao::text_template::TemplateEngineEntity) -> Self {
+        match entity {
+            dao::text_template::TemplateEngineEntity::Tera => Self::Tera,
+            dao::text_template::TemplateEngineEntity::MiniJinja => Self::MiniJinja,
+        }
+    }
+}
+
+impl From<&TemplateEngine> for dao::text_template::TemplateEngineEntity {
+    fn from(engine: &TemplateEngine) -> Self {
+        match engine {
+            TemplateEngine::Tera => Self::Tera,
+            TemplateEngine::MiniJinja => Self::MiniJinja,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextTemplate {
     pub id: Uuid,
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+    pub template_engine: TemplateEngine,
     pub created_at: Option<time::PrimitiveDateTime>,
     pub created_by: Option<Arc<str>>,
     pub deleted: Option<time::PrimitiveDateTime>,
@@ -28,6 +53,7 @@ impl From<&dao::text_template::TextTemplateEntity> for TextTemplate {
             name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
+            template_engine: TemplateEngine::from(&text_template.template_engine),
             created_at: text_template.created_at,
             created_by: text_template.created_by.clone(),
             deleted: text_template.deleted,
@@ -44,6 +70,7 @@ impl From<&TextTemplate> for dao::text_template::TextTemplateEntity {
             name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
+            template_engine: dao::text_template::TemplateEngineEntity::from(&text_template.template_engine),
             created_at: text_template.created_at,
             created_by: text_template.created_by.clone(),
             deleted: text_template.deleted,

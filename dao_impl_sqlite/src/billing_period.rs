@@ -197,6 +197,33 @@ impl BillingPeriodDao for BillingPeriodDaoImpl {
         Ok(entity.clone())
     }
 
+    async fn delete_by_id(
+        &self,
+        id: Uuid,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
+        let now = OffsetDateTime::now_utc()
+            .format(&Iso8601::DATE_TIME)
+            .map_db_error()?;
+        let id_vec = id.as_bytes().to_vec();
+        let version_vec = Uuid::new_v4().as_bytes().to_vec();
+
+        query!(
+            "UPDATE billing_period SET deleted = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ? AND deleted IS NULL",
+            now,
+            process,
+            version_vec,
+            process,
+            id_vec
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        Ok(())
+    }
+
     async fn clear_all(
         &self,
         process: &str,

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::Serialize;
+use service::text_template::TemplateEngine;
 use tera::{Context, Tera};
 use uuid::Uuid;
 
@@ -174,31 +175,57 @@ impl<Deps: BlockReportServiceDeps> BlockReportService for BlockReportServiceImpl
             .map(SimpleBlock::from)
             .collect();
 
-        // Create template context
-        let mut tera_context = Context::new();
-        tera_context.insert("current_week_blocks", &current_week_blocks);
-        tera_context.insert("next_week_blocks", &next_week_blocks);
-        tera_context.insert("week_after_next_blocks", &week_after_next_blocks);
-        tera_context.insert("unsufficiently_booked_blocks", &all_simple_blocks);
-        tera_context.insert("current_week", &current_week);
-        tera_context.insert("current_year", &current_year);
-        tera_context.insert("next_week", &next_week);
-        tera_context.insert("next_year", &next_year);
-        tera_context.insert("week_after_next_week", &week_after_next_week);
-        tera_context.insert("week_after_next_year", &week_after_next_year);
+        // Render using the appropriate engine
+        let rendered = match template.template_engine {
+            TemplateEngine::Tera => {
+                let mut tera_context = Context::new();
+                tera_context.insert("current_week_blocks", &current_week_blocks);
+                tera_context.insert("next_week_blocks", &next_week_blocks);
+                tera_context.insert("week_after_next_blocks", &week_after_next_blocks);
+                tera_context.insert("unsufficiently_booked_blocks", &all_simple_blocks);
+                tera_context.insert("current_week", &current_week);
+                tera_context.insert("current_year", &current_year);
+                tera_context.insert("next_week", &next_week);
+                tera_context.insert("next_year", &next_year);
+                tera_context.insert("week_after_next_week", &week_after_next_week);
+                tera_context.insert("week_after_next_year", &week_after_next_year);
 
-        // Render the template
-        let mut tera = Tera::default();
-        let rendered = tera
-            .render_str(&template.template_text, &tera_context)
-            .map_err(|e| {
-                ServiceError::ValidationError(Arc::new([
-                    service::ValidationFailureItem::InvalidValue(Arc::from(format!(
-                        "Template rendering error: {}",
-                        e
-                    ))),
-                ]))
-            })?;
+                let mut tera = Tera::default();
+                tera.render_str(&template.template_text, &tera_context)
+                    .map_err(|e| {
+                        ServiceError::ValidationError(Arc::new([
+                            service::ValidationFailureItem::InvalidValue(Arc::from(format!(
+                                "Template rendering error: {}",
+                                e
+                            ))),
+                        ]))
+                    })?
+            }
+            TemplateEngine::MiniJinja => {
+                let context_data = serde_json::json!({
+                    "current_week_blocks": current_week_blocks,
+                    "next_week_blocks": next_week_blocks,
+                    "week_after_next_blocks": week_after_next_blocks,
+                    "unsufficiently_booked_blocks": all_simple_blocks,
+                    "current_week": current_week,
+                    "current_year": current_year,
+                    "next_week": next_week,
+                    "next_year": next_year,
+                    "week_after_next_week": week_after_next_week,
+                    "week_after_next_year": week_after_next_year,
+                });
+                let env = minijinja::Environment::new();
+                env.render_str(&template.template_text, context_data)
+                    .map_err(|e| {
+                        ServiceError::ValidationError(Arc::new([
+                            service::ValidationFailureItem::InvalidValue(Arc::from(format!(
+                                "Template rendering error: {}",
+                                e
+                            ))),
+                        ]))
+                    })?
+            }
+        };
 
         self.transaction_dao.commit(tx).await?;
         Ok(Arc::from(rendered))

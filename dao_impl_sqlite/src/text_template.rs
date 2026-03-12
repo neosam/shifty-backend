@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
-    text_template::{TextTemplateDao, TextTemplateEntity},
+    text_template::{TemplateEngineEntity, TextTemplateDao, TextTemplateEntity},
     DaoError,
 };
 use sqlx::{query, query_as};
@@ -25,6 +25,7 @@ struct TextTemplateDb {
     name: Option<String>,
     template_type: String,
     template_text: String,
+    template_engine: String,
     created_at: Option<String>,
     created_by: Option<String>,
     deleted: Option<String>,
@@ -40,6 +41,7 @@ impl TryFrom<&TextTemplateDb> for TextTemplateEntity {
             name: text_template.name.as_ref().map(|s| s.as_str().into()),
             template_type: text_template.template_type.as_str().into(),
             template_text: text_template.template_text.as_str().into(),
+            template_engine: TemplateEngineEntity::try_from(text_template.template_engine.as_str())?,
             created_at: text_template
                 .created_at
                 .as_ref()
@@ -76,7 +78,7 @@ impl TextTemplateDao for TextTemplateDaoImpl {
     async fn all(&self, tx: Self::Transaction) -> Result<Arc<[TextTemplateEntity]>, DaoError> {
         Ok(query_as!(
             TextTemplateDb,
-            "SELECT id, name, template_type, template_text, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE deleted IS NULL"
+            "SELECT id, name, template_type, template_text, template_engine, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE deleted IS NULL"
         )
         .fetch_all(tx.tx.lock().await.as_mut())
         .await
@@ -94,7 +96,7 @@ impl TextTemplateDao for TextTemplateDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             TextTemplateDb,
-            "SELECT id, name, template_type, template_text, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE id = ? AND deleted IS NULL",
+            "SELECT id, name, template_type, template_text, template_engine, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE id = ? AND deleted IS NULL",
             id_vec
         )
         .fetch_optional(tx.tx.lock().await.as_mut())
@@ -112,7 +114,7 @@ impl TextTemplateDao for TextTemplateDaoImpl {
     ) -> Result<Arc<[TextTemplateEntity]>, DaoError> {
         Ok(query_as!(
             TextTemplateDb,
-            "SELECT id, name, template_type, template_text, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE template_type = ? AND deleted IS NULL",
+            "SELECT id, name, template_type, template_text, template_engine, created_at, created_by, deleted, deleted_by, update_version FROM text_template WHERE template_type = ? AND deleted IS NULL",
             template_type
         )
         .fetch_all(tx.tx.lock().await.as_mut())
@@ -134,14 +136,15 @@ impl TextTemplateDao for TextTemplateDaoImpl {
         let name = entity.name.as_ref().map(|s| s.as_ref());
         let template_type = entity.template_type.as_ref();
         let template_text = entity.template_text.as_ref();
+        let template_engine = entity.template_engine.to_string();
         let created_at = entity.created_at.as_ref().map(|created_at| created_at.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let created_by = entity.created_by.as_ref().map(|s| s.as_ref());
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
 
         query!(
-            "INSERT INTO text_template (id, name, template_type, template_text, created_at, created_by, deleted, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            id, name, template_type, template_text, created_at, created_by, deleted, deleted_by, version, process
+            "INSERT INTO text_template (id, name, template_type, template_text, template_engine, created_at, created_by, deleted, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            id, name, template_type, template_text, template_engine, created_at, created_by, deleted, deleted_by, version, process
         )
         .execute(tx.tx.lock().await.as_mut())
         .await
@@ -160,14 +163,15 @@ impl TextTemplateDao for TextTemplateDaoImpl {
         let name = entity.name.as_ref().map(|s| s.as_ref());
         let template_type = entity.template_type.as_ref();
         let template_text = entity.template_text.as_ref();
+        let template_engine = entity.template_engine.to_string();
         let created_at = entity.created_at.as_ref().map(|created_at| created_at.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let created_by = entity.created_by.as_ref().map(|s| s.as_ref());
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.format(&Iso8601::DATE_TIME)).transpose().map_db_error()?;
         let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
 
         query!(
-            "UPDATE text_template SET name = ?, template_type = ?, template_text = ?, created_at = ?, created_by = ?, deleted = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ?",
-            name, template_type, template_text, created_at, created_by, deleted, deleted_by, version, process, id
+            "UPDATE text_template SET name = ?, template_type = ?, template_text = ?, template_engine = ?, created_at = ?, created_by = ?, deleted = ?, deleted_by = ?, update_version = ?, update_process = ? WHERE id = ?",
+            name, template_type, template_text, template_engine, created_at, created_by, deleted, deleted_by, version, process, id
         )
         .execute(tx.tx.lock().await.as_mut())
         .await

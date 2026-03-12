@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO toggle (name, enabled, description, update_process)\n               VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1df4a090de6dd889d8e48446090d8bc796df6c4eb05da2bccfed373087c42679"
+}

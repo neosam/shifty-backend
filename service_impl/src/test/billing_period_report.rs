@@ -52,12 +52,17 @@ impl MockDeps {
 }
 
 fn create_test_text_template(template_text: &str) -> TextTemplate {
+    create_test_text_template_with_engine(template_text, service::text_template::TemplateEngine::Tera)
+}
+
+fn create_test_text_template_with_engine(template_text: &str, engine: service::text_template::TemplateEngine) -> TextTemplate {
     TextTemplate {
         id: Uuid::new_v4(),
         version: Uuid::new_v4(),
         name: Some("Test Template".into()),
         template_type: "test_template".into(),
         template_text: template_text.into(),
+        template_engine: engine,
         created_at: Some(datetime!(2024-01-01 10:00:00)),
         created_by: Some("test_user".into()),
         deleted: None,
@@ -382,4 +387,162 @@ async fn test_generate_custom_report_template_not_found() {
     // Assert
     assert!(result.is_err());
     assert!(matches!(result.unwrap_err(), ServiceError::EntityNotFoundGeneric(_)));
+}
+
+fn setup_generate_report_mocks(
+    template: TextTemplate,
+    billing_period: BillingPeriod,
+) -> BillingPeriodReportServiceImpl<MockDeps> {
+    let template_id = template.id;
+    let billing_period_id = billing_period.id;
+    let context = Authentication::Full;
+
+    let mut deps = MockDeps {
+        billing_period_service: service::billing_period::MockBillingPeriodService::new(),
+        reporting_service: service::reporting::MockReportingService::new(),
+        sales_person_service: service::sales_person::MockSalesPersonService::new(),
+        text_template_service: service::text_template::MockTextTemplateService::new(),
+        permission_service: service::MockPermissionService::new(),
+        uuid_service: service::uuid_service::MockUuidService::new(),
+        clock_service: service::clock::MockClockService::new(),
+        transaction_dao: dao::MockTransactionDao::new(),
+    };
+
+    deps.transaction_dao
+        .expect_use_transaction()
+        .with(predicate::always())
+        .times(1)
+        .returning(|_| Ok(dao::MockTransaction));
+
+    deps.permission_service
+        .expect_check_permission()
+        .with(eq(service::permission::HR_PRIVILEGE), eq(context.clone()))
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    deps.text_template_service
+        .expect_get_by_id()
+        .with(eq(template_id), eq(context.clone()), always())
+        .times(1)
+        .returning(move |_, _, _| Ok(template.clone()));
+
+    deps.billing_period_service
+        .expect_get_billing_period_by_id()
+        .with(eq(billing_period_id), eq(context.clone()), always())
+        .times(1)
+        .returning(move |_, _, _| Ok(billing_period.clone()));
+
+    deps.transaction_dao
+        .expect_commit()
+        .with(always())
+        .times(1)
+        .returning(|_| Ok(()));
+
+    deps.build_service()
+}
+
+#[tokio::test]
+async fn test_engine_default_is_tera() {
+    let template = create_test_text_template("Hello");
+    assert_eq!(template.template_engine, service::text_template::TemplateEngine::Tera);
+}
+
+#[tokio::test]
+async fn test_tera_rendering_regression() {
+    let template = create_test_text_template(
+        "Start: {{ billing_period.start_date }}, End: {{ billing_period.end_date }}"
+    );
+    let billing_period = create_test_billing_period();
+    let template_id = template.id;
+    let billing_period_id = billing_period.id;
+
+    let service = setup_generate_report_mocks(template, billing_period);
+
+    let result = service
+        .generate_custom_report(template_id, billing_period_id, Authentication::Full, None)
+        .await;
+
+    assert!(result.is_ok());
+    let report = result.unwrap();
+    assert!(report.contains("Start: 2024-07-15"));
+    assert!(report.contains("End: 2024-08-14"));
+}
+
+#[tokio::test]
+async fn test_minijinja_rendering() {
+    let template = create_test_text_template_with_engine(
+        "Start: {{ billing_period.start_date }}, End: {{ billing_period.end_date }}",
+        service::text_template::TemplateEngine::MiniJinja,
+    );
+    let billing_period = create_test_billing_period();
+    let template_id = template.id;
+    let billing_period_id = billing_period.id;
+
+    let service = setup_generate_report_mocks(template, billing_period);
+
+    let result = service
+        .generate_custom_report(template_id, billing_period_id, Authentication::Full, None)
+        .await;
+
+    assert!(result.is_ok());
+    let report = result.unwrap();
+    assert!(report.contains("Start: 2024-07-15"));
+    assert!(report.contains("End: 2024-08-14"));
+}
+
+#[tokio::test]
+async fn test_minijinja_dict_literal() {
+    let template = create_test_text_template_with_engine(
+        r#"{% set names = {"12345678-1234-1234-1234-123456789012": "Alice", "87654321-4321-4321-4321-210987654321": "Bob"} %}{% for person in billing_period.sales_persons %}{{ names[person.sales_person_id] }}: {% for value in person.values %}{% if value.type == "overall" %}{{ value.value_delta }}h{% endif %}{% endfor %}
+{% endfor %}"#,
+        service::text_template::TemplateEngine::MiniJinja,
+    );
+    let billing_period = create_test_billing_period();
+    let template_id = template.id;
+    let billing_period_id = billing_period.id;
+
+    let service = setup_generate_report_mocks(template, billing_period);
+
+    let result = service
+        .generate_custom_report(template_id, billing_period_id, Authentication::Full, None)
+        .await;
+
+    assert!(result.is_ok());
+    let report = result.unwrap();
+    assert!(report.contains("Alice: 160"));
+    assert!(report.contains("Bob: 140"));
+}
+
+#[tokio::test]
+async fn test_same_context_both_engines() {
+    // Tera version
+    let tera_template = create_test_text_template(
+        "{{ billing_period.start_date }}"
+    );
+    let billing_period = create_test_billing_period();
+    let tera_template_id = tera_template.id;
+    let billing_period_id = billing_period.id;
+
+    let service = setup_generate_report_mocks(tera_template, billing_period.clone());
+    let tera_result = service
+        .generate_custom_report(tera_template_id, billing_period_id, Authentication::Full, None)
+        .await
+        .unwrap();
+
+    // MiniJinja version
+    let minijinja_template = create_test_text_template_with_engine(
+        "{{ billing_period.start_date }}",
+        service::text_template::TemplateEngine::MiniJinja,
+    );
+    let mut billing_period2 = create_test_billing_period();
+    billing_period2.id = billing_period_id;
+    let minijinja_template_id = minijinja_template.id;
+
+    let service = setup_generate_report_mocks(minijinja_template, billing_period2);
+    let minijinja_result = service
+        .generate_custom_report(minijinja_template_id, billing_period_id, Authentication::Full, None)
+        .await
+        .unwrap();
+
+    assert_eq!(tera_result.as_ref(), minijinja_result.as_ref());
 }

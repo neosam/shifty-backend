@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT enabled FROM toggle WHERE name = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "enabled",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "929c9d2f20803a59fb7f7f4024b9095f22be47cefe33f3764b78503796c7db21"
+}

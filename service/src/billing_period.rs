@@ -193,6 +193,14 @@ pub trait BillingPeriodService {
         tx: Option<Self::Transaction>,
     ) -> Result<Option<ShiftyDate>, ServiceError>;
 
+    /// Soft-delete a single billing period by ID. Only the latest (most recent) billing period can be deleted.
+    async fn delete_billing_period(
+        &self,
+        id: uuid::Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
+
     /// Clear all billing periods (soft delete).
     async fn clear_all_billing_periods(
         &self,

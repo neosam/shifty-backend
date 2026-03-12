@@ -19,6 +19,8 @@ pub mod shiftplan;
 #[cfg(test)]
 pub mod slot;
 #[cfg(test)]
+pub mod billing_period;
+#[cfg(test)]
 pub mod billing_period_report;
 #[cfg(test)]
 pub mod block_report;

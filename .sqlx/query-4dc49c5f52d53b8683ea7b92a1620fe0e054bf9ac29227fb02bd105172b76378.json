@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT name, enabled, description\n               FROM toggle\n               ORDER BY name",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "enabled",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "4dc49c5f52d53b8683ea7b92a1620fe0e054bf9ac29227fb02bd105172b76378"
+}

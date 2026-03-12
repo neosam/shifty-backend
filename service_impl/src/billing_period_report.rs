@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde_json::json;
+use service::text_template::TemplateEngine;
 use tera::{Context, Tera};
 use dao::TransactionDao;
 use service::billing_period::{
@@ -272,60 +273,68 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
             .get_billing_period_by_id(billing_period_id, context.clone(), tx.clone().into())
             .await?;
 
-        // Create Tera instance for string-based templates
-        let mut tera = Tera::default();
+        // Build template context data as JSON
+        let context_data = json!({
+            "billing_period": {
+                "id": billing_period.id.to_string(),
+                "start_date": billing_period.start_date.to_date().to_string(),
+                "end_date": billing_period.end_date.to_date().to_string(),
+                "created_at": billing_period.created_at.to_string(),
+                "created_by": billing_period.created_by.as_ref(),
+                "sales_persons": billing_period.sales_persons.iter().map(|sp| {
+                    json!({
+                        "id": sp.id.to_string(),
+                        "sales_person_id": sp.sales_person_id.to_string(),
+                        "values": sp.values.iter().map(|(key, value)| {
+                            json!({
+                                "type": key.as_str().as_ref(),
+                                "value_delta": value.value_delta,
+                                "value_ytd_from": value.value_ytd_from,
+                                "value_ytd_to": value.value_ytd_to,
+                                "value_full_year": value.value_full_year,
+                            })
+                        }).collect::<Vec<_>>(),
+                        "created_at": sp.created_at.to_string(),
+                        "created_by": sp.created_by.as_ref(),
+                    })
+                }).collect::<Vec<_>>(),
+            },
+            "template": {
+                "id": text_template.id.to_string(),
+                "template_type": text_template.template_type.as_ref(),
+                "created_at": text_template.created_at.map(|dt| dt.to_string()),
+                "created_by": text_template.created_by.as_ref().map(|s| s.as_ref()),
+            }
+        });
 
-        // Add the template to Tera
-        tera.add_raw_template("custom_report", &text_template.template_text)
-            .map_err(|e| {
-                tracing::error!("Failed to parse Tera template: {}", e);
-                ServiceError::InternalError
-            })?;
-
-        // Prepare context data for template rendering
-        let mut template_context = Context::new();
-        
-        // Add billing period data
-        template_context.insert("billing_period", &json!({
-            "id": billing_period.id.to_string(),
-            "start_date": billing_period.start_date.to_date().to_string(),
-            "end_date": billing_period.end_date.to_date().to_string(),
-            "created_at": billing_period.created_at.to_string(),
-            "created_by": billing_period.created_by.as_ref(),
-            "sales_persons": billing_period.sales_persons.iter().map(|sp| {
-                json!({
-                    "id": sp.id.to_string(),
-                    "sales_person_id": sp.sales_person_id.to_string(),
-                    "values": sp.values.iter().map(|(key, value)| {
-                        json!({
-                            "type": key.as_str().as_ref(),
-                            "value_delta": value.value_delta,
-                            "value_ytd_from": value.value_ytd_from,
-                            "value_ytd_to": value.value_ytd_to,
-                            "value_full_year": value.value_full_year,
-                        })
-                    }).collect::<Vec<_>>(),
-                    "created_at": sp.created_at.to_string(),
-                    "created_by": sp.created_by.as_ref(),
-                })
-            }).collect::<Vec<_>>(),
-        }));
-
-        // Add template metadata
-        template_context.insert("template", &json!({
-            "id": text_template.id.to_string(),
-            "template_type": text_template.template_type.as_ref(),
-            "created_at": text_template.created_at.map(|dt| dt.to_string()),
-            "created_by": text_template.created_by.as_ref().map(|s| s.as_ref()),
-        }));
-
-        // Render the template
-        let rendered = tera
-            .render("custom_report", &template_context)
-            .map_err(|e| {
-                tracing::error!("Failed to render Tera template: {}", e);
-                ServiceError::InternalError
-            })?;
+        // Render using the appropriate engine
+        let rendered = match text_template.template_engine {
+            TemplateEngine::Tera => {
+                let mut tera = Tera::default();
+                tera.add_raw_template("custom_report", &text_template.template_text)
+                    .map_err(|e| {
+                        tracing::error!("Failed to parse Tera template: {}", e);
+                        ServiceError::InternalError
+                    })?;
+                let template_context = Context::from_serialize(&context_data).map_err(|e| {
+                    tracing::error!("Failed to serialize template context: {}", e);
+                    ServiceError::InternalError
+                })?;
+                tera.render("custom_report", &template_context)
+                    .map_err(|e| {
+                        tracing::error!("Failed to render Tera template: {}", e);
+                        ServiceError::InternalError
+                    })?
+            }
+            TemplateEngine::MiniJinja => {
+                let env = minijinja::Environment::new();
+                env.render_str(&text_template.template_text, context_data)
+                    .map_err(|e| {
+                        tracing::error!("Failed to render MiniJinja template: {}", e);
+                        ServiceError::InternalError
+                    })?
+            }
+        };
 
         self.transaction_dao.commit(tx).await?;
         Ok(rendered.into())

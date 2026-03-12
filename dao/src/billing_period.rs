@@ -41,6 +41,12 @@ pub trait BillingPeriodDao {
         process: &str,
         tx: Self::Transaction,
     ) -> Result<(), crate::DaoError>;
+    async fn delete_by_id(
+        &self,
+        id: uuid::Uuid,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
 
     async fn all(
         &self,
@@ -126,6 +132,14 @@ mod tests {
         }
         async fn clear_all(
             &self,
+            _process: &str,
+            _tx: Self::Transaction,
+        ) -> Result<(), crate::DaoError> {
+            unimplemented!()
+        }
+        async fn delete_by_id(
+            &self,
+            _id: uuid::Uuid,
             _process: &str,
             _tx: Self::Transaction,
         ) -> Result<(), crate::DaoError> {

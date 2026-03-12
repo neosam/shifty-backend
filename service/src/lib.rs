@@ -107,6 +107,9 @@ pub enum ServiceError {
     #[error("ShiftyDateUtils error: {0}")]
     ShiftyDateUtilsError(#[from] shifty_utils::ShiftyDateUtilsError),
 
+    #[error("Billing period {0} is not the latest billing period")]
+    NotLatestBillingPeriod(Uuid),
+
     #[error("Internal error")]
     InternalError,
 }

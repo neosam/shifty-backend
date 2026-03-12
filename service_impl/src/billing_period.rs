@@ -214,6 +214,56 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
         res
     }
 
+    /// Soft-delete a single billing period by ID. Only the latest billing period can be deleted.
+    async fn delete_billing_period(
+        &self,
+        id: uuid::Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Check that the billing period exists
+        self.billing_period_dao
+            .find_by_id(id, tx.clone())
+            .await?
+            .ok_or(ServiceError::EntityNotFound(id))?;
+
+        // Check that it is the latest billing period
+        let all_ordered = self
+            .billing_period_dao
+            .all_ordered_desc(tx.clone())
+            .await?;
+        if let Some(latest) = all_ordered.first() {
+            if latest.id != id {
+                return Err(ServiceError::NotLatestBillingPeriod(id));
+            }
+        }
+
+        let user = self
+            .permission_service
+            .current_user_id(context)
+            .await?
+            .unwrap_or("Unauthenticated".into());
+
+        // Cascade: delete associated sales person entries first
+        self.billing_period_sales_person_dao
+            .delete_by_billing_period_id(id, &user, tx.clone())
+            .await?;
+
+        // Delete the billing period
+        self.billing_period_dao
+            .delete_by_id(id, &user, tx.clone())
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
+    }
+
     /// Clear all billing periods (soft delete).
     async fn clear_all_billing_periods(
         &self,

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT tg.name, tg.description\n               FROM toggle_group tg\n               INNER JOIN toggle_group_toggle tgt ON tg.name = tgt.toggle_group_name\n               WHERE tgt.toggle_name = ?\n               ORDER BY tg.name",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "4e1adf98650959b7e92b89a6d6b27bb0d69dd0d3a83792197b6092a5bde47f13"
+}

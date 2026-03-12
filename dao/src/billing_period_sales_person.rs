@@ -47,6 +47,12 @@ pub trait BillingPeriodSalesPersonDao {
         process: &str,
         tx: Self::Transaction,
     ) -> Result<(), crate::DaoError>;
+    async fn delete_by_billing_period_id(
+        &self,
+        billing_period_id: uuid::Uuid,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
 
     async fn all(
         &self,

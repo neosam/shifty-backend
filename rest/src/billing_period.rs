@@ -20,7 +20,7 @@ use shifty_utils::ShiftyDate;
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_billing_periods::<RestState>))
-        .route("/{id}", get(get_billing_period::<RestState>))
+        .route("/{id}", get(get_billing_period::<RestState>).delete(delete_billing_period::<RestState>))
         .route("/", post(create_billing_period::<RestState>))
         .route("/", delete(clear_all_billing_periods::<RestState>))
         .route("/{id}/custom-report/{template_id}", post(generate_custom_report::<RestState>))
@@ -168,6 +168,42 @@ pub async fn clear_all_billing_periods<RestState: RestStateDef>(
 }
 
 #[utoipa::path(
+    delete,
+    path = "/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Billing period ID")
+    ),
+    responses(
+        (status = 204, description = "Billing period deleted successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - HR permission required"),
+        (status = 404, description = "Billing period not found"),
+        (status = 409, description = "Conflict - not the latest billing period")
+    ),
+    security(("bearer_auth" = []))
+)]
+#[instrument(skip(rest_state))]
+pub async fn delete_billing_period<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(id): Path<Uuid>,
+) -> Response {
+    error_handler(
+        (async {
+            rest_state
+                .billing_period_service()
+                .delete_billing_period(id, context.into(), None)
+                .await?;
+            Ok(Response::builder()
+                .status(204)
+                .body(Body::empty())
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+#[utoipa::path(
     post,
     path = "/{id}/custom-report/{template_id}",
     params(
@@ -218,6 +254,7 @@ pub async fn generate_custom_report<RestState: RestStateDef>(
         get_billing_period,
         create_billing_period,
         clear_all_billing_periods,
+        delete_billing_period,
         generate_custom_report,
     ),
     components(
