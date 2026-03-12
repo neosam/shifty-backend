@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod text_template_service_tests {
     use crate::service::text_template::*;
-    use crate::state::text_template::TextTemplate;
+    use crate::state::text_template::{TextTemplate, TemplateEngine};
     use std::rc::Rc;
     use uuid::Uuid;
 
@@ -22,6 +22,7 @@ mod text_template_service_tests {
             name: Some("Test Template".into()),
             template_type: "billing-period".into(),
             template_text: "This is a test template".into(),
+            template_engine: TemplateEngine::Tera,
             created_at: None,
             created_by: None,
         };
@@ -42,6 +43,7 @@ mod text_template_service_tests {
                 name: None,
                 template_type: "test".into(),
                 template_text: "test content".into(),
+                template_engine: TemplateEngine::Tera,
                 created_at: None,
                 created_by: None,
             }),

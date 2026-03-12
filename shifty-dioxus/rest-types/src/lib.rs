@@ -1216,6 +1216,20 @@ pub struct CreateBillingPeriodRequestTO {
     pub end_date: time::Date,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, ToSchema)]
+pub enum TemplateEngineTO {
+    #[serde(rename = "tera")]
+    Tera,
+    #[serde(rename = "minijinja")]
+    MiniJinja,
+}
+
+impl Default for TemplateEngineTO {
+    fn default() -> Self {
+        TemplateEngineTO::Tera
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
 pub struct TextTemplateTO {
     #[serde(default)]
@@ -1224,6 +1238,8 @@ pub struct TextTemplateTO {
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+    #[serde(default)]
+    pub template_engine: TemplateEngineTO,
     #[serde(default)]
     pub created_at: Option<time::PrimitiveDateTime>,
     #[serde(default)]
@@ -1245,6 +1261,7 @@ impl From<&service::text_template::TextTemplate> for TextTemplateTO {
             name: text_template.name.clone(),
             template_type: text_template.template_type.clone(),
             template_text: text_template.template_text.clone(),
+            template_engine: TemplateEngineTO::Tera, // TODO: map from service type
             created_at: text_template.created_at,
             created_by: text_template.created_by.clone(),
             deleted: text_template.deleted,
@@ -1267,6 +1284,7 @@ impl From<&TextTemplateTO> for service::text_template::TextTemplate {
             deleted: text_template.deleted,
             deleted_by: text_template.deleted_by.clone(),
             version: text_template.version,
+            // template_engine: TODO map from TemplateEngineTO
         }
     }
 }
@@ -1276,6 +1294,7 @@ pub struct CreateTextTemplateRequestTO {
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+    pub template_engine: TemplateEngineTO,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
@@ -1283,6 +1302,7 @@ pub struct UpdateTextTemplateRequestTO {
     pub name: Option<Arc<str>>,
     pub template_type: Arc<str>,
     pub template_text: Arc<str>,
+    pub template_engine: TemplateEngineTO,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -1400,3 +1420,4 @@ mod optional_timestamp {
         }
     }
 }
+

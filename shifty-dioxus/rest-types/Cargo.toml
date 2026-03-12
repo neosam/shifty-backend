@@ -32,3 +32,6 @@ features = ["serde-human-readable", "parsing", "formatting", "serde", "std"]
 [dependencies.utoipa]
 version = "5"
 features = ["time", "rc_schema", "uuid"]
+
+[dev-dependencies]
+serde_json = "1.0.149"

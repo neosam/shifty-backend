@@ -250,6 +250,9 @@ pub enum Key {
     SelectEndDateForNewBillingPeriod,
 
     // Text templates
+    TemplateEngine,
+    TemplateEngineTera,
+    TemplateEngineMiniJinja,
     TextTemplateManagement,
     TemplateType,
     TemplateText,

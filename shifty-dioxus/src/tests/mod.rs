@@ -104,7 +104,7 @@ mod i18n_tests {
 mod service_tests {
     use crate::service::text_template::TextTemplateStore;
     use crate::service::billing_period::BillingPeriodStore;
-    use crate::state::text_template::TextTemplate;
+    use crate::state::text_template::{TextTemplate, TemplateEngine};
     use uuid::Uuid;
 
     #[test]
@@ -124,6 +124,7 @@ mod service_tests {
             name: Some("Test Template".into()),
             template_type: "billing-period".into(),
             template_text: "Template content".into(),
+            template_engine: TemplateEngine::Tera,
             created_at: None,
             created_by: None,
         };

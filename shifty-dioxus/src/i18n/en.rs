@@ -324,6 +324,9 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::TextTemplateManagement,
         "Text Template Management",
     );
+    i18n.add_text(Locale::En, Key::TemplateEngine, "Template Engine");
+    i18n.add_text(Locale::En, Key::TemplateEngineTera, "Tera");
+    i18n.add_text(Locale::En, Key::TemplateEngineMiniJinja, "MiniJinja");
     i18n.add_text(Locale::En, Key::TemplateType, "Template Type");
     i18n.add_text(Locale::En, Key::TemplateText, "Template Text");
     i18n.add_text(Locale::En, Key::AddNewTemplate, "Add New Template");

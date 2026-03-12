@@ -151,7 +151,7 @@ mod shiftplan_tests {
 
 #[cfg(test)]
 mod text_template_tests {
-    use crate::state::text_template::TextTemplate;
+    use crate::state::text_template::{TextTemplate, TemplateEngine};
     use uuid::Uuid;
 
     #[test]
@@ -161,6 +161,7 @@ mod text_template_tests {
             name: Some("Weekly Report".into()),
             template_type: "report".into(),
             template_text: "Weekly report for {{week}} of {{year}}".into(),
+            template_engine: TemplateEngine::Tera,
             created_at: None,
             created_by: None,
         };
@@ -178,11 +179,92 @@ mod text_template_tests {
             name: None,
             template_type: "billing-period".into(),
             template_text: "Billing period template".into(),
+            template_engine: TemplateEngine::Tera,
             created_at: None,
             created_by: None,
         };
         
         assert!(template.name.is_none());
         assert_eq!(template.template_type.as_ref(), "billing-period");
+    }
+
+    #[test]
+    fn test_template_engine_to_serialize_tera() {
+        use rest_types::TemplateEngineTO;
+        let json = serde_json::to_string(&TemplateEngineTO::Tera).unwrap();
+        assert_eq!(json, "\"tera\"");
+    }
+
+    #[test]
+    fn test_template_engine_to_serialize_minijinja() {
+        use rest_types::TemplateEngineTO;
+        let json = serde_json::to_string(&TemplateEngineTO::MiniJinja).unwrap();
+        assert_eq!(json, "\"minijinja\"");
+    }
+
+    #[test]
+    fn test_template_engine_to_deserialize_tera() {
+        use rest_types::TemplateEngineTO;
+        let engine: TemplateEngineTO = serde_json::from_str("\"tera\"").unwrap();
+        assert_eq!(engine, TemplateEngineTO::Tera);
+    }
+
+    #[test]
+    fn test_template_engine_to_deserialize_minijinja() {
+        use rest_types::TemplateEngineTO;
+        let engine: TemplateEngineTO = serde_json::from_str("\"minijinja\"").unwrap();
+        assert_eq!(engine, TemplateEngineTO::MiniJinja);
+    }
+
+    #[test]
+    fn test_template_engine_to_roundtrip() {
+        use rest_types::TemplateEngineTO;
+        for engine in [TemplateEngineTO::Tera, TemplateEngineTO::MiniJinja] {
+            let json = serde_json::to_string(&engine).unwrap();
+            let deserialized: TemplateEngineTO = serde_json::from_str(&json).unwrap();
+            assert_eq!(engine, deserialized);
+        }
+    }
+
+    #[test]
+    fn test_text_template_to_with_engine_roundtrip() {
+        use rest_types::{TextTemplateTO, TemplateEngineTO};
+        let json = serde_json::json!({
+            "id": "00000000-0000-0000-0000-000000000000",
+            "template_type": "billing-period",
+            "template_text": "hello",
+            "template_engine": "minijinja"
+        });
+        let template: TextTemplateTO = serde_json::from_value(json).unwrap();
+        assert_eq!(template.template_engine, TemplateEngineTO::MiniJinja);
+
+        let serialized = serde_json::to_value(&template).unwrap();
+        assert_eq!(serialized["template_engine"], "minijinja");
+    }
+
+    #[test]
+    fn test_create_text_template_request_to_with_engine() {
+        use rest_types::{CreateTextTemplateRequestTO, TemplateEngineTO};
+        let req = CreateTextTemplateRequestTO {
+            name: None,
+            template_type: "billing-period".into(),
+            template_text: "test".into(),
+            template_engine: TemplateEngineTO::Tera,
+        };
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["template_engine"], "tera");
+    }
+
+    #[test]
+    fn test_update_text_template_request_to_with_engine() {
+        use rest_types::{UpdateTextTemplateRequestTO, TemplateEngineTO};
+        let req = UpdateTextTemplateRequestTO {
+            name: Some("name".into()),
+            template_type: "billing-period".into(),
+            template_text: "test".into(),
+            template_engine: TemplateEngineTO::MiniJinja,
+        };
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["template_engine"], "minijinja");
     }
 }

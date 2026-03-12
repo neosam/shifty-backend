@@ -346,4 +346,9 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     // My Shifts page
     i18n.add_text(Locale::Cs, Key::MyShifts, "Moje směny");
     i18n.add_text(Locale::Cs, Key::NoShiftsFound, "Žádné směny pro toto období nenalezeny.");
+
+    // Text templates
+    i18n.add_text(Locale::Cs, Key::TemplateEngine, "Šablonovací engine");
+    i18n.add_text(Locale::Cs, Key::TemplateEngineTera, "Tera");
+    i18n.add_text(Locale::Cs, Key::TemplateEngineMiniJinja, "MiniJinja");
 }

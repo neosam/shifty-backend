@@ -9,7 +9,7 @@ use crate::{
         i18n::I18N,
         text_template::{handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE},
     },
-    state::text_template::TextTemplate,
+    state::text_template::{TextTemplate, TemplateEngine},
 };
 
 #[component]
@@ -19,6 +19,7 @@ pub fn TextTemplateManagement() -> Element {
     let mut form_name = use_signal(|| "".to_string());
     let mut form_template_type = use_signal(|| "billing-period".to_string());
     let mut form_template_text = use_signal(|| "".to_string());
+    let mut form_template_engine = use_signal(|| TemplateEngine::Tera);
 
     let i18n = I18N.read().clone();
     let store = TEXT_TEMPLATE_STORE.read().clone();
@@ -55,12 +56,14 @@ pub fn TextTemplateManagement() -> Element {
         form_name.set("".to_string());
         form_template_type.set("billing-period".to_string());
         form_template_text.set("".to_string());
+        form_template_engine.set(TemplateEngine::Tera);
     };
 
     let save_template = move |_| {
         let name = form_name.read().clone();
         let template_type = form_template_type.read().clone();
         let template_text = form_template_text.read().clone();
+        let template_engine = form_template_engine.read().clone();
 
         if template_type.trim().is_empty() || template_text.trim().is_empty() {
             return;
@@ -75,6 +78,7 @@ pub fn TextTemplateManagement() -> Element {
                 name: name_rc,
                 template_type: template_type.into(),
                 template_text: template_text.into(),
+                template_engine,
                 created_at: None,
                 created_by: None,
             };
@@ -86,6 +90,7 @@ pub fn TextTemplateManagement() -> Element {
                 name: name_rc,
                 template_type: template_type.into(),
                 template_text: template_text.into(),
+                template_engine,
                 created_at: None,
                 created_by: None,
             };
@@ -98,6 +103,7 @@ pub fn TextTemplateManagement() -> Element {
         form_name.set(template.name.as_ref().map(|s| s.to_string()).unwrap_or_default());
         form_template_type.set(template.template_type.to_string());
         form_template_text.set(template.template_text.to_string());
+        form_template_engine.set(template.template_engine.clone());
         editing_id.set(Some(template.id));
         show_form.set(true);
     };
@@ -152,6 +158,26 @@ pub fn TextTemplateManagement() -> Element {
                         }
                     }
                     
+                    div { class: "mb-4",
+                        label { class: "block text-sm font-medium mb-2", "{i18n.t(Key::TemplateEngine)}" }
+                        select {
+                            class: "w-full p-2 border border-gray-300 rounded-md",
+                            value: match *form_template_engine.read() {
+                                TemplateEngine::Tera => "tera",
+                                TemplateEngine::MiniJinja => "minijinja",
+                            },
+                            onchange: move |event: Event<FormData>| {
+                                let engine = match event.value().as_str() {
+                                    "minijinja" => TemplateEngine::MiniJinja,
+                                    _ => TemplateEngine::Tera,
+                                };
+                                form_template_engine.set(engine);
+                            },
+                            option { value: "tera", "{i18n.t(Key::TemplateEngineTera)}" }
+                            option { value: "minijinja", "{i18n.t(Key::TemplateEngineMiniJinja)}" }
+                        }
+                    }
+
                     div { class: "mb-4",
                         label { class: "block text-sm font-medium mb-2", "{template_text_str}" }
                         textarea {

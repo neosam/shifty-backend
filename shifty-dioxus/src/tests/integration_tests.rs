@@ -2,7 +2,7 @@
 mod integration_tests {
     use crate::state::{AuthInfo, Config};
     use crate::state::week::Week;
-    use crate::state::text_template::TextTemplate;
+    use crate::state::text_template::{TextTemplate, TemplateEngine};
     use crate::service::text_template::TextTemplateStore;
     use crate::i18n::{generate, Locale, Key};
     use std::rc::Rc;
@@ -82,15 +82,17 @@ mod integration_tests {
             name: Some("Billing Period Report".into()),
             template_type: "billing-period".into(),
             template_text: "Billing period from {start_date} to {end_date}\nTotal hours: {total_hours}".into(),
+            template_engine: TemplateEngine::Tera,
             created_at: None,
             created_by: None,
         };
-        
+
         let employee_template = TextTemplate {
             id: Uuid::new_v4(),
             name: Some("Employee Performance Report".into()),
             template_type: "employee-report".into(),
             template_text: "Employee: {employee_name}\nWorked hours: {worked_hours}\nExpected hours: {expected_hours}".into(),
+            template_engine: TemplateEngine::Tera,
             created_at: None,
             created_by: None,
         };

@@ -343,6 +343,9 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Text templates
     i18n.add_text(Locale::De, Key::TextTemplateManagement, "Textvorlagen");
+    i18n.add_text(Locale::De, Key::TemplateEngine, "Template-Engine");
+    i18n.add_text(Locale::De, Key::TemplateEngineTera, "Tera");
+    i18n.add_text(Locale::De, Key::TemplateEngineMiniJinja, "MiniJinja");
     i18n.add_text(Locale::De, Key::TemplateType, "Vorlagentyp");
     i18n.add_text(Locale::De, Key::TemplateText, "Vorlagentext");
     i18n.add_text(Locale::De, Key::AddNewTemplate, "Neue Vorlage hinzufügen");
