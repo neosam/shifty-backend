@@ -362,6 +362,7 @@ impl service_impl::billing_period_report::BillingPeriodReportServiceDeps
     type BillingPeriodService = BillingPeriodService;
     type ReportingService = ReportingService;
     type SalesPersonService = SalesPersonService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
     type TextTemplateService = TextTemplateService;
     type PermissionService = PermissionService;
     type UuidService = UuidService;
@@ -753,6 +754,7 @@ impl RestStateImpl {
             billing_period_service: billing_period_service.clone(),
             reporting_service: reporting_service.clone(),
             sales_person_service: sales_person_service.clone(),
+            employee_work_details_service: working_hours_service.clone(),
             text_template_service: text_template_service.clone(),
             permission_service: permission_service.clone(),
             uuid_service: uuid_service.clone(),

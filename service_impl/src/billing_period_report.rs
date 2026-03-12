@@ -12,6 +12,7 @@ use service::billing_period::{
 };
 use service::billing_period_report::BillingPeriodReportService;
 use service::clock::ClockService;
+use service::employee_work_details::EmployeeWorkDetailsService;
 use service::permission::{Authentication, HR_PRIVILEGE};
 use service::reporting::ReportingService;
 use service::sales_person::{SalesPerson, SalesPersonService};
@@ -32,6 +33,7 @@ gen_service_impl! {
         BillingPeriodService: BillingPeriodService<Context = Self::Context, Transaction = Self::Transaction> = billing_period_service,
         ReportingService: ReportingService<Context = Self::Context, Transaction = Self::Transaction> = reporting_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        EmployeeWorkDetailsService: EmployeeWorkDetailsService<Context = Self::Context, Transaction = Self::Transaction> = employee_work_details_service,
         TextTemplateService: TextTemplateService<Context = Self::Context, Transaction = Self::Transaction> = text_template_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         UuidService: UuidService = uuid_service,
@@ -122,6 +124,60 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 value_ytd_from: report_start.expected_hours,
                 value_ytd_to: report_end.expected_hours,
                 value_full_year: report_end_of_year.expected_hours,
+            },
+        );
+        billing_period_values.insert(
+            BillingPeriodValueType::ExtraWork,
+            BillingPeriodValue {
+                value_delta: report_delta.extra_work_hours,
+                value_ytd_from: report_start.extra_work_hours,
+                value_ytd_to: report_end.extra_work_hours,
+                value_full_year: report_end_of_year.extra_work_hours,
+            },
+        );
+        billing_period_values.insert(
+            BillingPeriodValueType::VacationHours,
+            BillingPeriodValue {
+                value_delta: report_delta.vacation_hours,
+                value_ytd_from: report_start.vacation_hours,
+                value_ytd_to: report_end.vacation_hours,
+                value_full_year: report_end_of_year.vacation_hours,
+            },
+        );
+        billing_period_values.insert(
+            BillingPeriodValueType::SickLeave,
+            BillingPeriodValue {
+                value_delta: report_delta.sick_leave_hours,
+                value_ytd_from: report_start.sick_leave_hours,
+                value_ytd_to: report_end.sick_leave_hours,
+                value_full_year: report_end_of_year.sick_leave_hours,
+            },
+        );
+        billing_period_values.insert(
+            BillingPeriodValueType::Holiday,
+            BillingPeriodValue {
+                value_delta: report_delta.holiday_hours,
+                value_ytd_from: report_start.holiday_hours,
+                value_ytd_to: report_end.holiday_hours,
+                value_full_year: report_end_of_year.holiday_hours,
+            },
+        );
+        billing_period_values.insert(
+            BillingPeriodValueType::VacationDays,
+            BillingPeriodValue {
+                value_delta: report_delta.vacation_days,
+                value_ytd_from: report_start.vacation_days,
+                value_ytd_to: report_end.vacation_days,
+                value_full_year: report_end_of_year.vacation_days,
+            },
+        );
+        billing_period_values.insert(
+            BillingPeriodValueType::VacationEntitlement,
+            BillingPeriodValue {
+                value_delta: report_delta.vacation_entitlement,
+                value_ytd_from: report_start.vacation_entitlement,
+                value_ytd_to: report_end.vacation_entitlement,
+                value_full_year: report_end_of_year.vacation_entitlement,
             },
         );
         for custom_hours in report_delta.custom_extra_hours.iter() {
@@ -273,6 +329,16 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
             .get_billing_period_by_id(billing_period_id, context.clone(), tx.clone().into())
             .await?;
 
+        // Load all sales persons and employee work details for enrichment
+        let all_sales_persons = self
+            .sales_person_service
+            .get_all(context.clone(), tx.clone().into())
+            .await?;
+        let all_work_details = self
+            .employee_work_details_service
+            .all(context.clone(), tx.clone().into())
+            .await?;
+
         // Build template context data as JSON
         let context_data = json!({
             "billing_period": {
@@ -282,9 +348,26 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
                 "created_at": billing_period.created_at.to_string(),
                 "created_by": billing_period.created_by.as_ref(),
                 "sales_persons": billing_period.sales_persons.iter().map(|sp| {
+                    let sales_person = all_sales_persons.iter().find(|s| s.id == sp.sales_person_id);
+                    let name = sales_person.map(|s| s.name.as_ref()).unwrap_or("");
+                    let is_paid = sales_person.and_then(|s| s.is_paid).unwrap_or(false);
+                    let is_dynamic = all_work_details.iter()
+                        .filter(|wd| wd.sales_person_id == sp.sales_person_id)
+                        .any(|wd| wd.is_dynamic);
+                    let values_map: serde_json::Map<String, serde_json::Value> = sp.values.iter().map(|(key, value)| {
+                        (key.as_str().to_string(), json!({
+                            "delta": value.value_delta,
+                            "ytd_from": value.value_ytd_from,
+                            "ytd_to": value.value_ytd_to,
+                            "full_year": value.value_full_year,
+                        }))
+                    }).collect();
                     json!({
                         "id": sp.id.to_string(),
                         "sales_person_id": sp.sales_person_id.to_string(),
+                        "name": name,
+                        "is_paid": is_paid,
+                        "is_dynamic": is_dynamic,
                         "values": sp.values.iter().map(|(key, value)| {
                             json!({
                                 "type": key.as_str().as_ref(),
@@ -294,6 +377,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
                                 "value_full_year": value.value_full_year,
                             })
                         }).collect::<Vec<_>>(),
+                        "values_map": values_map,
                         "created_at": sp.created_at.to_string(),
                         "created_by": sp.created_by.as_ref(),
                     })
