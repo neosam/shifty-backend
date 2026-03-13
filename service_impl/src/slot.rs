@@ -191,11 +191,10 @@ where
         if slot.from > slot.to {
             return Err(ServiceError::TimeOrderWrong(slot.from, slot.to));
         }
-        if slot.valid_to.is_some() && slot.valid_to.unwrap() < slot.valid_from {
-            return Err(ServiceError::DateOrderWrong(
-                slot.valid_from,
-                slot.valid_to.unwrap(),
-            ));
+        if let Some(valid_to) = slot.valid_to {
+            if valid_to < slot.valid_from {
+                return Err(ServiceError::DateOrderWrong(slot.valid_from, valid_to));
+            }
         }
 
         if self
@@ -270,11 +269,10 @@ where
                 slot.version,
             ));
         }
-        if slot.valid_to.is_some() && slot.valid_to.unwrap() < slot.valid_from {
-            return Err(ServiceError::DateOrderWrong(
-                slot.valid_from,
-                slot.valid_to.unwrap(),
-            ));
+        if let Some(valid_to) = slot.valid_to {
+            if valid_to < slot.valid_from {
+                return Err(ServiceError::DateOrderWrong(slot.valid_from, valid_to));
+            }
         }
 
         let mut validation = Vec::new();
