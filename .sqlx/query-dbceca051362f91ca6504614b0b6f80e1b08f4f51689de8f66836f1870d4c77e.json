@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM booking;\n                DELETE FROM sales_person_user;\n                DELETE FROM sales_person_unavailable;\n                DELETE FROM extra_hours;\n                DELETE FROM employee_work_details;\n                DELETE FROM sales_person;\n                DELETE FROM special_day;\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "dbceca051362f91ca6504614b0b6f80e1b08f4f51689de8f66836f1870d4c77e"
+}
