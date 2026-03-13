@@ -1,6 +1,6 @@
 [package]
 name = "rest"
-version = "1.10.0-dev"
+version = "1.9.2"
 edition = "2021"
 resolver = "2"
 
