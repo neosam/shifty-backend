@@ -279,6 +279,7 @@ impl BasicDao for BasicDaoImpl {
                 DELETE FROM extra_hours;
                 DELETE FROM employee_work_details;
                 DELETE FROM sales_person;
+                DELETE FROM special_day;
                 "
         )
         .execute(self.pool.as_ref())

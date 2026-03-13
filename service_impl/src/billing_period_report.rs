@@ -354,12 +354,16 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
                     let is_dynamic = all_work_details.iter()
                         .filter(|wd| wd.sales_person_id == sp.sales_person_id)
                         .any(|wd| wd.is_dynamic);
+                    let sanitize = |v: f32| -> f64 {
+                        let v = v as f64;
+                        if v.is_nan() || v.is_infinite() { 0.0 } else { v }
+                    };
                     let values_map: serde_json::Map<String, serde_json::Value> = sp.values.iter().map(|(key, value)| {
                         (key.as_str().to_string(), json!({
-                            "delta": value.value_delta,
-                            "ytd_from": value.value_ytd_from,
-                            "ytd_to": value.value_ytd_to,
-                            "full_year": value.value_full_year,
+                            "delta": sanitize(value.value_delta),
+                            "ytd_from": sanitize(value.value_ytd_from),
+                            "ytd_to": sanitize(value.value_ytd_to),
+                            "full_year": sanitize(value.value_full_year),
                         }))
                     }).collect();
                     json!({
@@ -371,10 +375,10 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
                         "values": sp.values.iter().map(|(key, value)| {
                             json!({
                                 "type": key.as_str().as_ref(),
-                                "value_delta": value.value_delta,
-                                "value_ytd_from": value.value_ytd_from,
-                                "value_ytd_to": value.value_ytd_to,
-                                "value_full_year": value.value_full_year,
+                                "value_delta": sanitize(value.value_delta),
+                                "value_ytd_from": sanitize(value.value_ytd_from),
+                                "value_ytd_to": sanitize(value.value_ytd_to),
+                                "value_full_year": sanitize(value.value_full_year),
                             })
                         }).collect::<Vec<_>>(),
                         "values_map": values_map,
@@ -414,7 +418,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
                 let env = minijinja::Environment::new();
                 env.render_str(&text_template.template_text, context_data)
                     .map_err(|e| {
-                        tracing::error!("Failed to render MiniJinja template: {}", e);
+                        tracing::error!("Failed to render MiniJinja template: {e:#}");
                         ServiceError::InternalError
                     })?
             }

@@ -10,7 +10,7 @@ use dao_impl_sqlite::{
     extra_hours::ExtraHoursDaoImpl, sales_person::SalesPersonDaoImpl,
     sales_person_unavailable::SalesPersonUnavailableDaoImpl, session::SessionDaoImpl,
     shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl, special_day::SpecialDayDaoImpl,
-    PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
+    BasicDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
 };
 #[cfg(feature = "mock_auth")]
 use service::permission::MockContext;
@@ -432,6 +432,7 @@ pub struct RestStateImpl {
     text_template_service: Arc<TextTemplateService>,
     user_invitation_service: Arc<UserInvitationService>,
     toggle_service: Arc<ToggleService>,
+    basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
     type UserService = UserService;
@@ -458,6 +459,7 @@ impl rest::RestStateDef for RestStateImpl {
     type TextTemplateService = TextTemplateService;
     type UserInvitationService = UserInvitationService;
     type ToggleService = ToggleService;
+    type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
         Arc::from(env!("CARGO_PKG_VERSION"))
@@ -535,6 +537,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn toggle_service(&self) -> Arc<Self::ToggleService> {
         self.toggle_service.clone()
+    }
+    fn basic_dao(&self) -> Arc<Self::BasicDao> {
+        self.basic_dao.clone()
     }
 }
 impl RestStateImpl {
@@ -811,6 +816,7 @@ impl RestStateImpl {
             text_template_service,
             user_invitation_service,
             toggle_service,
+            basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }
 }

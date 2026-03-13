@@ -1418,3 +1418,4 @@ fn test_shiftyplan_hours_end_of_year() {
 
 #[cfg(test)]
 mod billing_period_custom_reports;
+mod dev_seed;

@@ -22,6 +22,9 @@ mod toggle;
 mod user_invitation;
 mod week_message;
 
+#[cfg(feature = "mock_auth")]
+pub mod dev;
+
 #[cfg(feature = "oidc")]
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
@@ -44,6 +47,8 @@ pub use session::Context;
 use session::{context_extractor, forbid_unauthenticated};
 use text_template::TextTemplateApiDoc;
 use thiserror::Error;
+#[cfg(feature = "mock_auth")]
+use dev::DevApiDoc;
 use user_invitation::UserInvitationApiDoc;
 #[cfg(feature = "oidc")]
 use time::Duration;
@@ -321,6 +326,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
 
@@ -348,6 +354,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
     fn user_invitation_service(&self) -> Arc<Self::UserInvitationService>;
     fn toggle_service(&self) -> Arc<Self::ToggleService>;
+    fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
 pub struct OidcConfig {
@@ -487,6 +494,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .url(base)
         .description(Some("Shifty backend"))
         .build()]);
+    #[cfg(feature = "mock_auth")]
+    let api_doc = api_doc.nest("/dev", DevApiDoc::openapi());
     let swagger_router = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api_doc);
     let app = app.merge(swagger_router);
 
@@ -520,7 +529,12 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/week-message", week_message::generate_route())
         .nest("/user-invitation", user_invitation::generate_route())
         .nest("/toggle", toggle::generate_route())
-        .nest("/toggle-group", toggle::generate_group_route())
+        .nest("/toggle-group", toggle::generate_group_route());
+
+    #[cfg(feature = "mock_auth")]
+    let app = app.nest("/dev", dev::generate_route());
+
+    let app = app
         .with_state(rest_state.clone())
         .layer(middleware::from_fn_with_state(
             rest_state.clone(),
