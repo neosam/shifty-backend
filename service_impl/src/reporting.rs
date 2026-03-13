@@ -863,7 +863,7 @@ fn hours_per_week(
             to: week.as_date(DayOfWeek::Sunday).min(to_date),
             year: week.year,
             week: week.week,
-            contract_weekly_hours: expected_hours,
+            contract_weekly_hours: dynamic_working_hours_for_week,
             expected_hours: expected_hours - absence_hours,
             dynamic_hours: dynamic_working_hours_for_week - absence_hours,
             overall_hours: shiftplan_hours + extra_work_hours,
@@ -896,4 +896,189 @@ fn hours_per_week(
         });
     }
     Ok(weeks.into())
+}
+
+#[cfg(test)]
+mod test_dynamic_vacation_days {
+    use super::*;
+    use shifty_utils::DayOfWeek;
+    use time::macros::datetime;
+    use uuid::Uuid;
+
+    fn create_work_details(is_dynamic: bool) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            expected_hours: 40.0,
+            from_day_of_week: DayOfWeek::Monday,
+            from_calendar_week: 1,
+            from_year: 2024,
+            to_day_of_week: DayOfWeek::Sunday,
+            to_calendar_week: 52,
+            to_year: 2024,
+            workdays_per_week: 5,
+            is_dynamic,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 30,
+            created: Some(datetime!(2024-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    fn create_vacation_extra_hours(date: time::PrimitiveDateTime, amount: f32) -> ExtraHours {
+        ExtraHours {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            amount,
+            category: ExtraHoursCategory::Vacation,
+            description: "Vacation".into(),
+            date_time: date,
+            created: Some(datetime!(2024-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    fn create_shiftplan_day(year: u32, week: u8, day: DayOfWeek, hours: f32) -> ShiftplanReportDay {
+        ShiftplanReportDay {
+            sales_person_id: Uuid::new_v4(),
+            hours,
+            year,
+            calendar_week: week,
+            day_of_week: day,
+        }
+    }
+
+    /// Dynamic employee takes a full week of vacation (40h).
+    /// Expected: 5 vacation days (40h / (40h/5days) = 5).
+    #[test]
+    fn test_dynamic_employee_full_week_vacation() {
+        let work_details = create_work_details(true);
+        // Week 10 of 2024: Mon=March 4, Sun=March 10
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_vacation_extra_hours(datetime!(2024-03-04 08:00:00), 8.0),
+            create_vacation_extra_hours(datetime!(2024-03-05 08:00:00), 8.0),
+            create_vacation_extra_hours(datetime!(2024-03-06 08:00:00), 8.0),
+            create_vacation_extra_hours(datetime!(2024-03-07 08:00:00), 8.0),
+            create_vacation_extra_hours(datetime!(2024-03-08 08:00:00), 8.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        assert_eq!(result.len(), 1);
+
+        let week = &result[0];
+        assert_eq!(week.vacation_hours, 40.0);
+        assert!(
+            week.vacation_days() > 0.0,
+            "Dynamic employee should have vacation_days > 0, got {}",
+            week.vacation_days()
+        );
+        assert!(
+            (week.vacation_days() - 5.0).abs() < 0.01,
+            "Expected 5.0 vacation days, got {}",
+            week.vacation_days()
+        );
+    }
+
+    /// Dynamic employee takes partial vacation (8h) and works 32h.
+    /// Expected: 1 vacation day (8h / (40h/5days) = 1).
+    #[test]
+    fn test_dynamic_employee_partial_vacation() {
+        let work_details = create_work_details(true);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_vacation_extra_hours(datetime!(2024-03-04 08:00:00), 8.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            create_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Thursday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        assert_eq!(result.len(), 1);
+
+        let week = &result[0];
+        assert_eq!(week.vacation_hours, 8.0);
+        assert!(
+            (week.vacation_days() - 1.0).abs() < 0.01,
+            "Expected 1.0 vacation day, got {}",
+            week.vacation_days()
+        );
+    }
+
+    /// Dynamic employee balance should still be forced to 0.
+    #[test]
+    fn test_dynamic_employee_balance_zero() {
+        let work_details = create_work_details(true);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            create_shiftplan_day(2024, 10, DayOfWeek::Monday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 8.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        assert_eq!(result.len(), 1);
+
+        let week = &result[0];
+        // For dynamic employees, balance = shiftplan + extra_work - expected + absence
+        // where expected = shiftplan + extra_work (since working_hours_for_week == 0)
+        // so balance = 24 + 0 - 24 + 0 = 0
+        assert!(
+            week.balance.abs() < 0.01,
+            "Dynamic employee balance should be ~0, got {}",
+            week.balance
+        );
+    }
+
+    /// Non-dynamic employee vacation days should work as before.
+    #[test]
+    fn test_non_dynamic_employee_vacation_unchanged() {
+        let work_details = create_work_details(false);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_vacation_extra_hours(datetime!(2024-03-04 08:00:00), 8.0),
+            create_vacation_extra_hours(datetime!(2024-03-05 08:00:00), 8.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            create_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Thursday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        assert_eq!(result.len(), 1);
+
+        let week = &result[0];
+        assert_eq!(week.vacation_hours, 16.0);
+        assert!(
+            (week.vacation_days() - 2.0).abs() < 0.01,
+            "Expected 2.0 vacation days for non-dynamic, got {}",
+            week.vacation_days()
+        );
+    }
 }
