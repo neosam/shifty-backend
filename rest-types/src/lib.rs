@@ -1215,18 +1215,13 @@ pub struct CreateBillingPeriodRequestTO {
     pub end_date: time::Date,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, ToSchema)]
 pub enum TemplateEngineTO {
     #[serde(rename = "tera")]
+    #[default]
     Tera,
     #[serde(rename = "minijinja")]
     MiniJinja,
-}
-
-impl Default for TemplateEngineTO {
-    fn default() -> Self {
-        Self::Tera
-    }
 }
 
 #[cfg(feature = "service-impl")]
