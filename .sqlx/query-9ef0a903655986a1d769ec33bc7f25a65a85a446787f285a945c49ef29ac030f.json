@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, is_planning, deleted, update_version FROM shiftplan WHERE id = ? AND deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_planning",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9ef0a903655986a1d769ec33bc7f25a65a85a446787f285a945c49ef29ac030f"
+}

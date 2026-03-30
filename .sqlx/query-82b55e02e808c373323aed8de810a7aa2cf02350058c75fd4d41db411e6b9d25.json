@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO shiftplan (id, name, is_planning, deleted, update_process, update_version) VALUES (?, ?, ?, NULL, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "82b55e02e808c373323aed8de810a7aa2cf02350058c75fd4d41db411e6b9d25"
+}

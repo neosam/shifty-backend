@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL",
+  "query": "\n                SELECT slot.id, slot.day_of_week, slot.time_from, slot.time_to, slot.min_resources, slot.valid_from, slot.valid_to, slot.deleted, slot.update_version, slot.shiftplan_id\n                FROM slot\n                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id\n                WHERE slot.deleted IS NULL\n                AND slot.valid_from <= ?\n                AND (slot.valid_to IS NULL OR slot.valid_to >= ?)\n                AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)",
   "describe": {
     "columns": [
       {
@@ -47,10 +47,15 @@
         "name": "update_version",
         "ordinal": 8,
         "type_info": "Blob"
+      },
+      {
+        "name": "shiftplan_id",
+        "ordinal": 9,
+        "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 2
     },
     "nullable": [
       false,
@@ -61,8 +66,9 @@
       false,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "9cd4f6b86a7e503f08bfead7ce5f3910937f32382e1d0feddfd885e2d767642a"
+  "hash": "5408f295220125368cc591c967cb485ee5e7b55ffc55acdd4b8e900f4e1960bc"
 }

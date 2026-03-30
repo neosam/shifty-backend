@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE shiftplan SET name = ?, is_planning = ?, deleted = ?, update_process = ?, update_version = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "d94c641ee33c946e0e90abebd55948d1ba13684ea2d44d331d7870907ede79bd"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version \n                FROM slot \n                WHERE deleted IS NULL\n                AND valid_from <= ?\n                AND (valid_to IS NULL OR valid_to >= ?)",
+  "query": "SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -47,10 +47,15 @@
         "name": "update_version",
         "ordinal": 8,
         "type_info": "Blob"
+      },
+      {
+        "name": "shiftplan_id",
+        "ordinal": 9,
+        "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 0
     },
     "nullable": [
       false,
@@ -61,8 +66,9 @@
       false,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "cc09b9dae52ac1adb1bea83274da9952ec02602c6f329dc00e90bcb43dc19742"
+  "hash": "13f347face4b76a7432b72a4244ce41ac9e60183dac75679c4e72bfa15e9bf2d"
 }
