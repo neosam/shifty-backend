@@ -931,6 +931,20 @@ pub struct ShiftplanWeekTO {
     pub days: Vec<ShiftplanDayTO>,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct PlanDayViewTO {
+    pub shiftplan: ShiftplanTO,
+    pub slots: Vec<ShiftplanSlotTO>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ShiftplanDayAggregateTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    pub plans: Vec<PlanDayViewTO>,
+}
+
 #[cfg(feature = "service-impl")]
 impl From<&service::shiftplan::ShiftplanBooking> for ShiftplanBookingTO {
     fn from(booking: &service::shiftplan::ShiftplanBooking) -> Self {

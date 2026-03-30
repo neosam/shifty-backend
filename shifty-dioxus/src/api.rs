@@ -776,6 +776,33 @@ pub async fn get_shiftplan_week(
     Ok(res)
 }
 
+pub async fn get_shiftplan_day(
+    config: Config,
+    year: u32,
+    week: u8,
+    day_of_week: rest_types::DayOfWeekTO,
+) -> Result<rest_types::ShiftplanDayAggregateTO, reqwest::Error> {
+    info!("Fetching shiftplan day aggregate for week {week} in year {year}");
+    let day_str = match day_of_week {
+        rest_types::DayOfWeekTO::Monday => "Monday",
+        rest_types::DayOfWeekTO::Tuesday => "Tuesday",
+        rest_types::DayOfWeekTO::Wednesday => "Wednesday",
+        rest_types::DayOfWeekTO::Thursday => "Thursday",
+        rest_types::DayOfWeekTO::Friday => "Friday",
+        rest_types::DayOfWeekTO::Saturday => "Saturday",
+        rest_types::DayOfWeekTO::Sunday => "Sunday",
+    };
+    let url = format!(
+        "{}/shiftplan-info/day/{year}/{week}/{day_str}",
+        config.backend
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched day aggregate");
+    Ok(res)
+}
+
 pub async fn get_custom_extra_hours_by_sales_person(
     config: Config,
     sales_person_id: Uuid,

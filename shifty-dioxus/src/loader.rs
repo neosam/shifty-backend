@@ -173,6 +173,67 @@ pub async fn load_shift_plan(
     Ok(Shiftplan { week, year, slots })
 }
 
+pub async fn load_day_aggregate(
+    config: Config,
+    year: u32,
+    week: u8,
+    day_of_week: Weekday,
+) -> Result<crate::state::DayAggregate, ShiftyError> {
+    use crate::state::shiftplan::DayPlanColumn;
+
+    let day_of_week_to: rest_types::DayOfWeekTO = (&day_of_week).into();
+    let aggregate = api::get_shiftplan_day(config, year, week, day_of_week_to).await?;
+    let plans: Rc<[DayPlanColumn]> = aggregate
+        .plans
+        .iter()
+        .map(|plan| DayPlanColumn {
+            shiftplan_name: plan.shiftplan.name.as_ref().into(),
+            shiftplan_id: plan.shiftplan.id,
+            slots: plan
+                .slots
+                .iter()
+                .map(|slot| Slot {
+                    id: slot.slot.id,
+                    day_of_week: slot.slot.day_of_week.into(),
+                    from: slot.slot.from,
+                    to: slot.slot.to,
+                    min_resources: slot.slot.min_resources,
+                    bookings: slot
+                        .bookings
+                        .iter()
+                        .map(|booking| Booking {
+                            id: booking.booking.id,
+                            sales_person_id: booking.booking.sales_person_id,
+                            slot_id: booking.booking.slot_id,
+                            week: booking.booking.calendar_week as u8,
+                            year: booking.booking.year,
+                            label: booking.sales_person.name.as_ref().into(),
+                            background_color: booking
+                                .sales_person
+                                .background_color
+                                .as_ref()
+                                .into(),
+                            self_added: booking.self_added.unwrap_or(false),
+                            created: booking.booking.created,
+                            created_by: booking
+                                .booking
+                                .created_by
+                                .as_ref()
+                                .map(|s| s.to_string().into()),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(crate::state::DayAggregate {
+        year,
+        week,
+        day_of_week,
+        plans,
+    })
+}
+
 pub async fn load_current_sales_person(config: Config) -> Result<Option<SalesPerson>, ShiftyError> {
     let sales_person_to = api::get_current_sales_person(config).await?;
     let sales_person = sales_person_to.as_ref().map(SalesPerson::from);

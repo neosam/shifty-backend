@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::booking_log_table::BookingLogTable;
+use crate::component::day_aggregate_view::{DayAggregateView, DayButtonBar};
 use crate::component::dropdown_base::DropdownTrigger;
 use crate::component::shiftplan_tab_bar::ShiftplanTabBar;
 use crate::component::slot_edit::SlotEdit;
@@ -49,6 +50,10 @@ pub enum ShiftPlanAction {
         slot_id: Uuid,
         sales_person_id: Uuid,
     },
+    RemoveUserFromSlotDay {
+        slot_id: Uuid,
+        sales_person_id: Uuid,
+    },
     NextWeek,
     PreviousWeek,
     UpdateSalesPerson(Uuid),
@@ -57,6 +62,7 @@ pub enum ShiftPlanAction {
     ToggleChangeStructureMode,
     LoadWeekMessage,
     SaveWeekMessage(String),
+    LoadDayAggregate,
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -171,6 +177,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut change_structure_mode: Signal<bool> = use_signal(|| false);
     let week_message = use_signal(|| String::new());
     let mut week_message_draft = use_signal(|| String::new());
+
+    // Day view state
+    let mut view_mode = use_signal(|| state::ViewMode::Week);
+    let mut selected_day: Signal<Weekday> = use_signal(|| Weekday::Monday);
+    let day_aggregate: Signal<Option<state::DayAggregate>> = use_signal(|| None);
+    let show_sunday = use_signal(|| false);
     
     // Shiftplan report state
     let mut selected_template_id = use_signal(|| None::<Uuid>);
@@ -229,20 +241,38 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let cr = use_coroutine({
         move |mut rx: UnboundedReceiver<ShiftPlanAction>| {
-            to_owned![year, week, current_sales_person, unavailable_days, config, week_message, week_message_draft];
+            to_owned![year, week, current_sales_person, unavailable_days, config, week_message, week_message_draft, view_mode, selected_day, day_aggregate, show_sunday];
             async move {
-                let mut update_shiftplan = move || {
-                    shift_plan_context.restart();
-                    working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
-                        *year.read(),
-                        *week.read(),
-                        is_hr,
-                    ));
-                    if is_shiftplanner {
-                        booking_conflict_service
-                            .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
-                        weekly_summary_service
-                            .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
+                let mut update_shiftplan = {
+                    to_owned![config, day_aggregate, selected_day, year, week, show_sunday, view_mode];
+                    move || {
+                        shift_plan_context.restart();
+                        working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
+                            *year.read(),
+                            *week.read(),
+                            is_hr,
+                        ));
+                        if is_shiftplanner {
+                            booking_conflict_service
+                                .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
+                            weekly_summary_service
+                                .send(WeeklySummaryAction::LoadWeek(*year.read(), *week.read()));
+                        }
+                        if *view_mode.read() == state::ViewMode::Day {
+                            to_owned![config, day_aggregate, selected_day, year, week, show_sunday];
+                            spawn(async move {
+                                if let Ok(loaded) = loader::load_day_aggregate(
+                                    config.clone(),
+                                    *year.read(),
+                                    *week.read(),
+                                    *selected_day.read(),
+                                )
+                                .await
+                                {
+                                    day_aggregate.set(Some(loaded));
+                                }
+                            });
+                        }
                     }
                 };
 
@@ -480,6 +510,38 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 week_message_draft.set(message);
                             }
                         }
+                        ShiftPlanAction::RemoveUserFromSlotDay {
+                            slot_id,
+                            sales_person_id,
+                        } => {
+                            info!("Removing user from slot (day view)");
+                            if let Some(ref agg) = *day_aggregate.read() {
+                                // Find the booking across all plans
+                                for plan in agg.plans.iter() {
+                                    if let Some(slot) = plan.slots.iter().find(|s| s.id == slot_id) {
+                                        if let Some(booking) = slot.bookings.iter().find(|b| b.sales_person_id == sales_person_id) {
+                                            if let Err(e) = crate::api::remove_booking(config.to_owned(), booking.id).await {
+                                                tracing::error!("Failed to remove booking: {:?}", e);
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            update_shiftplan();
+                        }
+                        ShiftPlanAction::LoadDayAggregate => {
+                            if let Ok(loaded) = loader::load_day_aggregate(
+                                config.clone(),
+                                *year.read(),
+                                *week.read(),
+                                *selected_day.read(),
+                            )
+                            .await
+                            {
+                                day_aggregate.set(Some(loaded));
+                            }
+                        }
                     }
                 }
             }
@@ -523,17 +585,55 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         TopBar {}
 
         div { class: "flex flex-col md:flex-row md:items-center md:justify-between",
-            div { class: "m-4 text-lg flex align-center justify-center width-full",
-                button {
-                    onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
-                    class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
-                    "<"
+            div { class: "m-4 text-lg flex align-center justify-center width-full gap-4",
+                div { class: "flex align-center",
+                    button {
+                        onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
+                        class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
+                        "<"
+                    }
+                    div { class: "pt-2", "{calendar_week_str}" }
+                    button {
+                        onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
+                        class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
+                        ">"
+                    }
                 }
-                div { class: "pt-2", "{calendar_week_str}" }
-                button {
-                    onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
-                    class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
-                    ">"
+                div { class: "flex gap-1 print:hidden",
+                    button {
+                        class: format!(
+                            "pt-2 pb-2 pl-3 pr-3 rounded-md font-medium {}",
+                            if *view_mode.read() == state::ViewMode::Week {
+                                "bg-blue-500 text-white"
+                            } else {
+                                "bg-gray-200 hover:bg-gray-300"
+                            },
+                        ),
+                        onclick: move |_| {
+                            view_mode.set(state::ViewMode::Week);
+                        },
+                        {i18n.t(Key::ViewModeWeek)}
+                    }
+                    button {
+                        class: format!(
+                            "pt-2 pb-2 pl-3 pr-3 rounded-md font-medium {}",
+                            if *view_mode.read() == state::ViewMode::Day {
+                                "bg-blue-500 text-white"
+                            } else {
+                                "bg-gray-200 hover:bg-gray-300"
+                            },
+                        ),
+                        onclick: move |_| {
+                            let default_day = crate::component::day_aggregate_view::default_day_for_week(
+                                *year.read(),
+                                *week.read(),
+                            );
+                            selected_day.set(default_day);
+                            view_mode.set(state::ViewMode::Day);
+                            cr.send(ShiftPlanAction::LoadDayAggregate);
+                        },
+                        {i18n.t(Key::ViewModeDay)}
+                    }
                 }
             }
             div { class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4 print:hidden",
@@ -651,29 +751,32 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         }
 
         {
-            if let Some(Ok(catalog)) = &*shiftplan_catalog.read_unchecked() {
-                let catalog = catalog.clone();
-                rsx! {
-                    div { class: "mx-4 mt-4",
-                        ShiftplanTabBar {
-                            shiftplans: catalog,
-                            selected_id: *selected_shiftplan_id.read(),
-                            on_select: move |id: Uuid| {
-                                selected_shiftplan_id.set(Some(id));
-                            },
-                            planning_mode: *change_structure_mode.read(),
-                            config: CONFIG.read().clone(),
-                            on_catalog_changed: move |new_selected: Option<Uuid>| {
-                                shiftplan_catalog.restart();
-                                if let Some(id) = new_selected {
+            if *view_mode.read() == state::ViewMode::Week {
+                if let Some(Ok(catalog)) = &*shiftplan_catalog.read_unchecked() {
+                    let catalog = catalog.clone();
+                    rsx! {
+                        div { class: "mx-4 mt-4",
+                            ShiftplanTabBar {
+                                shiftplans: catalog,
+                                selected_id: *selected_shiftplan_id.read(),
+                                on_select: move |id: Uuid| {
                                     selected_shiftplan_id.set(Some(id));
-                                } else {
-                                    // After delete: reset selection, will auto-select first on reload
-                                    selected_shiftplan_id.set(None);
-                                }
-                            },
+                                },
+                                planning_mode: *change_structure_mode.read(),
+                                config: CONFIG.read().clone(),
+                                on_catalog_changed: move |new_selected: Option<Uuid>| {
+                                    shiftplan_catalog.restart();
+                                    if let Some(id) = new_selected {
+                                        selected_shiftplan_id.set(Some(id));
+                                    } else {
+                                        selected_shiftplan_id.set(None);
+                                    }
+                                },
+                            }
                         }
                     }
+                } else {
+                    rsx! {}
                 }
             } else {
                 rsx! {}
@@ -681,96 +784,177 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         }
 
         {
-            match &*shift_plan_context.read_unchecked() {
-                Some(Ok(shift_plan)) => {
-                    to_owned![current_sales_person, unavailable_days];
-                    rsx! {
-                        div { class: "m-4",
-                            SlotEdit {}
-                            WeekView {
-                                shiftplan_data: shift_plan.clone(),
-                                date_of_monday: date,
+            if *view_mode.read() == state::ViewMode::Day {
+                // Day aggregate view
+                to_owned![current_sales_person];
+                rsx! {
+                    div { class: "m-4",
+                        DayButtonBar {
+                            selected_day: *selected_day.read(),
+                            show_sunday: *show_sunday.read(),
+                            on_select_day: move |day: Weekday| {
+                                selected_day.set(day);
+                                cr.send(ShiftPlanAction::LoadDayAggregate);
+                            },
+                            on_prev_day: move |_| {
+                                let (new_day, week_change) = crate::component::day_aggregate_view::prev_day(
+                                    *selected_day.read(),
+                                    *show_sunday.read(),
+                                );
+                                selected_day.set(new_day);
+                                if week_change != 0 {
+                                    cr.send(ShiftPlanAction::PreviousWeek);
+                                }
+                                cr.send(ShiftPlanAction::LoadDayAggregate);
+                            },
+                            on_next_day: move |_| {
+                                let (new_day, week_change) = crate::component::day_aggregate_view::next_day(
+                                    *selected_day.read(),
+                                    *show_sunday.read(),
+                                );
+                                selected_day.set(new_day);
+                                if week_change != 0 {
+                                    cr.send(ShiftPlanAction::NextWeek);
+                                }
+                                cr.send(ShiftPlanAction::LoadDayAggregate);
+                            },
+                        }
+                        if let Some(ref agg) = *day_aggregate.read() {
+                            DayAggregateView {
+                                day_aggregate: agg.clone(),
                                 highlight_item_id: current_sales_person.read().as_ref().map(|sp| sp.id),
-                                discourage_weekdays: unavailable_days
-                                    .read()
-                                    .iter()
-                                    .map(|unavailable_day| unavailable_day.day_of_week)
-                                    .collect(),
-                                button_types: button_mode,
-                                dropdown_entries: field_dropdown_entries,
-                                weekday_headers: if weekly_summary.data_loaded && weekly_summary.weekly_summary.len() > 0 { vec![
-                                    (
-                                        Weekday::Monday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours)
-                                            .into(),
-                                    ),
-                                    (
-                                        Weekday::Tuesday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours)
-                                            .into(),
-                                    ),
-                                    (
-                                        Weekday::Wednesday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours)
-                                            .into(),
-                                    ),
-                                    (
-                                        Weekday::Thursday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours)
-                                            .into(),
-                                    ),
-                                    (
-                                        Weekday::Friday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours)
-                                            .into(),
-                                    ),
-                                    (
-                                        Weekday::Saturday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours)
-                                            .into(),
-                                    ),
-                                    (
-                                        Weekday::Sunday,
-                                        format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours)
-                                            .into(),
-                                    ),
-                                ] } else { vec![] },
-                                add_event: move |slot: state::Slot| {
-                                    to_owned![current_sales_person];
-                                    info!("Register to slot");
-                                    if let Some(ref current_sales_person) = *current_sales_person.read() {
-                                        cr.send(ShiftPlanAction::AddUserToSlot {
-                                            slot_id: slot.id,
-                                            sales_person_id: current_sales_person.id,
-                                            week: *week.read(),
-                                            year: *year.read(),
-                                        });
+                                button_types: button_mode.clone(),
+                                dropdown_entries: field_dropdown_entries.clone(),
+                                add_event: {
+                                    let current_sales_person = current_sales_person.clone();
+                                    move |slot: state::Slot| {
+                                        let sp = current_sales_person.read();
+                                        if let Some(ref sp) = *sp {
+                                            cr.send(ShiftPlanAction::AddUserToSlot {
+                                                slot_id: slot.id,
+                                                sales_person_id: sp.id,
+                                                week: *week.read(),
+                                                year: *year.read(),
+                                            });
+                                        }
                                     }
-                                    info!("Done");
                                 },
-                                remove_event: move |slot: state::Slot| {
-                                    to_owned![current_sales_person];
-                                    info!("Register to slot");
-                                    if let Some(ref current_sales_person) = *current_sales_person.read() {
-                                        cr.send(ShiftPlanAction::RemoveUserFromSlot {
-                                            slot_id: slot.id,
-                                            sales_person_id: current_sales_person.id,
-                                        });
+                                remove_event: {
+                                    let current_sales_person = current_sales_person.clone();
+                                    move |slot: state::Slot| {
+                                        let sp = current_sales_person.read();
+                                        if let Some(ref sp) = *sp {
+                                            cr.send(ShiftPlanAction::RemoveUserFromSlotDay {
+                                                slot_id: slot.id,
+                                                sales_person_id: sp.id,
+                                            });
+                                        }
                                     }
-                                    info!("Done");
                                 },
                                 item_clicked: move |sales_person_id: Uuid| {
                                     if is_shiftplanner {
                                         cr.send(ShiftPlanAction::UpdateSalesPerson(sales_person_id));
                                     }
                                 },
-                                title_double_clicked: move |weekday: Weekday| {
-                                    if is_shiftplanner {
-                                        cr.send(ShiftPlanAction::ToggleAvailability(weekday));
-                                    }
-                                },
                                 is_shiftplanner,
                             }
+                        } else {
+                            div { class: "text-gray-500 italic", "Loading..." }
+                        }
+                    }
+                }
+            } else {
+                // Week view (existing)
+                match &*shift_plan_context.read_unchecked() {
+                    Some(Ok(shift_plan)) => {
+                        to_owned![current_sales_person, unavailable_days];
+                        rsx! {
+                            div { class: "m-4",
+                                SlotEdit {}
+                                WeekView {
+                                    shiftplan_data: shift_plan.clone(),
+                                    date_of_monday: date,
+                                    highlight_item_id: current_sales_person.read().as_ref().map(|sp| sp.id),
+                                    discourage_weekdays: unavailable_days
+                                        .read()
+                                        .iter()
+                                        .map(|unavailable_day| unavailable_day.day_of_week)
+                                        .collect(),
+                                    button_types: button_mode,
+                                    dropdown_entries: field_dropdown_entries,
+                                    weekday_headers: if weekly_summary.data_loaded && weekly_summary.weekly_summary.len() > 0 { vec![
+                                        (
+                                            Weekday::Monday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours)
+                                                .into(),
+                                        ),
+                                        (
+                                            Weekday::Tuesday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].tuesday_available_hours)
+                                                .into(),
+                                        ),
+                                        (
+                                            Weekday::Wednesday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].wednesday_available_hours)
+                                                .into(),
+                                        ),
+                                        (
+                                            Weekday::Thursday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].thursday_available_hours)
+                                                .into(),
+                                        ),
+                                        (
+                                            Weekday::Friday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].friday_available_hours)
+                                                .into(),
+                                        ),
+                                        (
+                                            Weekday::Saturday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].saturday_available_hours)
+                                                .into(),
+                                        ),
+                                        (
+                                            Weekday::Sunday,
+                                            format!("{:.1}h", weekly_summary.weekly_summary[0].sunday_available_hours)
+                                                .into(),
+                                        ),
+                                    ] } else { vec![] },
+                                    add_event: move |slot: state::Slot| {
+                                        to_owned![current_sales_person];
+                                        info!("Register to slot");
+                                        if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                            cr.send(ShiftPlanAction::AddUserToSlot {
+                                                slot_id: slot.id,
+                                                sales_person_id: current_sales_person.id,
+                                                week: *week.read(),
+                                                year: *year.read(),
+                                            });
+                                        }
+                                        info!("Done");
+                                    },
+                                    remove_event: move |slot: state::Slot| {
+                                        to_owned![current_sales_person];
+                                        info!("Register to slot");
+                                        if let Some(ref current_sales_person) = *current_sales_person.read() {
+                                            cr.send(ShiftPlanAction::RemoveUserFromSlot {
+                                                slot_id: slot.id,
+                                                sales_person_id: current_sales_person.id,
+                                            });
+                                        }
+                                        info!("Done");
+                                    },
+                                    item_clicked: move |sales_person_id: Uuid| {
+                                        if is_shiftplanner {
+                                            cr.send(ShiftPlanAction::UpdateSalesPerson(sales_person_id));
+                                        }
+                                    },
+                                    title_double_clicked: move |weekday: Weekday| {
+                                        if is_shiftplanner {
+                                            cr.send(ShiftPlanAction::ToggleAvailability(weekday));
+                                        }
+                                    },
+                                    is_shiftplanner,
+                                }
                             
                             // Week Message Section
                             div {
@@ -1036,14 +1220,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         }
                     }
                 }
-                Some(Err(err)) => {
-                    rsx! {
-                        div { class: "m-4", "Error while loading shift plan: {err}" }
+                    Some(Err(err)) => {
+                        rsx! {
+                            div { class: "m-4", "Error while loading shift plan: {err}" }
+                        }
                     }
-                }
-                _ => {
-                    rsx! {
-                        div { class: "m-4", "Loading shift plan..." }
+                    _ => {
+                        rsx! {
+                            div { class: "m-4", "Loading shift plan..." }
+                        }
                     }
                 }
             }

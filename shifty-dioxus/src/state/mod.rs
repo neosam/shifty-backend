@@ -15,7 +15,9 @@ pub mod weekly_overview;
 
 pub use auth_info::AuthInfo;
 pub use config::Config;
+pub use shiftplan::DayAggregate;
 pub use shiftplan::Shiftplan;
 pub use shiftplan::Slot;
+pub use shiftplan::ViewMode;
 pub use shiftplan::Weekday;
 pub use user_management::User;

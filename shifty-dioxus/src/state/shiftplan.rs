@@ -30,6 +30,11 @@ impl Weekday {
         }
     }
 
+    pub fn i18n_short_string(&self, i18n: &I18n<Key, Locale>) -> Rc<str> {
+        let full = self.i18n_string(i18n);
+        full.chars().take(2).collect::<String>().into()
+    }
+
     pub fn num_from_monday(&self) -> u8 {
         match self {
             Weekday::Monday => 0,
@@ -254,6 +259,51 @@ pub struct BookingConflict {
     pub sales_person_id: Uuid,
     pub sales_person_name: ImStr,
     pub day_of_week: Weekday,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ViewMode {
+    Week,
+    Day,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DayPlanColumn {
+    pub shiftplan_name: Rc<str>,
+    pub shiftplan_id: Uuid,
+    pub slots: Rc<[Slot]>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DayAggregate {
+    pub year: u32,
+    pub week: u8,
+    pub day_of_week: Weekday,
+    pub plans: Rc<[DayPlanColumn]>,
+}
+
+impl DayAggregate {
+    pub fn min_hour(&self) -> f32 {
+        self.plans
+            .iter()
+            .flat_map(|p| p.slots.iter())
+            .map(|s| s.from_hour())
+            .fold(f32::INFINITY, f32::min)
+    }
+
+    pub fn max_hour(&self) -> f32 {
+        self.plans
+            .iter()
+            .flat_map(|p| p.slots.iter())
+            .map(|s| s.to_hour())
+            .fold(f32::NEG_INFINITY, f32::max)
+    }
+
+    pub fn has_sunday_slots(&self) -> bool {
+        self.plans
+            .iter()
+            .any(|p| p.slots.iter().any(|s| s.day_of_week == Weekday::Sunday))
+    }
 }
 
 impl From<&BookingConflictTO> for BookingConflict {

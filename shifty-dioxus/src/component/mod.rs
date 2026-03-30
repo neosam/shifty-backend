@@ -1,4 +1,5 @@
 pub mod add_extra_days_form;
+pub mod day_aggregate_view;
 pub mod add_extra_hours_choice;
 pub mod add_extra_hours_form;
 pub mod base_components;

@@ -527,4 +527,8 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // My Shifts page
     i18n.add_text(Locale::De, Key::MyShifts, "Meine Schichten");
     i18n.add_text(Locale::De, Key::NoShiftsFound, "Keine Schichten für diesen Zeitraum gefunden.");
+
+    // Day view
+    i18n.add_text(Locale::De, Key::ViewModeWeek, "Woche");
+    i18n.add_text(Locale::De, Key::ViewModeDay, "Tag");
 }

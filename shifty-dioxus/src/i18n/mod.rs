@@ -338,6 +338,10 @@ pub enum Key {
     // My Shifts page
     MyShifts,
     NoShiftsFound,
+
+    // Day view
+    ViewModeWeek,
+    ViewModeDay,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

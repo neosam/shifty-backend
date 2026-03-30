@@ -484,4 +484,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     // My Shifts page
     i18n.add_text(Locale::En, Key::MyShifts, "My Shifts");
     i18n.add_text(Locale::En, Key::NoShiftsFound, "No shifts found for this period.");
+
+    // Day view
+    i18n.add_text(Locale::En, Key::ViewModeWeek, "Week");
+    i18n.add_text(Locale::En, Key::ViewModeDay, "Day");
 }
