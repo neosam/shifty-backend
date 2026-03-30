@@ -165,6 +165,26 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_shiftplan_to_create_with_is_planning() {
+        use rest_types::ShiftplanTO;
+
+        let shiftplan = ShiftplanTO {
+            id: Uuid::nil(),
+            name: "Planning Only".into(),
+            is_planning: true,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+
+        let json = serde_json::to_string(&shiftplan).unwrap();
+        assert!(json.contains("\"is_planning\":true"));
+
+        let deserialized: ShiftplanTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name.as_ref(), "Planning Only");
+        assert!(deserialized.is_planning);
+    }
+
+    #[test]
     fn test_shiftplan_to_update_serialization() {
         use rest_types::ShiftplanTO;
 

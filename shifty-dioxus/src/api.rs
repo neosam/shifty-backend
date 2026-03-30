@@ -82,13 +82,14 @@ pub async fn get_all_shiftplans(
 pub async fn create_shiftplan(
     config: Config,
     name: &str,
+    is_planning: bool,
 ) -> Result<ShiftplanTO, reqwest::Error> {
     info!("Creating shiftplan");
     let url = format!("{}/shiftplan-catalog", config.backend);
     let shiftplan = ShiftplanTO {
         id: Uuid::nil(),
         name: name.into(),
-        is_planning: false,
+        is_planning,
         deleted: None,
         version: Uuid::nil(),
     };

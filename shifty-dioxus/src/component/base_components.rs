@@ -301,22 +301,30 @@ pub struct TimeInputProps {
     pub on_change: Option<EventHandler<time::Time>>,
 }
 
+fn parse_time_input(value: &str) -> Option<time::Time> {
+    let format_hm = format_description!("[hour]:[minute]");
+    let format_hms = format_description!("[hour]:[minute]:[second]");
+    time::Time::parse(value, format_hms)
+        .or_else(|_| time::Time::parse(value, format_hm))
+        .ok()
+}
+
 #[component]
 pub fn TimeInput(props: TimeInputProps) -> Element {
-    let time_format = format_description!("[hour]:[minute]:[second]");
+    let display_format = format_description!("[hour]:[minute]");
     rsx! {
         input {
             class: "border-2 border-gray-200 p-2 min-w-60",
             "type": "time",
-            value: props.value.format(&time_format).unwrap(),
+            value: props.value.format(&display_format).unwrap(),
             disabled: props.disabled,
             oninput: move |event| {
                 if let Some(on_change) = &props.on_change {
                     let value = event.data.value();
-                    if let Ok(value) = time::Time::parse(&value, time_format) {
-                        on_change.call(value);
+                    if let Some(parsed) = parse_time_input(&value) {
+                        on_change.call(parsed);
                     } else {
-                        tracing::error!("Invalid number: {}", value);
+                        tracing::error!("Invalid time: {}", value);
                     }
                 }
             },
@@ -355,5 +363,28 @@ pub fn FloatInput(props: FloatInputProps) -> Element {
                 }
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_time_input_hm() {
+        let result = parse_time_input("10:00").unwrap();
+        assert_eq!(result, time::Time::from_hms(10, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn test_parse_time_input_hms() {
+        let result = parse_time_input("10:30:45").unwrap();
+        assert_eq!(result, time::Time::from_hms(10, 30, 45).unwrap());
+    }
+
+    #[test]
+    fn test_parse_time_input_invalid() {
+        assert!(parse_time_input("invalid").is_none());
+        assert!(parse_time_input("").is_none());
     }
 }
