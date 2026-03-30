@@ -143,6 +143,64 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_shiftplan_to_create_serialization() {
+        use rest_types::ShiftplanTO;
+
+        let shiftplan = ShiftplanTO {
+            id: Uuid::nil(),
+            name: "Test Plan".into(),
+            is_planning: false,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+
+        let json = serde_json::to_string(&shiftplan).unwrap();
+        assert!(json.contains("\"name\":\"Test Plan\""));
+        assert!(json.contains("\"is_planning\":false"));
+
+        let deserialized: ShiftplanTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name.as_ref(), "Test Plan");
+        assert!(!deserialized.is_planning);
+        assert!(deserialized.deleted.is_none());
+    }
+
+    #[test]
+    fn test_shiftplan_to_update_serialization() {
+        use rest_types::ShiftplanTO;
+
+        let id = Uuid::new_v4();
+        let version = Uuid::new_v4();
+        let shiftplan = ShiftplanTO {
+            id,
+            name: "Renamed Plan".into(),
+            is_planning: true,
+            deleted: None,
+            version,
+        };
+
+        let json = serde_json::to_string(&shiftplan).unwrap();
+        let deserialized: ShiftplanTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, id);
+        assert_eq!(deserialized.name.as_ref(), "Renamed Plan");
+        assert!(deserialized.is_planning);
+        assert_eq!(deserialized.version, version);
+    }
+
+    #[test]
+    fn test_shiftplan_to_default_fields() {
+        use rest_types::ShiftplanTO;
+
+        // Test deserialization with minimal JSON (testing serde defaults)
+        let json = r#"{"name":"Minimal"}"#;
+        let shiftplan: ShiftplanTO = serde_json::from_str(json).unwrap();
+        assert_eq!(shiftplan.id, Uuid::nil());
+        assert_eq!(shiftplan.name.as_ref(), "Minimal");
+        assert!(!shiftplan.is_planning);
+        assert!(shiftplan.deleted.is_none());
+        assert_eq!(shiftplan.version, Uuid::nil());
+    }
+
+    #[test]
     fn test_config_environment_variations() {
         let environments = vec![
             ("DEV", false, "http://localhost:3000"),

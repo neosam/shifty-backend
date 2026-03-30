@@ -79,6 +79,54 @@ pub async fn get_all_shiftplans(
     Ok(res)
 }
 
+pub async fn create_shiftplan(
+    config: Config,
+    name: &str,
+) -> Result<ShiftplanTO, reqwest::Error> {
+    info!("Creating shiftplan");
+    let url = format!("{}/shiftplan-catalog", config.backend);
+    let shiftplan = ShiftplanTO {
+        id: Uuid::nil(),
+        name: name.into(),
+        is_planning: false,
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&shiftplan).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Created shiftplan");
+    Ok(res)
+}
+
+pub async fn update_shiftplan(
+    config: Config,
+    shiftplan: ShiftplanTO,
+) -> Result<ShiftplanTO, reqwest::Error> {
+    info!("Updating shiftplan {}", shiftplan.id);
+    let url = format!("{}/shiftplan-catalog/{}", config.backend, shiftplan.id);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&shiftplan).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Updated shiftplan");
+    Ok(res)
+}
+
+pub async fn delete_shiftplan(
+    config: Config,
+    id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Deleting shiftplan {id}");
+    let url = format!("{}/shiftplan-catalog/{}", config.backend, id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted shiftplan");
+    Ok(())
+}
+
 pub async fn get_slot(config: Config, slot_id: Uuid) -> Result<SlotTO, reqwest::Error> {
     info!("Fetching slot {slot_id}");
     let url = format!("{}/slot/{}", config.backend, slot_id);

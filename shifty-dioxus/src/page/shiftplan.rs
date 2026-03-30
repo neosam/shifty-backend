@@ -122,7 +122,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let personal_calendar_export_str = i18n.t(Key::PersonalCalendarExport);
     let unsufficiently_booked_calendar_export_str = i18n.t(Key::UnsufficientlyBookedCalendarExport);
 
-    let shiftplan_catalog = {
+    let mut shiftplan_catalog = {
         let config = config.clone();
         use_resource(move || loader::load_shiftplan_catalog(config.to_owned()))
     };
@@ -658,6 +658,17 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             selected_id: *selected_shiftplan_id.read(),
                             on_select: move |id: Uuid| {
                                 selected_shiftplan_id.set(Some(id));
+                            },
+                            planning_mode: *change_structure_mode.read(),
+                            config: CONFIG.read().clone(),
+                            on_catalog_changed: move |new_selected: Option<Uuid>| {
+                                shiftplan_catalog.restart();
+                                if let Some(id) = new_selected {
+                                    selected_shiftplan_id.set(Some(id));
+                                } else {
+                                    // After delete: reset selection, will auto-select first on reload
+                                    selected_shiftplan_id.set(None);
+                                }
                             },
                         }
                     }

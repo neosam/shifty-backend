@@ -14,7 +14,7 @@ fn default_show_vacation() -> bool {
     false
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
 pub struct Config {
     pub backend: Rc<str>,
     #[serde(default = "default_application_title")]
