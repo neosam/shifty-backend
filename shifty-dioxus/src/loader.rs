@@ -91,12 +91,20 @@ pub async fn load_slots(
     config: Config,
     year: u32,
     week: u8,
+    shiftplan_id: Uuid,
     bookings: Rc<[Booking]>,
 ) -> Result<Rc<[Slot]>, ShiftyError> {
-    let slot_tos = api::get_slots(config.clone(), year, week).await?;
+    let slot_tos = api::get_slots(config.clone(), year, week, shiftplan_id).await?;
     let special_days = api::get_special_days_for_week(config.clone(), year, week).await?;
     let slots: Rc<[Slot]> = slot_tos
         .iter()
+        .filter(|slot_to| {
+            if slot_to.shiftplan_id.is_none() {
+                tracing::warn!("Slot {} has no shiftplan_id, ignoring", slot_to.id);
+                return false;
+            }
+            true
+        })
         .filter(|slot_to| {
             !special_days.iter().any(|special_day| {
                 special_day.day_of_week == slot_to.day_of_week
@@ -119,12 +127,20 @@ pub async fn load_slots(
     Ok(slots)
 }
 
+pub async fn load_shiftplan_catalog(
+    config: Config,
+) -> Result<Rc<[rest_types::ShiftplanTO]>, ShiftyError> {
+    let shiftplans = api::get_all_shiftplans(config).await?;
+    Ok(shiftplans)
+}
+
 pub async fn load_shift_plan(
     config: Config,
+    shiftplan_id: Uuid,
     week: u8,
     year: u32,
 ) -> Result<Shiftplan, ShiftyError> {
-    let shiftplan_week = api::get_shiftplan_week(config, year, week).await?;
+    let shiftplan_week = api::get_shiftplan_week(config, shiftplan_id, year, week).await?;
     let slots = shiftplan_week
         .days
         .iter()

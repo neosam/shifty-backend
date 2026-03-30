@@ -5,9 +5,9 @@ use rest_types::{
     CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO,
     EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO,
     GenerateInvitationRequest, InvitationResponse, RoleTO, SalesPersonTO,
-    SalesPersonUnavailableTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
-    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeeklySummaryTO,
-    WeekMessageTO,
+    SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO,
+    TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO,
+    WeeklySummaryTO, WeekMessageTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -56,13 +56,26 @@ pub async fn get_slots(
     config: Config,
     year: u32,
     week: u8,
+    shiftplan_id: Uuid,
 ) -> Result<Rc<[SlotTO]>, reqwest::Error> {
     info!("Fetching slots");
-    let url = format!("{}/slot/week/{year}/{week}", config.backend);
+    let url = format!("{}/slot/week/{year}/{week}/{shiftplan_id}", config.backend);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_all_shiftplans(
+    config: Config,
+) -> Result<Rc<[ShiftplanTO]>, reqwest::Error> {
+    info!("Fetching shiftplan catalog");
+    let url = format!("{}/shiftplan-catalog", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched shiftplan catalog");
     Ok(res)
 }
 
@@ -701,11 +714,12 @@ pub async fn add_vacation(
 
 pub async fn get_shiftplan_week(
     config: Config,
+    shiftplan_id: Uuid,
     year: u32,
     week: u8,
 ) -> Result<rest_types::ShiftplanWeekTO, reqwest::Error> {
     info!("Fetching shiftplan for week {week} in year {year}");
-    let url = format!("{}/shiftplan-info/{year}/{week}", config.backend);
+    let url = format!("{}/shiftplan-info/{shiftplan_id}/{year}/{week}", config.backend);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;

@@ -15,6 +15,7 @@ pub struct SlotEditItem {
     pub valid_from: time::Date,
     pub valid_to: Option<time::Date>,
     pub version: Uuid,
+    pub shiftplan_id: Option<Uuid>,
 }
 impl SlotEditItem {
     pub fn empty() -> Self {
@@ -27,6 +28,7 @@ impl SlotEditItem {
             valid_from: time::Date::from_calendar_date(0, time::Month::January, 1).unwrap(),
             valid_to: None,
             version: Uuid::nil(),
+            shiftplan_id: None,
         }
     }
 
@@ -49,6 +51,7 @@ impl From<&SlotTO> for SlotEditItem {
             valid_from: slot.valid_from,
             valid_to: slot.valid_to,
             version: slot.version,
+            shiftplan_id: slot.shiftplan_id,
         }
     }
 }
@@ -64,6 +67,7 @@ impl From<&SlotEditItem> for SlotTO {
             valid_to: slot.valid_to,
             deleted: None,
             version: slot.version,
+            shiftplan_id: slot.shiftplan_id,
         }
     }
 }

@@ -16,7 +16,7 @@ use super::{
 
 pub static SLOT_EDIT_STORE: GlobalSignal<SlotEdit> = Signal::global(|| SlotEdit::new_edit());
 pub enum SlotEditAction {
-    NewSlot(u32, u8),
+    NewSlot(u32, u8, Option<Uuid>),
     UpdateSlot(SlotEditItem),
     SaveSlot,
     Cancel,
@@ -24,10 +24,12 @@ pub enum SlotEditAction {
     LoadSlot(Uuid, u32, u8),
 }
 
-pub fn new_slot_edit(year: u32, week: u8) -> Result<(), ShiftyError> {
+pub fn new_slot_edit(year: u32, week: u8, shiftplan_id: Option<Uuid>) -> Result<(), ShiftyError> {
     let mut store = SLOT_EDIT_STORE.write();
     store.slot_edit_type = SlotEditType::New;
-    store.slot = SlotEditItem::new_valid_from(year, week).into();
+    let mut slot = SlotEditItem::new_valid_from(year, week);
+    slot.shiftplan_id = shiftplan_id;
+    store.slot = slot.into();
     store.year = year;
     store.week = week;
     store.visible = true;
@@ -90,7 +92,7 @@ pub async fn load_slot_edit(slot_id: Uuid, year: u32, week: u8) -> Result<(), Sh
 pub async fn slot_edit_service(mut rx: UnboundedReceiver<SlotEditAction>) {
     while let Some(action) = rx.next().await {
         match match action {
-            SlotEditAction::NewSlot(year, week) => new_slot_edit(year, week),
+            SlotEditAction::NewSlot(year, week, shiftplan_id) => new_slot_edit(year, week, shiftplan_id),
             SlotEditAction::UpdateSlot(slot) => update_slot_edit(slot),
             SlotEditAction::SaveSlot => save_slot_edit().await,
             SlotEditAction::Cancel => cancel_slot_edit().await,

@@ -407,3 +407,266 @@ mod utils_tests {
         assert_eq!(result, Some(42));
     }
 }
+
+#[cfg(test)]
+mod shiftplan_catalog_tests {
+    use rest_types::{ShiftplanTO, SlotTO, DayOfWeekTO};
+    use crate::state::slot_edit::SlotEditItem;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_shiftplan_to_deserialization() {
+        let json = r#"{
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "name": "Hauptplan",
+            "is_planning": false,
+            "$version": "223e4567-e89b-12d3-a456-426614174000"
+        }"#;
+
+        let result: Result<ShiftplanTO, _> = serde_json::from_str(json);
+        assert!(result.is_ok(), "Failed to deserialize ShiftplanTO: {:?}", result.err());
+
+        let shiftplan = result.unwrap();
+        assert_eq!(shiftplan.name.as_ref(), "Hauptplan");
+        assert!(!shiftplan.is_planning);
+        assert!(shiftplan.deleted.is_none());
+    }
+
+    #[test]
+    fn test_shiftplan_to_deserialization_with_defaults() {
+        let json = r#"{
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "name": "Testplan"
+        }"#;
+
+        let result: Result<ShiftplanTO, _> = serde_json::from_str(json);
+        assert!(result.is_ok(), "Failed to deserialize ShiftplanTO with defaults: {:?}", result.err());
+
+        let shiftplan = result.unwrap();
+        assert!(!shiftplan.is_planning);
+        assert_eq!(shiftplan.version, Uuid::nil());
+    }
+
+    #[test]
+    fn test_shiftplan_to_list_deserialization() {
+        let json = r#"[
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "name": "Hauptplan",
+                "is_planning": false,
+                "$version": "223e4567-e89b-12d3-a456-426614174000"
+            },
+            {
+                "id": "223e4567-e89b-12d3-a456-426614174000",
+                "name": "Wochenende",
+                "is_planning": true,
+                "$version": "323e4567-e89b-12d3-a456-426614174000"
+            }
+        ]"#;
+
+        let result: Result<Vec<ShiftplanTO>, _> = serde_json::from_str(json);
+        assert!(result.is_ok());
+
+        let shiftplans = result.unwrap();
+        assert_eq!(shiftplans.len(), 2);
+        assert_eq!(shiftplans[0].name.as_ref(), "Hauptplan");
+        assert_eq!(shiftplans[1].name.as_ref(), "Wochenende");
+        assert!(shiftplans[1].is_planning);
+    }
+
+    #[test]
+    fn test_slot_edit_item_from_slot_to_preserves_shiftplan_id() {
+        let shiftplan_id = Uuid::new_v4();
+        let slot_to = SlotTO {
+            id: Uuid::new_v4(),
+            day_of_week: DayOfWeekTO::Tuesday,
+            from: time::Time::from_hms(8, 0, 0).unwrap(),
+            to: time::Time::from_hms(16, 0, 0).unwrap(),
+            min_resources: 1,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::June, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: Some(shiftplan_id),
+        };
+
+        let edit_item = SlotEditItem::from(&slot_to);
+        assert_eq!(edit_item.shiftplan_id, Some(shiftplan_id));
+
+        let back = SlotTO::from(&edit_item);
+        assert_eq!(back.shiftplan_id, Some(shiftplan_id));
+    }
+
+    #[test]
+    fn test_slot_edit_item_from_slot_to_none_shiftplan_id() {
+        let slot_to = SlotTO {
+            id: Uuid::new_v4(),
+            day_of_week: DayOfWeekTO::Monday,
+            from: time::Time::from_hms(9, 0, 0).unwrap(),
+            to: time::Time::from_hms(17, 0, 0).unwrap(),
+            min_resources: 2,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: None,
+        };
+
+        let edit_item = SlotEditItem::from(&slot_to);
+        assert!(edit_item.shiftplan_id.is_none());
+    }
+
+    #[test]
+    fn test_slot_edit_item_from_slot_to_with_shiftplan_id() {
+        let shiftplan_id = Uuid::new_v4();
+        let slot_to = SlotTO {
+            id: Uuid::new_v4(),
+            day_of_week: DayOfWeekTO::Monday,
+            from: time::Time::from_hms(9, 0, 0).unwrap(),
+            to: time::Time::from_hms(17, 0, 0).unwrap(),
+            min_resources: 2,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: Some(shiftplan_id),
+        };
+
+        let edit_item = SlotEditItem::from(&slot_to);
+        assert_eq!(edit_item.shiftplan_id, Some(shiftplan_id));
+    }
+
+    #[test]
+    fn test_slot_to_from_slot_edit_item_with_shiftplan_id() {
+        let shiftplan_id = Uuid::new_v4();
+        let edit_item = SlotEditItem {
+            id: Uuid::new_v4(),
+            day_of_week: crate::state::Weekday::Monday,
+            from: time::Time::from_hms(9, 0, 0).unwrap(),
+            to: time::Time::from_hms(17, 0, 0).unwrap(),
+            min_resources: 2,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: Some(shiftplan_id),
+        };
+
+        let slot_to = SlotTO::from(&edit_item);
+        assert_eq!(slot_to.shiftplan_id, Some(shiftplan_id));
+    }
+
+    #[test]
+    fn test_slot_edit_item_roundtrip_preserves_shiftplan_id() {
+        let shiftplan_id = Uuid::new_v4();
+        let original = SlotTO {
+            id: Uuid::new_v4(),
+            day_of_week: DayOfWeekTO::Wednesday,
+            from: time::Time::from_hms(10, 0, 0).unwrap(),
+            to: time::Time::from_hms(18, 0, 0).unwrap(),
+            min_resources: 1,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::March, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: Some(shiftplan_id),
+        };
+
+        let edit_item = SlotEditItem::from(&original);
+        let roundtripped = SlotTO::from(&edit_item);
+
+        assert_eq!(roundtripped.shiftplan_id, original.shiftplan_id);
+        assert_eq!(roundtripped.id, original.id);
+    }
+
+    #[test]
+    fn test_empty_catalog_deserialization() {
+        let json = r#"[]"#;
+        let result: Result<Vec<ShiftplanTO>, _> = serde_json::from_str(json);
+        assert!(result.is_ok());
+
+        let catalog = result.unwrap();
+        assert!(catalog.is_empty());
+    }
+
+    #[test]
+    fn test_empty_catalog_no_auto_selection() {
+        // Simulates the auto-selection logic from shiftplan.rs:
+        // if catalog is empty, selected_shiftplan_id stays None
+        let catalog: Vec<ShiftplanTO> = vec![];
+        let mut selected_shiftplan_id: Option<Uuid> = None;
+
+        if selected_shiftplan_id.is_none() && !catalog.is_empty() {
+            selected_shiftplan_id = Some(catalog[0].id);
+        }
+
+        assert!(selected_shiftplan_id.is_none(), "Empty catalog must not auto-select a shiftplan");
+    }
+
+    #[test]
+    fn test_non_empty_catalog_auto_selects_first() {
+        let first_id = Uuid::new_v4();
+        let catalog: Vec<ShiftplanTO> = vec![
+            ShiftplanTO {
+                id: first_id,
+                name: "Plan A".into(),
+                is_planning: false,
+                deleted: None,
+                version: Uuid::new_v4(),
+            },
+            ShiftplanTO {
+                id: Uuid::new_v4(),
+                name: "Plan B".into(),
+                is_planning: true,
+                deleted: None,
+                version: Uuid::new_v4(),
+            },
+        ];
+        let mut selected_shiftplan_id: Option<Uuid> = None;
+
+        if selected_shiftplan_id.is_none() && !catalog.is_empty() {
+            selected_shiftplan_id = Some(catalog[0].id);
+        }
+
+        assert_eq!(selected_shiftplan_id, Some(first_id), "Must auto-select the first shiftplan");
+    }
+
+    #[test]
+    fn test_empty_shiftplan_when_no_selection() {
+        // When no shiftplan is selected (None), the page returns an empty Shiftplan
+        let shiftplan_id: Option<Uuid> = None;
+        let week = 10u8;
+        let year = 2024u32;
+
+        let shiftplan = match shiftplan_id {
+            Some(_id) => panic!("Should not reach here"),
+            None => crate::state::Shiftplan {
+                week,
+                year,
+                slots: [].into(),
+            },
+        };
+
+        assert_eq!(shiftplan.week, 10);
+        assert_eq!(shiftplan.year, 2024);
+        assert!(shiftplan.slots.is_empty(), "Empty catalog must result in empty slots");
+    }
+
+    #[test]
+    fn test_empty_shiftplan_min_max_hour_no_overflow() {
+        let shiftplan = crate::state::Shiftplan {
+            week: 1,
+            year: 2024,
+            slots: [].into(),
+        };
+
+        // Previously caused panic: INFINITY/NEG_INFINITY → u8 cast → subtract overflow
+        let min = shiftplan.min_hour();
+        let max = shiftplan.max_hour();
+
+        assert_eq!(min, 0.0);
+        assert_eq!(max, 0.0);
+        // This is the actual calculation that panicked in TimeView
+        assert!(max >= min, "max_hour must be >= min_hour");
+        let _ = (max.ceil() as u8) - (min.ceil() as u8);
+    }
+}

@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::base_types::ImStr;
 use crate::component::booking_log_table::BookingLogTable;
 use crate::component::dropdown_base::DropdownTrigger;
+use crate::component::shiftplan_tab_bar::ShiftplanTabBar;
 use crate::component::slot_edit::SlotEdit;
 use crate::component::week_view::WeekViewButtonTypes;
 use crate::component::working_hours_mini_overview::WorkingHoursMiniOverview;
@@ -121,14 +122,40 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let personal_calendar_export_str = i18n.t(Key::PersonalCalendarExport);
     let unsufficiently_booked_calendar_export_str = i18n.t(Key::UnsufficientlyBookedCalendarExport);
 
+    let shiftplan_catalog = {
+        let config = config.clone();
+        use_resource(move || loader::load_shiftplan_catalog(config.to_owned()))
+    };
+
+    let mut selected_shiftplan_id: Signal<Option<Uuid>> = use_signal(|| None);
+
+    // Auto-select first shiftplan when catalog loads
+    if let Some(Ok(catalog)) = &*shiftplan_catalog.read_unchecked() {
+        if selected_shiftplan_id.read().is_none() && !catalog.is_empty() {
+            selected_shiftplan_id.set(Some(catalog[0].id));
+        }
+    }
+
     let mut shift_plan_context = {
         let config = config.clone();
         use_resource(move || {
-            loader::load_shift_plan(
-                config.to_owned(),
-                *week.to_owned().read(),
-                *year.to_owned().read(),
-            )
+            let config = config.clone();
+            let shiftplan_id = *selected_shiftplan_id.read();
+            async move {
+                match shiftplan_id {
+                    Some(id) => loader::load_shift_plan(
+                        config,
+                        id,
+                        *week.to_owned().read(),
+                        *year.to_owned().read(),
+                    ).await,
+                    None => Ok(crate::state::Shiftplan {
+                        week: *week.read(),
+                        year: *year.read(),
+                        slots: [].into(),
+                    }),
+                }
+            }
         })
     };
 
@@ -521,7 +548,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 "New slot",
                                 Box::new(move |_| {
                                     slot_edit_service
-                                        .send(SlotEditAction::NewSlot(*year.read(), *week.read()))
+                                        .send(SlotEditAction::NewSlot(*year.read(), *week.read(), *selected_shiftplan_id.read()))
                                 }),
                                 !*change_structure_mode.read() || !is_shift_editor,
                             )
@@ -618,6 +645,25 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         }
                     }
                 }
+            }
+        }
+
+        {
+            if let Some(Ok(catalog)) = &*shiftplan_catalog.read_unchecked() {
+                let catalog = catalog.clone();
+                rsx! {
+                    div { class: "mx-4 mt-4",
+                        ShiftplanTabBar {
+                            shiftplans: catalog,
+                            selected_id: *selected_shiftplan_id.read(),
+                            on_select: move |id: Uuid| {
+                                selected_shiftplan_id.set(Some(id));
+                            },
+                        }
+                    }
+                }
+            } else {
+                rsx! {}
             }
         }
 

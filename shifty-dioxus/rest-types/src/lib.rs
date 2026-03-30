@@ -11,6 +11,20 @@ use time::{PrimitiveDateTime, Weekday};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ShiftplanTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub name: Arc<str>,
+    #[serde(default)]
+    pub is_planning: bool,
+    #[serde(default)]
+    pub deleted: Option<PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserTO {
     pub name: String,
@@ -282,6 +296,8 @@ pub struct SlotTO {
     #[serde(rename = "$version")]
     #[serde(default)]
     pub version: Uuid,
+    #[serde(default)]
+    pub shiftplan_id: Option<Uuid>,
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::slot::Slot> for SlotTO {

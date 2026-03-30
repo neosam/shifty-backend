@@ -227,6 +227,9 @@ impl Shiftplan {
     }
 
     pub fn min_hour(&self) -> f32 {
+        if self.slots.is_empty() {
+            return 0.0;
+        }
         self.slots
             .iter()
             .map(|slot| slot.from_hour())
@@ -234,6 +237,9 @@ impl Shiftplan {
     }
 
     pub fn max_hour(&self) -> f32 {
+        if self.slots.is_empty() {
+            return 0.0;
+        }
         self.slots
             .iter()
             .map(|slot| slot.to_hour())

@@ -10,6 +10,7 @@ pub mod employee_work_details_form;
 pub mod footer;
 pub mod modal;
 pub mod overlay;
+pub mod shiftplan_tab_bar;
 pub mod slot_edit;
 pub mod tooltip;
 pub mod top_bar;
