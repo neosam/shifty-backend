@@ -1,4 +1,4 @@
-use crate::{permission::Authentication, ServiceError};
+use crate::{permission::Authentication, shiftplan_catalog::Shiftplan, ServiceError};
 use dao::Transaction;
 use mockall::automock;
 use shifty_utils::DayOfWeek;
@@ -30,6 +30,20 @@ pub struct ShiftplanBooking {
     pub self_added: Option<bool>,
 }
 
+#[derive(Debug, Clone)]
+pub struct PlanDayView {
+    pub shiftplan: Shiftplan,
+    pub slots: Vec<ShiftplanSlot>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ShiftplanDayAggregate {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeek,
+    pub plans: Vec<PlanDayView>,
+}
+
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait::async_trait]
 pub trait ShiftplanViewService {
@@ -44,4 +58,13 @@ pub trait ShiftplanViewService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ShiftplanWeek, ServiceError>;
+
+    async fn get_shiftplan_day(
+        &self,
+        year: u32,
+        week: u8,
+        day_of_week: DayOfWeek,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<ShiftplanDayAggregate, ServiceError>;
 }

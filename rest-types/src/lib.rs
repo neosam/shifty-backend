@@ -998,6 +998,42 @@ impl From<&service::shiftplan::ShiftplanWeek> for ShiftplanWeekTO {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct PlanDayViewTO {
+    pub shiftplan: ShiftplanTO,
+    pub slots: Vec<ShiftplanSlotTO>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ShiftplanDayAggregateTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub day_of_week: DayOfWeekTO,
+    pub plans: Vec<PlanDayViewTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::PlanDayView> for PlanDayViewTO {
+    fn from(plan: &service::shiftplan::PlanDayView) -> Self {
+        Self {
+            shiftplan: (&plan.shiftplan).into(),
+            slots: plan.slots.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::ShiftplanDayAggregate> for ShiftplanDayAggregateTO {
+    fn from(agg: &service::shiftplan::ShiftplanDayAggregate) -> Self {
+        Self {
+            year: agg.year,
+            calendar_week: agg.calendar_week,
+            day_of_week: agg.day_of_week.into(),
+            plans: agg.plans.iter().map(Into::into).collect(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct SpecialDayTO {
     #[serde(default)]
