@@ -31,7 +31,7 @@
         };
         frontend-build = pkgs.rustPlatform.buildRustPackage rec {
           pname = "shifty-dioxus";
-          version = "1.10.0";
+          version = "1.10.1-dev";
           
           src = ./.;
           
