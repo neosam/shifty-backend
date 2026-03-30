@@ -4,7 +4,7 @@ use service::{
     booking::BookingService,
     permission::{Authentication, PermissionService, SHIFTPLANNER_PRIVILEGE},
     sales_person::SalesPersonService,
-    shiftplan::{ShiftplanBooking, ShiftplanDay, ShiftplanService, ShiftplanSlot, ShiftplanWeek},
+    shiftplan::{ShiftplanBooking, ShiftplanDay, ShiftplanViewService, ShiftplanSlot, ShiftplanWeek},
     slot::SlotService,
     special_days::SpecialDayService,
     ServiceError,
@@ -14,7 +14,7 @@ use shifty_utils::DayOfWeek;
 use crate::gen_service_impl;
 
 gen_service_impl! {
-    struct ShiftplanServiceImpl: service::shiftplan::ShiftplanService = ShiftplanServiceDeps {
+    struct ShiftplanViewServiceImpl: service::shiftplan::ShiftplanViewService = ShiftplanViewServiceDeps {
         SlotService: service::slot::SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
         BookingService: service::booking::BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
         SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
@@ -25,12 +25,13 @@ gen_service_impl! {
 }
 
 #[async_trait]
-impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps> {
+impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServiceImpl<Deps> {
     type Context = Deps::Context;
     type Transaction = Deps::Transaction;
 
     async fn get_shiftplan_week(
         &self,
+        shiftplan_id: uuid::Uuid,
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,
@@ -49,7 +50,7 @@ impl<Deps: ShiftplanServiceDeps> ShiftplanService for ShiftplanServiceImpl<Deps>
 
         let slots_arc = self
             .slot_service
-            .get_slots_for_week(year, week, context.clone(), Some(tx.clone()))
+            .get_slots_for_week(year, week, shiftplan_id, context.clone(), Some(tx.clone()))
             .await?;
 
         // Convert Arc<[Slot]> to Vec<Slot> so we can filter

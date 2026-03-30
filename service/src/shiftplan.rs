@@ -32,12 +32,13 @@ pub struct ShiftplanBooking {
 
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait::async_trait]
-pub trait ShiftplanService {
+pub trait ShiftplanViewService {
     type Context: Clone + Debug + PartialEq + Eq + Send + Sync + 'static;
     type Transaction: Transaction;
 
     async fn get_shiftplan_week(
         &self,
+        shiftplan_id: uuid::Uuid,
         year: u32,
         week: u8,
         context: Authentication<Self::Context>,

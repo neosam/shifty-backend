@@ -10,6 +10,44 @@ use time::{PrimitiveDateTime, Weekday};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct ShiftplanTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub name: Arc<str>,
+    #[serde(default)]
+    pub is_planning: bool,
+    #[serde(default)]
+    pub deleted: Option<PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan_catalog::Shiftplan> for ShiftplanTO {
+    fn from(shiftplan: &service::shiftplan_catalog::Shiftplan) -> Self {
+        Self {
+            id: shiftplan.id,
+            name: shiftplan.name.clone(),
+            is_planning: shiftplan.is_planning,
+            deleted: shiftplan.deleted,
+            version: shiftplan.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&ShiftplanTO> for service::shiftplan_catalog::Shiftplan {
+    fn from(to: &ShiftplanTO) -> Self {
+        Self {
+            id: to.id,
+            name: to.name.clone(),
+            is_planning: to.is_planning,
+            deleted: to.deleted,
+            version: to.version,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserTO {
     pub name: String,
@@ -281,6 +319,8 @@ pub struct SlotTO {
     #[serde(rename = "$version")]
     #[serde(default)]
     pub version: Uuid,
+    #[serde(default)]
+    pub shiftplan_id: Option<Uuid>,
 }
 #[cfg(feature = "service-impl")]
 impl From<&service::slot::Slot> for SlotTO {
@@ -295,6 +335,7 @@ impl From<&service::slot::Slot> for SlotTO {
             valid_to: slot.valid_to,
             deleted: slot.deleted,
             version: slot.version,
+            shiftplan_id: slot.shiftplan_id,
         }
     }
 }
@@ -311,6 +352,7 @@ impl From<&SlotTO> for service::slot::Slot {
             valid_to: slot.valid_to,
             deleted: slot.deleted,
             version: slot.version,
+            shiftplan_id: slot.shiftplan_id,
         }
     }
 }

@@ -26,6 +26,10 @@ pub fn default_changed_version() -> Uuid {
     uuid!("4A818852-45D2-400F-A02A-755D34FFE815")
 }
 
+pub fn default_shiftplan_id() -> Uuid {
+    uuid!("00000000-0000-4000-8000-000000000001")
+}
+
 pub fn generate_default_slot() -> Slot {
     Slot {
         id: default_id(),
@@ -37,6 +41,7 @@ pub fn generate_default_slot() -> Slot {
         valid_to: None,
         deleted: None,
         version: default_version(),
+        shiftplan_id: Some(default_shiftplan_id()),
     }
 }
 pub fn generate_default_slot_entity() -> SlotEntity {
@@ -50,6 +55,7 @@ pub fn generate_default_slot_entity() -> SlotEntity {
         valid_to: None,
         deleted: None,
         version: uuid!("86DE856C-D176-4F1F-A4FE-0D9844C02C03"),
+        shiftplan_id: Some(default_shiftplan_id()),
     }
 }
 
@@ -953,4 +959,50 @@ async fn test_update_valid_multiple_forbidden_changes() {
         &ValidationFailureItem::ModificationNotAllowed("from".into()),
         2,
     );
+}
+
+#[tokio::test]
+async fn test_create_slot_without_shiftplan_id_fails() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.uuid_service
+        .expect_new_uuid()
+        .returning(|_| Uuid::new_v4());
+    let service = deps.build_service();
+
+    let slot = Slot {
+        id: Uuid::nil(),
+        version: Uuid::nil(),
+        shiftplan_id: None,
+        ..generate_default_slot()
+    };
+    let result = service.create_slot(&slot, ().auth(), None).await;
+    test_validation_error(
+        &result,
+        &ValidationFailureItem::InvalidValue("shiftplan_id is required".into()),
+        1,
+    );
+}
+
+#[tokio::test]
+async fn test_create_slot_with_shiftplan_id_succeeds() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.uuid_service
+        .expect_new_uuid()
+        .returning(|_| Uuid::new_v4());
+    deps.slot_dao
+        .expect_get_slots()
+        .returning(|_| Ok(Arc::new([])));
+    deps.slot_dao
+        .expect_create_slot()
+        .returning(|_, _, _| Ok(()));
+    let service = deps.build_service();
+
+    let slot = Slot {
+        id: Uuid::nil(),
+        version: Uuid::nil(),
+        shiftplan_id: Some(Uuid::new_v4()),
+        ..generate_default_slot()
+    };
+    let result = service.create_slot(&slot, ().auth(), None).await;
+    assert!(result.is_ok());
 }

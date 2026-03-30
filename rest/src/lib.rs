@@ -14,6 +14,7 @@ mod report;
 mod sales_person;
 mod session;
 mod shiftplan;
+mod shiftplan_catalog;
 mod shiftplan_edit;
 mod slot;
 mod special_day;
@@ -294,7 +295,11 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
     type BlockService: service::block::BlockService<Context = Context> + Send + Sync + 'static;
-    type ShiftplanService: service::shiftplan::ShiftplanService<Context = Context>
+    type ShiftplanService: service::shiftplan_catalog::ShiftplanService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
+    type ShiftplanViewService: service::shiftplan::ShiftplanViewService<Context = Context>
         + Send
         + Sync
         + 'static;
@@ -347,6 +352,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn shiftplan_edit_service(&self) -> Arc<Self::ShiftplanEditService>;
     fn block_service(&self) -> Arc<Self::BlockService>;
     fn shiftplan_service(&self) -> Arc<Self::ShiftplanService>;
+    fn shiftplan_view_service(&self) -> Arc<Self::ShiftplanViewService>;
     fn week_message_service(&self) -> Arc<Self::WeekMessageService>;
     fn billing_period_service(&self) -> Arc<Self::BillingPeriodService>;
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService>;
@@ -452,6 +458,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
         (path = "/blocks", api = my_block::MyBlockApiDoc),
         (path = "/report", api = report::ReportApiDoc),
+        (path = "/shiftplan-catalog", api = shiftplan_catalog::ShiftplanCatalogApiDoc),
         (path = "/shiftplan-info", api = shiftplan::ShiftplanApiDoc),
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
@@ -523,6 +530,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())
+        .nest("/shiftplan-catalog", shiftplan_catalog::generate_route())
         .nest("/shiftplan-edit", shiftplan_edit::generate_route())
         .nest("/shiftplan-info", shiftplan::generate_route())
         .nest("/text-templates", text_template::generate_route())

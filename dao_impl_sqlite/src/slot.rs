@@ -26,7 +26,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
     type Transaction = TransactionImpl;
 
     async fn get_slots(&self, tx: Self::Transaction) -> Result<Arc<[SlotEntity]>, DaoError> {
-        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE deleted IS NULL")
+        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE deleted IS NULL")
             .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -52,6 +52,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
+                    shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
                 })
             })
             .collect()
@@ -63,7 +64,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         tx: Self::Transaction,
     ) -> Result<Option<SlotEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
-        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version FROM slot WHERE id = ?", id_vec)
+        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE id = ?", id_vec)
             .fetch_optional(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -88,6 +89,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
+                    shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
                 })
             })
             .transpose()
@@ -97,18 +99,21 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         &self,
         year: u32,
         week: u8,
+        shiftplan_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<Arc<[SlotEntity]>, DaoError> {
         let monday = Date::from_iso_week_date(year as i32, week, time::Weekday::Monday)?;
         let sunday = Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday)?;
         let monday_str = monday.format(&Iso8601::DATE)?;
         let sunday_str = sunday.format(&Iso8601::DATE)?;
+        let shiftplan_id_vec = shiftplan_id.as_bytes().to_vec();
         let result = query!(r"
-                SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version 
-                FROM slot 
+                SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id
+                FROM slot
                 WHERE deleted IS NULL
                 AND valid_from <= ?
-                AND (valid_to IS NULL OR valid_to >= ?)", sunday_str, monday_str)
+                AND (valid_to IS NULL OR valid_to >= ?)
+                AND shiftplan_id = ?", sunday_str, monday_str, shiftplan_id_vec)
             .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -134,6 +139,56 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
+                    shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
+                })
+            })
+            .collect()
+    }
+
+    async fn get_slots_for_week_all_plans(
+        &self,
+        year: u32,
+        week: u8,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[SlotEntity]>, DaoError> {
+        let monday = Date::from_iso_week_date(year as i32, week, time::Weekday::Monday)?;
+        let sunday = Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday)?;
+        let monday_str = monday.format(&Iso8601::DATE)?;
+        let sunday_str = sunday.format(&Iso8601::DATE)?;
+        let result = query!(r"
+                SELECT slot.id, slot.day_of_week, slot.time_from, slot.time_to, slot.min_resources, slot.valid_from, slot.valid_to, slot.deleted, slot.update_version, slot.shiftplan_id
+                FROM slot
+                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id
+                WHERE slot.deleted IS NULL
+                AND slot.valid_from <= ?
+                AND (slot.valid_to IS NULL OR slot.valid_to >= ?)
+                AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)", sunday_str, monday_str)
+            .fetch_all(tx.tx.lock().await.as_mut())
+            .await
+            .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
+        result
+            .iter()
+            .map(|row| {
+                Ok(SlotEntity {
+                    id: Uuid::from_slice(row.id.as_ref())?,
+                    day_of_week: DayOfWeek::from_number(row.day_of_week as u8)
+                        .ok_or(DaoError::InvalidDayOfWeek(row.day_of_week as u8))?,
+                    from: Time::parse(&row.time_from, &Iso8601::TIME)?,
+                    to: Time::parse(&row.time_to, &Iso8601::TIME)?,
+                    min_resources: row.min_resources as u8,
+                    valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
+                    valid_to: row
+                        .valid_to
+                        .as_ref()
+                        .map(|valid_to| Date::parse(valid_to, &Iso8601::DATE))
+                        .transpose()?,
+                    deleted: row
+                        .deleted
+                        .as_ref()
+                        .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
+                        .transpose()?,
+                    version: Uuid::from_slice(&row.update_version)?,
+                    shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
                 })
             })
             .collect()
@@ -155,7 +210,8 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
         let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
         let min_resources = slot.min_resources;
-        query!("INSERT INTO slot (id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version, update_process, min_resources) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        let shiftplan_id_vec = slot.shiftplan_id.map(|id| id.as_bytes().to_vec());
+        query!("INSERT INTO slot (id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version, update_process, min_resources, shiftplan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             day_of_week,
             from,
@@ -166,6 +222,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             version_vec,
             process,
             min_resources,
+            shiftplan_id_vec,
         )
         .execute(tx.tx.lock().await.as_mut())
         .await

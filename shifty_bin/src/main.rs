@@ -18,7 +18,8 @@ use service::scheduler::SchedulerService;
 use service_impl::{
     carryover::CarryoverServiceDeps,
     permission::PermissionServiceDeps,
-    shiftplan::{ShiftplanServiceDeps, ShiftplanServiceImpl},
+    shiftplan::{ShiftplanViewServiceDeps, ShiftplanViewServiceImpl},
+    shiftplan_catalog::{ShiftplanServiceDeps, ShiftplanServiceImpl},
 };
 use sqlx::SqlitePool;
 #[cfg(feature = "json_logging")]
@@ -51,6 +52,7 @@ type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDaoImpl;
 type TextTemplateDao = dao_impl_sqlite::text_template::TextTemplateDaoImpl;
 type UserInvitationDao = dao_impl_sqlite::user_invitation::UserInvitationDaoImpl;
 type ToggleDao = dao_impl_sqlite::toggle::ToggleDaoImpl;
+type ShiftplanDao = dao_impl_sqlite::shiftplan::ShiftplanDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -237,8 +239,8 @@ type CarryoverService = service_impl::carryover::CarryoverServiceImpl<CarryoverS
 
 type IcalService = service_impl::ical::IcalServiceImpl;
 
-pub struct ShiftplanServiceDependencies;
-impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
+pub struct ShiftplanViewServiceDependencies;
+impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type Context = Context;
     type Transaction = Transaction;
     type SlotService = SlotService;
@@ -259,7 +261,7 @@ impl service_impl::block::BlockServiceDeps for BlockServiceDependencies {
     type ClockService = ClockService;
     type IcalService = IcalService;
     type TransactionDao = TransactionDao;
-    type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
+    type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
     type ConfigService = ConfigService;
 }
 type BlockService = service_impl::block::BlockServiceImpl<BlockServiceDependencies>;
@@ -406,6 +408,18 @@ impl service_impl::toggle::ToggleServiceDeps for ToggleServiceDependencies {
 }
 type ToggleService = service_impl::toggle::ToggleServiceImpl<ToggleServiceDependencies>;
 
+pub struct ShiftplanCatalogServiceDependencies;
+impl ShiftplanServiceDeps for ShiftplanCatalogServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type ShiftplanDao = ShiftplanDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type ShiftplanCatalogService = ShiftplanServiceImpl<ShiftplanCatalogServiceDependencies>;
+
 #[derive(Clone)]
 pub struct RestStateImpl {
     user_service: Arc<UserService>,
@@ -424,7 +438,8 @@ pub struct RestStateImpl {
     extra_hours_service: Arc<ExtraHoursService>,
     shiftplan_edit_service: Arc<ShiftplanEditService>,
     block_service: Arc<BlockService>,
-    shiftplan_service: Arc<ShiftplanServiceImpl<ShiftplanServiceDependencies>>,
+    shiftplan_service: Arc<ShiftplanCatalogService>,
+    shiftplan_view_service: Arc<ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>>,
     week_message_service: Arc<WeekMessageService>,
     billing_period_service: Arc<BillingPeriodService>,
     billing_period_report_service: Arc<BillingPeriodReportService>,
@@ -451,7 +466,8 @@ impl rest::RestStateDef for RestStateImpl {
     type ExtraHoursService = ExtraHoursService;
     type ShiftplanEditService = ShiftplanEditService;
     type BlockService = BlockService;
-    type ShiftplanService = ShiftplanServiceImpl<ShiftplanServiceDependencies>;
+    type ShiftplanService = ShiftplanCatalogService;
+    type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
     type WeekMessageService = WeekMessageService;
     type BillingPeriodService = BillingPeriodService;
     type BillingPeriodReportService = BillingPeriodReportService;
@@ -516,6 +532,9 @@ impl rest::RestStateDef for RestStateImpl {
 
     fn shiftplan_service(&self) -> Arc<Self::ShiftplanService> {
         self.shiftplan_service.clone()
+    }
+    fn shiftplan_view_service(&self) -> Arc<Self::ShiftplanViewService> {
+        self.shiftplan_view_service.clone()
     }
     fn week_message_service(&self) -> Arc<Self::WeekMessageService> {
         self.week_message_service.clone()
@@ -709,7 +728,16 @@ impl RestStateImpl {
                 extra_hours_service: extra_hours_service.clone(),
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
             });
-        let shiftplan_service = Arc::new(service_impl::shiftplan::ShiftplanServiceImpl {
+        let shiftplan_dao = Arc::new(ShiftplanDao::new(pool.clone()));
+        let shiftplan_service = Arc::new(service_impl::shiftplan_catalog::ShiftplanServiceImpl {
+            shiftplan_dao: shiftplan_dao.clone(),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
+        let shiftplan_view_service = Arc::new(service_impl::shiftplan::ShiftplanViewServiceImpl {
             slot_service: slot_service.clone(),
             booking_service: booking_service.clone(),
             sales_person_service: sales_person_service.clone(),
@@ -725,7 +753,7 @@ impl RestStateImpl {
             clock_service: clock_service.clone(),
             ical_service: Arc::new(service_impl::ical::IcalServiceImpl),
             transaction_dao: transaction_dao.clone(),
-            shiftplan_service: shiftplan_service.clone(),
+            shiftplan_service: shiftplan_view_service.clone(),
             config_service: config_service.clone(),
         });
 
@@ -809,6 +837,7 @@ impl RestStateImpl {
             shiftplan_edit_service,
             block_service,
             shiftplan_service,
+            shiftplan_view_service,
             week_message_service,
             billing_period_service,
             billing_period_report_service,

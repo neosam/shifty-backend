@@ -153,7 +153,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 .sum::<f32>();
             let slots: Arc<[Slot]> = self
                 .slot_service
-                .get_slots_for_week(year, week, Authentication::Full, tx.clone().into())
+                .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
                 .await?
                 .iter()
                 .filter(|slot| {
@@ -267,7 +267,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .sum::<f32>();
         let slots: Arc<[Slot]> = self
             .slot_service
-            .get_slots_for_week(year, week, Authentication::Full, tx.clone().into())
+                .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
             .await?
             .iter()
             .filter(|slot| {

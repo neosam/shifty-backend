@@ -18,7 +18,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", get(get_all_slots::<RestState>))
         .route("/{id}", get(get_slot::<RestState>))
-        .route("/week/{year}/{month}", get(get_slots_for_week::<RestState>))
+        .route("/week/{year}/{month}/{shiftplan_id}", get(get_slots_for_week::<RestState>))
         .route("/", post(create_slot::<RestState>))
         .route("/{id}", put(update_slot::<RestState>))
 }
@@ -73,13 +73,13 @@ pub async fn get_slot<RestState: RestStateDef>(
 pub async fn get_slots_for_week<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
-    Path((year, week)): Path<(u32, u8)>,
+    Path((year, week, shiftplan_id)): Path<(u32, u8, Uuid)>,
 ) -> Response {
     error_handler(
         (async {
             let slots: Arc<[SlotTO]> = rest_state
                 .slot_service()
-                .get_slots_for_week(year, week, context.into(), None)
+                .get_slots_for_week(year, week, shiftplan_id, context.into(), None)
                 .await?
                 .iter()
                 .map(SlotTO::from)

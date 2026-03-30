@@ -20,6 +20,7 @@ pub struct Slot {
     pub valid_to: Option<time::Date>,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
+    pub shiftplan_id: Option<Uuid>,
 }
 impl From<&dao::slot::SlotEntity> for Slot {
     fn from(slot: &dao::slot::SlotEntity) -> Self {
@@ -33,6 +34,7 @@ impl From<&dao::slot::SlotEntity> for Slot {
             valid_to: slot.valid_to,
             deleted: slot.deleted,
             version: slot.version,
+            shiftplan_id: slot.shiftplan_id,
         }
     }
 }
@@ -48,6 +50,7 @@ impl From<&Slot> for dao::slot::SlotEntity {
             valid_to: slot.valid_to,
             deleted: slot.deleted,
             version: slot.version,
+            shiftplan_id: slot.shiftplan_id,
         }
     }
 }
@@ -83,6 +86,14 @@ pub trait SlotService {
         tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError>;
     async fn get_slots_for_week(
+        &self,
+        year: u32,
+        week: u8,
+        shiftplan_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[Slot]>, ServiceError>;
+    async fn get_slots_for_week_all_plans(
         &self,
         year: u32,
         week: u8,

@@ -9,7 +9,7 @@ use service::{
     ical::IcalService,
     permission::Authentication,
     sales_person::SalesPersonService,
-    shiftplan::ShiftplanService,
+    shiftplan::ShiftplanViewService,
     slot::{Slot, SlotService},
     ServiceError,
 };
@@ -30,7 +30,7 @@ gen_service_impl! {
         BookingService: BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
         SlotService: SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
-        ShiftplanService: ShiftplanService<Context = Self::Context, Transaction = Self::Transaction> = shiftplan_service,
+        ShiftplanViewService: ShiftplanViewService<Context = Self::Context, Transaction = Self::Transaction> = shiftplan_service,
         IcalService: IcalService = ical_service,
         ConfigService: ConfigService = config_service,
         ClockService: ClockService = clock_service,
@@ -233,18 +233,20 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
     ) -> Result<Arc<[Block]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
 
-        // Get the shiftplan which contains slots and bookings
-        let shiftplan = self
-            .shiftplan_service
-            .get_shiftplan_week(year, week, context, Some(tx.clone()))
+        // Get all non-planning slots and bookings for the week
+        let all_slots = self
+            .slot_service
+            .get_slots_for_week_all_plans(year, week, context.clone(), Some(tx.clone()))
+            .await?;
+        let all_bookings = self
+            .booking_service
+            .get_for_week(week, year, context, Some(tx.clone()))
             .await?;
 
         // Group slots by day and sort by time
         let mut day_map: BTreeMap<DayOfWeek, Vec<&Slot>> = BTreeMap::new();
-        for day in &shiftplan.days {
-            for slot in &day.slots {
-                day_map.entry(day.day_of_week).or_default().push(&slot.slot);
-            }
+        for slot in all_slots.iter() {
+            day_map.entry(slot.day_of_week).or_default().push(slot);
         }
 
         // For each day, sort slots by time and merge consecutive ones
@@ -258,18 +260,10 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             let slots: Vec<_> = slots
                 .into_iter()
                 .filter(|slot| {
-                    let bookings_count = shiftplan
-                        .days
+                    let bookings_count = all_bookings
                         .iter()
-                        .find(|d| d.day_of_week == day_of_week)
-                        .map(|d| {
-                            d.slots
-                                .iter()
-                                .find(|s| s.slot.id == slot.id)
-                                .map(|s| s.bookings.len())
-                                .unwrap_or(0)
-                        })
-                        .unwrap_or(0);
+                        .filter(|b| b.slot_id == slot.id)
+                        .count();
                     bookings_count < slot.min_resources as usize
                 })
                 .collect();
@@ -296,18 +290,11 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
                         // Check if current block has enough bookings
                         let total_min_resources: u8 =
                             current_slots.iter().map(|s| s.min_resources).sum();
-                        let block_bookings: Vec<Booking> = shiftplan
-                            .days
+                        let block_bookings: Vec<Booking> = all_bookings
                             .iter()
-                            .find(|d| d.day_of_week == day_of_week)
-                            .map(|d| {
-                                d.slots
-                                    .iter()
-                                    .filter(|s| current_slots.iter().any(|cs| cs.id == s.slot.id))
-                                    .flat_map(|s| s.bookings.iter().map(|b| b.booking.clone()))
-                                    .collect()
-                            })
-                            .unwrap_or_default();
+                            .filter(|b| current_slots.iter().any(|cs| cs.id == b.slot_id))
+                            .cloned()
+                            .collect();
 
                         if block_bookings.len() < total_min_resources as usize {
                             insufficient_blocks.push(Block {
@@ -333,18 +320,11 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             // Handle last block
             if !current_slots.is_empty() {
                 let total_min_resources: u8 = current_slots.iter().map(|s| s.min_resources).sum();
-                let block_bookings: Vec<Booking> = shiftplan
-                    .days
+                let block_bookings: Vec<Booking> = all_bookings
                     .iter()
-                    .find(|d| d.day_of_week == day_of_week)
-                    .map(|d| {
-                        d.slots
-                            .iter()
-                            .filter(|s| current_slots.iter().any(|cs| cs.id == s.slot.id))
-                            .flat_map(|s| s.bookings.iter().map(|b| b.booking.clone()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                    .filter(|b| current_slots.iter().any(|cs| cs.id == b.slot_id))
+                    .cloned()
+                    .collect();
 
                 if block_bookings.len() < total_min_resources as usize {
                     insufficient_blocks.push(Block {

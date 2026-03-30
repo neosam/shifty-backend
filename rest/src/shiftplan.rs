@@ -7,16 +7,18 @@ use utoipa::OpenApi;
 
 use crate::{error_handler, Context, Response, RestStateDef};
 use rest_types::ShiftplanWeekTO;
-use service::{permission::Authentication, shiftplan::ShiftplanService};
+use service::{permission::Authentication, shiftplan::ShiftplanViewService};
+use uuid::Uuid;
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
-    Router::new().route("/{year}/{week}", get(get_shiftplan_week::<RestState>))
+    Router::new().route("/{shiftplan_id}/{year}/{week}", get(get_shiftplan_week::<RestState>))
 }
 
 #[utoipa::path(
     get,
-    path = "/{year}/{week}",
+    path = "/{shiftplan_id}/{year}/{week}",
     params(
+        ("shiftplan_id" = Uuid, Path, description = "Shift plan ID"),
         ("year" = u32, Path, description = "Year of the shift plan"),
         ("week" = u8, Path, description = "Calendar week number (1-53)")
     ),
@@ -28,15 +30,15 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     tag = "shiftplan"
 )]
 async fn get_shiftplan_week<RestState: RestStateDef>(
-    Path((year, week)): Path<(u32, u8)>,
+    Path((shiftplan_id, year, week)): Path<(Uuid, u32, u8)>,
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
 ) -> Response {
     error_handler(
         async {
             let shiftplan = rest_state
-                .shiftplan_service()
-                .get_shiftplan_week(year, week, Authentication::Context(context), None)
+                .shiftplan_view_service()
+                .get_shiftplan_week(shiftplan_id, year, week, Authentication::Context(context), None)
                 .await?;
 
             let shiftplan_to = ShiftplanWeekTO::from(&shiftplan);

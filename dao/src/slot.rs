@@ -18,6 +18,7 @@ pub struct SlotEntity {
     pub valid_to: Option<time::Date>,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
+    pub shiftplan_id: Option<Uuid>,
 }
 
 #[automock(type Transaction = crate::MockTransaction;)]
@@ -32,6 +33,13 @@ pub trait SlotDao {
         tx: Self::Transaction,
     ) -> Result<Option<SlotEntity>, DaoError>;
     async fn get_slots_for_week(
+        &self,
+        year: u32,
+        week: u8,
+        shiftplan_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[SlotEntity]>, DaoError>;
+    async fn get_slots_for_week_all_plans(
         &self,
         year: u32,
         week: u8,

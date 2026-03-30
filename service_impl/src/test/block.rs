@@ -9,7 +9,7 @@ use service::clock::MockClockService;
 use service::config::MockConfigService;
 use service::ical::MockIcalService;
 use service::sales_person::MockSalesPersonService;
-use service::shiftplan::MockShiftplanService;
+use service::shiftplan::MockShiftplanViewService;
 use service::slot::{MockSlotService, Slot};
 use service::ServiceError;
 use service::{booking::MockBookingService, sales_person::SalesPerson};
@@ -29,7 +29,7 @@ pub struct BlockServiceDependencies {
     pub ical_service: MockIcalService,
     pub clock_service: MockClockService,
     pub transaction_dao: MockTransactionDao,
-    pub shiftplan_service: MockShiftplanService,
+    pub shiftplan_service: MockShiftplanViewService,
 }
 
 impl crate::block::BlockServiceDeps for BlockServiceDependencies {
@@ -42,7 +42,7 @@ impl crate::block::BlockServiceDeps for BlockServiceDependencies {
     type IcalService = MockIcalService;
     type ClockService = MockClockService;
     type TransactionDao = MockTransactionDao;
-    type ShiftplanService = MockShiftplanService;
+    type ShiftplanViewService = MockShiftplanViewService;
     // If you also want to enforce permission checks here, you can add:
     // type PermissionService = MockPermissionService;
 }
@@ -105,6 +105,7 @@ pub fn default_slot() -> Slot {
         valid_to: None,
         deleted: None,
         version: Uuid::nil(),
+        shiftplan_id: None,
     }
 }
 
@@ -120,6 +121,7 @@ pub fn second_slot() -> Slot {
         valid_to: None,
         deleted: None,
         version: Uuid::nil(),
+        shiftplan_id: None,
     }
 }
 
@@ -185,7 +187,7 @@ pub fn build_dependencies() -> BlockServiceDependencies {
 
     let ical_service = MockIcalService::new();
 
-    let shiftplan_service = MockShiftplanService::new();
+    let shiftplan_service = MockShiftplanViewService::new();
 
     let mut clock_service = MockClockService::new();
     clock_service

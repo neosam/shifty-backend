@@ -4,7 +4,7 @@ use service::{
     booking::MockBookingService,
     permission::MockPermissionService,
     sales_person::{MockSalesPersonService, SalesPerson},
-    shiftplan::ShiftplanService,
+    shiftplan::ShiftplanViewService,
     slot::{MockSlotService, Slot},
     special_days::{MockSpecialDayService, SpecialDay},
 };
@@ -13,7 +13,7 @@ use std::sync::Arc;
 use time::{Date, Month, Time};
 use uuid::{uuid, Uuid};
 
-use crate::shiftplan::{ShiftplanServiceDeps, ShiftplanServiceImpl};
+use crate::shiftplan::{ShiftplanViewServiceDeps, ShiftplanViewServiceImpl};
 
 pub fn default_slot_id() -> Uuid {
     uuid!("7A7FF57A-782B-4C2E-A68B-4E2D81D79380")
@@ -38,6 +38,7 @@ pub fn default_slot() -> Slot {
         valid_to: None,
         deleted: None,
         version: default_slot_version(),
+        shiftplan_id: None,
     }
 }
 
@@ -53,7 +54,7 @@ pub fn default_sales_person() -> SalesPerson {
     }
 }
 
-pub struct ShiftplanServiceDependencies {
+pub struct ShiftplanViewServiceDependencies {
     pub slot_service: MockSlotService,
     pub booking_service: MockBookingService,
     pub sales_person_service: MockSalesPersonService,
@@ -61,7 +62,7 @@ pub struct ShiftplanServiceDependencies {
     pub permission_service: MockPermissionService,
     pub transaction_dao: MockTransactionDao,
 }
-impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
+impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type Context = ();
     type Transaction = MockTransaction;
     type SlotService = MockSlotService;
@@ -72,9 +73,9 @@ impl ShiftplanServiceDeps for ShiftplanServiceDependencies {
     type TransactionDao = MockTransactionDao;
 }
 
-impl ShiftplanServiceDependencies {
-    pub fn build_service(self) -> ShiftplanServiceImpl<ShiftplanServiceDependencies> {
-        ShiftplanServiceImpl {
+impl ShiftplanViewServiceDependencies {
+    pub fn build_service(self) -> ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies> {
+        ShiftplanViewServiceImpl {
             slot_service: self.slot_service.into(),
             booking_service: self.booking_service.into(),
             sales_person_service: self.sales_person_service.into(),
@@ -85,11 +86,11 @@ impl ShiftplanServiceDependencies {
     }
 }
 
-pub fn build_dependencies() -> ShiftplanServiceDependencies {
+pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
     let mut slot_service = MockSlotService::new();
     slot_service
         .expect_get_slots_for_week()
-        .returning(|_, _, _, _| Ok(Arc::new([default_slot()])));
+        .returning(|_, _, _, _, _| Ok(Arc::new([default_slot()])));
 
     let booking_service = MockBookingService::new();
 
@@ -114,7 +115,7 @@ pub fn build_dependencies() -> ShiftplanServiceDependencies {
         .expect_check_permission()
         .returning(|_, _| Err(service::ServiceError::Forbidden));
 
-    ShiftplanServiceDependencies {
+    ShiftplanViewServiceDependencies {
         slot_service,
         booking_service,
         sales_person_service,
@@ -136,7 +137,7 @@ async fn test_get_shiftplan_week() {
     let deps = deps;
     let service = deps.build_service();
 
-    let result = service.get_shiftplan_week(2024, 3, ().auth(), None).await;
+    let result = service.get_shiftplan_week(Uuid::nil(), 2024, 3, ().auth(), None).await;
     assert!(result.is_ok());
 
     let shiftplan = result.unwrap();
@@ -163,7 +164,7 @@ async fn test_get_shiftplan_week_no_permission() {
     deps.slot_service.checkpoint();
     deps.slot_service
         .expect_get_slots_for_week()
-        .returning(|_, _, _, _| Err(service::ServiceError::Forbidden));
+        .returning(|_, _, _, _, _| Err(service::ServiceError::Forbidden));
 
     // Set up booking service expectations since it gets called after slot service
     deps.booking_service
@@ -171,7 +172,7 @@ async fn test_get_shiftplan_week_no_permission() {
         .returning(|_, _, _, _| Ok(Arc::new([])));
 
     let service = deps.build_service();
-    let result = service.get_shiftplan_week(2024, 3, ().auth(), None).await;
+    let result = service.get_shiftplan_week(Uuid::nil(), 2024, 3, ().auth(), None).await;
     test_forbidden(&result);
 }
 
@@ -184,7 +185,7 @@ async fn test_get_shiftplan_week_invalid_week() {
     let service = deps.build_service();
 
     // Week 0 is invalid
-    let result = service.get_shiftplan_week(2024, 0, ().auth(), None).await;
+    let result = service.get_shiftplan_week(Uuid::nil(), 2024, 0, ().auth(), None).await;
     assert!(result.is_err());
 }
 
@@ -233,7 +234,7 @@ async fn test_get_shiftplan_week_with_special_days() {
 
     let service = deps.build_service();
 
-    let result = service.get_shiftplan_week(2024, 3, ().auth(), None).await;
+    let result = service.get_shiftplan_week(Uuid::nil(), 2024, 3, ().auth(), None).await;
     assert!(result.is_ok());
 
     let shiftplan = result.unwrap();

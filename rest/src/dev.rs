@@ -346,7 +346,7 @@ async fn seed_bookings<RestState: RestStateDef>(
 
     let slots = rest_state
         .slot_service()
-        .get_slots_for_week(year, week, auth.clone(), None)
+        .get_slots(auth.clone(), None)
         .await?;
 
     let book = |sales_person_id: Uuid, slot_id: Uuid| service::booking::Booking {

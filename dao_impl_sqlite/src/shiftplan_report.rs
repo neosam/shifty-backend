@@ -79,9 +79,11 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 FROM slot
                 INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
                 INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
+                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id
                 WHERE sales_person.id = ?
                   AND booking.year * 100 + booking.calendar_week >= ? * 100 + ?
                   AND booking.year * 100 + booking.calendar_week <= ? * 100 + ?
+                  AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)
                 GROUP BY sales_person_id, year, calendar_week, day_of_week
                         "#,
             sales_person_id_vec,
@@ -114,8 +116,10 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 FROM slot
                 INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
                 INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
+                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id
                 WHERE booking.year = ?
                   AND booking.calendar_week <= ?
+                  AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)
                 GROUP BY sales_person_id, year
                         "#,
             year,
@@ -145,8 +149,10 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
                 FROM slot
                 INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
                 INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
+                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id
                 WHERE booking.year = ?
                   AND booking.calendar_week = ?
+                  AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)
                 GROUP BY sales_person_id, year, day_of_week
                         "#,
             year,

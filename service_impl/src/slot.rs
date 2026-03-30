@@ -130,6 +130,7 @@ where
         &self,
         year: u32,
         week: u8,
+        shiftplan_id: Uuid,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Slot]>, ServiceError> {
@@ -145,7 +146,35 @@ where
 
         let slots = self
             .slot_dao
-            .get_slots_for_week(year, week, tx.clone())
+            .get_slots_for_week(year, week, shiftplan_id, tx.clone())
+            .await?
+            .iter()
+            .map(Slot::from)
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(slots)
+    }
+
+    async fn get_slots_for_week_all_plans(
+        &self,
+        year: u32,
+        week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[Slot]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let (shiftplanner_permission, sales_permission) = join!(
+            self.permission_service
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
+            self.permission_service
+                .check_permission(SALES_PRIVILEGE, context),
+        );
+        shiftplanner_permission.or(sales_permission)?;
+
+        let slots = self
+            .slot_dao
+            .get_slots_for_week_all_plans(year, week, tx.clone())
             .await?
             .iter()
             .map(Slot::from)
@@ -188,6 +217,11 @@ where
         if slot.version != Uuid::nil() {
             return Err(ServiceError::VersionSetOnCreate);
         }
+        if slot.shiftplan_id.is_none() {
+            return Err(ServiceError::ValidationError(
+                vec![ValidationFailureItem::InvalidValue("shiftplan_id is required".into())].into(),
+            ));
+        }
         if slot.from > slot.to {
             return Err(ServiceError::TimeOrderWrong(slot.from, slot.to));
         }
@@ -201,6 +235,7 @@ where
             .get_slots(context, tx.clone().into())
             .await?
             .iter()
+            .filter(|s| s.shiftplan_id == slot.shiftplan_id)
             .filter(|s| {
                 !(s.valid_from > slot.valid_to.unwrap_or(s.valid_from)
                     || slot.valid_from > s.valid_to.unwrap_or(slot.valid_from))
