@@ -15,6 +15,7 @@ use super::{
 };
 
 pub static SLOT_EDIT_STORE: GlobalSignal<SlotEdit> = Signal::global(|| SlotEdit::new_edit());
+pub static SHIFTPLAN_REFRESH: GlobalSignal<u64> = Signal::global(|| 0);
 pub enum SlotEditAction {
     NewSlot(u32, u8, Option<Uuid>),
     UpdateSlot(SlotEditItem),
@@ -22,6 +23,10 @@ pub enum SlotEditAction {
     Cancel,
     DeleteSlot(Uuid, u32, u8),
     LoadSlot(Uuid, u32, u8),
+}
+
+pub fn trigger_shiftplan_refresh() {
+    *SHIFTPLAN_REFRESH.write() += 1;
 }
 
 pub fn new_slot_edit(year: u32, week: u8, shiftplan_id: Option<Uuid>) -> Result<(), ShiftyError> {
@@ -63,6 +68,7 @@ pub async fn save_slot_edit() -> Result<(), ShiftyError> {
         }
     }
     store.visible = false;
+    trigger_shiftplan_refresh();
     Ok(())
 }
 
@@ -74,6 +80,7 @@ pub async fn cancel_slot_edit() -> Result<(), ShiftyError> {
 
 pub async fn delete_slot_edit(id: Uuid, year: u32, week: u8) -> Result<(), ShiftyError> {
     api::delete_slot_from(CONFIG.read().clone(), id, year, week).await?;
+    trigger_shiftplan_refresh();
     Ok(())
 }
 

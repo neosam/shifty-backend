@@ -25,6 +25,7 @@ use crate::service::booking_log::{BookingLogAction, BOOKING_LOG_STORE};
 use crate::service::config::CONFIG;
 use crate::service::i18n::I18N;
 use crate::service::slot_edit::SlotEditAction;
+use crate::service::slot_edit::SHIFTPLAN_REFRESH;
 use crate::service::text_template::{handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE};
 use crate::service::weekly_summary::WeeklySummaryAction;
 use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
@@ -141,6 +142,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         use_resource(move || {
             let config = config.clone();
             let shiftplan_id = *selected_shiftplan_id.read();
+            let _refresh = *SHIFTPLAN_REFRESH.read();
             async move {
                 match shiftplan_id {
                     Some(id) => loader::load_shift_plan(
