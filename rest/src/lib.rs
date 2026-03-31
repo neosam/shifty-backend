@@ -12,6 +12,7 @@ mod my_block;
 mod permission;
 mod report;
 mod sales_person;
+mod sales_person_shiftplan;
 mod session;
 mod shiftplan;
 mod shiftplan_catalog;
@@ -331,6 +332,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type SalesPersonShiftplanService: service::sales_person_shiftplan::SalesPersonShiftplanService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -360,6 +365,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
     fn user_invitation_service(&self) -> Arc<Self::UserInvitationService>;
     fn toggle_service(&self) -> Arc<Self::ToggleService>;
+    fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
@@ -467,6 +473,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/user-invitation", api = UserInvitationApiDoc),
         (path = "/toggle", api = toggle::ToggleApiDoc),
         (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
+        (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -537,7 +544,11 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/week-message", week_message::generate_route())
         .nest("/user-invitation", user_invitation::generate_route())
         .nest("/toggle", toggle::generate_route())
-        .nest("/toggle-group", toggle::generate_group_route());
+        .nest("/toggle-group", toggle::generate_group_route())
+        .nest(
+            "/sales-person-shiftplan",
+            sales_person_shiftplan::generate_route(),
+        );
 
     #[cfg(feature = "mock_auth")]
     let app = app.nest("/dev", dev::generate_route());

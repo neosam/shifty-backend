@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM sales_person_shiftplan WHERE sales_person_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ebead1f0968b212992d36b4c7a01c8b10b1bbfb18fe4f6ddbe53c2a8efac60ee"
+}

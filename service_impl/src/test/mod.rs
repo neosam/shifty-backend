@@ -13,6 +13,8 @@ mod permission_test;
 #[cfg(test)]
 pub mod sales_person;
 #[cfg(test)]
+pub mod sales_person_shiftplan;
+#[cfg(test)]
 pub mod sales_person_unavailable;
 #[cfg(test)]
 pub mod shiftplan;

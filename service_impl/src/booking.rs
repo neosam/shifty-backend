@@ -6,6 +6,7 @@ use service::{
     clock::ClockService,
     permission::{Authentication, PermissionService, SALES_PRIVILEGE, SHIFTPLANNER_PRIVILEGE},
     sales_person::SalesPersonService,
+    sales_person_shiftplan::SalesPersonShiftplanService,
     slot::SlotService,
     uuid_service::UuidService,
     ServiceError, ValidationFailureItem,
@@ -24,6 +25,7 @@ gen_service_impl! {
         UuidService: service::uuid_service::UuidService = uuid_service,
         SalesPersonService: service::sales_person::SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
         SlotService: service::slot::SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
+        SalesPersonShiftplanService: service::sales_person_shiftplan::SalesPersonShiftplanService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_shiftplan_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
@@ -252,6 +254,25 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
 
         if !validation.is_empty() {
             return Err(ServiceError::ValidationError(validation.into()));
+        }
+
+        // Check shiftplan eligibility
+        let slot = self
+            .slot_service
+            .get_slot(&booking.slot_id, Authentication::Full, tx.clone().into())
+            .await?;
+        if let Some(shiftplan_id) = slot.shiftplan_id {
+            if !self
+                .sales_person_shiftplan_service
+                .is_eligible(
+                    booking.sales_person_id,
+                    shiftplan_id,
+                    tx.clone().into(),
+                )
+                .await?
+            {
+                return Err(ServiceError::Forbidden);
+            }
         }
 
         let new_id = self.uuid_service.new_uuid("booking-id");

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) as cnt FROM sales_person_shiftplan WHERE sales_person_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "cnt",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9610b64c0f9ac7f2ed29f920af23dd97226ee6e250caec3f7ece2250d22c3b9a"
+}

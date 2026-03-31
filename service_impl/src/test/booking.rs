@@ -6,8 +6,10 @@ use dao::{
 use mockall::predicate::{always, eq};
 use service::{
     booking::Booking, clock::MockClockService, permission::Authentication,
-    sales_person::MockSalesPersonService, slot::MockSlotService, uuid_service::MockUuidService,
-    MockPermissionService, ValidationFailureItem,
+    sales_person::MockSalesPersonService,
+    sales_person_shiftplan::MockSalesPersonShiftplanService, slot::MockSlotService,
+    slot::Slot,
+    uuid_service::MockUuidService, MockPermissionService, ValidationFailureItem,
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 use uuid::{uuid, Uuid};
@@ -78,6 +80,7 @@ pub struct BookingServiceDependencies {
     pub uuid_service: MockUuidService,
     pub sales_person_service: MockSalesPersonService,
     pub slot_service: MockSlotService,
+    pub sales_person_shiftplan_service: MockSalesPersonShiftplanService,
     pub transaction_dao: MockTransactionDao,
 }
 impl BookingServiceDeps for BookingServiceDependencies {
@@ -89,6 +92,7 @@ impl BookingServiceDeps for BookingServiceDependencies {
     type UuidService = MockUuidService;
     type SalesPersonService = MockSalesPersonService;
     type SlotService = MockSlotService;
+    type SalesPersonShiftplanService = MockSalesPersonShiftplanService;
     type TransactionDao = MockTransactionDao;
 }
 impl BookingServiceDependencies {
@@ -100,6 +104,7 @@ impl BookingServiceDependencies {
             uuid_service: self.uuid_service.into(),
             sales_person_service: self.sales_person_service.into(),
             slot_service: self.slot_service.into(),
+            sales_person_shiftplan_service: self.sales_person_shiftplan_service.into(),
             transaction_dao: self.transaction_dao.into(),
         }
     }
@@ -148,12 +153,31 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
         .returning(|_, _, _| Ok(true));
     let mut slot_service = MockSlotService::new();
     slot_service.expect_exists().returning(|_, _, _| Ok(true));
+    slot_service.expect_get_slot().returning(|id, _, _| {
+        Ok(Slot {
+            id: *id,
+            day_of_week: shifty_utils::DayOfWeek::Monday,
+            from: time::Time::from_hms(8, 0, 0).unwrap(),
+            to: time::Time::from_hms(16, 0, 0).unwrap(),
+            min_resources: 1,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: Some(uuid!("00000000-0000-4000-8000-000000000001")),
+        })
+    });
 
     let mut transaction_dao = MockTransactionDao::new();
     transaction_dao
         .expect_use_transaction()
         .returning(|_| Ok(MockTransaction));
     transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let mut sales_person_shiftplan_service = MockSalesPersonShiftplanService::new();
+    sales_person_shiftplan_service
+        .expect_is_eligible()
+        .returning(|_, _, _| Ok(true));
 
     BookingServiceDependencies {
         booking_dao,
@@ -162,6 +186,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
         uuid_service,
         sales_person_service,
         slot_service,
+        sales_person_shiftplan_service,
         transaction_dao,
     }
 }
@@ -785,4 +810,44 @@ async fn test_delete_sales_user_not_allowed() {
     let service = deps.build_service();
     let result = service.delete(default_id(), ().auth(), None).await;
     test_forbidden(&result);
+}
+
+// ===== Booking eligibility tests =====
+
+#[tokio::test]
+async fn test_create_booking_ineligible_sales_person() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.booking_dao
+        .expect_create()
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-id"))
+        .returning(|_| default_id());
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| default_version());
+
+    // Override: sales person is NOT eligible for the slot's shiftplan
+    deps.sales_person_shiftplan_service.checkpoint();
+    deps.sales_person_shiftplan_service
+        .expect_is_eligible()
+        .returning(|_, _, _| Ok(false));
+
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(service::ServiceError::Forbidden)));
 }

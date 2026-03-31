@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT shiftplan_id FROM sales_person_shiftplan WHERE sales_person_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "shiftplan_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b61c2d08bee82ee54394b21917b7aa70442859ebc2d3bd9f978953d3ce82b883"
+}

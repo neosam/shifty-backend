@@ -20,6 +20,7 @@ pub mod macros;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;
+pub mod sales_person_shiftplan;
 pub mod sales_person_unavailable;
 pub mod scheduler;
 pub mod session;

@@ -134,6 +134,21 @@ type SalesPersonUnavailableService =
     service_impl::sales_person_unavailable::SalesPersonUnavailableServiceImpl<
         SalesPersonUnavailableServiceDependencies,
     >;
+type SalesPersonShiftplanDao = dao_impl_sqlite::sales_person_shiftplan::SalesPersonShiftplanDaoImpl;
+
+pub struct SalesPersonShiftplanServiceDependencies;
+impl service_impl::sales_person_shiftplan::SalesPersonShiftplanServiceDeps
+    for SalesPersonShiftplanServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type SalesPersonShiftplanDao = SalesPersonShiftplanDao;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type SalesPersonShiftplanService = service_impl::sales_person_shiftplan::SalesPersonShiftplanServiceImpl<SalesPersonShiftplanServiceDependencies>;
+
 pub struct BookingServiceDependencies;
 impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
     type Context = Context;
@@ -144,6 +159,7 @@ impl service_impl::booking::BookingServiceDeps for BookingServiceDependencies {
     type UuidService = UuidService;
     type SalesPersonService = SalesPersonService;
     type SlotService = SlotService;
+    type SalesPersonShiftplanService = SalesPersonShiftplanService;
     type TransactionDao = TransactionDao;
 }
 type BookingService = service_impl::booking::BookingServiceImpl<BookingServiceDependencies>;
@@ -448,6 +464,7 @@ pub struct RestStateImpl {
     text_template_service: Arc<TextTemplateService>,
     user_invitation_service: Arc<UserInvitationService>,
     toggle_service: Arc<ToggleService>,
+    sales_person_shiftplan_service: Arc<SalesPersonShiftplanService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -476,6 +493,7 @@ impl rest::RestStateDef for RestStateImpl {
     type TextTemplateService = TextTemplateService;
     type UserInvitationService = UserInvitationService;
     type ToggleService = ToggleService;
+    type SalesPersonShiftplanService = SalesPersonShiftplanService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -558,6 +576,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn toggle_service(&self) -> Arc<Self::ToggleService> {
         self.toggle_service.clone()
     }
+    fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService> {
+        self.sales_person_shiftplan_service.clone()
+    }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
     }
@@ -636,6 +657,15 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
+        let sales_person_shiftplan_dao = Arc::new(SalesPersonShiftplanDao::new(pool.clone()));
+        let sales_person_shiftplan_service = Arc::new(
+            service_impl::sales_person_shiftplan::SalesPersonShiftplanServiceImpl {
+                sales_person_shiftplan_dao,
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
         let booking_service = Arc::new(service_impl::booking::BookingServiceImpl {
             transaction_dao: transaction_dao.clone(),
             booking_dao: booking_dao.into(),
@@ -644,6 +674,7 @@ impl RestStateImpl {
             uuid_service: uuid_service.clone(),
             sales_person_service: sales_person_service.clone(),
             slot_service: slot_service.clone(),
+            sales_person_shiftplan_service: sales_person_shiftplan_service.clone(),
         });
         let booking_log_service = Arc::new(service_impl::booking_log::BookingLogServiceImpl {
             booking_log_dao,
@@ -847,6 +878,7 @@ impl RestStateImpl {
             text_template_service,
             user_invitation_service,
             toggle_service,
+            sales_person_shiftplan_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }
