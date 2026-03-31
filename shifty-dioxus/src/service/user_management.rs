@@ -5,6 +5,8 @@ use futures_util::StreamExt;
 use rest_types::InvitationResponse;
 use uuid::Uuid;
 
+use rest_types::ShiftplanTO;
+
 use crate::{
     base_types::ImStr,
     error::ShiftyError,
@@ -21,12 +23,14 @@ use super::{
 pub struct SelectedSalesPerson {
     pub sales_person: SalesPerson,
     pub user_id: Option<ImStr>,
+    pub shiftplan_assignments: Vec<Uuid>,
 }
 impl SelectedSalesPerson {
     pub fn new(sales_person: SalesPerson) -> Self {
         Self {
             sales_person,
             user_id: None,
+            shiftplan_assignments: Vec::new(),
         }
     }
 }
@@ -46,9 +50,44 @@ pub struct UserManagementStore {
     pub role_assignements: Rc<[RoleAssignment]>,
     pub user_invitations: Rc<[InvitationResponse]>,
     pub save_success: bool,
+    pub shiftplan_catalog: Rc<[ShiftplanTO]>,
 }
 pub static USER_MANAGEMENT_STORE: GlobalSignal<UserManagementStore> =
     Signal::global(|| UserManagementStore::default());
+
+pub async fn load_shiftplan_catalog() {
+    let config = CONFIG.read().clone();
+    match crate::api::get_all_shiftplans(config).await {
+        Ok(catalog) => {
+            USER_MANAGEMENT_STORE.write().shiftplan_catalog = catalog;
+        }
+        Err(err) => {
+            *ERROR_STORE.write() = ErrorStore {
+                error: Some(err.into()),
+            };
+        }
+    }
+}
+
+pub async fn load_shiftplan_assignments(sales_person_id: Uuid) {
+    let config = CONFIG.read().clone();
+    match crate::api::get_shiftplan_assignments(config, sales_person_id).await {
+        Ok(assignments) => {
+            let mut store = USER_MANAGEMENT_STORE.write();
+            if let Some(sp) = store.sales_person.as_mut() {
+                sp.shiftplan_assignments = assignments.clone();
+            }
+            if let Some(sp) = store.loaded_sales_person.as_mut() {
+                sp.shiftplan_assignments = assignments;
+            }
+        }
+        Err(err) => {
+            *ERROR_STORE.write() = ErrorStore {
+                error: Some(err.into()),
+            };
+        }
+    }
+}
 
 pub async fn load_all_users() {
     let users = loader::load_all_users(CONFIG.read().clone()).await;
@@ -127,12 +166,12 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
         (selected_sales_person, loaded_sales_person)
     {
         if selected_sales_person != loaded_sales_person {
-            loader::save_sales_person(
+            let saved_id = loader::save_sales_person(
                 CONFIG.read().clone(),
                 selected_sales_person.sales_person.clone(),
             )
             .await?;
-            
+
             match (
                 selected_sales_person.user_id.clone(),
                 loaded_sales_person.user_id.clone(),
@@ -141,7 +180,7 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
                     if new_user_id != old_user_id {
                         loader::save_user_for_sales_person(
                             CONFIG.read().clone(),
-                            selected_sales_person.sales_person.id,
+                            saved_id,
                             new_user_id,
                         )
                         .await?;
@@ -150,7 +189,7 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
                 (Some(user_id), None) => {
                     loader::save_user_for_sales_person(
                         CONFIG.read().clone(),
-                        selected_sales_person.sales_person.id,
+                        saved_id,
                         user_id,
                     )
                     .await?;
@@ -158,11 +197,21 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
                 (None, Some(_)) => {
                     loader::remove_user_from_sales_person(
                         CONFIG.read().clone(),
-                        selected_sales_person.sales_person.id,
+                        saved_id,
                     )
                     .await?;
                 }
                 _ => {}
+            }
+
+            // Save shiftplan assignments
+            if selected_sales_person.shiftplan_assignments != loaded_sales_person.shiftplan_assignments {
+                crate::api::set_shiftplan_assignments(
+                    CONFIG.read().clone(),
+                    saved_id,
+                    &selected_sales_person.shiftplan_assignments,
+                )
+                .await?;
             }
         }
     }
@@ -269,6 +318,9 @@ pub enum UserManagementAction {
     GenerateInvitation(ImStr, Option<i64>),
     RevokeInvitation(Uuid),
     RevokeInvitationSession(Uuid),
+    LoadShiftplanCatalog,
+    LoadShiftplanAssignments(Uuid),
+    UpdateShiftplanAssignments(Vec<Uuid>),
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
@@ -401,6 +453,20 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     .map(|inv| inv.username.clone().into())
                     .unwrap_or_else(|| "".into());
                 revoke_user_invitation_session(invitation_id, username).await
+            }
+            UserManagementAction::LoadShiftplanCatalog => {
+                load_shiftplan_catalog().await;
+                Ok(())
+            }
+            UserManagementAction::LoadShiftplanAssignments(sales_person_id) => {
+                load_shiftplan_assignments(sales_person_id).await;
+                Ok(())
+            }
+            UserManagementAction::UpdateShiftplanAssignments(assignments) => {
+                if let Some(sp) = USER_MANAGEMENT_STORE.write().sales_person.as_mut() {
+                    sp.shiftplan_assignments = assignments;
+                }
+                Ok(())
             }
         } {
             Ok(_) => {}

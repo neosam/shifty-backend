@@ -169,7 +169,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let sales_persons_resource = {
         let config = config.clone();
-        use_resource(move || loader::load_sales_persons(config.to_owned()))
+        use_resource(move || {
+            let config = config.to_owned();
+            let shiftplan_id = *selected_shiftplan_id.read();
+            async move {
+                match shiftplan_id {
+                    Some(id) => loader::load_bookable_sales_persons(config, id).await,
+                    None => loader::load_sales_persons(config).await,
+                }
+            }
+        })
     };
 
     let current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
@@ -352,16 +361,29 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             year,
                         } => {
                             info!("Registering user to slot");
-                            result_handler(
-                                loader::register_user_to_slot(
-                                    config.to_owned(),
-                                    slot_id,
-                                    sales_person_id,
-                                    week,
-                                    year,
-                                )
-                                .await,
-                            );
+                            match loader::register_user_to_slot(
+                                config.to_owned(),
+                                slot_id,
+                                sales_person_id,
+                                week,
+                                year,
+                            )
+                            .await
+                            {
+                                Ok(_) => {}
+                                Err(crate::error::ShiftyError::Reqwest(ref e))
+                                    if e.status() == Some(reqwest::StatusCode::FORBIDDEN) =>
+                                {
+                                    let i18n = I18N.read();
+                                    web_sys::window()
+                                        .expect("no window")
+                                        .alert_with_message(&i18n.t(Key::BookingForbidden))
+                                        .ok();
+                                }
+                                Err(e) => {
+                                    crate::error::error_handler(e);
+                                }
+                            }
                             update_shiftplan();
                         }
                         ShiftPlanAction::RemoveUserFromSlot {

@@ -355,4 +355,9 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     // Day view
     i18n.add_text(Locale::Cs, Key::ViewModeWeek, "Týden");
     i18n.add_text(Locale::Cs, Key::ViewModeDay, "Den");
+
+    // Shiftplan assignments
+    i18n.add_text(Locale::Cs, Key::ShiftplanAssignments, "Přiřazení plánů směn");
+    i18n.add_text(Locale::Cs, Key::ShiftplanAssignmentsInfo, "Žádný výběr znamená, že tato osoba může být zařazena do všech plánů směn.");
+    i18n.add_text(Locale::Cs, Key::BookingForbidden, "Tato osoba není oprávněna pro tento plán směn.");
 }

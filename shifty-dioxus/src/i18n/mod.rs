@@ -342,6 +342,11 @@ pub enum Key {
     // Day view
     ViewModeWeek,
     ViewModeDay,
+
+    // Shiftplan assignments
+    ShiftplanAssignments,
+    ShiftplanAssignmentsInfo,
+    BookingForbidden,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

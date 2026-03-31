@@ -488,4 +488,9 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     // Day view
     i18n.add_text(Locale::En, Key::ViewModeWeek, "Week");
     i18n.add_text(Locale::En, Key::ViewModeDay, "Day");
+
+    // Shiftplan assignments
+    i18n.add_text(Locale::En, Key::ShiftplanAssignments, "Shiftplan Assignments");
+    i18n.add_text(Locale::En, Key::ShiftplanAssignmentsInfo, "No selection means this person is eligible for all shiftplans.");
+    i18n.add_text(Locale::En, Key::BookingForbidden, "This person is not eligible for this shiftplan.");
 }

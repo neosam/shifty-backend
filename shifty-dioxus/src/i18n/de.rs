@@ -531,4 +531,9 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // Day view
     i18n.add_text(Locale::De, Key::ViewModeWeek, "Woche");
     i18n.add_text(Locale::De, Key::ViewModeDay, "Tag");
+
+    // Shiftplan assignments
+    i18n.add_text(Locale::De, Key::ShiftplanAssignments, "Schichtplan-Zuweisungen");
+    i18n.add_text(Locale::De, Key::ShiftplanAssignmentsInfo, "Keine Auswahl bedeutet, dass diese Person in allen Schichtplänen gebucht werden kann.");
+    i18n.add_text(Locale::De, Key::BookingForbidden, "Diese Person ist für diesen Schichtplan nicht berechtigt.");
 }

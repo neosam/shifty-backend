@@ -308,14 +308,15 @@ pub async fn put_sales_person(
 pub async fn post_sales_person(
     config: Config,
     sales_person: SalesPersonTO,
-) -> Result<(), reqwest::Error> {
+) -> Result<SalesPersonTO, reqwest::Error> {
     info!("Posting sales person");
     let url = format!("{}/sales-person", config.backend);
     let client = reqwest::Client::new();
     let response = client.post(url).json(&sales_person).send().await?;
     response.error_for_status_ref()?;
+    let res = response.json().await?;
     info!("Posted");
-    Ok(())
+    Ok(res)
 }
 
 pub async fn get_user_for_sales_person(
@@ -1118,6 +1119,56 @@ pub async fn revoke_session_for_invitation(
     response.error_for_status_ref()?;
     info!("Revoked session for invitation");
     Ok(())
+}
+
+// Sales person shiftplan assignment
+pub async fn get_shiftplan_assignments(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Vec<Uuid>, reqwest::Error> {
+    info!("Fetching shiftplan assignments for sales person {sales_person_id}");
+    let url = format!(
+        "{}/sales-person-shiftplan/{}/shiftplans",
+        config.backend, sales_person_id
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched shiftplan assignments");
+    Ok(res)
+}
+
+pub async fn set_shiftplan_assignments(
+    config: Config,
+    sales_person_id: Uuid,
+    shiftplan_ids: &[Uuid],
+) -> Result<(), reqwest::Error> {
+    info!("Setting shiftplan assignments for sales person {sales_person_id}");
+    let url = format!(
+        "{}/sales-person-shiftplan/{}/shiftplans",
+        config.backend, sales_person_id
+    );
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(shiftplan_ids).send().await?;
+    response.error_for_status_ref()?;
+    info!("Set shiftplan assignments");
+    Ok(())
+}
+
+pub async fn get_bookable_sales_persons(
+    config: Config,
+    shiftplan_id: Uuid,
+) -> Result<Rc<[SalesPersonTO]>, reqwest::Error> {
+    info!("Fetching bookable sales persons for shiftplan {shiftplan_id}");
+    let url = format!(
+        "{}/sales-person-shiftplan/by-shiftplan/{}",
+        config.backend, shiftplan_id
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched bookable sales persons");
+    Ok(res)
 }
 
 pub async fn get_blocks(

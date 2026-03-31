@@ -8,6 +8,7 @@ use crate::{
     service::{self, user_management::UserManagementAction, i18n::I18N},
     state::shiftplan::SalesPerson,
 };
+use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Props)]
 pub struct SalesPersonDetailsProps {
@@ -26,10 +27,11 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
             if props.sales_person_id.is_empty() {
                 user_management_service.send(UserManagementAction::CreateNewSalesPerson);
             } else {
-                user_management_service.send(UserManagementAction::LoadSalesPerson(
-                    uuid::Uuid::parse_str(&props.sales_person_id).unwrap(),
-                ));
+                let id = Uuid::parse_str(&props.sales_person_id).unwrap();
+                user_management_service.send(UserManagementAction::LoadSalesPerson(id));
+                user_management_service.send(UserManagementAction::LoadShiftplanAssignments(id));
             }
+            user_management_service.send(UserManagementAction::LoadShiftplanCatalog);
             // Clear any previous save success status
             user_management_service.send(UserManagementAction::ClearSaveSuccess);
         }
@@ -212,6 +214,49 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                             }
                         }
                         
+                        // Shiftplan Assignments Section
+                        div { class: "mb-6",
+                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",
+                                "{i18n.t(Key::ShiftplanAssignments)}"
+                            }
+
+                            div { class: "mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700",
+                                "{i18n.t(Key::ShiftplanAssignmentsInfo)}"
+                            }
+
+                            {
+                                let catalog = user_management.shiftplan_catalog.clone();
+                                let assignments = sales_person.shiftplan_assignments.clone();
+                                rsx! {
+                                    for shiftplan in catalog.iter() {
+                                        div { class: "border-b-2 border-gray-200 border-dashed p-2",
+                                            Checkbox {
+                                                value: Some(assignments.contains(&shiftplan.id)),
+                                                on_change: Some({
+                                                    let shiftplan_id = shiftplan.id;
+                                                    let assignments = assignments.clone();
+                                                    EventHandler::new(move |checked: bool| {
+                                                        let mut new_assignments = assignments.clone();
+                                                        if checked {
+                                                            if !new_assignments.contains(&shiftplan_id) {
+                                                                new_assignments.push(shiftplan_id);
+                                                            }
+                                                        } else {
+                                                            new_assignments.retain(|id| *id != shiftplan_id);
+                                                        }
+                                                        user_management_service.send(
+                                                            UserManagementAction::UpdateShiftplanAssignments(new_assignments),
+                                                        );
+                                                    })
+                                                }),
+                                                "{shiftplan.name}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Action buttons section
                         div { class: "pt-6 border-t border-gray-200",
                             div { class: "flex flex-col sm:flex-row gap-3 justify-end",

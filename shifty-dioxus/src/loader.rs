@@ -32,6 +32,17 @@ pub async fn load_sales_persons(config: Config) -> Result<Rc<[SalesPerson]>, Shi
     Ok(sales_persons)
 }
 
+pub async fn load_bookable_sales_persons(
+    config: Config,
+    shiftplan_id: Uuid,
+) -> Result<Rc<[SalesPerson]>, ShiftyError> {
+    let sales_person_tos = api::get_bookable_sales_persons(config, shiftplan_id).await?;
+    let mut sales_persons: Vec<SalesPerson> =
+        sales_person_tos.iter().map(SalesPerson::from).collect();
+    sales_persons.sort_by_key(|sales_person| sales_person.name.clone());
+    Ok(sales_persons.into())
+}
+
 pub async fn load_user_for_sales_person(
     config: Config,
     sales_person_id: Uuid,
@@ -252,13 +263,14 @@ pub async fn load_sales_person(
 pub async fn save_sales_person(
     config: Config,
     sales_person: SalesPerson,
-) -> Result<(), ShiftyError> {
+) -> Result<Uuid, ShiftyError> {
     if sales_person.id.is_nil() {
-        api::post_sales_person(config, SalesPersonTO::from(&sales_person)).await?;
+        let created = api::post_sales_person(config, SalesPersonTO::from(&sales_person)).await?;
+        Ok(created.id)
     } else {
         api::put_sales_person(config, SalesPersonTO::from(&sales_person)).await?;
+        Ok(sales_person.id)
     }
-    Ok(())
 }
 
 pub async fn register_user_to_slot(
