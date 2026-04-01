@@ -1,6 +1,6 @@
 [package]
 name = "shifty-utils"
-version = "1.10.1"
+version = "1.11.0-dev"
 edition = "2024"
 
 [dependencies]
