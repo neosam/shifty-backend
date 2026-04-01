@@ -17,12 +17,12 @@ pub trait SalesPersonShiftplanService {
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<Vec<Uuid>, ServiceError>;
+    ) -> Result<Vec<(Uuid, String)>, ServiceError>;
 
     async fn set_shiftplans_for_sales_person(
         &self,
         sales_person_id: Uuid,
-        shiftplan_ids: &[Uuid],
+        assignments: &[(Uuid, String)],
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
@@ -38,6 +38,7 @@ pub trait SalesPersonShiftplanService {
         &self,
         sales_person_id: Uuid,
         shiftplan_id: Uuid,
+        context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError>;
 }

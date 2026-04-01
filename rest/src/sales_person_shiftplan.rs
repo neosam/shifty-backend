@@ -3,7 +3,7 @@ use axum::extract::Path;
 use axum::routing::{get, put};
 use axum::{extract::State, response::Response};
 use axum::{Extension, Json, Router};
-use rest_types::SalesPersonTO;
+use rest_types::{SalesPersonTO, ShiftplanAssignmentTO};
 use service::sales_person_shiftplan::SalesPersonShiftplanService;
 use utoipa::OpenApi;
 use uuid::Uuid;
@@ -30,12 +30,12 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     get,
     path = "/{id}/shiftplans",
     tags = ["Sales person shiftplan assignment"],
-    description = "Get assigned shiftplan IDs for a sales person",
+    description = "Get assigned shiftplan IDs and permission levels for a sales person",
     params(
         ("id", description = "Sales person ID"),
     ),
     responses(
-        (status = 200, description = "List of assigned shiftplan IDs", body = Vec<Uuid>),
+        (status = 200, description = "List of assigned shiftplans with permission levels", body = Vec<ShiftplanAssignmentTO>),
         (status = 403, description = "Forbidden"),
         (status = 500, description = "Internal server error"),
     ),
@@ -47,14 +47,21 @@ async fn get_shiftplans_for_sales_person<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
-            let shiftplan_ids = rest_state
+            let assignments = rest_state
                 .sales_person_shiftplan_service()
                 .get_shiftplans_for_sales_person(id, context.into(), None)
                 .await?;
+            let result: Vec<ShiftplanAssignmentTO> = assignments
+                .into_iter()
+                .map(|(shiftplan_id, permission_level)| ShiftplanAssignmentTO {
+                    shiftplan_id,
+                    permission_level,
+                })
+                .collect();
             Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
-                .body(Body::new(serde_json::to_string(&shiftplan_ids).unwrap()))
+                .body(Body::new(serde_json::to_string(&result).unwrap()))
                 .unwrap())
         })
         .await,
@@ -65,12 +72,12 @@ async fn get_shiftplans_for_sales_person<RestState: RestStateDef>(
     put,
     path = "/{id}/shiftplans",
     tags = ["Sales person shiftplan assignment"],
-    description = "Set shiftplan assignments for a sales person (replaces all)",
+    description = "Set shiftplan assignments with permission levels for a sales person (replaces all)",
     params(
         ("id", description = "Sales person ID"),
     ),
     request_body(
-        content = Vec<Uuid>,
+        content = Vec<ShiftplanAssignmentTO>,
         content_type = "application/json"
     ),
     responses(
@@ -84,13 +91,17 @@ async fn set_shiftplans_for_sales_person<RestState: RestStateDef>(
     rest_state: State<RestState>,
     Extension(context): Extension<Context>,
     Path(id): Path<Uuid>,
-    Json(shiftplan_ids): Json<Vec<Uuid>>,
+    Json(assignments): Json<Vec<ShiftplanAssignmentTO>>,
 ) -> Response {
     error_handler(
         (async {
+            let assignments: Vec<(Uuid, String)> = assignments
+                .into_iter()
+                .map(|a| (a.shiftplan_id, a.permission_level))
+                .collect();
             rest_state
                 .sales_person_shiftplan_service()
-                .set_shiftplans_for_sales_person(id, &shiftplan_ids, context.into(), None)
+                .set_shiftplans_for_sales_person(id, &assignments, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
@@ -102,7 +113,7 @@ async fn set_shiftplans_for_sales_person<RestState: RestStateDef>(
     get,
     path = "/by-shiftplan/{shiftplan_id}",
     tags = ["Sales person shiftplan assignment"],
-    description = "Get sales persons eligible to be booked in a shiftplan (permissive model)",
+    description = "Get sales persons eligible to be booked in a shiftplan (filtered by caller role)",
     params(
         ("shiftplan_id", description = "Shiftplan ID"),
     ),
@@ -148,6 +159,7 @@ async fn get_bookable_sales_persons<RestState: RestStateDef>(
     components(
         schemas(
             SalesPersonTO,
+            ShiftplanAssignmentTO,
         ),
     ),
 )]

@@ -36,7 +36,7 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
         sales_person_id: Uuid,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<Vec<Uuid>, ServiceError> {
+    ) -> Result<Vec<(Uuid, String)>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
@@ -52,7 +52,7 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
     async fn set_shiftplans_for_sales_person(
         &self,
         sales_person_id: Uuid,
-        shiftplan_ids: &[Uuid],
+        assignments: &[(Uuid, String)],
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
@@ -68,7 +68,7 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
             return Err(ServiceError::EntityNotFound(sales_person_id));
         }
         self.sales_person_shiftplan_dao
-            .set_for_sales_person(sales_person_id, shiftplan_ids, PROCESS, tx.clone())
+            .set_for_sales_person(sales_person_id, assignments, PROCESS, tx.clone())
             .await?;
         self.transaction_dao.commit(tx).await?;
         Ok(())
@@ -77,10 +77,16 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
     async fn get_bookable_sales_persons(
         &self,
         shiftplan_id: Uuid,
-        _context: Authentication<Self::Context>,
+        context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[SalesPerson]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
+        let is_shiftplanner = self
+            .permission_service
+            .check_permission(SHIFTPLANNER_PRIVILEGE, context)
+            .await
+            .is_ok();
+
         let all_persons = self
             .sales_person_service
             .get_all(Authentication::Full, tx.clone().into())
@@ -99,12 +105,14 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
                 // Permissive: no assignments means eligible for all plans
                 bookable.push(person.clone());
             } else {
-                let is_assigned = self
+                let permission_level = self
                     .sales_person_shiftplan_dao
-                    .is_assigned(person.id, shiftplan_id, tx.clone())
+                    .get_permission_level(person.id, shiftplan_id, tx.clone())
                     .await?;
-                if is_assigned {
-                    bookable.push(person.clone());
+                match permission_level.as_deref() {
+                    Some("available") => bookable.push(person.clone()),
+                    Some("planner_only") if is_shiftplanner => bookable.push(person.clone()),
+                    _ => {} // Not assigned or planner_only for non-shiftplanner
                 }
             }
         }
@@ -117,6 +125,7 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
         &self,
         sales_person_id: Uuid,
         shiftplan_id: Uuid,
+        context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
@@ -130,11 +139,23 @@ impl<Deps: SalesPersonShiftplanServiceDeps> SalesPersonShiftplanService
             return Ok(true);
         }
 
-        let is_assigned = self
+        let permission_level = self
             .sales_person_shiftplan_dao
-            .is_assigned(sales_person_id, shiftplan_id, tx.clone())
+            .get_permission_level(sales_person_id, shiftplan_id, tx.clone())
             .await?;
+
+        let result = match permission_level.as_deref() {
+            Some("available") => true,
+            Some("planner_only") => {
+                self.permission_service
+                    .check_permission(SHIFTPLANNER_PRIVILEGE, context)
+                    .await
+                    .is_ok()
+            }
+            _ => false, // Not assigned to this plan
+        };
+
         self.transaction_dao.commit(tx).await?;
-        Ok(is_assigned)
+        Ok(result)
     }
 }

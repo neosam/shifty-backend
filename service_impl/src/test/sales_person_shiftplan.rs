@@ -127,7 +127,10 @@ fn build_dependencies() -> TestDependencies {
 #[tokio::test]
 async fn test_get_shiftplans_for_sales_person() {
     let mut deps = build_dependencies();
-    let plan_ids = vec![default_shiftplan_id(), alternate_shiftplan_id()];
+    let plan_ids = vec![
+        (default_shiftplan_id(), "available".to_string()),
+        (alternate_shiftplan_id(), "planner_only".to_string()),
+    ];
     let plan_ids_clone = plan_ids.clone();
     deps.sales_person_shiftplan_dao
         .expect_get_by_sales_person()
@@ -138,10 +141,10 @@ async fn test_get_shiftplans_for_sales_person() {
         .get_shiftplans_for_sales_person(default_sales_person_id(), ().auth(), None)
         .await;
     assert!(result.is_ok());
-    let ids = result.unwrap();
-    assert_eq!(ids.len(), 2);
-    assert!(ids.contains(&default_shiftplan_id()));
-    assert!(ids.contains(&alternate_shiftplan_id()));
+    let assignments = result.unwrap();
+    assert_eq!(assignments.len(), 2);
+    assert!(assignments.iter().any(|(id, _)| *id == default_shiftplan_id()));
+    assert!(assignments.iter().any(|(id, _)| *id == alternate_shiftplan_id()));
 }
 
 #[tokio::test]
@@ -167,9 +170,12 @@ async fn test_set_shiftplans_for_sales_person() {
         .returning(|_, _, _, _| Ok(()));
 
     let service = deps.build_service();
-    let plan_ids = vec![default_shiftplan_id(), alternate_shiftplan_id()];
+    let assignments = vec![
+        (default_shiftplan_id(), "available".to_string()),
+        (alternate_shiftplan_id(), "planner_only".to_string()),
+    ];
     let result = service
-        .set_shiftplans_for_sales_person(default_sales_person_id(), &plan_ids, ().auth(), None)
+        .set_shiftplans_for_sales_person(default_sales_person_id(), &assignments, ().auth(), None)
         .await;
     assert!(result.is_ok());
 }
@@ -244,9 +250,13 @@ async fn test_get_bookable_mixed_assignments() {
 
     let plan_id = default_shiftplan_id();
     deps.sales_person_shiftplan_dao
-        .expect_is_assigned()
+        .expect_get_permission_level()
         .returning(move |sp_id, shiftplan_id, _| {
-            Ok(sp_id == sp_b && shiftplan_id == plan_id)
+            if sp_id == sp_b && shiftplan_id == plan_id {
+                Ok(Some("available".to_string()))
+            } else {
+                Ok(None)
+            }
         });
 
     let service = deps.build_service();
@@ -272,7 +282,7 @@ async fn test_is_eligible_no_assignments() {
 
     let service = deps.build_service();
     let result = service
-        .is_eligible(default_sales_person_id(), default_shiftplan_id(), None)
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
         .await;
     assert!(result.is_ok());
     assert!(result.unwrap());
@@ -285,12 +295,12 @@ async fn test_is_eligible_assigned_to_plan() {
         .expect_has_any_assignment()
         .returning(|_, _| Ok(true));
     deps.sales_person_shiftplan_dao
-        .expect_is_assigned()
-        .returning(|_, _, _| Ok(true));
+        .expect_get_permission_level()
+        .returning(|_, _, _| Ok(Some("available".to_string())));
 
     let service = deps.build_service();
     let result = service
-        .is_eligible(default_sales_person_id(), default_shiftplan_id(), None)
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
         .await;
     assert!(result.is_ok());
     assert!(result.unwrap());
@@ -303,12 +313,12 @@ async fn test_is_eligible_assigned_to_other_plan() {
         .expect_has_any_assignment()
         .returning(|_, _| Ok(true));
     deps.sales_person_shiftplan_dao
-        .expect_is_assigned()
-        .returning(|_, _, _| Ok(false));
+        .expect_get_permission_level()
+        .returning(|_, _, _| Ok(None));
 
     let service = deps.build_service();
     let result = service
-        .is_eligible(default_sales_person_id(), default_shiftplan_id(), None)
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
         .await;
     assert!(result.is_ok());
     assert!(!result.unwrap());
@@ -328,7 +338,7 @@ async fn test_set_shiftplans_forbidden() {
     let result = service
         .set_shiftplans_for_sales_person(
             default_sales_person_id(),
-            &[default_shiftplan_id()],
+            &[(default_shiftplan_id(), "available".to_string())],
             ().auth(),
             None,
         )
@@ -365,7 +375,7 @@ async fn test_set_shiftplans_sales_person_not_found() {
     let result = service
         .set_shiftplans_for_sales_person(
             default_sales_person_id(),
-            &[default_shiftplan_id()],
+            &[(default_shiftplan_id(), "available".to_string())],
             ().auth(),
             None,
         )
@@ -403,4 +413,243 @@ async fn test_get_bookable_excludes_inactive() {
     let bookable = result.unwrap();
     assert_eq!(bookable.len(), 1);
     assert_eq!(bookable[0].id, default_sales_person_id());
+}
+
+// ===== Permission level tests =====
+
+fn build_dependencies_non_shiftplanner() -> TestDependencies {
+    let mut transaction_dao = MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let mut permission_service = MockPermissionService::new();
+    permission_service
+        .expect_check_permission()
+        .returning(|privilege, _| {
+            if privilege == "shiftplanner" {
+                Err(service::ServiceError::Forbidden)
+            } else {
+                Ok(())
+            }
+        });
+
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_exists()
+        .returning(|_, _, _| Ok(true));
+
+    TestDependencies {
+        sales_person_shiftplan_dao: MockSalesPersonShiftplanDao::new(),
+        sales_person_service,
+        permission_service,
+        transaction_dao,
+    }
+}
+
+// Task 2.1: assignment defaults to available
+#[tokio::test]
+async fn test_assignment_defaults_to_available() {
+    let mut deps = build_dependencies();
+    deps.sales_person_shiftplan_dao
+        .expect_set_for_sales_person()
+        .withf(|_, assignments, _, _| {
+            assignments.len() == 1 && assignments[0].1 == "available"
+        })
+        .returning(|_, _, _, _| Ok(()));
+
+    let service = deps.build_service();
+    let result = service
+        .set_shiftplans_for_sales_person(
+            default_sales_person_id(),
+            &[(default_shiftplan_id(), "available".to_string())],
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+}
+
+// Task 2.2: assignment stores planner_only
+#[tokio::test]
+async fn test_assignment_stores_planner_only() {
+    let mut deps = build_dependencies();
+    deps.sales_person_shiftplan_dao
+        .expect_set_for_sales_person()
+        .withf(|_, assignments, _, _| {
+            assignments.len() == 1 && assignments[0].1 == "planner_only"
+        })
+        .returning(|_, _, _, _| Ok(()));
+
+    let service = deps.build_service();
+    let result = service
+        .set_shiftplans_for_sales_person(
+            default_sales_person_id(),
+            &[(default_shiftplan_id(), "planner_only".to_string())],
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+}
+
+// Task 2.4: is_eligible returns true for available assignment regardless of caller role
+#[tokio::test]
+async fn test_is_eligible_available_as_shiftplanner() {
+    let mut deps = build_dependencies();
+    deps.sales_person_shiftplan_dao
+        .expect_has_any_assignment()
+        .returning(|_, _| Ok(true));
+    deps.sales_person_shiftplan_dao
+        .expect_get_permission_level()
+        .returning(|_, _, _| Ok(Some("available".to_string())));
+
+    let service = deps.build_service();
+    let result = service
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
+        .await;
+    assert!(result.is_ok());
+    assert!(result.unwrap());
+}
+
+#[tokio::test]
+async fn test_is_eligible_available_as_non_shiftplanner() {
+    let mut deps = build_dependencies_non_shiftplanner();
+    deps.sales_person_shiftplan_dao
+        .expect_has_any_assignment()
+        .returning(|_, _| Ok(true));
+    deps.sales_person_shiftplan_dao
+        .expect_get_permission_level()
+        .returning(|_, _, _| Ok(Some("available".to_string())));
+
+    let service = deps.build_service();
+    let result = service
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
+        .await;
+    assert!(result.is_ok());
+    assert!(result.unwrap());
+}
+
+// Task 2.5: is_eligible returns true for planner_only when shiftplanner
+#[tokio::test]
+async fn test_is_eligible_planner_only_as_shiftplanner() {
+    let mut deps = build_dependencies();
+    deps.sales_person_shiftplan_dao
+        .expect_has_any_assignment()
+        .returning(|_, _| Ok(true));
+    deps.sales_person_shiftplan_dao
+        .expect_get_permission_level()
+        .returning(|_, _, _| Ok(Some("planner_only".to_string())));
+
+    let service = deps.build_service();
+    let result = service
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
+        .await;
+    assert!(result.is_ok());
+    assert!(result.unwrap());
+}
+
+// Task 2.6: is_eligible returns false for planner_only when non-shiftplanner
+#[tokio::test]
+async fn test_is_eligible_planner_only_as_non_shiftplanner() {
+    let mut deps = build_dependencies_non_shiftplanner();
+    deps.sales_person_shiftplan_dao
+        .expect_has_any_assignment()
+        .returning(|_, _| Ok(true));
+    deps.sales_person_shiftplan_dao
+        .expect_get_permission_level()
+        .returning(|_, _, _| Ok(Some("planner_only".to_string())));
+
+    let service = deps.build_service();
+    let result = service
+        .is_eligible(default_sales_person_id(), default_shiftplan_id(), ().auth(), None)
+        .await;
+    assert!(result.is_ok());
+    assert!(!result.unwrap());
+}
+
+// Task 2.8: get_bookable_sales_persons includes planner_only for shiftplanner
+#[tokio::test]
+async fn test_get_bookable_includes_planner_only_for_shiftplanner() {
+    let mut deps = build_dependencies();
+
+    let all_persons: Arc<[SalesPerson]> = Arc::new([
+        default_sales_person(),    // planner_only for this plan
+        alternate_sales_person(),  // available for this plan
+    ]);
+    let all_persons_clone = all_persons.clone();
+    deps.sales_person_service
+        .expect_get_all()
+        .returning(move |_, _| Ok(all_persons_clone.clone()));
+
+    deps.sales_person_shiftplan_dao
+        .expect_has_any_assignment()
+        .returning(|_, _| Ok(true));
+
+    deps.sales_person_shiftplan_dao
+        .expect_is_assigned()
+        .returning(|_, _, _| Ok(true));
+
+    let sp_default = default_sales_person_id();
+    deps.sales_person_shiftplan_dao
+        .expect_get_permission_level()
+        .returning(move |sp_id, _, _| {
+            if sp_id == sp_default {
+                Ok(Some("planner_only".to_string()))
+            } else {
+                Ok(Some("available".to_string()))
+            }
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .get_bookable_sales_persons(default_shiftplan_id(), ().auth(), None)
+        .await;
+    assert!(result.is_ok());
+    let bookable = result.unwrap();
+    assert_eq!(bookable.len(), 2); // Both should be included for shiftplanner
+}
+
+// Task 2.9: get_bookable_sales_persons excludes planner_only for non-shiftplanner
+#[tokio::test]
+async fn test_get_bookable_excludes_planner_only_for_non_shiftplanner() {
+    let mut deps = build_dependencies_non_shiftplanner();
+
+    let all_persons: Arc<[SalesPerson]> = Arc::new([
+        default_sales_person(),    // planner_only for this plan
+        alternate_sales_person(),  // available for this plan
+    ]);
+    let all_persons_clone = all_persons.clone();
+    deps.sales_person_service
+        .expect_get_all()
+        .returning(move |_, _| Ok(all_persons_clone.clone()));
+
+    deps.sales_person_shiftplan_dao
+        .expect_has_any_assignment()
+        .returning(|_, _| Ok(true));
+
+    deps.sales_person_shiftplan_dao
+        .expect_is_assigned()
+        .returning(|_, _, _| Ok(true));
+
+    let sp_default = default_sales_person_id();
+    deps.sales_person_shiftplan_dao
+        .expect_get_permission_level()
+        .returning(move |sp_id, _, _| {
+            if sp_id == sp_default {
+                Ok(Some("planner_only".to_string()))
+            } else {
+                Ok(Some("available".to_string()))
+            }
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .get_bookable_sales_persons(default_shiftplan_id(), ().auth(), None)
+        .await;
+    assert!(result.is_ok());
+    let bookable = result.unwrap();
+    assert_eq!(bookable.len(), 1); // Only 'available' person should be included
+    assert_eq!(bookable[0].id, alternate_sales_person_id());
 }

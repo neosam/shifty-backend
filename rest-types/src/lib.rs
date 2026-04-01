@@ -1432,6 +1432,17 @@ impl From<&service::block::Block> for BlockTO {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct ShiftplanAssignmentTO {
+    pub shiftplan_id: Uuid,
+    #[serde(default = "default_permission_level")]
+    pub permission_level: String,
+}
+
+fn default_permission_level() -> String {
+    "available".to_string()
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct ToggleTO {
     pub name: Arc<str>,

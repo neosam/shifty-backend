@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sales_person_shiftplan (sales_person_id, shiftplan_id, update_process, permission_level) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "2ea4dd1daf1dc1c36004c727a8a9d7d6dc80937d3c61c4bea9be45db89616b60"
+}

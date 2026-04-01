@@ -177,7 +177,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
     let mut sales_person_shiftplan_service = MockSalesPersonShiftplanService::new();
     sales_person_shiftplan_service
         .expect_is_eligible()
-        .returning(|_, _, _| Ok(true));
+        .returning(|_, _, _, _| Ok(true));
 
     BookingServiceDependencies {
         booking_dao,
@@ -833,7 +833,7 @@ async fn test_create_booking_ineligible_sales_person() {
     deps.sales_person_shiftplan_service.checkpoint();
     deps.sales_person_shiftplan_service
         .expect_is_eligible()
-        .returning(|_, _, _| Ok(false));
+        .returning(|_, _, _, _| Ok(false));
 
     let service = deps.build_service();
     let result = service
@@ -850,4 +850,120 @@ async fn test_create_booking_ineligible_sales_person() {
         .await;
     assert!(result.is_err());
     assert!(matches!(result, Err(service::ServiceError::Forbidden)));
+}
+
+// ===== Permission level booking tests =====
+
+#[tokio::test]
+async fn test_create_booking_planner_only_as_shiftplanner() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.booking_dao
+        .expect_create()
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-id"))
+        .returning(|_| default_id());
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| default_version());
+
+    // is_eligible returns true for shiftplanner with planner_only
+    deps.sales_person_shiftplan_service.checkpoint();
+    deps.sales_person_shiftplan_service
+        .expect_is_eligible()
+        .returning(|_, _, _, _| Ok(true));
+
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_create_booking_planner_only_as_non_shiftplanner() {
+    let mut deps = build_dependencies(true, "sales");
+    deps.sales_person_service
+        .expect_get_assigned_user()
+        .returning(|_, _, _| Ok(Some("test_user".into())));
+    deps.permission_service
+        .expect_check_user()
+        .returning(|_, _| Ok(()));
+
+    // is_eligible returns false for non-shiftplanner with planner_only
+    deps.sales_person_shiftplan_service.checkpoint();
+    deps.sales_person_shiftplan_service
+        .expect_is_eligible()
+        .returning(|_, _, _, _| Ok(false));
+
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(matches!(result, Err(service::ServiceError::Forbidden)));
+}
+
+#[tokio::test]
+async fn test_delete_booking_planner_only_denied_for_non_shiftplanner() {
+    let mut deps = build_dependencies(true, "sales");
+    deps.booking_dao
+        .expect_find_by_id()
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
+    deps.sales_person_service
+        .expect_get_assigned_user()
+        .returning(|_, _, _| Ok(Some("test_user".into())));
+    deps.permission_service
+        .expect_check_user()
+        .returning(|_, _| Ok(()));
+
+    // The slot's shiftplan has planner_only for this person
+    deps.sales_person_shiftplan_service.checkpoint();
+    deps.sales_person_shiftplan_service
+        .expect_is_eligible()
+        .returning(|_, _, _, _| Ok(false));
+
+    let service = deps.build_service();
+    let result = service.delete(default_id(), ().auth(), None).await;
+    assert!(matches!(result, Err(service::ServiceError::Forbidden)));
+}
+
+#[tokio::test]
+async fn test_delete_booking_planner_only_allowed_for_shiftplanner() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.booking_dao
+        .expect_find_by_id()
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
+    deps.booking_dao
+        .expect_update()
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| alternate_version());
+
+    let service = deps.build_service();
+    let result = service.delete(default_id(), ().auth(), None).await;
+    assert!(result.is_ok());
 }

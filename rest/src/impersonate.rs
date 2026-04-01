@@ -104,7 +104,7 @@ pub async fn start_impersonate<RestState: RestStateDef>(
 
 #[utoipa::path(
     delete,
-    path = "/",
+    path = "",
     responses(
         (status = 200, description = "Impersonation stopped", body = ImpersonateTO),
         (status = 403, description = "Forbidden - not an admin"),
@@ -154,7 +154,7 @@ pub async fn stop_impersonate<RestState: RestStateDef>(
 
 #[utoipa::path(
     get,
-    path = "/",
+    path = "",
     responses(
         (status = 200, description = "Current impersonation status", body = ImpersonateTO),
         (status = 403, description = "Forbidden - not an admin"),

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT shiftplan_id, permission_level FROM sales_person_shiftplan WHERE sales_person_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "shiftplan_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "permission_level",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bc4c7d21d1971432ac0a5716939ad3e5c3dbdd65e78b1ce7f94cc51030702c1e"
+}

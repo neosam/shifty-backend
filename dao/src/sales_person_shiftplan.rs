@@ -13,7 +13,7 @@ pub trait SalesPersonShiftplanDao {
         &self,
         sales_person_id: Uuid,
         tx: Self::Transaction,
-    ) -> Result<Vec<Uuid>, DaoError>;
+    ) -> Result<Vec<(Uuid, String)>, DaoError>;
 
     async fn get_by_shiftplan(
         &self,
@@ -24,7 +24,7 @@ pub trait SalesPersonShiftplanDao {
     async fn set_for_sales_person(
         &self,
         sales_person_id: Uuid,
-        shiftplan_ids: &[Uuid],
+        assignments: &[(Uuid, String)],
         process: &str,
         tx: Self::Transaction,
     ) -> Result<(), DaoError>;
@@ -41,4 +41,11 @@ pub trait SalesPersonShiftplanDao {
         shiftplan_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<bool, DaoError>;
+
+    async fn get_permission_level(
+        &self,
+        sales_person_id: Uuid,
+        shiftplan_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<String>, DaoError>;
 }

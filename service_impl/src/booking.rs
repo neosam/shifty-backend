@@ -267,6 +267,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
                 .is_eligible(
                     booking.sales_person_id,
                     shiftplan_id,
+                    context.clone(),
                     tx.clone().into(),
                 )
                 .await?
@@ -380,6 +381,30 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             tx.clone().into(),
         )
         .await?;
+
+        // Check shiftplan eligibility for deletion (planner_only check)
+        let slot = self
+            .slot_service
+            .get_slot(
+                &booking_entity.slot_id,
+                Authentication::Full,
+                tx.clone().into(),
+            )
+            .await?;
+        if let Some(shiftplan_id) = slot.shiftplan_id {
+            if !self
+                .sales_person_shiftplan_service
+                .is_eligible(
+                    booking_entity.sales_person_id,
+                    shiftplan_id,
+                    context.clone(),
+                    tx.clone().into(),
+                )
+                .await?
+            {
+                return Err(ServiceError::Forbidden);
+            }
+        }
 
         let current_user = self
             .permission_service

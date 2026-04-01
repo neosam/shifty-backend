@@ -9,6 +9,11 @@ use crate::ResultDbErrorExt;
 
 struct ShiftplanIdRow {
     shiftplan_id: Vec<u8>,
+    permission_level: String,
+}
+
+struct PermissionLevelRow {
+    permission_level: String,
 }
 
 struct SalesPersonIdRow {
@@ -33,11 +38,11 @@ impl dao::sales_person_shiftplan::SalesPersonShiftplanDao for SalesPersonShiftpl
         &self,
         sales_person_id: Uuid,
         tx: Self::Transaction,
-    ) -> Result<Vec<Uuid>, DaoError> {
+    ) -> Result<Vec<(Uuid, String)>, DaoError> {
         let id_vec = sales_person_id.as_bytes().to_vec();
         let rows = query_as!(
             ShiftplanIdRow,
-            r"SELECT shiftplan_id FROM sales_person_shiftplan WHERE sales_person_id = ?",
+            r"SELECT shiftplan_id, permission_level FROM sales_person_shiftplan WHERE sales_person_id = ?",
             id_vec
         )
         .fetch_all(tx.tx.lock().await.as_mut())
@@ -45,7 +50,10 @@ impl dao::sales_person_shiftplan::SalesPersonShiftplanDao for SalesPersonShiftpl
         .map_db_error()?;
 
         rows.iter()
-            .map(|row| Uuid::from_slice(&row.shiftplan_id).map_err(DaoError::from))
+            .map(|row| {
+                let uuid = Uuid::from_slice(&row.shiftplan_id).map_err(DaoError::from)?;
+                Ok((uuid, row.permission_level.clone()))
+            })
             .collect()
     }
 
@@ -72,7 +80,7 @@ impl dao::sales_person_shiftplan::SalesPersonShiftplanDao for SalesPersonShiftpl
     async fn set_for_sales_person(
         &self,
         sales_person_id: Uuid,
-        shiftplan_ids: &[Uuid],
+        assignments: &[(Uuid, String)],
         process: &str,
         tx: Self::Transaction,
     ) -> Result<(), DaoError> {
@@ -87,14 +95,15 @@ impl dao::sales_person_shiftplan::SalesPersonShiftplanDao for SalesPersonShiftpl
         .await
         .map_db_error()?;
 
-        // Insert new assignments
-        for shiftplan_id in shiftplan_ids {
+        // Insert new assignments with permission level
+        for (shiftplan_id, permission_level) in assignments {
             let plan_id_vec = shiftplan_id.as_bytes().to_vec();
             query!(
-                r"INSERT INTO sales_person_shiftplan (sales_person_id, shiftplan_id, update_process) VALUES (?, ?, ?)",
+                r"INSERT INTO sales_person_shiftplan (sales_person_id, shiftplan_id, update_process, permission_level) VALUES (?, ?, ?, ?)",
                 sp_id_vec,
                 plan_id_vec,
-                process
+                process,
+                permission_level
             )
             .execute(tx.tx.lock().await.as_mut())
             .await
@@ -139,5 +148,26 @@ impl dao::sales_person_shiftplan::SalesPersonShiftplanDao for SalesPersonShiftpl
         .map_db_error()?;
 
         Ok(result.cnt > 0)
+    }
+
+    async fn get_permission_level(
+        &self,
+        sales_person_id: Uuid,
+        shiftplan_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<String>, DaoError> {
+        let sp_id_vec = sales_person_id.as_bytes().to_vec();
+        let plan_id_vec = shiftplan_id.as_bytes().to_vec();
+        let result = query_as!(
+            PermissionLevelRow,
+            r"SELECT permission_level FROM sales_person_shiftplan WHERE sales_person_id = ? AND shiftplan_id = ?",
+            sp_id_vec,
+            plan_id_vec
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        Ok(result.map(|row| row.permission_level))
     }
 }
