@@ -10,11 +10,6 @@ pub const SALES_PRIVILEGE: &str = "sales";
 pub const HR_PRIVILEGE: &str = "hr";
 pub const SHIFTPLANNER_PRIVILEGE: &str = "shiftplanner";
 
-/// For mocking the context locally since there is actually
-/// no context.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MockContext;
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct User {
     pub name: Arc<str>,

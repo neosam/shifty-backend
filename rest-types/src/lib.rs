@@ -1488,3 +1488,10 @@ impl From<&ToggleGroupTO> for service::toggle::ToggleGroup {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+pub struct ImpersonateTO {
+    pub impersonating: bool,
+    #[serde(default)]
+    pub user_id: Option<Arc<str>>,
+}

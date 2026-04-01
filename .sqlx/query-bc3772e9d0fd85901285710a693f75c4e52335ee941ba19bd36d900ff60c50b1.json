@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, user_id, expires, created FROM session WHERE id = ?",
+  "query": "SELECT id, user_id, expires, created, impersonate_user_id FROM session WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -22,6 +22,11 @@
         "name": "created",
         "ordinal": 3,
         "type_info": "Integer"
+      },
+      {
+        "name": "impersonate_user_id",
+        "ordinal": 4,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -31,8 +36,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "4e9ddf9845230f70d90a7cba6750473e0d1d1597d04417f2babdbf475baeb065"
+  "hash": "bc3772e9d0fd85901285710a693f75c4e52335ee941ba19bd36d900ff60c50b1"
 }

@@ -62,17 +62,29 @@ async fn test_check_permission_denied() {
 }
 
 #[tokio::test]
-async fn test_user_service_dev() {
+async fn test_user_service_impl_with_user() {
     use service::user_service::UserService;
-    let user_service = UserServiceDev;
+    let user_service = UserServiceImpl;
     assert_eq!(
-        "DEVUSER",
+        "testuser",
         user_service
-            .current_user(MockContext)
+            .current_user(Some("testuser".into()))
             .await
             .unwrap()
             .as_ref()
     );
+}
+
+#[tokio::test]
+async fn test_user_service_impl_unauthorized() {
+    use service::user_service::UserService;
+    let user_service = UserServiceImpl;
+    let result = user_service.current_user(None).await;
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        service::ServiceError::Unauthorized
+    ));
 }
 
 #[tokio::test]

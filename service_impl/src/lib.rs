@@ -38,24 +38,6 @@ pub mod uuid_service;
 pub mod week_message;
 
 pub use permission::PermissionServiceImpl;
-use service::permission::MockContext;
-
-pub struct UserServiceDev;
-
-#[async_trait]
-impl service::user_service::UserService for UserServiceDev {
-    type Context = MockContext;
-
-    async fn current_user(
-        &self,
-        _context: Self::Context,
-    ) -> Result<Arc<str>, service::ServiceError> {
-        Ok("DEVUSER".into())
-
-        // Uncomment to test unauthorized response (not logged in)
-        //Err(service::ServiceError::Unauthorized)
-    }
-}
 
 pub struct UserServiceImpl;
 

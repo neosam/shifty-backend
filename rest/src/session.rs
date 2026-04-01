@@ -1,4 +1,3 @@
-#[cfg(feature = "oidc")]
 use std::sync::Arc;
 
 use axum::extract::Request;
@@ -7,16 +6,9 @@ use axum::middleware::Next;
 use axum::response::Response;
 #[cfg(feature = "oidc")]
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-#[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
-use service::permission::MockContext;
-#[cfg(feature = "oidc")]
 use service::session::SessionService;
-#[cfg(feature = "oidc")]
 use tower_cookies::Cookies;
 
-#[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
-pub type Context = MockContext;
-#[cfg(feature = "oidc")]
 pub type Context = Option<Arc<str>>;
 use crate::RestStateDef;
 
@@ -58,6 +50,15 @@ pub async fn register_session<RestState: RestStateDef>(
     }
     next.run(request).await
 }
+
+fn resolve_session_user_id(session: &service::session::Session) -> Option<Arc<str>> {
+    if let Some(ref impersonate_user_id) = session.impersonate_user_id {
+        Some(impersonate_user_id.clone())
+    } else {
+        Some(session.user_id.clone())
+    }
+}
+
 #[cfg(feature = "oidc")]
 pub async fn context_extractor<RestState: RestStateDef>(
     State(rest_state): State<RestState>,
@@ -82,7 +83,9 @@ pub async fn context_extractor<RestState: RestStateDef>(
             .unwrap()
         {
             tracing::info!("Session found: {:?}", session);
-            request.extensions_mut().insert(Some(session.user_id));
+            request
+                .extensions_mut()
+                .insert(resolve_session_user_id(&session));
         } else {
             tracing::info!("Session not found");
             request.extensions_mut().insert(None::<Arc<str>>);
@@ -93,13 +96,72 @@ pub async fn context_extractor<RestState: RestStateDef>(
     };
     next.run(request).await
 }
-#[allow(clippy::extra_unused_type_parameters)] // Generic required in case of OIDC feature.
+
 #[cfg(all(feature = "mock_auth", not(feature = "oidc")))]
 pub async fn context_extractor<RestState: RestStateDef>(
+    State(rest_state): State<RestState>,
     mut request: Request,
     next: Next,
 ) -> Response {
-    request.extensions_mut().insert(MockContext);
+    use time::OffsetDateTime;
+    use tower_cookies::Cookie;
+
+    let cookies = request
+        .extensions()
+        .get::<Cookies>()
+        .expect("Cookies extension not set");
+
+    if let Some(cookie) = cookies.get("app_session") {
+        let session_id = cookie.value();
+        if let Some(session) = rest_state
+            .session_service()
+            .verify_user_session(session_id)
+            .await
+            .unwrap()
+        {
+            request
+                .extensions_mut()
+                .insert(resolve_session_user_id(&session));
+        } else {
+            // Session expired or invalid — create a new one for DEVUSER
+            let session = rest_state
+                .session_service()
+                .new_session_for_user("DEVUSER")
+                .await
+                .unwrap();
+            let now = OffsetDateTime::now_utc();
+            let expires = now + time::Duration::days(365);
+            let cookie = Cookie::build(Cookie::new("app_session", session.id.to_string()))
+                .path("/")
+                .expires(expires)
+                .http_only(true)
+                .same_site(tower_cookies::cookie::SameSite::Strict)
+                .secure(true);
+            cookies.add(cookie.into());
+            request
+                .extensions_mut()
+                .insert(resolve_session_user_id(&session));
+        }
+    } else {
+        // No session cookie — auto-create session for DEVUSER
+        let session = rest_state
+            .session_service()
+            .new_session_for_user("DEVUSER")
+            .await
+            .unwrap();
+        let now = OffsetDateTime::now_utc();
+        let expires = now + time::Duration::days(365);
+        let cookie = Cookie::build(Cookie::new("app_session", session.id.to_string()))
+            .path("/")
+            .expires(expires)
+            .http_only(true)
+            .same_site(tower_cookies::cookie::SameSite::Strict)
+            .secure(true);
+        cookies.add(cookie.into());
+        request
+            .extensions_mut()
+            .insert(resolve_session_user_id(&session));
+    };
     next.run(request).await
 }
 

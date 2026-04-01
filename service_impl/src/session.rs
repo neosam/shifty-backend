@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use dao::session::SessionDao;
 use service::{
@@ -35,6 +37,7 @@ impl<Deps: SessionServiceDeps> SessionService for SessionServiceImpl<Deps> {
             user_id: user_id.into(),
             expires,
             created,
+            impersonate_user_id: None,
         };
         self.session_dao.create(&(&session).into()).await?;
         Ok(session)
@@ -48,5 +51,23 @@ impl<Deps: SessionServiceDeps> SessionService for SessionServiceImpl<Deps> {
     async fn verify_user_session(&self, id: &str) -> Result<Option<Session>, ServiceError> {
         let session = self.session_dao.find_by_id(id).await?;
         Ok(session.map(|s| (&s).into()))
+    }
+
+    async fn start_impersonate(
+        &self,
+        session_id: Arc<str>,
+        target_user_id: Arc<str>,
+    ) -> Result<(), ServiceError> {
+        self.session_dao
+            .update_impersonate(&session_id, Some(target_user_id))
+            .await?;
+        Ok(())
+    }
+
+    async fn stop_impersonate(&self, session_id: Arc<str>) -> Result<(), ServiceError> {
+        self.session_dao
+            .update_impersonate(&session_id, None)
+            .await?;
+        Ok(())
     }
 }

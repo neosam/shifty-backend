@@ -14,6 +14,7 @@ struct SessionDb {
     user_id: String,
     expires: i64,
     created: i64,
+    impersonate_user_id: Option<String>,
 }
 
 pub struct SessionDaoImpl {
@@ -29,18 +30,16 @@ impl SessionDaoImpl {
 #[async_trait]
 impl SessionDao for SessionDaoImpl {
     async fn create(&self, entity: &SessionEntity) -> Result<(), DaoError> {
-        let session = SessionDb {
-            id: entity.id.to_string(),
-            user_id: entity.user_id.to_string(),
-            expires: entity.expires,
-            created: entity.created,
-        };
+        let id = entity.id.to_string();
+        let user_id = entity.user_id.to_string();
+        let expires = entity.expires;
+        let created = entity.created;
         query!(
             r"INSERT INTO session (id, user_id, expires, created) VALUES (?, ?, ?, ?)",
-            session.id,
-            session.user_id,
-            session.expires,
-            session.created,
+            id,
+            user_id,
+            expires,
+            created,
         )
         .execute(self.pool.as_ref())
         .await
@@ -52,7 +51,7 @@ impl SessionDao for SessionDaoImpl {
         let id = id.to_string();
         let session = query_as!(
             SessionDb,
-            r"SELECT id, user_id, expires, created FROM session WHERE id = ?",
+            r"SELECT id, user_id, expires, created, impersonate_user_id FROM session WHERE id = ?",
             id
         )
         .fetch_optional(self.pool.as_ref())
@@ -63,6 +62,7 @@ impl SessionDao for SessionDaoImpl {
             user_id: Arc::from(session.user_id),
             expires: session.expires,
             created: session.created,
+            impersonate_user_id: session.impersonate_user_id.map(Arc::from),
         }))
     }
 
@@ -71,6 +71,24 @@ impl SessionDao for SessionDaoImpl {
             .execute(self.pool.as_ref())
             .await
             .map_db_error()?;
+        Ok(())
+    }
+
+    async fn update_impersonate(
+        &self,
+        session_id: &str,
+        impersonate_user_id: Option<Arc<str>>,
+    ) -> Result<(), DaoError> {
+        let session_id = session_id.to_string();
+        let impersonate = impersonate_user_id.map(|s| s.to_string());
+        query!(
+            r"UPDATE session SET impersonate_user_id = ? WHERE id = ?",
+            impersonate,
+            session_id,
+        )
+        .execute(self.pool.as_ref())
+        .await
+        .map_db_error()?;
         Ok(())
     }
 }

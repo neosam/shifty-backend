@@ -29,4 +29,6 @@ pub mod billing_period_report;
 #[cfg(test)]
 pub mod block_report;
 #[cfg(test)]
+pub mod session;
+#[cfg(test)]
 pub mod toggle;

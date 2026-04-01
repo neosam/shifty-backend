@@ -8,6 +8,7 @@ mod booking_log;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;
+mod impersonate;
 mod my_block;
 mod permission;
 mod report;
@@ -474,6 +475,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/toggle", api = toggle::ToggleApiDoc),
         (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
+        (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -552,6 +554,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
 
     #[cfg(feature = "mock_auth")]
     let app = app.nest("/dev", dev::generate_route());
+
+    let app = app.nest("/admin/impersonate", impersonate::generate_route());
 
     let app = app
         .with_state(rest_state.clone())

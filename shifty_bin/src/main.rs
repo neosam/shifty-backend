@@ -12,8 +12,6 @@ use dao_impl_sqlite::{
     shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl, special_day::SpecialDayDaoImpl,
     BasicDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
 };
-#[cfg(feature = "mock_auth")]
-use service::permission::MockContext;
 use service::scheduler::SchedulerService;
 use service_impl::{
     carryover::CarryoverServiceDeps,
@@ -25,13 +23,7 @@ use sqlx::SqlitePool;
 #[cfg(feature = "json_logging")]
 use tracing_subscriber::fmt::format::FmtSpan;
 
-#[cfg(feature = "mock_auth")]
-type UserService = service_impl::UserServiceDev;
-#[cfg(feature = "mock_auth")]
-type Context = MockContext;
-#[cfg(feature = "oidc")]
 type UserService = service_impl::UserServiceImpl;
-#[cfg(feature = "oidc")]
 type Context = Option<Arc<str>>;
 type Transaction = TransactionImpl;
 type TransactionDao = TransactionDaoImpl;
@@ -605,12 +597,6 @@ impl RestStateImpl {
         // Always authenticate with DEVUSER during development.
         // This is used to test the permission service locally without a login service.
         //
-        // TODO: Implement a proper authentication service when used in produciton. Maybe
-        // use differnet implementations on debug then on release.  Or control it via a
-        // feature.
-        #[cfg(feature = "mock_auth")]
-        let user_service = service_impl::UserServiceDev;
-        #[cfg(feature = "oidc")]
         let user_service = service_impl::UserServiceImpl;
         let user_service = Arc::new(user_service);
         let permission_service = Arc::new(service_impl::PermissionServiceImpl {

@@ -12,6 +12,7 @@ pub struct Session {
     pub user_id: Arc<str>,
     pub expires: i64,
     pub created: i64,
+    pub impersonate_user_id: Option<Arc<str>>,
 }
 
 impl From<&SessionEntity> for Session {
@@ -21,6 +22,7 @@ impl From<&SessionEntity> for Session {
             user_id: session.user_id.clone(),
             expires: session.expires,
             created: session.created,
+            impersonate_user_id: session.impersonate_user_id.clone(),
         }
     }
 }
@@ -32,6 +34,7 @@ impl From<&Session> for SessionEntity {
             user_id: session.user_id.clone(),
             expires: session.expires,
             created: session.created,
+            impersonate_user_id: session.impersonate_user_id.clone(),
         }
     }
 }
@@ -44,4 +47,10 @@ pub trait SessionService {
     async fn new_session_for_user(&self, user_id: &str) -> Result<Session, ServiceError>;
     async fn invalidate_user_session(&self, id: &str) -> Result<(), ServiceError>;
     async fn verify_user_session(&self, id: &str) -> Result<Option<Session>, ServiceError>;
+    async fn start_impersonate(
+        &self,
+        session_id: Arc<str>,
+        target_user_id: Arc<str>,
+    ) -> Result<(), ServiceError>;
+    async fn stop_impersonate(&self, session_id: Arc<str>) -> Result<(), ServiceError>;
 }
