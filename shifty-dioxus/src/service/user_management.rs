@@ -11,7 +11,7 @@ use crate::{
     base_types::ImStr,
     error::ShiftyError,
     loader,
-    state::{shiftplan::SalesPerson, User},
+    state::{shiftplan::SalesPerson, ShiftplanAssignment, User},
 };
 
 use super::{
@@ -23,7 +23,7 @@ use super::{
 pub struct SelectedSalesPerson {
     pub sales_person: SalesPerson,
     pub user_id: Option<ImStr>,
-    pub shiftplan_assignments: Vec<Uuid>,
+    pub shiftplan_assignments: Vec<ShiftplanAssignment>,
 }
 impl SelectedSalesPerson {
     pub fn new(sales_person: SalesPerson) -> Self {
@@ -320,7 +320,7 @@ pub enum UserManagementAction {
     RevokeInvitationSession(Uuid),
     LoadShiftplanCatalog,
     LoadShiftplanAssignments(Uuid),
-    UpdateShiftplanAssignments(Vec<Uuid>),
+    UpdateShiftplanAssignments(Vec<ShiftplanAssignment>),
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {

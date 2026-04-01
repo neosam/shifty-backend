@@ -492,5 +492,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     // Shiftplan assignments
     i18n.add_text(Locale::En, Key::ShiftplanAssignments, "Shiftplan Assignments");
     i18n.add_text(Locale::En, Key::ShiftplanAssignmentsInfo, "No selection means this person is eligible for all shiftplans.");
+    i18n.add_text(Locale::En, Key::PermissionLevelAvailable, "Available");
+    i18n.add_text(Locale::En, Key::PermissionLevelPlannerOnly, "Planner Only");
     i18n.add_text(Locale::En, Key::BookingForbidden, "This person is not eligible for this shiftplan.");
 }

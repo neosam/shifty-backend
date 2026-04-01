@@ -20,4 +20,5 @@ pub use shiftplan::Shiftplan;
 pub use shiftplan::Slot;
 pub use shiftplan::ViewMode;
 pub use shiftplan::Weekday;
+pub use user_management::ShiftplanAssignment;
 pub use user_management::User;

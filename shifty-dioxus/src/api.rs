@@ -16,7 +16,7 @@ use crate::{
     base_types::ImStr,
     error::ShiftyError,
     js,
-    state::{AuthInfo, Config},
+    state::{AuthInfo, Config, ShiftplanAssignment},
 };
 
 pub async fn fetch_auth_info(backend_url: Rc<str>) -> Result<Option<AuthInfo>, reqwest::Error> {
@@ -1125,7 +1125,7 @@ pub async fn revoke_session_for_invitation(
 pub async fn get_shiftplan_assignments(
     config: Config,
     sales_person_id: Uuid,
-) -> Result<Vec<Uuid>, reqwest::Error> {
+) -> Result<Vec<ShiftplanAssignment>, reqwest::Error> {
     info!("Fetching shiftplan assignments for sales person {sales_person_id}");
     let url = format!(
         "{}/sales-person-shiftplan/{}/shiftplans",
@@ -1141,7 +1141,7 @@ pub async fn get_shiftplan_assignments(
 pub async fn set_shiftplan_assignments(
     config: Config,
     sales_person_id: Uuid,
-    shiftplan_ids: &[Uuid],
+    assignments: &[ShiftplanAssignment],
 ) -> Result<(), reqwest::Error> {
     info!("Setting shiftplan assignments for sales person {sales_person_id}");
     let url = format!(
@@ -1149,7 +1149,7 @@ pub async fn set_shiftplan_assignments(
         config.backend, sales_person_id
     );
     let client = reqwest::Client::new();
-    let response = client.put(url).json(shiftplan_ids).send().await?;
+    let response = client.put(url).json(assignments).send().await?;
     response.error_for_status_ref()?;
     info!("Set shiftplan assignments");
     Ok(())

@@ -374,11 +374,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 Err(crate::error::ShiftyError::Reqwest(ref e))
                                     if e.status() == Some(reqwest::StatusCode::FORBIDDEN) =>
                                 {
-                                    let i18n = I18N.read();
-                                    web_sys::window()
-                                        .expect("no window")
-                                        .alert_with_message(&i18n.t(Key::BookingForbidden))
-                                        .ok();
+                                    // Silently ignore forbidden booking errors
                                 }
                                 Err(e) => {
                                     crate::error::error_handler(e);

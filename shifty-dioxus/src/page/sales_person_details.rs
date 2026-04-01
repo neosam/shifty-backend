@@ -6,7 +6,7 @@ use crate::{
     i18n::Key,
     router::Route,
     service::{self, user_management::UserManagementAction, i18n::I18N},
-    state::shiftplan::SalesPerson,
+    state::{shiftplan::SalesPerson, ShiftplanAssignment},
 };
 use uuid::Uuid;
 
@@ -229,27 +229,66 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 let assignments = sales_person.shiftplan_assignments.clone();
                                 rsx! {
                                     for shiftplan in catalog.iter() {
-                                        div { class: "border-b-2 border-gray-200 border-dashed p-2",
-                                            Checkbox {
-                                                value: Some(assignments.contains(&shiftplan.id)),
-                                                on_change: Some({
-                                                    let shiftplan_id = shiftplan.id;
-                                                    let assignments = assignments.clone();
-                                                    EventHandler::new(move |checked: bool| {
-                                                        let mut new_assignments = assignments.clone();
-                                                        if checked {
-                                                            if !new_assignments.contains(&shiftplan_id) {
-                                                                new_assignments.push(shiftplan_id);
-                                                            }
-                                                        } else {
-                                                            new_assignments.retain(|id| *id != shiftplan_id);
+                                        {
+                                            let current_assignment = assignments.iter().find(|a| a.shiftplan_id == shiftplan.id).cloned();
+                                            let is_assigned = current_assignment.is_some();
+                                            rsx! {
+                                                div { class: "border-b-2 border-gray-200 border-dashed p-2",
+                                                    div { class: "flex items-center gap-3",
+                                                        Checkbox {
+                                                            value: Some(is_assigned),
+                                                            on_change: Some({
+                                                                let shiftplan_id = shiftplan.id;
+                                                                let assignments = assignments.clone();
+                                                                EventHandler::new(move |checked: bool| {
+                                                                    let mut new_assignments = assignments.clone();
+                                                                    if checked {
+                                                                        if !new_assignments.iter().any(|a| a.shiftplan_id == shiftplan_id) {
+                                                                            new_assignments.push(ShiftplanAssignment {
+                                                                                shiftplan_id,
+                                                                                permission_level: "available".to_string(),
+                                                                            });
+                                                                        }
+                                                                    } else {
+                                                                        new_assignments.retain(|a| a.shiftplan_id != shiftplan_id);
+                                                                    }
+                                                                    user_management_service.send(
+                                                                        UserManagementAction::UpdateShiftplanAssignments(new_assignments),
+                                                                    );
+                                                                })
+                                                            }),
+                                                            "{shiftplan.name}"
                                                         }
-                                                        user_management_service.send(
-                                                            UserManagementAction::UpdateShiftplanAssignments(new_assignments),
-                                                        );
-                                                    })
-                                                }),
-                                                "{shiftplan.name}"
+                                                        if let Some(assignment) = &current_assignment {
+                                                            select {
+                                                                class: "ml-auto text-sm border border-gray-300 rounded px-2 py-1",
+                                                                value: "{assignment.permission_level}",
+                                                                onchange: {
+                                                                    let shiftplan_id = shiftplan.id;
+                                                                    let assignments = assignments.clone();
+                                                                    move |evt: Event<FormData>| {
+                                                                        let new_level = evt.value();
+                                                                        let new_assignments: Vec<ShiftplanAssignment> = assignments.iter().map(|a| {
+                                                                            if a.shiftplan_id == shiftplan_id {
+                                                                                ShiftplanAssignment {
+                                                                                    shiftplan_id: a.shiftplan_id,
+                                                                                    permission_level: new_level.clone(),
+                                                                                }
+                                                                            } else {
+                                                                                a.clone()
+                                                                            }
+                                                                        }).collect();
+                                                                        user_management_service.send(
+                                                                            UserManagementAction::UpdateShiftplanAssignments(new_assignments),
+                                                                        );
+                                                                    }
+                                                                },
+                                                                option { value: "available", "{i18n.t(Key::PermissionLevelAvailable)}" }
+                                                                option { value: "planner_only", "{i18n.t(Key::PermissionLevelPlannerOnly)}" }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

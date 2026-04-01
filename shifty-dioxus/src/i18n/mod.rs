@@ -346,6 +346,8 @@ pub enum Key {
     // Shiftplan assignments
     ShiftplanAssignments,
     ShiftplanAssignmentsInfo,
+    PermissionLevelAvailable,
+    PermissionLevelPlannerOnly,
     BookingForbidden,
 }
 
