@@ -31,6 +31,7 @@ pub enum WorkingHoursCategory {
     SickLeave,
     Holiday,
     Unavailable,
+    UnpaidLeave,
     Custom(Uuid),
 }
 impl WorkingHoursCategory {
@@ -49,6 +50,9 @@ impl WorkingHoursCategory {
     pub fn is_unavailable(&self) -> bool {
         matches!(self, WorkingHoursCategory::Unavailable)
     }
+    pub fn is_unpaid_leave(&self) -> bool {
+        matches!(self, WorkingHoursCategory::UnpaidLeave)
+    }
     pub fn is_custom_with_id(&self, id: Uuid) -> bool {
         matches!(self, WorkingHoursCategory::Custom(custom_id) if *custom_id == id)
     }
@@ -61,6 +65,7 @@ impl WorkingHoursCategory {
             WorkingHoursCategory::SickLeave => "sick_leave".into(),
             WorkingHoursCategory::Holiday => "holiday".into(),
             WorkingHoursCategory::Unavailable => "unavailable".into(),
+            WorkingHoursCategory::UnpaidLeave => "unpaid_leave".into(),
             WorkingHoursCategory::Custom(_) => "custom".into(),
         }
     }
@@ -73,6 +78,7 @@ impl WorkingHoursCategory {
             "sick_leave" => WorkingHoursCategory::SickLeave,
             "holiday" => WorkingHoursCategory::Holiday,
             "unavailable" => WorkingHoursCategory::Unavailable,
+            "unpaid_leave" => WorkingHoursCategory::UnpaidLeave,
             _ => panic!("Unknown working hours category: {}", identifier),
         }
     }
@@ -85,6 +91,7 @@ impl WorkingHoursCategory {
             WorkingHoursCategory::SickLeave => i18n::Key::CategorySickLeave,
             WorkingHoursCategory::Holiday => i18n::Key::CategoryHolidays,
             WorkingHoursCategory::Unavailable => i18n::Key::CategoryUnavailable,
+            WorkingHoursCategory::UnpaidLeave => i18n::Key::CategoryUnpaidLeave,
             WorkingHoursCategory::Custom(_) => i18n::Key::CategoryCustom,
         }
     }
@@ -100,6 +107,7 @@ impl Display for WorkingHoursCategory {
             WorkingHoursCategory::SickLeave => write!(f, "Sick leave"),
             WorkingHoursCategory::Holiday => write!(f, "Holiday"),
             WorkingHoursCategory::Unavailable => write!(f, "Unavailable"),
+            WorkingHoursCategory::UnpaidLeave => write!(f, "Unpaid Leave"),
             WorkingHoursCategory::Custom(id) => write!(f, "Custom: {}", id),
         }
     }
@@ -114,6 +122,7 @@ impl From<&ExtraHoursReportCategoryTO> for WorkingHoursCategory {
             ExtraHoursReportCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursReportCategoryTO::Holiday => WorkingHoursCategory::Holiday,
             ExtraHoursReportCategoryTO::Unavailable => WorkingHoursCategory::Unavailable,
+            ExtraHoursReportCategoryTO::UnpaidLeave => WorkingHoursCategory::UnpaidLeave,
             ExtraHoursReportCategoryTO::Custom(id) => WorkingHoursCategory::Custom(*id),
         }
     }
@@ -126,6 +135,7 @@ impl From<&WorkingHoursCategory> for ExtraHoursCategoryTO {
             WorkingHoursCategory::SickLeave => ExtraHoursCategoryTO::SickLeave,
             WorkingHoursCategory::Holiday => ExtraHoursCategoryTO::Holiday,
             WorkingHoursCategory::Unavailable => ExtraHoursCategoryTO::Unavailable,
+            WorkingHoursCategory::UnpaidLeave => ExtraHoursCategoryTO::UnpaidLeave,
             WorkingHoursCategory::Custom(id) => ExtraHoursCategoryTO::Custom(*id),
             _ => panic!(
                 "Cannot convert working hours category to extra hours category: {:?}",
@@ -142,6 +152,7 @@ impl From<&ExtraHoursCategoryTO> for WorkingHoursCategory {
             ExtraHoursCategoryTO::SickLeave => WorkingHoursCategory::SickLeave,
             ExtraHoursCategoryTO::Holiday => WorkingHoursCategory::Holiday,
             ExtraHoursCategoryTO::Unavailable => WorkingHoursCategory::Unavailable,
+            ExtraHoursCategoryTO::UnpaidLeave => WorkingHoursCategory::UnpaidLeave,
             ExtraHoursCategoryTO::Custom(id) => WorkingHoursCategory::Custom(*id),
         }
     }
@@ -169,6 +180,7 @@ pub struct WorkingHours {
     pub vacation_days: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+    pub unpaid_leave_hours: f32,
 
     pub days: Rc<[WorkingHoursDay]>,
 }
@@ -187,6 +199,7 @@ impl From<&WorkingHoursReportTO> for WorkingHours {
             vacation_days: working_hours.vacation_days,
             sick_leave_hours: working_hours.sick_leave_hours,
             holiday_hours: working_hours.holiday_hours,
+            unpaid_leave_hours: working_hours.unpaid_leave_hours,
             days: working_hours
                 .days
                 .iter()
@@ -252,6 +265,7 @@ pub struct Employee {
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+    pub unpaid_leave_hours: f32,
 
     pub vacation_days: f32,
     pub vacation_entitlement: f32,
@@ -275,6 +289,7 @@ impl From<&ShortEmployeeReportTO> for Employee {
             vacation_hours: 0.0,
             sick_leave_hours: 0.0,
             holiday_hours: 0.0,
+            unpaid_leave_hours: 0.0,
             vacation_days: 0.0,
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
@@ -303,6 +318,7 @@ impl From<&EmployeeReportTO> for Employee {
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
             holiday_hours: report.holiday_hours,
+            unpaid_leave_hours: report.unpaid_leave_hours,
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
             vacation_carryover: report.vacation_carryover,

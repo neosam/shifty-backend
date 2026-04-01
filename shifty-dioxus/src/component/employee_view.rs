@@ -137,6 +137,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unavailable_str = i18n.t(Key::CategoryUnavailable);
+    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
     let hours_str = i18n.t(Key::Hours);
     let work_hours_description_str = i18n.t(Key::WorkHoursDescription);
     let unavailable_description_str = i18n.t(Key::UnavailableDescription);
@@ -245,6 +246,26 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                 }
             }
 
+            h2 { class: "text-lg font-bold mt-8", "{unpaid_leave_str}" }
+
+            ul {
+                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_unpaid_leave()) {
+                    {
+                        let extra_hours_id = extra_hours.id;
+                        rsx! {
+                            li { key: "{extra_hours_id}", class: "mb-1",
+                                TripleView {
+                                    label: i18n.format_date(&extra_hours.date_time.date()),
+                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
+                                    description: format!("{}", extra_hours.description).into(),
+                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Custom Extra Hours Section
             for custom_hour_category in props.custom_hours.iter() {
                 h2 { class: "text-lg font-bold mt-8", "{custom_hour_category.name}" }
@@ -295,6 +316,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
     let vacation_days_str = i18n.t(Key::VacationDaysLabel);
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
+    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let hours_str = i18n.t(Key::Hours);
@@ -379,6 +401,12 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                         TupleView {
                             label: holidays_str.clone(),
                             value: format!("{:.2} {hours_str}", props.working_hours.holiday_hours).into(),
+                        }
+                    }
+                    li {
+                        TupleView {
+                            label: unpaid_leave_str.clone(),
+                            value: format!("{:.2} {hours_str}", props.working_hours.unpaid_leave_hours).into(),
                         }
                     }
                 }
@@ -466,6 +494,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let vacation_str = i18n.t(Key::CategoryVacation);
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
+    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let hours_str = i18n.t(Key::Hours);
@@ -605,6 +634,12 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             TupleView {
                                 label: holidays_str.clone(),
                                 value: format!("{:.2} {}", props.employee.holiday_hours, hours_str.clone()).into(),
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: unpaid_leave_str.clone(),
+                                value: format!("{:.2} {}", props.employee.unpaid_leave_hours, hours_str.clone()).into(),
                             }
                         }
                         li {

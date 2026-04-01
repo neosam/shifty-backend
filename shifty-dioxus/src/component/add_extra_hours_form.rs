@@ -55,6 +55,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unavailable_str = i18n.t(Key::CategoryUnavailable);
+    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
 
     let cr = use_coroutine(move |mut rx: UnboundedReceiver<AddExtraHoursFormAction>| {
         to_owned![category, amount, description, when, config, custom_extra_hours];
@@ -172,6 +173,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     option { value: "sick_leave", "{sick_leave_str}" }
                     option { value: "vacation_days", "{vacation_days_str}" }
                     option { value: "unavailable", "{unavailable_str}" }
+                    option { value: "unpaid_leave", "{unpaid_leave_str}" }
                     if !custom_extra_hours.read().is_empty() {
                         option { disabled: true, "──────────" }
                         for custom_hour in custom_extra_hours.read().iter() {

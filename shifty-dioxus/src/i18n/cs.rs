@@ -106,6 +106,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::CategorySickLeave, "Nemocenská");
     i18n.add_text(Locale::Cs, Key::CategoryHolidays, "Svátky");
     i18n.add_text(Locale::Cs, Key::CategoryUnavailable, "Nedostupný");
+    i18n.add_text(Locale::Cs, Key::CategoryUnpaidLeave, "Neplacené volno");
     i18n.add_text(Locale::Cs, Key::CategoryCustom, "Vlastní");
 
     i18n.add_text(Locale::Cs, Key::VacationDaysLabel, "Dny dovolené");

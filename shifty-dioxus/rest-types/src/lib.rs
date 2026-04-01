@@ -380,6 +380,7 @@ pub enum ExtraHoursReportCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    UnpaidLeave,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
@@ -434,6 +435,7 @@ pub struct WorkingHoursReportTO {
     pub sick_leave_days: f32,
     pub holiday_hours: f32,
     pub holiday_days: f32,
+    pub unpaid_leave_hours: f32,
     pub absence_days: f32,
 
     pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
@@ -486,6 +488,7 @@ pub struct EmployeeReportTO {
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+    pub unpaid_leave_hours: f32,
 
     pub vacation_carryover: i32,
     pub vacation_days: f32,
@@ -655,6 +658,7 @@ pub enum ExtraHoursCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    UnpaidLeave,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]

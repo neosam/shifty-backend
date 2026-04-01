@@ -107,6 +107,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategorySickLeave, "Sick leave");
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Holiday");
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
+    i18n.add_text(Locale::En, Key::CategoryUnpaidLeave, "Unpaid Leave");
     i18n.add_text(Locale::En, Key::CategoryCustom, "Custom");
 
     i18n.add_text(Locale::En, Key::VacationDaysLabel, "Vacation days");
