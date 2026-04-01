@@ -168,6 +168,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 sick_leave_hours: f32,
                 holiday_hours: f32,
                 unavailable_hours: f32,
+                unpaid_leave_hours: f32,
                 custom_absence_hours: HashMap<(Uuid, Arc<str>), f32>,
             }
 
@@ -235,6 +236,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             sick_leave_hours: 0.0,
                             holiday_hours: 0.0,
                             unavailable_hours: 0.0,
+                            unpaid_leave_hours: 0.0,
                             custom_absence_hours: HashMap::new(),
                         }
                     } else {
@@ -284,6 +286,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                                 }
                             }
                         }
+                        let unpaid_leave_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>();
                         WeeklyHours {
                             shiftplan_hours,
                             extra_working_hours,
@@ -294,6 +301,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             sick_leave_hours,
                             holiday_hours,
                             unavailable_hours,
+                            unpaid_leave_hours,
                             custom_absence_hours,
                         }
                     }
@@ -310,6 +318,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         acc.sick_leave_hours += week.sick_leave_hours;
                         acc.holiday_hours += week.holiday_hours;
                         acc.unavailable_hours += week.unavailable_hours;
+                        acc.unpaid_leave_hours += week.unpaid_leave_hours;
                         for ((id, name), hours) in week.custom_absence_hours {
                             *acc.custom_absence_hours.entry((id, name)).or_insert(0.0) += hours;
                         }
@@ -335,6 +344,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 sick_leave_hours: weekly_hours.sick_leave_hours,
                 holiday_hours: weekly_hours.holiday_hours,
                 unavailable_hours: weekly_hours.unavailable_hours,
+                unpaid_leave_hours: weekly_hours.unpaid_leave_hours,
                 custom_absence_hours,
             });
         }
@@ -529,6 +539,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
+            unpaid_leave_hours: extra_hours
+                .iter()
+                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::UnpaidLeave)
+                .map(|extra_hours| extra_hours.amount)
+                .sum(),
             carryover_hours: previous_year_carryover,
             by_week,
             by_month: Arc::new([]),
@@ -625,6 +640,14 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .sum::<f32>()
                 })
                 .unwrap_or(0.0);
+            let unpaid_leave_hours = employee_extra_hours
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
             let custom_absence_hours: Arc<[CustomExtraHours]> = {
                 let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
                 if let Some(eh_list) = employee_extra_hours {
@@ -667,6 +690,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 sick_leave_hours,
                 holiday_hours,
                 unavailable_hours,
+                unpaid_leave_hours,
                 custom_absence_hours,
             });
         }
@@ -891,6 +915,11 @@ fn hours_per_week(
                 .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
                 .map(|eh| eh.amount)
                 .sum(),
+            unpaid_leave_hours: filtered_extra_hours_list
+                .iter()
+                .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
+                .map(|eh| eh.amount)
+                .sum(),
             custom_extra_hours,
             days: day_list.iter().cloned().collect(),
         });
@@ -1079,6 +1108,118 @@ mod test_dynamic_vacation_days {
             (week.vacation_days() - 2.0).abs() < 0.01,
             "Expected 2.0 vacation days for non-dynamic, got {}",
             week.vacation_days()
+        );
+    }
+
+    fn create_unpaid_leave_extra_hours(date: time::PrimitiveDateTime, amount: f32) -> ExtraHours {
+        ExtraHours {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            amount,
+            category: ExtraHoursCategory::UnpaidLeave,
+            description: "Unpaid leave".into(),
+            date_time: date,
+            created: Some(datetime!(2024-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    #[test]
+    fn test_unpaid_leave_tracked_separately() {
+        let work_details = create_work_details(false);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_vacation_extra_hours(datetime!(2024-03-04 08:00:00), 8.0),
+            create_unpaid_leave_extra_hours(datetime!(2024-03-05 08:00:00), 8.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let week = &result[0];
+        assert_eq!(week.vacation_hours, 8.0);
+        assert_eq!(week.unpaid_leave_hours, 8.0);
+    }
+
+    #[test]
+    fn test_unpaid_leave_does_not_affect_vacation_days() {
+        let work_details = create_work_details(false);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_vacation_extra_hours(datetime!(2024-03-04 08:00:00), 24.0),
+            create_unpaid_leave_extra_hours(datetime!(2024-03-05 08:00:00), 16.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let week = &result[0];
+        // Vacation days should only consider vacation hours (24h / 8h per day = 3 days)
+        assert!(
+            (week.vacation_days() - 3.0).abs() < 0.01,
+            "Expected 3.0 vacation days, got {}",
+            week.vacation_days()
+        );
+    }
+
+    #[test]
+    fn test_unpaid_leave_included_in_absence_days() {
+        let work_details = create_work_details(false);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_vacation_extra_hours(datetime!(2024-03-04 08:00:00), 8.0),
+            create_unpaid_leave_extra_hours(datetime!(2024-03-05 08:00:00), 8.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let week = &result[0];
+        // absence_days = (vacation 8 + sick 0 + holiday 0 + unpaid_leave 8) / 8 hours_per_day = 2
+        assert!(
+            (week.absence_days() - 2.0).abs() < 0.01,
+            "Expected 2.0 absence days, got {}",
+            week.absence_days()
+        );
+    }
+
+    #[test]
+    fn test_unpaid_leave_reduces_expected_hours() {
+        let work_details = create_work_details(false);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+
+        let extra_hours: Arc<[ExtraHours]> = Arc::new([
+            create_unpaid_leave_extra_hours(datetime!(2024-03-04 08:00:00), 8.0),
+        ]);
+
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            create_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Thursday, 8.0),
+            create_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let week = &result[0];
+        // Expected hours: 40 (contract) - 8 (unpaid leave absence) = 32
+        assert!(
+            (week.expected_hours - 32.0).abs() < 0.01,
+            "Expected 32.0 expected hours, got {}",
+            week.expected_hours
+        );
+        // Balance should be neutral: overall(32) - expected(32) = 0
+        assert!(
+            week.balance.abs() < 0.01,
+            "Expected ~0 balance, got {}",
+            week.balance
         );
     }
 }

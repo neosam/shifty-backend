@@ -37,6 +37,7 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
                 "SickLeave" => ExtraHoursCategoryEntity::SickLeave,
                 "Holiday" => ExtraHoursCategoryEntity::Holiday,
                 "Unavailable" => ExtraHoursCategoryEntity::Unavailable,
+                "UnpaidLeave" => ExtraHoursCategoryEntity::UnpaidLeave,
                 "Custom" => ExtraHoursCategoryEntity::Custom(Uuid::from_slice(
                     extra_hours.custom_extra_hours_id.as_ref(),
                 )?),
@@ -157,6 +158,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             ExtraHoursCategoryEntity::SickLeave => "SickLeave",
             ExtraHoursCategoryEntity::Holiday => "Holiday",
             ExtraHoursCategoryEntity::Unavailable => "Unavailable",
+            ExtraHoursCategoryEntity::UnpaidLeave => "UnpaidLeave",
             ExtraHoursCategoryEntity::Custom(_) => "Custom",
         };
         let custom_extra_hours_id = match entity.category {

@@ -405,6 +405,7 @@ pub enum ExtraHoursReportCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    UnpaidLeave,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
@@ -417,6 +418,7 @@ impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCat
             service::reporting::ExtraHoursReportCategory::SickLeave => Self::SickLeave,
             service::reporting::ExtraHoursReportCategory::Holiday => Self::Holiday,
             service::reporting::ExtraHoursReportCategory::Unavailable => Self::Unavailable,
+            service::reporting::ExtraHoursReportCategory::UnpaidLeave => Self::UnpaidLeave,
             service::reporting::ExtraHoursReportCategory::Custom(lazy) => Self::Custom(*lazy.key()),
         }
     }
@@ -459,6 +461,7 @@ pub struct WorkingHoursReportTO {
     pub sick_leave_days: f32,
     pub holiday_hours: f32,
     pub holiday_days: f32,
+    pub unpaid_leave_hours: f32,
     pub absence_days: f32,
 
     pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
@@ -486,6 +489,7 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             sick_leave_days: hours.sick_leave_days(),
             holiday_hours: hours.holiday_hours,
             holiday_days: hours.holiday_days(),
+            unpaid_leave_hours: hours.unpaid_leave_hours,
             absence_days: hours.absence_days(),
             custom_extra_hours: hours
                 .custom_extra_hours
@@ -511,6 +515,7 @@ pub struct EmployeeReportTO {
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
+    pub unpaid_leave_hours: f32,
 
     pub vacation_carryover: i32,
     pub vacation_days: f32,
@@ -540,6 +545,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             vacation_hours: report.vacation_hours,
             sick_leave_hours: report.sick_leave_hours,
             holiday_hours: report.holiday_hours,
+            unpaid_leave_hours: report.unpaid_leave_hours,
             vacation_carryover: report.vacation_carryover,
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
@@ -680,6 +686,7 @@ pub enum ExtraHoursCategoryTO {
     SickLeave,
     Holiday,
     Unavailable,
+    UnpaidLeave,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
@@ -691,6 +698,7 @@ impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
             service::extra_hours::ExtraHoursCategory::SickLeave => Self::SickLeave,
             service::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
             service::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
+            service::extra_hours::ExtraHoursCategory::UnpaidLeave => Self::UnpaidLeave,
             service::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy) => {
                 Self::Custom(*lazy.key())
             }
@@ -706,6 +714,7 @@ impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
             ExtraHoursCategoryTO::SickLeave => Self::SickLeave,
             ExtraHoursCategoryTO::Holiday => Self::Holiday,
             ExtraHoursCategoryTO::Unavailable => Self::Unavailable,
+            ExtraHoursCategoryTO::UnpaidLeave => Self::UnpaidLeave,
             ExtraHoursCategoryTO::Custom(id) => Self::CustomExtraHours(LazyLoad::new(*id)),
         }
     }

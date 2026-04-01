@@ -43,6 +43,7 @@ pub enum ExtraHoursCategory {
     SickLeave,
     Holiday,
     Unavailable,
+    UnpaidLeave,
     CustomExtraHours(LazyLoad<Uuid, CustomExtraHours>),
 }
 impl ExtraHoursCategory {
@@ -52,6 +53,7 @@ impl ExtraHoursCategory {
             Self::Vacation => ReportType::AbsenceHours,
             Self::SickLeave => ReportType::AbsenceHours,
             Self::Holiday => ReportType::AbsenceHours,
+            Self::UnpaidLeave => ReportType::AbsenceHours,
             Self::Unavailable => ReportType::None,
             Self::CustomExtraHours(custom_extra_hours) => {
                 if let Some(custom_extra_hours) = custom_extra_hours.get() {
@@ -73,6 +75,7 @@ impl ExtraHoursCategory {
             Self::Vacation => Availability::Unavailable,
             Self::SickLeave => Availability::Unavailable,
             Self::Holiday => Availability::Unavailable,
+            Self::UnpaidLeave => Availability::Unavailable,
             Self::Unavailable => Availability::Unavailable,
             Self::CustomExtraHours(hours) => {
                 if let Some(hours) = hours.get() {
@@ -97,6 +100,7 @@ impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
             dao::extra_hours::ExtraHoursCategoryEntity::SickLeave => Self::SickLeave,
             dao::extra_hours::ExtraHoursCategoryEntity::Holiday => Self::Holiday,
             dao::extra_hours::ExtraHoursCategoryEntity::Unavailable => Self::Unavailable,
+            dao::extra_hours::ExtraHoursCategoryEntity::UnpaidLeave => Self::UnpaidLeave,
             dao::extra_hours::ExtraHoursCategoryEntity::Custom(id) => {
                 Self::CustomExtraHours(LazyLoad::new(*id))
             }
@@ -111,6 +115,7 @@ impl From<&ExtraHoursCategory> for dao::extra_hours::ExtraHoursCategoryEntity {
             ExtraHoursCategory::SickLeave => Self::SickLeave,
             ExtraHoursCategory::Holiday => Self::Holiday,
             ExtraHoursCategory::Unavailable => Self::Unavailable,
+            ExtraHoursCategory::UnpaidLeave => Self::UnpaidLeave,
             ExtraHoursCategory::CustomExtraHours(lazy) => Self::Custom(*lazy.key()),
         }
     }
@@ -217,4 +222,25 @@ pub trait ExtraHoursService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unpaid_leave_report_type_is_absence_hours() {
+        assert_eq!(
+            ExtraHoursCategory::UnpaidLeave.as_report_type(),
+            ReportType::AbsenceHours
+        );
+    }
+
+    #[test]
+    fn test_unpaid_leave_availability_is_unavailable() {
+        assert_eq!(
+            ExtraHoursCategory::UnpaidLeave.availability(),
+            Availability::Unavailable
+        );
+    }
 }
