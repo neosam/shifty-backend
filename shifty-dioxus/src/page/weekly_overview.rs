@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use futures_util::StreamExt;
 
 use crate::{
-    component::TopBar,
+    component::{TopBar, WeeklyOverviewChart},
     js,
     service::{
         i18n::I18N, weekly_summary::WeeklySummaryAction, weekly_summary::WEEKLY_SUMMARY_STORE,
@@ -71,6 +71,7 @@ pub fn WeeklyOverview() -> Element {
                         ">"
                     }
                 }
+                WeeklyOverviewChart { weeks: weekly_summary.weekly_summary.clone() }
                 div {
                     table { class: "table-auto w-full mt-4",
                         thead { class: "text-left",

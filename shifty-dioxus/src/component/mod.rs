@@ -16,6 +16,7 @@ pub mod slot_edit;
 pub mod tooltip;
 pub mod top_bar;
 pub mod week_view;
+pub mod weekly_overview_chart;
 pub mod error_view;
 pub mod working_hours_mini_overview;
 
@@ -27,3 +28,4 @@ pub use footer::Footer;
 pub use modal::Modal;
 pub use top_bar::TopBar;
 pub use week_view::WeekView;
+pub use weekly_overview_chart::WeeklyOverviewChart;

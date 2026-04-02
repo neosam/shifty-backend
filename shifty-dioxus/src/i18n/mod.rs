@@ -344,6 +344,9 @@ pub enum Key {
     ViewModeWeek,
     ViewModeDay,
 
+    // Weekly overview chart
+    ChartRequiredHours,
+
     // Shiftplan assignments
     ShiftplanAssignments,
     ShiftplanAssignmentsInfo,
