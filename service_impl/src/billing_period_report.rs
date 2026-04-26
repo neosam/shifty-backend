@@ -28,6 +28,14 @@ use crate::gen_service_impl;
 
 const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 
+/// Schema version stamped on every newly persisted `billing_period` snapshot.
+///
+/// Bump by one whenever you add, remove, rename, or change the computation of
+/// any persisted `value_type` on `billing_period_sales_person`. See
+/// `CLAUDE.md` → "Billing Period Snapshot Schema Versioning" for the rationale
+/// and the full list of trigger conditions.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
+
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
         BillingPeriodService: BillingPeriodService<Context = Self::Context, Transaction = Self::Transaction> = billing_period_service,
@@ -267,6 +275,7 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
             id: Uuid::nil(),
             start_date,
             end_date,
+            snapshot_schema_version: CURRENT_SNAPSHOT_SCHEMA_VERSION,
             sales_persons: sales_person_reports.into(),
             created_at: datetime!(1970-01-01 00:00:00),
             created_by: "".into(),

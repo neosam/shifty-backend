@@ -15,6 +15,7 @@ struct BillingPeriodDb {
     id: Vec<u8>,
     from_date_time: String,
     to_date_time: String,
+    snapshot_schema_version: i64,
     created: String,
     created_by: String,
     deleted: Option<String>,
@@ -62,6 +63,7 @@ impl TryFrom<&BillingPeriodDb> for BillingPeriodEntity {
             id: Uuid::from_slice(&db.id).unwrap(),
             start_date,
             end_date,
+            snapshot_schema_version: db.snapshot_schema_version as u32,
             created_at,
             created_by: db.created_by.as_str().into(),
             deleted_at,
@@ -90,7 +92,7 @@ impl BillingPeriodDao for BillingPeriodDaoImpl {
     ) -> Result<Arc<[BillingPeriodEntity]>, DaoError> {
         Ok(query_as!(
             BillingPeriodDb,
-            "SELECT id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version as _update_version FROM billing_period"
+            "SELECT id, from_date_time, to_date_time, snapshot_schema_version, created, created_by, deleted, deleted_by, update_version as _update_version FROM billing_period"
         )
         .fetch_all(tx.tx.lock().await.as_mut())
         .await
@@ -132,12 +134,14 @@ impl BillingPeriodDao for BillingPeriodDaoImpl {
             .map_db_error()?;
         let deleted_by = entity.deleted_by.as_ref().map(|s| s.as_ref());
         let version_vec = Uuid::new_v4().as_bytes().to_vec();
+        let snapshot_schema_version = entity.snapshot_schema_version as i64;
 
         query!(
-            "INSERT INTO billing_period (id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO billing_period (id, from_date_time, to_date_time, snapshot_schema_version, created, created_by, deleted, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             from_date_time,
             to_date_time,
+            snapshot_schema_version,
             created,
             created_by,
             deleted,

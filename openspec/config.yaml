@@ -48,6 +48,7 @@ context: |
   - i18n: Three languages (En, De, Cs) — add translations for all three
   - Feature flags: mock_auth, oidc, local_logging, json_logging
   - All artifacts and documentation in English
+  - Billing period snapshot schema versioning: persisted `billing_period` rows carry a `snapshot_schema_version` stamped from `service_impl::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION`. Bump that constant by one whenever a change adds, removes, renames, or alters the computation of any persisted `value_type` on `billing_period_sales_person`, so snapshot validators can distinguish a schema change from a data bug.
 
 rules:
   proposal:
@@ -60,5 +61,6 @@ rules:
     - "Phase 1 (Scaffolding): Add new fields, types, dependencies, and stub methods with todo!() or unimplemented!() — just enough to make the project compile. Do NOT write actual implementation logic (e.g., SQL queries, business logic) in this phase."
     - "Phase 2 (Red): Write all tests based on the spec requirements. Tests should compile but fail because the stubs are not yet implemented."
     - "Phase 3 (Green): Implement the actual logic until all tests pass."
-  spec:
+    - "If the change adds, removes, renames, or alters the computation of any persisted `value_type` on `billing_period_sales_person`, include an explicit subtask to bump `service_impl::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION` by one (see CLAUDE.md → Billing Period Snapshot Schema Versioning)."
+  specs:
     - Write all content in English

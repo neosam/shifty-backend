@@ -163,6 +163,19 @@ When adding new REST endpoints, always include:
 - REST layer maps errors to appropriate HTTP status codes
 - Comprehensive error contexts throughout the stack
 
+### Billing Period Snapshot Schema Versioning
+Every persisted `billing_period` row carries a `snapshot_schema_version` stamped at write time. The single source of truth is `service_impl::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION` (a `pub const u32`). The writer in `build_and_persist_billing_period_report()` reads this constant and writes its value into the new column.
+
+**You MUST bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` by one whenever you:**
+- Add a new persisted `value_type` to `billing_period_sales_person` (e.g., extending the `BillingPeriodValueType` enum with a row that gets written by the snapshot builder).
+- Remove or rename an existing persisted `value_type`.
+- Change the computation that produces an existing `value_type` (different formula, different inputs, different filtering — anything that would make a fresh re-computation disagree with an older snapshot for the same period).
+- Change the input set the computation reads from (e.g., starting/stopping to include a category of `extra_hours`).
+
+**Why:** Snapshots are write-once and consumed later by validators that re-run the live computation and diff. Without a version bump, drift caused by a schema change is indistinguishable from a real data bug. The version lets validators ask "was this snapshot written under the same rules I am using now?" and answer correctly. See `openspec/changes/billing-period-snapshot-versioning/design.md` for the full rationale.
+
+**You do NOT need to bump for:** purely additive changes that do not touch the snapshot's `value_type`s (e.g., new REST endpoints, frontend changes, new fields on unrelated tables, refactors of the writer that produce identical output).
+
 ## Business Logic Complexity
 
 The system handles sophisticated time calculations:

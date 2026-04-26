@@ -210,6 +210,7 @@ fn create_test_billing_period() -> BillingPeriod {
         id: Uuid::new_v4(),
         start_date: shifty_utils::ShiftyDate::from_ymd(2024, 7, 15).unwrap(),
         end_date: shifty_utils::ShiftyDate::from_ymd(2024, 8, 14).unwrap(),
+        snapshot_schema_version: 1,
         sales_persons: Arc::new([sales_person1, sales_person2]),
         created_at: datetime!(2024-01-01 10:00:00),
         created_by: "test_user".into(),
@@ -316,6 +317,7 @@ fn create_enriched_billing_period() -> BillingPeriod {
         id: Uuid::new_v4(),
         start_date: shifty_utils::ShiftyDate::from_ymd(2024, 7, 15).unwrap(),
         end_date: shifty_utils::ShiftyDate::from_ymd(2024, 8, 14).unwrap(),
+        snapshot_schema_version: 1,
         sales_persons: Arc::new([sales_person1]),
         created_at: datetime!(2024-01-01 10:00:00),
         created_by: "test_user".into(),
@@ -1034,4 +1036,113 @@ async fn test_minijinja_values_array_regression() {
         .unwrap();
 
     assert!(result.contains("160"));
+}
+
+// === Snapshot schema versioning tests ===
+
+use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
+
+fn setup_build_and_persist_mocks() -> MockDeps {
+    let mut deps = MockDeps {
+        billing_period_service: service::billing_period::MockBillingPeriodService::new(),
+        reporting_service: service::reporting::MockReportingService::new(),
+        sales_person_service: service::sales_person::MockSalesPersonService::new(),
+        employee_work_details_service:
+            service::employee_work_details::MockEmployeeWorkDetailsService::new(),
+        text_template_service: service::text_template::MockTextTemplateService::new(),
+        permission_service: service::MockPermissionService::new(),
+        uuid_service: service::uuid_service::MockUuidService::new(),
+        clock_service: service::clock::MockClockService::new(),
+        transaction_dao: dao::MockTransactionDao::new(),
+    };
+
+    // build_and_persist + build_new_billing_period each call use_transaction.
+    deps.transaction_dao
+        .expect_use_transaction()
+        .with(predicate::always())
+        .times(2)
+        .returning(|_| Ok(dao::MockTransaction));
+    deps.transaction_dao
+        .expect_commit()
+        .with(always())
+        .times(1)
+        .returning(|_| Ok(()));
+
+    deps.billing_period_service
+        .expect_get_latest_billing_period_end_date()
+        .with(always(), always())
+        .times(1)
+        .returning(|_, _| {
+            Ok(Some(shifty_utils::ShiftyDate::from_ymd(2024, 6, 30).unwrap()))
+        });
+
+    deps.sales_person_service
+        .expect_get_all()
+        .with(always(), always())
+        .times(1)
+        .returning(|_, _| Ok(Arc::new([])));
+
+    deps
+}
+
+#[tokio::test]
+async fn test_build_and_persist_writes_current_snapshot_schema_version() {
+    let mut deps = setup_build_and_persist_mocks();
+
+    deps.billing_period_service
+        .expect_create_billing_period()
+        .withf(|bp, _process, _ctx, _tx| {
+            bp.snapshot_schema_version == CURRENT_SNAPSHOT_SCHEMA_VERSION
+        })
+        .times(1)
+        .returning(|bp, _process, _ctx, _tx| Ok(bp.clone()));
+
+    let service = deps.build_service();
+
+    let result = service
+        .build_and_persist_billing_period_report(
+            shifty_utils::ShiftyDate::from_ymd(2024, 7, 31).unwrap(),
+            Authentication::Full,
+            None,
+        )
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "expected build_and_persist to write snapshot_schema_version = CURRENT_SNAPSHOT_SCHEMA_VERSION ({}), got error: {:?}",
+        CURRENT_SNAPSHOT_SCHEMA_VERSION,
+        result.err(),
+    );
+}
+
+#[tokio::test]
+async fn test_build_and_persist_writes_constant_on_repeated_calls() {
+    // Two distinct calls to build_and_persist must both stamp CURRENT_SNAPSHOT_SCHEMA_VERSION.
+    for _ in 0..2 {
+        let mut deps = setup_build_and_persist_mocks();
+
+        deps.billing_period_service
+            .expect_create_billing_period()
+            .withf(|bp, _process, _ctx, _tx| {
+                bp.snapshot_schema_version == CURRENT_SNAPSHOT_SCHEMA_VERSION
+            })
+            .times(1)
+            .returning(|bp, _process, _ctx, _tx| Ok(bp.clone()));
+
+        let service = deps.build_service();
+
+        let result = service
+            .build_and_persist_billing_period_report(
+                shifty_utils::ShiftyDate::from_ymd(2024, 7, 31).unwrap(),
+                Authentication::Full,
+                None,
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "every call must source version exclusively from CURRENT_SNAPSHOT_SCHEMA_VERSION; got: {:?}",
+            result.err(),
+        );
+    }
 }

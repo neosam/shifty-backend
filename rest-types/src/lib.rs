@@ -1268,6 +1268,7 @@ pub struct BillingPeriodTO {
     pub id: Uuid,
     pub start_date: time::Date,
     pub end_date: time::Date,
+    pub snapshot_schema_version: u32,
     pub sales_persons: Arc<[BillingPeriodSalesPersonTO]>,
     #[schema(value_type = String, format = "date-time")]
     pub created_at: time::PrimitiveDateTime,
@@ -1284,6 +1285,7 @@ impl From<&service::billing_period::BillingPeriod> for BillingPeriodTO {
             id: bp.id,
             start_date: bp.start_date.to_date(),
             end_date: bp.end_date.to_date(),
+            snapshot_schema_version: bp.snapshot_schema_version,
             sales_persons: bp
                 .sales_persons
                 .iter()

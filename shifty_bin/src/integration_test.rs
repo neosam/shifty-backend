@@ -264,6 +264,7 @@ pub fn employee_work_details_has_weekday(
 
 pub struct TestSetup {
     pub rest_state: RestStateImpl,
+    pub pool: Arc<SqlitePool>,
     pub created_sales_persons: Vec<SalesPerson>,
     pub expected_hours: HashMap<Uuid, HashMap<u32, f32>>,
     pub working_hours: HashMap<Uuid, HashMap<u32, f32>>,
@@ -289,6 +290,7 @@ impl TestSetup {
 
         Self {
             rest_state,
+            pool,
             created_sales_persons: vec![],
             expected_hours: HashMap::new(),
             working_hours: HashMap::new(),
@@ -1418,4 +1420,6 @@ fn test_shiftyplan_hours_end_of_year() {
 
 #[cfg(test)]
 mod billing_period_custom_reports;
+#[cfg(test)]
+mod billing_period_snapshot_versioning;
 mod dev_seed;

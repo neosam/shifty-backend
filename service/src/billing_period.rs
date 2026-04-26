@@ -20,6 +20,7 @@ pub struct BillingPeriod {
     pub id: uuid::Uuid,
     pub start_date: ShiftyDate,
     pub end_date: ShiftyDate,
+    pub snapshot_schema_version: u32,
 
     pub sales_persons: Arc<[BillingPeriodSalesPerson]>,
 
@@ -115,6 +116,7 @@ impl BillingPeriod {
             id: entity.id,
             start_date: ShiftyDate::from_date(entity.start_date),
             end_date: ShiftyDate::from_date(entity.end_date),
+            snapshot_schema_version: entity.snapshot_schema_version,
             sales_persons,
             created_at: entity.created_at,
             created_by: Arc::clone(&entity.created_by),

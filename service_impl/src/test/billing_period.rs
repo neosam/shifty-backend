@@ -69,6 +69,7 @@ fn make_billing_period_entity(
         id,
         start_date: start,
         end_date: end,
+        snapshot_schema_version: 1,
         created_at: datetime!(2024-01-01 0:00),
         created_by: "test".into(),
         deleted_at: None,

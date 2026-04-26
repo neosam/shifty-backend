@@ -2719,6 +2719,8 @@ dependencies = [
  "dotenvy",
  "proptest",
  "rest",
+ "rest-types",
+ "serde_json",
  "service",
  "service_impl",
  "shifty-utils",

@@ -166,6 +166,7 @@ impl<Deps: BillingPeriodServiceDeps> BillingPeriodService for BillingPeriodServi
                 .new_uuid("BillingPeriodServiceImpl::create_billing_period id"),
             start_date: entity.start_date.to_date(),
             end_date: entity.end_date.to_date(),
+            snapshot_schema_version: entity.snapshot_schema_version,
             created_at: self.clock_service.date_time_now(),
             created_by: user,
             deleted_at: None,

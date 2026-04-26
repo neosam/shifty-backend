@@ -8,6 +8,7 @@ pub struct BillingPeriodEntity {
     pub id: uuid::Uuid,
     pub start_date: time::Date,
     pub end_date: time::Date,
+    pub snapshot_schema_version: u32,
 
     pub created_at: time::PrimitiveDateTime,
     pub created_by: Arc<str>,
@@ -152,6 +153,7 @@ mod tests {
             id: uuid::Uuid::new_v4(),
             start_date: start,
             end_date: end,
+            snapshot_schema_version: 1,
             created_at: datetime!(2024-01-01 0:00),
             created_by: "test".into(),
             deleted_at: None,
