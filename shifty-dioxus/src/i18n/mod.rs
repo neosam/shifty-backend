@@ -370,6 +370,15 @@ pub enum Key {
     HoursUnderTarget,
     HoursOverTarget,
     TargetReached,
+
+    // User management page
+    ColumnLinkedUser,
+    ColumnLinkedSalesPerson,
+    ColumnRoles,
+    ColumnType,
+    Unlinked,
+    DeleteUserConfirmTitle,
+    DeleteUserConfirmBody,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -421,5 +430,30 @@ mod tests {
         assert_eq!(de.t(Key::OtherHours).as_ref(), "Sonstige Stunden");
         assert_eq!(de.t(Key::More).as_ref(), "Mehr");
         assert_eq!(de.t(Key::BackToList).as_ref(), "Zurück");
+    }
+
+    #[test]
+    fn i18n_user_management_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::ColumnLinkedUser,
+                Key::ColumnLinkedSalesPerson,
+                Key::ColumnRoles,
+                Key::ColumnType,
+                Key::Unlinked,
+                Key::DeleteUserConfirmTitle,
+                Key::DeleteUserConfirmBody,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
     }
 }

@@ -548,4 +548,21 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::HoursUnderTarget, "below target");
     i18n.add_text(Locale::En, Key::HoursOverTarget, "above target");
     i18n.add_text(Locale::En, Key::TargetReached, "Target reached");
+
+    // User management page
+    i18n.add_text(Locale::En, Key::ColumnLinkedUser, "Linked user");
+    i18n.add_text(
+        Locale::En,
+        Key::ColumnLinkedSalesPerson,
+        "Linked sales person",
+    );
+    i18n.add_text(Locale::En, Key::ColumnRoles, "Roles");
+    i18n.add_text(Locale::En, Key::ColumnType, "Type");
+    i18n.add_text(Locale::En, Key::Unlinked, "—");
+    i18n.add_text(Locale::En, Key::DeleteUserConfirmTitle, "Delete user");
+    i18n.add_text(
+        Locale::En,
+        Key::DeleteUserConfirmBody,
+        "Are you sure you want to delete user {username}? This cannot be undone.",
+    );
 }

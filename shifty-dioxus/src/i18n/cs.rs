@@ -595,4 +595,21 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::HoursUnderTarget, "pod cílem");
     i18n.add_text(Locale::Cs, Key::HoursOverTarget, "nad cíl");
     i18n.add_text(Locale::Cs, Key::TargetReached, "Cíl splněn");
+
+    // User management page
+    i18n.add_text(Locale::Cs, Key::ColumnLinkedUser, "Propojený uživatel");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ColumnLinkedSalesPerson,
+        "Propojený prodejce",
+    );
+    i18n.add_text(Locale::Cs, Key::ColumnRoles, "Role");
+    i18n.add_text(Locale::Cs, Key::ColumnType, "Typ");
+    i18n.add_text(Locale::Cs, Key::Unlinked, "—");
+    i18n.add_text(Locale::Cs, Key::DeleteUserConfirmTitle, "Smazat uživatele");
+    i18n.add_text(
+        Locale::Cs,
+        Key::DeleteUserConfirmBody,
+        "Opravdu chcete smazat uživatele {username}? Tuto akci nelze vrátit zpět.",
+    );
 }

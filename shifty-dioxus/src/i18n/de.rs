@@ -611,4 +611,21 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::HoursUnderTarget, "unter Soll");
     i18n.add_text(Locale::De, Key::HoursOverTarget, "über Soll");
     i18n.add_text(Locale::De, Key::TargetReached, "Soll erreicht");
+
+    // User management page
+    i18n.add_text(Locale::De, Key::ColumnLinkedUser, "Verknüpfter Benutzer");
+    i18n.add_text(
+        Locale::De,
+        Key::ColumnLinkedSalesPerson,
+        "Verknüpfter Verkäufer",
+    );
+    i18n.add_text(Locale::De, Key::ColumnRoles, "Rollen");
+    i18n.add_text(Locale::De, Key::ColumnType, "Typ");
+    i18n.add_text(Locale::De, Key::Unlinked, "—");
+    i18n.add_text(Locale::De, Key::DeleteUserConfirmTitle, "Benutzer löschen");
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteUserConfirmBody,
+        "Soll Benutzer {username} wirklich gelöscht werden? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    );
 }
