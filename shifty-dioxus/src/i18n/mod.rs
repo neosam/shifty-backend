@@ -71,6 +71,7 @@ pub enum Key {
     MyTime,
     YearOverview,
     Logout,
+    TopBarYouAreLabel,
 
     // Shiftplan
     ShiftplanCalendarWeek,

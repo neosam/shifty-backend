@@ -20,6 +20,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::MyTime, "Zeitkonto");
     i18n.add_text(Locale::De, Key::YearOverview, "Jahresübersicht");
     i18n.add_text(Locale::De, Key::Logout, "Logout");
+    i18n.add_text(Locale::De, Key::TopBarYouAreLabel, "Du bist");
 
     // Shiftplan
     i18n.add_text(
