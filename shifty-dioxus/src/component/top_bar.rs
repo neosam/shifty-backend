@@ -24,6 +24,7 @@ pub(crate) struct NavVisibility {
     pub my_time: bool,
     pub year_overview: bool,
     pub employees: bool,
+    pub billing_periods: bool,
     pub user_management: bool,
     pub templates: bool,
 }
@@ -37,6 +38,7 @@ pub(crate) fn nav_visibility(auth_info: Option<&AuthInfo>, is_paid: bool) -> Nav
         my_time: is_paid && !show_reports,
         year_overview: has("shiftplanner") || has("sales"),
         employees: show_reports,
+        billing_periods: show_reports,
         user_management: has("admin"),
         templates: has("admin"),
     }
@@ -49,6 +51,7 @@ pub(crate) enum NavTarget {
     MyTime,
     YearOverview,
     Employees,
+    BillingPeriods,
     UserManagement,
     Templates,
 }
@@ -64,6 +67,10 @@ pub(crate) fn is_active_for(target: NavTarget, route: &Route) -> bool {
         NavTarget::Employees => {
             matches!(route, Route::Employees {} | Route::EmployeeDetails { .. })
         }
+        NavTarget::BillingPeriods => matches!(
+            route,
+            Route::BillingPeriods {} | Route::BillingPeriodDetails { .. }
+        ),
         NavTarget::UserManagement => matches!(
             route,
             Route::UserManagementPage {}
@@ -178,6 +185,13 @@ pub fn TopBar() -> Element {
                 NavTarget::Employees,
                 Route::Employees {},
                 i18n.t(Key::Employees).to_string(),
+            ));
+        }
+        if visibility.billing_periods {
+            items.push((
+                NavTarget::BillingPeriods,
+                Route::BillingPeriods {},
+                i18n.t(Key::BillingPeriods).to_string(),
             ));
         }
         if visibility.user_management {
@@ -331,6 +345,7 @@ mod tests {
         assert!(!v.my_time);
         assert!(!v.year_overview);
         assert!(!v.employees);
+        assert!(!v.billing_periods);
         assert!(!v.user_management);
         assert!(!v.templates);
     }
@@ -359,10 +374,11 @@ mod tests {
     }
 
     #[test]
-    fn nav_visibility_hr_shows_employees_only() {
+    fn nav_visibility_hr_shows_employees_and_billing_periods() {
         let auth = auth_with(&["hr"]);
         let v = nav_visibility(Some(&auth), false);
         assert!(v.employees);
+        assert!(v.billing_periods);
         assert!(!v.shiftplan);
         assert!(!v.my_shifts);
         assert!(!v.year_overview);

@@ -361,6 +361,15 @@ pub enum Key {
     PermissionLevelAvailable,
     PermissionLevelPlannerOnly,
     BookingForbidden,
+
+    // Employees page
+    SearchPlaceholder,
+    OtherHours,
+    More,
+    BackToList,
+    HoursUnderTarget,
+    HoursOverTarget,
+    TargetReached,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -376,3 +385,41 @@ pub fn generate(locale: Locale) -> I18n<Key, Locale> {
 }
 
 pub type I18nType = I18n<Key, Locale>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn i18n_employees_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SearchPlaceholder,
+                Key::OtherHours,
+                Key::More,
+                Key::BackToList,
+                Key::HoursUnderTarget,
+                Key::HoursOverTarget,
+                Key::TargetReached,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_employees_keys_match_german_reference() {
+        let de = generate(Locale::De);
+        assert_eq!(de.t(Key::OtherHours).as_ref(), "Sonstige Stunden");
+        assert_eq!(de.t(Key::More).as_ref(), "Mehr");
+        assert_eq!(de.t(Key::BackToList).as_ref(), "Zurück");
+    }
+}

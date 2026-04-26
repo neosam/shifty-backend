@@ -586,4 +586,13 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::BookingForbidden,
         "Tato osoba není oprávněna pro tento plán směn.",
     );
+
+    // Employees page
+    i18n.add_text(Locale::Cs, Key::SearchPlaceholder, "Hledat…");
+    i18n.add_text(Locale::Cs, Key::OtherHours, "Ostatní hodiny");
+    i18n.add_text(Locale::Cs, Key::More, "Více");
+    i18n.add_text(Locale::Cs, Key::BackToList, "Zpět");
+    i18n.add_text(Locale::Cs, Key::HoursUnderTarget, "pod cílem");
+    i18n.add_text(Locale::Cs, Key::HoursOverTarget, "nad cíl");
+    i18n.add_text(Locale::Cs, Key::TargetReached, "Cíl splněn");
 }

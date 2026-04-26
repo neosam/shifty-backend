@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use rest_types::BlockTO;
 
 use crate::{
-    base_types::ImStr,
+    base_types::{format_hours as format_hours_norm, ImStr},
     component::{PersonChip, TopBar},
     i18n::{I18n, Key, Locale},
     js, loader,
@@ -40,10 +40,9 @@ where
 }
 
 pub fn format_hours(hours: f32) -> String {
-    // `0.0 + (-0.0)` collapses the negative-zero bit so tiny rounding error
-    // never renders as `-0.0` in the UI.
-    let normalized = hours + 0.0;
-    format!("{:.1}", normalized)
+    // Delegate to the shared helper so `-0.0` and tiny negatives that round
+    // to zero render as `0.0` instead of `-0.0` in the UI.
+    format_hours_norm(hours, 1)
 }
 
 pub fn format_time_range(from: time::Time, to: time::Time) -> String {

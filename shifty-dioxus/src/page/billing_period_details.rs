@@ -1,6 +1,7 @@
 use futures_util::StreamExt;
 
 use crate::{
+    base_types::format_hours,
     component::TopBar,
     i18n::Key,
     loader,
@@ -453,10 +454,18 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                                             }
                                                                         }
                                                                         div { class: "mt-1",
-                                                                            p { class: "text-sm", "{i18n.t(Key::Delta)}: {value.value_delta:.2}" }
-                                                                            p { class: "text-sm", "{i18n.t(Key::YtdFrom)}: {value.value_ytd_from:.2}" }
-                                                                            p { class: "text-sm", "{i18n.t(Key::YtdTo)}: {value.value_ytd_to:.2}" }
-                                                                            p { class: "text-sm", "{i18n.t(Key::FullYear)}: {value.value_full_year:.2}" }
+                                                                            p { class: "text-sm",
+                                                                                {format!("{}: {}", i18n.t(Key::Delta), format_hours(value.value_delta, 2))}
+                                                                            }
+                                                                            p { class: "text-sm",
+                                                                                {format!("{}: {}", i18n.t(Key::YtdFrom), format_hours(value.value_ytd_from, 2))}
+                                                                            }
+                                                                            p { class: "text-sm",
+                                                                                {format!("{}: {}", i18n.t(Key::YtdTo), format_hours(value.value_ytd_to, 2))}
+                                                                            }
+                                                                            p { class: "text-sm",
+                                                                                {format!("{}: {}", i18n.t(Key::FullYear), format_hours(value.value_full_year, 2))}
+                                                                            }
                                                                         }
                                                                     }
                                                                 }

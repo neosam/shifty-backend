@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 pub use crate::page::BillingPeriodDetails;
+pub use crate::page::BillingPeriods;
 pub use crate::page::CustomExtraHoursManagement;
 pub use crate::page::EmployeeDetails;
 pub use crate::page::Employees;
@@ -27,6 +28,8 @@ pub enum Route {
     WeeklyOverview {},
     #[route("/employees/")]
     Employees {},
+    #[route("/billing-periods/")]
+    BillingPeriods {},
     #[route("/employees/:employee_id/")]
     EmployeeDetails { employee_id: String },
     #[route("/my_employee_details/")]

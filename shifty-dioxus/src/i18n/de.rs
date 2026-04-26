@@ -602,4 +602,13 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::BookingForbidden,
         "Diese Person ist für diesen Schichtplan nicht berechtigt.",
     );
+
+    // Employees page
+    i18n.add_text(Locale::De, Key::SearchPlaceholder, "Suchen…");
+    i18n.add_text(Locale::De, Key::OtherHours, "Sonstige Stunden");
+    i18n.add_text(Locale::De, Key::More, "Mehr");
+    i18n.add_text(Locale::De, Key::BackToList, "Zurück");
+    i18n.add_text(Locale::De, Key::HoursUnderTarget, "unter Soll");
+    i18n.add_text(Locale::De, Key::HoursOverTarget, "über Soll");
+    i18n.add_text(Locale::De, Key::TargetReached, "Soll erreicht");
 }

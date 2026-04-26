@@ -539,4 +539,13 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::BookingForbidden,
         "This person is not eligible for this shiftplan.",
     );
+
+    // Employees page
+    i18n.add_text(Locale::En, Key::SearchPlaceholder, "Search…");
+    i18n.add_text(Locale::En, Key::OtherHours, "Other hours");
+    i18n.add_text(Locale::En, Key::More, "More");
+    i18n.add_text(Locale::En, Key::BackToList, "Back");
+    i18n.add_text(Locale::En, Key::HoursUnderTarget, "below target");
+    i18n.add_text(Locale::En, Key::HoursOverTarget, "above target");
+    i18n.add_text(Locale::En, Key::TargetReached, "Target reached");
 }

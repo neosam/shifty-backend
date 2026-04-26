@@ -1,4 +1,5 @@
 pub mod billing_period_details;
+pub mod billing_periods;
 pub mod custom_extra_hours_management;
 pub mod employee_details;
 pub mod employees;
@@ -14,6 +15,7 @@ pub mod user_management;
 pub mod weekly_overview;
 
 pub use billing_period_details::BillingPeriodDetails;
+pub use billing_periods::BillingPeriods;
 pub use custom_extra_hours_management::CustomExtraHoursManagement;
 pub use employee_details::EmployeeDetails;
 pub use employees::Employees;

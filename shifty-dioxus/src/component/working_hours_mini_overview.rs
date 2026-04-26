@@ -3,6 +3,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
+use crate::base_types::format_hours;
 use crate::state::employee_work_details::WorkingHoursMini;
 
 #[derive(PartialEq, Clone, Props)]
@@ -25,9 +26,9 @@ pub fn WorkingHoursMiniOverview(props: WorkingHoursMiniOverviewProps) -> Element
             for working_hour in working_hours.iter() {
                 {
                     let sales_person_id = working_hour.sales_person_id.clone();
-                    let actual_hours = format!("{:.1}", working_hour.actual_hours);
-                    let dynamic_hours = format!("{:.1}", working_hour.dynamic_hours);
-                    let balance_hours = format!("{:.1}", working_hour.balance_hours);
+                    let actual_hours = format_hours(working_hour.actual_hours, 1);
+                    let dynamic_hours = format_hours(working_hour.dynamic_hours, 1);
+                    let balance_hours = format_hours(working_hour.balance_hours, 1);
                     let show_balance = props.show_balance;
                     rsx! { div {
                         class: format!("flex cusor-pointer border-b border-gray-200 border-dashed p-1 {}",

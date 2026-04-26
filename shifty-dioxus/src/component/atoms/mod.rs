@@ -20,11 +20,13 @@
 //! radii.
 
 pub mod btn;
+pub mod media_query;
 pub mod nav_btn;
 pub mod person_chip;
 pub mod tuple_row;
 
 pub use btn::{Btn, BtnVariant};
+pub use media_query::use_media_query;
 pub use nav_btn::NavBtn;
 pub use person_chip::PersonChip;
 pub use tuple_row::TupleRow;

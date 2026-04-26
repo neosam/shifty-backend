@@ -2,7 +2,9 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 
-use crate::{i18n::Key, service::i18n::I18N, state::weekly_overview::WeeklySummary};
+use crate::{
+    base_types::format_hours, i18n::Key, service::i18n::I18N, state::weekly_overview::WeeklySummary,
+};
 
 const CHART_HEIGHT_PX: u32 = 160;
 const NON_CURRENT_BAR_COLOR: &str = "#7787e8"; // Designed dimmer accent (per reference)
@@ -102,8 +104,11 @@ pub(crate) fn WeeklyOverviewChartView(
                         let paid_bg = if is_current { "var(--accent)".to_string() } else { NON_CURRENT_BAR_COLOR.to_string() };
                         let nav_url = format!("/shiftplan/{}/{}", week.year, week.week);
                         let tooltip = format!(
-                            "{week_short} {}: {paid_label} {:.1}h, {volunteer_label} {:.1}h, {required_label} {:.1}h",
-                            week.week, week.paid_hours, week.volunteer_hours, week.required_hours
+                            "{week_short} {}: {paid_label} {}h, {volunteer_label} {}h, {required_label} {}h",
+                            week.week,
+                            format_hours(week.paid_hours, 1),
+                            format_hours(week.volunteer_hours, 1),
+                            format_hours(week.required_hours, 1)
                         );
 
                         rsx! {

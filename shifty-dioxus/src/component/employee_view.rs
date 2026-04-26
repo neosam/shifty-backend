@@ -3,22 +3,23 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use uuid::Uuid;
 
-use crate::base_types::ImStr;
-use crate::component::base_components::Button;
+use crate::base_types::{format_hours, ImStr};
+use crate::component::atoms::{Btn, BtnVariant, NavBtn, PersonChip, TupleRow};
 use crate::component::dropdown_base::DropdownTrigger;
+use crate::component::EmployeeWeeklyHistogram;
 use crate::i18n::Key;
 use crate::js;
 use crate::service::{
     employee::EmployeeAction, employee::EMPLOYEE_STORE,
-    employee_work_details::EmployeeWorkDetailsAction,
     employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
 };
-use crate::state::employee::{CustomExtraHours, CustomExtraHoursDefinition, WorkingHours};
-use crate::state::employee::{Employee, ExtraHours};
-
-use crate::component::{AddExtraHoursForm, Modal};
+use crate::state::employee::{
+    CustomExtraHours, CustomExtraHoursDefinition, Employee, ExtraHours, WorkingHours,
+};
 use crate::state::employee_work_details::EmployeeWorkDetails;
-use futures_util::StreamExt;
+
+const TYPE_PILL_PAID_HEX: &str = "#eaecfb"; // var(--accent-soft) light theme
+const TYPE_PILL_VOLUNTEER_HEX: &str = "#fef0d6"; // var(--warn-soft) light theme
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewPlainProps {
@@ -42,33 +43,468 @@ pub struct EmployeeViewPlainProps {
     pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
     pub on_next_year: EventHandler<()>,
     pub on_previous_year: EventHandler<()>,
+
+    #[props(!optional, default = None)]
+    pub on_open_extra_hours: Option<EventHandler<()>>,
 }
 
-#[derive(Props, Clone, PartialEq)]
-pub struct WorkingHoursViewProps {
-    pub working_hours: WorkingHours,
+fn most_recent_expected(work_details: &[EmployeeWorkDetails]) -> f32 {
+    work_details
+        .iter()
+        .max_by_key(|d| d.from)
+        .map(|d| d.expected_hours)
+        .unwrap_or(0.0)
 }
 
-#[derive(Props, Clone, PartialEq)]
-pub struct TupleViewProps {
-    pub label: Rc<str>,
-    pub value: Rc<str>,
-    pub ondelete: Option<EventHandler<()>>,
-}
 #[component]
-pub fn TupleView(props: TupleViewProps) -> Element {
+pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
+    let i18n = I18N.read().clone();
+    let mut selected_week = use_signal(|| None::<(u32, u8)>);
+    let mut expand_weeks = use_signal(|| false);
+
+    let employee = props.employee.clone();
+    let work_details_list = props.employee_work_details_list.clone();
+    let custom_hours = props.custom_hours.clone();
+
+    // Header text
+    let name = employee.sales_person.name.clone();
+    let color = employee.sales_person.background_color.clone();
+    let is_paid = employee.sales_person.is_paid;
+    let type_label = if is_paid {
+        i18n.t(Key::Paid)
+    } else {
+        i18n.t(Key::Volunteer)
+    };
+    let pill_color = if is_paid {
+        TYPE_PILL_PAID_HEX
+    } else {
+        TYPE_PILL_VOLUNTEER_HEX
+    };
+    let expected_per_week = most_recent_expected(&work_details_list);
+
+    // i18n labels
+    let overall_header_str = i18n.t(Key::OverallHeading);
+    let work_details_header = i18n.t(Key::WorkDetailsHeading);
+    let working_hours_per_week_heading = i18n.t(Key::WorkingHoursPerWeekHeading);
+    let extra_hours_heading = i18n.t(Key::ExtraHoursHeading);
+    let balance_str = i18n.t(Key::Balance);
+    let overall_str = i18n.t(Key::Overall);
+    let required_str = i18n.t(Key::Required);
+    let carryover_balance_str = i18n.t(Key::CarryoverBalance);
+    let shiftplan_str = i18n.t(Key::CategoryShiftplan);
+    let extra_work_str = i18n.t(Key::CategoryExtraWork);
+    let vacation_str = i18n.t(Key::CategoryVacation);
+    let sick_leave_str = i18n.t(Key::CategorySickLeave);
+    let holidays_str = i18n.t(Key::CategoryHolidays);
+    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
+    let volunteer_work_str = i18n.t(Key::CategoryVolunteerWork);
+    let hours_str: ImStr = ImStr::from(i18n.t(Key::Hours).as_ref());
+    let _hours_short_str = i18n.t(Key::HoursShort);
+    let _actions_label: ImStr = i18n.t(Key::ActionsLabel).into();
+    let show_full_year_label: ImStr = i18n.t(Key::ShowFullYearLabel).into();
+    let show_until_now_label: ImStr = i18n.t(Key::ShowUntilNowLabel).into();
+    let other_hours_str = i18n.t(Key::OtherHours);
+    let more_str = i18n.t(Key::More);
+    let show_details_str = i18n.t(Key::ShowDetails);
+    let hide_details_str = i18n.t(Key::HideDetails);
+    let week_short_str = i18n.t(Key::WeekShort);
+    let add_work_details_label: ImStr = i18n.t(Key::AddWorkDetailsLabel).into();
+    let vacation_days_str: ImStr = i18n.t(Key::VacationDaysLabel).into();
+    let vacation_carryover_str: ImStr = i18n.t(Key::VacationCarryoverLabel).into();
+    let current_week_note = i18n.t(Key::CurrentWeekNote);
+
+    let prev_year_aria = ImStr::from(i18n.t(Key::PreviousYear).as_ref());
+    let next_year_aria = ImStr::from(i18n.t(Key::NextYear).as_ref());
+
+    let on_next_year = props.on_next_year;
+    let on_prev_year = props.on_previous_year;
+    let on_full_year = props.on_full_year;
+    let on_until_now = props.on_until_now;
+    let on_open_extra_hours = props.on_open_extra_hours;
+    let on_add_work_details = props.on_add_employee_work_details;
+    let on_work_details_clicked = props.on_employee_work_details_clicked;
+
+    let year = props.year;
+    let current_year = js::get_current_year();
+    let current_week = js::get_current_week();
+
+    let dot_style = format!("background-color: {}; width: 32px; height: 32px;", color);
+
+    // Histogram data: full year
+    let histogram_weeks: Rc<[WorkingHours]> = employee.working_hours_by_week.clone();
+
+    let selected_week_data = selected_week.read().and_then(|(year, week)| {
+        employee
+            .working_hours_by_week
+            .iter()
+            .find(|w| {
+                let (y, wk, _) = w.from.to_iso_week_date();
+                y as u32 == year && wk == week
+            })
+            .cloned()
+    });
+
     rsx! {
-        div { class: "flex justify-between border-b-2 border-gray-200 border-dashed pl-2 gap-4",
-            div { "{props.label}" }
-            div { class: "flex flow-row gap-2",
-                div { "{props.value}" }
-                if let Some(ondelete) = props.ondelete {
+        // Header
+        section { class: "flex flex-col gap-3 pb-4 border-b border-border",
+            div { class: "flex flex-wrap items-center gap-3",
+                span {
+                    class: "rounded-full inline-block flex-shrink-0",
+                    style: "{dot_style}",
+                }
+                h1 { class: "text-xl font-semibold text-ink", "{name}" }
+                PersonChip {
+                    name: ImStr::from(type_label.as_ref()),
+                    color: Some(ImStr::from(pill_color)),
+                }
+                if expected_per_week > 0.0 {
+                    span { class: "font-mono tabular-nums text-ink-muted text-sm",
+                        "{expected_per_week:.0} {hours_str}"
+                    }
+                }
+            }
+            div { class: "flex flex-wrap items-center gap-3 print:hidden",
+                div { class: "flex items-center gap-2",
+                    NavBtn {
+                        glyph: ImStr::from("‹"),
+                        aria_label: Some(prev_year_aria),
+                        on_click: Some(EventHandler::new(move |_| on_prev_year.call(()))),
+                    }
+                    span { class: "font-mono text-base text-ink min-w-[4ch] text-center", "{year}" }
+                    NavBtn {
+                        glyph: ImStr::from("›"),
+                        aria_label: Some(next_year_aria),
+                        on_click: Some(EventHandler::new(move |_| on_next_year.call(()))),
+                    }
+                }
+                if let Some(handler) = on_open_extra_hours {
+                    Btn {
+                        variant: BtnVariant::Primary,
+                        on_click: move |_| handler.call(()),
+                        "{other_hours_str}"
+                    }
+                }
+                DropdownTrigger {
+                    entries: [
+                        (
+                            show_full_year_label.clone(),
+                            Box::new(move |_| on_full_year.call(())),
+                            props.full_year,
+                        ).into(),
+                        (
+                            show_until_now_label,
+                            Box::new(move |_| on_until_now.call(())),
+                            !props.full_year,
+                        ).into(),
+                    ].into(),
+                    Btn { variant: BtnVariant::Secondary, "{more_str} ▾" }
+                }
+            }
+            if !props.full_year {
+                div { class: "text-xs text-ink-muted italic flex flex-wrap items-baseline gap-2",
+                    span { "{current_week_note}" }
                     button {
-                        class: "border-2 border-gray-200 pl-1 pr-1 shrink h-6 font-small",
+                        r#type: "button",
+                        class: "text-accent underline cursor-pointer text-xs",
+                        onclick: move |_| on_full_year.call(()),
+                        "{show_full_year_label}"
+                    }
+                }
+            }
+        }
+
+        // 3-column sub-grid
+        section {
+            class: "grid gap-6 mt-6",
+            style: "grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));",
+
+            // Gesamtansicht column
+            div { class: "flex flex-col gap-2",
+                h2 { class: "text-sm font-semibold uppercase tracking-wide text-ink-muted",
+                    "{overall_header_str}"
+                }
+                TupleRow {
+                    label: ImStr::from(balance_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.balance, 2), hours_str)}
+                    } },
+                }
+                TupleRow {
+                    label: ImStr::from(overall_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.overall_working_hours, 2), hours_str)}
+                    } },
+                }
+                TupleRow {
+                    label: ImStr::from(required_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.expected_working_hours, 2), hours_str)}
+                    } },
+                }
+                div { class: "border-t border-border my-2" }
+                TupleRow {
+                    label: ImStr::from(shiftplan_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.shiftplan_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(extra_work_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.extra_work_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(vacation_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.vacation_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(sick_leave_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.sick_leave_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(holidays_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.holiday_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(unpaid_leave_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.unpaid_leave_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(volunteer_work_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.volunteer_hours, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                TupleRow {
+                    label: ImStr::from(carryover_balance_str.as_ref()),
+                    value: rsx! { span { class: "font-mono tabular-nums",
+                        {format!("{} {}", format_hours(employee.carryover_balance, 2), hours_str)}
+                    } },
+                    dim: true,
+                }
+                for custom_hour in custom_hours.iter() {
+                    TupleRow {
+                        label: ImStr::from(custom_hour.name.as_ref()),
+                        value: rsx! { span { class: "font-mono tabular-nums",
+                            {format!("{} {}", format_hours(custom_hour.hours, 2), hours_str)}
+                        } },
+                        dim: true,
+                    }
+                }
+                if props.show_vacation {
+                    TupleRow {
+                        label: vacation_days_str,
+                        value: rsx! { span { class: "font-mono tabular-nums",
+                            {format!("{} / {}", employee.vacation_days, employee.vacation_entitlement)}
+                        } },
+                        dim: true,
+                    }
+                    TupleRow {
+                        label: vacation_carryover_str,
+                        value: rsx! { span { class: "font-mono tabular-nums",
+                            {format!("{}", employee.vacation_carryover)}
+                        } },
+                        dim: true,
+                    }
+                }
+            }
+
+            // Arbeitsverträge + Stunden pro Woche column
+            div { class: "flex flex-col gap-2",
+                h2 { class: "text-sm font-semibold uppercase tracking-wide text-ink-muted",
+                    "{work_details_header}"
+                }
+                div { class: "flex flex-col gap-2",
+                    for details in work_details_list.iter() {
+                        ContractCard {
+                            details: details.clone(),
+                            on_click: {
+                                let id = details.id;
+                                move |_| on_work_details_clicked.call(id)
+                            },
+                            hours_label: hours_str.clone(),
+                        }
+                    }
+                    if let Some(handler) = on_add_work_details {
+                        Btn {
+                            variant: BtnVariant::Secondary,
+                            icon: Some(ImStr::from("+")),
+                            on_click: move |_| handler.call(()),
+                            "{add_work_details_label}"
+                        }
+                    }
+                }
+                div { class: "flex items-baseline justify-between mt-3 gap-2",
+                    h3 { class: "text-xs font-semibold uppercase tracking-wide text-ink-muted",
+                        "{working_hours_per_week_heading}"
+                    }
+                    button {
+                        r#type: "button",
+                        class: "text-accent underline cursor-pointer text-xs",
                         onclick: move |_| {
-                            ondelete.call(());
+                            let v = *expand_weeks.read();
+                            expand_weeks.set(!v);
                         },
-                        "🗑️"
+                        if *expand_weeks.read() { "{hide_details_str}" } else { "{show_details_str}" }
+                    }
+                }
+                EmployeeWeeklyHistogram {
+                    weeks: histogram_weeks.clone(),
+                    expected_per_week,
+                    current_year,
+                    current_week,
+                    selected_week: *selected_week.read(),
+                    on_select: move |pair: (u32, u8)| {
+                        let current = *selected_week.read();
+                        if current == Some(pair) {
+                            selected_week.set(None);
+                        } else {
+                            selected_week.set(Some(pair));
+                        }
+                    },
+                }
+                if let Some(week) = selected_week_data {
+                    WeekDetailPanel {
+                        week,
+                        hours_label: hours_str.clone(),
+                        on_close: move |_| selected_week.set(None),
+                    }
+                }
+                if *expand_weeks.read() {
+                    WeekListExpanded {
+                        weeks: histogram_weeks.clone(),
+                        selected_week: *selected_week.read(),
+                        hours_label: hours_str.clone(),
+                        week_short: ImStr::from(week_short_str.as_ref()),
+                        on_select: move |pair: (u32, u8)| {
+                            let current = *selected_week.read();
+                            if current == Some(pair) {
+                                selected_week.set(None);
+                            } else {
+                                selected_week.set(Some(pair));
+                            }
+                        },
+                    }
+                }
+            }
+
+            // Zusatzarbeit column
+            div { class: "flex flex-col gap-2",
+                h2 { class: "text-sm font-semibold uppercase tracking-wide text-ink-muted",
+                    "{extra_hours_heading}"
+                }
+                ExtraHoursView {
+                    extra_hours: props.extra_hours.clone(),
+                    custom_hours: props.custom_hours.clone(),
+                    custom_extra_hours_definitions: props.custom_extra_hours_definitions.clone(),
+                    ondelete: move |uuid| {
+                        props.on_extra_hour_delete.call(uuid);
+                        props.onupdate.call(());
+                    },
+                    on_custom_delete: move |uuid| {
+                        props.on_custom_delete.call(uuid);
+                    },
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct ContractCardProps {
+    details: EmployeeWorkDetails,
+    on_click: EventHandler<()>,
+    hours_label: ImStr,
+}
+
+#[component]
+fn ContractCard(props: ContractCardProps) -> Element {
+    let i18n = I18N.read().clone();
+    let from_str = i18n.format_date(&props.details.from);
+    let to_str = i18n.format_date(&props.details.to);
+    let on_click = props.on_click;
+    let hours_label = props.hours_label;
+    rsx! {
+        button {
+            class: "w-full text-left rounded-md border border-border bg-surface px-3 py-2 hover:bg-surface-alt cursor-pointer",
+            onclick: move |_| on_click.call(()),
+            div { class: "flex items-baseline justify-between gap-2",
+                span { class: "text-sm font-semibold text-ink", "{from_str} – {to_str}" }
+                span { class: "font-mono tabular-nums text-xs text-ink-muted",
+                    "{props.details.expected_hours} {hours_label}/Woche"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct WeekListExpandedProps {
+    weeks: Rc<[WorkingHours]>,
+    selected_week: Option<(u32, u8)>,
+    hours_label: ImStr,
+    week_short: ImStr,
+    on_select: EventHandler<(u32, u8)>,
+}
+
+#[component]
+fn WeekListExpanded(props: WeekListExpandedProps) -> Element {
+    let on_select = props.on_select;
+    // Show every loaded week, newest first.
+    let visible: Vec<WorkingHours> = {
+        let mut all: Vec<WorkingHours> = props.weeks.iter().cloned().collect();
+        all.reverse();
+        all
+    };
+    rsx! {
+        div { class: "mt-2 flex flex-col text-xs",
+            for week in visible.into_iter() {
+                {
+                    let (iso_year, iso_week, _) = week.from.to_iso_week_date();
+                    let key = (iso_year as u32, iso_week);
+                    let is_selected = props.selected_week == Some(key);
+                    let under = week.overall_hours < week.expected_hours;
+                    let row_class = if is_selected {
+                        "w-full text-left flex items-center justify-between px-2 py-1.5 border-b border-border bg-accent-soft cursor-pointer"
+                    } else {
+                        "w-full text-left flex items-center justify-between px-2 py-1.5 border-b border-border hover:bg-surface-alt cursor-pointer"
+                    };
+                    let value_class = if under {
+                        "font-mono tabular-nums text-warn"
+                    } else {
+                        "font-mono tabular-nums text-ink-soft"
+                    };
+                    let value_text = format!(
+                        "{} / {} {}",
+                        format_hours(week.overall_hours, 2),
+                        format_hours(week.expected_hours, 2),
+                        props.hours_label,
+                    );
+                    let week_short = props.week_short.clone();
+                    rsx! {
+                        button {
+                            r#type: "button",
+                            class: "{row_class}",
+                            onclick: move |_| on_select.call(key),
+                            span { class: "text-ink", "{week_short} {iso_week}" }
+                            span { class: "{value_class}", "{value_text}" }
+                        }
                     }
                 }
             }
@@ -77,44 +513,85 @@ pub fn TupleView(props: TupleViewProps) -> Element {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub struct TripleViewProps {
-    pub label: Rc<str>,
-    pub value: Rc<str>,
-    pub description: Rc<str>,
-    #[props(default = false)]
-    pub hide_delete_button: bool,
-    pub ondelete: Option<EventHandler<()>>,
-    pub on_click: Option<EventHandler<()>>,
+struct WeekDetailPanelProps {
+    week: WorkingHours,
+    hours_label: ImStr,
+    on_close: EventHandler<()>,
 }
+
 #[component]
-pub fn TripleView(props: TripleViewProps) -> Element {
+fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
+    let i18n = I18N.read().clone();
+    let week_short = i18n.t(Key::WeekShort);
+    let (_iso_year, iso_week, _) = props.week.from.to_iso_week_date();
+    let from_str = i18n.format_date(&props.week.from);
+    let to_str = i18n.format_date(&props.week.to);
+    let on_close = props.on_close;
+    let hours = props.hours_label.clone();
+    let summary = format!(
+        "{} / {} {hours}",
+        format_hours(props.week.overall_hours, 2),
+        format_hours(props.week.expected_hours, 2),
+    );
+    let diff = props.week.overall_hours - props.week.expected_hours;
+    let (status_class, status_text) = if diff < 0.0 {
+        (
+            "text-warn font-semibold",
+            format!(
+                "−{} {hours} {}",
+                format_hours(diff.abs(), 1),
+                i18n.t(Key::HoursUnderTarget),
+            ),
+        )
+    } else if diff > 0.0 {
+        (
+            "text-good font-semibold",
+            format!(
+                "+{} {hours} {}",
+                format_hours(diff, 1),
+                i18n.t(Key::HoursOverTarget),
+            ),
+        )
+    } else {
+        (
+            "text-good font-semibold",
+            i18n.t(Key::TargetReached).to_string(),
+        )
+    };
     rsx! {
-        div { class: "flex justify-between border-b-2 border-gray-200 border-dashed pl-2 gap-2",
-            div {
-                class: "flex flex-col",
-                onclick: move |_| {
-                    if let Some(on_click) = &props.on_click {
-                        on_click.call(());
-                    }
-                },
-                div { "{props.label}" }
-                div { class: "text-sm text-gray-500", "{props.description}" }
-            }
-            div { class: "flex flow-row gap-2",
+        section { class: "mt-3 rounded-md border border-border bg-surface-alt px-3 py-2 flex flex-col gap-2",
+            div { class: "flex items-baseline justify-between gap-2",
                 div { class: "flex flex-col",
-                    div { "{props.value}" }
+                    h4 { class: "text-sm font-semibold text-ink",
+                        "{week_short} {iso_week} · {from_str} – {to_str}"
+                    }
+                    span { class: "font-mono tabular-nums text-xs text-ink-muted",
+                        "{summary}"
+                    }
                 }
-                if let Some(ondelete) = props.ondelete {
-                    if !props.hide_delete_button {
-                        button {
-                            class: "border-2 border-gray-200 pl-1 pr-1 shrink h-6 font-small",
-                            onclick: move |_| {
-                                ondelete.call(());
-                            },
-                            "🗑️"
+                button {
+                    class: "w-6 h-6 inline-flex items-center justify-center rounded-md text-ink-muted hover:bg-surface hover:text-ink",
+                    onclick: move |_| on_close.call(()),
+                    "×"
+                }
+            }
+            if !props.week.days.is_empty() {
+                ul { class: "flex flex-col",
+                    for day in props.week.days.iter() {
+                        li { class: "flex items-baseline justify-between gap-2 py-1 border-b border-border text-sm",
+                            span { class: "font-mono text-ink", {i18n.format_date(&day.date)} }
+                            span { class: "text-ink-muted",
+                                {i18n.t(day.category.to_i18n_key())}
+                            }
+                            span { class: "font-mono tabular-nums text-ink",
+                                {format!("{} {hours}", format_hours(day.hours, 2))}
+                            }
                         }
                     }
                 }
+            }
+            div { class: "pt-1 text-xs",
+                span { class: "{status_class}", "{status_text}" }
             }
         }
     }
@@ -138,159 +615,90 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unavailable_str = i18n.t(Key::CategoryUnavailable);
     let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
-    let hours_str = i18n.t(Key::Hours);
+    let hours_str: ImStr = ImStr::from(i18n.t(Key::Hours).as_ref());
     let work_hours_description_str = i18n.t(Key::WorkHoursDescription);
     let unavailable_description_str = i18n.t(Key::UnavailableDescription);
 
+    let category_predicates: [(Rc<str>, Option<Rc<str>>, Box<dyn Fn(&ExtraHours) -> bool>); 6] = [
+        (
+            vacation_str,
+            None,
+            Box::new(|eh: &ExtraHours| eh.category.is_vacation()),
+        ),
+        (
+            holidays_str,
+            None,
+            Box::new(|eh: &ExtraHours| eh.category.is_holiday()),
+        ),
+        (
+            sick_leave_str,
+            None,
+            Box::new(|eh: &ExtraHours| eh.category.is_sick_leave()),
+        ),
+        (
+            extra_work_str,
+            Some(work_hours_description_str),
+            Box::new(|eh: &ExtraHours| eh.category.is_extra_work()),
+        ),
+        (
+            unavailable_str,
+            Some(unavailable_description_str),
+            Box::new(|eh: &ExtraHours| eh.category.is_unavailable()),
+        ),
+        (
+            unpaid_leave_str,
+            None,
+            Box::new(|eh: &ExtraHours| eh.category.is_unpaid_leave()),
+        ),
+    ];
+
     rsx! {
-        div { class: "flex flex-col",
-            h2 { class: "text-lg font-bold mt-8", "{vacation_str}" }
-
-            ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_vacation()) {
-                    {
-                        let extra_hours_id = extra_hours.id;
+        div { class: "flex flex-col gap-1",
+            for (label, description, predicate) in category_predicates.into_iter() {
+                {
+                    let entries: Vec<&ExtraHours> = props
+                        .extra_hours
+                        .iter()
+                        .filter(|eh| predicate(eh))
+                        .collect();
+                    if entries.is_empty() {
+                        rsx! {}
+                    } else {
                         rsx! {
-                            li { class: "mb-1",
-                                TripleView {
-                                    label: i18n.format_date(&extra_hours.date_time.date()),
-                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                    description: format!("{}", extra_hours.description).into(),
-                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                }
+                            ExtraHoursCategorySection {
+                                label: label.clone(),
+                                description: description.clone(),
+                                entries: entries.iter().map(|e| (*e).clone()).collect(),
+                                hours_label: hours_str.clone(),
+                                ondelete: props.ondelete,
                             }
                         }
                     }
                 }
             }
-
-            h2 { class: "text-lg font-bold mt-8", "{holidays_str}" }
-
-            ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_holiday()) {
-                    {
-                        let extra_hours_id = extra_hours.id;
+            for custom_category in props.custom_hours.iter() {
+                {
+                    let entries: Vec<ExtraHours> = props
+                        .extra_hours
+                        .iter()
+                        .filter(|eh| eh.category.is_custom_with_id(custom_category.id))
+                        .cloned()
+                        .collect();
+                    let description = props
+                        .custom_extra_hours_definitions
+                        .iter()
+                        .find(|def| def.id == custom_category.id)
+                        .and_then(|def| def.description.clone());
+                    if entries.is_empty() {
+                        rsx! {}
+                    } else {
                         rsx! {
-                            li { class: "mb-1",
-                                TripleView {
-                                    label: i18n.format_date(&extra_hours.date_time.date()),
-                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                    description: format!("{}", extra_hours.description).into(),
-                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            h2 { class: "text-lg font-bold mt-8", "{sick_leave_str}" }
-
-            ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_sick_leave()) {
-                    {
-                        let extra_hours_id = extra_hours.id;
-                        rsx! {
-                            li { class: "mb-1",
-                                TripleView {
-                                    label: i18n.format_date(&extra_hours.date_time.date()),
-                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                    description: format!("{}", extra_hours.description).into(),
-                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            h2 { class: "text-lg font-bold mt-8", "{extra_work_str}" }
-            p { class: "text-sm text-gray-500 mb-4", "{work_hours_description_str}" }
-
-            ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_extra_work()) {
-                    {
-                        let extra_hours_id = extra_hours.id;
-                        rsx! {
-                            li { key: "{extra_hours_id}", class: "mb-1",
-                                TripleView {
-                                    label: i18n.format_date(&extra_hours.date_time.date()),
-                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                    description: format!("{}", extra_hours.description).into(),
-                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            h2 { class: "text-lg font-bold mt-8", "{unavailable_str}" }
-            p { class: "text-sm text-gray-500 mb-4", "{unavailable_description_str}" }
-
-            ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_unavailable()) {
-                    {
-                        let extra_hours_id = extra_hours.id;
-                        rsx! {
-                            li { key: "{extra_hours_id}", class: "mb-1",
-                                TripleView {
-                                    label: i18n.format_date(&extra_hours.date_time.date()),
-                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                    description: format!("{}", extra_hours.description).into(),
-                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            h2 { class: "text-lg font-bold mt-8", "{unpaid_leave_str}" }
-
-            ul {
-                for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_unpaid_leave()) {
-                    {
-                        let extra_hours_id = extra_hours.id;
-                        rsx! {
-                            li { key: "{extra_hours_id}", class: "mb-1",
-                                TripleView {
-                                    label: i18n.format_date(&extra_hours.date_time.date()),
-                                    value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                    description: format!("{}", extra_hours.description).into(),
-                                    ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Custom Extra Hours Section
-            for custom_hour_category in props.custom_hours.iter() {
-                h2 { class: "text-lg font-bold mt-8", "{custom_hour_category.name}" }
-
-                // Find and display description from definitions
-                if let Some(definition) = props.custom_extra_hours_definitions.iter()
-                    .find(|def| def.id == custom_hour_category.id) {
-                    if let Some(ref description) = definition.description {
-                        p { class: "text-sm text-gray-500 mb-4", "{description}" }
-                    }
-                }
-
-                ul {
-                    for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_custom_with_id(custom_hour_category.id)) {
-                        {
-                            let extra_hours_id = extra_hours.id;
-                            rsx! {
-                                li { key: "{extra_hours_id}", class: "mb-1",
-                                    TripleView {
-                                        label: i18n.format_date(&extra_hours.date_time.date()),
-                                        value: format!("{:.3} {hours_str}", extra_hours.amount).into(),
-                                        description: format!("{}", extra_hours.description).into(),
-                                        ondelete: move |_| props.ondelete.call(extra_hours_id),
-                                    }
-                                }
+                            ExtraHoursCategorySection {
+                                label: custom_category.name.clone(),
+                                description,
+                                entries: entries.into(),
+                                hours_label: hours_str.clone(),
+                                ondelete: props.ondelete,
                             }
                         }
                     }
@@ -300,474 +708,57 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
     }
 }
 
-#[component]
-pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
-    let mut expand_days = use_signal(|| false);
-    let mut expand_details = use_signal(|| false);
-
-    let i18n = I18N.read().clone();
-    let working_hours_per_day_heading = i18n.t(Key::WorkingHoursPerDayHeading);
-    let balance_str = i18n.t(Key::Balance);
-    let overall_str = i18n.t(Key::Overall);
-    let required_str = i18n.t(Key::Required);
-    let shiftplan_str = i18n.t(Key::CategoryShiftplan);
-    let extra_work_str = i18n.t(Key::CategoryExtraWork);
-    let vacation_str = i18n.t(Key::CategoryVacation);
-    let vacation_days_str = i18n.t(Key::VacationDaysLabel);
-    let sick_leave_str = i18n.t(Key::CategorySickLeave);
-    let holidays_str = i18n.t(Key::CategoryHolidays);
-    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
-    let volunteer_work_str = i18n.t(Key::CategoryVolunteerWork);
-    let show_details_str = i18n.t(Key::ShowDetails);
-    let hide_details_str = i18n.t(Key::HideDetails);
-    let hours_str = i18n.t(Key::Hours);
-    let days_str = i18n.t(Key::Days);
-
-    rsx! {
-        div {
-            div { class: "flex flex-row mt-4 justify-between gap-2",
-                h3 { class: "text-l font-bold",
-                    "{i18n.format_date(&props.working_hours.from)} - {i18n.format_date(&props.working_hours.to)}"
-                }
-                div { {format!("{:.2} {}", props.working_hours.balance, hours_str)} }
-                if *expand_details.read() {
-                    div {
-                        class: "cursor-pointer underline",
-                        onclick: move |_| {
-                            *expand_details.write() = false;
-                        },
-                        "{hide_details_str}"
-                    }
-                } else {
-                    div {
-                        class: "cursor-pointer underline",
-                        onclick: move |_| {
-                            *expand_details.write() = true;
-                        },
-                        "{show_details_str}"
-                    }
-                }
-            }
-            ul {
-                if *expand_details.read() {
-                    li {
-                        TupleView {
-                            label: balance_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.balance).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: overall_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.overall_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: required_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.expected_hours).into(),
-                        }
-                    }
-                    li { class: "mt-2",
-                        TupleView {
-                            label: shiftplan_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.shiftplan_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: extra_work_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.extra_work_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: vacation_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.vacation_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: vacation_days_str.clone(),
-                            value: format!("{:.2} {days_str}", props.working_hours.vacation_days).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: sick_leave_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.sick_leave_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: holidays_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.holiday_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: unpaid_leave_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.unpaid_leave_hours).into(),
-                        }
-                    }
-                    li {
-                        TupleView {
-                            label: volunteer_work_str.clone(),
-                            value: format!("{:.2} {hours_str}", props.working_hours.volunteer_hours).into(),
-                        }
-                    }
-                }
-                li { class: "mt-4",
-                    if *expand_details.read() {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_details.write() = false;
-                            },
-                            "{hide_details_str}"
-                        }
-                    } else {
-
-                    }
-                }
-            }
-
-            if *expand_details.read() {
-                div { class: "flex flex-row mt-6 justify-between",
-                    h4 { class: "text-lg font-bold", "{working_hours_per_day_heading}" }
-                    if !*expand_days.read() {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_days.write() = true;
-                            },
-                            "{show_details_str}"
-                        }
-                    } else {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_days.write() = false;
-                            },
-                            "{hide_details_str}"
-                        }
-                    }
-                }
-
-                if *expand_days.read() {
-                    ul {
-                        for working_hours in props.working_hours.days.iter() {
-                            li {
-                                TripleView {
-                                    label: i18n.format_date(&working_hours.date),
-                                    value: format!("{} {hours_str}", working_hours.hours).into(),
-                                    description: format!("{}", i18n.t(working_hours.category.to_i18n_key())).into(),
-                                }
-                            }
-                        }
-                    }
-                }
-
-                div { class: "mb-12" }
-            }
-        }
-    }
-}
-
-enum EmployeeViewActions {
-    ShowAddEntry,
+#[derive(Props, Clone, PartialEq)]
+struct ExtraHoursCategorySectionProps {
+    label: Rc<str>,
+    description: Option<Rc<str>>,
+    entries: Rc<[ExtraHours]>,
+    hours_label: ImStr,
+    ondelete: EventHandler<Uuid>,
 }
 
 #[component]
-pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
+fn ExtraHoursCategorySection(props: ExtraHoursCategorySectionProps) -> Element {
     let i18n = I18N.read().clone();
-    let mut expand_weeks = use_signal(|| false);
-    //let mut expand_months = use_signal(|| false);
-    //let mut expand_details = use_signal(|| false);
-    let mut show_add_entry_dialog = use_signal(|| false);
-
-    let employee_work_details_service = use_coroutine_handle::<EmployeeWorkDetailsAction>();
-
-    let overall_header_str = i18n.t(Key::OverallHeading);
-    let working_hours_per_week_heading = i18n.t(Key::WorkingHoursPerWeekHeading);
-    let extra_hours_heading = i18n.t(Key::ExtraHoursHeading);
-    let work_details_header: ImStr = i18n.t(Key::WorkDetailsHeading).into();
-    let balance_str = i18n.t(Key::Balance);
-    let overall_str = i18n.t(Key::Overall);
-    let required_str = i18n.t(Key::Required);
-    let carryover_balance_str = i18n.t(Key::CarryoverBalance);
-    let shiftplan_str = i18n.t(Key::CategoryShiftplan);
-    let extra_work_str = i18n.t(Key::CategoryExtraWork);
-    let vacation_str = i18n.t(Key::CategoryVacation);
-    let sick_leave_str = i18n.t(Key::CategorySickLeave);
-    let holidays_str = i18n.t(Key::CategoryHolidays);
-    let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
-    let volunteer_work_str = i18n.t(Key::CategoryVolunteerWork);
-    let show_details_str = i18n.t(Key::ShowDetails);
-    let hide_details_str = i18n.t(Key::HideDetails);
-    let hours_str = i18n.t(Key::Hours);
-    let add_entry_str: ImStr = i18n.t(Key::AddEntry).into();
-    let actions_label: ImStr = i18n.t(Key::ActionsLabel).into();
-    let show_full_year_label: ImStr = i18n.t(Key::ShowFullYearLabel).into();
-    let show_until_now_label: ImStr = i18n.t(Key::ShowUntilNowLabel).into();
-    let add_work_details_label: ImStr = i18n.t(Key::AddWorkDetailsLabel).into();
-    let hours_label = i18n.t(Key::Hours);
-
-    let vacation_days_str: ImStr = i18n.t(Key::VacationDaysLabel).into();
-    let vacation_carryover_str: ImStr = i18n.t(Key::VacationCarryoverLabel).into();
-
-    let current_week_note: ImStr = i18n.t(Key::CurrentWeekNote).into();
-
-    let cr = use_coroutine(
-        move |mut rx: UnboundedReceiver<EmployeeViewActions>| async move {
-            while let Some(action) = rx.next().await {
-                match action {
-                    EmployeeViewActions::ShowAddEntry => {
-                        *show_add_entry_dialog.write() = true;
-                    }
-                }
-            }
-        },
-    );
-
+    let label = props.label.clone();
+    let description = props.description.clone();
+    let entries = props.entries.clone();
+    let hours_label = props.hours_label;
+    let ondelete = props.ondelete;
     rsx! {
-        if *show_add_entry_dialog.read() {
-            Modal {
-                AddExtraHoursForm {
-                    sales_person_id: props.employee.sales_person.id,
-                    onabort: move |_| {
-                        *show_add_entry_dialog.write() = false;
-                    },
-                    onsaved: move |_| {
-                        props.onupdate.call(());
-                        *show_add_entry_dialog.write() = false;
-                    },
-                }
+        div { class: "flex flex-col mt-3",
+            h3 { class: "text-xs uppercase tracking-wide font-semibold text-ink-muted",
+                "{label}"
             }
-        }
-
-        div { class: "flex justify-between",
-            div { class: "flex flex-col pb-2 gap-2 w-full",
-                div { class: "flex flex-row justify-between",
-                    h1 { class: "text-2xl font-bold mr-4 md:pr-16",
-                        "{props.employee.sales_person.name.clone()}"
-                    }
-                    div { class: "flex flex-row gap-2 justify-center",
-                        Button { on_click: props.on_previous_year.clone(), "<" }
-                        span { class: "pt-2", "{props.year}" }
-                        Button { on_click: props.on_next_year.clone(), ">" }
-                    }
-                    DropdownTrigger {
-                        entries: [
-                            (add_entry_str, Box::new(move |_| cr.send(EmployeeViewActions::ShowAddEntry)))
-                                .into(),
-                            (
-                                show_full_year_label,
-                                Box::new(move |_| props.on_full_year.call(())),
-                                props.year != js::get_current_year(),
-                            )
-                                .into(),
-                            (
-                                show_until_now_label,
-                                Box::new(move |_| props.on_until_now.call(())),
-                                props.year != js::get_current_year(),
-                            )
-                                .into(),
-                            (
-                                add_work_details_label,
-                                Box::new(move |_| props.on_add_employee_work_details.unwrap().call(())),
-                                props.on_add_employee_work_details.is_none(),
-                            )
-                                .into(),
-                        ]
-                            .into(),
-                        Button { "{actions_label}" }
-                    }
-                }
+            if let Some(desc) = description {
+                p { class: "text-xs text-ink-muted mb-2", "{desc}" }
             }
-        }
-        div { class: "flex flex-col lg:flex-row lg:justify-between lg:gap-4",
-            div {
-                if !props.full_year {
-                    div { class: "text-sm text-gray-500", "{current_week_note}" }
-                }
-                div { class: "flex flex-col",
-                    h2 { class: "text-lg font-bold mt-8", "{overall_header_str}" }
-
-                    ul {
-                        li {
-                            TupleView {
-                                label: balance_str.clone(),
-                                value: format!("{:.2} {}", props.employee.balance, hours_str.clone()).into(),
-                            }
-                        }
-
-                        li {
-                            TupleView {
-                                label: overall_str.clone(),
-                                value: format!("{:.2} {}", props.employee.overall_working_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: required_str.clone(),
-                                value: format!("{:.2} {}", props.employee.expected_working_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li { class: "mt-2",
-                            TupleView {
-                                label: shiftplan_str.clone(),
-                                value: format!("{:.2} {}", props.employee.shiftplan_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: extra_work_str.clone(),
-                                value: format!("{:.2} {}", props.employee.extra_work_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: vacation_str.clone(),
-                                value: format!("{:.2} {}", props.employee.vacation_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: sick_leave_str.clone(),
-                                value: format!("{:.2} {}", props.employee.sick_leave_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: holidays_str.clone(),
-                                value: format!("{:.2} {}", props.employee.holiday_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: unpaid_leave_str.clone(),
-                                value: format!("{:.2} {}", props.employee.unpaid_leave_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: volunteer_work_str.clone(),
-                                value: format!("{:.2} {}", props.employee.volunteer_hours, hours_str.clone()).into(),
-                            }
-                        }
-                        li {
-                            TupleView {
-                                label: carryover_balance_str.clone(),
-                                value: format!("{:.2} {}", props.employee.carryover_balance, hours_str.clone()).into(),
-                            }
-                        }
-                        for custom_hour in props.custom_hours.iter() {
-                            li {
-                                TupleView {
-                                    label: custom_hour.name.clone(),
-                                    value: format!("{:.2} {}", custom_hour.hours, hours_str.clone()).into(),
+            for entry in entries.iter() {
+                {
+                    let entry_id = entry.id;
+                    let date = i18n.format_date(&entry.date_time.date());
+                    let amount = format!("{} {}", format_hours(entry.amount, 2), hours_label);
+                    let entry_description = entry.description.clone();
+                    rsx! {
+                        div { class: "flex items-baseline justify-between gap-2 py-1.5 border-b border-border",
+                            div { class: "min-w-0 flex flex-col",
+                                span { class: "text-sm text-ink", "{date}" }
+                                if !entry_description.is_empty() {
+                                    span { class: "text-xs text-ink-muted truncate", "{entry_description}" }
                                 }
                             }
-                        }
-                        if props.show_vacation {
-                            h2 { class: "text-lg font-bold mt-8", "{vacation_str}" }
-                            li {
-                                TupleView {
-                                    label: vacation_days_str.as_rc(),
-                                    value: format!("{} / {}", props.employee.vacation_days, props.employee.vacation_entitlement)
-                                        .into(),
+                            div { class: "flex items-center gap-2",
+                                span { class: "font-mono tabular-nums text-sm text-ink",
+                                    "{amount}"
                                 }
-                            }
-                            li {
-                                TupleView {
-                                    label: vacation_carryover_str.as_rc(),
-                                    value: format!("{}", props.employee.vacation_carryover).into(),
+                                Btn {
+                                    variant: BtnVariant::Danger,
+                                    on_click: move |_| ondelete.call(entry_id),
+                                    "🗑"
                                 }
                             }
                         }
                     }
-                }
-            }
-
-            div { class: "border-t-2 border-gray-200 border-double mt-8 lg:pl-4 lg:flex-grow lg:ml-4 lg:border-t-0 lg:border-l-2 lg:mt-0",
-                h2 { class: "text-lg font-bold mt-8", "{work_details_header}" }
-
-                for employee_work_details in props.employee_work_details_list.iter() {
-                    TripleView {
-                        label: format!(
-                            "{} - {}",
-                            i18n.format_date(&employee_work_details.from),
-                            i18n.format_date(&employee_work_details.to),
-                        )
-                            .into(),
-                        value: format!("{} {}", employee_work_details.expected_hours, hours_label).into(),
-                        description: "".into(),
-                        hide_delete_button: !props.show_delete_employee_work_details,
-                        ondelete: {
-                            let employee_work_details_id = employee_work_details.id;
-                            move |_| {
-                                employee_work_details_service
-                                    .send(EmployeeWorkDetailsAction::Delete(employee_work_details_id));
-                                if let Some(on_delete_employee_work_details_clicked) = props
-                                    .on_delete_employee_work_details_clicked
-                                    .clone()
-                                {
-                                    on_delete_employee_work_details_clicked.call(employee_work_details_id);
-                                }
-                            }
-                        },
-                        on_click: {
-                            let employee_work_details_id = employee_work_details.id;
-                            move |_| {
-                                props.on_employee_work_details_clicked.call(employee_work_details_id)
-                            }
-                        },
-                    }
-                }
-                div { class: "flex flex-row mt-8 justify-between",
-                    h2 { class: "text-lg font-bold", "{working_hours_per_week_heading}" }
-                    if !*expand_weeks.read() {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_weeks.write() = true;
-                            },
-                            "{show_details_str}"
-                        }
-                    } else {
-                        div {
-                            class: "cursor-pointer underline",
-                            onclick: move |_| {
-                                *expand_weeks.write() = false;
-                            },
-                            "{hide_details_str}"
-                        }
-                    }
-                }
-
-                if *expand_weeks.read() {
-                    for working_hours in props.employee.working_hours_by_week.iter() {
-                        WorkingHoursView { working_hours: working_hours.clone() }
-                    }
-                }
-            }
-
-            div { class: "border-t-2 border-gray-200 border-double mt-8 lg:pl-4 lg:flex-grow lg:ml-4 lg:border-t-0 lg:border-l-2 lg:mt-0",
-
-                h2 { class: "text-lg font-bold mt-8", "{extra_hours_heading}" }
-
-                ExtraHoursView {
-                    extra_hours: props.extra_hours.clone(),
-                    custom_hours: props.custom_hours.clone(),
-                    custom_extra_hours_definitions: props.custom_extra_hours_definitions.clone(),
-                    ondelete: move |uuid| {
-                        props.on_extra_hour_delete.call(uuid);
-                        props.onupdate.call(());
-                    },
-                    on_custom_delete: move |uuid| {
-                        props.on_custom_delete.call(uuid);
-                    },
                 }
             }
         }
@@ -784,6 +775,8 @@ pub struct EmployeeViewProps {
     pub on_add_employee_work_details: Option<EventHandler<()>>,
     pub on_employee_work_details_clicked: EventHandler<Uuid>,
     pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
+    #[props(!optional, default = None)]
+    pub on_open_extra_hours: Option<EventHandler<()>>,
 }
 
 #[component]
@@ -833,6 +826,77 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             on_previous_year: move |_| {
                 employee_service.send(EmployeeAction::PrevYear);
             },
+            on_open_extra_hours: props.on_open_extra_hours,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::date;
+
+    fn make_details(from: time::Date, expected: f32) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::nil(),
+            sales_person_id: Uuid::nil(),
+            expected_hours: expected,
+            from,
+            to: from,
+            workdays_per_week: 5,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            dynamic: false,
+            cap_planned_hours_to_expected: false,
+            vacation_days: 0,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        }
+    }
+
+    #[test]
+    fn most_recent_expected_picks_latest_from() {
+        let a = make_details(date!(2025 - 01 - 01), 20.0);
+        let b = make_details(date!(2026 - 03 - 01), 35.0);
+        let arr = vec![a, b];
+        assert_eq!(most_recent_expected(&arr), 35.0);
+    }
+
+    #[test]
+    fn most_recent_expected_zero_when_empty() {
+        assert_eq!(most_recent_expected(&[]), 0.0);
+    }
+
+    #[test]
+    fn no_legacy_classes_in_source() {
+        let src = include_str!("employee_view.rs");
+        let test_module_start = src
+            .find("#[cfg(test)]")
+            .expect("test module marker missing");
+        let prefix = &src[..test_module_start];
+        for forbidden in [
+            "bg-gray-",
+            "bg-white",
+            "text-gray-",
+            "text-blue-",
+            "text-red-",
+            "text-green-",
+            "bg-blue-",
+            "bg-green-",
+            "bg-red-",
+            "border-black",
+            "border-gray-",
+        ] {
+            assert!(
+                !prefix.contains(forbidden),
+                "legacy class `{forbidden}` found in source"
+            );
         }
     }
 }

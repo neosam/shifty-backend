@@ -54,3 +54,69 @@ impl Display for ImStr {
         write!(f, "{}", self.inner)
     }
 }
+
+/// Formats a floating-point hours value with the given decimal precision,
+/// normalising negative zero (and tiny negatives that round to zero) so they
+/// render as `0.00` (or the precision-appropriate string) instead of `-0.00`.
+///
+/// Without this helper, `-0.0049_f32` formatted as `{:.2}` becomes `-0.00`.
+/// Same with literal `-0.0_f32`. Both are visually noisy in HR views where
+/// "the balance is zero" is the meaningful state. We round to the target
+/// precision first, then clamp `±0.0` to `+0.0` before formatting.
+pub fn format_hours(value: f32, decimals: usize) -> String {
+    let factor = 10f32.powi(decimals as i32);
+    let rounded = (value * factor).round() / factor;
+    // After rounding, treat ±0.0 as +0.0 so the sign disappears.
+    let normalized = if rounded == 0.0 { 0.0_f32 } else { rounded };
+    format!("{:.*}", decimals, normalized)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_hours_zero_renders_without_sign() {
+        assert_eq!(format_hours(0.0_f32, 2), "0.00");
+    }
+
+    #[test]
+    fn format_hours_negative_zero_renders_without_sign() {
+        assert_eq!(format_hours(-0.0_f32, 2), "0.00");
+    }
+
+    #[test]
+    fn format_hours_tiny_negative_rounds_to_positive_zero() {
+        assert_eq!(format_hours(-0.0049_f32, 2), "0.00");
+        assert_eq!(format_hours(-0.0001_f32, 2), "0.00");
+    }
+
+    #[test]
+    fn format_hours_tiny_positive_rounds_to_zero() {
+        assert_eq!(format_hours(0.0049_f32, 2), "0.00");
+    }
+
+    #[test]
+    fn format_hours_preserves_real_negatives() {
+        assert_eq!(format_hours(-0.5_f32, 2), "-0.50");
+        assert_eq!(format_hours(-12.5_f32, 2), "-12.50");
+    }
+
+    #[test]
+    fn format_hours_preserves_real_positives() {
+        assert_eq!(format_hours(1.5_f32, 2), "1.50");
+        assert_eq!(format_hours(12.345_f32, 2), "12.35");
+    }
+
+    #[test]
+    fn format_hours_one_decimal_handles_negative_zero() {
+        assert_eq!(format_hours(-0.04_f32, 1), "0.0");
+        assert_eq!(format_hours(-0.0_f32, 1), "0.0");
+    }
+
+    #[test]
+    fn format_hours_zero_decimals_handles_negative_zero() {
+        assert_eq!(format_hours(-0.4_f32, 0), "0");
+        assert_eq!(format_hours(-0.0_f32, 0), "0");
+    }
+}

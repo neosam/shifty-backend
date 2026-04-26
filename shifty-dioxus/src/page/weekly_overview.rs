@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use std::rc::Rc;
 
 use crate::{
-    base_types::ImStr,
+    base_types::{format_hours, ImStr},
     component::{NavBtn, TopBar, WeeklyOverviewChart},
     i18n::I18nType,
     js,
@@ -100,16 +100,16 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                                         }
                                     }
                                     td { class: "hidden md:table-cell px-3 py-2 text-ink",
-                                        "💰{week.paid_hours:.2} | 🤝{(week.volunteer_hours+0.0):.2}"
+                                        {format!("💰{} | 🤝{}", format_hours(week.paid_hours, 2), format_hours(week.volunteer_hours, 2))}
                                     }
                                     td { class: "px-3 py-2 text-ink font-mono tabular-nums",
-                                        div { "{week.available_hours:.2} / {week.required_hours:.2}" }
+                                        div { {format!("{} / {}", format_hours(week.available_hours, 2), format_hours(week.required_hours, 2))} }
                                         div { class: "text-xs text-ink-muted block md:hidden mt-1",
-                                            "💰{week.paid_hours:.2} | 🤝{(week.volunteer_hours+0.0):.2}"
+                                            {format!("💰{} | 🤝{}", format_hours(week.paid_hours, 2), format_hours(week.volunteer_hours, 2))}
                                         }
                                     }
                                     td { class: "px-3 py-2 {diff_class} font-mono tabular-nums",
-                                        "{sign} {diff_abs:.2}"
+                                        {format!("{sign} {}", format_hours(diff_abs, 2))}
                                     }
                                 }
                                 if !week.sales_person_absences.is_empty() {
@@ -117,7 +117,7 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                                         td { class: "px-3 py-2 text-xs text-ink-muted", colspan: "4",
                                             for absence in week.sales_person_absences.iter() {
                                                 span { class: "mr-3",
-                                                    "{absence.name}: {absence.absence_hours:.2} {hours_short}"
+                                                    {format!("{}: {} {hours_short}", absence.name, format_hours(absence.absence_hours, 2))}
                                                 }
                                             }
                                         }
