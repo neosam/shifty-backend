@@ -5,10 +5,7 @@ use futures_util::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::{
-    api,
-    error::ShiftyError,
-};
+use crate::{api, error::ShiftyError};
 
 use rest_types::BillingPeriodTO;
 
@@ -32,7 +29,8 @@ impl Default for BillingPeriodStore {
     }
 }
 
-pub static BILLING_PERIOD_STORE: GlobalSignal<BillingPeriodStore> = Signal::global(|| BillingPeriodStore::default());
+pub static BILLING_PERIOD_STORE: GlobalSignal<BillingPeriodStore> =
+    Signal::global(|| BillingPeriodStore::default());
 
 #[derive(Debug)]
 pub enum BillingPeriodAction {

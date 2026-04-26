@@ -99,7 +99,9 @@ pub async fn load_slot_edit(slot_id: Uuid, year: u32, week: u8) -> Result<(), Sh
 pub async fn slot_edit_service(mut rx: UnboundedReceiver<SlotEditAction>) {
     while let Some(action) = rx.next().await {
         match match action {
-            SlotEditAction::NewSlot(year, week, shiftplan_id) => new_slot_edit(year, week, shiftplan_id),
+            SlotEditAction::NewSlot(year, week, shiftplan_id) => {
+                new_slot_edit(year, week, shiftplan_id)
+            }
             SlotEditAction::UpdateSlot(slot) => update_slot_edit(slot),
             SlotEditAction::SaveSlot => save_slot_edit().await,
             SlotEditAction::Cancel => cancel_slot_edit().await,

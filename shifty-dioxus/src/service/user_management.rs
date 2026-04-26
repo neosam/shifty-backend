@@ -187,25 +187,19 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
                     }
                 }
                 (Some(user_id), None) => {
-                    loader::save_user_for_sales_person(
-                        CONFIG.read().clone(),
-                        saved_id,
-                        user_id,
-                    )
-                    .await?;
+                    loader::save_user_for_sales_person(CONFIG.read().clone(), saved_id, user_id)
+                        .await?;
                 }
                 (None, Some(_)) => {
-                    loader::remove_user_from_sales_person(
-                        CONFIG.read().clone(),
-                        saved_id,
-                    )
-                    .await?;
+                    loader::remove_user_from_sales_person(CONFIG.read().clone(), saved_id).await?;
                 }
                 _ => {}
             }
 
             // Save shiftplan assignments
-            if selected_sales_person.shiftplan_assignments != loaded_sales_person.shiftplan_assignments {
+            if selected_sales_person.shiftplan_assignments
+                != loaded_sales_person.shiftplan_assignments
+            {
                 crate::api::set_shiftplan_assignments(
                     CONFIG.read().clone(),
                     saved_id,
@@ -251,13 +245,14 @@ pub async fn add_user(user: ImStr) -> Result<(), ShiftyError> {
 
 pub async fn delete_user(user: ImStr) -> Result<(), ShiftyError> {
     // First check if the user is connected to a sales person
-    let sales_person = loader::load_sales_person_by_user(CONFIG.read().clone(), user.clone()).await?;
-    
+    let sales_person =
+        loader::load_sales_person_by_user(CONFIG.read().clone(), user.clone()).await?;
+
     // If connected to a sales person, remove the connection first
     if let Some(sales_person) = sales_person {
         loader::remove_user_from_sales_person(CONFIG.read().clone(), sales_person.id).await?;
     }
-    
+
     // Now proceed with deleting the user
     loader::delete_user(CONFIG.read().clone(), user).await?;
     Ok(())
@@ -277,21 +272,30 @@ pub async fn load_user_invitations(username: ImStr) {
     }
 }
 
-pub async fn generate_user_invitation(username: ImStr, expiration_hours: Option<i64>) -> Result<(), ShiftyError> {
+pub async fn generate_user_invitation(
+    username: ImStr,
+    expiration_hours: Option<i64>,
+) -> Result<(), ShiftyError> {
     loader::generate_invitation(CONFIG.read().clone(), username.clone(), expiration_hours).await?;
     // Reload invitations to show the new one
     load_user_invitations(username).await;
     Ok(())
 }
 
-pub async fn revoke_user_invitation(invitation_id: Uuid, username: ImStr) -> Result<(), ShiftyError> {
+pub async fn revoke_user_invitation(
+    invitation_id: Uuid,
+    username: ImStr,
+) -> Result<(), ShiftyError> {
     loader::revoke_invitation(CONFIG.read().clone(), invitation_id).await?;
     // Reload invitations to update the list
     load_user_invitations(username).await;
     Ok(())
 }
 
-pub async fn revoke_user_invitation_session(invitation_id: Uuid, username: ImStr) -> Result<(), ShiftyError> {
+pub async fn revoke_user_invitation_session(
+    invitation_id: Uuid,
+    username: ImStr,
+) -> Result<(), ShiftyError> {
     loader::revoke_invitation_session(CONFIG.read().clone(), invitation_id).await?;
     // Reload invitations to update the status
     load_user_invitations(username).await;
@@ -370,12 +374,10 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     .user_id = None;
                 Ok(())
             }
-            UserManagementAction::SaveSalesPerson => {
-                match save_sales_person().await {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(err),
-                }
-            }
+            UserManagementAction::SaveSalesPerson => match save_sales_person().await {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err),
+            },
             UserManagementAction::SaveSalesPersonAndNavigate => {
                 match save_sales_person().await {
                     Ok(_) => {
@@ -439,7 +441,9 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             UserManagementAction::RevokeInvitation(invitation_id) => {
                 // We need to get the username from somewhere to reload invitations
                 // For now, we'll get it from the first invitation in the store
-                let username = USER_MANAGEMENT_STORE.read().user_invitations
+                let username = USER_MANAGEMENT_STORE
+                    .read()
+                    .user_invitations
                     .first()
                     .map(|inv| inv.username.clone().into())
                     .unwrap_or_else(|| "".into());
@@ -448,7 +452,9 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             UserManagementAction::RevokeInvitationSession(invitation_id) => {
                 // We need to get the username from somewhere to reload invitations
                 // For now, we'll get it from the first invitation in the store
-                let username = USER_MANAGEMENT_STORE.read().user_invitations
+                let username = USER_MANAGEMENT_STORE
+                    .read()
+                    .user_invitations
                     .first()
                     .map(|inv| inv.username.clone().into())
                     .unwrap_or_else(|| "".into());

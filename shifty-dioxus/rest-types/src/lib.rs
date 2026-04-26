@@ -339,6 +339,8 @@ pub struct ShortEmployeeReportTO {
     pub expected_hours: f32,
     pub dynamic_hours: f32,
     pub overall_hours: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
 }
 
 #[cfg(feature = "service-impl")]
@@ -381,6 +383,7 @@ pub enum ExtraHoursReportCategoryTO {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
@@ -436,6 +439,8 @@ pub struct WorkingHoursReportTO {
     pub holiday_hours: f32,
     pub holiday_days: f32,
     pub unpaid_leave_hours: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
     pub absence_days: f32,
 
     pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
@@ -489,6 +494,8 @@ pub struct EmployeeReportTO {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
     pub unpaid_leave_hours: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
 
     pub vacation_carryover: i32,
     pub vacation_days: f32,
@@ -558,6 +565,8 @@ pub struct EmployeeWorkDetailsTO {
     pub to_year: u32,
     pub workdays_per_week: u8,
     pub is_dynamic: bool,
+    #[serde(default)]
+    pub cap_planned_hours_to_expected: bool,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -659,6 +668,7 @@ pub enum ExtraHoursCategoryTO {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]

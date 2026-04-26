@@ -62,7 +62,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::BookingLogFilterName, "Filter by Name");
     i18n.add_text(Locale::En, Key::BookingLogFilterDay, "Filter by Day");
     i18n.add_text(Locale::En, Key::BookingLogFilterStatus, "Filter by Status");
-    i18n.add_text(Locale::En, Key::BookingLogFilterCreatedBy, "Filter by Creator");
+    i18n.add_text(
+        Locale::En,
+        Key::BookingLogFilterCreatedBy,
+        "Filter by Creator",
+    );
     i18n.add_text(Locale::En, Key::BookingLogFilterClear, "Clear Filters");
     i18n.add_text(Locale::En, Key::BookingLogFilterAll, "All");
     i18n.add_text(Locale::En, Key::BookingLogFilterActiveOnly, "Active Only");
@@ -108,7 +112,19 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Holiday");
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
     i18n.add_text(Locale::En, Key::CategoryUnpaidLeave, "Unpaid Leave");
+    i18n.add_text(Locale::En, Key::CategoryVolunteerWork, "Volunteer Work");
     i18n.add_text(Locale::En, Key::CategoryCustom, "Custom");
+
+    i18n.add_text(
+        Locale::En,
+        Key::CapPlannedHoursLabel,
+        "Cap planned hours at expected",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CapPlannedHoursHelp,
+        "Hours beyond the expected weekly amount are recorded as volunteer work and do not affect the balance.",
+    );
 
     i18n.add_text(Locale::En, Key::VacationDaysLabel, "Vacation days");
     i18n.add_text(
@@ -480,11 +496,19 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     // Delete billing period
     i18n.add_text(Locale::En, Key::DeleteBillingPeriod, "Delete");
     i18n.add_text(Locale::En, Key::ConfirmDeleteBillingPeriod, "Are you sure you want to delete the billing period {period}? This action cannot be undone.");
-    i18n.add_text(Locale::En, Key::DeleteBillingPeriodError, "Failed to delete billing period: {error}");
+    i18n.add_text(
+        Locale::En,
+        Key::DeleteBillingPeriodError,
+        "Failed to delete billing period: {error}",
+    );
 
     // My Shifts page
     i18n.add_text(Locale::En, Key::MyShifts, "My Shifts");
-    i18n.add_text(Locale::En, Key::NoShiftsFound, "No shifts found for this period.");
+    i18n.add_text(
+        Locale::En,
+        Key::NoShiftsFound,
+        "No shifts found for this period.",
+    );
 
     // Day view
     i18n.add_text(Locale::En, Key::ViewModeWeek, "Week");
@@ -494,9 +518,21 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ChartRequiredHours, "Required Hours");
 
     // Shiftplan assignments
-    i18n.add_text(Locale::En, Key::ShiftplanAssignments, "Shiftplan Assignments");
-    i18n.add_text(Locale::En, Key::ShiftplanAssignmentsInfo, "No selection means this person is eligible for all shiftplans.");
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanAssignments,
+        "Shiftplan Assignments",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanAssignmentsInfo,
+        "No selection means this person is eligible for all shiftplans.",
+    );
     i18n.add_text(Locale::En, Key::PermissionLevelAvailable, "Available");
     i18n.add_text(Locale::En, Key::PermissionLevelPlannerOnly, "Planner Only");
-    i18n.add_text(Locale::En, Key::BookingForbidden, "This person is not eligible for this shiftplan.");
+    i18n.add_text(
+        Locale::En,
+        Key::BookingForbidden,
+        "This person is not eligible for this shiftplan.",
+    );
 }

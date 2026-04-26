@@ -52,6 +52,8 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
     let days_per_week_label = i18n.t(i18n::Key::DaysPerWeekLabel);
     let vacation_days_label = i18n.t(i18n::Key::VacationEntitlementsPerYearLabel);
     let dynamic_hour_label = i18n.t(i18n::Key::DynamicHourLabel);
+    let cap_planned_hours_label = i18n.t(i18n::Key::CapPlannedHoursLabel);
+    let cap_planned_hours_help = i18n.t(i18n::Key::CapPlannedHoursHelp);
     let holiday_in_hours_label = i18n.t(i18n::Key::HolidaysInHoursLabel);
     let workday_in_hours_label = i18n.t(i18n::Key::WorkdaysInHoursLabel);
 
@@ -308,6 +310,29 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         }
                     },
                     ""
+                }
+            }
+            FormPair { label: cap_planned_hours_label,
+                div { class: "flex flex-col",
+                    Checkbox {
+                        value: employee_work_details.cap_planned_hours_to_expected,
+                        disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
+                        on_change: {
+                            to_owned![employee_work_details];
+                            move |value: bool| {
+                                if props.employee_work_details_form_type
+                                    == EmployeeWorkDetailsFormType::ReadOnly
+                                {
+                                    return ();
+                                }
+                                let mut employee_work_details = employee_work_details.clone();
+                                employee_work_details.cap_planned_hours_to_expected = value;
+                                props.on_update_employee_work_details.call(employee_work_details);
+                            }
+                        },
+                        ""
+                    }
+                    span { class: "text-xs text-gray-500", "{cap_planned_hours_help}" }
                 }
             }
             FormGroup {

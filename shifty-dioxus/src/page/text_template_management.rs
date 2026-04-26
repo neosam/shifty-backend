@@ -9,7 +9,7 @@ use crate::{
         i18n::I18N,
         text_template::{handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE},
     },
-    state::text_template::{TextTemplate, TemplateEngine},
+    state::text_template::{TemplateEngine, TextTemplate},
 };
 
 #[component]
@@ -42,13 +42,13 @@ pub fn TextTemplateManagement() -> Element {
     let edit_str = i18n.t(Key::Edit);
     let delete_str = i18n.t(Key::Delete);
 
-    let action_coroutine = use_coroutine(move |mut rx: UnboundedReceiver<TextTemplateAction>| {
-        async move {
+    let action_coroutine = use_coroutine(
+        move |mut rx: UnboundedReceiver<TextTemplateAction>| async move {
             while let Some(action) = rx.next().await {
                 handle_text_template_action(action).await;
             }
-        }
-    });
+        },
+    );
 
     let mut reset_form = move || {
         show_form.set(false);
@@ -69,7 +69,11 @@ pub fn TextTemplateManagement() -> Element {
             return;
         }
 
-        let name_rc = if name.trim().is_empty() { None } else { Some(name.into()) };
+        let name_rc = if name.trim().is_empty() {
+            None
+        } else {
+            Some(name.into())
+        };
 
         if let Some(id) = *editing_id.read() {
             // Update existing template
@@ -100,7 +104,13 @@ pub fn TextTemplateManagement() -> Element {
     };
 
     let mut edit_template = move |template: TextTemplate| {
-        form_name.set(template.name.as_ref().map(|s| s.to_string()).unwrap_or_default());
+        form_name.set(
+            template
+                .name
+                .as_ref()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+        );
         form_template_type.set(template.template_type.to_string());
         form_template_text.set(template.template_text.to_string());
         form_template_engine.set(template.template_engine.clone());
@@ -114,10 +124,10 @@ pub fn TextTemplateManagement() -> Element {
 
     rsx! {
         TopBar {}
-        
+
         div { class: "ml-1 mr-1 pt-4 md:m-8",
             h1 { class: "text-2xl font-bold mb-4", "{title}" }
-            
+
             if !*show_form.read() {
                 button {
                     onclick: move |_| show_form.set(true),
@@ -135,7 +145,7 @@ pub fn TextTemplateManagement() -> Element {
                             "{i18n.t(Key::AddNewTemplate)}"
                         }
                     }
-                    
+
                     div { class: "mb-4",
                         label { class: "block text-sm font-medium mb-2", "{i18n.t(Key::TemplateName)}" }
                         input {
@@ -146,7 +156,7 @@ pub fn TextTemplateManagement() -> Element {
                             placeholder: "Enter template name (optional)..."
                         }
                     }
-                    
+
                     div { class: "mb-4",
                         label { class: "block text-sm font-medium mb-2", "{template_type_str}" }
                         select {
@@ -157,7 +167,7 @@ pub fn TextTemplateManagement() -> Element {
                             option { value: "shiftplan-report", "Shiftplan Report" }
                         }
                     }
-                    
+
                     div { class: "mb-4",
                         label { class: "block text-sm font-medium mb-2", "{i18n.t(Key::TemplateEngine)}" }
                         select {
@@ -187,7 +197,7 @@ pub fn TextTemplateManagement() -> Element {
                             placeholder: "Enter your template text here..."
                         }
                     }
-                    
+
                     div { class: "flex gap-2",
                         button {
                             onclick: save_template,
@@ -218,7 +228,7 @@ pub fn TextTemplateManagement() -> Element {
                         for template in store.filtered_templates.iter() {
                             tr { key: "{template.id}",
                                 td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", "{template.id}" }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", 
+                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900",
                                     if let Some(ref name) = template.name {
                                         "{name}"
                                     } else {
@@ -226,7 +236,7 @@ pub fn TextTemplateManagement() -> Element {
                                     }
                                 }
                                 td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", "{template.template_type}" }
-                                td { class: "px-6 py-4 text-sm text-gray-900 max-w-xs truncate", 
+                                td { class: "px-6 py-4 text-sm text-gray-900 max-w-xs truncate",
                                     "{template.template_text}"
                                 }
                                 td { class: "px-6 py-4 whitespace-nowrap text-sm font-medium",

@@ -1,4 +1,7 @@
-use rest_types::{BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO, SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO};
+use rest_types::{
+    BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO,
+    SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO,
+};
 use std::collections::HashMap;
 use std::rc::Rc;
 use tracing::info;
@@ -175,7 +178,11 @@ pub async fn load_shift_plan(
                     background_color: booking.sales_person.background_color.as_ref().into(),
                     self_added: booking.self_added.unwrap_or(false),
                     created: booking.booking.created,
-                    created_by: booking.booking.created_by.as_ref().map(|s| s.to_string().into()),
+                    created_by: booking
+                        .booking
+                        .created_by
+                        .as_ref()
+                        .map(|s| s.to_string().into()),
                 })
                 .collect(),
         })
@@ -219,11 +226,7 @@ pub async fn load_day_aggregate(
                             week: booking.booking.calendar_week as u8,
                             year: booking.booking.year,
                             label: booking.sales_person.name.as_ref().into(),
-                            background_color: booking
-                                .sales_person
-                                .background_color
-                                .as_ref()
-                                .into(),
+                            background_color: booking.sales_person.background_color.as_ref().into(),
                             self_added: booking.self_added.unwrap_or(false),
                             created: booking.booking.created,
                             created_by: booking
@@ -416,7 +419,10 @@ pub async fn load_working_hours_minified_for_week(
             expected_hours: report.expected_hours,
             dynamic_hours: report.dynamic_hours,
             actual_hours: report.overall_hours,
-            balance_hours: balance_map.get(&report.sales_person.id).copied().unwrap_or(0.0),
+            balance_hours: balance_map
+                .get(&report.sales_person.id)
+                .copied()
+                .unwrap_or(0.0),
         })
         .collect())
 }
@@ -723,7 +729,10 @@ pub async fn generate_block_report(
     Ok(report)
 }
 
-fn fix_invitation_link(mut invitation: InvitationResponse, backend_url: &str) -> InvitationResponse {
+fn fix_invitation_link(
+    mut invitation: InvitationResponse,
+    backend_url: &str,
+) -> InvitationResponse {
     invitation.invitation_link = format!("{}/auth/invitation/{}", backend_url, invitation.token);
     invitation
 }
@@ -754,10 +763,7 @@ pub async fn load_user_invitations(
     Ok(fixed_invitations.into())
 }
 
-pub async fn revoke_invitation(
-    config: Config,
-    invitation_id: Uuid,
-) -> Result<(), ShiftyError> {
+pub async fn revoke_invitation(config: Config, invitation_id: Uuid) -> Result<(), ShiftyError> {
     api::revoke_invitation(config, invitation_id).await?;
     Ok(())
 }

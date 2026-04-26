@@ -5,7 +5,7 @@ use crate::{
     component::{base_components::*, TopBar},
     i18n::Key,
     router::Route,
-    service::{self, user_management::UserManagementAction, i18n::I18N},
+    service::{self, i18n::I18N, user_management::UserManagementAction},
     state::{shiftplan::SalesPerson, ShiftplanAssignment},
 };
 use uuid::Uuid;
@@ -68,10 +68,10 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                     }
                 }
             }
-            
+
             // Success message - this will show briefly before redirect
             if user_management.save_success {
-                div { 
+                div {
                     class: "mb-6 p-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-lg",
                     div { class: "flex items-center",
                         div { class: "mr-2", "✅" }
@@ -79,17 +79,17 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                     }
                 }
             }
-            
+
             // Main content card
             div { class: "bg-white rounded-lg shadow-sm border p-4 md:p-6",
                 if let Some(sales_person) = &user_management.sales_person {
                     Form {
                         // Basic Information Section
                         div { class: "mb-6",
-                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200", 
-                                "{i18n.t(Key::BasicInformation)}" 
+                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",
+                                "{i18n.t(Key::BasicInformation)}"
                             }
-                            
+
                             FormPair { label: i18n.t(Key::Name).into(),
                                 TextInput {
                                     value: sales_person.sales_person.name.clone().into(),
@@ -107,7 +107,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                     },
                                 }
                             }
-                            
+
                             FormPair { label: i18n.t(Key::ShiftplanColor).into(),
                                 div { class: "flex items-center gap-3",
                                     div {
@@ -135,13 +135,13 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 }
                             }
                         }
-                        
+
                         // Settings Section
                         div { class: "mb-6",
-                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200", 
-                                "{i18n.t(Key::Settings)}" 
+                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",
+                                "{i18n.t(Key::Settings)}"
                             }
-                            
+
                             div { class: "border-b-2 border-gray-200 border-dashed p-2",
                                 Checkbox {
                                     value: Some(sales_person.sales_person.is_paid),
@@ -160,7 +160,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                     "{i18n.t(Key::ThisPersonReceivesPayment)}"
                                 }
                             }
-                            
+
                             div { class: "border-b-2 border-gray-200 border-dashed p-2",
                                 Checkbox {
                                     value: Some(sales_person.sales_person.inactive),
@@ -179,7 +179,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                     "{i18n.t(Key::ThisPersonIsInactive)}"
                                 }
                             }
-                            
+
                             FormPair { label: i18n.t(Key::UserAccount).into(),
                                 if let Some(user_id) = &sales_person.user_id {
                                     div { class: "flex gap-2",
@@ -213,7 +213,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 }
                             }
                         }
-                        
+
                         // Shiftplan Assignments Section
                         div { class: "mb-6",
                             h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",

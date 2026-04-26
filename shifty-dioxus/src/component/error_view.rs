@@ -6,7 +6,7 @@ use crate::service::error::ERROR_STORE;
 pub fn ErrorView() -> Element {
     let error = ERROR_STORE.read();
     if let Some(ref error) = error.error {
-        rsx!{
+        rsx! {
             div {
                 class: "error-view",
                 div {
@@ -18,5 +18,4 @@ pub fn ErrorView() -> Element {
     } else {
         rsx!()
     }
-
 }

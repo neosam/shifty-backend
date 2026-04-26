@@ -368,10 +368,7 @@ mod tests {
 
     #[test]
     fn has_sunday_slots_with_sunday() {
-        let agg = make_day_aggregate(vec![
-            make_slot(Weekday::Monday),
-            make_slot(Weekday::Sunday),
-        ]);
+        let agg = make_day_aggregate(vec![make_slot(Weekday::Monday), make_slot(Weekday::Sunday)]);
         assert!(has_sunday_slots(&Some(agg)));
     }
 }

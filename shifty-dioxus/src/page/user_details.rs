@@ -229,7 +229,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                 }
                                             }
                                         }
-                                        
+
                                         // Action buttons section at bottom - only show for Valid or Redeemed status
                                         if invitation.status == InvitationStatus::Valid || invitation.status == InvitationStatus::Redeemed {
                                             div { class: "flex justify-end mt-3",

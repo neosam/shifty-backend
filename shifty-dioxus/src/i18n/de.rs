@@ -53,8 +53,16 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Booking log
     i18n.add_text(Locale::De, Key::BookingLogTitle, "Buchungsprotokoll");
-    i18n.add_text(Locale::De, Key::BookingLogShow, "Buchungsprotokoll anzeigen");
-    i18n.add_text(Locale::De, Key::BookingLogHide, "Buchungsprotokoll ausblenden");
+    i18n.add_text(
+        Locale::De,
+        Key::BookingLogShow,
+        "Buchungsprotokoll anzeigen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingLogHide,
+        "Buchungsprotokoll ausblenden",
+    );
     i18n.add_text(Locale::De, Key::BookingLogLoading, "Lädt...");
     i18n.add_text(Locale::De, Key::BookingLogDay, "Tag");
     i18n.add_text(Locale::De, Key::BookingLogName, "Name");
@@ -65,13 +73,29 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::BookingLogDeletedBy, "Gelöscht von");
     i18n.add_text(Locale::De, Key::BookingLogFilterName, "Nach Name filtern");
     i18n.add_text(Locale::De, Key::BookingLogFilterDay, "Nach Tag filtern");
-    i18n.add_text(Locale::De, Key::BookingLogFilterStatus, "Nach Status filtern");
-    i18n.add_text(Locale::De, Key::BookingLogFilterCreatedBy, "Nach Ersteller filtern");
+    i18n.add_text(
+        Locale::De,
+        Key::BookingLogFilterStatus,
+        "Nach Status filtern",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingLogFilterCreatedBy,
+        "Nach Ersteller filtern",
+    );
     i18n.add_text(Locale::De, Key::BookingLogFilterClear, "Filter löschen");
     i18n.add_text(Locale::De, Key::BookingLogFilterAll, "Alle");
     i18n.add_text(Locale::De, Key::BookingLogFilterActiveOnly, "Nur Aktive");
-    i18n.add_text(Locale::De, Key::BookingLogFilterDeletedOnly, "Nur Gelöschte");
-    i18n.add_text(Locale::De, Key::BookingNoInfo, "Keine Information verfügbar");
+    i18n.add_text(
+        Locale::De,
+        Key::BookingLogFilterDeletedOnly,
+        "Nur Gelöschte",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingNoInfo,
+        "Keine Information verfügbar",
+    );
 
     // Weekly overview page
     i18n.add_text(Locale::De, Key::WeeklyOverviewTitle, "Jahresübersicht");
@@ -112,7 +136,19 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::CategoryHolidays, "Feiertage");
     i18n.add_text(Locale::De, Key::CategoryUnavailable, "Nicht verfügbar");
     i18n.add_text(Locale::De, Key::CategoryUnpaidLeave, "Unbezahlter Urlaub");
+    i18n.add_text(Locale::De, Key::CategoryVolunteerWork, "Ehrenamt");
     i18n.add_text(Locale::De, Key::CategoryCustom, "Sonstige");
+
+    i18n.add_text(
+        Locale::De,
+        Key::CapPlannedHoursLabel,
+        "Geplante Stunden auf Soll deckeln",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CapPlannedHoursHelp,
+        "Stunden über dem wöchentlichen Soll werden als Ehrenamt verbucht und beeinflussen das Stundenkonto nicht.",
+    );
 
     i18n.add_text(Locale::De, Key::VacationDaysLabel, "Urlaubstage");
     i18n.add_text(Locale::De, Key::VacationCarryoverLabel, "Vorjahresurlaub");
@@ -523,11 +559,19 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // Delete billing period
     i18n.add_text(Locale::De, Key::DeleteBillingPeriod, "Löschen");
     i18n.add_text(Locale::De, Key::ConfirmDeleteBillingPeriod, "Möchten Sie den Abrechnungszeitraum {period} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.");
-    i18n.add_text(Locale::De, Key::DeleteBillingPeriodError, "Fehler beim Löschen des Abrechnungszeitraums: {error}");
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteBillingPeriodError,
+        "Fehler beim Löschen des Abrechnungszeitraums: {error}",
+    );
 
     // My Shifts page
     i18n.add_text(Locale::De, Key::MyShifts, "Meine Schichten");
-    i18n.add_text(Locale::De, Key::NoShiftsFound, "Keine Schichten für diesen Zeitraum gefunden.");
+    i18n.add_text(
+        Locale::De,
+        Key::NoShiftsFound,
+        "Keine Schichten für diesen Zeitraum gefunden.",
+    );
 
     // Day view
     i18n.add_text(Locale::De, Key::ViewModeWeek, "Woche");
@@ -537,9 +581,21 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::ChartRequiredHours, "Sollstunden");
 
     // Shiftplan assignments
-    i18n.add_text(Locale::De, Key::ShiftplanAssignments, "Schichtplan-Zuweisungen");
-    i18n.add_text(Locale::De, Key::ShiftplanAssignmentsInfo, "Keine Auswahl bedeutet, dass diese Person in allen Schichtplänen gebucht werden kann.");
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanAssignments,
+        "Schichtplan-Zuweisungen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanAssignmentsInfo,
+        "Keine Auswahl bedeutet, dass diese Person in allen Schichtplänen gebucht werden kann.",
+    );
     i18n.add_text(Locale::De, Key::PermissionLevelAvailable, "Verfuegbar");
     i18n.add_text(Locale::De, Key::PermissionLevelPlannerOnly, "Nur Planer");
-    i18n.add_text(Locale::De, Key::BookingForbidden, "Diese Person ist für diesen Schichtplan nicht berechtigt.");
+    i18n.add_text(
+        Locale::De,
+        Key::BookingForbidden,
+        "Diese Person ist für diesen Schichtplan nicht berechtigt.",
+    );
 }

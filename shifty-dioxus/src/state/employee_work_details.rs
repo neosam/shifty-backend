@@ -33,6 +33,8 @@ pub struct EmployeeWorkDetails {
 
     pub dynamic: bool,
 
+    pub cap_planned_hours_to_expected: bool,
+
     pub vacation_days: u8,
 
     pub created: Option<time::PrimitiveDateTime>,
@@ -59,6 +61,8 @@ impl EmployeeWorkDetails {
             sunday: false,
 
             dynamic: false,
+
+            cap_planned_hours_to_expected: false,
 
             vacation_days: 0,
 
@@ -141,6 +145,8 @@ impl TryFrom<&EmployeeWorkDetailsTO> for EmployeeWorkDetails {
 
             dynamic: details.is_dynamic,
 
+            cap_planned_hours_to_expected: details.cap_planned_hours_to_expected,
+
             vacation_days: details.vacation_days,
 
             created: details.created,
@@ -176,6 +182,8 @@ impl TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO {
             sunday: details.sunday,
 
             is_dynamic: details.dynamic,
+
+            cap_planned_hours_to_expected: details.cap_planned_hours_to_expected,
 
             vacation_days: details.vacation_days,
 

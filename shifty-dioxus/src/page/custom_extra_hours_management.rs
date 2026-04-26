@@ -55,97 +55,109 @@ pub fn CustomExtraHoursManagement() -> Element {
     let edit_str = i18n.t(Key::Edit);
     let delete_str = i18n.t(Key::Delete);
 
-    let action_coroutine = use_coroutine(move |mut rx: UnboundedReceiver<CustomExtraHoursManagementAction>| {
-        to_owned![config, custom_extra_hours];
-        async move {
-            while let Some(action) = rx.next().await {
-                match action {
-                    CustomExtraHoursManagementAction::LoadCustomExtraHours => {
-                        // For now, we'll load for the current user's sales person
-                        // In a real implementation, you might want to load all custom extra hours
-                        // or filter by the current user's permissions
-                        if let Ok(current_sales_person) = api::get_current_sales_person(config.clone()).await {
-                            if let Some(sales_person) = current_sales_person {
-                                match api::get_custom_extra_hours_by_sales_person(config.clone(), sales_person.id).await {
-                                    Ok(hours) => {
-                                        let definitions: Rc<[CustomExtraHoursDefinition]> = hours
-                                            .iter()
-                                            .map(|h| h.into())
-                                            .collect();
-                                        *custom_extra_hours.write() = definitions;
-                                    }
-                                    Err(e) => {
-                                        info!("Failed to load custom extra hours: {}", e);
+    let action_coroutine = use_coroutine(
+        move |mut rx: UnboundedReceiver<CustomExtraHoursManagementAction>| {
+            to_owned![config, custom_extra_hours];
+            async move {
+                while let Some(action) = rx.next().await {
+                    match action {
+                        CustomExtraHoursManagementAction::LoadCustomExtraHours => {
+                            // For now, we'll load for the current user's sales person
+                            // In a real implementation, you might want to load all custom extra hours
+                            // or filter by the current user's permissions
+                            if let Ok(current_sales_person) =
+                                api::get_current_sales_person(config.clone()).await
+                            {
+                                if let Some(sales_person) = current_sales_person {
+                                    match api::get_custom_extra_hours_by_sales_person(
+                                        config.clone(),
+                                        sales_person.id,
+                                    )
+                                    .await
+                                    {
+                                        Ok(hours) => {
+                                            let definitions: Rc<[CustomExtraHoursDefinition]> =
+                                                hours.iter().map(|h| h.into()).collect();
+                                            *custom_extra_hours.write() = definitions;
+                                        }
+                                        Err(e) => {
+                                            info!("Failed to load custom extra hours: {}", e);
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    CustomExtraHoursManagementAction::CreateCustomExtraHours {
-                        name,
-                        description,
-                        modifies_balance,
-                        assigned_sales_person_ids,
-                    } => {
-                        let custom_extra_hours_to = CustomExtraHoursTO {
-                            id: Uuid::nil(),
-                            name: name.into(),
-                            description: description.map(|d| d.into()),
+                        CustomExtraHoursManagementAction::CreateCustomExtraHours {
+                            name,
+                            description,
                             modifies_balance,
-                            assigned_sales_person_ids: assigned_sales_person_ids.into(),
-                            created: None,
-                            deleted: None,
-                            version: Uuid::nil(),
-                        };
+                            assigned_sales_person_ids,
+                        } => {
+                            let custom_extra_hours_to = CustomExtraHoursTO {
+                                id: Uuid::nil(),
+                                name: name.into(),
+                                description: description.map(|d| d.into()),
+                                modifies_balance,
+                                assigned_sales_person_ids: assigned_sales_person_ids.into(),
+                                created: None,
+                                deleted: None,
+                                version: Uuid::nil(),
+                            };
 
-                        let result = api::post_custom_extra_hours(config.clone(), custom_extra_hours_to).await;
-                        result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
-                        // Note: We don't reload here to avoid infinite loops
-                    }
-                    CustomExtraHoursManagementAction::UpdateCustomExtraHours {
-                        id,
-                        name,
-                        description,
-                        modifies_balance,
-                        assigned_sales_person_ids,
-                    } => {
-                        let custom_extra_hours_to = CustomExtraHoursTO {
+                            let result =
+                                api::post_custom_extra_hours(config.clone(), custom_extra_hours_to)
+                                    .await;
+                            result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
+                            // Note: We don't reload here to avoid infinite loops
+                        }
+                        CustomExtraHoursManagementAction::UpdateCustomExtraHours {
                             id,
-                            name: name.into(),
-                            description: description.map(|d| d.into()),
+                            name,
+                            description,
                             modifies_balance,
-                            assigned_sales_person_ids: assigned_sales_person_ids.into(),
-                            created: None,
-                            deleted: None,
-                            version: Uuid::nil(),
-                        };
+                            assigned_sales_person_ids,
+                        } => {
+                            let custom_extra_hours_to = CustomExtraHoursTO {
+                                id,
+                                name: name.into(),
+                                description: description.map(|d| d.into()),
+                                modifies_balance,
+                                assigned_sales_person_ids: assigned_sales_person_ids.into(),
+                                created: None,
+                                deleted: None,
+                                version: Uuid::nil(),
+                            };
 
-                        let result = api::put_custom_extra_hours(config.clone(), custom_extra_hours_to).await;
-                        result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
-                        // Note: We don't reload here to avoid infinite loops
-                    }
-                    CustomExtraHoursManagementAction::DeleteCustomExtraHours(id) => {
-                        let result = api::delete_custom_extra_hours(config.clone(), id).await;
-                        result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
-                        // Note: We don't reload here to avoid infinite loops
+                            let result =
+                                api::put_custom_extra_hours(config.clone(), custom_extra_hours_to)
+                                    .await;
+                            result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
+                            // Note: We don't reload here to avoid infinite loops
+                        }
+                        CustomExtraHoursManagementAction::DeleteCustomExtraHours(id) => {
+                            let result = api::delete_custom_extra_hours(config.clone(), id).await;
+                            result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
+                            // Note: We don't reload here to avoid infinite loops
+                        }
                     }
                 }
             }
-        }
-    });
+        },
+    );
 
     // Load custom extra hours when component mounts
     use_effect(move || {
         action_coroutine.send(CustomExtraHoursManagementAction::LoadCustomExtraHours);
     });
 
-    let mut start_edit = move |id: Uuid, name: String, description: Option<String>, modifies_balance: bool| {
-        *editing_id.write() = Some(id);
-        *form_name.write() = name;
-        *form_description.write() = description.unwrap_or_default();
-        *form_modifies_balance.write() = modifies_balance;
-        *show_form.write() = true;
-    };
+    let mut start_edit =
+        move |id: Uuid, name: String, description: Option<String>, modifies_balance: bool| {
+            *editing_id.write() = Some(id);
+            *form_name.write() = name;
+            *form_description.write() = description.unwrap_or_default();
+            *form_modifies_balance.write() = modifies_balance;
+            *show_form.write() = true;
+        };
 
     let mut start_create = move || {
         *editing_id.write() = None;
@@ -188,7 +200,7 @@ pub fn CustomExtraHoursManagement() -> Element {
 
         *show_form.write() = false;
         *editing_id.write() = None;
-        
+
         // Reload data after operation
         action_coroutine.send(CustomExtraHoursManagementAction::LoadCustomExtraHours);
     };
@@ -329,4 +341,4 @@ pub fn CustomExtraHoursManagement() -> Element {
             }
         }
     }
-} 
+}

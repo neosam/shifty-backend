@@ -1,6 +1,7 @@
-pub mod week_tests;
 pub mod error_tests;
 pub mod integration_tests;
+pub mod volunteer_work_tests;
+pub mod week_tests;
 
 #[cfg(test)]
 mod unit_tests {
@@ -11,7 +12,7 @@ mod unit_tests {
     #[test]
     fn test_auth_info_default() {
         let auth_info = AuthInfo::default();
-        
+
         assert_eq!(auth_info.user.as_ref(), "");
         assert_eq!(auth_info.privileges.len(), 0);
         assert!(!auth_info.authenticated);
@@ -21,13 +22,10 @@ mod unit_tests {
     fn test_auth_info_with_privileges() {
         let auth_info = AuthInfo {
             user: "test_user".into(),
-            privileges: Rc::new([
-                "admin".into(),
-                "planner".into(),
-            ]),
+            privileges: Rc::new(["admin".into(), "planner".into()]),
             authenticated: true,
         };
-        
+
         assert_eq!(auth_info.user.as_ref(), "test_user");
         assert!(auth_info.authenticated);
         assert!(auth_info.has_privilege("admin"));
@@ -44,7 +42,7 @@ mod unit_tests {
             env_short_description: "TEST".into(),
             show_vacation: true,
         };
-        
+
         assert_eq!(config.backend.as_ref(), "http://localhost:3000");
         assert_eq!(config.application_title.as_ref(), "Test App");
         assert!(!config.is_prod);
@@ -53,7 +51,7 @@ mod unit_tests {
     #[test]
     fn test_config_default() {
         let config = Config::default();
-        
+
         // Test that default values match Rust's Default trait behavior
         // (serde defaults only apply during deserialization, not Default::default())
         assert_eq!(config.backend.as_ref(), "");
@@ -66,7 +64,7 @@ mod unit_tests {
 
 #[cfg(test)]
 mod i18n_tests {
-    use crate::i18n::{Locale, Key, generate};
+    use crate::i18n::{generate, Key, Locale};
     use time::{Date, Month};
 
     #[test]
@@ -79,11 +77,11 @@ mod i18n_tests {
     fn test_i18n_creation() {
         // Create i18n instance using the generate function
         let i18n = generate(Locale::En);
-        
+
         // Test basic structure exists with translations loaded
         assert_eq!(i18n.current_locale, Locale::En);
         assert_eq!(i18n.fallback_locale, Locale::En);
-        
+
         // Test that basic translations are available
         let save_text = i18n.t(Key::Save);
         assert!(!save_text.is_empty());
@@ -92,7 +90,7 @@ mod i18n_tests {
     #[test]
     fn test_date_formatting_structure() {
         let date = Date::from_calendar_date(2024, Month::January, 15).unwrap();
-        
+
         // Test date object creation and basic properties
         assert_eq!(date.year(), 2024);
         assert_eq!(date.month(), Month::January);
@@ -102,15 +100,15 @@ mod i18n_tests {
 
 #[cfg(test)]
 mod service_tests {
-    use crate::service::text_template::TextTemplateStore;
     use crate::service::billing_period::BillingPeriodStore;
-    use crate::state::text_template::{TextTemplate, TemplateEngine};
+    use crate::service::text_template::TextTemplateStore;
+    use crate::state::text_template::{TemplateEngine, TextTemplate};
     use uuid::Uuid;
 
     #[test]
     fn test_text_template_store_default() {
         let store = TextTemplateStore::default();
-        
+
         assert_eq!(store.templates.len(), 0);
         assert!(store.selected_template.is_none());
         assert_eq!(store.filtered_templates.len(), 0);
@@ -128,15 +126,18 @@ mod service_tests {
             created_at: None,
             created_by: None,
         };
-        
-        assert_eq!(template.name.as_ref().map(|s| s.as_ref()), Some("Test Template"));
+
+        assert_eq!(
+            template.name.as_ref().map(|s| s.as_ref()),
+            Some("Test Template")
+        );
         assert_eq!(template.template_type.as_ref(), "billing-period");
     }
 
     #[test]
     fn test_billing_period_store_default() {
         let store = BillingPeriodStore::default();
-        
+
         assert_eq!(store.billing_periods.len(), 0);
         assert!(store.selected_billing_period.is_none());
     }
@@ -159,14 +160,17 @@ mod invitation_tests {
         }"#;
 
         let result: Result<InvitationResponse, _> = serde_json::from_str(json);
-        assert!(result.is_ok(), "Failed to deserialize invitation: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Failed to deserialize invitation: {:?}",
+            result.err()
+        );
+
         let invitation = result.unwrap();
         assert_eq!(invitation.username, "testuser");
         assert_eq!(invitation.status, InvitationStatus::Valid);
         assert!(invitation.redeemed_at.is_none());
     }
-
 
     #[test]
     fn test_actual_invitation_response_format() {
@@ -182,15 +186,19 @@ mod invitation_tests {
         }"#;
 
         let result: Result<InvitationResponse, _> = serde_json::from_str(json);
-        assert!(result.is_ok(), "Should be able to deserialize invitation with null redeemed_at: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Should be able to deserialize invitation with null redeemed_at: {:?}",
+            result.err()
+        );
+
         let invitation = result.unwrap();
         assert_eq!(invitation.username, "testuser");
         assert_eq!(invitation.status, InvitationStatus::Redeemed);
         assert!(invitation.redeemed_at.is_none());
     }
 
-    #[test] 
+    #[test]
     fn test_exact_backend_response() {
         // Test the EXACT response provided by the user that's failing
         let json = r#"[
@@ -219,14 +227,18 @@ mod invitation_tests {
                 "status": "redeemed"
             }
         ]"#;
-        
+
         let result: Result<Vec<InvitationResponse>, _> = serde_json::from_str(json);
         if let Err(ref e) = result {
             println!("Deserialization error: {}", e);
             println!("Error details: {:?}", e);
         }
-        assert!(result.is_ok(), "Should deserialize the exact backend response: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Should deserialize the exact backend response: {:?}",
+            result.err()
+        );
+
         if let Ok(invitations) = result {
             assert_eq!(invitations.len(), 3);
             assert_eq!(invitations[0].status, InvitationStatus::Valid);
@@ -239,7 +251,7 @@ mod invitation_tests {
     #[test]
     fn test_backend_response_formats() {
         // Test different potential backend response formats to identify the issue
-        
+
         // Test 1: Array of invitations (what the API should return)
         let array_json = r#"[
             {
@@ -251,28 +263,35 @@ mod invitation_tests {
                 "redeemed_at": null
             }
         ]"#;
-        
+
         let result: Result<Vec<InvitationResponse>, _> = serde_json::from_str(array_json);
-        assert!(result.is_ok(), "Array format should work: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Array format should work: {:?}",
+            result.err()
+        );
+
         // Test 2: What about with different timestamp formats?
         let formats_to_test = vec![
             r#"null"#,
-            r#""2025-10-19 05:47:11""#,  // Without T separator
-            r#""2025-10-19T05:47:11""#,  // Without timezone
-            r#""2025-10-19T05:47:11+00:00""#,  // With explicit UTC offset
+            r#""2025-10-19 05:47:11""#,       // Without T separator
+            r#""2025-10-19T05:47:11""#,       // Without timezone
+            r#""2025-10-19T05:47:11+00:00""#, // With explicit UTC offset
         ];
-        
+
         for timestamp_format in formats_to_test {
-            let json = format!(r#"{{
+            let json = format!(
+                r#"{{
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "username": "testuser",
                 "token": "987fcdeb-51a2-43d1-b456-426614174111",
                 "invitation_link": "http://localhost:8080/auth/invitation/987fcdeb-51a2-43d1-b456-426614174111",
                 "status": "redeemed",
                 "redeemed_at": {}
-            }}"#, timestamp_format);
-            
+            }}"#,
+                timestamp_format
+            );
+
             let result: Result<InvitationResponse, _> = serde_json::from_str(&json);
             println!("Testing format {}: {:?}", timestamp_format, result.is_ok());
         }
@@ -281,7 +300,7 @@ mod invitation_tests {
 
 #[cfg(test)]
 mod delete_billing_period_tests {
-    use crate::i18n::{Locale, Key, generate};
+    use crate::i18n::{generate, Key, Locale};
     use crate::state::auth_info::AuthInfo;
     use std::rc::Rc;
 
@@ -357,9 +376,9 @@ mod delete_billing_period_tests {
 #[cfg(test)]
 mod utils_tests {
     // Removed unused js function imports
-    use crate::error::{ShiftyError, result_handler};
-    use uuid::Uuid;
+    use crate::error::{result_handler, ShiftyError};
     use time::{Date, Month};
+    use uuid::Uuid;
 
     #[test]
     #[cfg(target_arch = "wasm32")]
@@ -367,7 +386,7 @@ mod utils_tests {
         // These functions use JavaScript Date, only available in WASM
         let year = get_current_year();
         let week = get_current_week();
-        
+
         assert!(year >= 2024 && year <= 2100);
         assert!(week >= 1 && week <= 53);
     }
@@ -377,7 +396,7 @@ mod utils_tests {
         // Mock test for non-WASM environments
         let current_year = 2024u32;
         let current_week = 42u8;
-        
+
         assert!(current_year >= 2024 && current_year <= 2100);
         assert!(current_week >= 1 && current_week <= 53);
     }
@@ -386,7 +405,7 @@ mod utils_tests {
     fn test_uuid_generation() {
         let uuid1 = Uuid::new_v4();
         let uuid2 = Uuid::new_v4();
-        
+
         assert_ne!(uuid1, uuid2);
         assert_ne!(uuid1, Uuid::nil());
     }
@@ -395,7 +414,7 @@ mod utils_tests {
     fn test_date_validation() {
         let valid_date = Date::from_calendar_date(2024, Month::January, 15);
         assert!(valid_date.is_ok());
-        
+
         let invalid_date = Date::from_calendar_date(2024, Month::February, 30);
         assert!(invalid_date.is_err());
     }
@@ -410,8 +429,8 @@ mod utils_tests {
 
 #[cfg(test)]
 mod shiftplan_catalog_tests {
-    use rest_types::{ShiftplanTO, SlotTO, DayOfWeekTO};
     use crate::state::slot_edit::SlotEditItem;
+    use rest_types::{DayOfWeekTO, ShiftplanTO, SlotTO};
     use uuid::Uuid;
 
     #[test]
@@ -424,7 +443,11 @@ mod shiftplan_catalog_tests {
         }"#;
 
         let result: Result<ShiftplanTO, _> = serde_json::from_str(json);
-        assert!(result.is_ok(), "Failed to deserialize ShiftplanTO: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to deserialize ShiftplanTO: {:?}",
+            result.err()
+        );
 
         let shiftplan = result.unwrap();
         assert_eq!(shiftplan.name.as_ref(), "Hauptplan");
@@ -440,7 +463,11 @@ mod shiftplan_catalog_tests {
         }"#;
 
         let result: Result<ShiftplanTO, _> = serde_json::from_str(json);
-        assert!(result.is_ok(), "Failed to deserialize ShiftplanTO with defaults: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to deserialize ShiftplanTO with defaults: {:?}",
+            result.err()
+        );
 
         let shiftplan = result.unwrap();
         assert!(!shiftplan.is_planning);
@@ -599,7 +626,10 @@ mod shiftplan_catalog_tests {
             selected_shiftplan_id = Some(catalog[0].id);
         }
 
-        assert!(selected_shiftplan_id.is_none(), "Empty catalog must not auto-select a shiftplan");
+        assert!(
+            selected_shiftplan_id.is_none(),
+            "Empty catalog must not auto-select a shiftplan"
+        );
     }
 
     #[test]
@@ -627,7 +657,11 @@ mod shiftplan_catalog_tests {
             selected_shiftplan_id = Some(catalog[0].id);
         }
 
-        assert_eq!(selected_shiftplan_id, Some(first_id), "Must auto-select the first shiftplan");
+        assert_eq!(
+            selected_shiftplan_id,
+            Some(first_id),
+            "Must auto-select the first shiftplan"
+        );
     }
 
     #[test]
@@ -648,7 +682,10 @@ mod shiftplan_catalog_tests {
 
         assert_eq!(shiftplan.week, 10);
         assert_eq!(shiftplan.year, 2024);
-        assert!(shiftplan.slots.is_empty(), "Empty catalog must result in empty slots");
+        assert!(
+            shiftplan.slots.is_empty(),
+            "Empty catalog must result in empty slots"
+        );
     }
 
     #[test]

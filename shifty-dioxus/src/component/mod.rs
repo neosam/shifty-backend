@@ -1,13 +1,14 @@
 pub mod add_extra_days_form;
-pub mod day_aggregate_view;
 pub mod add_extra_hours_choice;
 pub mod add_extra_hours_form;
 pub mod base_components;
 pub mod booking_log_table;
+pub mod day_aggregate_view;
 pub mod dropdown_base;
 pub mod employee_short;
 pub mod employee_view;
 pub mod employee_work_details_form;
+pub mod error_view;
 pub mod footer;
 pub mod modal;
 pub mod overlay;
@@ -17,7 +18,6 @@ pub mod tooltip;
 pub mod top_bar;
 pub mod week_view;
 pub mod weekly_overview_chart;
-pub mod error_view;
 pub mod working_hours_mini_overview;
 
 pub use add_extra_hours_form::AddExtraHoursForm;

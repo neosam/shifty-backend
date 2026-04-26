@@ -3,7 +3,8 @@ use uuid::Uuid;
 
 use crate::{
     component::{
-        employee_work_details_form::EmployeeWorkDetailsFormType, error_view::ErrorView, EmployeeView, EmployeeWorkDetailsForm, Modal, TopBar
+        employee_work_details_form::EmployeeWorkDetailsFormType, error_view::ErrorView,
+        EmployeeView, EmployeeWorkDetailsForm, Modal, TopBar,
     },
     service::{
         config::CONFIG, employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction,

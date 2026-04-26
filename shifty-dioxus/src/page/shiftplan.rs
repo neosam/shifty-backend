@@ -27,7 +27,9 @@ use crate::service::config::CONFIG;
 use crate::service::i18n::I18N;
 use crate::service::slot_edit::SlotEditAction;
 use crate::service::slot_edit::SHIFTPLAN_REFRESH;
-use crate::service::text_template::{handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE};
+use crate::service::text_template::{
+    handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE,
+};
 use crate::service::weekly_summary::WeeklySummaryAction;
 use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::service::working_hours_mini::WorkingHoursMiniAction;
@@ -151,12 +153,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             let _refresh = *SHIFTPLAN_REFRESH.read();
             async move {
                 match shiftplan_id {
-                    Some(id) => loader::load_shift_plan(
-                        config,
-                        id,
-                        *week.to_owned().read(),
-                        *year.to_owned().read(),
-                    ).await,
+                    Some(id) => {
+                        loader::load_shift_plan(
+                            config,
+                            id,
+                            *week.to_owned().read(),
+                            *year.to_owned().read(),
+                        )
+                        .await
+                    }
                     None => Ok(crate::state::Shiftplan {
                         week: *week.read(),
                         year: *year.read(),
@@ -192,7 +197,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut selected_day: Signal<Weekday> = use_signal(|| Weekday::Monday);
     let day_aggregate: Signal<Option<state::DayAggregate>> = use_signal(|| None);
     let show_sunday = use_signal(|| false);
-    
+
     // Shiftplan report state
     let mut selected_template_id = use_signal(|| None::<Uuid>);
     let mut shiftplan_report_result = use_signal(|| None::<String>);
@@ -218,7 +223,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     use_effect(move || {
         if is_shiftplanner {
             spawn(async move {
-                handle_text_template_action(TextTemplateAction::LoadTemplatesByType("shiftplan-report".to_string())).await;
+                handle_text_template_action(TextTemplateAction::LoadTemplatesByType(
+                    "shiftplan-report".to_string(),
+                ))
+                .await;
             });
         }
     });
@@ -250,17 +258,39 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let cr = use_coroutine({
         move |mut rx: UnboundedReceiver<ShiftPlanAction>| {
-            to_owned![year, week, current_sales_person, unavailable_days, config, week_message, week_message_draft, view_mode, selected_day, day_aggregate, show_sunday];
+            to_owned![
+                year,
+                week,
+                current_sales_person,
+                unavailable_days,
+                config,
+                week_message,
+                week_message_draft,
+                view_mode,
+                selected_day,
+                day_aggregate,
+                show_sunday
+            ];
             async move {
                 let mut update_shiftplan = {
-                    to_owned![config, day_aggregate, selected_day, year, week, show_sunday, view_mode];
+                    to_owned![
+                        config,
+                        day_aggregate,
+                        selected_day,
+                        year,
+                        week,
+                        show_sunday,
+                        view_mode
+                    ];
                     move || {
                         shift_plan_context.restart();
-                        working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
-                            *year.read(),
-                            *week.read(),
-                            is_hr,
-                        ));
+                        working_hours_mini_service.send(
+                            WorkingHoursMiniAction::LoadWorkingHoursMini(
+                                *year.read(),
+                                *week.read(),
+                                is_hr,
+                            ),
+                        );
                         if is_shiftplanner {
                             booking_conflict_service
                                 .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
@@ -292,7 +322,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 }
 
                 // Load week message initially and when week changes
-                if let Ok(Some(message)) = loader::load_week_message(config.clone(), *year.read(), *week.read()).await {
+                if let Ok(Some(message)) =
+                    loader::load_week_message(config.clone(), *year.read(), *week.read()).await
+                {
                     week_message.set(message.clone());
                     week_message_draft.set(message);
                 } else {
@@ -417,7 +449,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             reload_unavailable_days(config.clone()).await;
 
                             // Load week message for new week
-                            if let Ok(Some(message)) = loader::load_week_message(config.clone(), *year.read(), *week.read()).await {
+                            if let Ok(Some(message)) = loader::load_week_message(
+                                config.clone(),
+                                *year.read(),
+                                *week.read(),
+                            )
+                            .await
+                            {
                                 week_message.set(message.clone());
                                 week_message_draft.set(message);
                             } else {
@@ -442,7 +480,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             reload_unavailable_days(config.clone()).await;
 
                             // Load week message for new week
-                            if let Ok(Some(message)) = loader::load_week_message(config.clone(), *year.read(), *week.read()).await {
+                            if let Ok(Some(message)) = loader::load_week_message(
+                                config.clone(),
+                                *year.read(),
+                                *week.read(),
+                            )
+                            .await
+                            {
                                 week_message.set(message.clone());
                                 week_message_draft.set(message);
                             } else {
@@ -521,7 +565,14 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             }
                         }
                         ShiftPlanAction::SaveWeekMessage(message) => {
-                            if let Err(e) = loader::save_week_message(config.clone(), *year.read(), *week.read(), message.clone()).await {
+                            if let Err(e) = loader::save_week_message(
+                                config.clone(),
+                                *year.read(),
+                                *week.read(),
+                                message.clone(),
+                            )
+                            .await
+                            {
                                 tracing::error!("Failed to save week message: {:?}", e);
                             } else {
                                 week_message.set(message.clone());
@@ -536,10 +587,23 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             if let Some(ref agg) = *day_aggregate.read() {
                                 // Find the booking across all plans
                                 for plan in agg.plans.iter() {
-                                    if let Some(slot) = plan.slots.iter().find(|s| s.id == slot_id) {
-                                        if let Some(booking) = slot.bookings.iter().find(|b| b.sales_person_id == sales_person_id) {
-                                            if let Err(e) = crate::api::remove_booking(config.to_owned(), booking.id).await {
-                                                tracing::error!("Failed to remove booking: {:?}", e);
+                                    if let Some(slot) = plan.slots.iter().find(|s| s.id == slot_id)
+                                    {
+                                        if let Some(booking) = slot
+                                            .bookings
+                                            .iter()
+                                            .find(|b| b.sales_person_id == sales_person_id)
+                                        {
+                                            if let Err(e) = crate::api::remove_booking(
+                                                config.to_owned(),
+                                                booking.id,
+                                            )
+                                            .await
+                                            {
+                                                tracing::error!(
+                                                    "Failed to remove booking: {:?}",
+                                                    e
+                                                );
                                             }
                                             break;
                                         }
@@ -973,7 +1037,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     },
                                     is_shiftplanner,
                                 }
-                            
+
                             // Week Message Section
                             div {
                                 class: "mt-4 mb-4 p-4 border rounded",
@@ -1029,7 +1093,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     }
                                 }
                             }
-                            
+
                             div { class: "mt-4 print:hidden",
                                 WorkingHoursMiniOverview {
                                     working_hours: WORKING_HOURS_MINI.read().clone(),
@@ -1058,17 +1122,17 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     }
                                 }
                             }
-                            
+
                             // Shiftplan Report Section (only visible for shiftplanner role)
                             if is_shiftplanner {
                                 div { class: "bg-white shadow rounded-lg p-6 mt-6 print:hidden",
                                     h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::ShiftplanReport)}" }
-                                    
+
                                     div { class: "space-y-4",
                                         // Template Selection
                                         div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2", 
-                                                "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} shiftplan report templates available)" 
+                                            label { class: "block text-sm font-medium text-gray-700 mb-2",
+                                                "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} shiftplan report templates available)"
                                             }
                                             select {
                                                 class: "w-full p-2 border border-gray-300 rounded-md",
@@ -1082,7 +1146,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 },
                                                 option { value: "", "Select a template..." }
                                                 for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
-                                                    option { 
+                                                    option {
                                                         value: "{template.id}",
                                                         if let Some(ref name) = template.name {
                                                             "{name}"
@@ -1093,7 +1157,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 }
                                             }
                                         }
-                                        
+
                                         // Generate Button
                                         button {
                                             onclick: move |_| {
@@ -1102,7 +1166,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                     spawn(async move {
                                                         generating_report.set(true);
                                                         shiftplan_report_result.set(None);
-                                                        
+
                                                         match loader::generate_block_report(config, template_id).await {
                                                             Ok(report) => {
                                                                 shiftplan_report_result.set(Some(report));
@@ -1111,7 +1175,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                                 shiftplan_report_result.set(Some(format!("Error generating report: {}", e)));
                                                             }
                                                         }
-                                                        
+
                                                         generating_report.set(false);
                                                     });
                                                 }
@@ -1128,7 +1192,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 "{i18n.t(Key::GenerateShiftplanReport)}"
                                             }
                                         }
-                                        
+
                                         // Report Result
                                         {
                                             let report_opt = shiftplan_report_result.read().clone();

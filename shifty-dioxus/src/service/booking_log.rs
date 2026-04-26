@@ -20,8 +20,7 @@ pub async fn booking_log_service(mut rx: UnboundedReceiver<BookingLogAction>) {
     while let Some(action) = rx.next().await {
         match action {
             BookingLogAction::LoadBookingLog(year, week) => {
-                let booking_log =
-                    loader::load_booking_log(CONFIG.read().clone(), year, week).await;
+                let booking_log = loader::load_booking_log(CONFIG.read().clone(), year, week).await;
                 match booking_log {
                     Ok(booking_log) => {
                         *BOOKING_LOG_STORE.write() = booking_log;

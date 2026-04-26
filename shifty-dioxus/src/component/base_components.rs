@@ -173,7 +173,7 @@ pub struct ButtonProps {
     pub children: Element,
 
     pub on_click: Option<EventHandler<()>>,
-    
+
     #[props(default = false)]
     pub primary: bool,
 }
@@ -185,7 +185,7 @@ pub fn Button(props: ButtonProps) -> Element {
     } else {
         "border-2 border-gray-200 p-2"
     };
-    
+
     rsx! {
         button {
             class: button_class,

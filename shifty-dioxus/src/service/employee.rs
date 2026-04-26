@@ -10,7 +10,7 @@ use crate::{
     error::ShiftyError,
     js, loader,
     state::{
-        employee::{Employee, ExtraHours, CustomExtraHoursDefinition},
+        employee::{CustomExtraHoursDefinition, Employee, ExtraHours},
         shiftplan::SalesPerson,
     },
 };
@@ -47,6 +47,7 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
         sick_leave_hours: 0.0,
         holiday_hours: 0.0,
         unpaid_leave_hours: 0.0,
+        volunteer_hours: 0.0,
         vacation_days: 0.0,
         vacation_entitlement: 0.0,
         vacation_carryover: 0,
@@ -79,19 +80,20 @@ pub async fn load_employee_data(
             .await?;
     let extra_hours =
         loader::load_extra_hours_per_year(CONFIG.read().clone(), year, sales_person_id).await?;
-    let custom_extra_hours_definitions = match api::get_custom_extra_hours_by_sales_person(CONFIG.read().clone(), sales_person_id).await {
-        Ok(hours) => {
-            let definitions: Rc<[CustomExtraHoursDefinition]> = hours
-                .iter()
-                .map(|h| h.into())
-                .collect();
-            definitions
-        }
-        Err(e) => {
-            info!("Failed to load custom extra hours definitions: {}", e);
-            Rc::new([])
-        }
-    };
+    let custom_extra_hours_definitions =
+        match api::get_custom_extra_hours_by_sales_person(CONFIG.read().clone(), sales_person_id)
+            .await
+        {
+            Ok(hours) => {
+                let definitions: Rc<[CustomExtraHoursDefinition]> =
+                    hours.iter().map(|h| h.into()).collect();
+                definitions
+            }
+            Err(e) => {
+                info!("Failed to load custom extra hours definitions: {}", e);
+                Rc::new([])
+            }
+        };
     super::employee_work_details::load_employee_work_details(sales_person_id).await?;
     *EMPLOYEE_STORE.write() = EmployeeStore {
         employee,

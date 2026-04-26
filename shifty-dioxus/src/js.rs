@@ -72,52 +72,54 @@ pub async fn copy_to_clipboard(text: &str) -> Result<(), JsValue> {
 }
 
 fn copy_with_exec_command(text: &str) -> Result<(), JsValue> {
-    use wasm_bindgen::JsCast;
     use js_sys::Reflect;
-    
+    use wasm_bindgen::JsCast;
+
     let window = web_sys::window().ok_or(JsValue::from_str("No window object"))?;
-    let document = window.document().ok_or(JsValue::from_str("No document object"))?;
-    
+    let document = window
+        .document()
+        .ok_or(JsValue::from_str("No document object"))?;
+
     // Create a temporary textarea element
     let textarea = document
         .create_element("textarea")
         .map_err(|e| JsValue::from(e))?
         .dyn_into::<web_sys::HtmlTextAreaElement>()
         .map_err(|_| JsValue::from_str("Failed to create textarea"))?;
-    
+
     // Set the text and styling
     textarea.set_value(text);
     textarea.style().set_property("position", "fixed").ok();
     textarea.style().set_property("left", "-9999px").ok();
     textarea.style().set_property("top", "-9999px").ok();
-    
+
     // Append to body
     document
         .body()
         .ok_or(JsValue::from_str("No body element"))?
         .append_child(&textarea)
         .map_err(|e| JsValue::from(e))?;
-    
+
     // Select and copy
     textarea.select();
-    
+
     // Call execCommand using Reflect
     let exec_command = Reflect::get(&document, &JsValue::from_str("execCommand"))
         .map_err(|_| JsValue::from_str("execCommand not available"))?;
-    
+
     let exec_command_fn = exec_command
         .dyn_ref::<js_sys::Function>()
         .ok_or(JsValue::from_str("execCommand is not a function"))?;
-    
+
     let success = exec_command_fn
         .call1(&document, &JsValue::from_str("copy"))
         .map_err(|_| JsValue::from_str("execCommand call failed"))?
         .as_bool()
         .unwrap_or(false);
-    
+
     // Remove the temporary element
     textarea.remove();
-    
+
     if success {
         Ok(())
     } else {

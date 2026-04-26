@@ -27,7 +27,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::ShiftplanCalendarWeek,
         "{week}/{year} - od {date}",
     );
-    i18n.add_text(Locale::Cs, Key::ShiftplanTakeLastWeek, "Přidat minulý týden");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanTakeLastWeek,
+        "Přidat minulý týden",
+    );
     i18n.add_text(Locale::Cs, Key::ShiftplanEditAs, "Upravujete:");
     i18n.add_text(Locale::Cs, Key::ShiftplanYouAre, "Jste ");
     i18n.add_text(
@@ -49,7 +53,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
 
     // Booking log
     i18n.add_text(Locale::Cs, Key::BookingLogTitle, "Protokol rezervací");
-    i18n.add_text(Locale::Cs, Key::BookingLogShow, "Zobrazit protokol rezervací");
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingLogShow,
+        "Zobrazit protokol rezervací",
+    );
     i18n.add_text(Locale::Cs, Key::BookingLogHide, "Skrýt protokol rezervací");
     i18n.add_text(Locale::Cs, Key::BookingLogLoading, "Načítání...");
     i18n.add_text(Locale::Cs, Key::BookingLogDay, "Den");
@@ -59,15 +67,35 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::BookingLogCreatedBy, "Vytvořil");
     i18n.add_text(Locale::Cs, Key::BookingLogDeleted, "Smazáno");
     i18n.add_text(Locale::Cs, Key::BookingLogDeletedBy, "Smazal");
-    i18n.add_text(Locale::Cs, Key::BookingLogFilterName, "Filtrovat podle jména");
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingLogFilterName,
+        "Filtrovat podle jména",
+    );
     i18n.add_text(Locale::Cs, Key::BookingLogFilterDay, "Filtrovat podle dne");
-    i18n.add_text(Locale::Cs, Key::BookingLogFilterStatus, "Filtrovat podle stavu");
-    i18n.add_text(Locale::Cs, Key::BookingLogFilterCreatedBy, "Filtrovat podle tvůrce");
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingLogFilterStatus,
+        "Filtrovat podle stavu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingLogFilterCreatedBy,
+        "Filtrovat podle tvůrce",
+    );
     i18n.add_text(Locale::Cs, Key::BookingLogFilterClear, "Vymazat filtry");
     i18n.add_text(Locale::Cs, Key::BookingLogFilterAll, "Vše");
     i18n.add_text(Locale::Cs, Key::BookingLogFilterActiveOnly, "Pouze aktivní");
-    i18n.add_text(Locale::Cs, Key::BookingLogFilterDeletedOnly, "Pouze smazané");
-    i18n.add_text(Locale::Cs, Key::BookingNoInfo, "Žádné informace k dispozici");
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingLogFilterDeletedOnly,
+        "Pouze smazané",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingNoInfo,
+        "Žádné informace k dispozici",
+    );
 
     // Weekly overview page
     i18n.add_text(Locale::Cs, Key::WeeklyOverviewTitle, "Týdenní přehled");
@@ -107,7 +135,19 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::CategoryHolidays, "Svátky");
     i18n.add_text(Locale::Cs, Key::CategoryUnavailable, "Nedostupný");
     i18n.add_text(Locale::Cs, Key::CategoryUnpaidLeave, "Neplacené volno");
+    i18n.add_text(Locale::Cs, Key::CategoryVolunteerWork, "Dobrovolnictví");
     i18n.add_text(Locale::Cs, Key::CategoryCustom, "Vlastní");
+
+    i18n.add_text(
+        Locale::Cs,
+        Key::CapPlannedHoursLabel,
+        "Omezit plánované hodiny na očekávané",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CapPlannedHoursHelp,
+        "Hodiny nad rámec očekávaných týdenních hodin se zaznamenávají jako dobrovolnictví a neovlivňují bilanci.",
+    );
 
     i18n.add_text(Locale::Cs, Key::VacationDaysLabel, "Dny dovolené");
     i18n.add_text(
@@ -137,7 +177,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ActionsLabel, "Akce");
     i18n.add_text(Locale::Cs, Key::ShowFullYearLabel, "Zobrazit celý rok");
     i18n.add_text(Locale::Cs, Key::ShowUntilNowLabel, "Zobrazit do teď");
-    i18n.add_text(Locale::Cs, Key::AddWorkDetailsLabel, "Přidat pracovní smlouvu");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AddWorkDetailsLabel,
+        "Přidat pracovní smlouvu",
+    );
     i18n.add_text(
         Locale::Cs,
         Key::CurrentWeekNote,
@@ -206,7 +250,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Dny dovolené",
     );
     i18n.add_text(Locale::Cs, Key::HolidaysInHoursLabel, "Svátky v hodinách");
-    i18n.add_text(Locale::Cs, Key::WorkdaysInHoursLabel, "Pracovní dny v hodinách");
+    i18n.add_text(
+        Locale::Cs,
+        Key::WorkdaysInHoursLabel,
+        "Pracovní dny v hodinách",
+    );
 
     // Slot edit
     i18n.add_text(Locale::Cs, Key::SlotEditTitle, "Upravit směnu");
@@ -232,7 +280,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
 
     // Custom extra hours management
-    i18n.add_text(Locale::Cs, Key::CustomExtraHoursManagement, "Správa vlastních přesčasů");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CustomExtraHoursManagement,
+        "Správa vlastních přesčasů",
+    );
     i18n.add_text(Locale::Cs, Key::Name, "Název");
     i18n.add_text(Locale::Cs, Key::ModifiesBalance, "Upravuje zůstatek");
     i18n.add_text(Locale::Cs, Key::Actions, "Akce");
@@ -244,8 +296,16 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
 
     // Billing period management
     i18n.add_text(Locale::Cs, Key::BillingPeriods, "Fakturační období");
-    i18n.add_text(Locale::Cs, Key::BillingPeriodDetails, "Detaily fakturačního období");
-    i18n.add_text(Locale::Cs, Key::CreateNewBillingPeriod, "➕ Vytvořit nové fakturační období");
+    i18n.add_text(
+        Locale::Cs,
+        Key::BillingPeriodDetails,
+        "Detaily fakturačního období",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CreateNewBillingPeriod,
+        "➕ Vytvořit nové fakturační období",
+    );
     i18n.add_text(Locale::Cs, Key::BillingPeriod, "Fakturační období");
     i18n.add_text(Locale::Cs, Key::StartDate, "Datum zahájení");
     i18n.add_text(Locale::Cs, Key::EndDate, "Datum ukončení");
@@ -257,14 +317,42 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::Deleted, "Smazáno");
     i18n.add_text(Locale::Cs, Key::SalesPersons, "Prodejci");
     i18n.add_text(Locale::Cs, Key::BasicInformation, "Základní informace");
-    i18n.add_text(Locale::Cs, Key::LoadingBillingPeriods, "Načítám fakturační období...");
-    i18n.add_text(Locale::Cs, Key::LoadingBillingPeriodDetails, "Načítám detaily fakturačního období...");
-    i18n.add_text(Locale::Cs, Key::CreateBillingPeriod, "Vytvořit fakturační období");
+    i18n.add_text(
+        Locale::Cs,
+        Key::LoadingBillingPeriods,
+        "Načítám fakturační období...",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::LoadingBillingPeriodDetails,
+        "Načítám detaily fakturačního období...",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CreateBillingPeriod,
+        "Vytvořit fakturační období",
+    );
     i18n.add_text(Locale::Cs, Key::Period, "Období");
-    i18n.add_text(Locale::Cs, Key::NoSalesPersonsInBillingPeriod, "V tomto fakturačním období nejsou žádní prodejci.");
-    i18n.add_text(Locale::Cs, Key::SalesPersonsIncluded, "{count} prodejců zahrnuto");
-    i18n.add_text(Locale::Cs, Key::FilterSalesPersonsByName, "Filtrovat prodejce podle jména...");
-    i18n.add_text(Locale::Cs, Key::NoSalesPersonsMatchFilter, "Žádní prodejci neodpovídají filtru '{filter}'.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoSalesPersonsInBillingPeriod,
+        "V tomto fakturačním období nejsou žádní prodejci.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SalesPersonsIncluded,
+        "{count} prodejců zahrnuto",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::FilterSalesPersonsByName,
+        "Filtrovat prodejce podle jména...",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoSalesPersonsMatchFilter,
+        "Žádní prodejci neodpovídají filtru '{filter}'.",
+    );
     i18n.add_text(Locale::Cs, Key::ShowActive, "Aktivní");
     i18n.add_text(Locale::Cs, Key::ShowInactive, "Zobrazit neaktivní");
     i18n.add_text(Locale::Cs, Key::ShowPaid, "Placené");
@@ -274,7 +362,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::YtdFrom, "YTD Od");
     i18n.add_text(Locale::Cs, Key::YtdTo, "YTD Do");
     i18n.add_text(Locale::Cs, Key::FullYear, "Celý rok");
-    i18n.add_text(Locale::Cs, Key::InvalidBillingPeriodId, "Neplatné ID fakturačního období");
+    i18n.add_text(
+        Locale::Cs,
+        Key::InvalidBillingPeriodId,
+        "Neplatné ID fakturačního období",
+    );
     i18n.add_text(Locale::Cs, Key::SelectEndDateForNewBillingPeriod, "Vyberte datum ukončení pro nové fakturační období. Datum zahájení bude vypočítáno automaticky.");
 
     // User management
@@ -284,27 +376,75 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::Users, "Uživatelé");
     i18n.add_text(Locale::Cs, Key::UsersCount, "{count} uživatelů");
     i18n.add_text(Locale::Cs, Key::SalesPersonsCount, "{count} osob");
-    i18n.add_text(Locale::Cs, Key::NoUsersFound, "Nebyli nalezeni žádní uživatelé");
-    i18n.add_text(Locale::Cs, Key::AddFirstUserBelow, "Přidejte svého prvního uživatele níže");
-    i18n.add_text(Locale::Cs, Key::NoSalesPersonsFound, "Nebyli nalezeni žádní prodejci");
-    i18n.add_text(Locale::Cs, Key::CreateFirstSalesPersonBelow, "Vytvořte svého prvního prodejce níže");
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoUsersFound,
+        "Nebyli nalezeni žádní uživatelé",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AddFirstUserBelow,
+        "Přidejte svého prvního uživatele níže",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoSalesPersonsFound,
+        "Nebyli nalezeni žádní prodejci",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CreateFirstSalesPersonBelow,
+        "Vytvořte svého prvního prodejce níže",
+    );
     i18n.add_text(Locale::Cs, Key::DeleteUser, "Smazat uživatele");
     i18n.add_text(Locale::Cs, Key::AddNewUser, "Přidat nového uživatele");
     i18n.add_text(Locale::Cs, Key::CreateUser, "Vytvořit uživatele");
-    i18n.add_text(Locale::Cs, Key::CreateNewSalesPerson, "Vytvořit nového prodejce");
-    i18n.add_text(Locale::Cs, Key::ManageRolesAndPermissions, "Spravovat role a oprávnění pro tohoto uživatele.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CreateNewSalesPerson,
+        "Vytvořit nového prodejce",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ManageRolesAndPermissions,
+        "Spravovat role a oprávnění pro tohoto uživatele.",
+    );
     i18n.add_text(Locale::Cs, Key::RoleAssignments, "Přiřazení rolí");
     i18n.add_text(Locale::Cs, Key::RolesCount, "{assigned} z {total} rolí");
-    i18n.add_text(Locale::Cs, Key::NoRolesAvailable, "Nejsou k dispozici žádné role");
-    i18n.add_text(Locale::Cs, Key::ContactAdministratorForRoles, "Kontaktujte svého správce pro nastavení rolí");
-    i18n.add_text(Locale::Cs, Key::BackToUserManagement, "Zpět na správu uživatelů");
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoRolesAvailable,
+        "Nejsou k dispozici žádné role",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ContactAdministratorForRoles,
+        "Kontaktujte svého správce pro nastavení rolí",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BackToUserManagement,
+        "Zpět na správu uživatelů",
+    );
     i18n.add_text(Locale::Cs, Key::ShiftplanColor, "Barva plánu směn");
     i18n.add_text(Locale::Cs, Key::ColorPreview, "Náhled barvy");
     i18n.add_text(Locale::Cs, Key::Settings, "Nastavení");
-    i18n.add_text(Locale::Cs, Key::ThisPersonReceivesPayment, "Tato osoba dostává mzdu");
-    i18n.add_text(Locale::Cs, Key::ThisPersonIsInactive, "Tato osoba je neaktivní");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ThisPersonReceivesPayment,
+        "Tato osoba dostává mzdu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ThisPersonIsInactive,
+        "Tato osoba je neaktivní",
+    );
     i18n.add_text(Locale::Cs, Key::UserAccount, "Uživatelský účet");
-    i18n.add_text(Locale::Cs, Key::ConnectUserAccount, "Připojit uživatelský účet");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ConnectUserAccount,
+        "Připojit uživatelský účet",
+    );
     // User invitations
     i18n.add_text(Locale::Cs, Key::UserInvitations, "Uživatelské pozvánky");
     i18n.add_text(Locale::Cs, Key::GenerateInvitation, "Vytvořit pozvánku");
@@ -318,35 +458,95 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::Expired, "Vypršela");
     i18n.add_text(Locale::Cs, Key::Redeemed, "Uplatněna");
     i18n.add_text(Locale::Cs, Key::SessionRevoked, "Relace zrušena");
-    i18n.add_text(Locale::Cs, Key::NoInvitationsFound, "Žádné pozvánky nenalezeny");
-    i18n.add_text(Locale::Cs, Key::GenerateFirstInvitation, "Vytvořte první pozvánku níže");
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoInvitationsFound,
+        "Žádné pozvánky nenalezeny",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::GenerateFirstInvitation,
+        "Vytvořte první pozvánku níže",
+    );
     i18n.add_text(Locale::Cs, Key::InvitationsCount, "{count} pozvánky");
-    i18n.add_text(Locale::Cs, Key::GenerateNewInvitation, "Vytvořit novou pozvánku");
-    i18n.add_text(Locale::Cs, Key::OptionalExpirationHours, "Platnost (hodiny)");
+    i18n.add_text(
+        Locale::Cs,
+        Key::GenerateNewInvitation,
+        "Vytvořit novou pozvánku",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::OptionalExpirationHours,
+        "Platnost (hodiny)",
+    );
     i18n.add_text(Locale::Cs, Key::SaveChanges, "Uložit změny");
-    i18n.add_text(Locale::Cs, Key::LoadingSalesPersonDetails, "Načítám detaily prodejce...");
-    i18n.add_text(Locale::Cs, Key::SalesPersonSavedSuccessfully, "Prodejce byl úspěšně uložen!");
-    i18n.add_text(Locale::Cs, Key::EditSalesPersonInformation, "Upravit informace o prodejci");
-    i18n.add_text(Locale::Cs, Key::CreateNewSalesPersonTitle, "Vytvořit nového prodejce");
+    i18n.add_text(
+        Locale::Cs,
+        Key::LoadingSalesPersonDetails,
+        "Načítám detaily prodejce...",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SalesPersonSavedSuccessfully,
+        "Prodejce byl úspěšně uložen!",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::EditSalesPersonInformation,
+        "Upravit informace o prodejci",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CreateNewSalesPersonTitle,
+        "Vytvořit nového prodejce",
+    );
     i18n.add_text(Locale::Cs, Key::Paid, "Placený");
     i18n.add_text(Locale::Cs, Key::Inactive, "Neaktivní");
     i18n.add_text(Locale::Cs, Key::Login, "Přihlásit se");
     i18n.add_text(Locale::Cs, Key::LogoutUser, "Odhlásit {user}");
     i18n.add_text(Locale::Cs, Key::ShiftplanReport, "Zpráva plánu směn");
-    i18n.add_text(Locale::Cs, Key::GenerateShiftplanReport, "Generovat zprávu plánu směn");
-    i18n.add_text(Locale::Cs, Key::ShiftplanReportGenerated, "Zpráva plánu směn vygenerována");
+    i18n.add_text(
+        Locale::Cs,
+        Key::GenerateShiftplanReport,
+        "Generovat zprávu plánu směn",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanReportGenerated,
+        "Zpráva plánu směn vygenerována",
+    );
     i18n.add_text(Locale::Cs, Key::CopyToClipboard, "Kopírovat do schránky");
-    i18n.add_text(Locale::Cs, Key::CopiedToClipboard, "Zkopírováno do schránky!");
-    i18n.add_text(Locale::Cs, Key::CopyFailed, "Chyba při kopírování do schránky");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CopiedToClipboard,
+        "Zkopírováno do schránky!",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CopyFailed,
+        "Chyba při kopírování do schránky",
+    );
 
     // Delete billing period
     i18n.add_text(Locale::Cs, Key::DeleteBillingPeriod, "Smazat");
-    i18n.add_text(Locale::Cs, Key::ConfirmDeleteBillingPeriod, "Opravdu chcete smazat fakturační období {period}? Tuto akci nelze vrátit zpět.");
-    i18n.add_text(Locale::Cs, Key::DeleteBillingPeriodError, "Nepodařilo se smazat fakturační období: {error}");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ConfirmDeleteBillingPeriod,
+        "Opravdu chcete smazat fakturační období {period}? Tuto akci nelze vrátit zpět.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::DeleteBillingPeriodError,
+        "Nepodařilo se smazat fakturační období: {error}",
+    );
 
     // My Shifts page
     i18n.add_text(Locale::Cs, Key::MyShifts, "Moje směny");
-    i18n.add_text(Locale::Cs, Key::NoShiftsFound, "Žádné směny pro toto období nenalezeny.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::NoShiftsFound,
+        "Žádné směny pro toto období nenalezeny.",
+    );
 
     // Text templates
     i18n.add_text(Locale::Cs, Key::TemplateEngine, "Šablonovací engine");
@@ -361,9 +561,25 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ChartRequiredHours, "Požadované hodiny");
 
     // Shiftplan assignments
-    i18n.add_text(Locale::Cs, Key::ShiftplanAssignments, "Přiřazení plánů směn");
-    i18n.add_text(Locale::Cs, Key::ShiftplanAssignmentsInfo, "Žádný výběr znamená, že tato osoba může být zařazena do všech plánů směn.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanAssignments,
+        "Přiřazení plánů směn",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanAssignmentsInfo,
+        "Žádný výběr znamená, že tato osoba může být zařazena do všech plánů směn.",
+    );
     i18n.add_text(Locale::Cs, Key::PermissionLevelAvailable, "Dostupný");
-    i18n.add_text(Locale::Cs, Key::PermissionLevelPlannerOnly, "Pouze plánovač");
-    i18n.add_text(Locale::Cs, Key::BookingForbidden, "Tato osoba není oprávněna pro tento plán směn.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::PermissionLevelPlannerOnly,
+        "Pouze plánovač",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingForbidden,
+        "Tato osoba není oprávněna pro tento plán směn.",
+    );
 }

@@ -131,7 +131,11 @@ pub enum Key {
     CategoryHolidays,
     CategoryUnavailable,
     CategoryUnpaidLeave,
+    CategoryVolunteerWork,
     CategoryCustom,
+
+    CapPlannedHoursLabel,
+    CapPlannedHoursHelp,
 
     VacationDaysLabel,
     VacationCarryoverLabel,

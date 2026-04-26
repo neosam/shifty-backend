@@ -120,7 +120,7 @@ pub fn TopBar() -> Element {
                 ul { class: "ml-1",
                     li { class: "flex",
                         if let Some(auth_info) = auth_info {
-                            a { href: "{backend_url}/logout", 
+                            a { href: "{backend_url}/logout",
                                 { i18n.t(Key::LogoutUser).replace("{user}", &auth_info.user) }
                             }
                         } else {

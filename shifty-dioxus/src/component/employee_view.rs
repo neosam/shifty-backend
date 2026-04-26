@@ -269,7 +269,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
             // Custom Extra Hours Section
             for custom_hour_category in props.custom_hours.iter() {
                 h2 { class: "text-lg font-bold mt-8", "{custom_hour_category.name}" }
-                
+
                 // Find and display description from definitions
                 if let Some(definition) = props.custom_extra_hours_definitions.iter()
                     .find(|def| def.id == custom_hour_category.id) {
@@ -277,7 +277,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                         p { class: "text-sm text-gray-500 mb-4", "{description}" }
                     }
                 }
-                
+
                 ul {
                     for extra_hours in props.extra_hours.iter().filter(|eh| eh.category.is_custom_with_id(custom_hour_category.id)) {
                         {
@@ -317,6 +317,7 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
+    let volunteer_work_str = i18n.t(Key::CategoryVolunteerWork);
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let hours_str = i18n.t(Key::Hours);
@@ -409,6 +410,12 @@ pub fn WorkingHoursView(props: WorkingHoursViewProps) -> Element {
                             value: format!("{:.2} {hours_str}", props.working_hours.unpaid_leave_hours).into(),
                         }
                     }
+                    li {
+                        TupleView {
+                            label: volunteer_work_str.clone(),
+                            value: format!("{:.2} {hours_str}", props.working_hours.volunteer_hours).into(),
+                        }
+                    }
                 }
                 li { class: "mt-4",
                     if *expand_details.read() {
@@ -495,6 +502,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let sick_leave_str = i18n.t(Key::CategorySickLeave);
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
+    let volunteer_work_str = i18n.t(Key::CategoryVolunteerWork);
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let hours_str = i18n.t(Key::Hours);
@@ -640,6 +648,12 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             TupleView {
                                 label: unpaid_leave_str.clone(),
                                 value: format!("{:.2} {}", props.employee.unpaid_leave_hours, hours_str.clone()).into(),
+                            }
+                        }
+                        li {
+                            TupleView {
+                                label: volunteer_work_str.clone(),
+                                value: format!("{:.2} {}", props.employee.volunteer_hours, hours_str.clone()).into(),
                             }
                         }
                         li {

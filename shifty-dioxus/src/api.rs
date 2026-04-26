@@ -4,10 +4,10 @@ use rest_types::{
     BillingPeriodTO, BlockTO, BookingConflictTO, BookingLogTO, BookingTO,
     CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO,
     EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO,
-    GenerateInvitationRequest, InvitationResponse, RoleTO, SalesPersonTO,
-    SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO,
-    TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO,
-    WeeklySummaryTO, WeekMessageTO,
+    GenerateInvitationRequest, InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
+    ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
+    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeekMessageTO,
+    WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -67,9 +67,7 @@ pub async fn get_slots(
     Ok(res)
 }
 
-pub async fn get_all_shiftplans(
-    config: Config,
-) -> Result<Rc<[ShiftplanTO]>, reqwest::Error> {
+pub async fn get_all_shiftplans(config: Config) -> Result<Rc<[ShiftplanTO]>, reqwest::Error> {
     info!("Fetching shiftplan catalog");
     let url = format!("{}/shiftplan-catalog", config.backend);
     let response = reqwest::get(url).await?;
@@ -115,10 +113,7 @@ pub async fn update_shiftplan(
     Ok(res)
 }
 
-pub async fn delete_shiftplan(
-    config: Config,
-    id: Uuid,
-) -> Result<(), reqwest::Error> {
+pub async fn delete_shiftplan(config: Config, id: Uuid) -> Result<(), reqwest::Error> {
     info!("Deleting shiftplan {id}");
     let url = format!("{}/shiftplan-catalog/{}", config.backend, id);
     let client = reqwest::Client::new();
@@ -546,7 +541,10 @@ pub async fn get_balance_until_week(
     week: u8,
 ) -> Result<Rc<[ShortEmployeeReportTO]>, reqwest::Error> {
     info!("Fetching balance until week {week} of year {year}");
-    let url = format!("{}/report?year={}&until_week={}", config.backend, year, week);
+    let url = format!(
+        "{}/report?year={}&until_week={}",
+        config.backend, year, week
+    );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
@@ -769,7 +767,10 @@ pub async fn get_shiftplan_week(
     week: u8,
 ) -> Result<rest_types::ShiftplanWeekTO, reqwest::Error> {
     info!("Fetching shiftplan for week {week} in year {year}");
-    let url = format!("{}/shiftplan-info/{shiftplan_id}/{year}/{week}", config.backend);
+    let url = format!(
+        "{}/shiftplan-info/{shiftplan_id}/{year}/{week}",
+        config.backend
+    );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
@@ -809,7 +810,10 @@ pub async fn get_custom_extra_hours_by_sales_person(
     sales_person_id: Uuid,
 ) -> Result<Rc<[CustomExtraHoursTO]>, reqwest::Error> {
     info!("Fetching custom extra hours for sales person {sales_person_id}");
-    let url = format!("{}/custom-extra-hours/by-sales-person/{sales_person_id}", config.backend);
+    let url = format!(
+        "{}/custom-extra-hours/by-sales-person/{sales_person_id}",
+        config.backend
+    );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
@@ -835,7 +839,10 @@ pub async fn put_custom_extra_hours(
     custom_extra_hours: CustomExtraHoursTO,
 ) -> Result<(), reqwest::Error> {
     info!("Updating custom extra hours: {}", custom_extra_hours.name);
-    let url = format!("{}/custom-extra-hours/{}", config.backend, custom_extra_hours.id);
+    let url = format!(
+        "{}/custom-extra-hours/{}",
+        config.backend, custom_extra_hours.id
+    );
     let client = reqwest::Client::new();
     let response = client.put(url).json(&custom_extra_hours).send().await?;
     response.error_for_status_ref()?;
@@ -848,7 +855,10 @@ pub async fn delete_custom_extra_hours(
     custom_extra_hours_id: Uuid,
 ) -> Result<(), reqwest::Error> {
     info!("Deleting custom extra hours {custom_extra_hours_id}");
-    let url = format!("{}/custom-extra-hours/{}", config.backend, custom_extra_hours_id);
+    let url = format!(
+        "{}/custom-extra-hours/{}",
+        config.backend, custom_extra_hours_id
+    );
     let client = reqwest::Client::new();
     let response = client.delete(url).send().await?;
     response.error_for_status_ref()?;
@@ -862,7 +872,10 @@ pub async fn get_week_message(
     week: u8,
 ) -> Result<Option<WeekMessageTO>, reqwest::Error> {
     info!("Fetching week message for {year}/{week}");
-    let url = format!("{}/week-message/by-year-and-week/{}/{}", config.backend, year, week);
+    let url = format!(
+        "{}/week-message/by-year-and-week/{}/{}",
+        config.backend, year, week
+    );
     let response = reqwest::get(url).await?;
     if response.status() == 404 {
         return Ok(None);
@@ -877,7 +890,10 @@ pub async fn post_week_message(
     config: Config,
     week_message: WeekMessageTO,
 ) -> Result<(), reqwest::Error> {
-    info!("Posting week message for {}/{}", week_message.year, week_message.calendar_week);
+    info!(
+        "Posting week message for {}/{}",
+        week_message.year, week_message.calendar_week
+    );
     let url = format!("{}/week-message", config.backend);
     let client = reqwest::Client::new();
     let response = client.post(url).json(&week_message).send().await?;
@@ -890,7 +906,10 @@ pub async fn put_week_message(
     config: Config,
     week_message: WeekMessageTO,
 ) -> Result<(), reqwest::Error> {
-    info!("Updating week message for {}/{}", week_message.year, week_message.calendar_week);
+    info!(
+        "Updating week message for {}/{}",
+        week_message.year, week_message.calendar_week
+    );
     let url = format!("{}/week-message/{}", config.backend, week_message.id);
     let client = reqwest::Client::new();
     let response = client.put(url).json(&week_message).send().await?;
@@ -935,7 +954,10 @@ pub async fn get_billing_periods(config: Config) -> Result<Rc<[BillingPeriodTO]>
     Ok(res)
 }
 
-pub async fn get_billing_period(config: Config, billing_period_id: Uuid) -> Result<BillingPeriodTO, reqwest::Error> {
+pub async fn get_billing_period(
+    config: Config,
+    billing_period_id: Uuid,
+) -> Result<BillingPeriodTO, reqwest::Error> {
     info!("Fetching billing period {billing_period_id}");
     let url = format!("{}/billing-period/{}", config.backend, billing_period_id);
     let response = reqwest::get(url).await?;
@@ -970,9 +992,15 @@ pub async fn get_text_templates(config: Config) -> Result<Rc<[TextTemplateTO]>, 
     Ok(res)
 }
 
-pub async fn get_text_templates_by_type(config: Config, template_type: &str) -> Result<Rc<[TextTemplateTO]>, reqwest::Error> {
+pub async fn get_text_templates_by_type(
+    config: Config,
+    template_type: &str,
+) -> Result<Rc<[TextTemplateTO]>, reqwest::Error> {
     info!("Fetching text templates by type: {template_type}");
-    let url = format!("{}/text-templates/by-type/{}", config.backend, template_type);
+    let url = format!(
+        "{}/text-templates/by-type/{}",
+        config.backend, template_type
+    );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
@@ -980,7 +1008,10 @@ pub async fn get_text_templates_by_type(config: Config, template_type: &str) -> 
     Ok(res)
 }
 
-pub async fn get_text_template(config: Config, template_id: Uuid) -> Result<TextTemplateTO, reqwest::Error> {
+pub async fn get_text_template(
+    config: Config,
+    template_id: Uuid,
+) -> Result<TextTemplateTO, reqwest::Error> {
     info!("Fetching text template {template_id}");
     let url = format!("{}/text-templates/{}", config.backend, template_id);
     let response = reqwest::get(url).await?;
@@ -990,7 +1021,10 @@ pub async fn get_text_template(config: Config, template_id: Uuid) -> Result<Text
     Ok(res)
 }
 
-pub async fn create_text_template(config: Config, template: CreateTextTemplateRequestTO) -> Result<TextTemplateTO, reqwest::Error> {
+pub async fn create_text_template(
+    config: Config,
+    template: CreateTextTemplateRequestTO,
+) -> Result<TextTemplateTO, reqwest::Error> {
     info!("Creating text template");
     let url = format!("{}/text-templates", config.backend);
     let client = reqwest::Client::new();
@@ -1001,7 +1035,11 @@ pub async fn create_text_template(config: Config, template: CreateTextTemplateRe
     Ok(res)
 }
 
-pub async fn update_text_template(config: Config, template_id: Uuid, template: UpdateTextTemplateRequestTO) -> Result<TextTemplateTO, reqwest::Error> {
+pub async fn update_text_template(
+    config: Config,
+    template_id: Uuid,
+    template: UpdateTextTemplateRequestTO,
+) -> Result<TextTemplateTO, reqwest::Error> {
     info!("Updating text template {template_id}");
     let url = format!("{}/text-templates/{}", config.backend, template_id);
     let client = reqwest::Client::new();
@@ -1022,9 +1060,16 @@ pub async fn delete_text_template(config: Config, template_id: Uuid) -> Result<(
     Ok(())
 }
 
-pub async fn generate_custom_report(config: Config, billing_period_id: Uuid, template_id: Uuid) -> Result<String, reqwest::Error> {
+pub async fn generate_custom_report(
+    config: Config,
+    billing_period_id: Uuid,
+    template_id: Uuid,
+) -> Result<String, reqwest::Error> {
     info!("Generating custom report for billing period {billing_period_id} with template {template_id}");
-    let url = format!("{}/billing-period/{}/custom-report/{}", config.backend, billing_period_id, template_id);
+    let url = format!(
+        "{}/billing-period/{}/custom-report/{}",
+        config.backend, billing_period_id, template_id
+    );
     let client = reqwest::Client::new();
     let response = client.post(url).send().await?;
     response.error_for_status_ref()?;
@@ -1033,7 +1078,10 @@ pub async fn generate_custom_report(config: Config, billing_period_id: Uuid, tem
     Ok(res)
 }
 
-pub async fn generate_block_report(config: Config, template_id: Uuid) -> Result<String, reqwest::Error> {
+pub async fn generate_block_report(
+    config: Config,
+    template_id: Uuid,
+) -> Result<String, reqwest::Error> {
     info!("Generating block report with template {template_id}");
     let url = format!("{}/block-report/{}", config.backend, template_id);
     let client = reqwest::Client::new();
@@ -1063,25 +1111,34 @@ pub async fn list_user_invitations(
     username: ImStr,
 ) -> Result<Rc<[InvitationResponse]>, reqwest::Error> {
     info!("Fetching invitations for user {username}");
-    let url = format!("{}/user-invitation/invitation/user/{}", config.backend, username);
+    let url = format!(
+        "{}/user-invitation/invitation/user/{}",
+        config.backend, username
+    );
     info!("Invitation API URL: {}", url);
-    
+
     let response = reqwest::get(url).await?;
     info!("Response status: {}", response.status());
-    
+
     response.error_for_status_ref()?;
-    
+
     // Get the raw response text first to see what we're working with
     let response_text = response.text().await?;
     info!("Raw response body: {}", response_text);
-    
+
     // Try to parse the JSON
     match serde_json::from_str::<Rc<[InvitationResponse]>>(&response_text) {
         Ok(invitations) => {
             info!("Successfully parsed {} invitations", invitations.len());
             for (i, invitation) in invitations.iter().enumerate() {
-                info!("Invitation {}: id={}, username={}, status={:?}, redeemed_at={:?}", 
-                     i, invitation.id, invitation.username, invitation.status, invitation.redeemed_at);
+                info!(
+                    "Invitation {}: id={}, username={}, status={:?}, redeemed_at={:?}",
+                    i,
+                    invitation.id,
+                    invitation.username,
+                    invitation.status,
+                    invitation.redeemed_at
+                );
             }
             Ok(invitations)
         }
@@ -1095,12 +1152,12 @@ pub async fn list_user_invitations(
     }
 }
 
-pub async fn revoke_invitation(
-    config: Config,
-    invitation_id: Uuid,
-) -> Result<(), reqwest::Error> {
+pub async fn revoke_invitation(config: Config, invitation_id: Uuid) -> Result<(), reqwest::Error> {
     info!("Revoking invitation {invitation_id}");
-    let url = format!("{}/user-invitation/invitation/{}", config.backend, invitation_id);
+    let url = format!(
+        "{}/user-invitation/invitation/{}",
+        config.backend, invitation_id
+    );
     let client = reqwest::Client::new();
     let response = client.delete(url).send().await?;
     response.error_for_status_ref()?;
@@ -1113,7 +1170,10 @@ pub async fn revoke_session_for_invitation(
     invitation_id: Uuid,
 ) -> Result<(), reqwest::Error> {
     info!("Revoking session for invitation {invitation_id}");
-    let url = format!("{}/user-invitation/invitation/{}/revoke-session", config.backend, invitation_id);
+    let url = format!(
+        "{}/user-invitation/invitation/{}/revoke-session",
+        config.backend, invitation_id
+    );
     let client = reqwest::Client::new();
     let response = client.post(url).send().await?;
     response.error_for_status_ref()?;

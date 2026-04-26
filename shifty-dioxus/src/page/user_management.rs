@@ -7,8 +7,8 @@ use crate::{
     i18n::Key,
     router::Route,
     service::{
-        user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
         i18n::I18N,
+        user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
     },
 };
 use dioxus::prelude::*;
@@ -33,15 +33,15 @@ pub fn UserManagementPage() -> Element {
 
             // Mobile-first responsive layout: stack vertically on mobile, side by side on desktop
             div { class: "flex flex-col lg:flex-row gap-4 lg:gap-6",
-                
+
                 // Users Section
                 div { class: "flex-1 bg-white rounded-lg shadow-sm border p-4 md:p-6",
                     div { class: "flex items-center justify-between mb-4",
                         h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::Users)}" }
-                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
+                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded",
                             {
                                 i18n.t(Key::UsersCount).replace("{count}", &user_management.users.len().to_string())
-                            } 
+                            }
                         }
                     }
 
@@ -118,10 +118,10 @@ pub fn UserManagementPage() -> Element {
                 div { class: "flex-1 bg-white rounded-lg shadow-sm border p-4 md:p-6",
                     div { class: "flex items-center justify-between mb-4",
                         h2 { class: "text-xl font-bold text-gray-800", "{i18n.t(Key::SalesPersons)}" }
-                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded", 
+                        span { class: "text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded",
                             {
                                 i18n.t(Key::SalesPersonsCount).replace("{count}", &user_management.sales_persons.len().to_string())
-                            } 
+                            }
                         }
                     }
 
@@ -140,22 +140,22 @@ pub fn UserManagementPage() -> Element {
                                         sales_person_id: sales_person.id.to_string(),
                                     },
                                     li { class: "flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors",
-                                        div { 
+                                        div {
                                             class: "w-4 h-4 rounded-full mr-3 flex-shrink-0",
                                             style: "background-color: {sales_person.background_color}",
                                         }
-                                        span { class: "font-medium text-blue-600 hover:text-blue-800 truncate", 
-                                            "{sales_person.name}" 
+                                        span { class: "font-medium text-blue-600 hover:text-blue-800 truncate",
+                                            "{sales_person.name}"
                                         }
                                         div { class: "ml-auto flex items-center gap-2 flex-shrink-0",
                                             if sales_person.is_paid {
-                                                span { class: "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full", 
-                                                    "💰" 
+                                                span { class: "text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full",
+                                                    "💰"
                                                 }
                                             }
                                             if sales_person.inactive {
-                                                span { class: "text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full", 
-                                                    "{i18n.t(Key::Inactive)}" 
+                                                span { class: "text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full",
+                                                    "{i18n.t(Key::Inactive)}"
                                                 }
                                             }
                                         }
@@ -172,8 +172,8 @@ pub fn UserManagementPage() -> Element {
                                 sales_person_id: "".to_string(),
                             },
                             div { class: "w-full sm:w-auto",
-                                Button { 
-                                    "{i18n.t(Key::CreateNewSalesPerson)}" 
+                                Button {
+                                    "{i18n.t(Key::CreateNewSalesPerson)}"
                                 }
                             }
                         }
@@ -183,4 +183,3 @@ pub fn UserManagementPage() -> Element {
         }
     }
 }
-

@@ -28,10 +28,10 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let billing_period_id = match Uuid::parse_str(&props.billing_period_id) {
         Ok(billing_period_id) => billing_period_id,
         Err(err) => {
-            return rsx! { 
+            return rsx! {
                 TopBar {}
                 div { class: "ml-1 mr-1 pt-4 md:m-8",
-                    "{I18N.read().t(Key::InvalidBillingPeriodId)}: {err}" 
+                    "{I18N.read().t(Key::InvalidBillingPeriodId)}: {err}"
                 }
             };
         }
@@ -49,17 +49,20 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let mut filter_text = use_signal(|| String::new());
     let mut show_paid = use_signal(|| true); // Default: checked - show only paid
     let mut show_active = use_signal(|| true); // Default: checked - show only active
-    
+
     // Custom report states
     let mut selected_template_id = use_signal(|| None::<Uuid>);
     let mut custom_report_result = use_signal(|| None::<String>);
     let mut generating_report = use_signal(|| false);
     let mut copy_status = use_signal(|| None::<String>);
-    
+
     // Load billing period templates for report generation
     use_effect(move || {
         spawn(async move {
-            handle_text_template_action(TextTemplateAction::LoadTemplatesByType("billing-period".to_string())).await;
+            handle_text_template_action(TextTemplateAction::LoadTemplatesByType(
+                "billing-period".to_string(),
+            ))
+            .await;
         });
     });
 
@@ -68,11 +71,12 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         move |mut rx: UnboundedReceiver<BillingPeriodDetailsAction>| async move {
             // Load the specific billing period when page loads
             billing_period_service.send(BillingPeriodAction::LoadBillingPeriod(billing_period_id));
-            
+
             while let Some(action) = rx.next().await {
                 match action {
                     BillingPeriodDetailsAction::LoadBillingPeriod => {
-                        billing_period_service.send(BillingPeriodAction::LoadBillingPeriod(billing_period_id));
+                        billing_period_service
+                            .send(BillingPeriodAction::LoadBillingPeriod(billing_period_id));
                     }
                 }
             }
@@ -120,7 +124,6 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         }
     };
 
-
     rsx! {
         TopBar {}
 
@@ -129,7 +132,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                 div { class: "max-w-4xl mx-auto",
                     // Header
                     div { class: "mb-6",
-                        h1 { class: "text-3xl font-bold mb-2", 
+                        h1 { class: "text-3xl font-bold mb-2",
                             "{i18n.t(Key::BillingPeriodDetails)}"
                         }
                         div { class: "flex items-center space-x-4",
@@ -137,12 +140,12 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 "{i18n.format_date(&billing_period.start_date)} - {i18n.format_date(&billing_period.end_date)}"
                             }
                             if billing_period.deleted_at.is_none() {
-                                span { class: "px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full", 
-                                    "{i18n.t(Key::Active)}" 
+                                span { class: "px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full",
+                                    "{i18n.t(Key::Active)}"
                                 }
                             } else {
-                                span { class: "px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full", 
-                                    "{i18n.t(Key::Deleted)}" 
+                                span { class: "px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full",
+                                    "{i18n.t(Key::Deleted)}"
                                 }
                             }
                         }
@@ -186,16 +189,16 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                     // Custom Report Section
                     div { class: "bg-white shadow rounded-lg p-6 mb-6",
                         h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::CustomReports)}" }
-                        
+
                         div { class: "space-y-6",
                             // Template Selection and Generation
                             div {
                                 h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GenerateReport)}" }
-                                
+
                                 // Template Selection
                                 div { class: "mb-4",
-                                    label { class: "block text-sm font-medium text-gray-700 mb-2", 
-                                        "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} billing period templates available)" 
+                                    label { class: "block text-sm font-medium text-gray-700 mb-2",
+                                        "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} billing period templates available)"
                                     }
                                     select {
                                         class: "w-full p-2 border border-gray-300 rounded-md",
@@ -209,7 +212,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         },
                                         option { value: "", "Select a template..." }
                                         for template in TEXT_TEMPLATE_STORE.read().filtered_templates.iter() {
-                                            option { 
+                                            option {
                                                 value: "{template.id}",
                                                 if let Some(ref name) = template.name {
                                                     "{name}"
@@ -220,7 +223,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         }
                                     }
                                 }
-                                
+
                                 // Generate Button
                                 button {
                                     onclick: move |_| {
@@ -230,7 +233,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             spawn(async move {
                                                 generating_report.set(true);
                                                 custom_report_result.set(None);
-                                                
+
                                                 match loader::generate_custom_report(config, billing_period_id, template_id).await {
                                                     Ok(report) => {
                                                         custom_report_result.set(Some(report));
@@ -239,7 +242,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                         custom_report_result.set(Some(format!("Error generating report: {}", e)));
                                                     }
                                                 }
-                                                
+
                                                 generating_report.set(false);
                                             });
                                         }
@@ -257,7 +260,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                     }
                                 }
                             }
-                            
+
                             // Report Result (moved below generation form for full width)
                             {
                                 let report_opt = custom_report_result.read().clone();
@@ -307,10 +310,10 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                     // Sales Persons Section
                     div { class: "bg-white shadow rounded-lg p-6 mb-6",
                         div { class: "mb-4",
-                            h2 { class: "text-xl font-semibold mb-4", 
+                            h2 { class: "text-xl font-semibold mb-4",
                                 "{i18n.t(Key::SalesPersons)} ({billing_period.sales_persons.len()} total)"
                             }
-                            
+
                             // Filter controls
                             div { class: "flex flex-col md:flex-row gap-4 items-start md:items-center",
                                 // Checkbox filters
@@ -334,7 +337,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         span { "{i18n.t(Key::ShowActive)}" }
                                     }
                                 }
-                                
+
                                 // Text filter
                                 div { class: "w-full md:w-80",
                                     input {
@@ -347,7 +350,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 }
                             }
                         }
-                        
+
                         if billing_period.sales_persons.is_empty() {
                             p { class: "text-gray-500 italic", "{i18n.t(Key::NoSalesPersonsInBillingPeriod)}" }
                         } else {
@@ -356,7 +359,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                 let filter_text_lower = filter_text.read().to_lowercase();
                                 let show_paid_val = *show_paid.read();
                                 let show_active_val = *show_active.read();
-                                
+
                                 let mut filtered_sales_persons: Vec<_> = billing_period.sales_persons
                                     .iter()
                                     .filter(|sales_person| {
@@ -367,7 +370,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             let sales_person_name = get_sales_person_name(sales_person.sales_person_id).to_lowercase();
                                             sales_person_name.contains(&filter_text_lower)
                                         };
-                                        
+
                                         // Active filter - be very explicit about the logic
                                         let is_active = get_sales_person_is_active(sales_person.sales_person_id);
                                         let active_filter_matches = if show_active_val {
@@ -378,7 +381,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                             // When "Active" checkbox is unchecked: show all employees
                                             true
                                         };
-                                        
+
                                         // Paid filter
                                         let is_paid = get_sales_person_is_paid(sales_person.sales_person_id);
                                         let paid_filter_matches = if show_paid_val {
@@ -386,7 +389,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         } else {
                                             true // Show all (paid and unpaid) when unchecked
                                         };
-                                        
+
                                         name_matches && active_filter_matches && paid_filter_matches
                                     })
                                     .collect();
@@ -400,7 +403,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
 
                                 if filtered_sales_persons.is_empty() {
                                     rsx! {
-                                        p { class: "text-gray-500 italic", 
+                                        p { class: "text-gray-500 italic",
                                             if filter_text.read().is_empty() {
                                                 "No sales persons match the current filters."
                                             } else {
@@ -410,7 +413,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                     }
                                 } else {
                                     rsx! {
-                                        p { class: "text-sm text-gray-600 mb-4", 
+                                        p { class: "text-sm text-gray-600 mb-4",
                                             "Showing {filtered_sales_persons.len()} of {billing_period.sales_persons.len()} sales persons"
                                         }
                                         div { class: "space-y-4",
@@ -418,8 +421,8 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                 div { class: "border border-gray-200 rounded-lg p-4",
                                                     div { class: "flex justify-between items-start mb-3",
                                                         div {
-                                                            h3 { class: "text-lg font-medium text-blue-600", 
-                                                                "{get_sales_person_name(sales_person.sales_person_id)}" 
+                                                            h3 { class: "text-lg font-medium text-blue-600",
+                                                                "{get_sales_person_name(sales_person.sales_person_id)}"
                                                             }
                                                         }
                                                         if sales_person.deleted_at.is_none() {
@@ -428,7 +431,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                             span { class: "px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full", "{i18n.t(Key::Deleted)}" }
                                                         }
                                                     }
-                                                    
+
                                                     // Values/Metrics
                                                     if !sales_person.values.is_empty() {
                                                         div {
@@ -436,13 +439,14 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                             div { class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3",
                                                                 for (key, value) in sales_person.values.iter() {
                                                                     div { class: "bg-gray-50 p-3 rounded",
-                                                                        div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide", 
+                                                                        div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide",
                                                                             {
                                                                                 // Translate known value types
                                                                                 let translated = match key.to_uppercase().as_str() {
                                                                                     "BALANCE" => i18n.t(Key::Balance).to_string(),
                                                                                     "EXPECTED_HOURS" => i18n.t(Key::ExpectedHours).to_string(),
                                                                                     "OVERALL" => i18n.t(Key::Overall).to_string(),
+                                                                                    "VOLUNTEER" => i18n.t(Key::CategoryVolunteerWork).to_string(),
                                                                                     _ => key.clone(),
                                                                                 };
                                                                                 translated

@@ -1,6 +1,8 @@
+use rest_types::{
+    CreateTextTemplateRequestTO, TemplateEngineTO, TextTemplateTO, UpdateTextTemplateRequestTO,
+};
 use std::rc::Rc;
 use uuid::Uuid;
-use rest_types::{TextTemplateTO, CreateTextTemplateRequestTO, UpdateTextTemplateRequestTO, TemplateEngineTO};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TemplateEngine {

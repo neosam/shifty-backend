@@ -20,9 +20,13 @@ pub async fn working_hours_mini_service(mut rx: UnboundedReceiver<WorkingHoursMi
     while let Some(action) = rx.next().await {
         match action {
             WorkingHoursMiniAction::LoadWorkingHoursMini(year, week, fetch_balance) => {
-                let working_hours =
-                    loader::load_working_hours_minified_for_week(CONFIG.read().clone(), year, week, fetch_balance)
-                        .await;
+                let working_hours = loader::load_working_hours_minified_for_week(
+                    CONFIG.read().clone(),
+                    year,
+                    week,
+                    fetch_balance,
+                )
+                .await;
                 match working_hours {
                     Ok(working_hours) => {
                         *WORKING_HOURS_MINI.write() = working_hours;
