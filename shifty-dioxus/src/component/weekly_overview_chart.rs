@@ -4,18 +4,8 @@ use dioxus::prelude::*;
 
 use crate::{i18n::Key, service::i18n::I18N, state::weekly_overview::WeeklySummary};
 
-const CHART_HEIGHT: f32 = 250.0;
-const PADDING_LEFT: f32 = 45.0;
-const PADDING_RIGHT: f32 = 10.0;
-const PADDING_TOP: f32 = 10.0;
-const PADDING_BOTTOM: f32 = 30.0;
-const MIN_BAR_STEP: f32 = 22.0;
-const BAR_WIDTH_RATIO: f32 = 0.7;
-const LEGEND_HEIGHT: f32 = 30.0;
-
-fn ceil_to_multiple(value: f32, multiple: f32) -> f32 {
-    (value / multiple).ceil() * multiple
-}
+const CHART_HEIGHT_PX: u32 = 160;
+const NON_CURRENT_BAR_COLOR: &str = "#7787e8"; // Designed dimmer accent (per reference)
 
 fn compute_max_hours(weeks: &[WeeklySummary]) -> f32 {
     let max_val = weeks
@@ -29,239 +19,122 @@ fn compute_max_hours(weeks: &[WeeklySummary]) -> f32 {
             }
         })
         .fold(0.0_f32, f32::max);
-    let ceiled = ceil_to_multiple(max_val, 10.0);
-    if ceiled < 10.0 {
+    if max_val < 1.0 {
         10.0
     } else {
-        ceiled
+        max_val
     }
 }
 
-fn grid_lines(max_hours: f32) -> Vec<f32> {
-    let step = if max_hours <= 50.0 { 10.0 } else { 20.0 };
-    let mut lines = Vec::new();
-    let mut v = 0.0;
-    while v <= max_hours {
-        lines.push(v);
-        v += step;
-    }
-    lines
-}
-
-fn y_pos(hours: f32, max_hours: f32) -> f32 {
-    PADDING_TOP + CHART_HEIGHT - (hours / max_hours) * CHART_HEIGHT
+fn axis_label_weeks() -> [u8; 5] {
+    [1, 13, 26, 39, 52]
 }
 
 #[component]
-pub fn WeeklyOverviewChart(weeks: Rc<[WeeklySummary]>) -> Element {
+pub fn WeeklyOverviewChart(
+    weeks: Rc<[WeeklySummary]>,
+    current_year: u32,
+    current_week: u8,
+) -> Element {
     let i18n = I18N.read().clone();
-    let paid_label = i18n.t(Key::Paid);
-    let volunteer_label = i18n.t(Key::Volunteer);
-    let required_label = i18n.t(Key::ChartRequiredHours);
+    rsx! {
+        WeeklyOverviewChartView {
+            weeks,
+            current_year,
+            current_week,
+            paid_label: i18n.t(Key::Paid).to_string(),
+            volunteer_label: i18n.t(Key::Volunteer).to_string(),
+            required_label: i18n.t(Key::ChartRequiredHours).to_string(),
+            week_short: i18n.t(Key::WeekShort).to_string(),
+        }
+    }
+}
 
+#[component]
+pub(crate) fn WeeklyOverviewChartView(
+    weeks: Rc<[WeeklySummary]>,
+    current_year: u32,
+    current_week: u8,
+    paid_label: String,
+    volunteer_label: String,
+    required_label: String,
+    week_short: String,
+) -> Element {
     if weeks.is_empty() {
         return rsx! {};
     }
 
-    let num_weeks = weeks.len() as f32;
-    let bar_step = MIN_BAR_STEP;
-    let chart_width = num_weeks * bar_step;
-    let svg_width = PADDING_LEFT + chart_width + PADDING_RIGHT;
-    let svg_height = PADDING_TOP + CHART_HEIGHT + PADDING_BOTTOM + LEGEND_HEIGHT;
-
     let max_hours = compute_max_hours(&weeks);
-    let grid = grid_lines(max_hours);
-
-    let bar_width = bar_step * BAR_WIDTH_RATIO;
-
-    let required_points: String = weeks
+    let any_current_in_view = weeks
         .iter()
-        .enumerate()
-        .map(|(i, w)| {
-            let x = PADDING_LEFT + (i as f32) * bar_step + bar_step / 2.0;
-            let y = y_pos(w.required_hours, max_hours);
-            format!("{x:.1},{y:.1}")
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    let view_box = format!("0 0 {svg_width:.0} {svg_height:.0}");
-    let svg_width_str = format!("{svg_width:.0}");
+        .any(|w| w.year == current_year && w.week == current_week);
 
     rsx! {
-        div { class: "overflow-x-auto mb-4 mt-4",
-            svg {
-                view_box: "{view_box}",
-                width: "{svg_width_str}",
-                height: "{svg_height:.0}",
-                style: "min-width: {svg_width_str}px",
-
-                // Grid lines and Y-axis labels
-                for hours in grid.iter() {
-                    {
-                        let y = y_pos(*hours, max_hours);
-                        let label = format!("{:.0}", hours);
-                        rsx! {
-                            line {
-                                x1: "{PADDING_LEFT:.0}",
-                                y1: "{y:.1}",
-                                x2: "{svg_width - PADDING_RIGHT:.0}",
-                                y2: "{y:.1}",
-                                stroke: "#e5e7eb",
-                                stroke_width: "1",
-                            }
-                            text {
-                                x: "{PADDING_LEFT - 5.0:.0}",
-                                y: "{y + 3.0:.1}",
-                                text_anchor: "end",
-                                font_size: "9",
-                                fill: "#6b7280",
-                                "{label}"
-                            }
-                        }
-                    }
+        div {
+            // HTML legend
+            div { class: "flex items-center gap-4 mb-3 text-xs text-ink",
+                span { class: "inline-flex items-center gap-1.5",
+                    span { style: "background: var(--accent); width: 12px; height: 12px; border-radius: 2px; display: inline-block;" }
+                    "{paid_label}"
                 }
+                span { class: "inline-flex items-center gap-1.5",
+                    span { style: "background: var(--ink-muted); opacity: 0.4; width: 12px; height: 12px; border-radius: 2px; display: inline-block;" }
+                    "{volunteer_label}"
+                }
+                span { class: "inline-flex items-center gap-1.5",
+                    span { style: "background: var(--bad); width: 12px; height: 2px; display: inline-block;" }
+                    "{required_label}"
+                }
+            }
 
-                // Stacked bars
-                for (i, week) in weeks.iter().enumerate() {
+            // Bars: HTML flex container of column-bars
+            div {
+                class: "relative",
+                style: "display: flex; align-items: flex-end; gap: 1.5px; height: {CHART_HEIGHT_PX}px;",
+
+                for week in weeks.iter() {
                     {
-                        let x = PADDING_LEFT + (i as f32) * bar_step + (bar_step - bar_width) / 2.0;
-                        let paid_h = (week.paid_hours / max_hours) * CHART_HEIGHT;
-                        let vol_h = (week.volunteer_hours / max_hours) * CHART_HEIGHT;
-                        let total_h = paid_h + vol_h;
-                        let paid_y = PADDING_TOP + CHART_HEIGHT - paid_h;
-                        let vol_y = paid_y - vol_h;
+                        let paid_pct = (week.paid_hours / max_hours) * 100.0;
+                        let vol_pct = (week.volunteer_hours / max_hours) * 100.0;
+                        let req_top_pct = (1.0 - week.required_hours / max_hours) * 100.0;
+                        let is_current = week.year == current_year && week.week == current_week;
+                        let bar_opacity = if any_current_in_view && !is_current { 0.85 } else { 1.0 };
+                        let paid_bg = if is_current { "var(--accent)".to_string() } else { NON_CURRENT_BAR_COLOR.to_string() };
+                        let nav_url = format!("/shiftplan/{}/{}", week.year, week.week);
                         let tooltip = format!(
-                            "W{}: {paid_label} {:.1}h, {volunteer_label} {:.1}h, {required_label} {:.1}h",
+                            "{week_short} {}: {paid_label} {:.1}h, {volunteer_label} {:.1}h, {required_label} {:.1}h",
                             week.week, week.paid_hours, week.volunteer_hours, week.required_hours
                         );
 
                         rsx! {
-                            // Paid hours (bottom)
-                            if week.paid_hours > 0.0 {
-                                rect {
-                                    x: "{x:.1}",
-                                    y: "{paid_y:.1}",
-                                    width: "{bar_width:.1}",
-                                    height: "{paid_h:.1}",
-                                    fill: "#3B82F6",
+                            div {
+                                title: "{tooltip}",
+                                style: "flex: 1; height: 100%; position: relative; display: flex; flex-direction: column; justify-content: flex-end; opacity: {bar_opacity}; cursor: pointer; min-width: 4px;",
+                                onclick: move |_| {
+                                    navigator().push(nav_url.clone());
+                                },
+                                // Volunteer (top portion of stack)
+                                if week.volunteer_hours > 0.0 {
+                                    div { style: "height: {vol_pct}%; background: var(--ink-muted); opacity: 0.35;" }
                                 }
-                            }
-                            // Volunteer hours (top)
-                            if week.volunteer_hours > 0.0 {
-                                rect {
-                                    x: "{x:.1}",
-                                    y: "{vol_y:.1}",
-                                    width: "{bar_width:.1}",
-                                    height: "{vol_h:.1}",
-                                    fill: "#10B981",
+                                // Paid (bottom portion)
+                                if week.paid_hours > 0.0 {
+                                    div { style: "height: {paid_pct}%; background: {paid_bg};" }
                                 }
-                            }
-                            // Invisible hover rect covering the full bar for tooltip + navigation
-                            {
-                                let nav_url = format!("/shiftplan/{}/{}", week.year, week.week);
-                                rsx! {
-                                    rect {
-                                        x: "{x:.1}",
-                                        y: "{PADDING_TOP + CHART_HEIGHT - total_h:.1}",
-                                        width: "{bar_width:.1}",
-                                        height: "{total_h.max(1.0):.1}",
-                                        fill: "transparent",
-                                        style: "cursor: pointer",
-                                        onclick: move |_| {
-                                            navigator().push(nav_url.clone());
-                                        },
-                                        title { "{tooltip}" }
-                                    }
-                                }
+                                // Required line: absolute-positioned dashed top border
+                                div { style: "position: absolute; left: 0; right: 0; top: {req_top_pct}%; border-top: 1.5px dashed var(--bad); pointer-events: none;" }
                             }
                         }
                     }
                 }
+            }
 
-                // Required hours polyline
-                polyline {
-                    points: "{required_points}",
-                    fill: "none",
-                    stroke: "#EF4444",
-                    stroke_width: "1.5",
-                }
-
-                // X-axis week labels
-                for (i, week) in weeks.iter().enumerate() {
-                    {
-                        let x = PADDING_LEFT + (i as f32) * bar_step + bar_step / 2.0;
-                        let y = PADDING_TOP + CHART_HEIGHT + 12.0;
-                        let label = format!("{}", week.week);
-                        // Only show every Nth label to avoid clutter
-                        let show_label = weeks.len() <= 26 || week.week % 2 == 1;
-                        rsx! {
-                            if show_label {
-                                text {
-                                    x: "{x:.1}",
-                                    y: "{y:.1}",
-                                    text_anchor: "middle",
-                                    font_size: "7",
-                                    fill: "#6b7280",
-                                    "{label}"
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Legend
-                {
-                    let legend_y = PADDING_TOP + CHART_HEIGHT + PADDING_BOTTOM + 5.0;
-                    let box_size = 8.0;
-                    rsx! {
-                        // Paid
-                        rect {
-                            x: "{PADDING_LEFT:.0}",
-                            y: "{legend_y:.0}",
-                            width: "{box_size:.0}",
-                            height: "{box_size:.0}",
-                            fill: "#3B82F6",
-                        }
-                        text {
-                            x: "{PADDING_LEFT + box_size + 3.0:.0}",
-                            y: "{legend_y + box_size - 1.0:.0}",
-                            font_size: "9",
-                            fill: "#374151",
-                            "{paid_label}"
-                        }
-                        // Volunteer
-                        rect {
-                            x: "{PADDING_LEFT + 70.0:.0}",
-                            y: "{legend_y:.0}",
-                            width: "{box_size:.0}",
-                            height: "{box_size:.0}",
-                            fill: "#10B981",
-                        }
-                        text {
-                            x: "{PADDING_LEFT + 70.0 + box_size + 3.0:.0}",
-                            y: "{legend_y + box_size - 1.0:.0}",
-                            font_size: "9",
-                            fill: "#374151",
-                            "{volunteer_label}"
-                        }
-                        // Required line
-                        line {
-                            x1: "{PADDING_LEFT + 160.0:.0}",
-                            y1: "{legend_y + box_size / 2.0:.0}",
-                            x2: "{PADDING_LEFT + 175.0:.0}",
-                            y2: "{legend_y + box_size / 2.0:.0}",
-                            stroke: "#EF4444",
-                            stroke_width: "1.5",
-                        }
-                        text {
-                            x: "{PADDING_LEFT + 178.0:.0}",
-                            y: "{legend_y + box_size - 1.0:.0}",
-                            font_size: "9",
-                            fill: "#374151",
-                            "{required_label}"
-                        }
-                    }
+            // X-axis: 5 evenly-spaced mono labels
+            div {
+                class: "font-mono",
+                style: "display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--ink-muted);",
+                for label_week in axis_label_weeks().iter() {
+                    span { "{week_short} {label_week}" }
                 }
             }
         }
@@ -272,81 +145,231 @@ pub fn WeeklyOverviewChart(weeks: Rc<[WeeklySummary]>) -> Element {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_ceil_to_multiple() {
-        assert_eq!(ceil_to_multiple(0.0, 10.0), 0.0);
-        assert_eq!(ceil_to_multiple(1.0, 10.0), 10.0);
-        assert_eq!(ceil_to_multiple(10.0, 10.0), 10.0);
-        assert_eq!(ceil_to_multiple(11.0, 10.0), 20.0);
-        assert_eq!(ceil_to_multiple(37.0, 10.0), 40.0);
-        assert_eq!(ceil_to_multiple(40.0, 10.0), 40.0);
+    fn sample_week(year: u32, week: u8, paid: f32, volunteer: f32, required: f32) -> WeeklySummary {
+        WeeklySummary {
+            week,
+            year,
+            available_hours: paid + volunteer,
+            required_hours: required,
+            paid_hours: paid,
+            volunteer_hours: volunteer,
+            monday_available_hours: 0.0,
+            tuesday_available_hours: 0.0,
+            wednesday_available_hours: 0.0,
+            thursday_available_hours: 0.0,
+            friday_available_hours: 0.0,
+            saturday_available_hours: 0.0,
+            sunday_available_hours: 0.0,
+            sales_person_absences: vec![],
+        }
     }
 
     #[test]
-    fn test_compute_max_hours_uses_larger_of_bar_or_required() {
+    fn compute_max_hours_uses_larger_of_bar_or_required() {
         let weeks = vec![
-            WeeklySummary {
-                week: 1,
-                year: 2026,
-                available_hours: 0.0,
-                required_hours: 35.0,
-                paid_hours: 20.0,
-                volunteer_hours: 10.0,
-                monday_available_hours: 0.0,
-                tuesday_available_hours: 0.0,
-                wednesday_available_hours: 0.0,
-                thursday_available_hours: 0.0,
-                friday_available_hours: 0.0,
-                saturday_available_hours: 0.0,
-                sunday_available_hours: 0.0,
-                sales_person_absences: vec![],
-            },
-            WeeklySummary {
-                week: 2,
-                year: 2026,
-                available_hours: 0.0,
-                required_hours: 25.0,
-                paid_hours: 30.0,
-                volunteer_hours: 12.0,
-                monday_available_hours: 0.0,
-                tuesday_available_hours: 0.0,
-                wednesday_available_hours: 0.0,
-                thursday_available_hours: 0.0,
-                friday_available_hours: 0.0,
-                saturday_available_hours: 0.0,
-                sunday_available_hours: 0.0,
-                sales_person_absences: vec![],
-            },
+            sample_week(2026, 1, 20.0, 10.0, 35.0),
+            sample_week(2026, 2, 30.0, 12.0, 25.0),
         ];
-        // Week 2 has bar_total = 42, which is largest => ceil to 50
-        assert_eq!(compute_max_hours(&weeks), 50.0);
+        // Week 2 has bar_total = 42 > all required values
+        assert_eq!(compute_max_hours(&weeks), 42.0);
     }
 
     #[test]
-    fn test_compute_max_hours_empty() {
+    fn compute_max_hours_uses_required_when_larger() {
+        let weeks = vec![sample_week(2026, 1, 5.0, 0.0, 30.0)];
+        assert_eq!(compute_max_hours(&weeks), 30.0);
+    }
+
+    #[test]
+    fn compute_max_hours_floors_at_ten() {
         assert_eq!(compute_max_hours(&[]), 10.0);
+        let weeks = vec![sample_week(2026, 1, 0.0, 0.0, 0.0)];
+        assert_eq!(compute_max_hours(&weeks), 10.0);
     }
 
     #[test]
-    fn test_grid_lines_small() {
-        let lines = grid_lines(40.0);
-        assert_eq!(lines, vec![0.0, 10.0, 20.0, 30.0, 40.0]);
+    fn axis_label_weeks_are_five_evenly_spaced() {
+        assert_eq!(axis_label_weeks(), [1, 13, 26, 39, 52]);
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct ViewProps {
+        weeks: Rc<[WeeklySummary]>,
+        current_year: u32,
+        current_week: u8,
+        paid_label: String,
+        volunteer_label: String,
+        required_label: String,
+        week_short: String,
+    }
+
+    fn render_view(
+        weeks: Rc<[WeeklySummary]>,
+        current_year: u32,
+        current_week: u8,
+        week_short: &str,
+    ) -> String {
+        fn app(p: ViewProps) -> Element {
+            rsx! {
+                WeeklyOverviewChartView {
+                    weeks: p.weeks.clone(),
+                    current_year: p.current_year,
+                    current_week: p.current_week,
+                    paid_label: p.paid_label.clone(),
+                    volunteer_label: p.volunteer_label.clone(),
+                    required_label: p.required_label.clone(),
+                    week_short: p.week_short.clone(),
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(
+            app,
+            ViewProps {
+                weeks,
+                current_year,
+                current_week,
+                paid_label: "Paid".to_string(),
+                volunteer_label: "Volunteer".to_string(),
+                required_label: "Required Hours".to_string(),
+                week_short: week_short.to_string(),
+            },
+        );
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
     }
 
     #[test]
-    fn test_grid_lines_large() {
-        let lines = grid_lines(100.0);
-        assert_eq!(lines, vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0]);
+    fn chart_uses_token_styles_not_legacy_hex() {
+        let weeks: Rc<[WeeklySummary]> = vec![
+            sample_week(2026, 1, 20.0, 10.0, 35.0),
+            sample_week(2026, 2, 30.0, 12.0, 25.0),
+        ]
+        .into();
+        let html = render_view(weeks, 2026, 12, "W");
+        assert!(
+            html.contains("var(--accent)"),
+            "expected accent token: {html}"
+        );
+        assert!(
+            html.contains("var(--ink-muted)"),
+            "expected ink-muted token: {html}"
+        );
+        assert!(html.contains("var(--bad)"), "expected bad token: {html}");
+        // Legacy chart hex must not appear.
+        for hex in ["#3B82F6", "#10B981", "#EF4444", "#e5e7eb", "#6b7280"] {
+            assert!(!html.contains(hex), "found legacy hex `{hex}` in: {html}");
+        }
     }
 
     #[test]
-    fn test_y_pos() {
-        let max = 40.0;
-        // 0 hours should be at bottom
-        assert_eq!(y_pos(0.0, max), PADDING_TOP + CHART_HEIGHT);
-        // max hours should be at top
-        assert_eq!(y_pos(max, max), PADDING_TOP);
-        // half should be in the middle
-        assert_eq!(y_pos(20.0, max), PADDING_TOP + CHART_HEIGHT / 2.0);
+    fn chart_volunteer_uses_ink_muted_not_good() {
+        // The reference uses ink-muted with opacity for volunteer; var(--good) (green) was wrong.
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 10.0, 35.0)].into();
+        let html = render_view(weeks, 2026, 1, "W");
+        // The volunteer bar div should reference var(--ink-muted) with opacity 0.35.
+        assert!(
+            html.contains("background: var(--ink-muted); opacity: 0.35"),
+            "expected volunteer ink-muted with opacity 0.35: {html}"
+        );
+        assert!(
+            !html.contains("background: var(--good)"),
+            "should not use --good for volunteer: {html}"
+        );
+    }
+
+    #[test]
+    fn chart_required_line_uses_bad_token_dashed() {
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 10.0, 35.0)].into();
+        let html = render_view(weeks, 2026, 1, "W");
+        // Per-bar required line: dashed border-top in --bad
+        assert!(
+            html.contains("border-top: 1.5px dashed var(--bad)"),
+            "expected dashed bad-colored required line: {html}"
+        );
+    }
+
+    #[test]
+    fn chart_current_week_full_opacity_others_dimmed() {
+        let weeks: Rc<[WeeklySummary]> = vec![
+            sample_week(2026, 16, 20.0, 5.0, 30.0),
+            sample_week(2026, 17, 25.0, 5.0, 30.0),
+            sample_week(2026, 18, 15.0, 5.0, 30.0),
+        ]
+        .into();
+        let html = render_view(weeks, 2026, 17, "W");
+        // Two bars dimmed (16, 18), one at full opacity (17).
+        let dim_count = html.matches("opacity: 0.85").count();
+        assert_eq!(dim_count, 2, "expected 2 dimmed bars: {html}");
+        let full_opacity_count = html.matches("opacity: 1").count();
+        // Each bar emits exactly one outer wrapper opacity. The current bar is "opacity: 1".
+        assert!(
+            full_opacity_count >= 1,
+            "expected at least 1 full-opacity bar: {html}"
+        );
+    }
+
+    #[test]
+    fn chart_current_week_uses_accent_others_dimmed_color() {
+        let weeks: Rc<[WeeklySummary]> = vec![
+            sample_week(2026, 16, 20.0, 5.0, 30.0),
+            sample_week(2026, 17, 25.0, 5.0, 30.0),
+        ]
+        .into();
+        let html = render_view(weeks, 2026, 17, "W");
+        assert!(
+            html.contains("background: var(--accent)"),
+            "current week paid bar should use accent: {html}"
+        );
+        assert!(
+            html.contains("#7787e8"),
+            "non-current bars should use designed dimmer accent: {html}"
+        );
+    }
+
+    #[test]
+    fn chart_no_dim_when_year_does_not_match() {
+        let weeks: Rc<[WeeklySummary]> = vec![
+            sample_week(2025, 16, 20.0, 5.0, 30.0),
+            sample_week(2025, 17, 25.0, 5.0, 30.0),
+        ]
+        .into();
+        let html = render_view(weeks, 2026, 17, "W");
+        let dim_count = html.matches("opacity: 0.85").count();
+        assert_eq!(dim_count, 0, "no bars dimmed when year mismatched: {html}");
+        // No accent — all bars get the dimmer color.
+        assert!(
+            html.contains("#7787e8"),
+            "expected dimmer color when no current bar: {html}"
+        );
+    }
+
+    #[test]
+    fn chart_x_axis_renders_five_locale_labels() {
+        let weeks_vec: Vec<WeeklySummary> = (1..=52u8)
+            .map(|w| sample_week(2026, w, 10.0, 5.0, 20.0))
+            .collect();
+        let weeks: Rc<[WeeklySummary]> = weeks_vec.into();
+        let html = render_view(weeks, 2026, 27, "KW");
+        for w in [1u8, 13, 26, 39, 52] {
+            assert!(
+                html.contains(&format!("KW {w}")),
+                "expected axis label `KW {w}`: missing"
+            );
+        }
+    }
+
+    #[test]
+    fn i18n_week_short_returns_locale_value() {
+        use crate::i18n::{generate, Key as I18nKey, Locale};
+        let en = generate(Locale::En);
+        let de = generate(Locale::De);
+        let cs = generate(Locale::Cs);
+        assert_eq!(en.t(I18nKey::WeekShort).as_ref(), "W");
+        assert_eq!(de.t(I18nKey::WeekShort).as_ref(), "KW");
+        assert_eq!(cs.t(I18nKey::WeekShort).as_ref(), "T");
+        for i18n in [en, de, cs] {
+            assert!(!i18n.t(I18nKey::PreviousYear).is_empty());
+            assert!(!i18n.t(I18nKey::NextYear).is_empty());
+        }
     }
 }

@@ -351,6 +351,9 @@ pub enum Key {
 
     // Weekly overview chart
     ChartRequiredHours,
+    PreviousYear,
+    NextYear,
+    WeekShort,
 
     // Shiftplan assignments
     ShiftplanAssignments,

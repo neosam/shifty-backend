@@ -517,6 +517,9 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview chart
     i18n.add_text(Locale::En, Key::ChartRequiredHours, "Required Hours");
+    i18n.add_text(Locale::En, Key::PreviousYear, "Previous year");
+    i18n.add_text(Locale::En, Key::NextYear, "Next year");
+    i18n.add_text(Locale::En, Key::WeekShort, "W");
 
     // Shiftplan assignments
     i18n.add_text(

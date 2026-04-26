@@ -560,6 +560,9 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview chart
     i18n.add_text(Locale::Cs, Key::ChartRequiredHours, "Požadované hodiny");
+    i18n.add_text(Locale::Cs, Key::PreviousYear, "Předchozí rok");
+    i18n.add_text(Locale::Cs, Key::NextYear, "Další rok");
+    i18n.add_text(Locale::Cs, Key::WeekShort, "T");
 
     // Shiftplan assignments
     i18n.add_text(
