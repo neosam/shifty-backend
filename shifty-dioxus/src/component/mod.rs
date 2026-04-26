@@ -1,6 +1,7 @@
 pub mod add_extra_days_form;
 pub mod add_extra_hours_choice;
 pub mod add_extra_hours_form;
+pub mod atoms;
 pub mod base_components;
 pub mod booking_log_table;
 pub mod day_aggregate_view;
@@ -21,6 +22,7 @@ pub mod weekly_overview_chart;
 pub mod working_hours_mini_overview;
 
 pub use add_extra_hours_form::AddExtraHoursForm;
+pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip, TupleRow};
 pub use employee_short::EmployeeShort;
 pub use employee_view::EmployeeView;
 pub use employee_work_details_form::EmployeeWorkDetailsForm;

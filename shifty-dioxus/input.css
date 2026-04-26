@@ -25,6 +25,8 @@
     --r-sm: 4px;
     --r-md: 6px;
     --r-lg: 10px;
+    /* PersonChip text color — identical in both themes by design (see .person-pill rule below). */
+    --chip-ink: #0e1117;
 }
 
 [data-theme="dark"] {
@@ -47,6 +49,27 @@
     --bad: #ef6a5b;
     --bad-soft: #3a1c18;
     --modal-veil: rgba(0, 0, 0, 0.6);
+    /* Identical to light theme — PersonChip text must stay dark on pastel
+       backgrounds even in dark mode (see .person-pill rule below). */
+    --chip-ink: #0e1117;
+}
+
+/*
+ * PersonChip dark-text invariant.
+ *
+ * Person pills carry a pastel background color set inline from
+ * `person.color`. The text on these pastel backgrounds must always render
+ * in dark ink, regardless of the active theme, so that contrast remains
+ * legible. The `!important` is intentional: it guarantees the rule wins
+ * over any theme-level color rule that future contributors might add. This
+ * is the only `!important` declared in this stylesheet.
+ *
+ * The class is applied conditionally by `PersonChip` (only when a color
+ * is present) — the dashed-border, no-color path uses `text-ink-soft` and
+ * intentionally does NOT carry `.person-pill`.
+ */
+.person-pill {
+    color: var(--chip-ink) !important;
 }
 
 @layer utilities {

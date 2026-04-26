@@ -178,6 +178,12 @@ pub struct ButtonProps {
     pub primary: bool,
 }
 
+/// **Legacy** — kept for unmigrated call sites. New code SHOULD use
+/// [`crate::component::atoms::Btn`], which uses design tokens and offers
+/// the four variants (`Primary`, `Secondary`, `Ghost`, `Danger`).
+///
+/// This component will be removed once all call sites are migrated as
+/// part of redesign changes 03–09 (see `openspec/changes/REDESIGN_PLAN.md`).
 #[component]
 pub fn Button(props: ButtonProps) -> Element {
     let button_class = if props.primary {
