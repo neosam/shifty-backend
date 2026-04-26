@@ -80,6 +80,27 @@ pub fn find_working_hours_for_calendar_week(
     })
 }
 
+/// Caps shiftplan hours at expected hours when at least one of the active
+/// `EmployeeWorkDetails` records for the week sets `cap_planned_hours_to_expected`.
+/// Returns `(capped_shiftplan_hours, auto_volunteer_hours)`. When the cap is
+/// inactive or would not bind, the shiftplan hours pass through unchanged and
+/// `auto_volunteer_hours` is `0.0`. ExtraHours records are never affected by
+/// this function.
+pub fn apply_weekly_cap(
+    cap_active: bool,
+    shiftplan_hours: f32,
+    expected_hours_for_week: f32,
+) -> (f32, f32) {
+    if cap_active && shiftplan_hours > expected_hours_for_week {
+        (
+            expected_hours_for_week,
+            shiftplan_hours - expected_hours_for_week,
+        )
+    } else {
+        (shiftplan_hours, 0.0)
+    }
+}
+
 #[async_trait]
 impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
     for ReportingServiceImpl<Deps>
@@ -169,6 +190,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 holiday_hours: f32,
                 unavailable_hours: f32,
                 unpaid_leave_hours: f32,
+                volunteer_hours: f32,
                 custom_absence_hours: HashMap<(Uuid, Arc<str>), f32>,
             }
 
@@ -207,13 +229,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
                     // If expected hours is 0 or less, the planned hours and the working hours are the same
                     // because the balance should never be affected in this case.
-                    let shiftplan_hours: f32 = detailed_shiftplan_report
+                    let raw_shiftplan_hours: f32 = detailed_shiftplan_report
                         .iter()
                         .filter(|shift_plan_item| {
                             shift_plan_item.year == year && shift_plan_item.calendar_week == week && shift_plan_item.to_date().map(|d| d.to_date().year() as u32).ok() == Some(target_year)
                         })
                         .map(|shift_plan_item| shift_plan_item.hours)
                         .sum();
+                    let cap_active = find_working_hours_for_calendar_week(&working_hours, year, week)
+                        .any(|wh| wh.cap_planned_hours_to_expected);
+                    let (shiftplan_hours, auto_volunteer_hours) =
+                        apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
                     if expected_hours <= 0.0 {
                         let extra_work: f32 = extra_hours_array
                             .iter()
@@ -237,6 +263,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             holiday_hours: 0.0,
                             unavailable_hours: 0.0,
                             unpaid_leave_hours: 0.0,
+                            volunteer_hours: auto_volunteer_hours,
                             custom_absence_hours: HashMap::new(),
                         }
                     } else {
@@ -291,6 +318,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
                             .map(|eh| eh.amount)
                             .sum::<f32>();
+                        let volunteer_hours = week_extra_hours
+                            .iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::VolunteerWork)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                            + auto_volunteer_hours;
                         WeeklyHours {
                             shiftplan_hours,
                             extra_working_hours,
@@ -302,6 +335,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             holiday_hours,
                             unavailable_hours,
                             unpaid_leave_hours,
+                            volunteer_hours,
                             custom_absence_hours,
                         }
                     }
@@ -319,6 +353,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         acc.holiday_hours += week.holiday_hours;
                         acc.unavailable_hours += week.unavailable_hours;
                         acc.unpaid_leave_hours += week.unpaid_leave_hours;
+                        acc.volunteer_hours += week.volunteer_hours;
                         for ((id, name), hours) in week.custom_absence_hours {
                             *acc.custom_absence_hours.entry((id, name)).or_insert(0.0) += hours;
                         }
@@ -345,6 +380,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 holiday_hours: weekly_hours.holiday_hours,
                 unavailable_hours: weekly_hours.unavailable_hours,
                 unpaid_leave_hours: weekly_hours.unpaid_leave_hours,
+                volunteer_hours: weekly_hours.volunteer_hours,
                 custom_absence_hours,
             });
         }
@@ -539,6 +575,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
+            volunteer_hours: by_week.iter().map(|w| w.volunteer_hours).sum::<f32>(),
             unpaid_leave_hours: extra_hours
                 .iter()
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::UnpaidLeave)
@@ -587,7 +624,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         let mut result = Vec::new();
 
         for (sales_person_id, working_hours) in working_hours {
-            let shiftplan_hours = shiftplan_report
+            let raw_shiftplan_hours = shiftplan_report
                 .get(&sales_person_id)
                 .map(|r| r.iter().map(|r| r.hours).sum::<f32>())
                 .unwrap_or(0.0);
@@ -648,6 +685,14 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .sum::<f32>()
                 })
                 .unwrap_or(0.0);
+            let manual_volunteer_hours = employee_extra_hours
+                .map(|eh| {
+                    eh.iter()
+                        .filter(|eh| eh.category == ExtraHoursCategory::VolunteerWork)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>()
+                })
+                .unwrap_or(0.0);
             let custom_absence_hours: Arc<[CustomExtraHours]> = {
                 let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
                 if let Some(eh_list) = employee_extra_hours {
@@ -672,7 +717,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     .map(|wh|  weight_for_week(year, week, wh))
                     .map(|wfw| (wfw.0, wfw.1))
                     .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
+            let cap_active = find_working_hours_for_calendar_week(&working_hours, year, week)
+                .any(|wh| wh.cap_planned_hours_to_expected);
             let expected_hours = planned_hours - abense_hours;
+            let (shiftplan_hours, auto_volunteer_hours) =
+                apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
+            let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours;
             let dynamic_hours = dynamic_hours - abense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
@@ -691,6 +741,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 holiday_hours,
                 unavailable_hours,
                 unpaid_leave_hours,
+                volunteer_hours,
                 custom_absence_hours,
             });
         }
@@ -787,13 +838,13 @@ fn hours_per_week(
                 tracing::info!("{:?} - {:?}", r.to_date(), r);
             })
             .collect::<Vec<_>>();
-        let shiftplan_hours = filtered_shiftplan_hours_list
+        let raw_shiftplan_hours = filtered_shiftplan_hours_list
             .iter()
             .map(|r: &&ShiftplanReportDay| r.hours)
             .sum::<f32>();
         let (working_hours_for_week, dynamic_working_hours_for_week, days_per_week, workdays_per_week) =
             find_working_hours_for_calendar_week(working_hours, week.year, week.week)
-                .map(|wh| weight_for_week(week.year, week.week, 
+                .map(|wh| weight_for_week(week.year, week.week,
                     &wh.with_to_date(
                         wh.to_date()
                             .unwrap_or(to_date)
@@ -816,6 +867,10 @@ fn hours_per_week(
                         )
                     },
                 );
+        let cap_active = find_working_hours_for_calendar_week(working_hours, week.year, week.week)
+            .any(|wh| wh.cap_planned_hours_to_expected);
+        let (shiftplan_hours, auto_volunteer_hours) =
+            apply_weekly_cap(cap_active, raw_shiftplan_hours, working_hours_for_week);
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
@@ -920,6 +975,12 @@ fn hours_per_week(
                 .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
                 .map(|eh| eh.amount)
                 .sum(),
+            volunteer_hours: filtered_extra_hours_list
+                .iter()
+                .filter(|eh| eh.category == ExtraHoursCategory::VolunteerWork)
+                .map(|eh| eh.amount)
+                .sum::<f32>()
+                + auto_volunteer_hours,
             custom_extra_hours,
             days: day_list.iter().cloned().collect(),
         });
@@ -947,6 +1008,7 @@ mod test_dynamic_vacation_days {
             to_year: 2024,
             workdays_per_week: 5,
             is_dynamic,
+            cap_planned_hours_to_expected: false,
             monday: true,
             tuesday: true,
             wednesday: true,
@@ -1221,5 +1283,252 @@ mod test_dynamic_vacation_days {
             "Expected ~0 balance, got {}",
             week.balance
         );
+    }
+}
+
+#[cfg(test)]
+mod test_weekly_planned_hours_cap {
+    use super::*;
+    use service::extra_hours::{Availability, ExtraHoursCategory, ReportType};
+    use shifty_utils::DayOfWeek;
+    use time::macros::datetime;
+    use uuid::Uuid;
+
+    fn make_work_details(
+        expected_hours: f32,
+        cap: bool,
+        from_year: u32,
+        from_week: u8,
+        to_year: u32,
+        to_week: u8,
+    ) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            expected_hours,
+            from_day_of_week: DayOfWeek::Monday,
+            from_calendar_week: from_week,
+            from_year,
+            to_day_of_week: DayOfWeek::Sunday,
+            to_calendar_week: to_week,
+            to_year,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: cap,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 0,
+            created: Some(datetime!(2024-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    fn make_extra_hours(
+        date: time::PrimitiveDateTime,
+        amount: f32,
+        category: ExtraHoursCategory,
+    ) -> ExtraHours {
+        ExtraHours {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            amount,
+            category,
+            description: "".into(),
+            date_time: date,
+            created: Some(datetime!(2024-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    fn make_shiftplan_day(year: u32, week: u8, day: DayOfWeek, hours: f32) -> ShiftplanReportDay {
+        ShiftplanReportDay {
+            sales_person_id: Uuid::new_v4(),
+            hours,
+            year,
+            calendar_week: week,
+            day_of_week: day,
+        }
+    }
+
+    // --- volunteer-work-hours capability ---
+
+    #[test]
+    fn volunteer_work_maps_to_documented_report_type() {
+        assert_eq!(
+            ExtraHoursCategory::VolunteerWork.as_report_type(),
+            ReportType::Documented
+        );
+    }
+
+    #[test]
+    fn volunteer_work_marks_person_available() {
+        assert_eq!(
+            ExtraHoursCategory::VolunteerWork.availability(),
+            Availability::Available
+        );
+    }
+
+    #[test]
+    fn volunteer_extra_hours_excluded_from_balance_and_overall() {
+        // Spec volunteer-work-hours Req 2 Scenario 2: 40h shiftplan + 5h volunteer
+        // -> balance 0, overall 40, expected 40, volunteer 5
+        let wd = make_work_details(40.0, false, 2024, 1, 2024, 52);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+        let extra: Arc<[ExtraHours]> = Arc::new([make_extra_hours(
+            datetime!(2024-03-05 08:00:00),
+            5.0,
+            ExtraHoursCategory::VolunteerWork,
+        )]);
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            make_shiftplan_day(2024, 10, DayOfWeek::Monday, 8.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 8.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 8.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Thursday, 8.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let week = &result[0];
+        assert!((week.balance - 0.0).abs() < 0.01, "balance was {}", week.balance);
+        assert!((week.overall_hours - 40.0).abs() < 0.01, "overall was {}", week.overall_hours);
+        assert!((week.expected_hours - 40.0).abs() < 0.01, "expected was {}", week.expected_hours);
+        assert!((week.volunteer_hours - 5.0).abs() < 0.01, "volunteer was {}", week.volunteer_hours);
+    }
+
+    // --- weekly-planned-hours-cap capability ---
+
+    #[test]
+    fn cap_overflow_attributed_to_volunteer() {
+        // Spec Req 2 Scenario 1: cap=true, expected=5, 10h bookings
+        // -> shiftplan 5, volunteer 5, balance 0
+        let wd = make_work_details(5.0, true, 2024, 1, 2024, 52);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+        let extra: Arc<[ExtraHours]> = Arc::new([]);
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            make_shiftplan_day(2024, 10, DayOfWeek::Monday, 5.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 5.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let week = &result[0];
+        assert!((week.shiftplan_hours - 5.0).abs() < 0.01, "shiftplan was {}", week.shiftplan_hours);
+        assert!((week.volunteer_hours - 5.0).abs() < 0.01, "volunteer was {}", week.volunteer_hours);
+        assert!((week.balance - 0.0).abs() < 0.01, "balance was {}", week.balance);
+    }
+
+    #[test]
+    fn cap_combined_with_manual_volunteer() {
+        // Spec Req 2 Scenario 2: cap=true, expected=5, 10h bookings + 2h manual volunteer
+        // -> volunteer 7, balance 0
+        let wd = make_work_details(5.0, true, 2024, 1, 2024, 52);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+        let extra: Arc<[ExtraHours]> = Arc::new([make_extra_hours(
+            datetime!(2024-03-05 08:00:00),
+            2.0,
+            ExtraHoursCategory::VolunteerWork,
+        )]);
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            make_shiftplan_day(2024, 10, DayOfWeek::Monday, 5.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 5.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let week = &result[0];
+        assert!((week.volunteer_hours - 7.0).abs() < 0.01, "volunteer was {}", week.volunteer_hours);
+        assert!((week.balance - 0.0).abs() < 0.01, "balance was {}", week.balance);
+    }
+
+    #[test]
+    fn cap_below_expected_yields_negative_balance() {
+        // Spec Req 3: cap=true, expected=5, 3h bookings
+        // -> shiftplan 3, volunteer 0, balance -2
+        let wd = make_work_details(5.0, true, 2024, 1, 2024, 52);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+        let extra: Arc<[ExtraHours]> = Arc::new([]);
+        let shiftplan: Arc<[ShiftplanReportDay]> =
+            Arc::new([make_shiftplan_day(2024, 10, DayOfWeek::Monday, 3.0)]);
+
+        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let week = &result[0];
+        assert!((week.shiftplan_hours - 3.0).abs() < 0.01, "shiftplan was {}", week.shiftplan_hours);
+        assert!(week.volunteer_hours.abs() < 0.01, "volunteer was {}", week.volunteer_hours);
+        assert!((week.balance - (-2.0)).abs() < 0.01, "balance was {}", week.balance);
+    }
+
+    #[test]
+    fn cap_does_not_affect_extra_work() {
+        // Spec Req 4: cap=true, expected=5, 5h bookings + 3h ExtraWork
+        // -> overall 8, balance +3, volunteer 0
+        let wd = make_work_details(5.0, true, 2024, 1, 2024, 52);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+        let extra: Arc<[ExtraHours]> = Arc::new([make_extra_hours(
+            datetime!(2024-03-06 08:00:00),
+            3.0,
+            ExtraHoursCategory::ExtraWork,
+        )]);
+        let shiftplan: Arc<[ShiftplanReportDay]> =
+            Arc::new([make_shiftplan_day(2024, 10, DayOfWeek::Monday, 5.0)]);
+
+        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let week = &result[0];
+        assert!((week.overall_hours - 8.0).abs() < 0.01, "overall was {}", week.overall_hours);
+        assert!((week.balance - 3.0).abs() < 0.01, "balance was {}", week.balance);
+        assert!(week.volunteer_hours.abs() < 0.01, "volunteer was {}", week.volunteer_hours);
+    }
+
+    #[test]
+    fn no_cap_preserves_overtime() {
+        // Spec Req 5: cap=false, expected=20, 25h bookings
+        // -> shiftplan 25, balance +5, volunteer 0
+        let wd = make_work_details(20.0, false, 2024, 1, 2024, 52);
+        let from = ShiftyDate::new(2024, 10, DayOfWeek::Monday).unwrap();
+        let to = ShiftyDate::new(2024, 10, DayOfWeek::Sunday).unwrap();
+        let extra: Arc<[ExtraHours]> = Arc::new([]);
+        let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([
+            make_shiftplan_day(2024, 10, DayOfWeek::Monday, 5.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 5.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 5.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Thursday, 5.0),
+            make_shiftplan_day(2024, 10, DayOfWeek::Friday, 5.0),
+        ]);
+
+        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let week = &result[0];
+        assert!((week.shiftplan_hours - 25.0).abs() < 0.01, "shiftplan was {}", week.shiftplan_hours);
+        assert!((week.balance - 5.0).abs() < 0.01, "balance was {}", week.balance);
+        assert!(week.volunteer_hours.abs() < 0.01, "volunteer was {}", week.volunteer_hours);
+    }
+
+    #[test]
+    fn apply_weekly_cap_helper_inactive_passes_through() {
+        let (shift, vol) = apply_weekly_cap(false, 25.0, 20.0);
+        assert_eq!(shift, 25.0);
+        assert_eq!(vol, 0.0);
+    }
+
+    #[test]
+    fn apply_weekly_cap_helper_active_caps_overflow() {
+        let (shift, vol) = apply_weekly_cap(true, 10.0, 5.0);
+        assert_eq!(shift, 5.0);
+        assert_eq!(vol, 5.0);
+    }
+
+    #[test]
+    fn apply_weekly_cap_helper_active_below_expected_no_compensation() {
+        let (shift, vol) = apply_weekly_cap(true, 3.0, 5.0);
+        assert_eq!(shift, 3.0);
+        assert_eq!(vol, 0.0);
     }
 }

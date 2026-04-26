@@ -32,3 +32,5 @@ pub mod block_report;
 pub mod session;
 #[cfg(test)]
 pub mod toggle;
+#[cfg(test)]
+pub mod employee_work_details;

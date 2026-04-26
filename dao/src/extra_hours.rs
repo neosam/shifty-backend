@@ -13,6 +13,7 @@ pub enum ExtraHoursCategoryEntity {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     Custom(Uuid),
 }
 

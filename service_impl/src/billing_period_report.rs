@@ -34,7 +34,7 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 /// any persisted `value_type` on `billing_period_sales_person`. See
 /// `CLAUDE.md` → "Billing Period Snapshot Schema Versioning" for the rationale
 /// and the full list of trigger conditions.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 2;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
@@ -188,6 +188,17 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 value_full_year: report_end_of_year.vacation_entitlement,
             },
         );
+        if report_delta.volunteer_hours != 0.0 {
+            billing_period_values.insert(
+                BillingPeriodValueType::Volunteer,
+                BillingPeriodValue {
+                    value_delta: report_delta.volunteer_hours,
+                    value_ytd_from: report_start.volunteer_hours,
+                    value_ytd_to: report_end.volunteer_hours,
+                    value_full_year: report_end_of_year.volunteer_hours,
+                },
+            );
+        }
         for custom_hours in report_delta.custom_extra_hours.iter() {
             let ytd_from_value = report_start
                 .custom_extra_hours

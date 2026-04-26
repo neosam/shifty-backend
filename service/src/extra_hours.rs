@@ -26,6 +26,7 @@ use crate::{custom_extra_hours::CustomExtraHours, permission::Authentication, Se
 pub enum ReportType {
     WorkingHours,
     AbsenceHours,
+    Documented,
     None,
 }
 
@@ -44,6 +45,7 @@ pub enum ExtraHoursCategory {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     CustomExtraHours(LazyLoad<Uuid, CustomExtraHours>),
 }
 impl ExtraHoursCategory {
@@ -55,6 +57,7 @@ impl ExtraHoursCategory {
             Self::Holiday => ReportType::AbsenceHours,
             Self::UnpaidLeave => ReportType::AbsenceHours,
             Self::Unavailable => ReportType::None,
+            Self::VolunteerWork => ReportType::Documented,
             Self::CustomExtraHours(custom_extra_hours) => {
                 if let Some(custom_extra_hours) = custom_extra_hours.get() {
                     if custom_extra_hours.modifies_balance {
@@ -77,6 +80,7 @@ impl ExtraHoursCategory {
             Self::Holiday => Availability::Unavailable,
             Self::UnpaidLeave => Availability::Unavailable,
             Self::Unavailable => Availability::Unavailable,
+            Self::VolunteerWork => Availability::Available,
             Self::CustomExtraHours(hours) => {
                 if let Some(hours) = hours.get() {
                     if hours.modifies_balance {
@@ -101,6 +105,7 @@ impl From<&dao::extra_hours::ExtraHoursCategoryEntity> for ExtraHoursCategory {
             dao::extra_hours::ExtraHoursCategoryEntity::Holiday => Self::Holiday,
             dao::extra_hours::ExtraHoursCategoryEntity::Unavailable => Self::Unavailable,
             dao::extra_hours::ExtraHoursCategoryEntity::UnpaidLeave => Self::UnpaidLeave,
+            dao::extra_hours::ExtraHoursCategoryEntity::VolunteerWork => Self::VolunteerWork,
             dao::extra_hours::ExtraHoursCategoryEntity::Custom(id) => {
                 Self::CustomExtraHours(LazyLoad::new(*id))
             }
@@ -116,6 +121,7 @@ impl From<&ExtraHoursCategory> for dao::extra_hours::ExtraHoursCategoryEntity {
             ExtraHoursCategory::Holiday => Self::Holiday,
             ExtraHoursCategory::Unavailable => Self::Unavailable,
             ExtraHoursCategory::UnpaidLeave => Self::UnpaidLeave,
+            ExtraHoursCategory::VolunteerWork => Self::VolunteerWork,
             ExtraHoursCategory::CustomExtraHours(lazy) => Self::Custom(*lazy.key()),
         }
     }

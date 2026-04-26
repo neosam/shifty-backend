@@ -19,6 +19,7 @@ pub enum ExtraHoursReportCategory {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     Custom(LazyLoad<Uuid, crate::custom_extra_hours::CustomExtraHours>),
 }
 
@@ -31,6 +32,7 @@ impl From<&crate::extra_hours::ExtraHoursCategory> for ExtraHoursReportCategory 
             crate::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
             crate::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
             crate::extra_hours::ExtraHoursCategory::UnpaidLeave => Self::UnpaidLeave,
+            crate::extra_hours::ExtraHoursCategory::VolunteerWork => Self::VolunteerWork,
             crate::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy_laod) => {
                 Self::Custom(lazy_laod.clone())
             }
@@ -93,6 +95,7 @@ pub struct GroupedReportHours {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
     pub unpaid_leave_hours: f32,
+    pub volunteer_hours: f32,
 
     pub custom_extra_hours: Arc<[CustomExtraHours]>,
 
@@ -153,6 +156,7 @@ pub struct ShortEmployeeReport {
     pub holiday_hours: f32,
     pub unavailable_hours: f32,
     pub unpaid_leave_hours: f32,
+    pub volunteer_hours: f32,
     pub custom_absence_hours: Arc<[CustomExtraHours]>,
 }
 
@@ -171,6 +175,7 @@ pub struct EmployeeReport {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
     pub unpaid_leave_hours: f32,
+    pub volunteer_hours: f32,
 
     pub vacation_carryover: i32,
     pub vacation_days: f32,

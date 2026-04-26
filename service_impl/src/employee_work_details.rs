@@ -245,6 +245,7 @@ impl<Deps: EmployeeWorkDetailsServiceDeps> EmployeeWorkDetailsService
         entity.vacation_days = employee_work_details.vacation_days;
         entity.workdays_per_week = employee_work_details.workdays_per_week;
         entity.is_dynamic = employee_work_details.is_dynamic;
+        entity.cap_planned_hours_to_expected = employee_work_details.cap_planned_hours_to_expected;
 
         entity.version = self
             .uuid_service

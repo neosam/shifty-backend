@@ -39,6 +39,7 @@ pub enum BillingPeriodValueType {
     VacationHours,
     SickLeave,
     Holiday,
+    Volunteer,
     CustomExtraHours(Arc<str>),
     VacationDays,
     VacationEntitlement,
@@ -53,6 +54,7 @@ impl BillingPeriodValueType {
             BillingPeriodValueType::VacationHours => "vacation_hours".into(),
             BillingPeriodValueType::SickLeave => "sick_leave".into(),
             BillingPeriodValueType::Holiday => "holiday".into(),
+            BillingPeriodValueType::Volunteer => "volunteer".into(),
             BillingPeriodValueType::CustomExtraHours(s) => {
                 format!("custom_extra_hours:{}", s).into()
             }
@@ -74,6 +76,7 @@ impl FromStr for BillingPeriodValueType {
             "vacation_hours" => Ok(BillingPeriodValueType::VacationHours),
             "sick_leave" => Ok(BillingPeriodValueType::SickLeave),
             "holiday" => Ok(BillingPeriodValueType::Holiday),
+            "volunteer" => Ok(BillingPeriodValueType::Volunteer),
             "vacation_days" => Ok(BillingPeriodValueType::VacationDays),
             "vacation_entitlement" => Ok(BillingPeriodValueType::VacationEntitlement),
             _ if s.starts_with("custom_extra_hours:") => {
@@ -155,6 +158,54 @@ impl BillingPeriodSalesPerson {
             deleted_at: entity[0].deleted_at,
             deleted_by: entity[0].deleted_by.clone(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dao::billing_period_sales_person::BillingPeriodSalesPersonEntity;
+    use time::macros::datetime;
+
+    #[test]
+    fn volunteer_value_type_round_trips_through_as_str_and_from_str() {
+        let original = BillingPeriodValueType::Volunteer;
+        let s = original.as_str();
+        assert_eq!(&*s, "volunteer");
+        let parsed = BillingPeriodValueType::from_str(&s).unwrap();
+        assert_eq!(parsed, original);
+    }
+
+    #[test]
+    fn volunteer_row_round_trips_through_from_entities() {
+        // Spec volunteer-work-hours Req 7 Scenario "Persisted volunteer rows
+        // round-trip through service-layer load": a row with value_type =
+        // "volunteer" must surface as BillingPeriodValueType::Volunteer with
+        // the expected value_delta after going through from_entities.
+        let id = uuid::Uuid::new_v4();
+        let sales_person_id = uuid::Uuid::new_v4();
+        let now = datetime!(2024-01-01 10:00:00);
+        let entity = BillingPeriodSalesPersonEntity {
+            id,
+            billing_period_id: uuid::Uuid::new_v4(),
+            sales_person_id,
+            value_type: "volunteer".into(),
+            value_delta: 8.0,
+            value_ytd_from: 0.0,
+            value_ytd_to: 8.0,
+            value_full_year: 8.0,
+            created_at: now,
+            created_by: "test".into(),
+            deleted_at: None,
+            deleted_by: None,
+        };
+
+        let result = BillingPeriodSalesPerson::from_entities(&[entity]).unwrap();
+        let value = result
+            .values
+            .get(&BillingPeriodValueType::Volunteer)
+            .expect("volunteer row must round-trip without being silently dropped");
+        assert!((value.value_delta - 8.0).abs() < 0.01);
     }
 }
 

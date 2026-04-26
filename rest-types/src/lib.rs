@@ -364,6 +364,8 @@ pub struct ShortEmployeeReportTO {
     pub expected_hours: f32,
     pub dynamic_hours: f32,
     pub overall_hours: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
 }
 
 #[cfg(feature = "service-impl")]
@@ -375,6 +377,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             expected_hours: report.expected_hours,
             dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
+            volunteer_hours: report.volunteer_hours,
         }
     }
 }
@@ -406,6 +409,7 @@ pub enum ExtraHoursReportCategoryTO {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
@@ -419,6 +423,7 @@ impl From<&service::reporting::ExtraHoursReportCategory> for ExtraHoursReportCat
             service::reporting::ExtraHoursReportCategory::Holiday => Self::Holiday,
             service::reporting::ExtraHoursReportCategory::Unavailable => Self::Unavailable,
             service::reporting::ExtraHoursReportCategory::UnpaidLeave => Self::UnpaidLeave,
+            service::reporting::ExtraHoursReportCategory::VolunteerWork => Self::VolunteerWork,
             service::reporting::ExtraHoursReportCategory::Custom(lazy) => Self::Custom(*lazy.key()),
         }
     }
@@ -463,6 +468,8 @@ pub struct WorkingHoursReportTO {
     pub holiday_days: f32,
     pub unpaid_leave_hours: f32,
     pub absence_days: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
 
     pub custom_extra_hours: Arc<[ReportingCustomExtraHoursTO]>,
 
@@ -491,6 +498,7 @@ impl From<&service::reporting::GroupedReportHours> for WorkingHoursReportTO {
             holiday_days: hours.holiday_days(),
             unpaid_leave_hours: hours.unpaid_leave_hours,
             absence_days: hours.absence_days(),
+            volunteer_hours: hours.volunteer_hours,
             custom_extra_hours: hours
                 .custom_extra_hours
                 .iter()
@@ -516,6 +524,8 @@ pub struct EmployeeReportTO {
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,
     pub unpaid_leave_hours: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
 
     pub vacation_carryover: i32,
     pub vacation_days: f32,
@@ -546,6 +556,7 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
             sick_leave_hours: report.sick_leave_hours,
             holiday_hours: report.holiday_hours,
             unpaid_leave_hours: report.unpaid_leave_hours,
+            volunteer_hours: report.volunteer_hours,
             vacation_carryover: report.vacation_carryover,
             vacation_days: report.vacation_days,
             vacation_entitlement: report.vacation_entitlement,
@@ -586,6 +597,8 @@ pub struct EmployeeWorkDetailsTO {
     pub to_year: u32,
     pub workdays_per_week: u8,
     pub is_dynamic: bool,
+    #[serde(default)]
+    pub cap_planned_hours_to_expected: bool,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -624,6 +637,7 @@ impl From<&service::employee_work_details::EmployeeWorkDetails> for EmployeeWork
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
             is_dynamic: working_hours.is_dynamic,
+            cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -661,6 +675,7 @@ impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWo
             to_year: working_hours.to_year,
             workdays_per_week: working_hours.workdays_per_week,
             is_dynamic: working_hours.is_dynamic,
+            cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -687,6 +702,7 @@ pub enum ExtraHoursCategoryTO {
     Holiday,
     Unavailable,
     UnpaidLeave,
+    VolunteerWork,
     Custom(Uuid),
 }
 #[cfg(feature = "service-impl")]
@@ -699,6 +715,7 @@ impl From<&service::extra_hours::ExtraHoursCategory> for ExtraHoursCategoryTO {
             service::extra_hours::ExtraHoursCategory::Holiday => Self::Holiday,
             service::extra_hours::ExtraHoursCategory::Unavailable => Self::Unavailable,
             service::extra_hours::ExtraHoursCategory::UnpaidLeave => Self::UnpaidLeave,
+            service::extra_hours::ExtraHoursCategory::VolunteerWork => Self::VolunteerWork,
             service::extra_hours::ExtraHoursCategory::CustomExtraHours(lazy) => {
                 Self::Custom(*lazy.key())
             }
@@ -715,6 +732,7 @@ impl From<&ExtraHoursCategoryTO> for service::extra_hours::ExtraHoursCategory {
             ExtraHoursCategoryTO::Holiday => Self::Holiday,
             ExtraHoursCategoryTO::Unavailable => Self::Unavailable,
             ExtraHoursCategoryTO::UnpaidLeave => Self::UnpaidLeave,
+            ExtraHoursCategoryTO::VolunteerWork => Self::VolunteerWork,
             ExtraHoursCategoryTO::Custom(id) => Self::CustomExtraHours(LazyLoad::new(*id)),
         }
     }
