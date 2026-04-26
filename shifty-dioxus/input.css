@@ -94,3 +94,44 @@
         zoom: 1.0;
     }
 }
+
+/*
+ * Dialog animations.
+ *
+ * Keyframes are defined here (CSS) and applied via inline `animation:`
+ * style on the panel/backdrop in `src/component/dialog.rs`. Inline
+ * application keeps variant-specific timing/easing close to where the
+ * variant is selected, while keyframe definitions live in CSS.
+ */
+@keyframes shifty-modal-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes shifty-modal-pop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shifty-modal-slide-right {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes shifty-modal-slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+/*
+ * Global focus ring for the redesigned form input atoms.
+ *
+ * Each `Form*Input` adds the `form-input` class so the component code does
+ * not need to inline focus styles. Uses design tokens for accent colors,
+ * so light/dark themes are handled automatically.
+ */
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}

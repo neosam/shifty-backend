@@ -5,6 +5,14 @@ pub struct ModalProps {
     pub children: Element,
 }
 
+/// **Legacy** — kept for unmigrated call sites. New code SHOULD use
+/// [`crate::component::dialog::Dialog`], which uses design tokens, supports
+/// four layout variants (`Center` / `Sheet` / `Bottom` / `Auto`), header
+/// and footer slots, body scroll lock, and standard dismissal paths
+/// (backdrop click, ESC, X button).
+///
+/// This component will be removed once all call sites are migrated as
+/// part of redesign changes 05–09 (see `openspec/changes/REDESIGN_PLAN.md`).
 #[component]
 pub fn Modal(props: ModalProps) -> Element {
     rsx! {
