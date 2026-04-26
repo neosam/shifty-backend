@@ -1,6 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 
 const colors = require("tailwindcss/colors");
+
+// Note: Tailwind only ships utility classes for class names that appear
+// statically in the source files. When constructing class strings dynamically
+// (e.g. `format!("bg-{}-soft", state)` in Rust), prefer static `if`/`match`
+// branches that yield literal class strings. If a dynamic pattern is
+// unavoidable, add the resulting classes to the `safelist` below.
 module.exports = {
   mode: "all",
   content: ["./src/**/*.{rs,html,css}", "./dist/**/*.html"],
@@ -11,8 +17,38 @@ module.exports = {
         screen: { raw: 'screen' },
       },
       colors: {
+        // Legacy custom colors (kept until per-page redesign migrates them away)
         missingColor: colors.amber[200],
         blockedColor: colors.red[300],
+        // Design token aliases — values resolved via CSS variables in input.css
+        bg: 'var(--bg)',
+        surface: 'var(--surface)',
+        'surface-alt': 'var(--surface-alt)',
+        'surface-2': 'var(--surface-2)',
+        border: 'var(--border)',
+        'border-strong': 'var(--border-strong)',
+        ink: 'var(--ink)',
+        'ink-soft': 'var(--ink-soft)',
+        'ink-muted': 'var(--ink-muted)',
+        accent: 'var(--accent)',
+        'accent-ink': 'var(--accent-ink)',
+        'accent-soft': 'var(--accent-soft)',
+        good: 'var(--good)',
+        'good-soft': 'var(--good-soft)',
+        warn: 'var(--warn)',
+        'warn-soft': 'var(--warn-soft)',
+        bad: 'var(--bad)',
+        'bad-soft': 'var(--bad-soft)',
+        'modal-veil': 'var(--modal-veil)',
+      },
+      borderRadius: {
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'Menlo', 'monospace'],
       },
     },
   },
@@ -24,6 +60,16 @@ module.exports = {
     "text-green-800",
     "text-red-800",
     "bg-missingColor",
-    "bg-blockedColor"
+    "bg-blockedColor",
+    // State-dependent classes constructed dynamically
+    "bg-bad-soft",
+    "bg-warn-soft",
+    "bg-accent-soft",
+    "text-bad",
+    "text-warn",
+    "text-good",
+    "border-bad",
+    "border-warn",
+    "border-accent",
   ]
 };

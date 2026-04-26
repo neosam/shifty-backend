@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    --bg: #fbfbfc;
+    --surface: #ffffff;
+    --surface-alt: #f4f5f7;
+    --surface-2: #eef0f4;
+    --border: #e6e8ec;
+    --border-strong: #d0d3da;
+    --ink: #0e1117;
+    --ink-soft: #3a4150;
+    --ink-muted: #6b7382;
+    --accent: #3a4cd1;
+    --accent-ink: #ffffff;
+    --accent-soft: #eaecfb;
+    --good: #0e7a4d;
+    --good-soft: #defaee;
+    --warn: #a65a08;
+    --warn-soft: #fef0d6;
+    --bad: #b8281a;
+    --bad-soft: #fde4e1;
+    --modal-veil: rgba(14, 17, 23, 0.4);
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 10px;
+}
+
+[data-theme="dark"] {
+    --bg: #0e1014;
+    --surface: #16191f;
+    --surface-alt: #1c2027;
+    --surface-2: #232831;
+    --border: #2a2f39;
+    --border-strong: #3a4151;
+    --ink: #eef0f4;
+    --ink-soft: #b8bdc7;
+    --ink-muted: #7a8290;
+    --accent: #8b97ff;
+    --accent-ink: #0e1014;
+    --accent-soft: #232a4a;
+    --good: #4ed59a;
+    --good-soft: #16322a;
+    --warn: #f0b766;
+    --warn-soft: #3a2a14;
+    --bad: #ef6a5b;
+    --bad-soft: #3a1c18;
+    --modal-veil: rgba(0, 0, 0, 0.6);
+}
+
 @layer utilities {
     .no-scrollbar::-webkit-scrollbar {
         display: none;

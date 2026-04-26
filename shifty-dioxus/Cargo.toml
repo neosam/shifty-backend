@@ -52,6 +52,9 @@ features = [
     "HtmlTextAreaElement",
     "CssStyleDeclaration",
     "Node",
+    "Storage",
+    "MediaQueryList",
+    "MediaQueryListEvent",
 ]
 
 [profile]

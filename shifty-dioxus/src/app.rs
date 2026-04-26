@@ -11,6 +11,7 @@ use web_sys::window;
 
 pub fn App() -> Element {
     use_coroutine(service::config::config_service);
+    use_coroutine(service::theme::theme_service);
     use_coroutine(service::dropdown::dropdown_service);
     use_coroutine(service::tooltip::tooltip_service);
     use_coroutine(service::i18n::i18n_service);

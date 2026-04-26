@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Shifty · Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  * { box-sizing: border-box; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="tokens.jsx"></script>
+<script type="text/babel" src="blocks.jsx"></script>
+<script type="text/babel" src="week-preview.jsx"></script>
+
+<script type="text/babel">
+const { useState, useMemo } = React;
+const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{
+  "mode": "light",
+  "density": "cozy",
+  "showWeekView": true,
+  "accentShift": 0
+}/*EDITMODE-END*/;
+
+const DENSITY = {
+  compact:    { padX: 18, padY: 16, gap: 18, artboardW: 760 },
+  cozy:       { padX: 24, padY: 22, gap: 22, artboardW: 820 },
+  comfortable:{ padX: 32, padY: 28, gap: 28, artboardW: 880 },
+};
+
+// Build merged token bag for one direction in current mode
+function buildT(direction, mode, accentShift) {
+  const colors = { ...(mode === 'dark' ? direction.dark : direction.light) };
+  if (accentShift !== 0) {
+    // shift accent hue if user wants
+    try {
+      const c = document.createElement('canvas').getContext('2d');
+      // Skip — keep base accent for fidelity
+    } catch (e) {}
+  }
+  return {
+    colors,
+    fonts: direction.fonts,
+    radius: direction.radius,
+    shadow: direction.shadow,
+    typeScale: direction.typeScale,
+    weight: direction.weight,
+  };
+}
+
+function DirectionArtboard({ dir, mode, density, showWeek }) {
+  const t = React.useMemo(() => buildT(dir, mode), [dir, mode]);
+  const dims = DENSITY[density];
+
+  return (
+      <div style={{
+        background: t.colors.bg,
+        color: t.colors.ink,
+        fontFamily: t.fonts.sans,
+        padding: dims.padX,
+        display: 'flex', flexDirection: 'column', gap: dims.gap,
+      }}>
+
+        {/* Header / cover */}
+        <div style={{
+          background: t.colors.surface,
+          border: `1px solid ${t.colors.border}`,
+          borderRadius: t.radius.xl,
+          padding: dims.padY,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', color: t.colors.accent,
+              marginBottom: 6, fontFamily: t.fonts.mono,
+            }}>SHIFTY · {dir.id.toUpperCase()}</div>
+            <div style={{
+              fontFamily: t.typeScale.display.family === 'display' ? t.fonts.display
+                : t.typeScale.display.family === 'mono' ? t.fonts.mono : t.fonts.sans,
+              fontSize: t.typeScale.display.size,
+              lineHeight: t.typeScale.display.line,
+              fontWeight: t.typeScale.display.weight,
+              letterSpacing: t.typeScale.display.tracking,
+              color: t.colors.ink,
+              marginBottom: 8,
+            }}>{dir.name}</div>
+            <div style={{
+              fontSize: 14, lineHeight: 1.55, color: t.colors.inkSoft,
+              maxWidth: 480, textWrap: 'pretty',
+            }}>{dir.description}</div>
+          </div>
+          <div style={{
+            width: 96, height: 96, borderRadius: t.radius.lg,
+            background: `linear-gradient(135deg, ${t.colors.accent} 0%, ${t.colors.accent} 50%, ${t.colors.accentSoft} 50%, ${t.colors.accentSoft} 100%)`,
+            position: 'relative', flexShrink: 0,
+          }}>
+            <div style={{
+              position: 'absolute', inset: 8,
+              border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}`,
+              borderRadius: t.radius.md,
+            }} />
+            <div style={{
+              position: 'absolute', bottom: 10, right: 12,
+              fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700,
+              color: t.colors.accentInk, letterSpacing: '0.1em',
+            }}>0{Object.keys(window.SHIFTY_DIRECTIONS).indexOf(dir.id) + 1}</div>
+          </div>
+        </div>
+
+        <ColorsBlock t={t} />
+        <TypeBlock t={t} />
+        <ButtonsBlock t={t} />
+        <FormBlock t={t} />
+        <PillsBlock t={t} />
+        <SlotCardBlock t={t} />
+        <NavBlock t={t} />
+
+        {showWeek && (
+          <div>
+            <SectionHeader t={t} eyebrow="08 / Composition" title="Week view in context" sub="Real layout from the app, restyled." />
+            <WeekPreview t={t} />
+          </div>
+        )}
+
+        <div>
+          <SectionHeader t={t} eyebrow="09 / Composition" title="Slot edit modal" />
+          <ModalPreview t={t} />
+        </div>
+
+        {/* Footer / system summary */}
+        <div style={{
+          marginTop: 8,
+          padding: dims.padY,
+          background: t.colors.surfaceAlt,
+          border: `1px dashed ${t.colors.border}`,
+          borderRadius: t.radius.md,
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14,
+          fontFamily: t.fonts.mono, fontSize: 11, color: t.colors.inkSoft,
+        }}>
+          <div>
+            <div style={{ fontWeight: 700, color: t.colors.ink, marginBottom: 4 }}>RADIUS</div>
+            <div>sm {t.radius.sm}</div>
+            <div>md {t.radius.md}</div>
+            <div>lg {t.radius.lg}</div>
+            <div>xl {t.radius.xl}</div>
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: t.colors.ink, marginBottom: 4 }}>DISPLAY</div>
+            <div style={{ wordBreak: 'break-word' }}>{dir.fonts.display.split(',')[0].replace(/"/g,'')}</div>
+            <div style={{ fontWeight: 700, color: t.colors.ink, marginTop: 4 }}>SANS</div>
+            <div style={{ wordBreak: 'break-word' }}>{dir.fonts.sans.split(',')[0].replace(/"/g,'')}</div>
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: t.colors.ink, marginBottom: 4 }}>MONO</div>
+            <div style={{ wordBreak: 'break-word' }}>{dir.fonts.mono.split(',')[0].replace(/"/g,'')}</div>
+            <div style={{ fontWeight: 700, color: t.colors.ink, marginTop: 4 }}>SHADOW</div>
+            <div style={{ fontSize: 10 }}>{t.shadow === 'none' ? 'none — flat' : 'subtle'}</div>
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: t.colors.ink, marginBottom: 4 }}>USE CASE</div>
+            <div style={{ fontFamily: t.fonts.sans, fontSize: 11, lineHeight: 1.45 }}>
+              {dir.id === 'kontor' && 'Power managers, daily use, low fatigue.'}
+              {dir.id === 'tagblatt' && 'Staff-facing surfaces, friendlier tone.'}
+              {dir.id === 'plotter' && 'Dispatchers, dense overview, large staffs.'}
+            </div>
+          </div>
+        </div>
+      </div>
+  );
+}
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULS);
+  const dirs = window.SHIFTY_DIRECTIONS;
+  const order = ['kontor', 'tagblatt', 'plotter'];
+
+  return (
+    <>
+      <DesignCanvas title="Shifty · Design System" subtitle="Three directions for a shift-planning app — pan with space, scroll to zoom, drag any artboard out to focus.">
+        <DCSection id="overview" title="Overview" subtitle="Three aesthetic directions, side by side, in the app's real components.">
+          <DCPostIt top={-40} left={20} rotate={-3}>
+            All three share the same component contract — colors / type / radii are the only variables. Pick one and it drops into the existing Dioxus tree.
+          </DCPostIt>
+          {order.map((id) => {
+            const dir = dirs[id];
+            const dims = DENSITY[tweaks.density];
+            return (
+              <DCArtboard key={id} id={id} label={`${dir.name} · ${dir.tagline}`} width={dims.artboardW}>
+                <DirectionArtboard
+                  dir={dir}
+                  mode={tweaks.mode}
+                  density={tweaks.density}
+                  showWeek={tweaks.showWeekView}
+                />
+              </DCArtboard>
+            );
+          })}
+        </DCSection>
+      </DesignCanvas>
+
+      {(
+        <TweaksPanel title="Tweaks" defaultPosition={{ right: 24, bottom: 24 }}>
+          <TweakSection title="Theme">
+            <TweakRadio
+              label="Mode"
+              value={tweaks.mode}
+              options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
+              onChange={(v) => setTweak('mode', v)}
+            />
+          </TweakSection>
+          <TweakSection title="Layout">
+            <TweakRadio
+              label="Density"
+              value={tweaks.density}
+              options={[
+                { value: 'compact', label: 'Compact' },
+                { value: 'cozy', label: 'Cozy' },
+                { value: 'comfortable', label: 'Comfort' },
+              ]}
+              onChange={(v) => setTweak('density', v)}
+            />
+            <TweakToggle
+              label="Show week view sample"
+              value={tweaks.showWeekView}
+              onChange={(v) => setTweak('showWeekView', v)}
+            />
+          </TweakSection>
+        </TweaksPanel>
+      )}
+    </>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

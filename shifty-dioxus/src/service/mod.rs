@@ -10,6 +10,7 @@ pub mod error;
 pub mod i18n;
 pub mod slot_edit;
 pub mod text_template;
+pub mod theme;
 pub mod tooltip;
 pub mod user_management;
 pub mod weekly_summary;
