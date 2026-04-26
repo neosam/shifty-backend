@@ -81,7 +81,10 @@ mod tests {
     #[test]
     fn build_class_includes_token_styling() {
         let c = build_class(false);
-        assert!(c.contains("border-border-strong"), "missing strong border: {c}");
+        assert!(
+            c.contains("border-border-strong"),
+            "missing strong border: {c}"
+        );
         assert!(c.contains("rounded-md"));
         assert!(c.contains("font-mono"));
         assert!(c.contains("text-ink-soft"));
@@ -144,7 +147,10 @@ mod tests {
             rsx! { NavBtn { glyph: ImStr::from("›") } }
         }
         let html = render(app);
-        assert!(!html.contains("aria-label"), "unexpected aria-label: {html}");
+        assert!(
+            !html.contains("aria-label"),
+            "unexpected aria-label: {html}"
+        );
     }
 
     #[test]
@@ -155,7 +161,10 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains("disabled"), "missing disabled attribute: {html}");
+        assert!(
+            html.contains("disabled"),
+            "missing disabled attribute: {html}"
+        );
         assert!(html.contains("opacity-50"));
         assert!(html.contains("cursor-not-allowed"));
     }

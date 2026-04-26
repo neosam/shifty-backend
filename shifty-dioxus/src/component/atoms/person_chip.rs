@@ -193,7 +193,10 @@ mod tests {
             html.contains("background-color: #dbe0ff"),
             "expected inline color: {html}"
         );
-        assert!(html.contains("person-pill"), "missing person-pill class: {html}");
+        assert!(
+            html.contains("person-pill"),
+            "missing person-pill class: {html}"
+        );
         assert!(html.contains("Alex"));
     }
 
@@ -207,7 +210,10 @@ mod tests {
             !html.contains("person-pill"),
             "no-color path leaked person-pill class: {html}"
         );
-        assert!(html.contains("border-dashed"), "missing dashed border: {html}");
+        assert!(
+            html.contains("border-dashed"),
+            "missing dashed border: {html}"
+        );
         assert!(html.contains("Bo"));
     }
 
@@ -244,6 +250,9 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains("font-semibold"), "missing font-semibold: {html}");
+        assert!(
+            html.contains("font-semibold"),
+            "missing font-semibold: {html}"
+        );
     }
 }

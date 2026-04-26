@@ -159,7 +159,10 @@ mod tests {
         }
         let html = render(app);
         assert!(html.starts_with("<input"), "expected <input> root: {html}");
-        assert!(html.contains("form-input"), "missing form-input class: {html}");
+        assert!(
+            html.contains("form-input"),
+            "missing form-input class: {html}"
+        );
     }
 
     #[test]
@@ -170,7 +173,10 @@ mod tests {
         let html = render(app);
         assert!(html.contains("h-[34px]"), "missing 34px height: {html}");
         assert!(html.contains("px-[10px]"), "missing 10px padding: {html}");
-        assert!(html.contains("border-border-strong"), "missing strong border: {html}");
+        assert!(
+            html.contains("border-border-strong"),
+            "missing strong border: {html}"
+        );
         assert!(html.contains("rounded-md"), "missing rounded-md: {html}");
         assert!(html.contains("bg-surface"), "missing bg-surface: {html}");
         assert!(html.contains("text-ink"), "missing text-ink: {html}");
@@ -183,7 +189,10 @@ mod tests {
             rsx! { FormTextInput { value: ImStr::from("hello") } }
         }
         let html = render(app);
-        assert!(html.contains(r#"value="hello""#), "missing value attribute: {html}");
+        assert!(
+            html.contains(r#"value="hello""#),
+            "missing value attribute: {html}"
+        );
     }
 
     #[test]
@@ -192,7 +201,10 @@ mod tests {
             rsx! { FormTextInput { value: ImStr::from(""), disabled: true } }
         }
         let html = render(app);
-        assert!(html.contains("disabled"), "missing disabled attribute: {html}");
+        assert!(
+            html.contains("disabled"),
+            "missing disabled attribute: {html}"
+        );
     }
 
     #[test]
@@ -207,7 +219,10 @@ mod tests {
         }
         let html = render(app);
         assert!(html.contains("Search"), "placeholder missing: {html}");
-        assert!(html.contains("placeholder"), "placeholder attr missing: {html}");
+        assert!(
+            html.contains("placeholder"),
+            "placeholder attr missing: {html}"
+        );
     }
 
     #[test]
@@ -246,8 +261,14 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.starts_with("<select"), "expected <select> root: {html}");
-        assert!(html.contains("form-input"), "missing form-input class: {html}");
+        assert!(
+            html.starts_with("<select"),
+            "expected <select> root: {html}"
+        );
+        assert!(
+            html.contains("form-input"),
+            "missing form-input class: {html}"
+        );
     }
 
     #[test]
@@ -256,7 +277,10 @@ mod tests {
             rsx! { FormSelectInput { option { value: "a", "A" } } }
         }
         let html = render(app);
-        assert!(html.contains("appearance:none"), "missing appearance:none: {html}");
+        assert!(
+            html.contains("appearance:none"),
+            "missing appearance:none: {html}"
+        );
         assert!(
             html.contains("background-image:url("),
             "missing chevron background: {html}"
@@ -277,7 +301,10 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains("disabled"), "missing disabled attribute: {html}");
+        assert!(
+            html.contains("disabled"),
+            "missing disabled attribute: {html}"
+        );
     }
 
     #[test]
@@ -301,8 +328,14 @@ mod tests {
             rsx! { FormTextareaInput { value: ImStr::from("") } }
         }
         let html = render(app);
-        assert!(html.starts_with("<textarea"), "expected <textarea> root: {html}");
-        assert!(html.contains("form-input"), "missing form-input class: {html}");
+        assert!(
+            html.starts_with("<textarea"),
+            "expected <textarea> root: {html}"
+        );
+        assert!(
+            html.contains("form-input"),
+            "missing form-input class: {html}"
+        );
         assert!(html.contains("min-h-[68px]"), "missing min height: {html}");
         assert!(html.contains("leading-[1.45]"), "missing leading: {html}");
     }
@@ -313,7 +346,10 @@ mod tests {
             rsx! { FormTextareaInput { value: ImStr::from("") } }
         }
         let html = render(app);
-        assert!(html.contains("resize:vertical"), "missing vertical resize: {html}");
+        assert!(
+            html.contains("resize:vertical"),
+            "missing vertical resize: {html}"
+        );
     }
 
     #[test]
@@ -331,7 +367,10 @@ mod tests {
             rsx! { FormTextareaInput { value: ImStr::from(""), disabled: true } }
         }
         let html = render(app);
-        assert!(html.contains("disabled"), "missing disabled attribute: {html}");
+        assert!(
+            html.contains("disabled"),
+            "missing disabled attribute: {html}"
+        );
     }
 
     #[test]

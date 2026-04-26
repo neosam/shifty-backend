@@ -29,11 +29,7 @@ pub(crate) struct NavVisibility {
 }
 
 pub(crate) fn nav_visibility(auth_info: Option<&AuthInfo>, is_paid: bool) -> NavVisibility {
-    let has = |p: &str| {
-        auth_info
-            .map(|a| a.has_privilege(p))
-            .unwrap_or(false)
-    };
+    let has = |p: &str| auth_info.map(|a| a.has_privilege(p)).unwrap_or(false);
     let show_reports = has("hr");
     NavVisibility {
         shiftplan: has("sales") || has("shiftplanner"),
@@ -99,7 +95,11 @@ pub(crate) fn theme_aria_label(mode: ThemeMode) -> String {
 }
 
 pub(crate) fn burger_glyph(visible: bool) -> &'static str {
-    if visible { "✕" } else { "☰" }
+    if visible {
+        "✕"
+    } else {
+        "☰"
+    }
 }
 
 pub(crate) fn logout_url(backend_url: &str) -> String {
@@ -413,7 +413,10 @@ mod tests {
         assert!(is_active_for(NavTarget::Shiftplan, &Route::ShiftPlan {}));
         assert!(is_active_for(
             NavTarget::Shiftplan,
-            &Route::ShiftPlanDeep { year: 2026, week: 17 }
+            &Route::ShiftPlanDeep {
+                year: 2026,
+                week: 17
+            }
         ));
         assert!(!is_active_for(NavTarget::Shiftplan, &Route::Home {}));
     }
@@ -423,7 +426,9 @@ mod tests {
         assert!(is_active_for(NavTarget::Employees, &Route::Employees {}));
         assert!(is_active_for(
             NavTarget::Employees,
-            &Route::EmployeeDetails { employee_id: "abc".to_string() }
+            &Route::EmployeeDetails {
+                employee_id: "abc".to_string()
+            }
         ));
         assert!(!is_active_for(NavTarget::Employees, &Route::ShiftPlan {}));
     }
@@ -436,11 +441,15 @@ mod tests {
         ));
         assert!(is_active_for(
             NavTarget::UserManagement,
-            &Route::UserDetails { user_id: "u".into() }
+            &Route::UserDetails {
+                user_id: "u".into()
+            }
         ));
         assert!(is_active_for(
             NavTarget::UserManagement,
-            &Route::SalesPersonDetails { sales_person_id: "s".into() }
+            &Route::SalesPersonDetails {
+                sales_person_id: "s".into()
+            }
         ));
     }
 
@@ -514,7 +523,10 @@ mod tests {
 
     #[test]
     fn logout_url_appends_logout_path_to_backend() {
-        assert_eq!(logout_url("https://api.example.org"), "https://api.example.org/logout");
+        assert_eq!(
+            logout_url("https://api.example.org"),
+            "https://api.example.org/logout"
+        );
         assert_eq!(logout_url(""), "/logout");
     }
 }

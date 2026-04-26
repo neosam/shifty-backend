@@ -88,7 +88,10 @@ mod tests {
     #[test]
     fn row_class_dim_adds_ink_muted() {
         let c = row_class(true);
-        assert!(c.contains("text-ink-muted"), "dim row missing text-ink-muted: {c}");
+        assert!(
+            c.contains("text-ink-muted"),
+            "dim row missing text-ink-muted: {c}"
+        );
     }
 
     #[test]
@@ -127,7 +130,10 @@ mod tests {
         let html = render(app);
         assert!(html.contains("text-xs"));
         assert!(html.contains("text-ink-muted"));
-        assert!(html.contains("context note"), "description not rendered: {html}");
+        assert!(
+            html.contains("context note"),
+            "description not rendered: {html}"
+        );
     }
 
     #[test]

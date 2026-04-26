@@ -125,7 +125,10 @@ mod tests {
     #[test]
     fn variant_classes_secondary_has_surface_ink_strong_border() {
         let s = variant_classes(BtnVariant::Secondary);
-        assert!(s.contains("bg-surface"), "secondary missing bg-surface: {s}");
+        assert!(
+            s.contains("bg-surface"),
+            "secondary missing bg-surface: {s}"
+        );
         assert!(s.contains("text-ink"), "secondary missing text-ink: {s}");
         assert!(
             s.contains("border-border-strong"),
@@ -137,7 +140,10 @@ mod tests {
     fn variant_classes_ghost_is_transparent_inksoft() {
         let s = variant_classes(BtnVariant::Ghost);
         assert!(s.contains("bg-transparent"), "ghost not transparent: {s}");
-        assert!(s.contains("text-ink-soft"), "ghost missing text-ink-soft: {s}");
+        assert!(
+            s.contains("text-ink-soft"),
+            "ghost missing text-ink-soft: {s}"
+        );
     }
 
     #[test]
@@ -193,8 +199,14 @@ mod tests {
             rsx! { Btn { "Save" } }
         }
         let html = render(app);
-        assert!(html.starts_with("<button"), "expected <button> root: {html}");
-        assert!(html.contains("bg-surface"), "missing secondary class: {html}");
+        assert!(
+            html.starts_with("<button"),
+            "expected <button> root: {html}"
+        );
+        assert!(
+            html.contains("bg-surface"),
+            "missing secondary class: {html}"
+        );
         assert!(html.contains("text-ink"), "missing text-ink: {html}");
         assert!(html.contains("Save"), "missing children: {html}");
     }
@@ -235,7 +247,10 @@ mod tests {
             rsx! { Btn { variant: BtnVariant::Primary, disabled: true, "no" } }
         }
         let html = render(app);
-        assert!(html.contains("disabled"), "missing disabled attribute: {html}");
+        assert!(
+            html.contains("disabled"),
+            "missing disabled attribute: {html}"
+        );
         assert!(html.contains("opacity-50"));
         assert!(html.contains("cursor-not-allowed"));
     }
@@ -264,6 +279,9 @@ mod tests {
             rsx! { Btn { "Hello" } }
         }
         let html = render(app);
-        assert!(!html.contains("font-mono"), "unexpected font-mono span: {html}");
+        assert!(
+            !html.contains("font-mono"),
+            "unexpected font-mono span: {html}"
+        );
     }
 }

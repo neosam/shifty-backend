@@ -27,8 +27,7 @@ pub struct FieldProps {
     pub span: Option<u8>,
 }
 
-const LABEL_CLASSES: &str =
-    "text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em]";
+const LABEL_CLASSES: &str = "text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em]";
 
 #[component]
 pub fn Field(props: FieldProps) -> Element {
@@ -78,8 +77,14 @@ mod tests {
         let html = render(app);
         assert!(html.contains("Email"), "missing label text: {html}");
         assert!(html.contains("uppercase"), "label not uppercase: {html}");
-        assert!(html.contains("text-ink-soft"), "label missing token color: {html}");
-        assert!(html.contains("font-semibold"), "label not bold enough: {html}");
+        assert!(
+            html.contains("text-ink-soft"),
+            "label missing token color: {html}"
+        );
+        assert!(
+            html.contains("font-semibold"),
+            "label not bold enough: {html}"
+        );
         assert!(html.contains("text-[11px]"), "label wrong size: {html}");
     }
 
@@ -126,7 +131,10 @@ mod tests {
         }
         let html = render(app);
         assert!(html.contains("Required"), "error missing: {html}");
-        assert!(!html.contains("Optional"), "hint should be hidden when error: {html}");
+        assert!(
+            !html.contains("Optional"),
+            "hint should be hidden when error: {html}"
+        );
         assert!(html.contains("text-bad"), "error colour missing: {html}");
     }
 
@@ -156,8 +164,14 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(!html.contains("text-ink-muted"), "unexpected hint markup: {html}");
-        assert!(!html.contains("text-bad"), "unexpected error markup: {html}");
+        assert!(
+            !html.contains("text-ink-muted"),
+            "unexpected hint markup: {html}"
+        );
+        assert!(
+            !html.contains("text-bad"),
+            "unexpected error markup: {html}"
+        );
     }
 
     #[test]

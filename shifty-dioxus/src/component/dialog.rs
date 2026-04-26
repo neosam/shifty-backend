@@ -301,10 +301,9 @@ struct MediaQueryGuard {
 #[cfg(target_arch = "wasm32")]
 impl Drop for MediaQueryGuard {
     fn drop(&mut self) {
-        let _ = self.mql.remove_event_listener_with_callback(
-            "change",
-            self.closure.as_ref().unchecked_ref(),
-        );
+        let _ = self
+            .mql
+            .remove_event_listener_with_callback("change", self.closure.as_ref().unchecked_ref());
     }
 }
 
@@ -315,11 +314,10 @@ fn install_media_query_listener(
 ) -> Option<Rc<MediaQueryGuard>> {
     let window = web_sys::window()?;
     let mql = window.match_media(query).ok().flatten()?;
-    let closure: Closure<dyn FnMut(web_sys::MediaQueryListEvent)> = Closure::wrap(Box::new(
-        move |event: web_sys::MediaQueryListEvent| {
+    let closure: Closure<dyn FnMut(web_sys::MediaQueryListEvent)> =
+        Closure::wrap(Box::new(move |event: web_sys::MediaQueryListEvent| {
             signal.set(event.matches());
-        },
-    ));
+        }));
     let _ = mql.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
     Some(Rc::new(MediaQueryGuard { mql, closure }))
 }
@@ -354,7 +352,9 @@ fn install_body_scroll_lock() -> Option<Rc<BodyScrollLockGuard>> {
     let style = body.style();
     let prev = style.get_property_value("overflow").unwrap_or_default();
     let _ = style.set_property("overflow", "hidden");
-    Some(Rc::new(BodyScrollLockGuard { prev_overflow: prev }))
+    Some(Rc::new(BodyScrollLockGuard {
+        prev_overflow: prev,
+    }))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -394,8 +394,7 @@ fn install_escape_listener(on_close: EventHandler<()>) -> Option<Rc<EscapeGuard>
                 on_close.call(());
             }
         }));
-    let _ = window
-        .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref());
+    let _ = window.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref());
     Some(Rc::new(EscapeGuard { closure }))
 }
 
@@ -446,7 +445,10 @@ mod tests {
 
     #[test]
     fn backdrop_layout_center_centers() {
-        assert_eq!(backdrop_layout(DialogVariant::Center), ("center", "center", 16));
+        assert_eq!(
+            backdrop_layout(DialogVariant::Center),
+            ("center", "center", 16)
+        );
     }
 
     #[test]
@@ -468,7 +470,10 @@ mod tests {
     #[test]
     fn backdrop_style_uses_modal_veil_token() {
         let s = backdrop_style(DialogVariant::Center);
-        assert!(s.contains("background:var(--modal-veil)"), "missing veil: {s}");
+        assert!(
+            s.contains("background:var(--modal-veil)"),
+            "missing veil: {s}"
+        );
         assert!(s.contains("z-index:200"), "z-index not set: {s}");
         assert!(
             s.contains("animation:shifty-modal-fade"),
@@ -493,7 +498,10 @@ mod tests {
     #[test]
     fn panel_style_sheet_adds_60_to_width_and_full_height() {
         let s = panel_style(DialogVariant::Sheet, 460);
-        assert!(s.contains("width:min(520px,100%)"), "sheet width wrong: {s}");
+        assert!(
+            s.contains("width:min(520px,100%)"),
+            "sheet width wrong: {s}"
+        );
         assert!(s.contains("height:100vh"), "sheet not full height: {s}");
         assert!(
             s.contains("animation:shifty-modal-slide-right"),
@@ -593,7 +601,10 @@ mod tests {
         }
         let html = render(app);
         assert!(html.contains("Configure"), "missing subtitle: {html}");
-        assert!(html.contains("text-ink-muted"), "subtitle styling missing: {html}");
+        assert!(
+            html.contains("text-ink-muted"),
+            "subtitle styling missing: {html}"
+        );
     }
 
     #[test]
@@ -727,9 +738,18 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains(r#"role="presentation""#), "backdrop role missing: {html}");
-        assert!(html.contains(r#"role="dialog""#), "panel role missing: {html}");
-        assert!(html.contains(r#"aria-modal="true""#), "aria-modal missing: {html}");
+        assert!(
+            html.contains(r#"role="presentation""#),
+            "backdrop role missing: {html}"
+        );
+        assert!(
+            html.contains(r#"role="dialog""#),
+            "panel role missing: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-modal="true""#),
+            "aria-modal missing: {html}"
+        );
     }
 
     #[test]
