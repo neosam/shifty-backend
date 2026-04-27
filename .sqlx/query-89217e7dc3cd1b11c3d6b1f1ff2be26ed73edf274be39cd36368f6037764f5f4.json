@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, from_date_time, to_date_time, created, created_by, deleted, deleted_by, update_version as _update_version FROM billing_period",
+  "query": "SELECT id, from_date_time, to_date_time, snapshot_schema_version, created, created_by, deleted, deleted_by, update_version as _update_version FROM billing_period",
   "describe": {
     "columns": [
       {
@@ -19,28 +19,33 @@
         "type_info": "Text"
       },
       {
-        "name": "created",
+        "name": "snapshot_schema_version",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "created_by",
+        "name": "created",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "created_by",
         "ordinal": 5,
         "type_info": "Text"
       },
       {
-        "name": "deleted_by",
+        "name": "deleted",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "_update_version",
+        "name": "deleted_by",
         "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "_update_version",
+        "ordinal": 8,
         "type_info": "Blob"
       }
     ],
@@ -53,10 +58,11 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       false
     ]
   },
-  "hash": "50de039791a1edc77e656493ad94f3f7165002dd991cccd70378d41f58c78831"
+  "hash": "89217e7dc3cd1b11c3d6b1f1ff2be26ed73edf274be39cd36368f6037764f5f4"
 }

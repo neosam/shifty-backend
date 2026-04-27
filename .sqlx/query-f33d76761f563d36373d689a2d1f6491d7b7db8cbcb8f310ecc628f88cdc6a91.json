@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO billing_period (id, from_date_time, to_date_time, snapshot_schema_version, created, created_by, deleted, deleted_by, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "f33d76761f563d36373d689a2d1f6491d7b7db8cbcb8f310ecc628f88cdc6a91"
+}
