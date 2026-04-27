@@ -1,7 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 
-const colors = require("tailwindcss/colors");
-
 // Note: Tailwind only ships utility classes for class names that appear
 // statically in the source files. When constructing class strings dynamically
 // (e.g. `format!("bg-{}-soft", state)` in Rust), prefer static `if`/`match`
@@ -17,9 +15,6 @@ module.exports = {
         screen: { raw: 'screen' },
       },
       colors: {
-        // Legacy custom colors (kept until per-page redesign migrates them away)
-        missingColor: colors.amber[200],
-        blockedColor: colors.red[300],
         // Design token aliases — values resolved via CSS variables in input.css
         bg: 'var(--bg)',
         surface: 'var(--surface)',
@@ -59,8 +54,6 @@ module.exports = {
     "cursor-not-allowed",
     "text-green-800",
     "text-red-800",
-    "bg-missingColor",
-    "bg-blockedColor",
     // State-dependent classes constructed dynamically
     "bg-bad-soft",
     "bg-warn-soft",

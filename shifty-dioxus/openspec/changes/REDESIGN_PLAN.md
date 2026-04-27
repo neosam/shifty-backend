@@ -19,7 +19,7 @@ Each change depends on all earlier ones. `01` is foundation and blocks everythin
 | 07 | `redesign-07-page-employees` | 01–04 | Two-column layout, 3-column sub-grid, **new** weekly histogram |
 | 08 | `redesign-08-page-usermgmt` | 01–04 | Tab split: SalesPerson / Benutzer |
 | 09 | `redesign-09-page-shiftplan` | 01–04 | Most complex — toolbar, tabs, week grid with single +/− button per cell |
-| 99 | `redesign-99-cleanup` | 05–09 all merged | Remove legacy `Modal`/`Button`/`TextInput`, drop `Form*` prefix, remove unused Tailwind custom colors |
+| 99 | `redesign-99-cleanup` | 05–09 all merged | Remove legacy `Modal`/`Button`/`TextInput`, drop `Form*` prefix, remove unused Tailwind custom colors. Scope expanded: residual call sites in `user_details`, `sales_person_details`, `my_employee_details`, `add_extra_days_form`, `employee_work_details_form` (left unmigrated by 05–09 as detail/admin routes) were migrated as part of this cleanup. |
 
 ## Out of scope (explicit)
 

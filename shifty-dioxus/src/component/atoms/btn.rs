@@ -1,7 +1,4 @@
 //! `Btn` — the primary action button used across the redesigned pages.
-//!
-//! Coexists with the legacy `component::base_components::Button` until call
-//! sites are migrated per page (changes 03–09). New code should use `Btn`.
 
 use dioxus::prelude::*;
 

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body {
+    background: var(--bg);
+    color: var(--ink);
+}
+
 :root {
     --bg: #fbfbfc;
     --surface: #ffffff;

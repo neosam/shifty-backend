@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 use rest_types::InvitationStatus;
 
 use crate::{
+    component::atoms::{Btn, BtnVariant},
     component::base_components::*,
     component::TopBar,
     i18n::Key,
@@ -234,7 +235,8 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                         if invitation.status == InvitationStatus::Valid || invitation.status == InvitationStatus::Redeemed {
                                             div { class: "flex justify-end mt-3",
                                                 if invitation.status == InvitationStatus::Valid {
-                                                    Button {
+                                                    Btn {
+                                                        variant: BtnVariant::Danger,
                                                         on_click: {
                                                             to_owned![user_management_service, invitation];
                                                             move |_| {
@@ -246,7 +248,8 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                     }
                                                 }
                                                 if invitation.status == InvitationStatus::Redeemed {
-                                                    Button {
+                                                    Btn {
+                                                        variant: BtnVariant::Danger,
                                                         on_click: {
                                                             to_owned![user_management_service, invitation];
                                                             move |_| {
@@ -286,7 +289,8 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                     },
                                 }
                             }
-                            Button {
+                            Btn {
+                                variant: BtnVariant::Secondary,
                                 on_click: {
                                     to_owned![user_management_service, props, expiration_hours];
                                     move |_| {

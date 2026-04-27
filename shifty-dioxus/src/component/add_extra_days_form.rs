@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::{
     base_types::ImStr,
+    component::atoms::{Btn, BtnVariant},
     component::base_components::*,
     error,
     i18n::Key,
@@ -153,8 +154,8 @@ pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
                 }
             }
             FormGroup {
-                Button { "Abort" }
-                Button { "Submit" }
+                Btn { variant: BtnVariant::Secondary, "Abort" }
+                Btn { variant: BtnVariant::Primary, "Submit" }
             }
         }
     }

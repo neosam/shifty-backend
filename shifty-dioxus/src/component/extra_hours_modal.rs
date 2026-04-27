@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::api;
 use crate::base_types::ImStr;
 use crate::component::atoms::{Btn, BtnVariant};
-use crate::component::form::{Field, FormSelectInput, FormTextInput};
+use crate::component::form::{Field, SelectInput, TextInput};
 use crate::component::{Dialog, DialogVariant};
 use crate::error::{result_handler, ShiftyError};
 use crate::i18n::Key;
@@ -193,7 +193,7 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
 
             div { class: "flex flex-col gap-3",
                 Field { label: category_str,
-                    FormSelectInput {
+                    SelectInput {
                         on_change: move |value: ImStr| {
                             category.set(parse_category(value.as_str()));
                         },
@@ -252,7 +252,7 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
                 }
 
                 Field { label: description_label,
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(description.read().as_str()),
                         on_change: move |value: ImStr| description.set(value.as_str().to_string()),
                     }
@@ -260,14 +260,14 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
 
                 if is_vacation_days {
                     Field { label: from_label,
-                        FormTextInput {
+                        TextInput {
                             value: ImStr::from(from.read().as_str()),
                             input_type: ImStr::from("date"),
                             on_change: move |value: ImStr| from.set(value.as_str().to_string()),
                         }
                     }
                     Field { label: to_label,
-                        FormTextInput {
+                        TextInput {
                             value: ImStr::from(to.read().as_str()),
                             input_type: ImStr::from("date"),
                             on_change: move |value: ImStr| to.set(value.as_str().to_string()),
@@ -275,7 +275,7 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
                     }
                 } else {
                     Field { label: amount_label,
-                        FormTextInput {
+                        TextInput {
                             value: ImStr::from(amount.read().to_string()),
                             input_type: ImStr::from("number"),
                             on_change: move |value: ImStr| {
@@ -286,7 +286,7 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
                         }
                     }
                     Field { label: when_label,
-                        FormTextInput {
+                        TextInput {
                             value: ImStr::from(when.read().as_str()),
                             input_type: ImStr::from("datetime-local"),
                             on_change: move |value: ImStr| when.set(value.as_str().to_string()),

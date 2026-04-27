@@ -130,7 +130,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
     let conflict_booking_entries_header = i18n.t(Key::ConflictBookingsHeader);
     let personal_calendar_export_str = i18n.t(Key::PersonalCalendarExport);
-    let _unsufficiently_booked_calendar_export_str = i18n.t(Key::UnsufficientlyBookedCalendarExport);
+    let _unsufficiently_booked_calendar_export_str =
+        i18n.t(Key::UnsufficientlyBookedCalendarExport);
 
     let mut shiftplan_catalog = {
         let config = config.clone();

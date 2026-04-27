@@ -105,7 +105,7 @@ where
             div {
                 class: format!(
                     "text-center flex-grow flex-shrink w-full overflow-auto no-scrollbar {}",
-                    if props.item_data.warning.is_some() { "bg-missingColor" } else { "" },
+                    if props.item_data.warning.is_some() { "bg-warn-soft" } else { "" },
                 ),
                 {
                     match props.item_data.title {

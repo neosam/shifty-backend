@@ -3,7 +3,7 @@ use crate::{
     base_types::ImStr,
     component::{
         atoms::{Btn, BtnVariant},
-        Dialog, DialogVariant, Field, FormTextInput, TopBar,
+        Dialog, DialogVariant, Field, TextInput, TopBar,
     },
     i18n::Key,
     js,
@@ -192,7 +192,7 @@ pub fn BillingPeriods() -> Element {
                 Field {
                     label: ImStr::from(i18n.t(Key::EndDate).as_ref()),
                     hint: Some(ImStr::from(i18n.t(Key::SelectEndDateForNewBillingPeriod).as_ref())),
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(end_date.read().as_str()),
                         input_type: ImStr::from("date"),
                         on_change: move |value: ImStr| end_date.set(value.to_string()),

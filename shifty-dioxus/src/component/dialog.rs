@@ -1,12 +1,10 @@
 //! `Dialog` — the redesigned modal surface.
 //!
-//! Coexists with the legacy [`crate::component::modal::Modal`] until call
-//! sites are migrated per page (changes 05–09). New code SHOULD use
-//! `Dialog` because it offers four layout variants
-//! ([`DialogVariant::Center`], [`DialogVariant::Sheet`],
-//! [`DialogVariant::Bottom`], [`DialogVariant::Auto`]), header/footer slots,
-//! body scroll lock, ESC + backdrop dismissal and a small `use_media_query`
-//! hook used internally for [`DialogVariant::Auto`] resolution.
+//! Offers four layout variants ([`DialogVariant::Center`],
+//! [`DialogVariant::Sheet`], [`DialogVariant::Bottom`],
+//! [`DialogVariant::Auto`]), header/footer slots, body scroll lock,
+//! ESC + backdrop dismissal and a small `use_media_query` hook used
+//! internally for [`DialogVariant::Auto`] resolution.
 
 use std::rc::Rc;
 
@@ -135,7 +133,7 @@ pub struct DialogProps {
 
 /// Modal dialog with four layout variants, header/footer slots, body
 /// scroll lock and standard dismissal paths (backdrop click, ESC, X
-/// button). See module docs for the relationship to legacy `Modal`.
+/// button).
 #[component]
 pub fn Dialog(props: DialogProps) -> Element {
     if !props.open {

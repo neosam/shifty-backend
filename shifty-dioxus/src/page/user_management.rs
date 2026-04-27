@@ -11,7 +11,7 @@ use crate::{
     base_types::ImStr,
     component::{
         atoms::btn::build_class as btn_build_class, Btn, BtnVariant, Dialog, DialogVariant, Field,
-        FormTextInput, PersonChip, TopBar, UserManagementTabBar, UserMgmtTab,
+        PersonChip, TextInput, TopBar, UserManagementTabBar, UserMgmtTab,
     },
     i18n::Key,
     router::Route,
@@ -148,7 +148,7 @@ fn AddUserDialog(props: AddUserDialogProps) -> Element {
             }),
             Field {
                 label: ImStr::from(i18n.t(Key::AddNewUser).as_ref()),
-                FormTextInput {
+                TextInput {
                     value: props.value.clone(),
                     on_change: move |v: ImStr| on_value_change.call(v),
                 }
@@ -759,7 +759,7 @@ mod tests {
             "missing dialog role: {html}"
         );
         // Field label: the i18n key "Add New User" is used both as title and label.
-        // FormTextInput class.
+        // TextInput class.
         assert!(html.contains("form-input"), "missing form-input class");
         // Two footer buttons (Cancel + Create).
         // Cancel uses Secondary tokens; Create uses Primary.

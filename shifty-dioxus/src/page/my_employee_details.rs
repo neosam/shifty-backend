@@ -2,12 +2,15 @@ use futures_util::StreamExt;
 use uuid::Uuid;
 
 use crate::{
+    base_types::ImStr,
     component::{
-        employee_work_details_form::EmployeeWorkDetailsFormType, error_view::ErrorView,
-        EmployeeView, EmployeeWorkDetailsForm, Modal, TopBar,
+        employee_work_details_form::EmployeeWorkDetailsFormType, error_view::ErrorView, Dialog,
+        EmployeeView, EmployeeWorkDetailsForm, TopBar,
     },
+    i18n::Key,
     service::{
         config::CONFIG, employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction,
+        i18n::I18N,
     },
 };
 use dioxus::prelude::*;
@@ -50,18 +53,22 @@ pub fn MyEmployeeDetails() -> Element {
         },
     );
 
+    let i18n = I18N.read().clone();
+    let dialog_title: ImStr = ImStr::from(i18n.t(Key::WorkDetailsHeading).as_ref());
+
     rsx! {
         TopBar {}
 
         ErrorView {}
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
-            if *show_add_employee_work_details_dialog.read() {
-                Modal {
-                    EmployeeWorkDetailsForm {
-                        employee_work_details_form_type: EmployeeWorkDetailsFormType::ReadOnly,
-                        on_cancel: move |_| cr.send(MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog),
-                    }
+            Dialog {
+                open: *show_add_employee_work_details_dialog.read(),
+                on_close: move |_| cr.send(MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog),
+                title: dialog_title,
+                EmployeeWorkDetailsForm {
+                    employee_work_details_form_type: EmployeeWorkDetailsFormType::ReadOnly,
+                    on_cancel: move |_| cr.send(MyEmployeeDetailsAction::CloseEmployeeWorkDetailsDialog),
                 }
             }
             EmployeeView {

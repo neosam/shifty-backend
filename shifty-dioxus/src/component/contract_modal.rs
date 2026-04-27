@@ -9,7 +9,7 @@ use time::macros::format_description;
 use crate::base_types::ImStr;
 use crate::component::atoms::{Btn, BtnVariant};
 use crate::component::employee_work_details_form::EmployeeWorkDetailsFormType;
-use crate::component::form::{Field, FormCheckbox, FormTextInput};
+use crate::component::form::{Field, FormCheckbox, TextInput};
 use crate::component::{Dialog, DialogVariant};
 use crate::i18n::Key;
 use crate::service::{
@@ -173,7 +173,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-3",
                 Field {
                     label: from_label,
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(from_str.as_str()),
                         input_type: ImStr::from("date"),
                         disabled: !editable_dates,
@@ -194,7 +194,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
                 }
                 Field {
                     label: to_label,
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(to_str.as_str()),
                         input_type: ImStr::from("date"),
                         disabled: !editable_to,
@@ -297,7 +297,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-3",
                 Field {
                     label: expected_hours_label,
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(details.expected_hours.to_string()),
                         input_type: ImStr::from("number"),
                         disabled: read_only,
@@ -318,7 +318,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
                 }
                 Field {
                     label: days_per_week_label,
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(details.workdays_per_week.to_string()),
                         input_type: ImStr::from("number"),
                         disabled: read_only,
@@ -342,7 +342,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
             if !read_only {
                 Field {
                     label: vacation_days_label,
-                    FormTextInput {
+                    TextInput {
                         value: ImStr::from(details.vacation_days.to_string()),
                         input_type: ImStr::from("number"),
                         on_change: {

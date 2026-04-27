@@ -196,23 +196,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    fn no_legacy_modal_mount_in_source() {
-        let src = include_str!("employee_details.rs");
-        let test_module_start = src
-            .find("#[cfg(test)]")
-            .expect("test module marker missing");
-        let prefix = &src[..test_module_start];
-        // The new detail page must not import the legacy Modal component.
-        // ContractModal and ExtraHoursModal are the redesigned wrappers and OK.
-        assert!(
-            !prefix.contains(", Modal,") && !prefix.contains(", Modal}"),
-            "legacy Modal import still present in employee_details.rs"
-        );
-        assert!(
-            !prefix.contains(" Modal {"),
-            "legacy ` Modal {{` mount still present (should be ContractModal/ExtraHoursModal)"
-        );
-    }
 }

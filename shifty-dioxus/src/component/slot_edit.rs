@@ -6,7 +6,7 @@ use time::macros::format_description;
 use crate::base_types::ImStr;
 use crate::component::atoms::btn::{Btn, BtnVariant};
 use crate::component::dialog::{Dialog, DialogVariant};
-use crate::component::form::{Field, FormSelectInput};
+use crate::component::form::{Field, SelectInput};
 use crate::i18n::Key;
 use crate::service::{
     i18n::I18N,
@@ -122,7 +122,7 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
                 }
 
                 Field { label: weekday_label.clone(),
-                    FormSelectInput {
+                    SelectInput {
                         disabled: day_disabled,
                         on_change: {
                             let slot = props.slot.clone();

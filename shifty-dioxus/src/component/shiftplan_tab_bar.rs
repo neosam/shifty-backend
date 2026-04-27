@@ -8,7 +8,7 @@ use crate::api;
 use crate::base_types::ImStr;
 use crate::component::atoms::btn::{Btn, BtnVariant};
 use crate::component::dialog::{Dialog, DialogVariant};
-use crate::component::form::{Field, FormCheckbox, FormTextInput};
+use crate::component::form::{Field, FormCheckbox, TextInput};
 use crate::i18n::Key;
 use crate::service::i18n::I18N;
 use crate::state::Config;
@@ -176,7 +176,7 @@ pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
                         footer: Some(footer),
                         div { class: "flex flex-col gap-3",
                             Field { label: name_label.clone(),
-                                FormTextInput {
+                                TextInput {
                                     value: ImStr::from(dialog_name.read().as_str()),
                                     on_change: move |value: ImStr| {
                                         dialog_name.set(value.as_str().to_string());

@@ -2,7 +2,12 @@ use dioxus::prelude::*;
 
 use crate::{
     base_types::ImStr,
-    component::{base_components::*, TopBar},
+    component::{
+        atoms::{Btn, BtnVariant},
+        base_components::*,
+        form::TextInput,
+        TopBar,
+    },
     i18n::Key,
     router::Route,
     service::{self, i18n::I18N, user_management::UserManagementAction},
@@ -183,7 +188,8 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                             FormPair { label: i18n.t(Key::UserAccount).into(),
                                 if let Some(user_id) = &sales_person.user_id {
                                     div { class: "flex gap-2",
-                                        Button {
+                                        Btn {
+                                            variant: BtnVariant::Danger,
                                             on_click: move |_| {
                                                 user_management_service.send(UserManagementAction::RemoveSalesPersonUser);
                                             },
@@ -203,7 +209,8 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                         }
                                     }
                                 } else {
-                                    Button {
+                                    Btn {
+                                        variant: BtnVariant::Secondary,
                                         on_click: move |_| {
                                             user_management_service
                                                 .send(UserManagementAction::UpdateSalesPersonUser("".into()));
@@ -299,14 +306,15 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                         // Action buttons section
                         div { class: "pt-6 border-t border-gray-200",
                             div { class: "flex flex-col sm:flex-row gap-3 justify-end",
-                                Button {
+                                Btn {
+                                    variant: BtnVariant::Secondary,
                                     on_click: move |_| {
                                         nav.push(Route::UserManagementPage {});
                                     },
                                     "{i18n.t(Key::Cancel)}"
                                 }
-                                Button {
-                                    primary: true,
+                                Btn {
+                                    variant: BtnVariant::Primary,
                                     on_click: move |_| {
                                         user_management_service.send(UserManagementAction::SaveSalesPersonAndNavigate);
                                     },

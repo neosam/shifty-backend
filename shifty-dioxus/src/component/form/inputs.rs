@@ -1,11 +1,8 @@
 //! Token-based form input atoms used inside [`Field`](super::Field).
 //!
-//! All three atoms (`FormTextInput`, `FormSelectInput`, `FormTextareaInput`)
-//! share the `form-input` class so the global focus rule in `input.css`
-//! applies the accent focus ring without per-component styling. The
-//! `Form*` prefix keeps these names from colliding with the legacy
-//! components in [`crate::component::base_components`] until the cleanup
-//! change drops both the prefix and the legacy versions.
+//! All three atoms (`TextInput`, `SelectInput`, `TextareaInput`) share the
+//! `form-input` class so the global focus rule in `input.css` applies the
+//! accent focus ring without per-component styling.
 
 use dioxus::prelude::*;
 
@@ -15,7 +12,7 @@ const SHARED_INPUT_CLASSES: &str =
     "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input";
 
 #[derive(Props, Clone, PartialEq)]
-pub struct FormTextInputProps {
+pub struct TextInputProps {
     pub value: ImStr,
 
     #[props(!optional, default = None)]
@@ -33,7 +30,7 @@ pub struct FormTextInputProps {
 }
 
 #[component]
-pub fn FormTextInput(props: FormTextInputProps) -> Element {
+pub fn TextInput(props: TextInputProps) -> Element {
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
     let input_type = props.input_type.clone();
     let on_change = props.on_change.clone();
@@ -56,7 +53,7 @@ pub fn FormTextInput(props: FormTextInputProps) -> Element {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub struct FormSelectInputProps {
+pub struct SelectInputProps {
     pub children: Element,
 
     #[props(default = false)]
@@ -75,7 +72,7 @@ const SELECT_EXTRA_STYLE: &str =
      background-repeat:no-repeat;background-position:right 10px center;";
 
 #[component]
-pub fn FormSelectInput(props: FormSelectInputProps) -> Element {
+pub fn SelectInput(props: SelectInputProps) -> Element {
     let on_change = props.on_change.clone();
     let disabled = props.disabled;
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
@@ -97,7 +94,7 @@ pub fn FormSelectInput(props: FormSelectInputProps) -> Element {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub struct FormTextareaInputProps {
+pub struct TextareaInputProps {
     pub value: ImStr,
 
     #[props(!optional, default = None)]
@@ -117,7 +114,7 @@ const TEXTAREA_CLASSES: &str =
     "min-h-[68px] px-[10px] py-2 border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input leading-[1.45]";
 
 #[component]
-pub fn FormTextareaInput(props: FormTextareaInputProps) -> Element {
+pub fn TextareaInput(props: TextareaInputProps) -> Element {
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
     let on_change = props.on_change.clone();
     let disabled = props.disabled;
@@ -150,12 +147,12 @@ mod tests {
         dioxus_ssr::render(&vdom)
     }
 
-    // ─── FormTextInput ──────────────────────────────────────────────────
+    // ─── TextInput ──────────────────────────────────────────────────
 
     #[test]
     fn text_input_renders_input_with_form_input_class() {
         fn app() -> Element {
-            rsx! { FormTextInput { value: ImStr::from("hello") } }
+            rsx! { TextInput { value: ImStr::from("hello") } }
         }
         let html = render(app);
         assert!(html.starts_with("<input"), "expected <input> root: {html}");
@@ -168,7 +165,7 @@ mod tests {
     #[test]
     fn text_input_uses_token_classes() {
         fn app() -> Element {
-            rsx! { FormTextInput { value: ImStr::from("") } }
+            rsx! { TextInput { value: ImStr::from("") } }
         }
         let html = render(app);
         assert!(html.contains("h-[34px]"), "missing 34px height: {html}");
@@ -186,7 +183,7 @@ mod tests {
     #[test]
     fn text_input_value_attribute_renders() {
         fn app() -> Element {
-            rsx! { FormTextInput { value: ImStr::from("hello") } }
+            rsx! { TextInput { value: ImStr::from("hello") } }
         }
         let html = render(app);
         assert!(
@@ -198,7 +195,7 @@ mod tests {
     #[test]
     fn text_input_disabled_propagates() {
         fn app() -> Element {
-            rsx! { FormTextInput { value: ImStr::from(""), disabled: true } }
+            rsx! { TextInput { value: ImStr::from(""), disabled: true } }
         }
         let html = render(app);
         assert!(
@@ -211,7 +208,7 @@ mod tests {
     fn text_input_placeholder_propagates_when_provided() {
         fn app() -> Element {
             rsx! {
-                FormTextInput {
+                TextInput {
                     value: ImStr::from(""),
                     placeholder: Some(ImStr::from("Search…")),
                 }
@@ -228,7 +225,7 @@ mod tests {
     #[test]
     fn text_input_default_type_is_text() {
         fn app() -> Element {
-            rsx! { FormTextInput { value: ImStr::from("") } }
+            rsx! { TextInput { value: ImStr::from("") } }
         }
         let html = render(app);
         assert!(html.contains(r#"type="text""#), "missing type=text: {html}");
@@ -238,7 +235,7 @@ mod tests {
     fn text_input_custom_type_propagates() {
         fn app() -> Element {
             rsx! {
-                FormTextInput {
+                TextInput {
                     value: ImStr::from(""),
                     input_type: ImStr::from("date"),
                 }
@@ -248,13 +245,13 @@ mod tests {
         assert!(html.contains(r#"type="date""#), "missing type=date: {html}");
     }
 
-    // ─── FormSelectInput ────────────────────────────────────────────────
+    // ─── SelectInput ────────────────────────────────────────────────
 
     #[test]
     fn select_input_renders_select_with_form_input_class() {
         fn app() -> Element {
             rsx! {
-                FormSelectInput {
+                SelectInput {
                     option { value: "a", "A" }
                     option { value: "b", "B" }
                 }
@@ -274,7 +271,7 @@ mod tests {
     #[test]
     fn select_input_has_appearance_none_and_chevron_background() {
         fn app() -> Element {
-            rsx! { FormSelectInput { option { value: "a", "A" } } }
+            rsx! { SelectInput { option { value: "a", "A" } } }
         }
         let html = render(app);
         assert!(
@@ -295,7 +292,7 @@ mod tests {
     fn select_input_disabled_propagates() {
         fn app() -> Element {
             rsx! {
-                FormSelectInput { disabled: true,
+                SelectInput { disabled: true,
                     option { value: "a", "A" }
                 }
             }
@@ -311,7 +308,7 @@ mod tests {
     fn select_input_renders_children_options() {
         fn app() -> Element {
             rsx! {
-                FormSelectInput {
+                SelectInput {
                     option { value: "k", "Kraków" }
                 }
             }
@@ -320,12 +317,12 @@ mod tests {
         assert!(html.contains("Kraków"), "child option missing: {html}");
     }
 
-    // ─── FormTextareaInput ──────────────────────────────────────────────
+    // ─── TextareaInput ──────────────────────────────────────────────
 
     #[test]
     fn textarea_renders_with_form_input_class_and_min_height() {
         fn app() -> Element {
-            rsx! { FormTextareaInput { value: ImStr::from("") } }
+            rsx! { TextareaInput { value: ImStr::from("") } }
         }
         let html = render(app);
         assert!(
@@ -343,7 +340,7 @@ mod tests {
     #[test]
     fn textarea_resizes_vertically_only() {
         fn app() -> Element {
-            rsx! { FormTextareaInput { value: ImStr::from("") } }
+            rsx! { TextareaInput { value: ImStr::from("") } }
         }
         let html = render(app);
         assert!(
@@ -355,7 +352,7 @@ mod tests {
     #[test]
     fn textarea_value_appears_in_body() {
         fn app() -> Element {
-            rsx! { FormTextareaInput { value: ImStr::from("first line") } }
+            rsx! { TextareaInput { value: ImStr::from("first line") } }
         }
         let html = render(app);
         assert!(html.contains("first line"), "value missing in body: {html}");
@@ -364,7 +361,7 @@ mod tests {
     #[test]
     fn textarea_disabled_propagates() {
         fn app() -> Element {
-            rsx! { FormTextareaInput { value: ImStr::from(""), disabled: true } }
+            rsx! { TextareaInput { value: ImStr::from(""), disabled: true } }
         }
         let html = render(app);
         assert!(
@@ -377,7 +374,7 @@ mod tests {
     fn textarea_placeholder_propagates_when_provided() {
         fn app() -> Element {
             rsx! {
-                FormTextareaInput {
+                TextareaInput {
                     value: ImStr::from(""),
                     placeholder: Some(ImStr::from("z.B. Inventur")),
                 }

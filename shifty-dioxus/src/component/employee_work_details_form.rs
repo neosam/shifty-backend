@@ -2,8 +2,9 @@ use dioxus::prelude::*;
 
 use crate::{
     base_types::ImStr,
+    component::atoms::{Btn, BtnVariant},
     component::base_components::{
-        Button, Checkbox, DateInput, FloatInput, Form, FormGroup, FormPair, Header, IntegerInput,
+        Checkbox, DateInput, FloatInput, Form, FormGroup, FormPair, Header, IntegerInput,
     },
     i18n,
     service::{
@@ -348,7 +349,8 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                 }
             }
             FormGroup {
-                Button {
+                Btn {
+                    variant: BtnVariant::Secondary,
                     on_click: {
                         move |_| {
                             props.on_cancel.call(());
@@ -357,7 +359,8 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                     "{props.cancel_label}"
                 }
                 if props.show_save_button {
-                    Button {
+                    Btn {
+                        variant: BtnVariant::Primary,
                         on_click: {
                             move |_| {
                                 props.on_save.call(());
