@@ -6,6 +6,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
+use crate::component::atoms::{Btn, BtnVariant, PersonChip};
 use crate::component::booking_log_table::BookingLogTable;
 use crate::component::day_aggregate_view::{DayAggregateView, DayButtonBar};
 use crate::component::dropdown_base::DropdownTrigger;
@@ -129,7 +130,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
     let conflict_booking_entries_header = i18n.t(Key::ConflictBookingsHeader);
     let personal_calendar_export_str = i18n.t(Key::PersonalCalendarExport);
-    let unsufficiently_booked_calendar_export_str = i18n.t(Key::UnsufficientlyBookedCalendarExport);
+    let _unsufficiently_booked_calendar_export_str = i18n.t(Key::UnsufficientlyBookedCalendarExport);
 
     let mut shiftplan_catalog = {
         let config = config.clone();
@@ -663,48 +664,49 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     ]
     .into();
 
+    let view_week_str = i18n.t(Key::ViewModeWeek);
+    let view_day_str = i18n.t(Key::ViewModeDay);
+
+    let toggle_active_class =
+        "px-3 py-1 text-[13px] font-medium rounded-[4px] bg-surface text-ink shadow-sm";
+    let toggle_inactive_class =
+        "px-3 py-1 text-[13px] font-medium rounded-[4px] text-ink-muted hover:text-ink";
+    let nav_btn_class = "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt print:hidden";
+
     rsx! {
         TopBar {}
 
-        div { class: "flex flex-col md:flex-row md:items-center md:justify-between",
-            div { class: "m-4 text-lg flex align-center justify-center width-full gap-4",
-                div { class: "flex align-center",
-                    button {
-                        onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
-                        class: "border-2 border-solid border-black mr-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
-                        "<"
-                    }
-                    div { class: "pt-2", "{calendar_week_str}" }
-                    button {
-                        onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
-                        class: "border-2 border-solid border-black mr-2 ml-2 pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
-                        ">"
-                    }
+        // Toolbar
+        div { class: "px-4 py-3 print:hidden",
+            div { class: "flex flex-wrap items-center gap-2 bg-surface border border-border rounded-lg px-[14px] py-[10px]",
+                button {
+                    class: nav_btn_class,
+                    "aria-label": "Vorwoche",
+                    onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
+                    "‹"
                 }
-                div { class: "flex gap-1 print:hidden",
+                span {
+                    class: "font-mono text-[13px] font-semibold text-ink px-2",
+                    style: "font-variant-numeric: tabular-nums;",
+                    "{calendar_week_str}"
+                }
+                button {
+                    class: nav_btn_class,
+                    "aria-label": "Nächste Woche",
+                    onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
+                    "›"
+                }
+                span { class: "w-px h-5 bg-border mx-1.5" }
+                div { class: "inline-flex bg-surface-alt rounded-md p-0.5 gap-0.5",
                     button {
-                        class: format!(
-                            "pt-2 pb-2 pl-3 pr-3 rounded-md font-medium {}",
-                            if *view_mode.read() == state::ViewMode::Week {
-                                "bg-blue-500 text-white"
-                            } else {
-                                "bg-gray-200 hover:bg-gray-300"
-                            },
-                        ),
+                        class: if *view_mode.read() == state::ViewMode::Week { toggle_active_class } else { toggle_inactive_class },
                         onclick: move |_| {
                             view_mode.set(state::ViewMode::Week);
                         },
-                        {i18n.t(Key::ViewModeWeek)}
+                        "{view_week_str}"
                     }
                     button {
-                        class: format!(
-                            "pt-2 pb-2 pl-3 pr-3 rounded-md font-medium {}",
-                            if *view_mode.read() == state::ViewMode::Day {
-                                "bg-blue-500 text-white"
-                            } else {
-                                "bg-gray-200 hover:bg-gray-300"
-                            },
-                        ),
+                        class: if *view_mode.read() == state::ViewMode::Day { toggle_active_class } else { toggle_inactive_class },
                         onclick: move |_| {
                             let default_day = crate::component::day_aggregate_view::default_day_for_week(
                                 *year.read(),
@@ -714,11 +716,47 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             view_mode.set(state::ViewMode::Day);
                             cr.send(ShiftPlanAction::LoadDayAggregate);
                         },
-                        {i18n.t(Key::ViewModeDay)}
+                        "{view_day_str}"
                     }
                 }
-            }
-            div { class: "flex flex-row ml-4 mr-4 border-t-2 border-solid border-black pt-4 items-center justify-between text-right md:justify-right md:border-t-none md:border-t-0 md:mt-4 md:mb-4 md:pt-0 md:gap-4 print:hidden",
+                span { class: "flex-1 min-w-0" }
+                {
+                    let personal_label = personal_calendar_export_str.to_string();
+                    let backend_url = backend_url.clone();
+                    let sales_person_id = current_sales_person.read().as_ref().map(|sp| sp.id);
+                    rsx! {
+                        if let Some(sp_id) = sales_person_id {
+                            a {
+                                class: "px-3 py-1.5 rounded-md text-[13px] font-medium border bg-surface text-ink border-border-strong inline-flex items-center gap-1 hover:bg-surface-alt",
+                                target: "_blank",
+                                href: format!("{}/sales-person/{}/ical", backend_url, sp_id),
+                                title: "{personal_label}",
+                                span { class: "font-mono", "↓" }
+                                "iCal"
+                            }
+                        }
+                    }
+                }
+                if is_shiftplanner {
+                    Btn {
+                        variant: BtnVariant::Secondary,
+                        on_click: move |_| {
+                            let should_show = !*show_booking_log.read();
+                            if should_show {
+                                booking_log_service.send(BookingLogAction::LoadBookingLog(
+                                    *year.read(),
+                                    *week.read(),
+                                ));
+                            }
+                            show_booking_log.set(should_show);
+                        },
+                        if *show_booking_log.read() {
+                            {i18n.t(Key::BookingLogHide)}
+                        } else {
+                            {i18n.t(Key::BookingLogTitle)}
+                        }
+                    }
+                }
                 if is_shiftplanner {
                     DropdownTrigger {
                         entries: [
@@ -739,8 +777,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 .into(),
                         ]
                             .into(),
-                        button { class: "border-2 border-solid border-black pt-2 pb-2 pl-4 pr-4 text-xl font-bold",
-                            "..."
+                        button {
+                            class: "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt",
+                            "…"
                         }
                     }
                 }
@@ -748,10 +787,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     Some(Ok(sales_persons)) => {
                         if is_shiftplanner {
                             rsx! {
-                                div { class: "align-center",
-                                    "{edit_as_str}"
+                                div { class: "flex items-center gap-2",
+                                    span { class: "text-[12px] text-ink-muted", "{edit_as_str}" }
                                     select {
-                                        class: "bg-slate-200 p-1 rounded-md ml-2",
+                                        class: "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] form-input",
                                         onchange: move |event| {
                                             info!("Event: {:?}", event);
                                             let value = event.data.value().parse::<Uuid>().unwrap();
@@ -773,9 +812,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         } else {
                             if let Some(ref current_sales_person) = *current_sales_person.read() {
                                 rsx! {
-                                    div {
-                                        "{you_are_str}"
-                                        span { class: "bg-slate-200 p-1 rounded-md", "{current_sales_person.name}" }
+                                    div { class: "flex items-center gap-2",
+                                        span { class: "text-[12px] text-ink-muted", "{you_are_str}" }
+                                        PersonChip {
+                                            name: ImStr::from(current_sales_person.name.as_ref()),
+                                            color: Some(ImStr::from(current_sales_person.background_color.as_ref())),
+                                        }
                                     }
                                 }
                             } else {
@@ -785,21 +827,21 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     }
                     Some(Err(err)) => {
                         rsx! {
-                            div { "Error while loading sales persons: {err}" }
+                            div { class: "text-bad text-[12px]", "Error while loading sales persons: {err}" }
                         }
                     }
                     _ => {
                         rsx! {
-                            div { "Loading sales persons..." }
+                            div { class: "text-ink-muted text-[12px]", "Loading sales persons..." }
                         }
                     }
                 }
             }
         }
         if is_shiftplanner && !booking_conflicts.is_empty() {
-            div { class: "m-4 print:hidden",
-                h2 { class: "text-xl font-bold pb-4", "⚠️ {conflict_booking_entries_header}" }
-                ul { class: "list-disc list-inside",
+            div { class: "mx-4 my-3 px-4 py-3 bg-bad-soft border border-bad rounded-md print:hidden",
+                h2 { class: "text-[14px] font-semibold pb-2 text-bad", "⚠️ {conflict_booking_entries_header}" }
+                ul { class: "list-disc list-inside text-[13px] text-ink",
                     {
                         let mut unique_booking_conflicts = Vec::new();
                         let i18n = i18n.to_owned();
@@ -822,7 +864,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             for unique_booking_conflict in unique_booking_conflicts {
                                 li {
                                     onclick: move |_| cr.send(ShiftPlanAction::UpdateSalesPerson(unique_booking_conflict.2)),
-                                    class: "cursor-pointer",
+                                    class: "cursor-pointer hover:underline",
                                     "{unique_booking_conflict.0} - {unique_booking_conflict.1}"
                                 }
                             }
@@ -941,7 +983,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 is_shiftplanner,
                             }
                         } else {
-                            div { class: "text-gray-500 italic", "Loading..." }
+                            div { class: "text-ink-muted italic", "Loading..." }
                         }
                     }
                 }
@@ -1038,62 +1080,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     is_shiftplanner,
                                 }
 
-                            // Week Message Section
-                            div {
-                                class: "mt-4 mb-4 p-4 border rounded",
-                                h3 {
-                                    class: "text-lg font-semibold mb-2",
-                                    {i18n.t(Key::WeekMessage)}
-                                }
-                                if is_shiftplanner {
-                                    div {
-                                        class: "space-y-2",
-                                        textarea {
-                                            class: "w-full p-2 border rounded resize-none",
-                                            rows: "3",
-                                            placeholder: "Enter week message...",
-                                            value: "{week_message_draft}",
-                                            oninput: move |event| {
-                                                week_message_draft.set(event.value());
-                                            }
-                                        }
-                                        div {
-                                            class: "flex gap-2",
-                                            button {
-                                                class: "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
-                                                disabled: week_message_draft() == week_message(),
-                                                onclick: move |_| {
-                                                    let message = week_message_draft();
-                                                    cr.send(ShiftPlanAction::SaveWeekMessage(message));
-                                                },
-                                                {i18n.t(Key::Save)}
-                                            }
-                                            if week_message_draft() != week_message() {
-                                                span {
-                                                    class: "text-sm text-orange-600 self-center",
-                                                    {i18n.t(Key::UnsavedChanges)}
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    div {
-                                        class: "p-2 bg-gray-50 rounded",
-                                        if week_message().is_empty() {
-                                            span {
-                                                class: "text-gray-500 italic",
-                                                "No message for this week"
-                                            }
-                                        } else {
-                                            pre {
-                                                class: "whitespace-pre-wrap",
-                                                {week_message()}
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
                             div { class: "mt-4 print:hidden",
                                 WorkingHoursMiniOverview {
                                     working_hours: WORKING_HOURS_MINI.read().clone(),
@@ -1104,38 +1090,67 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     show_balance: is_shiftplanner && is_hr,
                                 }
                             }
-                            if let Some(ref sales_person) = *current_sales_person.read() {
-                                div { class: "mt-8 mb-8 print:hidden",
-                                    a {
-                                        class: "text-blue-600/75 decoration-solid",
-                                        target: "_blank",
-                                        href: format!("{}/sales-person/{}/ical", backend_url, sales_person.id),
-                                        "{personal_calendar_export_str}"
-                                    }
+
+                            // Week Message Section
+                            div { class: "mt-4 mb-4 p-4 bg-surface border border-border rounded-lg",
+                                h3 { class: "text-[14px] font-semibold mb-2 text-ink",
+                                    {i18n.t(Key::WeekMessage)}
                                 }
-                                div { class: "mt-8 mb-8 print:hidden",
-                                    a {
-                                        class: "text-blue-600/75 decoration-solid",
-                                        target: "_blank",
-                                        href: format!("{}/sales-person/{}/ical", backend_url, Uuid::nil()),
-                                        "{unsufficiently_booked_calendar_export_str}"
+                                if is_shiftplanner {
+                                    div { class: "space-y-2",
+                                        textarea {
+                                            class: "w-full p-2 border border-border-strong bg-surface text-ink text-[13px] rounded-md resize-y form-input",
+                                            rows: "3",
+                                            placeholder: "Enter week message...",
+                                            value: "{week_message_draft}",
+                                            oninput: move |event| {
+                                                week_message_draft.set(event.value());
+                                            }
+                                        }
+                                        div { class: "flex gap-2 items-center",
+                                            Btn {
+                                                variant: BtnVariant::Primary,
+                                                disabled: week_message_draft() == week_message(),
+                                                on_click: move |_| {
+                                                    let message = week_message_draft();
+                                                    cr.send(ShiftPlanAction::SaveWeekMessage(message));
+                                                },
+                                                {i18n.t(Key::Save)}
+                                            }
+                                            if week_message_draft() != week_message() {
+                                                span { class: "text-[12px] text-warn self-center",
+                                                    {i18n.t(Key::UnsavedChanges)}
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    div { class: "p-2 bg-surface-alt rounded-md",
+                                        if week_message().is_empty() {
+                                            span { class: "text-ink-muted italic",
+                                                "No message for this week"
+                                            }
+                                        } else {
+                                            pre { class: "whitespace-pre-wrap text-ink text-[13px]",
+                                                {week_message()}
+                                            }
+                                        }
                                     }
                                 }
                             }
-
                             // Shiftplan Report Section (only visible for shiftplanner role)
                             if is_shiftplanner {
-                                div { class: "bg-white shadow rounded-lg p-6 mt-6 print:hidden",
-                                    h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::ShiftplanReport)}" }
+                                div { class: "bg-surface border border-border rounded-lg p-6 mt-6 mx-4 print:hidden",
+                                    h2 { class: "text-[14px] font-semibold mb-4 text-ink", "{i18n.t(Key::ShiftplanReport)}" }
 
                                     div { class: "space-y-4",
                                         // Template Selection
                                         div { class: "mb-4",
-                                            label { class: "block text-sm font-medium text-gray-700 mb-2",
+                                            label { class: "block text-[12px] font-medium text-ink mb-2",
                                                 "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} shiftplan report templates available)"
                                             }
                                             select {
-                                                class: "w-full p-2 border border-gray-300 rounded-md",
+                                                class: "h-[34px] w-full px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] form-input",
                                                 value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
                                                 onchange: move |event| {
                                                     if let Ok(uuid) = Uuid::parse_str(&event.value()) {
@@ -1159,8 +1174,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         }
 
                                         // Generate Button
-                                        button {
-                                            onclick: move |_| {
+                                        Btn {
+                                            variant: BtnVariant::Primary,
+                                            disabled: selected_template_id.read().is_none() || *generating_report.read(),
+                                            on_click: move |_| {
                                                 if let Some(template_id) = *selected_template_id.read() {
                                                     let config = CONFIG.read().clone();
                                                     spawn(async move {
@@ -1180,12 +1197,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                     });
                                                 }
                                             },
-                                            disabled: selected_template_id.read().is_none() || *generating_report.read(),
-                                            class: if *generating_report.read() {
-                                                "bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed"
-                                            } else {
-                                                "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                                            },
                                             if *generating_report.read() {
                                                 "{i18n.t(Key::GeneratingReport)}"
                                             } else {
@@ -1197,14 +1208,17 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         {
                                             let report_opt = shiftplan_report_result.read().clone();
                                             if let Some(report) = report_opt {
+                                                let report_for_display = report.clone();
+                                                let report_for_copy = report.clone();
                                                 rsx! {
-                                                    div { class: "border-t pt-4",
+                                                    div { class: "border-t border-border pt-4",
                                                         div { class: "flex justify-between items-center mb-3",
-                                                            h3 { class: "text-lg font-medium", "{i18n.t(Key::ShiftplanReportGenerated)}" }
+                                                            h3 { class: "text-[13px] font-medium text-ink", "{i18n.t(Key::ShiftplanReportGenerated)}" }
                                                             div { class: "flex items-center gap-2",
-                                                                button {
-                                                                    onclick: move |_| {
-                                                                        let report_text = report.clone();
+                                                                Btn {
+                                                                    variant: BtnVariant::Secondary,
+                                                                    on_click: move |_| {
+                                                                        let report_text = report_for_copy.clone();
                                                                         let i18n_copy = I18N.read().clone();
                                                                         spawn(async move {
                                                                             copy_status.set(None);
@@ -1212,23 +1226,21 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                                                 Ok(_) => copy_status.set(Some(i18n_copy.t(Key::CopiedToClipboard).to_string())),
                                                                                 Err(_) => copy_status.set(Some(i18n_copy.t(Key::CopyFailed).to_string())),
                                                                             }
-                                                                            // Clear status after 3 seconds
                                                                             spawn(async move {
                                                                                 gloo_timers::future::sleep(std::time::Duration::from_secs(3)).await;
                                                                                 copy_status.set(None);
                                                                             });
                                                                         });
                                                                     },
-                                                                    class: "bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-sm",
                                                                     "{i18n.t(Key::CopyToClipboard)}"
                                                                 }
                                                                 if let Some(status) = copy_status.read().clone() {
-                                                                    span { class: "text-sm text-green-600 font-medium", "{status}" }
+                                                                    span { class: "text-[12px] text-good font-medium", "{status}" }
                                                                 }
                                                             }
                                                         }
-                                                        div { class: "bg-gray-50 p-4 rounded-lg border",
-                                                            pre { class: "whitespace-pre-wrap text-sm font-mono overflow-x-auto", "{report}" }
+                                                        div { class: "bg-surface-alt p-4 rounded-md border border-border",
+                                                            pre { class: "whitespace-pre-wrap text-[12px] font-mono overflow-x-auto text-ink", "{report_for_display}" }
                                                         }
                                                     }
                                                 }
@@ -1240,61 +1252,32 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 }
                             }
 
-                            // Booking Log Section (only visible for shiftplanner role)
-                            if is_shiftplanner {
-                                div { class: "bg-white shadow rounded-lg p-6 mt-6 print:hidden",
-                                    // Header with toggle button
-                                    div { class: "flex justify-between items-center mb-4",
-                                        h2 { class: "text-xl font-semibold", "{i18n.t(Key::BookingLogTitle)}" }
-                                        button {
-                                            onclick: move |_| {
-                                                let should_show = !*show_booking_log.read();
-                                                if should_show {
-                                                    // Load booking log when expanding
-                                                    booking_log_service.send(BookingLogAction::LoadBookingLog(
-                                                        *year.read(),
-                                                        *week.read(),
-                                                    ));
-                                                }
-                                                show_booking_log.set(should_show);
-                                            },
-                                            class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded",
-                                            if *show_booking_log.read() {
-                                                "{i18n.t(Key::BookingLogHide)}"
-                                            } else {
-                                                "{i18n.t(Key::BookingLogShow)}"
-                                            }
-                                        }
-                                    }
-
-                                    // Booking log table (only shown when expanded)
-                                    if *show_booking_log.read() {
-                                        div { class: "mt-4",
-                                            BookingLogTable {
-                                                bookings: BOOKING_LOG_STORE.read().clone(),
-                                                name_filter: booking_log_name_filter.read().clone(),
-                                                on_name_filter_change: move |value: String| {
-                                                    booking_log_name_filter.set(value);
-                                                },
-                                                day_filter: *booking_log_day_filter.read(),
-                                                on_day_filter_change: move |value: Option<Weekday>| {
-                                                    booking_log_day_filter.set(value);
-                                                },
-                                                status_filter: booking_log_status_filter.read().clone(),
-                                                on_status_filter_change: move |value: String| {
-                                                    booking_log_status_filter.set(value);
-                                                },
-                                                created_by_filter: booking_log_created_by_filter.read().clone(),
-                                                on_created_by_filter_change: move |value: String| {
-                                                    booking_log_created_by_filter.set(value);
-                                                },
-                                                on_clear_filters: move |_| {
-                                                    booking_log_name_filter.set(String::new());
-                                                    booking_log_day_filter.set(None);
-                                                    booking_log_status_filter.set("all".to_string());
-                                                    booking_log_created_by_filter.set("all".to_string());
-                                                }
-                                            }
+                            // Booking log table — only visible for shiftplanner role AND when expanded via toolbar toggle
+                            if is_shiftplanner && *show_booking_log.read() {
+                                div { class: "mt-6 mx-4 print:hidden",
+                                    BookingLogTable {
+                                        bookings: BOOKING_LOG_STORE.read().clone(),
+                                        name_filter: booking_log_name_filter.read().clone(),
+                                        on_name_filter_change: move |value: String| {
+                                            booking_log_name_filter.set(value);
+                                        },
+                                        day_filter: *booking_log_day_filter.read(),
+                                        on_day_filter_change: move |value: Option<Weekday>| {
+                                            booking_log_day_filter.set(value);
+                                        },
+                                        status_filter: booking_log_status_filter.read().clone(),
+                                        on_status_filter_change: move |value: String| {
+                                            booking_log_status_filter.set(value);
+                                        },
+                                        created_by_filter: booking_log_created_by_filter.read().clone(),
+                                        on_created_by_filter_change: move |value: String| {
+                                            booking_log_created_by_filter.set(value);
+                                        },
+                                        on_clear_filters: move |_| {
+                                            booking_log_name_filter.set(String::new());
+                                            booking_log_day_filter.set(None);
+                                            booking_log_status_filter.set("all".to_string());
+                                            booking_log_created_by_filter.set("all".to_string());
                                         }
                                     }
                                 }
@@ -1314,6 +1297,36 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn shiftplan_page_no_legacy_classes_in_source() {
+        let source = include_str!("shiftplan.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        for forbidden in [
+            "bg-gray-",
+            "bg-white",
+            "text-gray-",
+            "text-blue-",
+            "text-red-",
+            "text-green-",
+            "text-orange-",
+            "bg-blue-",
+            "bg-green-",
+            "bg-red-",
+            "bg-slate-",
+            "border-gray-",
+            "border-black",
+        ] {
+            assert!(
+                !production.contains(forbidden),
+                "non-test source contains legacy class `{}`",
+                forbidden
+            );
         }
     }
 }

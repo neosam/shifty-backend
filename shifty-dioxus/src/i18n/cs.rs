@@ -51,6 +51,35 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Export kalendáře nedostatečně obsazených směn (iCal)",
     );
     i18n.add_text(Locale::Cs, Key::WeekMessage, "Týdenní zpráva");
+    i18n.add_text(Locale::Cs, Key::ShiftplanFilledOfNeed, "{filled}/{need}");
+    i18n.add_text(Locale::Cs, Key::ShiftplanLastWeek, "Minulý týden");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanCellAddTitle,
+        "Přidat mě do tohoto slotu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanCellRemoveTitle,
+        "Odebrat mě z tohoto slotu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanCreateTitle,
+        "Vytvořit směnný plán",
+    );
+    i18n.add_text(Locale::Cs, Key::ShiftplanEditTitle, "Upravit směnný plán");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanDeleteConfirmTitle,
+        "Smazat směnný plán",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanDeleteConfirmBody,
+        "Opravdu chcete smazat směnný plán {name}? Tuto akci nelze vrátit zpět.",
+    );
+    i18n.add_text(Locale::Cs, Key::ShiftplanIsPlanningLabel, "Pouze plánování");
 
     // Booking log
     i18n.add_text(Locale::Cs, Key::BookingLogTitle, "Protokol rezervací");
@@ -92,6 +121,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::BookingLogFilterDeletedOnly,
         "Pouze smazané",
     );
+    i18n.add_text(Locale::Cs, Key::BookingLogDeletedTag, "Smazáno");
     i18n.add_text(
         Locale::Cs,
         Key::BookingNoInfo,
@@ -293,6 +323,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::Save, "Uložit");
     i18n.add_text(Locale::Cs, Key::Edit, "Upravit");
     i18n.add_text(Locale::Cs, Key::Delete, "Smazat");
+    i18n.add_text(Locale::Cs, Key::Create, "Vytvořit");
     i18n.add_text(Locale::Cs, Key::ConfirmDelete, "Potvrdit smazání");
 
     // Billing period management

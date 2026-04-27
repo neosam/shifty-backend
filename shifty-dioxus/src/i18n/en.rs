@@ -47,6 +47,31 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Unsufficiently booked slots calendar export (iCal)",
     );
     i18n.add_text(Locale::En, Key::WeekMessage, "Week Message");
+    i18n.add_text(Locale::En, Key::ShiftplanFilledOfNeed, "{filled}/{need}");
+    i18n.add_text(Locale::En, Key::ShiftplanLastWeek, "Last week");
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanCellAddTitle,
+        "Add me to this slot",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanCellRemoveTitle,
+        "Remove me from this slot",
+    );
+    i18n.add_text(Locale::En, Key::ShiftplanCreateTitle, "Create shiftplan");
+    i18n.add_text(Locale::En, Key::ShiftplanEditTitle, "Edit shiftplan");
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanDeleteConfirmTitle,
+        "Delete shiftplan",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanDeleteConfirmBody,
+        "Are you sure you want to delete shiftplan {name}? This cannot be undone.",
+    );
+    i18n.add_text(Locale::En, Key::ShiftplanIsPlanningLabel, "Planning only");
 
     // Booking log
     i18n.add_text(Locale::En, Key::BookingLogTitle, "Booking Log");
@@ -72,6 +97,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::BookingLogFilterAll, "All");
     i18n.add_text(Locale::En, Key::BookingLogFilterActiveOnly, "Active Only");
     i18n.add_text(Locale::En, Key::BookingLogFilterDeletedOnly, "Deleted Only");
+    i18n.add_text(Locale::En, Key::BookingLogDeletedTag, "Deleted");
     i18n.add_text(Locale::En, Key::BookingNoInfo, "No information available");
 
     // Weekly overview page
@@ -259,6 +285,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::Save, "Save");
     i18n.add_text(Locale::En, Key::Edit, "Edit");
     i18n.add_text(Locale::En, Key::Delete, "Delete");
+    i18n.add_text(Locale::En, Key::Create, "Create");
     i18n.add_text(Locale::En, Key::ConfirmDelete, "Confirm Delete");
 
     // Billing period management

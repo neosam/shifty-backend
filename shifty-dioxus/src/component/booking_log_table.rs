@@ -3,7 +3,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 
 use crate::{
-    base_types::ImStr,
+    component::atoms::btn::{Btn, BtnVariant},
     i18n::Key,
     service::i18n::I18N,
     state::{booking_log::BookingLog, Weekday},
@@ -23,11 +23,16 @@ pub struct BookingLogTableProps {
     pub on_clear_filters: EventHandler<()>,
 }
 
+const FORM_INPUT_CLASSES: &str =
+    "h-[34px] w-full px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] form-input";
+
+const HEADER_CLASSES: &str =
+    "px-3 py-2 text-left text-[11px] font-semibold text-ink-muted uppercase tracking-[0.04em]";
+
 #[component]
 pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
     let i18n = I18N.read().clone();
 
-    // Get unique list of creators for the dropdown
     let creators: Vec<String> = {
         let mut creators: Vec<String> = props
             .bookings
@@ -39,30 +44,25 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
         creators
     };
 
-    // Apply filters
     let filtered_bookings: Vec<BookingLog> = props
         .bookings
         .iter()
         .filter(|b| {
-            // Name filter (case-insensitive)
-            if !props.name_filter.is_empty() {
-                if !b
+            if !props.name_filter.is_empty()
+                && !b
                     .sales_person_name
                     .to_lowercase()
                     .contains(&props.name_filter.to_lowercase())
-                {
-                    return false;
-                }
+            {
+                return false;
             }
 
-            // Day filter
             if let Some(day) = props.day_filter {
                 if b.day_of_week != day {
                     return false;
                 }
             }
 
-            // Status filter
             match props.status_filter.as_str() {
                 "active" => {
                     if b.deleted.is_some() {
@@ -74,14 +74,14 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                         return false;
                     }
                 }
-                _ => {} // "all" - no filtering
+                _ => {}
             }
 
-            // Created by filter
-            if !props.created_by_filter.is_empty() && props.created_by_filter != "all" {
-                if b.created_by.as_ref() != props.created_by_filter {
-                    return false;
-                }
+            if !props.created_by_filter.is_empty()
+                && props.created_by_filter != "all"
+                && b.created_by.as_ref() != props.created_by_filter
+            {
+                return false;
             }
 
             true
@@ -89,7 +89,6 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
         .cloned()
         .collect();
 
-    // Sort filtered bookings by day of week, then by time
     let mut bookings = filtered_bookings;
     bookings.sort_by(|a, b| {
         let day_cmp = a
@@ -106,29 +105,27 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
     rsx! {
         div { class: "space-y-4",
             // Filter section
-            div { class: "bg-gray-50 p-4 rounded-lg border border-gray-200",
-                div { class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4",
-                    // Name filter (search input)
+            div { class: "bg-surface border border-border rounded-md p-3",
+                div { class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3",
                     div {
-                        label { class: "block text-sm font-medium text-gray-700 mb-1",
+                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
                             {i18n.t(Key::BookingLogFilterName)}
                         }
                         input {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
+                            class: FORM_INPUT_CLASSES,
                             r#type: "text",
                             value: "{props.name_filter}",
-                            placeholder: "Search...",
-                            oninput: move |event| props.on_name_filter_change.call(event.value())
+                            placeholder: i18n.t(Key::SearchPlaceholder).as_ref(),
+                            oninput: move |event| props.on_name_filter_change.call(event.value()),
                         }
                     }
 
-                    // Day filter (dropdown)
                     div {
-                        label { class: "block text-sm font-medium text-gray-700 mb-1",
+                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
                             {i18n.t(Key::BookingLogFilterDay)}
                         }
                         select {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
+                            class: FORM_INPUT_CLASSES,
                             value: match props.day_filter {
                                 Some(Weekday::Monday) => "Monday",
                                 Some(Weekday::Tuesday) => "Tuesday",
@@ -163,13 +160,12 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                         }
                     }
 
-                    // Status filter (dropdown)
                     div {
-                        label { class: "block text-sm font-medium text-gray-700 mb-1",
+                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
                             {i18n.t(Key::BookingLogFilterStatus)}
                         }
                         select {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
+                            class: FORM_INPUT_CLASSES,
                             value: "{props.status_filter}",
                             onchange: move |event| props.on_status_filter_change.call(event.value()),
                             option { value: "all", {i18n.t(Key::BookingLogFilterAll)} }
@@ -178,13 +174,12 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                         }
                     }
 
-                    // Created by filter (dropdown)
                     div {
-                        label { class: "block text-sm font-medium text-gray-700 mb-1",
+                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
                             {i18n.t(Key::BookingLogFilterCreatedBy)}
                         }
                         select {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
+                            class: FORM_INPUT_CLASSES,
                             value: "{props.created_by_filter}",
                             onchange: move |event| props.on_created_by_filter_change.call(event.value()),
                             option { value: "all", {i18n.t(Key::BookingLogFilterAll)} }
@@ -194,62 +189,82 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                         }
                     }
 
-                    // Clear filters button
                     div { class: "flex items-end",
-                        button {
-                            class: "w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded",
-                            onclick: move |_| props.on_clear_filters.call(()),
-                            {i18n.t(Key::BookingLogFilterClear)}
+                        div { class: "w-full",
+                            Btn {
+                                variant: BtnVariant::Secondary,
+                                on_click: move |_| props.on_clear_filters.call(()),
+                                {i18n.t(Key::BookingLogFilterClear)}
+                            }
                         }
                     }
                 }
             }
 
             // Table section
-            div { class: "overflow-x-auto",
-                table { class: "min-w-full border-collapse border border-gray-300",
-                    thead {
-                        tr { class: "bg-gray-100",
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogDay)} }
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogName)} }
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogTime)} }
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogCreated)} }
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogCreatedBy)} }
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogDeleted)} }
-                            th { class: "border border-gray-300 px-4 py-2 text-left font-semibold", {i18n.t(Key::BookingLogDeletedBy)} }
+            div { class: "bg-surface border border-border rounded-lg overflow-hidden",
+                div { class: "overflow-x-auto",
+                    table { class: "w-full text-[12px] border-collapse",
+                        thead {
+                            tr { class: "bg-surface-alt text-left",
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogDay)} }
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogName)} }
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogTime)} }
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogCreated)} }
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogCreatedBy)} }
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogDeleted)} }
+                                th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogDeletedBy)} }
+                            }
                         }
-                    }
-                    tbody {
-                        for booking in bookings.iter() {
-                            {
-                                let is_deleted = booking.deleted.is_some();
-                                let day_str = booking.day_of_week.i18n_string(&i18n);
-                                let time_str = format!("{} - {}", booking.time_from, booking.time_to);
-                                let created_str = format!("{} {}",
-                                    i18n.format_date(&booking.created.date()),
-                                    booking.created.time()
-                                );
-                                let deleted_str = booking.deleted
-                                    .as_ref()
-                                    .map(|dt| format!("{} {}", i18n.format_date(&dt.date()), dt.time()))
-                                    .unwrap_or_else(|| "".to_string());
-                                let deleted_by_str = booking.deleted_by.as_ref()
-                                    .map(|s| s.to_string())
-                                    .unwrap_or_else(|| "".to_string());
+                        tbody {
+                            for booking in bookings.iter() {
+                                {
+                                    let is_deleted = booking.deleted.is_some();
+                                    let day_str = booking.day_of_week.i18n_string(&i18n);
+                                    let time_str = format!("{} - {}", booking.time_from, booking.time_to);
+                                    let created_str = format!(
+                                        "{} {}",
+                                        i18n.format_date(&booking.created.date()),
+                                        booking.created.time()
+                                    );
+                                    let deleted_str = booking
+                                        .deleted
+                                        .as_ref()
+                                        .map(|dt| {
+                                            format!("{} {}", i18n.format_date(&dt.date()), dt.time())
+                                        })
+                                        .unwrap_or_else(|| "—".to_string());
+                                    let deleted_by_str = booking
+                                        .deleted_by
+                                        .as_ref()
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| "—".to_string());
+                                    let row_class = if is_deleted {
+                                        "border-t border-border opacity-50"
+                                    } else {
+                                        "border-t border-border"
+                                    };
+                                    let deleted_cell_class = if is_deleted {
+                                        "px-3 py-2 text-bad whitespace-nowrap"
+                                    } else {
+                                        "px-3 py-2 text-ink-muted whitespace-nowrap"
+                                    };
+                                    let deleted_by_cell_class = if is_deleted {
+                                        "px-3 py-2 text-bad"
+                                    } else {
+                                        "px-3 py-2 text-ink-muted"
+                                    };
 
-                                rsx! {
-                                    tr {
-                                        class: format!(
-                                            "hover:bg-gray-50 {}",
-                                            if is_deleted { "line-through text-gray-500" } else { "" }
-                                        ),
-                                        td { class: "border border-gray-200 px-4 py-2", {day_str} }
-                                        td { class: "border border-gray-200 px-4 py-2", {&booking.sales_person_name} }
-                                        td { class: "border border-gray-200 px-4 py-2 whitespace-nowrap", {time_str} }
-                                        td { class: "border border-gray-200 px-4 py-2 text-sm whitespace-nowrap", {created_str} }
-                                        td { class: "border border-gray-200 px-4 py-2", {&booking.created_by} }
-                                        td { class: "border border-gray-200 px-4 py-2 text-sm whitespace-nowrap", {deleted_str} }
-                                        td { class: "border border-gray-200 px-4 py-2", {deleted_by_str} }
+                                    rsx! {
+                                        tr { class: row_class,
+                                            td { class: "px-3 py-2 font-mono", {day_str} }
+                                            td { class: "px-3 py-2 text-ink", {&booking.sales_person_name} }
+                                            td { class: "px-3 py-2 font-mono whitespace-nowrap", {time_str} }
+                                            td { class: "px-3 py-2 text-ink-muted whitespace-nowrap", {created_str} }
+                                            td { class: "px-3 py-2 text-ink", {&booking.created_by} }
+                                            td { class: deleted_cell_class, {deleted_str} }
+                                            td { class: deleted_by_cell_class, {deleted_by_str} }
+                                        }
                                     }
                                 }
                             }
@@ -257,6 +272,220 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::booking_log::BookingLog;
+    use time::macros::{date, time};
+
+    fn deleted_booking() -> BookingLog {
+        BookingLog {
+            year: 2026,
+            calendar_week: 17,
+            sales_person_name: "Lena".into(),
+            day_of_week: Weekday::Monday,
+            time_from: time!(09:00),
+            time_to: time!(13:00),
+            created: time::PrimitiveDateTime::new(date!(2026 - 04 - 20), time!(09:00)),
+            created_by: "admin".into(),
+            deleted: Some(time::PrimitiveDateTime::new(
+                date!(2026 - 04 - 21),
+                time!(10:00),
+            )),
+            deleted_by: Some("admin".into()),
+        }
+    }
+
+    fn active_booking() -> BookingLog {
+        BookingLog {
+            year: 2026,
+            calendar_week: 17,
+            sales_person_name: "Tobias".into(),
+            day_of_week: Weekday::Tuesday,
+            time_from: time!(09:00),
+            time_to: time!(13:00),
+            created: time::PrimitiveDateTime::new(date!(2026 - 04 - 20), time!(09:00)),
+            created_by: "admin".into(),
+            deleted: None,
+            deleted_by: None,
+        }
+    }
+
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn booking_log_deleted_row_carries_opacity_50() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([deleted_booking()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(html.contains("opacity-50"), "missing opacity-50: {html}");
+    }
+
+    #[test]
+    fn booking_log_deleted_row_no_line_through() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([deleted_booking(), active_booking()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("line-through"),
+            "unexpected line-through: {html}"
+        );
+    }
+
+    #[test]
+    fn booking_log_deleted_cell_uses_text_bad() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([deleted_booking()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(html.contains("text-bad"), "missing text-bad: {html}");
+    }
+
+    #[test]
+    fn booking_log_active_cell_uses_ink_muted_em_dash() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([active_booking()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(html.contains("—"), "missing em-dash: {html}");
+        assert!(
+            html.contains("text-ink-muted"),
+            "missing text-ink-muted: {html}"
+        );
+    }
+
+    #[test]
+    fn booking_log_no_bad_soft_badge() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([deleted_booking()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(!html.contains("bg-bad-soft"), "no badge expected: {html}");
+    }
+
+    #[test]
+    fn booking_log_filter_section_uses_token_surface() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([active_booking()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(html.contains("bg-surface"), "missing bg-surface: {html}");
+        assert!(
+            html.contains("border-border"),
+            "missing border-border: {html}"
+        );
+    }
+
+    #[test]
+    fn booking_log_table_no_legacy_classes_in_source() {
+        let source = include_str!("booking_log_table.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        for forbidden in [
+            "bg-gray-",
+            "bg-white",
+            "text-gray-",
+            "text-blue-",
+            "text-red-",
+            "text-green-",
+            "bg-blue-",
+            "bg-green-",
+            "bg-red-",
+            "border-gray-",
+            "border-black",
+        ] {
+            assert!(
+                !production.contains(forbidden),
+                "non-test source contains legacy class `{}`",
+                forbidden
+            );
         }
     }
 }

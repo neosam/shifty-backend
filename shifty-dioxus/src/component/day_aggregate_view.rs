@@ -1,90 +1,12 @@
 use std::rc::Rc;
 
 use crate::{
-    component::week_view::{ColumnView, ColumnViewItem, TimeView, WeekViewButtonTypes},
+    component::week_view::{WeekCellSlot, WeekViewButtonTypes, SCALING},
     service::i18n::I18N,
     state::{dropdown::DropdownEntry, DayAggregate, Slot, Weekday},
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
-
-const SCALING: f32 = 75.0;
-
-fn slot_to_column_view_item(
-    slot: Slot,
-    is_shiftplanner: bool,
-    i18n: &crate::i18n::I18n<crate::i18n::Key, crate::i18n::Locale>,
-) -> ColumnViewItem<Slot> {
-    use crate::component::week_view::{ColumnViewContent, ColumnViewContentItem};
-
-    let mut bookings: Vec<ColumnViewContentItem> = slot
-        .bookings
-        .iter()
-        .map(|booking| {
-            let tooltip = if is_shiftplanner {
-                match (&booking.created, &booking.created_by) {
-                    (Some(created), Some(created_by)) => {
-                        let date_str = i18n.format_date(&created.date());
-                        let time_str = created.time();
-                        Some(
-                            format!(
-                                "{} {} {} {}",
-                                i18n.t(crate::i18n::Key::BookingLogCreatedBy),
-                                created_by,
-                                date_str,
-                                time_str
-                            )
-                            .into(),
-                        )
-                    }
-                    _ => Some(i18n.t(crate::i18n::Key::BookingNoInfo)),
-                }
-            } else {
-                None
-            };
-
-            ColumnViewContentItem {
-                id: booking.sales_person_id,
-                title: if booking.self_added {
-                    format!("{}*", booking.label).into()
-                } else {
-                    booking.label.clone()
-                },
-                background_color: booking.background_color.clone(),
-                tooltip,
-            }
-        })
-        .collect();
-
-    bookings.insert(
-        0,
-        ColumnViewContentItem {
-            id: uuid::Uuid::nil(),
-            title: format!("{}/{}", slot.bookings.len(), slot.min_resources).into(),
-            background_color: if slot.bookings.len() != slot.min_resources as usize {
-                "#ffcccc".into()
-            } else {
-                "#fff".into()
-            },
-            tooltip: None,
-        },
-    );
-
-    ColumnViewItem {
-        start: slot.from_hour(),
-        end: slot.to_hour(),
-        show_add: true,
-        show_remove: true,
-        title: ColumnViewContent::Items(bookings.into()),
-        warning: if slot.evaluation().is_faulty() {
-            Some("Too few resources".into())
-        } else {
-            None
-        },
-        dropdown_entries: None,
-        custom_data: slot,
-    }
-}
 
 #[derive(PartialEq, Clone, Props)]
 pub struct DayAggregateViewProps {
@@ -100,84 +22,109 @@ pub struct DayAggregateViewProps {
     pub is_shiftplanner: bool,
 }
 
-enum Zoom {
-    Full,
-    Half,
-    Quarter,
-}
-
 #[component]
 pub fn DayAggregateView(props: DayAggregateViewProps) -> Element {
-    let i18n = I18N.read().clone();
     let day_start = props.day_aggregate.min_hour();
     let day_end = props.day_aggregate.max_hour();
-    let mut zoom = use_signal(|| Zoom::Full);
-    let zoom_class = match *zoom.read() {
-        Zoom::Full => "scale-down-100",
-        Zoom::Half => "scale-down-50",
-        Zoom::Quarter => "scale-down-75",
-    };
 
     if props.day_aggregate.plans.is_empty() || day_start >= day_end {
         return rsx! {
-            div { class: "m-4 text-gray-500 italic", "No plans for this day." }
+            div { class: "m-4 text-ink-muted italic", "No plans for this day." }
         };
     }
 
+    let n_plans = props.day_aggregate.plans.len();
+    let body_height = (day_end - day_start) * SCALING;
+    let grid_template_columns = format!("76px repeat({}, minmax(160px, 1fr))", n_plans);
+    let grid_min_width = (76 + n_plans as u32 * 160).max(620);
+    let grid_style = format!(
+        "display: grid; grid-template-columns: {}; min-width: {}px;",
+        grid_template_columns, grid_min_width,
+    );
+    let hour_start = day_start.ceil() as u8;
+    let hour_end = day_end.ceil() as u8;
+    let time_col_style = format!(
+        "position: sticky; left: 0; z-index: 2; height: {}px;",
+        body_height,
+    );
+    let day_col_style = format!("height: {}px;", body_height);
+
     rsx! {
-        div {
-            class: "overflow-y-scroll overflow-visible no-scrollbar print:width-full print:overflow-visible",
-            style: format!("height: {}px", (day_end - day_start) as f32 * SCALING + SCALING),
-            div { class: "fixed bottom-4 left-4 z-50 border bg-white p-2 rounded-md shadow-lg 2xl:hidden print:hidden",
-                label { "Zoom: " }
-                select {
-                    onchange: move |event| {
-                        let value = event.data.value();
-                        match value.as_str() {
-                            "full" => *zoom.write() = Zoom::Full,
-                            "half" => *zoom.write() = Zoom::Half,
-                            "quarter" => *zoom.write() = Zoom::Quarter,
-                            _ => {}
-                        }
-                    },
-                    option { value: "full", "100%" }
-                    option { value: "quarter", "75%" }
-                    option { value: "half", "50%" }
+        div { class: "bg-surface border border-border rounded-lg overflow-auto print:overflow-visible",
+            div {
+                style: "{grid_style}",
+                // Header row: corner cell + plan headers
+                div {
+                    class: "bg-surface-alt border-b border-r border-border",
+                    style: "position: sticky; top: 0; left: 0; z-index: 3;",
                 }
-            }
-            div { class: format!("flex flex-row {}", zoom_class),
-                div { class: "flex-shrink-0 sticky left-0 z-10 bg-white border-r border-gray-200",
-                    TimeView {
-                        start: day_start.ceil() as u8,
-                        end: day_end.ceil() as u8,
+                for plan in props.day_aggregate.plans.iter() {
+                    {
+                        let plan_name = plan.shiftplan_name.to_string();
+                        rsx! {
+                            div {
+                                class: "bg-surface-alt border-b border-r border-border px-[10px] py-2 select-none",
+                                style: "position: sticky; top: 0; z-index: 1;",
+                                div { class: "text-[12px] font-bold text-ink truncate",
+                                    "{plan_name}"
+                                }
+                            }
+                        }
                     }
                 }
-                div { class: "flex flex-row overflow-x-auto flex-grow",
-                    for plan in props.day_aggregate.plans.iter() {
+
+                // Body row: time column + plan columns
+                div {
+                    class: "bg-surface border-r border-border relative",
+                    style: "{time_col_style}",
+                    for h in hour_start..hour_end {
                         {
-                            let slots: Rc<[ColumnViewItem<Slot>]> = plan
-                                .slots
-                                .iter()
-                                .map(|slot| {
-                                    let mut item = slot_to_column_view_item(slot.clone(), props.is_shiftplanner, &i18n);
-                                    item.start -= day_start;
-                                    item.end -= day_start;
-                                    item.dropdown_entries = props.dropdown_entries.clone();
-                                    item
-                                })
-                                .collect();
+                            let label = format!("{:02}:00–{:02}:00", h, h + 1);
+                            let top_px = (h as f32 - day_start) * SCALING;
+                            let style = format!(
+                                "top: {}px; height: {}px; padding-top: 4px;",
+                                top_px, SCALING,
+                            );
                             rsx! {
-                                ColumnView::<Slot> {
-                                    height: (day_end - day_start) as f32 * SCALING + SCALING / 2.0,
-                                    scale: SCALING,
-                                    offset: SCALING / 2.0,
-                                    slots: slots,
-                                    title: Some(plan.shiftplan_name.clone().into()),
-                                    highlight_item_id: props.highlight_item_id,
-                                    add_event: props.add_event.clone(),
-                                    remove_event: props.remove_event.clone(),
-                                    item_clicked: props.item_clicked.clone(),
-                                    button_types: props.button_types.clone(),
+                                div {
+                                    class: "absolute left-0 right-0 border-t border-border px-2 font-mono text-[11px] text-ink-muted text-right",
+                                    style: "{style}",
+                                    "{label}"
+                                }
+                            }
+                        }
+                    }
+                }
+                for plan in props.day_aggregate.plans.iter() {
+                    {
+                        let plan_slots = plan.slots.clone();
+                        rsx! {
+                            div {
+                                class: "relative border-r border-border",
+                                style: "{day_col_style}",
+                                for h in hour_start..hour_end {
+                                    div {
+                                        class: "absolute left-0 right-0 border-t border-border pointer-events-none",
+                                        style: format!(
+                                            "top: {}px; height: 0;",
+                                            (h as f32 - day_start) * SCALING,
+                                        ),
+                                    }
+                                }
+                                for slot in plan_slots.iter() {
+                                    WeekCellSlot {
+                                        key: "{slot.id}",
+                                        slot: slot.clone(),
+                                        day_start,
+                                        highlight_item_id: props.highlight_item_id,
+                                        add_event: props.add_event,
+                                        remove_event: props.remove_event,
+                                        item_clicked: props.item_clicked,
+                                        discourage: false,
+                                        button_types: props.button_types.clone(),
+                                        dropdown_entries: props.dropdown_entries.clone(),
+                                        is_shiftplanner: props.is_shiftplanner,
+                                    }
                                 }
                             }
                         }
@@ -406,23 +353,23 @@ pub fn DayButtonBar(props: DayButtonBarProps) -> Element {
         ]
     };
 
+    let nav_class = "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt print:hidden";
+    let day_active_class =
+        "px-3 py-1 text-[13px] font-medium rounded-[4px] bg-surface text-ink shadow-sm border border-border-strong";
+    let day_inactive_class =
+        "px-3 py-1 text-[13px] font-medium rounded-[4px] text-ink-muted hover:text-ink hover:bg-surface-alt border border-transparent";
+
     rsx! {
         div { class: "flex flex-row items-center justify-center gap-1 mb-4",
             button {
-                class: "border-2 border-solid border-black pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
+                class: nav_class,
+                "aria-label": "Vorheriger Tag",
                 onclick: move |_| props.on_prev_day.call(()),
-                "<"
+                "‹"
             }
             for day in days.iter() {
                 button {
-                    class: format!(
-                        "pt-2 pb-2 pl-3 pr-3 rounded-md font-medium {}",
-                        if *day == props.selected_day {
-                            "bg-blue-500 text-white"
-                        } else {
-                            "bg-gray-200 hover:bg-gray-300"
-                        },
-                    ),
+                    class: if *day == props.selected_day { day_active_class } else { day_inactive_class },
                     onclick: {
                         let day = *day;
                         move |_| props.on_select_day.call(day)
@@ -431,9 +378,10 @@ pub fn DayButtonBar(props: DayButtonBarProps) -> Element {
                 }
             }
             button {
-                class: "border-2 border-solid border-black pt-2 pb-2 pl-4 pr-4 text-xl font-bold print:hidden",
+                class: nav_class,
+                "aria-label": "Nächster Tag",
                 onclick: move |_| props.on_next_day.call(()),
-                ">"
+                "›"
             }
         }
     }

@@ -413,18 +413,95 @@ pub async fn load_working_hours_minified_for_week(
 
     Ok(week_reports
         .iter()
-        .map(move |report| WorkingHoursMini {
-            sales_person_id: report.sales_person.id,
-            sales_person_name: report.sales_person.name.to_owned().as_ref().into(),
-            expected_hours: report.expected_hours,
-            dynamic_hours: report.dynamic_hours,
-            actual_hours: report.overall_hours,
-            balance_hours: balance_map
-                .get(&report.sales_person.id)
-                .copied()
-                .unwrap_or(0.0),
-        })
+        .map(|report| build_working_hours_mini(report, &balance_map))
         .collect())
+}
+
+pub(crate) fn build_working_hours_mini(
+    report: &rest_types::ShortEmployeeReportTO,
+    balance_map: &HashMap<Uuid, f32>,
+) -> WorkingHoursMini {
+    let color: ImStr = if report.sales_person.background_color.as_ref().is_empty() {
+        "#cccccc".into()
+    } else {
+        report
+            .sales_person
+            .background_color
+            .to_owned()
+            .as_ref()
+            .into()
+    };
+    WorkingHoursMini {
+        sales_person_id: report.sales_person.id,
+        sales_person_name: report.sales_person.name.to_owned().as_ref().into(),
+        expected_hours: report.expected_hours,
+        dynamic_hours: report.dynamic_hours,
+        actual_hours: report.overall_hours,
+        balance_hours: balance_map
+            .get(&report.sales_person.id)
+            .copied()
+            .unwrap_or(0.0),
+        background_color: color,
+    }
+}
+
+#[cfg(test)]
+mod working_hours_mini_loader_tests {
+    use super::*;
+    use rest_types::{SalesPersonTO, ShortEmployeeReportTO};
+    use std::sync::Arc;
+
+    fn make_report(id: Uuid, color: &str) -> ShortEmployeeReportTO {
+        ShortEmployeeReportTO {
+            sales_person: SalesPersonTO {
+                id,
+                name: Arc::<str>::from("Alex"),
+                background_color: Arc::<str>::from(color),
+                is_paid: Some(true),
+                inactive: false,
+                deleted: None,
+                version: Uuid::nil(),
+            },
+            balance_hours: 0.0,
+            expected_hours: 8.0,
+            dynamic_hours: 8.0,
+            overall_hours: 5.0,
+            volunteer_hours: 0.0,
+        }
+    }
+
+    #[test]
+    fn working_hours_mini_loader_populates_color_from_sales_person() {
+        let id = Uuid::from_u128(42);
+        let report = make_report(id, "#dbe0ff");
+        let mini = build_working_hours_mini(&report, &HashMap::new());
+        assert_eq!(mini.background_color.as_str(), "#dbe0ff");
+        assert_eq!(mini.sales_person_id, id);
+    }
+
+    #[test]
+    fn working_hours_mini_loader_falls_back_to_gray_when_color_empty() {
+        let report = make_report(Uuid::from_u128(1), "");
+        let mini = build_working_hours_mini(&report, &HashMap::new());
+        assert_eq!(mini.background_color.as_str(), "#cccccc");
+    }
+
+    #[test]
+    fn working_hours_mini_loader_uses_balance_when_present() {
+        let id = Uuid::from_u128(7);
+        let report = make_report(id, "#fff");
+        let mut balance = HashMap::new();
+        balance.insert(id, -2.5);
+        let mini = build_working_hours_mini(&report, &balance);
+        assert_eq!(mini.balance_hours, -2.5);
+    }
+
+    #[test]
+    fn working_hours_mini_loader_zero_balance_when_missing() {
+        let report = make_report(Uuid::from_u128(7), "#fff");
+        let mini = build_working_hours_mini(&report, &HashMap::new());
+        assert_eq!(mini.balance_hours, 0.0);
+    }
 }
 
 pub async fn load_all_users(config: Config) -> Result<Rc<[User]>, ShiftyError> {

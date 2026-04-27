@@ -82,6 +82,15 @@ pub enum Key {
     PersonalCalendarExport,
     UnsufficientlyBookedCalendarExport,
     WeekMessage,
+    ShiftplanFilledOfNeed,
+    ShiftplanLastWeek,
+    ShiftplanCellAddTitle,
+    ShiftplanCellRemoveTitle,
+    ShiftplanCreateTitle,
+    ShiftplanEditTitle,
+    ShiftplanDeleteConfirmTitle,
+    ShiftplanDeleteConfirmBody,
+    ShiftplanIsPlanningLabel,
 
     // Booking log
     BookingLogTitle,
@@ -103,6 +112,7 @@ pub enum Key {
     BookingLogFilterAll,
     BookingLogFilterActiveOnly,
     BookingLogFilterDeletedOnly,
+    BookingLogDeletedTag,
     BookingNoInfo,
 
     // Weekly overview page
@@ -218,6 +228,7 @@ pub enum Key {
     Save,
     Edit,
     Delete,
+    Create,
     ConfirmDelete,
 
     // Billing period management
@@ -454,6 +465,75 @@ mod tests {
                     value
                 );
             }
+        }
+    }
+
+    #[test]
+    fn i18n_redesign_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::ShiftplanFilledOfNeed,
+                Key::ShiftplanLastWeek,
+                Key::ShiftplanCellAddTitle,
+                Key::ShiftplanCellRemoveTitle,
+                Key::ShiftplanCreateTitle,
+                Key::ShiftplanEditTitle,
+                Key::ShiftplanDeleteConfirmTitle,
+                Key::ShiftplanDeleteConfirmBody,
+                Key::ShiftplanIsPlanningLabel,
+                Key::Create,
+                Key::BookingLogDeletedTag,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn shiftplan_filled_of_need_substitutes_placeholders() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            let result = i18n.t_m(
+                Key::ShiftplanFilledOfNeed,
+                [("filled", "2"), ("need", "3")].into(),
+            );
+            assert!(
+                result.contains('2'),
+                "missing filled `2` in {:?}: got `{}`",
+                locale,
+                result
+            );
+            assert!(
+                result.contains('3'),
+                "missing need `3` in {:?}: got `{}`",
+                locale,
+                result
+            );
+        }
+    }
+
+    #[test]
+    fn shiftplan_delete_confirm_body_interpolates_name() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            let result = i18n.t_m(
+                Key::ShiftplanDeleteConfirmBody,
+                [("name", "Hauptplan")].into(),
+            );
+            assert!(
+                result.contains("Hauptplan"),
+                "missing interpolated name in {:?}: got `{}`",
+                locale,
+                result
+            );
         }
     }
 }

@@ -40,10 +40,13 @@ The interaction model (`Du bearbeitest:` dropdown drives a single +/− button p
 
 ## Capabilities
 
+### Added
+- `shiftplan-page`: redesigned shiftplan week-grid page (toolbar, tab bar, week grid with single +/− cell button, working-hours mini overview, slot-edit dialog, booking-log table) — captures all page-level requirements introduced by the redesign
+
 ### Modified
-- `shiftplan-day-view`: visual update only
-- `shiftplan-edit-dialog`: switched to new modal/form atoms
-- `shiftplan-catalog`: tab bar restyled
+- `shiftplan-day-view`: visual-only token sweep (no requirement-level changes)
+- `shiftplan-edit-dialog`: switched to new `Dialog` + form atoms (no requirement-level changes; visual implementation only)
+- `shiftplan-catalog`: tab bar restyled (no requirement-level changes; visual only)
 
 ## Impact
 

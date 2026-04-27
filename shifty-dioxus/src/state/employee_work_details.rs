@@ -12,6 +12,32 @@ pub struct WorkingHoursMini {
     pub dynamic_hours: f32,
     pub actual_hours: f32,
     pub balance_hours: f32,
+    pub background_color: ImStr,
+}
+
+impl Default for WorkingHoursMini {
+    fn default() -> Self {
+        Self {
+            sales_person_id: Uuid::nil(),
+            sales_person_name: "".into(),
+            expected_hours: 0.0,
+            dynamic_hours: 0.0,
+            actual_hours: 0.0,
+            balance_hours: 0.0,
+            background_color: "#cccccc".into(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod working_hours_mini_tests {
+    use super::*;
+
+    #[test]
+    fn working_hours_mini_default_background_color_is_neutral_gray() {
+        let mini = WorkingHoursMini::default();
+        assert_eq!(mini.background_color.as_str(), "#cccccc");
+    }
 }
 
 #[derive(PartialEq, Clone, Debug)]

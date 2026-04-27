@@ -51,6 +51,39 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Unterbesetzte Schichten Kalender exportieren (iCal)",
     );
     i18n.add_text(Locale::De, Key::WeekMessage, "Wochennachricht");
+    i18n.add_text(Locale::De, Key::ShiftplanFilledOfNeed, "{filled}/{need}");
+    i18n.add_text(Locale::De, Key::ShiftplanLastWeek, "Letzte Woche");
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanCellAddTitle,
+        "Zu diesem Slot hinzufügen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanCellRemoveTitle,
+        "Aus diesem Slot entfernen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanCreateTitle,
+        "Schichtplan erstellen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanEditTitle,
+        "Schichtplan bearbeiten",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanDeleteConfirmTitle,
+        "Schichtplan löschen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanDeleteConfirmBody,
+        "Soll Schichtplan {name} wirklich gelöscht werden? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    );
+    i18n.add_text(Locale::De, Key::ShiftplanIsPlanningLabel, "Nur Planung");
 
     // Booking log
     i18n.add_text(Locale::De, Key::BookingLogTitle, "Buchungsprotokoll");
@@ -92,6 +125,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::BookingLogFilterDeletedOnly,
         "Nur Gelöschte",
     );
+    i18n.add_text(Locale::De, Key::BookingLogDeletedTag, "Gelöscht");
     i18n.add_text(
         Locale::De,
         Key::BookingNoInfo,
@@ -300,6 +334,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::Actions, "Aktionen");
     i18n.add_text(Locale::De, Key::AddNew, "Neu hinzufügen");
     i18n.add_text(Locale::De, Key::Save, "Speichern");
+    i18n.add_text(Locale::De, Key::Create, "Erstellen");
     i18n.add_text(Locale::De, Key::Edit, "Bearbeiten");
     i18n.add_text(Locale::De, Key::Delete, "Löschen");
     i18n.add_text(Locale::De, Key::ConfirmDelete, "Löschen bestätigen");
