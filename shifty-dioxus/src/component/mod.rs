@@ -27,6 +27,7 @@ pub mod user_management_tab_bar;
 pub mod week_view;
 pub mod weekly_overview_chart;
 pub mod working_hours_mini_overview;
+pub mod working_hours_overview_layout_toggle;
 
 pub use add_extra_hours_form::AddExtraHoursForm;
 pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip, TupleRow};

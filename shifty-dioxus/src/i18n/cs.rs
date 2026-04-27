@@ -643,4 +643,14 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::DeleteUserConfirmBody,
         "Opravdu chcete smazat uživatele {username}? Tuto akci nelze vrátit zpět.",
     );
+
+    // Working-hours mini overview (cards / table layout toggle)
+    i18n.add_text(Locale::Cs, Key::WorkingHoursLayoutCards, "Karty");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursLayoutTable, "Tabulka");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursTableEmployee, "Zaměstnanec");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursTableActual, "Skutečnost");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursTableTarget, "Cíl");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursTableDifference, "Rozdíl");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursTableUtilization, "Vytížení");
+    i18n.add_text(Locale::Cs, Key::WorkingHoursTableTotal, "Celkem");
 }

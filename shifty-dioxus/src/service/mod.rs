@@ -12,6 +12,7 @@ pub mod slot_edit;
 pub mod text_template;
 pub mod theme;
 pub mod tooltip;
+pub mod ui_prefs;
 pub mod user_management;
 pub mod weekly_summary;
 pub mod working_hours_mini;

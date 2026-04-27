@@ -592,4 +592,14 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::DeleteUserConfirmBody,
         "Are you sure you want to delete user {username}? This cannot be undone.",
     );
+
+    // Working-hours mini overview (cards / table layout toggle)
+    i18n.add_text(Locale::En, Key::WorkingHoursLayoutCards, "Cards");
+    i18n.add_text(Locale::En, Key::WorkingHoursLayoutTable, "Table");
+    i18n.add_text(Locale::En, Key::WorkingHoursTableEmployee, "Employee");
+    i18n.add_text(Locale::En, Key::WorkingHoursTableActual, "Actual");
+    i18n.add_text(Locale::En, Key::WorkingHoursTableTarget, "Target");
+    i18n.add_text(Locale::En, Key::WorkingHoursTableDifference, "Difference");
+    i18n.add_text(Locale::En, Key::WorkingHoursTableUtilization, "Utilization");
+    i18n.add_text(Locale::En, Key::WorkingHoursTableTotal, "Total");
 }

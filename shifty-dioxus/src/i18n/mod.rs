@@ -390,6 +390,16 @@ pub enum Key {
     Unlinked,
     DeleteUserConfirmTitle,
     DeleteUserConfirmBody,
+
+    // Working-hours mini overview (cards / table layout toggle)
+    WorkingHoursLayoutCards,
+    WorkingHoursLayoutTable,
+    WorkingHoursTableEmployee,
+    WorkingHoursTableActual,
+    WorkingHoursTableTarget,
+    WorkingHoursTableDifference,
+    WorkingHoursTableUtilization,
+    WorkingHoursTableTotal,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

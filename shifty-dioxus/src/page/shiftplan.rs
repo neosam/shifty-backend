@@ -14,6 +14,7 @@ use crate::component::shiftplan_tab_bar::ShiftplanTabBar;
 use crate::component::slot_edit::SlotEdit;
 use crate::component::week_view::WeekViewButtonTypes;
 use crate::component::working_hours_mini_overview::WorkingHoursMiniOverview;
+use crate::component::working_hours_overview_layout_toggle::WorkingHoursOverviewLayoutToggle;
 use crate::component::TopBar;
 use crate::component::WeekView;
 use crate::error::result_handler;
@@ -31,6 +32,8 @@ use crate::service::slot_edit::SHIFTPLAN_REFRESH;
 use crate::service::text_template::{
     handle_text_template_action, TextTemplateAction, TEXT_TEMPLATE_STORE,
 };
+use crate::service::ui_prefs;
+use crate::service::ui_prefs::WorkingHoursLayout;
 use crate::service::weekly_summary::WeeklySummaryAction;
 use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::service::working_hours_mini::WorkingHoursMiniAction;
@@ -205,6 +208,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut shiftplan_report_result = use_signal(|| None::<String>);
     let mut generating_report = use_signal(|| false);
     let mut copy_status = use_signal(|| None::<String>);
+
+    // Working-hours overview layout (cards / table) — persisted per browser
+    let mut working_hours_layout = use_signal(ui_prefs::get_working_hours_layout);
 
     // Booking log state
     let mut show_booking_log = use_signal(|| false);
@@ -1081,7 +1087,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     is_shiftplanner,
                                 }
 
-                            div { class: "mt-4 print:hidden",
+                            div { class: "mt-4 print:hidden flex flex-col gap-2",
+                                div { class: "flex items-center justify-end",
+                                    WorkingHoursOverviewLayoutToggle {
+                                        active: working_hours_layout(),
+                                        on_change: move |layout: WorkingHoursLayout| {
+                                            ui_prefs::set_working_hours_layout(layout);
+                                            working_hours_layout.set(layout);
+                                        },
+                                    }
+                                }
                                 WorkingHoursMiniOverview {
                                     working_hours: WORKING_HOURS_MINI.read().clone(),
                                     on_dbl_click: move |employee_id: Uuid| {
@@ -1089,6 +1104,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     },
                                     selected_sales_person_id: current_sales_person.read().as_ref().map(|sp| sp.id),
                                     show_balance: is_shiftplanner && is_hr,
+                                    layout: working_hours_layout(),
                                 }
                             }
 
@@ -1329,5 +1345,33 @@ mod tests {
                 forbidden
             );
         }
+    }
+
+    #[test]
+    fn shiftplan_page_wires_working_hours_layout_persistence() {
+        // Source-level wiring check: the Shiftplan page must read the layout
+        // from the prefs service to seed its signal, render the toggle, and
+        // persist the choice on change. Renders the full page in SSR isn't
+        // viable here (it depends on coroutine context, signals from many
+        // services, and async loaders), so we assert the contract at the
+        // source level instead.
+        let source = include_str!("shiftplan.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        assert!(
+            production.contains("ui_prefs::get_working_hours_layout"),
+            "page must seed the layout signal from ui_prefs"
+        );
+        assert!(
+            production.contains("ui_prefs::set_working_hours_layout"),
+            "page must persist the layout choice via ui_prefs"
+        );
+        assert!(
+            production.contains("WorkingHoursOverviewLayoutToggle"),
+            "page must render the layout toggle"
+        );
+        assert!(
+            production.contains("layout: working_hours_layout()"),
+            "page must pass the current layout into the overview"
+        );
     }
 }

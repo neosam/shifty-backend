@@ -663,4 +663,14 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::DeleteUserConfirmBody,
         "Soll Benutzer {username} wirklich gelöscht werden? Dieser Vorgang kann nicht rückgängig gemacht werden.",
     );
+
+    // Working-hours mini overview (cards / table layout toggle)
+    i18n.add_text(Locale::De, Key::WorkingHoursLayoutCards, "Karten");
+    i18n.add_text(Locale::De, Key::WorkingHoursLayoutTable, "Tabelle");
+    i18n.add_text(Locale::De, Key::WorkingHoursTableEmployee, "Mitarbeiter");
+    i18n.add_text(Locale::De, Key::WorkingHoursTableActual, "Ist");
+    i18n.add_text(Locale::De, Key::WorkingHoursTableTarget, "Soll");
+    i18n.add_text(Locale::De, Key::WorkingHoursTableDifference, "Differenz");
+    i18n.add_text(Locale::De, Key::WorkingHoursTableUtilization, "Auslastung");
+    i18n.add_text(Locale::De, Key::WorkingHoursTableTotal, "Summe");
 }
