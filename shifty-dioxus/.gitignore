@@ -9,3 +9,7 @@
 **/*.rs.bk
 #assets/tailwind.css
 .aider*
+
+# shifty-design: large derived/cache artifacts that exceed jj's snapshot limit
+shifty-design/project/Shifty Preview Offline.html
+shifty-design/project/uploads/current_screenshots-*.png

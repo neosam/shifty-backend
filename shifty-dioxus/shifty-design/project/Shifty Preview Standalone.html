@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Shifty · Interaktiver Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #fbfbfc;
+    --surface: #ffffff;
+    --surface-alt: #f4f5f7;
+    --surface-2: #eef0f4;
+    --border: #e6e8ec;
+    --border-strong: #d0d3da;
+    --ink: #0e1117;
+    --ink-soft: #3a4150;
+    --ink-muted: #6b7382;
+    --accent: #3a4cd1;
+    --accent-ink: #ffffff;
+    --accent-soft: #eaecfb;
+    --good: #0e7a4d;
+    --good-soft: #defaee;
+    --warn: #a65a08;
+    --warn-soft: #fef0d6;
+    --bad: #b8281a;
+    --bad-soft: #fde4e1;
+    --pill-mix: rgba(255,255,255,0);   /* additive overlay on person-pills (none in light) */
+    --chip-ink: #0e1117;               /* always-dark text for pastel chips, both themes */
+    --modal-veil: rgba(14,17,23,0.4);
+    --r-sm: 4px; --r-md: 6px; --r-lg: 10px;
+  }
+  [data-theme="dark"] {
+    --bg: #0e1014;
+    --surface: #16191f;
+    --surface-alt: #1c2027;
+    --surface-2: #232831;
+    --border: #2a2f39;
+    --border-strong: #3a4151;
+    --ink: #eef0f4;
+    --ink-soft: #b8bdc7;
+    --ink-muted: #7a8290;
+    --accent: #8b97ff;
+    --accent-ink: #0e1014;
+    --accent-soft: #232a4a;
+    --good: #4ed59a;
+    --good-soft: #16322a;
+    --warn: #f0b766;
+    --warn-soft: #3a2a14;
+    --bad: #ef6a5b;
+    --bad-soft: #3a1c18;
+    --pill-mix: rgba(14,16,20,0.55);   /* tones down bright pastel chips on dark bg */
+    --modal-veil: rgba(0,0,0,0.6);
+  }
+  /* Pastel chips/avatars need dark text in BOTH themes — pastels are designed for dark ink.
+     !important because inline `color: var(--ink)` from older code paths would otherwise win. */
+  .person-pill { color: var(--chip-ink) !important; }
+  .person-avatar { color: var(--chip-ink) !important; }
+  .person-pill.no-color { color: var(--ink-muted) !important; }
+  .person-avatar.no-color { color: var(--ink-muted) !important; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.5; }
+  * { box-sizing: border-box; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button { font-family: inherit; color: inherit; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* Responsive */
+  .topbar { padding: 0 18px !important; }
+  .topbar-nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .topbar-nav::-webkit-scrollbar { display: none; }
+  .topbar-burger { display: none; }
+  .topbar-user-label { display: inline; }
+  .topbar-user-name { display: inline; }
+  .employees-grid { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 18px; align-items: start; padding: 18px; }
+  .employee-detail-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .employee-detail-col-2, .employee-detail-col-3 { border-left: 1px solid var(--border); padding-left: 18px; }
+  .toolbar-row { flex-wrap: wrap; }
+  @media (max-width: 720px) {
+    body { font-size: 13px; }
+    .topbar { padding: 0 10px !important; height: 52px !important; }
+    .topbar-brand-wide { font-size: 16px !important; }
+    .topbar-user-label { display: none; }
+    .topbar-user-name { display: none; }
+    .topbar-burger {
+      display: inline-flex !important; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: var(--r-md);
+      background: transparent; border: 1px solid var(--border);
+      color: var(--ink-soft); cursor: pointer; flex-shrink: 0;
+      font-size: 16px;
+    }
+    .topbar-nav {
+      position: fixed; top: 52px; left: 0; right: 0;
+      flex-direction: column; gap: 0;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+      padding: 8px;
+      z-index: 9;
+      max-height: calc(100vh - 52px); overflow-y: auto;
+      display: none;
+    }
+    .topbar.menu-open .topbar-nav { display: flex; }
+    .topbar-mobile-spacer { display: block !important; }
+    .topbar-nav button {
+      width: 100%; text-align: left !important;
+      padding: 12px 14px !important; font-size: 14px !important;
+      border-radius: var(--r-md) !important;
+    }
+    .page-pad { padding: 12px !important; }
+    .employees-grid { grid-template-columns: 1fr !important; padding: 12px !important; gap: 10px !important; }
+    .employees-grid.detail-active .employees-list { display: none; }
+    .employees-grid:not(.detail-active) .employees-detail { display: none; }
+    .employees-back { display: inline-flex !important; }
+    .employee-detail-col-2, .employee-detail-col-3 { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 14px; }
+    .toolbar-row { gap: 6px !important; padding: 10px !important; }
+    .toolbar-row > .toolbar-divider { display: none; }
+    .toolbar-row .toolbar-spacer { display: none; }
+    .week-grid-wrap { margin: 0 -12px; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
+    .my-shifts-day { grid-template-columns: 80px 1fr 50px !important; padding: 8px 12px !important; gap: 8px !important; }
+    .overview-table-wrap { overflow-x: auto; }
+    .overview-table-wrap table { min-width: 540px; }
+    .users-table-wrap { overflow-x: auto; }
+    .users-table-wrap table { min-width: 600px; }
+    .stat-row { grid-template-columns: 1fr 1fr !important; }
+  }
+
+  /* Modal animations */
+  @keyframes shifty-modal-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes shifty-modal-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes shifty-modal-slide-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  @keyframes shifty-modal-slide-right {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#fbfbfc">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#fbfbfc"/>
+    <rect x="0" y="0" width="1200" height="64" fill="#ffffff" stroke="#e7e9ee"/>
+    <text x="40" y="42" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="700" fill="#0e1117">Shifty</text>
+    <g transform="translate(280, 140)">
+      <rect x="0" y="0" width="640" height="44" rx="8" fill="#ffffff" stroke="#e7e9ee"/>
+      <rect x="0" y="60" width="640" height="380" rx="10" fill="#ffffff" stroke="#e7e9ee"/>
+      <line x1="0" y1="120" x2="640" y2="120" stroke="#e7e9ee"/>
+      <g>
+        <rect x="20" y="140" width="80" height="24" rx="6" fill="#e6f0ff"/>
+        <rect x="120" y="140" width="80" height="24" rx="6" fill="#fef3c7"/>
+        <rect x="220" y="140" width="80" height="24" rx="6" fill="#dcfce7"/>
+        <rect x="320" y="140" width="80" height="24" rx="6" fill="#fce7f3"/>
+        <rect x="420" y="140" width="80" height="24" rx="6" fill="#ddd6fe"/>
+      </g>
+      <g>
+        <rect x="20" y="180" width="80" height="24" rx="6" fill="#fed7aa"/>
+        <rect x="120" y="180" width="80" height="24" rx="6" fill="#cffafe"/>
+        <rect x="320" y="180" width="80" height="24" rx="6" fill="#e6f0ff"/>
+        <rect x="520" y="180" width="80" height="24" rx="6" fill="#dcfce7"/>
+      </g>
+      <g>
+        <rect x="20" y="220" width="80" height="24" rx="6" fill="#fef3c7"/>
+        <rect x="220" y="220" width="80" height="24" rx="6" fill="#fce7f3"/>
+        <rect x="420" y="220" width="80" height="24" rx="6" fill="#fed7aa"/>
+      </g>
+      <text x="20" y="100" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="#6b7382">KW 17 · 20.04. – 26.04.2026</text>
+    </g>
+  </svg>
+</template>
+<div id="root"></div>
+<script type="text/babel" src="preview-data.jsx"></script>
+<script type="text/babel" src="modal.jsx"></script>
+<script type="text/babel">
+const { useState, useMemo, useEffect } = React;
+const { PEOPLE, PERSON_BY_ID, WEEK_DEFAULT, YEAR_SUMMARY, MY_SHIFTS } = window.SHIFTY_DATA;
+
+// ─── shared bits ─────────────────────────────────────────────
+const ROUTES = [
+  { id: 'shiftplan', label: 'Schichtplan' },
+  { id: 'my-shifts', label: 'Meine Schichten' },
+  { id: 'overview',  label: 'Jahresübersicht' },
+  { id: 'employees', label: 'Mitarbeiter' },
+  { id: 'users',     label: 'Benutzerverwaltung' },
+];
+
+function TopBar({ route, setRoute, currentUser, theme, setTheme }) {
+  const themeIcon = theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '⌬';
+  const themeTitle = theme === 'dark' ? 'Dunkel' : theme === 'light' ? 'Hell' : 'System';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const handleNav = (id) => { setRoute(id); setMenuOpen(false); };
+  return (
+    <header className={`topbar${menuOpen ? ' menu-open' : ''}`} style={{
+      display: 'flex', alignItems: 'center', gap: 4,
+      padding: '0 18px', height: 56,
+      background: 'var(--surface)',
+      borderBottom: '1px solid var(--border)',
+      position: 'sticky', top: 0, zIndex: 10,
+    }}>
+      <button
+        className="topbar-burger"
+        onClick={() => setMenuOpen(!menuOpen)}
+        aria-label={menuOpen ? 'Menü schließen' : 'Menü öffnen'}
+        aria-expanded={menuOpen}
+      >{menuOpen ? '✕' : '☰'}</button>
+      <span className="topbar-brand-wide" style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', marginRight: 12, marginLeft: 4 }}>
+        Shifty<span style={{ color: 'var(--accent)' }}>.</span>
+      </span>
+      <nav className="topbar-nav">
+        {ROUTES.map((r) => {
+          const active = route === r.id;
+          return (
+            <button key={r.id} onClick={() => handleNav(r.id)} style={{
+              background: active ? 'var(--accent-soft)' : 'transparent',
+              border: 'none',
+              color: active ? 'var(--accent)' : 'var(--ink-soft)',
+              fontSize: 13, fontWeight: active ? 600 : 500,
+              padding: '7px 12px', borderRadius: 'var(--r-sm)',
+              cursor: 'pointer',
+            }}>{r.label}</button>
+          );
+        })}
+      </nav>
+      <span className="topbar-mobile-spacer" style={{ display: 'none', flex: 1 }} />
+      <button
+        onClick={() => setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light')}
+        title={`Theme: ${themeTitle} (klicken zum Wechseln)`}
+        aria-label={`Theme wechseln, aktuell ${themeTitle}`}
+        style={{
+          width: 30, height: 30, borderRadius: 'var(--r-md)',
+          background: 'transparent', border: '1px solid var(--border)',
+          color: 'var(--ink-soft)', cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 15, marginLeft: 6, flexShrink: 0,
+        }}
+      >{themeIcon}</button>
+      <span className="topbar-user-label" style={{ fontSize: 12, color: 'var(--ink-muted)', marginLeft: 8 }}>Du bist</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 4px 6px', borderRadius: 999, background: 'var(--surface-alt)' }}>
+        <span style={{
+          width: 24, height: 24, borderRadius: '50%', background: currentUser.color,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, fontWeight: 700,
+        }} className={`person-avatar${currentUser.color ? '' : ' no-color'}`}>{currentUser.initials}</span>
+        <span className="topbar-user-name" style={{ fontSize: 13, fontWeight: 500 }}>{currentUser.name}</span>
+      </div>
+    </header>
+  );
+}
+
+function PersonChip({ person, conflict, onRemove, dim }) {
+  if (!person) return null;
+  const hasColor = !!person.color;
+  return (
+    <span className={`person-pill${hasColor ? '' : ' no-color'}`} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '1px 4px 1px 7px', borderRadius: 'var(--r-sm)',
+      background: hasColor ? person.color : 'transparent',
+      color: 'var(--ink)', fontSize: 12, fontWeight: 500, lineHeight: '18px',
+      border: conflict ? '1.5px solid var(--bad)' : (hasColor ? '1.5px solid transparent' : '1px dashed var(--border-strong)'),
+      opacity: dim ? 0.45 : 1,
+      whiteSpace: 'nowrap',
+    }}>
+      <span>{person.name}{conflict && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span>}</span>
+      {onRemove && (
+        <button onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Entfernen" style={{
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          padding: '0 2px', fontSize: 12, lineHeight: '14px',
+          color: 'var(--ink-muted)', borderRadius: 2,
+        }}>×</button>
+      )}
+    </span>
+  );
+}
+
+function Btn({ kind = 'secondary', children, onClick, icon, disabled }) {
+  const styles = {
+    primary:   { background: 'var(--accent)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' },
+    secondary: { background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--border-strong)' },
+    ghost:     { background: 'transparent', color: 'var(--ink-soft)', border: '1px solid transparent' },
+    danger:    { background: 'var(--surface)', color: 'var(--bad)', border: '1px solid var(--bad)' },
+  };
+  return (
+    <button disabled={disabled} onClick={onClick} style={{
+      ...styles[kind],
+      padding: '6px 12px', borderRadius: 'var(--r-md)',
+      fontSize: 13, fontWeight: 500, cursor: disabled ? 'not-allowed' : 'pointer',
+      display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+      opacity: disabled ? 0.5 : 1,
+    }}>
+      {icon && <span className="mono" style={{ fontSize: 13 }}>{icon}</span>}
+      {children}
+    </button>
+  );
+}
+
+// ─── Schichtplan ─────────────────────────────────────────────
+function SchichtplanPage({ onSlotClick }) {
+  const w = WEEK_DEFAULT;
+  const [tab, setTab] = useState(0);
+  const [view, setView] = useState('week');
+  const [editingFor, setEditingFor] = useState('p1');
+  const [showLog, setShowLog] = useState(false);
+
+  // Day totals
+  const dayTotals = w.days.map((_, di) => {
+    let h = 0;
+    w.grid.forEach((row) => { h += row[di].assigned.length; });
+    return h;
+  });
+
+  return (
+    <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* week toolbar */}
+      <div className="toolbar-row" style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 'var(--r-lg)', padding: '10px 14px',
+      }}>
+        <button style={navBtn} title="Vorwoche">‹</button>
+        <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{w.label}</span>
+        <button style={navBtn} title="Nächste Woche">›</button>
+        <span className="toolbar-divider" style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 6px' }} />
+        <div style={{ display: 'flex', background: 'var(--surface-alt)', padding: 2, borderRadius: 'var(--r-md)' }}>
+          {[['week','Woche'], ['day','Tag']].map(([k, lbl]) => (
+            <button key={k} onClick={() => setView(k)} style={{
+              padding: '4px 12px', borderRadius: 'var(--r-sm)', border: 'none',
+              background: view === k ? 'var(--surface)' : 'transparent',
+              color: view === k ? 'var(--ink)' : 'var(--ink-muted)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              boxShadow: view === k ? '0 1px 2px rgba(15,18,30,0.06)' : 'none',
+            }}>{lbl}</button>
+          ))}
+        </div>
+        <span className="toolbar-spacer" style={{ flex: 1 }} />
+        <Btn icon="+" onClick={() => alert('Letzte Woche kopieren')}>Letzte Woche</Btn>
+        <Btn icon="↓" onClick={() => alert('iCal Export')}>iCal</Btn>
+        <Btn onClick={() => setShowLog(!showLog)}>{showLog ? 'Log ausblenden' : 'Buchungsprotokoll'}</Btn>
+        <span style={{ fontSize: 12, color: 'var(--ink-muted)', marginLeft: 8 }}>Du bearbeitest:</span>
+        <select value={editingFor} onChange={(e) => setEditingFor(e.target.value)} style={{
+          padding: '5px 10px', borderRadius: 'var(--r-md)', border: '1px solid var(--border-strong)',
+          background: 'var(--surface)', fontSize: 13, color: 'var(--ink)',
+        }}>
+          {PEOPLE.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      {/* tabs */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)' }}>
+        {w.tabs.map((tname, i) => (
+          <button key={tname} onClick={() => setTab(i)} style={{
+            background: 'transparent', border: 'none', padding: '8px 16px',
+            cursor: 'pointer', fontSize: 13, fontWeight: i === tab ? 600 : 500,
+            color: i === tab ? 'var(--accent)' : 'var(--ink-muted)',
+            borderBottom: `2px solid ${i === tab ? 'var(--accent)' : 'transparent'}`,
+            marginBottom: -1,
+          }}>{tname}</button>
+        ))}
+      </div>
+
+      {/* week grid — horizontally scrollable on narrow viewports */}
+      <div className="week-grid-wrap" style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 'var(--r-lg)', overflow: 'auto',
+      }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: '76px repeat(6, minmax(140px, 1fr))', minWidth: 920,
+        }}>
+          <div style={{ ...headerCell, borderRight: '1px solid var(--border)' }} />
+          {w.days.map((d, i) => (
+            <div key={i} style={{ ...headerCell, borderRight: i < 5 ? '1px solid var(--border)' : 'none' }}>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>{d.long}, {d.date}</div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--ink-muted)', marginTop: 2 }}>
+                {dayTotals[i].toFixed(1)}h
+              </div>
+            </div>
+          ))}
+
+          {w.hours.map((h, hi) => (
+            <React.Fragment key={h}>
+              <div className="mono" style={{
+                padding: '8px 8px', fontSize: 11, color: 'var(--ink-muted)',
+                borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)',
+                background: 'var(--surface)', textAlign: 'right',
+              }}>
+                {h}–{w.hours[hi + 1] || (parseInt(h) + 1) + ':00'}
+              </div>
+              {w.days.map((_, di) => {
+                const cell = w.grid[hi][di];
+                const filled = cell.assigned.length;
+                const missing = filled < cell.need;
+                const conflicts = cell.assigned.some((a) => a.conflict);
+                const stateBg = conflicts ? 'var(--bad-soft)' : missing ? 'var(--warn-soft)' : 'var(--surface)';
+                return (
+                  <div key={di}
+                    onClick={() => onSlotClick({ hi, di, hour: h, day: w.days[di], cell })}
+                    style={{
+                      padding: '6px 8px',
+                      borderTop: '1px solid var(--border)',
+                      borderRight: di < 5 ? '1px solid var(--border)' : 'none',
+                      background: stateBg,
+                      minHeight: 40,
+                      display: 'flex', alignItems: 'flex-start', gap: 4, flexWrap: 'wrap',
+                      cursor: 'pointer',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = conflicts ? '#fdd1cb' : missing ? '#fde9c4' : 'var(--surface-alt)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = stateBg}
+                  >
+                    <span className="mono" style={{
+                      fontSize: 10, fontWeight: 700,
+                      color: missing ? 'var(--warn)' : conflicts ? 'var(--bad)' : 'var(--ink-muted)',
+                      lineHeight: '18px',
+                    }}>{filled}/{cell.need}</span>
+                    {cell.assigned.map((a, i) => (
+                      <PersonChip key={i} person={PERSON_BY_ID[a.id]} conflict={a.conflict}
+                        onRemove={() => alert('Entfernen: ' + PERSON_BY_ID[a.id].name)} />
+                    ))}
+                    <button onClick={(e) => { e.stopPropagation(); onSlotClick({ hi, di, hour: h, day: w.days[di], cell }); }}
+                      title="Person hinzufügen"
+                      style={{
+                        marginLeft: 'auto',
+                        width: 18, height: 18, padding: 0, lineHeight: '16px',
+                        border: '1px dashed var(--border-strong)',
+                        background: 'var(--surface)',
+                        color: 'var(--ink-muted)',
+                        borderRadius: 3, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                      }}>+</button>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {/* working hours mini overview */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8,
+      }}>
+        {PEOPLE.slice(0, 6).map((p) => {
+          const pct = Math.min(100, (p.hours / p.target) * 100);
+          const under = p.hours < p.target;
+          return (
+            <div key={p.id} style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)', padding: '10px 12px',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: p.color || 'transparent',
+                border: p.color ? 'none' : '1px dashed var(--border-strong)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700,
+                color: p.color ? 'var(--ink)' : 'var(--ink-muted)',
+              }}>{p.initials}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 500 }}>{p.name}</div>
+                <div className="mono" style={{ fontSize: 10, color: under ? 'var(--warn)' : 'var(--good)' }}>
+                  {p.hours.toFixed(1)} / {p.target.toFixed(1)}h
+                </div>
+                <div style={{ height: 3, background: 'var(--surface-2)', borderRadius: 2, marginTop: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: pct + '%', background: under ? 'var(--warn)' : 'var(--good)' }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showLog && <BookingLogTable />}
+    </div>
+  );
+}
+
+const navBtn = {
+  width: 28, height: 28, borderRadius: 'var(--r-sm)',
+  border: '1px solid var(--border-strong)', background: 'var(--surface)',
+  cursor: 'pointer', fontSize: 14, color: 'var(--ink)',
+};
+const headerCell = {
+  padding: '8px 10px', background: 'var(--surface-alt)',
+  borderBottom: '1px solid var(--border)',
+};
+
+function BookingLogTable() {
+  const rows = [
+    { day: 'Mo 20.04', name: 'Lena', time: '09:00–13:00', created: 'admin · vor 2 Std.', deleted: null },
+    { day: 'Mo 20.04', name: 'Tobias', time: '09:00–13:00', created: 'admin · vor 2 Std.', deleted: null },
+    { day: 'Di 21.04', name: 'Petra N.', time: '14:00–17:00', created: 'admin · vor 1 Tag', deleted: 'admin · vor 3 Std.' },
+    { day: 'Mi 22.04', name: 'Hannah', time: '11:00–14:00', created: 'lena · vor 1 Tag', deleted: null },
+    { day: 'Fr 24.04', name: 'Jonas', time: '12:00–15:00', created: 'admin · vor 4 Std.', deleted: null },
+  ];
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>
+        Buchungsprotokoll
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: 'var(--surface-alt)', textAlign: 'left' }}>
+            {['Tag', 'Name', 'Zeit', 'Erstellt', 'Gelöscht'].map((h) => (
+              <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderTop: '1px solid var(--border)', opacity: r.deleted ? 0.5 : 1 }}>
+              <td className="mono" style={{ padding: '8px 12px' }}>{r.day}</td>
+              <td style={{ padding: '8px 12px' }}>{r.name}</td>
+              <td className="mono" style={{ padding: '8px 12px' }}>{r.time}</td>
+              <td style={{ padding: '8px 12px', color: 'var(--ink-muted)' }}>{r.created}</td>
+              <td style={{ padding: '8px 12px', color: r.deleted ? 'var(--bad)' : 'var(--ink-muted)' }}>{r.deleted || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Slot Edit Modal ─────────────────────────────────────────
+function SlotModal({ slot, onClose }) {
+  if (!slot) return null;
+  const assigned = new Set(slot.cell.assigned.map((a) => a.id));
+  const unassigned = PEOPLE.filter((p) => !assigned.has(p.id));
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'var(--modal-veil)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 100, padding: 20,
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: 'var(--surface)', borderRadius: 'var(--r-lg)',
+        boxShadow: '0 12px 32px rgba(15,18,30,0.16)',
+        width: '100%', maxWidth: 460, maxHeight: '85vh', overflow: 'auto',
+      }}>
+        <div style={{ padding: 18, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 2 }}>Schicht bearbeiten</div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
+            {slot.day.long}, {slot.day.date} · {slot.hour}–{(parseInt(slot.hour) + 1).toString().padStart(2,'0')}:00 · Laden
+          </div>
+        </div>
+
+        <div style={{ padding: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+            Zugewiesen ({slot.cell.assigned.length}/{slot.cell.need})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+            {slot.cell.assigned.map((a, i) => {
+              const p = PERSON_BY_ID[a.id];
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 10px', borderRadius: 'var(--r-md)',
+                  border: a.conflict ? '1px solid var(--bad)' : '1px solid var(--border)',
+                  background: a.conflict ? 'var(--bad-soft)' : 'var(--surface)',
+                }}>
+                  <span className={`person-avatar${p.color ? '' : ' no-color'}`} style={{ width: 26, height: 26, borderRadius: '50%', background: p.color || 'transparent', border: p.color ? 'none' : '1px dashed var(--border-strong)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: p.color ? 'var(--ink)' : 'var(--ink-muted)' }}>{p.initials}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                    <div className="mono" style={{ fontSize: 10, color: a.conflict ? 'var(--bad)' : 'var(--ink-muted)' }}>
+                      {p.hours.toFixed(1)} / {p.target.toFixed(1)}h{a.conflict && ' · doppelt gebucht'}
+                    </div>
+                  </div>
+                  <button style={{ padding: '4px 8px', fontSize: 11, color: 'var(--bad)', background: 'transparent', border: 'none', cursor: 'pointer' }}>entfernen</button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+            Verfügbar
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 18 }}>
+            {unassigned.slice(0, 6).map((p) => {
+              const overbooked = p.hours >= p.target;
+              return (
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '6px 10px', borderRadius: 'var(--r-md)',
+                  cursor: overbooked ? 'not-allowed' : 'pointer',
+                  opacity: overbooked ? 0.45 : 1,
+                  border: '1px solid transparent',
+                }}
+                  onMouseEnter={(e) => !overbooked && (e.currentTarget.style.background = 'var(--accent-soft)')}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span className={`person-avatar${p.color ? '' : ' no-color'}`} style={{ width: 22, height: 22, borderRadius: '50%', background: p.color || 'transparent', border: p.color ? 'none' : '1px dashed var(--border-strong)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: p.color ? 'var(--ink)' : 'var(--ink-muted)' }}>{p.initials}</span>
+                  <span style={{ fontSize: 13, flex: 1 }}>{p.name}</span>
+                  <span className="mono" style={{ fontSize: 10, color: 'var(--ink-muted)' }}>{p.hours.toFixed(1)}/{p.target.toFixed(1)}h</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ padding: 14, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, background: 'var(--surface-alt)' }}>
+          <Btn kind="ghost" onClick={onClose}>Abbrechen</Btn>
+          <Btn kind="primary" onClick={onClose}>Speichern</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Meine Schichten ─────────────────────────────────────────
+function MyShiftsPage() {
+  return (
+    <div style={{ padding: 18, maxWidth: 760, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 600, margin: '6px 0 18px', letterSpacing: '-0.01em' }}>Meine Schichten</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {MY_SHIFTS.map((w) => (
+          <div key={w.week} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', background: 'var(--surface-alt)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>KW {w.week} · {w.range}</div>
+              </div>
+              <div className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{w.total.toFixed(1)}h</div>
+            </div>
+            <div>
+              {w.days.map((d, i) => (
+                <div key={i} className="my-shifts-day" style={{
+                  display: 'grid', gridTemplateColumns: '110px 1fr 60px',
+                  padding: '10px 16px', alignItems: 'center', gap: 12,
+                  borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                  background: d.note?.startsWith('⚠') ? 'var(--warn-soft)' : 'transparent',
+                }}>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--ink-muted)' }}>{d.day}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {d.items.length === 0 ? (
+                      <span style={{ fontSize: 12, color: 'var(--ink-muted)', fontStyle: 'italic' }}>{d.note || 'frei'}</span>
+                    ) : d.items.map((it, j) => (
+                      <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="mono" style={{ fontSize: 12, fontWeight: 500 }}>{it.time}</span>
+                        <span style={{ padding: '1px 7px', borderRadius: 'var(--r-sm)', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 11, fontWeight: 600 }}>{it.area}</span>
+                      </div>
+                    ))}
+                    {d.note && d.note.startsWith('⚠') && <span style={{ fontSize: 11, color: 'var(--warn)', fontWeight: 600 }}>{d.note}</span>}
+                  </div>
+                  <div className="mono" style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-muted)', textAlign: 'right' }}>
+                    {d.hours > 0 ? `${d.hours.toFixed(1)}h` : '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Jahresübersicht ─────────────────────────────────────────
+function OverviewPage({ setRoute }) {
+  const max = Math.max(...YEAR_SUMMARY.flatMap((w) => [w.required, w.paid]));
+  return (
+    <div style={{ padding: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>Jahresübersicht</h1>
+        <div style={{ flex: 1 }} />
+        <button style={navBtn}>‹</button>
+        <span className="mono" style={{ fontSize: 14, fontWeight: 600, padding: '0 6px' }}>2026</span>
+        <button style={navBtn}>›</button>
+      </div>
+
+      {/* chart */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 'var(--r-lg)', padding: 18, marginBottom: 14,
+      }}>
+        <div style={{ display: 'flex', gap: 16, fontSize: 12, marginBottom: 12 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 2, background: 'var(--accent)' }} /> Bezahlt
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 2, background: 'var(--ink-muted)', opacity: 0.4 }} /> Freiwillig
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 12, height: 2, background: 'var(--bad)' }} /> Sollstunden
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 160, position: 'relative' }}>
+          {YEAR_SUMMARY.map((w) => {
+            const paidH = (w.paid / max) * 100;
+            const volH = (w.volunteer / max) * 100;
+            const reqY = 100 - (w.required / max) * 100;
+            const isCurrent = w.week === 17;
+            return (
+              <div key={w.week} title={`KW ${w.week}: ${w.paid}h / ${w.required}h`} style={{
+                flex: 1, height: '100%', position: 'relative',
+                display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                opacity: isCurrent ? 1 : 0.85, cursor: 'pointer',
+              }}>
+                <div style={{ height: volH + '%', background: 'var(--ink-muted)', opacity: 0.35 }} />
+                <div style={{ height: paidH - volH + '%', background: isCurrent ? 'var(--accent)' : '#7787e8' }} />
+                <div style={{ position: 'absolute', left: 0, right: 0, top: reqY + '%', borderTop: '1.5px dashed var(--bad)' }} />
+              </div>
+            );
+          })}
+        </div>
+        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'var(--ink-muted)' }}>
+          <span>KW 1</span><span>KW 13</span><span>KW 26</span><span>KW 39</span><span>KW 52</span>
+        </div>
+      </div>
+
+      {/* table */}
+      <div className="overview-table-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: 'var(--surface-alt)', textAlign: 'left' }}>
+              {['Woche', 'Bezahlt / Freiwillig', 'Verfügbar / Benötigt', 'Differenz'].map((h) => (
+                <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {YEAR_SUMMARY.slice(15, 25).map((w) => (
+              <tr key={w.week} style={{ borderTop: '1px solid var(--border)', background: w.week === 17 ? 'var(--accent-soft)' : 'transparent' }}>
+                <td style={{ padding: '10px 14px' }}>
+                  <div style={{ fontWeight: 600 }}>2026 / KW {w.week}</div>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--ink-muted)' }}>20.04 – 26.04</div>
+                </td>
+                <td className="mono" style={{ padding: '10px 14px' }}>
+                  💰 {w.paid.toFixed(1)} · 🤝 {w.volunteer.toFixed(1)}
+                </td>
+                <td className="mono" style={{ padding: '10px 14px' }}>{w.paid + w.volunteer} / {w.required}</td>
+                <td className="mono" style={{ padding: '10px 14px', color: w.missing > 0 ? 'var(--warn)' : 'var(--good)', fontWeight: 600 }}>
+                  {w.missing > 0 ? `−${w.missing}` : `+${-w.missing}`}h
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mitarbeiter ─────────────────────────────────────────────
+function EmployeesPage({ onSelect, selected, modalVariant }) {
+  const [filter, setFilter] = useState('');
+  const filtered = PEOPLE.filter((p) => p.name.toLowerCase().includes(filter.toLowerCase()));
+  return (
+    <div className={`employees-grid${selected ? ' detail-active' : ''}`}>
+      <div className="employees-list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Mitarbeiter</h2>
+            <span className="mono" style={{ fontSize: 11, color: 'var(--ink-muted)' }}>{filtered.length} Personen</span>
+          </div>
+          <input
+            placeholder="Filtern…"
+            value={filter} onChange={(e) => setFilter(e.target.value)}
+            style={{ width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', background: 'var(--surface-alt)' }}
+          />
+        </div>
+        <div style={{ maxHeight: 540, overflow: 'auto' }}>
+          {filtered.map((p) => {
+            const active = p.id === selected;
+            return (
+              <button key={p.id} onClick={() => onSelect(p.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                padding: '10px 14px', border: 'none', cursor: 'pointer',
+                background: active ? 'var(--accent-soft)' : 'transparent',
+                borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent',
+                textAlign: 'left',
+              }}>
+                <span className={`person-avatar${p.color ? '' : ' no-color'}`} style={{ width: 32, height: 32, borderRadius: '50%', background: p.color || 'transparent', border: p.color ? 'none' : '1px dashed var(--border-strong)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: p.color ? 'var(--ink)' : 'var(--ink-muted)' }}>{p.initials}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                  <div className="mono" style={{ fontSize: 11, color: p.hours < p.target ? 'var(--warn)' : 'var(--ink-muted)' }}>
+                    {p.hours.toFixed(1)} / {p.target.toFixed(1)}h
+                  </div>
+                </div>
+                {!p.paid && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--ink-muted)' }}>frw.</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="employees-detail">
+        <EmployeeDetail person={PERSON_BY_ID[selected]} onBack={() => onSelect(null)} modalVariant={modalVariant} />
+      </div>
+    </div>
+  );
+}
+
+function TupleRow({ label, value, dim }) {
+  return (
+    <li style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 13, color: dim ? 'var(--ink-muted)' : 'var(--ink)' }}>
+      <span>{label}</span>
+      <span className="mono" style={{ fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{value}</span>
+    </li>
+  );
+}
+
+function EmployeeDetail({ person, onBack, modalVariant: modalVariantProp }) {
+  const [year, setYear] = useState(2026);
+  const [contractOpen, setContractOpen] = useState(false);
+  const [contractInitial, setContractInitial] = useState(null);
+  const [extraOpen, setExtraOpen] = useState(false);
+  const modalVariant = modalVariantProp || window.SHIFTY_TWEAKS?.modalVariant || 'auto';
+  if (!person) return <div style={{ color: 'var(--ink-muted)', padding: 40, textAlign: 'center' }}>Wähle einen Mitarbeiter</div>;
+  const [fullYear, setFullYear] = useState(false);
+  const [expandWeeks, setExpandWeeks] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState(null);
+
+  // Synthesised per-week data for this person
+  const weeks = useMemo(() => Array.from({ length: 17 }).map((_, i) => {
+    const kw = i + 1;
+    const hours = (Math.sin(i * 0.7) + 1) * 10 + 18 + (i === 16 ? -6 : 0);
+    const days = Math.max(1, Math.min(5, Math.round(hours / 6 + (i % 3 === 0 ? -1 : 0))));
+    return {
+      kw,
+      hours,
+      days,
+      target: person.target,
+      shifts: Array.from({ length: days }).map((__, di) => {
+        const dayName = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][di] || 'Mo';
+        const startH = 8 + (di * 3 + i) % 6;
+        const endH = startH + Math.max(2, Math.round(hours / days));
+        return { day: dayName, from: `${String(startH).padStart(2, '0')}:00`, to: `${String(Math.min(endH, 22)).padStart(2, '0')}:00` };
+      }),
+    };
+  }), [person.target]);
+
+  const weekDetail = selectedWeek != null ? weeks[selectedWeek] : null;
+
+  // Derived demo numbers
+  const expected = person.target * 17;
+  const shiftplan = person.hours * 4.2;
+  const extra = 6.0;
+  const vacation = 24.0;
+  const sick = 8.0;
+  const holidays = 8.0;
+  const unpaid = 0.0;
+  const overall = shiftplan + extra + vacation + sick + holidays;
+  const balance = overall - expected;
+  const carryover = -3.5;
+  const swColor = person.color || 'var(--surface-2)';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* header — name, year nav, actions */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {onBack && (
+            <button onClick={onBack} className="employees-back" style={{
+              display: 'none', background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)', width: 30, height: 30, cursor: 'pointer',
+              color: 'var(--ink-soft)', fontSize: 14, alignItems: 'center', justifyContent: 'center',
+            }} aria-label="Zurück zur Liste">‹</button>
+          )}
+          <span className={`person-avatar${person.color ? '' : ' no-color'}`} style={{ width: 44, height: 44, borderRadius: '50%', background: swColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, border: person.color ? 'none' : '1px dashed var(--border-strong)' }}>{person.initials}</span>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>{person.name}</h1>
+            <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>{person.paid ? 'Bezahlt' : 'Freiwillig'} · {person.target}h/Woche{!person.color && ' · keine Farbe gesetzt'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button style={navBtn} onClick={() => setYear(year - 1)}>‹</button>
+          <span className="mono" style={{ fontSize: 14, fontWeight: 600, padding: '0 6px' }}>{year}</span>
+          <button style={navBtn} onClick={() => setYear(year + 1)}>›</button>
+          <span style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 4px' }} />
+          <Btn icon="+" onClick={() => setExtraOpen(true)}>Sonstige Stunden</Btn>
+          <Btn>Mehr ▾</Btn>
+        </div>
+      </div>
+
+      {!fullYear && (
+        <div style={{ fontSize: 12, color: 'var(--ink-muted)', fontStyle: 'italic' }}>
+          Nur Daten bis zur aktuellen Woche werden angezeigt.
+          <button onClick={() => setFullYear(true)} style={{ marginLeft: 8, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}>
+            Vollständiges Jahr anzeigen
+          </button>
+        </div>
+      )}
+
+      {/* 3-column main: Overall | Work Details + Hours/Week | Extra Hours */}
+      <div className="employee-detail-cols">
+        {/* Gesamtansicht */}
+        <section>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 8px' }}>Gesamtansicht</h2>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <TupleRow label="Stundenkonto" value={`${balance >= 0 ? '+' : ''}${balance.toFixed(2)} Std.`} />
+            <TupleRow label="Gesamt" value={`${overall.toFixed(2)} Std.`} />
+            <TupleRow label="Soll" value={`${expected.toFixed(2)} Std.`} />
+            <li style={{ height: 8 }} />
+            <TupleRow label="Schichtplan" value={`${shiftplan.toFixed(2)} Std.`} dim />
+            <TupleRow label="Zusatzarbeit" value={`${extra.toFixed(2)} Std.`} dim />
+            <TupleRow label="Urlaub" value={`${vacation.toFixed(2)} Std.`} dim />
+            <TupleRow label="Krank" value={`${sick.toFixed(2)} Std.`} dim />
+            <TupleRow label="Feiertage" value={`${holidays.toFixed(2)} Std.`} dim />
+            <TupleRow label="Unbezahlter Urlaub" value={`${unpaid.toFixed(2)} Std.`} dim />
+            <TupleRow label="Übertrag Vorjahr" value={`${carryover.toFixed(2)} Std.`} dim />
+          </ul>
+
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '20px 0 8px' }}>Urlaub</h2>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <TupleRow label="Urlaubstage" value="14 / 28" />
+            <TupleRow label="Vorjahresurlaub" value="3" />
+          </ul>
+        </section>
+
+        {/* Arbeitsverträge + Stunden pro Woche */}
+        <section className="employee-detail-col-2">
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 8px' }}>Arbeitsverträge</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+            {[
+              { from: '01.01.2026', to: '31.12.2026', hours: 38.0, days: 5, vacation: 28, weekdays: ['Mo', 'Di', 'Mi', 'Do', 'Fr'] },
+              { from: '01.01.2024', to: '31.12.2025', hours: 32.0, days: 4, vacation: 24, weekdays: ['Mo', 'Di', 'Do', 'Fr'] },
+            ].map((wd, i) => (
+              <button key={i} onClick={() => { setContractInitial(wd); setContractOpen(true); }} style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between', padding: '8px 10px', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}>
+                <div>
+                  <div className="mono" style={{ fontSize: 12, fontWeight: 500 }}>{wd.from} – {wd.to}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-muted)' }}>{wd.weekdays.join(' · ')} · {wd.vacation} Urlaubstage</div>
+                </div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{wd.hours.toFixed(1)}h</div>
+              </button>
+            ))}
+          </div>
+          <Btn icon="+" onClick={() => { setContractInitial(null); setContractOpen(true); }}>Arbeitvertrag hinzufügen</Btn>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 22 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Stunden pro Woche</h2>
+            <button onClick={() => setExpandWeeks(!expandWeeks)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}>
+              {expandWeeks ? 'Weniger' : 'Mehr'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 100, marginTop: 10, position: 'relative' }}>
+            {weeks.map((wk, i) => {
+              const under = wk.hours < person.target;
+              const isSelected = selectedWeek === i;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedWeek(isSelected ? null : i)}
+                  title={`KW ${wk.kw}: ${wk.hours.toFixed(1)}h · klicken für Details`}
+                  style={{
+                    flex: 1, position: 'relative', height: '100%',
+                    display: 'flex', alignItems: 'flex-end',
+                    background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    width: '100%',
+                    height: (wk.hours / 42) * 100 + '%',
+                    background: under ? 'var(--warn)' : 'var(--accent)',
+                    opacity: isSelected ? 1 : (i === 16 ? 1 : 0.75),
+                    borderRadius: '2px 2px 0 0',
+                    outline: isSelected ? '2px solid var(--ink)' : 'none',
+                    outlineOffset: 1,
+                  }} />
+                </button>
+              );
+            })}
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: (person.target / 42) * 100 + '%', borderTop: '1px dashed var(--bad)', pointerEvents: 'none' }} />
+          </div>
+          <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--ink-muted)', marginTop: 4 }}>
+            <span>KW 1</span><span>KW 9</span><span>KW 17</span>
+          </div>
+
+          {weekDetail && (
+            <div style={{ marginTop: 12, padding: 12, background: 'var(--surface-alt)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>KW {weekDetail.kw}</span>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--ink-muted)', marginLeft: 8 }}>
+                    {weekDetail.hours.toFixed(1)} / {weekDetail.target.toFixed(1)}h · {weekDetail.days} Tage
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedWeek(null)}
+                  aria-label="Schließen"
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)', fontSize: 14, padding: 2 }}
+                >×</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {weekDetail.shifts.map((s, si) => (
+                  <div key={si} style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 10, fontSize: 12, padding: '4px 0', borderTop: si === 0 ? 'none' : '1px solid var(--border)' }}>
+                    <span style={{ fontWeight: 600 }}>{s.day}</span>
+                    <span className="mono" style={{ color: 'var(--ink-soft)' }}>{s.from}–{s.to}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink-muted)' }}>
+                {weekDetail.hours < weekDetail.target
+                  ? <span><span style={{ color: 'var(--warn)', fontWeight: 600 }}>−{(weekDetail.target - weekDetail.hours).toFixed(1)}h unter Soll</span></span>
+                  : weekDetail.hours > weekDetail.target
+                  ? <span><span style={{ color: 'var(--good)', fontWeight: 600 }}>+{(weekDetail.hours - weekDetail.target).toFixed(1)}h über Soll</span></span>
+                  : <span><span style={{ color: 'var(--good)', fontWeight: 600 }}>Soll erreicht</span></span>}
+              </div>
+            </div>
+          )}
+
+          {expandWeeks && (
+            <div style={{ marginTop: 10, fontSize: 12 }}>
+              {weeks.slice(-5).reverse().map((wk) => {
+                const under = wk.hours < wk.target;
+                return (
+                  <button
+                    key={wk.kw}
+                    onClick={() => setSelectedWeek(wk.kw - 1)}
+                    style={{
+                      width: '100%', textAlign: 'left',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '6px 8px', borderBottom: '1px solid var(--border)',
+                      background: selectedWeek === wk.kw - 1 ? 'var(--accent-soft)' : 'transparent',
+                      border: 'none', borderBottom: '1px solid var(--border)',
+                      cursor: 'pointer', fontSize: 12,
+                    }}
+                  >
+                    <span>KW {wk.kw}</span>
+                    <span className="mono" style={{ color: under ? 'var(--warn)' : 'var(--ink-soft)' }}>
+                      {wk.hours.toFixed(2)} / {wk.target.toFixed(2)} Std.
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Zusatzstunden */}
+        <section className="employee-detail-col-3">
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 8px' }}>Zusatzstunden</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {[
+              { date: '17.04.2026', cat: 'Urlaub', catColor: 'var(--good)', hours: 8.0, note: 'Karfreitag' },
+              { date: '11.04.2026', cat: 'Krank', catColor: 'var(--bad)', hours: 8.0, note: '' },
+              { date: '03.04.2026', cat: 'Zusatzarbeit', catColor: 'var(--accent)', hours: 2.5, note: 'Inventur' },
+              { date: '28.03.2026', cat: 'Feiertage', catColor: 'var(--warn)', hours: 8.0, note: 'Karfreitag' },
+              { date: '15.03.2026', cat: 'Urlaub', catColor: 'var(--good)', hours: 16.0, note: '' },
+            ].map((r, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr auto', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--ink-muted)' }}>{r.date}</span>
+                <div>
+                  <div style={{ fontSize: 13 }}>{r.cat}</div>
+                  {r.note && <div style={{ fontSize: 11, color: 'var(--ink-muted)' }}>{r.note}</div>}
+                </div>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{r.hours.toFixed(2)}h</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <ContractModal
+        open={contractOpen}
+        onClose={() => setContractOpen(false)}
+        variant={modalVariant}
+        initial={contractInitial}
+      />
+      <ExtraHoursModal
+        open={extraOpen}
+        onClose={() => setExtraOpen(false)}
+        variant={modalVariant}
+      />
+    </div>
+  );
+}
+
+// ─── Benutzerverwaltung ──────────────────────────────────────
+function UsersPage() {
+  const users = [
+    { name: 'admin', sales: 'Markus H.', roles: ['admin', 'shiftplanner', 'sales'], paid: true, active: true },
+    { name: 'lena.b', sales: 'Lena', roles: ['sales'], paid: true, active: true },
+    { name: 'anna.k', sales: 'Anna K.', roles: ['hr', 'sales'], paid: true, active: true },
+    { name: 'gast', sales: '—', roles: [], paid: false, active: false },
+  ];
+  return (
+    <div style={{ padding: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>Benutzerverwaltung</h1>
+        <Btn kind="primary" icon="+">Neuen Benutzer hinzufügen</Btn>
+      </div>
+      <div className="users-table-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: 'var(--surface-alt)', textAlign: 'left' }}>
+              {['Benutzer', 'Verkäufer', 'Rollen', 'Status', ''].map((h) => (
+                <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.name} style={{ borderTop: '1px solid var(--border)' }}>
+                <td className="mono" style={{ padding: '10px 14px', fontWeight: 600 }}>{u.name}</td>
+                <td style={{ padding: '10px 14px' }}>{u.sales}</td>
+                <td style={{ padding: '10px 14px' }}>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {u.roles.length === 0 ? <span style={{ color: 'var(--ink-muted)' }}>—</span> : u.roles.map((r) => (
+                      <span key={r} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: 600 }}>{r}</span>
+                    ))}
+                  </div>
+                </td>
+                <td style={{ padding: '10px 14px' }}>
+                  {u.active ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--good)' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--good)' }} /> Aktiv
+                    </span>
+                  ) : (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--ink-muted)' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-muted)' }} /> Inaktiv
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <Btn kind="ghost">Bearbeiten</Btn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── App ─────────────────────────────────────────────────────
+function App() {
+  const [route, setRoute] = useState('shiftplan');
+  const [slot, setSlot] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState('p1');
+  const currentUser = PEOPLE[0];
+
+  // ─── Tweaks ────────────────────────────────────────────────
+  const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{
+    "modalVariant": "center"
+  }/*EDITMODE-END*/;
+  const [tweaks, setTweaks] = useState(TWEAK_DEFAULS);
+  const [tweaksOpen, setTweaksOpen] = useState(false);
+  window.SHIFTY_TWEAKS = tweaks;
+
+  const updateTweak = (key, value) => {
+    setTweaks((t) => {
+      const next = { ...t, [key]: value };
+      window.SHIFTY_TWEAKS = next;
+      try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [key]: value } }, '*'); } catch {}
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setTweaksOpen(true);
+      if (t === '__deactivate_edit_mode') setTweaksOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const closeTweaks = () => {
+    setTweaksOpen(false);
+    try { window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); } catch {}
+  };
+
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('shifty-theme') || 'system'; } catch { return 'system'; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('shifty-theme', theme); } catch {}
+    const apply = () => {
+      const resolved = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+      document.documentElement.setAttribute('data-theme', resolved);
+    };
+    apply();
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
+    }
+  }, [theme]);
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <TopBar route={route} setRoute={setRoute} currentUser={currentUser} theme={theme} setTheme={setTheme} />
+      <main style={{ flex: 1, maxWidth: 1400, width: '100%', margin: '0 auto', minWidth: 0 }}>
+        {route === 'shiftplan' && <SchichtplanPage onSlotClick={setSlot} />}
+        {route === 'my-shifts' && <MyShiftsPage />}
+        {route === 'overview'  && <OverviewPage setRoute={setRoute} />}
+        {route === 'employees' && <EmployeesPage onSelect={setSelectedEmployee} selected={selectedEmployee} modalVariant={tweaks.modalVariant} />}
+        {route === 'users'     && <UsersPage />}
+      </main>
+      <SlotModal slot={slot} onClose={() => setSlot(null)} />
+
+      {/* Tweaks Panel */}
+      {tweaksOpen && (
+        <div style={{
+          position: 'fixed', right: 16, bottom: 16, zIndex: 300,
+          width: 280, maxHeight: 'calc(100vh - 32px)',
+          background: 'var(--surface)', color: 'var(--ink)',
+          border: '1px solid var(--border)', borderRadius: 'var(--r-lg)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.08)',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Tweaks</div>
+            <button onClick={closeTweaks} aria-label="Schließen" style={{
+              width: 24, height: 24, borderRadius: 'var(--r-sm)',
+              border: 'none', background: 'transparent', color: 'var(--ink-muted)',
+              cursor: 'pointer', fontSize: 16, lineHeight: 1,
+            }}>×</button>
+          </div>
+          <div style={{ padding: 14, overflowY: 'auto' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+              Modal-Stil
+            </div>
+            <ModalVariantTweak value={tweaks.modalVariant} onChange={(v) => updateTweak('modalVariant', v)} />
+            <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 10, lineHeight: 1.5 }}>
+              Probier&apos;s aus: gehe zu <strong>Mitarbeiter</strong> und klicke „Arbeitvertrag hinzufügen“ oder „Sonstige Stunden“.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
