@@ -22,12 +22,15 @@ const SVG_HEIGHT: f32 = 120.0;
 const BAR_AREA_HEIGHT: f32 = 90.0;
 const BAR_GAP: f32 = 1.0;
 
-/// Returns the maximum Y for vertical scaling. Includes the largest bar's
-/// `overall_hours`, the `expected` reference, and a 1.0 floor that prevents
-/// divide-by-zero when both are zero.
-pub(crate) fn compute_max_y(weeks: &[WorkingHours], expected: f32) -> f32 {
-    let max_overall = weeks.iter().map(|w| w.overall_hours).fold(0.0f32, f32::max);
-    max_overall.max(expected).max(1.0)
+/// Returns the maximum Y for vertical scaling. Considers each week's own
+/// `overall_hours` and `expected_hours`, with a 1.0 floor that prevents
+/// divide-by-zero when every value is zero.
+pub(crate) fn compute_max_y(weeks: &[WorkingHours]) -> f32 {
+    weeks
+        .iter()
+        .flat_map(|w| [w.overall_hours, w.expected_hours])
+        .fold(0.0f32, f32::max)
+        .max(1.0)
 }
 
 /// Returns the Y coordinate for a given hours value, anchored so larger
@@ -56,7 +59,6 @@ fn week_year_week(week: &WorkingHours) -> (u32, u8) {
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeWeeklyHistogramProps {
     pub weeks: Rc<[WorkingHours]>,
-    pub expected_per_week: f32,
     pub current_year: u32,
     pub current_week: u8,
     #[props(!optional, default = None)]
@@ -72,7 +74,6 @@ pub fn EmployeeWeeklyHistogram(props: EmployeeWeeklyHistogramProps) -> Element {
     rsx! {
         EmployeeWeeklyHistogramView {
             weeks: props.weeks,
-            expected_per_week: props.expected_per_week,
             current_year: props.current_year,
             current_week: props.current_week,
             selected_week: props.selected_week,
@@ -85,7 +86,6 @@ pub fn EmployeeWeeklyHistogram(props: EmployeeWeeklyHistogramProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 struct EmployeeWeeklyHistogramViewProps {
     weeks: Rc<[WorkingHours]>,
-    expected_per_week: f32,
     current_year: u32,
     current_week: u8,
     #[props(!optional, default = None)]
@@ -97,7 +97,7 @@ struct EmployeeWeeklyHistogramViewProps {
 #[component]
 fn EmployeeWeeklyHistogramView(props: EmployeeWeeklyHistogramViewProps) -> Element {
     let weeks = props.weeks.clone();
-    let max_y = compute_max_y(&weeks, props.expected_per_week);
+    let max_y = compute_max_y(&weeks);
     let count = weeks.len() as f32;
     let bar_width = if count > 0.0 {
         ((SVG_WIDTH - BAR_GAP * (count + 1.0)) / count).max(1.0)
@@ -105,7 +105,25 @@ fn EmployeeWeeklyHistogramView(props: EmployeeWeeklyHistogramViewProps) -> Eleme
         1.0
     };
 
-    let expected_y = bar_y(props.expected_per_week, max_y);
+    let any_positive_expected = weeks.iter().any(|w| w.expected_hours > 0.0);
+    let polyline_points: Option<String> = if any_positive_expected {
+        let slot_width = bar_width + BAR_GAP;
+        let pts = weeks
+            .iter()
+            .enumerate()
+            .map(|(i, week)| {
+                let y = bar_y(week.expected_hours, max_y);
+                let x_left = (i as f32) * slot_width;
+                let x_right = ((i + 1) as f32) * slot_width;
+                format!("{x_left},{y} {x_right},{y}")
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        Some(pts)
+    } else {
+        None
+    };
+
     let has_selection = props.selected_week.is_some();
     let week_short = props.week_short.clone();
 
@@ -115,16 +133,13 @@ fn EmployeeWeeklyHistogramView(props: EmployeeWeeklyHistogramViewProps) -> Eleme
             preserve_aspect_ratio: "none",
             width: "100%",
             height: "120",
-            // Reference dashed line for expected_per_week
-            if props.expected_per_week > 0.0 {
-                line {
-                    x1: "0",
-                    x2: "{SVG_WIDTH}",
-                    y1: "{expected_y}",
-                    y2: "{expected_y}",
+            // Stepped reference polyline of per-week expected_hours
+            if let Some(points) = polyline_points {
+                polyline {
+                    points: "{points}",
                     stroke_dasharray: "4 3",
                     stroke_width: "1.5",
-                    style: "stroke: var(--ink-muted)",
+                    style: "stroke: var(--ink-muted); fill: none;",
                 }
             }
             for (i, week) in weeks.iter().enumerate() {
@@ -135,7 +150,7 @@ fn EmployeeWeeklyHistogramView(props: EmployeeWeeklyHistogramViewProps) -> Eleme
                     let x = BAR_GAP + (i as f32) * (bar_width + BAR_GAP);
                     let y = bar_y(week.overall_hours, max_y);
                     let height = (BAR_AREA_HEIGHT - y).max(0.0);
-                    let color_token = bar_color_token(week.overall_hours, props.expected_per_week);
+                    let color_token = bar_color_token(week.overall_hours, week.expected_hours);
                     let group_style = if has_selection && !is_selected {
                         String::from("opacity: 0.85; cursor: pointer;")
                     } else {
@@ -205,21 +220,21 @@ mod tests {
     }
 
     #[test]
-    fn compute_max_y_uses_largest_of_data_or_expected() {
+    fn compute_max_y_uses_largest_of_overall_or_per_week_expected() {
         let w = vec![
-            make_week(date!(2026 - 03 - 02), 10.0, 0.0),
-            make_week(date!(2026 - 03 - 09), 25.0, 0.0),
+            make_week(date!(2026 - 03 - 02), 10.0, 20.0),
+            make_week(date!(2026 - 03 - 09), 25.0, 20.0),
         ];
-        assert_eq!(compute_max_y(&w, 20.0), 25.0);
+        assert_eq!(compute_max_y(&w), 25.0);
 
-        let w2 = vec![make_week(date!(2026 - 03 - 02), 10.0, 0.0)];
-        assert_eq!(compute_max_y(&w2, 30.0), 30.0);
+        let w2 = vec![make_week(date!(2026 - 03 - 02), 10.0, 30.0)];
+        assert_eq!(compute_max_y(&w2), 30.0);
     }
 
     #[test]
     fn compute_max_y_floors_to_one_when_all_zero() {
         let w = vec![make_week(date!(2026 - 03 - 02), 0.0, 0.0)];
-        assert_eq!(compute_max_y(&w, 0.0), 1.0);
+        assert_eq!(compute_max_y(&w), 1.0);
     }
 
     #[test]
@@ -246,7 +261,6 @@ mod tests {
     #[derive(Props, Clone, PartialEq)]
     struct ViewProps {
         weeks: Rc<[WorkingHours]>,
-        expected: f32,
         current_year: u32,
         current_week: u8,
         selected: Option<(u32, u8)>,
@@ -258,7 +272,6 @@ mod tests {
             rsx! {
                 EmployeeWeeklyHistogramView {
                     weeks: p.weeks.clone(),
-                    expected_per_week: p.expected,
                     current_year: p.current_year,
                     current_week: p.current_week,
                     selected_week: p.selected,
@@ -285,7 +298,6 @@ mod tests {
             .collect();
         let html = render_view(ViewProps {
             weeks,
-            expected: 0.0,
             current_year: 2026,
             current_week: 1,
             selected: None,
@@ -299,11 +311,10 @@ mod tests {
     }
 
     #[test]
-    fn ssr_below_expected_uses_warn_token() {
-        let weeks: Rc<[WorkingHours]> = vec![make_week(date!(2026 - 03 - 02), 15.0, 0.0)].into();
+    fn ssr_below_per_week_expected_uses_warn_token() {
+        let weeks: Rc<[WorkingHours]> = vec![make_week(date!(2026 - 03 - 02), 15.0, 20.0)].into();
         let html = render_view(ViewProps {
             weeks,
-            expected: 20.0,
             current_year: 2026,
             current_week: 10,
             selected: None,
@@ -320,11 +331,10 @@ mod tests {
     }
 
     #[test]
-    fn ssr_at_or_above_expected_uses_accent_token() {
-        let weeks: Rc<[WorkingHours]> = vec![make_week(date!(2026 - 03 - 02), 30.0, 0.0)].into();
+    fn ssr_at_or_above_per_week_expected_uses_accent_token() {
+        let weeks: Rc<[WorkingHours]> = vec![make_week(date!(2026 - 03 - 02), 30.0, 20.0)].into();
         let html = render_view(ViewProps {
             weeks,
-            expected: 20.0,
             current_year: 2026,
             current_week: 10,
             selected: None,
@@ -341,23 +351,166 @@ mod tests {
     }
 
     #[test]
-    fn ssr_dashed_expected_line_present_when_expected_positive() {
-        let weeks: Rc<[WorkingHours]> = vec![make_week(date!(2026 - 03 - 02), 30.0, 0.0)].into();
+    fn ssr_dashed_polyline_present_when_any_week_has_positive_expected() {
+        let weeks: Rc<[WorkingHours]> = vec![make_week(date!(2026 - 03 - 02), 30.0, 20.0)].into();
         let html = render_view(ViewProps {
             weeks,
-            expected: 20.0,
             current_year: 2026,
             current_week: 10,
             selected: None,
             week_short: ImStr::from("KW"),
         });
+        assert!(html.contains("<polyline"), "expected polyline: {html}");
         assert!(
-            html.contains("stroke-dasharray=\"4 3\"") || html.contains("stroke-dasharray=\"4 3\""),
+            html.contains("stroke-dasharray=\"4 3\""),
             "expected dashed line: {html}"
         );
         assert!(
             html.contains("stroke: var(--ink-muted)"),
             "expected ink-muted stroke: {html}"
+        );
+        assert!(
+            html.contains("fill: none"),
+            "polyline must not be filled: {html}"
+        );
+    }
+
+    #[test]
+    fn ssr_polyline_steps_at_contract_change() {
+        // Weeks 1-2 expected = 20h, weeks 3-4 expected = 30h.
+        let weeks: Rc<[WorkingHours]> = (1..=4u8)
+            .map(|i| {
+                let expected = if i <= 2 { 20.0 } else { 30.0 };
+                make_week(
+                    time::Date::from_iso_week_date(2026, i, time::Weekday::Monday).unwrap(),
+                    0.0,
+                    expected,
+                )
+            })
+            .collect();
+        let max_y = compute_max_y(&weeks);
+        let html = render_view(ViewProps {
+            weeks: weeks.clone(),
+            current_year: 2026,
+            current_week: 1,
+            selected: None,
+            week_short: ImStr::from("KW"),
+        });
+        assert!(html.contains("<polyline"), "expected polyline: {html}");
+        let y_20 = bar_y(20.0, max_y);
+        let y_30 = bar_y(30.0, max_y);
+        // y_20 and y_30 must differ for this to be a real step.
+        assert!(
+            (y_20 - y_30).abs() > f32::EPSILON,
+            "y values must differ for step"
+        );
+        let needle_20 = format!(",{y_20} ");
+        let needle_30 = format!(",{y_30} ");
+        assert!(
+            html.contains(&needle_20),
+            "polyline must contain a y at 20h ({y_20}): {html}"
+        );
+        assert!(
+            html.contains(&needle_30),
+            "polyline must contain a y at 30h ({y_30}): {html}"
+        );
+    }
+
+    #[test]
+    fn ssr_polyline_drops_to_baseline_on_zero_expected_week() {
+        // Three weeks: expected = 20, 0, 20.
+        let weeks: Rc<[WorkingHours]> = vec![
+            make_week(
+                time::Date::from_iso_week_date(2026, 1, time::Weekday::Monday).unwrap(),
+                0.0,
+                20.0,
+            ),
+            make_week(
+                time::Date::from_iso_week_date(2026, 2, time::Weekday::Monday).unwrap(),
+                0.0,
+                0.0,
+            ),
+            make_week(
+                time::Date::from_iso_week_date(2026, 3, time::Weekday::Monday).unwrap(),
+                0.0,
+                20.0,
+            ),
+        ]
+        .into();
+        let max_y = compute_max_y(&weeks);
+        let html = render_view(ViewProps {
+            weeks: weeks.clone(),
+            current_year: 2026,
+            current_week: 1,
+            selected: None,
+            week_short: ImStr::from("KW"),
+        });
+        let baseline_y = bar_y(0.0, max_y);
+        // Polyline must reach the chart baseline for the zero-expected week.
+        assert!(html.contains("<polyline"), "expected polyline: {html}");
+        let needle = format!(",{baseline_y} ");
+        assert!(
+            html.contains(&needle) || html.contains(&format!(",{baseline_y}\"")),
+            "polyline must reach baseline ({baseline_y}) for zero week: {html}"
+        );
+    }
+
+    #[test]
+    fn ssr_per_week_expected_drives_color_independently() {
+        // Two weeks, both with overall = 22.
+        // Week A expected = 20 → accent (22 >= 20)
+        // Week B expected = 30 → warn (22 < 30)
+        let weeks: Rc<[WorkingHours]> = vec![
+            make_week(
+                time::Date::from_iso_week_date(2026, 1, time::Weekday::Monday).unwrap(),
+                22.0,
+                20.0,
+            ),
+            make_week(
+                time::Date::from_iso_week_date(2026, 2, time::Weekday::Monday).unwrap(),
+                22.0,
+                30.0,
+            ),
+        ]
+        .into();
+        let html = render_view(ViewProps {
+            weeks,
+            current_year: 2026,
+            current_week: 1,
+            selected: None,
+            week_short: ImStr::from("KW"),
+        });
+        assert!(
+            html.contains("fill: var(--accent)"),
+            "expected accent token (week 1, 22 >= 20): {html}"
+        );
+        assert!(
+            html.contains("fill: var(--warn)"),
+            "expected warn token (week 2, 22 < 30): {html}"
+        );
+    }
+
+    #[test]
+    fn ssr_no_polyline_when_all_weeks_have_zero_expected() {
+        let weeks: Rc<[WorkingHours]> = (1..=4u8)
+            .map(|i| {
+                make_week(
+                    time::Date::from_iso_week_date(2026, i, time::Weekday::Monday).unwrap(),
+                    10.0,
+                    0.0,
+                )
+            })
+            .collect();
+        let html = render_view(ViewProps {
+            weeks,
+            current_year: 2026,
+            current_week: 1,
+            selected: None,
+            week_short: ImStr::from("KW"),
+        });
+        assert!(
+            !html.contains("<polyline"),
+            "polyline must be omitted when no week has positive expected: {html}"
         );
     }
 
@@ -377,7 +530,6 @@ mod tests {
         let weeks: Rc<[WorkingHours]> = vec![week1, week2].into();
         let html = render_view(ViewProps {
             weeks,
-            expected: 0.0,
             current_year: 2026,
             current_week: 17,
             selected: Some((2026, 17)),
@@ -408,7 +560,6 @@ mod tests {
             .collect();
         let html = render_view(ViewProps {
             weeks,
-            expected: 0.0,
             current_year: 2026,
             current_week: 17,
             selected: None,
@@ -432,7 +583,6 @@ mod tests {
         .into();
         let html = render_view(ViewProps {
             weeks,
-            expected: 0.0,
             current_year: 2026,
             current_week: 27,
             selected: None,
@@ -455,7 +605,6 @@ mod tests {
             .collect();
         let html = render_view(ViewProps {
             weeks,
-            expected: 0.0,
             current_year: 2025, // mismatch so current-week rule doesn't fire
             current_week: 1,
             selected: None,

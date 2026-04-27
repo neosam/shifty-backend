@@ -48,12 +48,18 @@ pub struct EmployeeViewPlainProps {
     pub on_open_extra_hours: Option<EventHandler<()>>,
 }
 
-fn most_recent_expected(work_details: &[EmployeeWorkDetails]) -> f32 {
-    work_details
+fn current_week_expected_hours(
+    weeks: &[WorkingHours],
+    current_year: u32,
+    current_week: u8,
+) -> Option<f32> {
+    weeks
         .iter()
-        .max_by_key(|d| d.from)
-        .map(|d| d.expected_hours)
-        .unwrap_or(0.0)
+        .find(|w| {
+            let (y, wk, _) = w.from.to_iso_week_date();
+            y as u32 == current_year && wk == current_week
+        })
+        .map(|w| w.expected_hours)
 }
 
 #[component]
@@ -80,7 +86,10 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     } else {
         TYPE_PILL_VOLUNTEER_HEX
     };
-    let expected_per_week = most_recent_expected(&work_details_list);
+    let current_year = js::get_current_year();
+    let current_week = js::get_current_week();
+    let current_week_expected =
+        current_week_expected_hours(&employee.working_hours_by_week, current_year, current_week);
 
     // i18n labels
     let overall_header_str = i18n.t(Key::OverallHeading);
@@ -125,8 +134,6 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let on_work_details_clicked = props.on_employee_work_details_clicked;
 
     let year = props.year;
-    let current_year = js::get_current_year();
-    let current_week = js::get_current_week();
 
     let dot_style = format!("background-color: {}; width: 32px; height: 32px;", color);
 
@@ -157,9 +164,11 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     name: ImStr::from(type_label.as_ref()),
                     color: Some(ImStr::from(pill_color)),
                 }
-                if expected_per_week > 0.0 {
-                    span { class: "font-mono tabular-nums text-ink-muted text-sm",
-                        "{expected_per_week:.0} {hours_str}"
+                if let Some(expected) = current_week_expected {
+                    if expected > 0.0 {
+                        span { class: "font-mono tabular-nums text-ink-muted text-sm",
+                            "{expected:.0} {hours_str}"
+                        }
                     }
                 }
             }
@@ -366,7 +375,6 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                 }
                 EmployeeWeeklyHistogram {
                     weeks: histogram_weeks.clone(),
-                    expected_per_week,
                     current_year,
                     current_week,
                     selected_week: *selected_week.read(),
@@ -840,43 +848,61 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use time::macros::date;
 
-    fn make_details(from: time::Date, expected: f32) -> EmployeeWorkDetails {
-        EmployeeWorkDetails {
-            id: Uuid::nil(),
-            sales_person_id: Uuid::nil(),
-            expected_hours: expected,
+    fn make_week(from: time::Date, expected: f32) -> WorkingHours {
+        WorkingHours {
             from,
             to: from,
-            workdays_per_week: 5,
-            monday: true,
-            tuesday: true,
-            wednesday: true,
-            thursday: true,
-            friday: true,
-            saturday: false,
-            sunday: false,
-            dynamic: false,
-            cap_planned_hours_to_expected: false,
-            vacation_days: 0,
-            created: None,
-            deleted: None,
-            version: Uuid::nil(),
+            expected_hours: expected,
+            overall_hours: 0.0,
+            balance: 0.0,
+            shiftplan_hours: 0.0,
+            extra_work_hours: 0.0,
+            vacation_hours: 0.0,
+            vacation_days: 0.0,
+            sick_leave_hours: 0.0,
+            holiday_hours: 0.0,
+            unpaid_leave_hours: 0.0,
+            volunteer_hours: 0.0,
+            days: Rc::from([]),
         }
     }
 
     #[test]
-    fn most_recent_expected_picks_latest_from() {
-        let a = make_details(date!(2025 - 01 - 01), 20.0);
-        let b = make_details(date!(2026 - 03 - 01), 35.0);
-        let arr = vec![a, b];
-        assert_eq!(most_recent_expected(&arr), 35.0);
+    fn current_week_expected_returns_value_when_today_present() {
+        // Today: ISO 2026 KW 17. Loaded weeks include KW 17 with expected = 20.
+        let monday_kw17 = time::Date::from_iso_week_date(2026, 17, time::Weekday::Monday).unwrap();
+        let weeks = vec![make_week(monday_kw17, 20.0)];
+        assert_eq!(current_week_expected_hours(&weeks, 2026, 17), Some(20.0));
     }
 
     #[test]
-    fn most_recent_expected_zero_when_empty() {
-        assert_eq!(most_recent_expected(&[]), 0.0);
+    fn current_week_expected_returns_none_when_today_not_loaded() {
+        // Loaded year is 2025; today is in 2026.
+        let monday_kw17_2025 =
+            time::Date::from_iso_week_date(2025, 17, time::Weekday::Monday).unwrap();
+        let weeks = vec![make_week(monday_kw17_2025, 20.0)];
+        assert_eq!(current_week_expected_hours(&weeks, 2026, 17), None);
+    }
+
+    #[test]
+    fn current_week_expected_uses_post_change_value_after_mid_year_contract_change() {
+        // Weeks 1-10 of 2026: 20h. Weeks 11+: 30h. Today is KW 17 of 2026.
+        let weeks: Vec<WorkingHours> = (1..=20u8)
+            .map(|i| {
+                let expected = if i <= 10 { 20.0 } else { 30.0 };
+                make_week(
+                    time::Date::from_iso_week_date(2026, i, time::Weekday::Monday).unwrap(),
+                    expected,
+                )
+            })
+            .collect();
+        assert_eq!(current_week_expected_hours(&weeks, 2026, 17), Some(30.0));
+    }
+
+    #[test]
+    fn current_week_expected_returns_none_for_empty_weeks() {
+        assert_eq!(current_week_expected_hours(&[], 2026, 17), None);
     }
 
     #[test]
