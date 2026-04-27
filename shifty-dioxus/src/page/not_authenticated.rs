@@ -12,7 +12,7 @@ pub fn NotAuthenticated() -> Element {
     rsx! {
         div { class: "flex place-content-center mt-16",
             div {
-                h1 { class: "text-6xl font-bold", "{title_str}" }
+                h1 { class: "text-6xl font-bold text-ink", "{title_str}" }
                 p { class: "mt-8 mb-8 underline",
                     a { href: "/authenticate", "{login_str}" }
                 }

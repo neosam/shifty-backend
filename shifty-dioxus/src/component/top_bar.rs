@@ -115,6 +115,16 @@ pub(crate) fn logout_url(backend_url: &str) -> String {
 
 #[component]
 pub fn TopBar() -> Element {
+    let auth_info = AUTH.read().auth_info.clone();
+    if auth_info.is_some() {
+        rsx! { TopBarRouted {} }
+    } else {
+        rsx! { TopBarLanding {} }
+    }
+}
+
+#[component]
+fn TopBarRouted() -> Element {
     let i18n = I18N.read().clone();
     let auth_info = AUTH.read().auth_info.clone();
     let config = CONFIG.read().clone();
@@ -304,6 +314,74 @@ pub fn TopBar() -> Element {
                             "{label}"
                         }
                     }
+                }
+            }
+        }
+
+        if !config.is_prod {
+            div { class: "bg-warn-soft text-warn pl-4 p-1 print:hidden",
+                div {
+                    class: "font-bold",
+                    title: "{non_production_warning_detail_str}",
+                    "{non_production_warning_str}"
+                }
+            }
+        }
+    }
+}
+
+/// Header rendered when no user is logged in. Same surface chrome as
+/// [`TopBarRouted`] (logo, env-tag, theme toggle), but without the nav
+/// items / mobile burger / logout dropdown — and crucially without
+/// [`use_route`], so it can be mounted outside of a [`Router`].
+#[component]
+fn TopBarLanding() -> Element {
+    let i18n = I18N.read().clone();
+    let config = CONFIG.read().clone();
+    let non_production_warning_str = i18n.t(Key::NonProdWarning);
+    let non_production_warning_detail_str = i18n.t(Key::NonProdWarningDetails);
+    let login_label = i18n.t(Key::Login);
+
+    let theme_service = use_coroutine_handle::<ThemeAction>();
+    let theme_mode = *THEME_MODE.read();
+    let theme_glyph_str: ImStr = ImStr::from(theme_glyph(theme_mode));
+    let theme_aria: ImStr = ImStr::from(theme_aria_label(theme_mode).as_str());
+    let theme_title = format!("{} (klicken zum Wechseln)", theme_aria_label(theme_mode));
+
+    rsx! {
+        header {
+            class: "sticky top-0 h-14 max-md:h-[52px] bg-surface text-ink border-b border-border z-40 print:hidden flex items-center px-[18px] max-md:px-[10px] gap-1",
+
+            span { class: "text-lg font-bold tracking-[-0.01em] ml-1 mr-3 max-md:text-base",
+                "Shifty"
+                span { class: "text-accent", "." }
+                if !config.is_prod {
+                    span { class: "ml-2 text-xs text-ink-muted font-normal",
+                        "{config.env_short_description}"
+                    }
+                }
+            }
+
+            div { class: "ml-auto flex items-center gap-2 flex-shrink-0",
+                button {
+                    class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
+                    "aria-label": theme_aria.as_str(),
+                    title: theme_title,
+                    onclick: {
+                        let theme_service = theme_service.clone();
+                        move |evt: Event<MouseData>| {
+                            evt.prevent_default();
+                            let next = cycle_theme(*THEME_MODE.read());
+                            theme_service.send(ThemeAction::SetMode(next));
+                        }
+                    },
+                    "{theme_glyph_str}"
+                }
+
+                a {
+                    href: "/authenticate",
+                    class: "px-3 py-1.5 rounded-md text-ink-soft hover:bg-surface-alt text-[13px]",
+                    "{login_label}"
                 }
             }
         }
