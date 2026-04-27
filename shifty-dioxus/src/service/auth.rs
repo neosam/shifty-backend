@@ -8,6 +8,10 @@ use super::{
 
 pub async fn load_auth_info() {
     if CONFIG.read().backend.is_empty() {
+        *AUTH.write() = AuthStore {
+            auth_info: None,
+            loading_done: true,
+        };
         return;
     }
     let auth_info = api::fetch_auth_info(CONFIG.read().backend.clone()).await;

@@ -10,8 +10,7 @@ use crate::{
 use super::auth;
 
 pub async fn load_config() {
-    let config = api::load_config().await;
-    match config {
+    match api::load_config().await {
         Ok(config) => {
             *CONFIG.write() = config;
         }
@@ -21,7 +20,6 @@ pub async fn load_config() {
             };
         }
     }
-    *CONFIG.write() = api::load_config().await.unwrap();
     auth::load_auth_info().await;
 }
 

@@ -615,11 +615,12 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
     let holidays_str = i18n.t(Key::CategoryHolidays);
     let unavailable_str = i18n.t(Key::CategoryUnavailable);
     let unpaid_leave_str = i18n.t(Key::CategoryUnpaidLeave);
+    let volunteer_work_str = i18n.t(Key::CategoryVolunteerWork);
     let hours_str: ImStr = ImStr::from(i18n.t(Key::Hours).as_ref());
     let work_hours_description_str = i18n.t(Key::WorkHoursDescription);
     let unavailable_description_str = i18n.t(Key::UnavailableDescription);
 
-    let category_predicates: [(Rc<str>, Option<Rc<str>>, Box<dyn Fn(&ExtraHours) -> bool>); 6] = [
+    let category_predicates: [(Rc<str>, Option<Rc<str>>, Box<dyn Fn(&ExtraHours) -> bool>); 7] = [
         (
             vacation_str,
             None,
@@ -649,6 +650,11 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
             unpaid_leave_str,
             None,
             Box::new(|eh: &ExtraHours| eh.category.is_unpaid_leave()),
+        ),
+        (
+            volunteer_work_str,
+            None,
+            Box::new(|eh: &ExtraHours| eh.category.is_volunteer_work()),
         ),
     ];
 
