@@ -21,6 +21,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::YearOverview, "Year Overview");
     i18n.add_text(Locale::En, Key::Logout, "Logout");
     i18n.add_text(Locale::En, Key::TopBarYouAreLabel, "You are");
+    i18n.add_text(Locale::En, Key::TopBarAdminGroupLabel, "Administration");
 
     // Shiftplan
     i18n.add_text(

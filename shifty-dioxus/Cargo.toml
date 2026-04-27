@@ -55,6 +55,10 @@ features = [
     "Storage",
     "MediaQueryList",
     "MediaQueryListEvent",
+    "DomRect",
+    "EventTarget",
+    "MouseEvent",
+    "KeyboardEvent",
 ]
 
 [profile]

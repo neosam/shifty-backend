@@ -72,6 +72,7 @@ pub enum Key {
     YearOverview,
     Logout,
     TopBarYouAreLabel,
+    TopBarAdminGroupLabel,
 
     // Shiftplan
     ShiftplanCalendarWeek,

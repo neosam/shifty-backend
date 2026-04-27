@@ -89,6 +89,55 @@ pub(crate) fn nav_item_class(active: bool) -> &'static str {
     }
 }
 
+pub(crate) fn admin_panel_item_class(active: bool) -> &'static str {
+    if active {
+        "block w-full text-left px-2.5 py-2 rounded-md bg-accent-soft text-accent font-semibold text-sm"
+    } else {
+        "block w-full text-left px-2.5 py-2 rounded-md text-ink hover:bg-surface-alt text-sm"
+    }
+}
+
+pub(crate) const MOBILE_ADMIN_SECTION_HEADER_CLASS: &str =
+    "mt-1 pt-3 px-3.5 pb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted border-t border-border";
+
+pub(crate) const ADMIN_PANEL_CONTAINER_CLASS: &str =
+    "min-w-[220px] bg-surface border border-border rounded-md shadow-md p-1 z-50";
+
+pub(crate) fn is_admin_target(target: NavTarget) -> bool {
+    matches!(
+        target,
+        NavTarget::Employees
+            | NavTarget::BillingPeriods
+            | NavTarget::UserManagement
+            | NavTarget::Templates
+    )
+}
+
+pub(crate) fn partition_nav_items<T: Clone>(
+    items: &[(NavTarget, T, String)],
+) -> (Vec<(NavTarget, T, String)>, Vec<(NavTarget, T, String)>) {
+    let mut top_level = Vec::new();
+    let mut admin = Vec::new();
+    for entry in items {
+        if is_admin_target(entry.0) {
+            admin.push(entry.clone());
+        } else {
+            top_level.push(entry.clone());
+        }
+    }
+    (top_level, admin)
+}
+
+pub(crate) fn active_admin_label<'a, T>(
+    admin_items: &'a [(NavTarget, T, String)],
+    route: &Route,
+) -> Option<&'a str> {
+    admin_items
+        .iter()
+        .find(|(target, _, _)| is_active_for(*target, route))
+        .map(|(_, _, label)| label.as_str())
+}
+
 pub(crate) fn theme_glyph(mode: ThemeMode) -> &'static str {
     match mode {
         ThemeMode::Light => "☀",
@@ -111,6 +160,106 @@ pub(crate) fn burger_glyph(visible: bool) -> &'static str {
 
 pub(crate) fn logout_url(backend_url: &str) -> String {
     format!("{}/logout", backend_url)
+}
+
+const ADMIN_TRIGGER_ID: &str = "top-bar-admin-trigger";
+const ADMIN_PANEL_ID: &str = "top-bar-admin-panel";
+
+#[cfg(target_arch = "wasm32")]
+struct AdminDropdownGuard {
+    mousedown_closure: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MouseEvent)>,
+    keydown_closure: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for AdminDropdownGuard {
+    fn drop(&mut self) {
+        use wasm_bindgen::JsCast;
+        if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+            let _ = document.remove_event_listener_with_callback(
+                "mousedown",
+                self.mousedown_closure.as_ref().unchecked_ref(),
+            );
+            let _ = document.remove_event_listener_with_callback(
+                "keydown",
+                self.keydown_closure.as_ref().unchecked_ref(),
+            );
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn install_admin_dropdown_listeners(
+    mut admin_open: Signal<bool>,
+) -> Option<Rc<AdminDropdownGuard>> {
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+
+    let document = web_sys::window()?.document()?;
+
+    let mousedown_closure: Closure<dyn FnMut(web_sys::MouseEvent)> =
+        Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            if !*admin_open.read() {
+                return;
+            }
+            let target_node = event
+                .target()
+                .and_then(|t| t.dyn_into::<web_sys::Node>().ok());
+            if let (Some(document), Some(target)) =
+                (web_sys::window().and_then(|w| w.document()), target_node)
+            {
+                let trigger_hits = document
+                    .get_element_by_id(ADMIN_TRIGGER_ID)
+                    .map(|el| el.contains(Some(&target)))
+                    .unwrap_or(false);
+                let panel_hits = document
+                    .get_element_by_id(ADMIN_PANEL_ID)
+                    .map(|el| el.contains(Some(&target)))
+                    .unwrap_or(false);
+                if trigger_hits || panel_hits {
+                    return;
+                }
+            }
+            admin_open.set(false);
+        }));
+
+    let keydown_closure: Closure<dyn FnMut(web_sys::KeyboardEvent)> =
+        Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+            if !*admin_open.read() {
+                return;
+            }
+            if event.key() == "Escape" {
+                admin_open.set(false);
+            }
+        }));
+
+    let _ = document
+        .add_event_listener_with_callback("mousedown", mousedown_closure.as_ref().unchecked_ref());
+    let _ = document
+        .add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref());
+
+    Some(Rc::new(AdminDropdownGuard {
+        mousedown_closure,
+        keydown_closure,
+    }))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn install_admin_dropdown_listeners(_admin_open: Signal<bool>) -> Option<Rc<()>> {
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn read_trigger_anchor() -> Option<(f64, f64)> {
+    let document = web_sys::window()?.document()?;
+    let element = document.get_element_by_id(ADMIN_TRIGGER_ID)?;
+    let rect = element.get_bounding_client_rect();
+    Some((rect.bottom() + 4.0, rect.left()))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_trigger_anchor() -> Option<(f64, f64)> {
+    None
 }
 
 #[component]
@@ -234,8 +383,29 @@ fn TopBarRouted() -> Element {
         ))])
     };
 
+    let (top_level_items, admin_items) = partition_nav_items(&nav_items);
+    let admin_visible = !admin_items.is_empty();
+    let active_admin_label_owned: Option<String> =
+        active_admin_label(&admin_items, &route).map(|s| s.to_string());
+    let admin_active = active_admin_label_owned.is_some();
+    let admin_group_default_label = i18n.t(Key::TopBarAdminGroupLabel).to_string();
+    let admin_trigger_label = active_admin_label_owned
+        .clone()
+        .unwrap_or_else(|| admin_group_default_label.clone());
+
+    let mut admin_open = use_signal(|| false);
+    let mut admin_anchor = use_signal::<Option<(f64, f64)>>(|| None);
+    let _admin_listener_guard = use_hook(|| install_admin_dropdown_listeners(admin_open));
+
+    use_effect(move || {
+        let _ = use_route::<Route>();
+        admin_open.set(false);
+    });
+
     let burger_glyph_str = burger_glyph(*visible.read());
     let mobile_panel_visible = *visible.read();
+    let admin_panel_visible = *admin_open.read();
+    let admin_anchor_value = *admin_anchor.read();
 
     rsx! {
         header {
@@ -262,11 +432,52 @@ fn TopBarRouted() -> Element {
             }
 
             nav { class: "hidden md:flex items-center gap-0.5 flex-1 min-w-0",
-                for (target, target_route, label) in nav_items.iter().cloned() {
+                for (target, target_route, label) in top_level_items.iter().cloned() {
                     Link {
                         to: target_route,
                         class: nav_item_class(is_active_for(target, &route)),
                         "{label}"
+                    }
+                }
+                if admin_visible {
+                    span { class: "relative inline-block",
+                        button {
+                            id: ADMIN_TRIGGER_ID,
+                            r#type: "button",
+                            class: "{nav_item_class(admin_active)} inline-flex items-center gap-1",
+                            "aria-haspopup": "menu",
+                            "aria-expanded": admin_panel_visible,
+                            onclick: move |_| {
+                                let was_open = *admin_open.read();
+                                if !was_open {
+                                    admin_anchor.set(read_trigger_anchor());
+                                }
+                                admin_open.set(!was_open);
+                            },
+                            "{admin_trigger_label}"
+                            span { class: "text-[11px] opacity-70 ml-0.5", "▾" }
+                        }
+                        if admin_panel_visible {
+                            if let Some((top, left)) = admin_anchor_value {
+                                div {
+                                    id: ADMIN_PANEL_ID,
+                                    role: "menu",
+                                    class: ADMIN_PANEL_CONTAINER_CLASS,
+                                    style: "position: fixed; top: {top}px; left: {left}px;",
+                                    for (target, target_route, label) in admin_items.iter().cloned() {
+                                        Link {
+                                            to: target_route,
+                                            role: "menuitem",
+                                            class: admin_panel_item_class(is_active_for(target, &route)),
+                                            onclick: move |_| {
+                                                admin_open.set(false);
+                                            },
+                                            "{label}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -307,11 +518,23 @@ fn TopBarRouted() -> Element {
 
             if mobile_panel_visible {
                 div { class: "md:hidden absolute top-[52px] left-2 right-2 bg-surface border border-border rounded-md shadow-md z-50 p-2 flex flex-col gap-1",
-                    for (target, target_route, label) in nav_items.iter().cloned() {
+                    for (target, target_route, label) in top_level_items.iter().cloned() {
                         Link {
                             to: target_route,
                             class: nav_item_class(is_active_for(target, &route)),
                             "{label}"
+                        }
+                    }
+                    if admin_visible {
+                        div { class: MOBILE_ADMIN_SECTION_HEADER_CLASS,
+                            "{admin_group_default_label}"
+                        }
+                        for (target, target_route, label) in admin_items.iter().cloned() {
+                            Link {
+                                to: target_route,
+                                class: nav_item_class(is_active_for(target, &route)),
+                                "{label}"
+                            }
                         }
                     }
                 }
@@ -622,5 +845,315 @@ mod tests {
             "https://api.example.org/logout"
         );
         assert_eq!(logout_url(""), "/logout");
+    }
+
+    #[test]
+    fn is_admin_target_classifies_each_variant() {
+        assert!(!is_admin_target(NavTarget::Shiftplan));
+        assert!(!is_admin_target(NavTarget::MyShifts));
+        assert!(!is_admin_target(NavTarget::MyTime));
+        assert!(!is_admin_target(NavTarget::YearOverview));
+        assert!(is_admin_target(NavTarget::Employees));
+        assert!(is_admin_target(NavTarget::BillingPeriods));
+        assert!(is_admin_target(NavTarget::UserManagement));
+        assert!(is_admin_target(NavTarget::Templates));
+    }
+
+    fn nav_entry(target: NavTarget, label: &str) -> (NavTarget, Route, String) {
+        let route = match target {
+            NavTarget::Shiftplan => Route::ShiftPlan {},
+            NavTarget::MyShifts => Route::MyShifts {},
+            NavTarget::MyTime => Route::MyEmployeeDetails {},
+            NavTarget::YearOverview => Route::WeeklyOverview {},
+            NavTarget::Employees => Route::Employees {},
+            NavTarget::BillingPeriods => Route::BillingPeriods {},
+            NavTarget::UserManagement => Route::UserManagementPage {},
+            NavTarget::Templates => Route::TextTemplateManagement {},
+        };
+        (target, route, label.to_string())
+    }
+
+    #[test]
+    fn partition_nav_items_splits_admin_and_top_level_preserving_order() {
+        let items = vec![
+            nav_entry(NavTarget::Shiftplan, "Schichtplan"),
+            nav_entry(NavTarget::MyShifts, "Meine Schichten"),
+            nav_entry(NavTarget::MyTime, "Meine Zeit"),
+            nav_entry(NavTarget::YearOverview, "Jahresübersicht"),
+            nav_entry(NavTarget::Employees, "Mitarbeiter"),
+            nav_entry(NavTarget::BillingPeriods, "Abrechnungszeiträume"),
+            nav_entry(NavTarget::UserManagement, "Benutzerverwaltung"),
+            nav_entry(NavTarget::Templates, "Textvorlagen"),
+        ];
+        let (top_level, admin) = partition_nav_items(&items);
+
+        let top_level_targets: Vec<NavTarget> = top_level.iter().map(|e| e.0).collect();
+        assert_eq!(
+            top_level_targets,
+            vec![
+                NavTarget::Shiftplan,
+                NavTarget::MyShifts,
+                NavTarget::MyTime,
+                NavTarget::YearOverview,
+            ]
+        );
+
+        let admin_targets: Vec<NavTarget> = admin.iter().map(|e| e.0).collect();
+        assert_eq!(
+            admin_targets,
+            vec![
+                NavTarget::Employees,
+                NavTarget::BillingPeriods,
+                NavTarget::UserManagement,
+                NavTarget::Templates,
+            ]
+        );
+    }
+
+    #[test]
+    fn partition_nav_items_no_admin_only_top_level() {
+        let items = vec![
+            nav_entry(NavTarget::Shiftplan, "Schichtplan"),
+            nav_entry(NavTarget::MyShifts, "Meine Schichten"),
+        ];
+        let (top_level, admin) = partition_nav_items(&items);
+        assert_eq!(top_level.len(), 2);
+        assert!(admin.is_empty());
+    }
+
+    #[test]
+    fn partition_nav_items_only_admin() {
+        let items = vec![
+            nav_entry(NavTarget::Employees, "Mitarbeiter"),
+            nav_entry(NavTarget::Templates, "Textvorlagen"),
+        ];
+        let (top_level, admin) = partition_nav_items(&items);
+        assert!(top_level.is_empty());
+        assert_eq!(admin.len(), 2);
+    }
+
+    #[test]
+    fn partition_nav_items_empty_input() {
+        let items: Vec<(NavTarget, Route, String)> = Vec::new();
+        let (top_level, admin) = partition_nav_items(&items);
+        assert!(top_level.is_empty());
+        assert!(admin.is_empty());
+    }
+
+    #[test]
+    fn active_admin_label_returns_active_item_label() {
+        let admin = vec![
+            nav_entry(NavTarget::Employees, "Mitarbeiter"),
+            nav_entry(NavTarget::BillingPeriods, "Abrechnungszeiträume"),
+        ];
+        let label = active_admin_label(&admin, &Route::Employees {});
+        assert_eq!(label, Some("Mitarbeiter"));
+    }
+
+    #[test]
+    fn active_admin_label_none_when_top_level_route_active() {
+        let admin = vec![
+            nav_entry(NavTarget::Employees, "Mitarbeiter"),
+            nav_entry(NavTarget::Templates, "Textvorlagen"),
+        ];
+        let label = active_admin_label(&admin, &Route::ShiftPlan {});
+        assert_eq!(label, None);
+    }
+
+    #[test]
+    fn active_admin_label_handles_parameterised_admin_route() {
+        let admin = vec![nav_entry(NavTarget::Employees, "Mitarbeiter")];
+        let label = active_admin_label(
+            &admin,
+            &Route::EmployeeDetails {
+                employee_id: "abc".to_string(),
+            },
+        );
+        assert_eq!(label, Some("Mitarbeiter"));
+    }
+
+    #[test]
+    fn admin_panel_item_class_active_uses_accent() {
+        let c = admin_panel_item_class(true);
+        assert!(c.contains("bg-accent-soft"));
+        assert!(c.contains("text-accent"));
+        assert!(c.contains("font-semibold"));
+    }
+
+    #[test]
+    fn admin_panel_item_class_inactive_uses_ink_and_hover() {
+        let c = admin_panel_item_class(false);
+        assert!(c.contains("text-ink"));
+        assert!(c.contains("hover:bg-surface-alt"));
+        assert!(!c.contains("font-semibold"));
+    }
+
+    fn nav_items_for_visibility(v: NavVisibility) -> Vec<(NavTarget, Route, String)> {
+        let mut items = Vec::new();
+        if v.shiftplan {
+            items.push(nav_entry(NavTarget::Shiftplan, "Schichtplan"));
+        }
+        if v.my_shifts {
+            items.push(nav_entry(NavTarget::MyShifts, "Meine Schichten"));
+        }
+        if v.my_time {
+            items.push(nav_entry(NavTarget::MyTime, "Meine Zeit"));
+        }
+        if v.year_overview {
+            items.push(nav_entry(NavTarget::YearOverview, "Jahresübersicht"));
+        }
+        if v.employees {
+            items.push(nav_entry(NavTarget::Employees, "Mitarbeiter"));
+        }
+        if v.billing_periods {
+            items.push(nav_entry(NavTarget::BillingPeriods, "Abrechnungszeiträume"));
+        }
+        if v.user_management {
+            items.push(nav_entry(NavTarget::UserManagement, "Benutzerverwaltung"));
+        }
+        if v.templates {
+            items.push(nav_entry(NavTarget::Templates, "Textvorlagen"));
+        }
+        items
+    }
+
+    #[test]
+    fn sales_only_user_yields_no_admin_group() {
+        let auth = auth_with(&["sales"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (top_level, admin) = partition_nav_items(&items);
+        assert!(admin.is_empty(), "sales-only should have no admin items");
+        let labels: Vec<&str> = top_level.iter().map(|e| e.2.as_str()).collect();
+        assert_eq!(
+            labels,
+            vec!["Schichtplan", "Meine Schichten", "Jahresübersicht"]
+        );
+    }
+
+    #[test]
+    fn hr_admin_user_partitions_into_top_level_and_full_admin_group() {
+        let auth = auth_with(&["sales", "hr", "admin"]);
+        let v = nav_visibility(Some(&auth), true);
+        let items = nav_items_for_visibility(v);
+        let (top_level, admin) = partition_nav_items(&items);
+
+        let top_labels: Vec<&str> = top_level.iter().map(|e| e.2.as_str()).collect();
+        assert_eq!(
+            top_labels,
+            vec!["Schichtplan", "Meine Schichten", "Jahresübersicht"],
+            "hr suppresses my_time, top-level shows the rest in declaration order"
+        );
+
+        let admin_labels: Vec<&str> = admin.iter().map(|e| e.2.as_str()).collect();
+        assert_eq!(
+            admin_labels,
+            vec![
+                "Mitarbeiter",
+                "Abrechnungszeiträume",
+                "Benutzerverwaltung",
+                "Textvorlagen"
+            ],
+            "all four admin items grouped, in declaration order"
+        );
+    }
+
+    #[test]
+    fn top_level_partition_excludes_admin_items() {
+        let auth = auth_with(&["sales", "hr", "admin"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (top_level, _admin) = partition_nav_items(&items);
+        for entry in top_level.iter() {
+            assert!(
+                !is_admin_target(entry.0),
+                "top-level slice must not contain admin target {:?}",
+                entry.0
+            );
+        }
+    }
+
+    #[test]
+    fn hr_user_admin_group_active_label_is_employees_label_for_employee_route() {
+        let auth = auth_with(&["hr"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (_top_level, admin) = partition_nav_items(&items);
+        let label = active_admin_label(&admin, &Route::Employees {});
+        assert_eq!(label, Some("Mitarbeiter"));
+    }
+
+    #[test]
+    fn hr_user_admin_group_default_label_when_top_level_route_active() {
+        let auth = auth_with(&["sales", "hr"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (_top_level, admin) = partition_nav_items(&items);
+        let label = active_admin_label(&admin, &Route::ShiftPlan {});
+        assert_eq!(label, None);
+    }
+
+    #[test]
+    fn hr_user_admin_group_active_label_for_employee_details_parameterised_route() {
+        let auth = auth_with(&["hr"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (_top_level, admin) = partition_nav_items(&items);
+        let label = active_admin_label(
+            &admin,
+            &Route::EmployeeDetails {
+                employee_id: "abc".to_string(),
+            },
+        );
+        assert_eq!(label, Some("Mitarbeiter"));
+    }
+
+    #[test]
+    fn mobile_admin_section_header_class_matches_design_typography() {
+        let c = MOBILE_ADMIN_SECTION_HEADER_CLASS;
+        assert!(c.contains("text-[11px]"), "missing text-[11px]: {c}");
+        assert!(c.contains("font-bold"), "missing font-bold: {c}");
+        assert!(c.contains("uppercase"), "missing uppercase: {c}");
+        assert!(c.contains("tracking-[0.06em]"), "missing tracking: {c}");
+        assert!(c.contains("text-ink-muted"), "missing text-ink-muted: {c}");
+        assert!(c.contains("border-t"), "missing border-t: {c}");
+        assert!(c.contains("border-border"), "missing border-border: {c}");
+    }
+
+    #[test]
+    fn admin_panel_container_class_matches_design_panel() {
+        let c = ADMIN_PANEL_CONTAINER_CLASS;
+        assert!(c.contains("min-w-[220px]"), "missing min-w-[220px]: {c}");
+        assert!(c.contains("bg-surface"), "missing bg-surface: {c}");
+        assert!(c.contains("border"), "missing border: {c}");
+        assert!(c.contains("border-border"), "missing border-border: {c}");
+        assert!(c.contains("rounded-md"), "missing rounded-md: {c}");
+        assert!(c.contains("shadow-md"), "missing shadow-md: {c}");
+        assert!(c.contains("z-50"), "missing z-50: {c}");
+    }
+
+    #[test]
+    fn admin_trigger_active_class_when_admin_route_active_full_user() {
+        let auth = auth_with(&["sales", "hr", "admin"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (_top_level, admin) = partition_nav_items(&items);
+        let admin_active = active_admin_label(&admin, &Route::Employees {}).is_some();
+        let class = nav_item_class(admin_active);
+        assert!(class.contains("bg-accent-soft"));
+        assert!(class.contains("text-accent"));
+        assert!(class.contains("font-semibold"));
+    }
+
+    #[test]
+    fn admin_trigger_inactive_class_when_top_level_route_active() {
+        let auth = auth_with(&["sales", "hr", "admin"]);
+        let v = nav_visibility(Some(&auth), false);
+        let items = nav_items_for_visibility(v);
+        let (_top_level, admin) = partition_nav_items(&items);
+        let admin_active = active_admin_label(&admin, &Route::ShiftPlan {}).is_some();
+        let class = nav_item_class(admin_active);
+        assert!(class.contains("text-ink-soft"));
+        assert!(!class.contains("bg-accent-soft"));
     }
 }

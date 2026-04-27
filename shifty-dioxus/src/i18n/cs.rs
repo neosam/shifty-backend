@@ -21,6 +21,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::YearOverview, "Roční přehled");
     i18n.add_text(Locale::Cs, Key::Logout, "Odhlásit");
     i18n.add_text(Locale::Cs, Key::TopBarYouAreLabel, "Jsi");
+    i18n.add_text(Locale::Cs, Key::TopBarAdminGroupLabel, "Správa");
 
     // Shiftplan
     i18n.add_text(
