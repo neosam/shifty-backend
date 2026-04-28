@@ -1061,20 +1061,19 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
     rsx! {
         div {
             class: format!(
-                "absolute left-0 right-0 border-t border-border {} {}",
+                "absolute left-0 right-0 border-t border-border overflow-hidden {} {}",
                 bg_class,
                 if props.discourage { "cursor-not-allowed" } else { "" },
             ),
-            style: format!(
-                "top: {}px; height: {}px; padding: 6px 32px 6px 8px;",
-                top, height,
-            ),
-            div { class: "flex flex-wrap items-start gap-1",
-                span {
-                    class: format!("font-mono text-small font-bold {}", mr_class),
-                    style: "line-height: 18px;",
-                    "{filled_str}"
-                }
+            style: format!("top: {}px; height: {}px;", top, height),
+            span {
+                class: format!("font-mono text-small font-bold {}", mr_class),
+                style: "position: absolute; top: 6px; left: 8px; pointer-events: none; line-height: 18px;",
+                "{filled_str}"
+            }
+            div {
+                class: "flex flex-wrap content-start gap-1 overflow-y-auto overflow-x-hidden",
+                style: "position: absolute; inset: 6px 32px 6px 38px;",
                 for booking in slot.bookings.iter() {
                     {
                         let label: ImStr = if booking.self_added {
@@ -1320,5 +1319,208 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod week_cell_slot_render_tests {
+    use super::*;
+    use futures::channel::mpsc::UnboundedReceiver;
+
+    fn make_slot(num_bookings: usize, min_resources: u8) -> Slot {
+        let bookings: Vec<state::shiftplan::Booking> = (0..num_bookings)
+            .map(|i| state::shiftplan::Booking {
+                id: Uuid::from_u128((i + 1) as u128),
+                sales_person_id: Uuid::from_u128((i + 100) as u128),
+                slot_id: Uuid::from_u128(42),
+                week: 17,
+                year: 2026,
+                label: Rc::from(format!("P{}", i + 1)),
+                background_color: Rc::from("#dbe0ff"),
+                self_added: false,
+                created: None,
+                created_by: None,
+            })
+            .collect();
+        Slot {
+            id: Uuid::from_u128(42),
+            day_of_week: Weekday::Monday,
+            from: time::Time::from_hms(9, 0, 0).unwrap(),
+            to: time::Time::from_hms(10, 0, 0).unwrap(),
+            bookings: Rc::from(bookings),
+            min_resources,
+        }
+    }
+
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    /// Wrapper that registers a no-op TooltipAction coroutine so WeekCellChip's
+    /// `use_coroutine_handle::<TooltipAction>()` does not panic during SSR.
+    fn render_with_tooltip(comp: fn() -> Element) -> String {
+        thread_local! {
+            static INNER: std::cell::Cell<Option<fn() -> Element>> = const { std::cell::Cell::new(None) };
+        }
+        INNER.with(|cell| cell.set(Some(comp)));
+
+        fn root() -> Element {
+            let _ = use_coroutine(|_rx: UnboundedReceiver<TooltipAction>| async move {});
+            let inner = INNER.with(|cell| cell.get()).expect("inner not set");
+            inner()
+        }
+
+        let mut vdom = VirtualDom::new(root);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn slot_outer_carries_overflow_hidden_and_warn_soft_when_understaffed() {
+        fn app() -> Element {
+            let slot = super::week_cell_slot_render_tests::make_slot(0, 3);
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: None,
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::None,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("overflow-hidden"),
+            "outer should carry overflow-hidden: {html}"
+        );
+        assert!(
+            html.contains("bg-warn-soft"),
+            "understaffed slot should carry bg-warn-soft: {html}"
+        );
+        assert!(
+            html.contains("flex-wrap"),
+            "chip area should carry flex-wrap: {html}"
+        );
+        assert!(
+            html.contains("content-start"),
+            "chip area should carry content-start: {html}"
+        );
+        assert!(
+            html.contains("overflow-y-auto"),
+            "chip area should carry overflow-y-auto: {html}"
+        );
+        assert!(
+            html.contains("overflow-x-hidden"),
+            "chip area should carry overflow-x-hidden: {html}"
+        );
+        assert!(
+            html.contains("inset: 6px 32px 6px 38px"),
+            "chip area should carry inline inset: {html}"
+        );
+    }
+
+    #[test]
+    fn min_resources_span_is_absolutely_positioned_with_pointer_events_none() {
+        fn app() -> Element {
+            let slot = super::week_cell_slot_render_tests::make_slot(0, 3);
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: None,
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::None,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("top: 6px; left: 8px"),
+            "min-resources span should be at top:6px left:8px: {html}"
+        );
+        assert!(
+            html.contains("pointer-events: none"),
+            "min-resources span should be pointer-events:none: {html}"
+        );
+    }
+
+    #[test]
+    fn chip_area_contains_one_element_per_booking() {
+        fn app() -> Element {
+            let slot = super::week_cell_slot_render_tests::make_slot(3, 3);
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: None,
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::None,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let html = render_with_tooltip(app);
+        assert!(html.contains(">P1<"), "expected P1 chip text: {html}");
+        assert!(html.contains(">P2<"), "expected P2 chip text: {html}");
+        assert!(html.contains(">P3<"), "expected P3 chip text: {html}");
+        assert_eq!(
+            html.matches("person-pill").count(),
+            3,
+            "expected exactly 3 person-pill chips: {html}"
+        );
+    }
+
+    #[test]
+    fn action_button_appears_after_chip_area_in_html_order() {
+        fn app() -> Element {
+            let slot = super::week_cell_slot_render_tests::make_slot(0, 1);
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: Some(Uuid::from_u128(999)),
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::AddRemove,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let html = render(app);
+        let chip_area_close_idx = html
+            .find("inset: 6px 32px 6px 38px")
+            .and_then(|start| html[start..].find("</div>").map(|rel| start + rel));
+        let button_idx = html.find("<button");
+        assert!(
+            chip_area_close_idx.is_some(),
+            "chip area not found in html: {html}"
+        );
+        assert!(button_idx.is_some(), "button not found in html: {html}");
+        assert!(
+            button_idx.unwrap() > chip_area_close_idx.unwrap(),
+            "button should appear after chip area close (button at {:?}, chip-close at {:?}): {html}",
+            button_idx,
+            chip_area_close_idx,
+        );
     }
 }

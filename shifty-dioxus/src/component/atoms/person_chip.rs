@@ -24,7 +24,8 @@ use dioxus::prelude::*;
 
 use crate::base_types::ImStr;
 
-const SHAPE_CLASSES: &str = "inline-flex px-[4px] pl-[7px] py-px rounded-sm text-body font-medium";
+const SHAPE_CLASSES: &str =
+    "inline-flex px-[4px] pl-[7px] py-px rounded-sm text-body font-medium whitespace-nowrap";
 
 /// Builds the class string for a `PersonChip`.
 ///
@@ -170,6 +171,37 @@ mod tests {
             assert!(c.contains("text-body"));
             assert!(c.contains("font-medium"));
         }
+    }
+
+    #[test]
+    fn with_color_carries_whitespace_nowrap() {
+        let c = build_class(true, false, false);
+        assert!(
+            c.contains("whitespace-nowrap"),
+            "missing whitespace-nowrap (color path): {c}"
+        );
+    }
+
+    #[test]
+    fn without_color_carries_whitespace_nowrap() {
+        let c = build_class(false, false, false);
+        assert!(
+            c.contains("whitespace-nowrap"),
+            "missing whitespace-nowrap (no-color path): {c}"
+        );
+    }
+
+    #[test]
+    fn bold_variant_carries_whitespace_nowrap_and_font_semibold() {
+        let c = build_class(true, true, false);
+        assert!(
+            c.contains("whitespace-nowrap"),
+            "missing whitespace-nowrap (bold variant): {c}"
+        );
+        assert!(
+            c.contains("font-semibold"),
+            "missing font-semibold (bold variant): {c}"
+        );
     }
 
     fn render(comp: fn() -> Element) -> String {
