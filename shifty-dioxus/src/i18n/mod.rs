@@ -171,6 +171,9 @@ pub enum Key {
 
     // Add extra hours form
     AddExtraHoursFormTitle,
+    EditExtraHoursFormTitle,
+    EditExtraHourLabel,
+    ExtraHoursConflictNotice,
     Category,
     AmountOfHours,
     AmountOfDays,

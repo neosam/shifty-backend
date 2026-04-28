@@ -13,6 +13,7 @@ use crate::{
     service::{
         employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction, i18n::I18N,
     },
+    state::employee::ExtraHours,
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
@@ -25,6 +26,7 @@ pub enum EmployeeDetailsAction {
     OpenEmployeeWorkDetails(Uuid),
     EmployeeWorkDetailsSaved,
     OpenExtraHours,
+    OpenEditExtraHours(ExtraHours),
     CloseExtraHours,
     ExtraHoursSaved,
 }
@@ -46,6 +48,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     let mut show_contract_dialog = use_signal(|| false);
     let mut contract_dialog_type = use_signal(|| EmployeeWorkDetailsFormType::New);
     let mut show_extra_hours_dialog = use_signal(|| false);
+    let mut editing_extra_hours = use_signal(|| None::<ExtraHours>);
 
     let employee_service = use_coroutine_handle::<EmployeeAction>();
     let employee_work_details_service = use_coroutine_handle::<EmployeeWorkDetailsAction>();
@@ -80,13 +83,20 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                         show_contract_dialog.set(false);
                     }
                     EmployeeDetailsAction::OpenExtraHours => {
+                        editing_extra_hours.set(None);
+                        show_extra_hours_dialog.set(true);
+                    }
+                    EmployeeDetailsAction::OpenEditExtraHours(entry) => {
+                        editing_extra_hours.set(Some(entry));
                         show_extra_hours_dialog.set(true);
                     }
                     EmployeeDetailsAction::CloseExtraHours => {
                         show_extra_hours_dialog.set(false);
+                        editing_extra_hours.set(None);
                     }
                     EmployeeDetailsAction::ExtraHoursSaved => {
                         show_extra_hours_dialog.set(false);
+                        editing_extra_hours.set(None);
                         employee_service.send(EmployeeAction::Refresh);
                     }
                 }
@@ -133,11 +143,14 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             on_cancel: move |_| cr.send(EmployeeDetailsAction::EmployeeWorkDetailsDialogVisibility(false)),
         }
 
-        ExtraHoursModal {
-            open: *show_extra_hours_dialog.read(),
-            sales_person_id: employee_id,
-            on_saved: move |_| cr.send(EmployeeDetailsAction::ExtraHoursSaved),
-            on_cancel: move |_| cr.send(EmployeeDetailsAction::CloseExtraHours),
+        if *show_extra_hours_dialog.read() {
+            ExtraHoursModal {
+                open: true,
+                sales_person_id: employee_id,
+                editing: editing_extra_hours.read().clone(),
+                on_saved: move |_| cr.send(EmployeeDetailsAction::ExtraHoursSaved),
+                on_cancel: move |_| cr.send(EmployeeDetailsAction::CloseExtraHours),
+            }
         }
 
         EmployeesShell {
@@ -157,6 +170,7 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                     show_vacation: true,
                     show_delete_employee_work_details: true,
                     on_extra_hour_delete: move |id| cr.send(EmployeeDetailsAction::DeleteExtraHour(id)),
+                    on_extra_hour_edit: move |entry: ExtraHours| cr.send(EmployeeDetailsAction::OpenEditExtraHours(entry)),
                     on_custom_delete: move |_id| cr.send(EmployeeDetailsAction::Update),
                     on_add_employee_work_details: move |_| cr.send(EmployeeDetailsAction::NewEmployeeWorkDetails),
                     on_employee_work_details_clicked: move |id| cr.send(EmployeeDetailsAction::OpenEmployeeWorkDetails(id)),

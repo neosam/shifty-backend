@@ -449,6 +449,24 @@ pub async fn delete_extra_hour(config: Config, extra_hour_id: Uuid) -> Result<()
     Ok(())
 }
 
+pub async fn update_extra_hour(
+    config: Config,
+    extra_hours: ExtraHoursTO,
+) -> Result<ExtraHoursTO, ShiftyError> {
+    info!("Updating extra hour {}", extra_hours.id);
+    let url = format!("{}/extra-hours/{}", config.backend, extra_hours.id);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&extra_hours).send().await?;
+    if response.status() == reqwest::StatusCode::CONFLICT {
+        info!("Update returned 409 Conflict");
+        return Err(ShiftyError::Conflict(String::new()));
+    }
+    response.error_for_status_ref()?;
+    let updated: ExtraHoursTO = response.json().await?;
+    info!("Updated");
+    Ok(updated)
+}
+
 pub async fn get_version(config: Config) -> Result<Rc<str>, reqwest::Error> {
     info!("Fetching version");
     let url = format!("{}/version", config.backend);

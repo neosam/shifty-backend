@@ -222,6 +222,13 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
 
     // Add extra hours form
     i18n.add_text(Locale::Cs, Key::AddExtraHoursFormTitle, "Přidat přesčasy");
+    i18n.add_text(Locale::Cs, Key::EditExtraHoursFormTitle, "Upravit záznam");
+    i18n.add_text(Locale::Cs, Key::EditExtraHourLabel, "Upravit");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ExtraHoursConflictNotice,
+        "Záznam byl mezitím změněn. Data byla aktualizována. Zkuste úpravu znovu.",
+    );
     i18n.add_text(Locale::Cs, Key::Category, "Kategorie");
     i18n.add_text(Locale::Cs, Key::AmountOfHours, "Počet hodin");
     i18n.add_text(Locale::Cs, Key::AmountOfDays, "Počet dní");

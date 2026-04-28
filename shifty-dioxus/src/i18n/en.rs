@@ -191,6 +191,17 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     // Add extra hours form
     i18n.add_text(Locale::En, Key::AddExtraHoursFormTitle, "Add extra hours");
+    i18n.add_text(
+        Locale::En,
+        Key::EditExtraHoursFormTitle,
+        "Edit extra hours entry",
+    );
+    i18n.add_text(Locale::En, Key::EditExtraHourLabel, "Edit");
+    i18n.add_text(
+        Locale::En,
+        Key::ExtraHoursConflictNotice,
+        "Entry was modified elsewhere; the data has been refreshed. Please retry your edit.",
+    );
     i18n.add_text(Locale::En, Key::Category, "Category");
     i18n.add_text(Locale::En, Key::AmountOfHours, "Amount of hours");
     i18n.add_text(Locale::En, Key::AmountOfDays, "Amount of days");

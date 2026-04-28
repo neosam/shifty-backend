@@ -11,7 +11,7 @@ use crate::i18n::Key;
 use crate::js;
 use crate::loader;
 use crate::router::Route;
-use crate::service::{config::CONFIG, i18n::I18N};
+use crate::service::{config::CONFIG, employee::EMPLOYEES_LIST_REFRESH, i18n::I18N};
 use crate::state::employee::Employee;
 
 #[derive(Props, Clone, PartialEq)]
@@ -49,8 +49,14 @@ pub fn EmployeesList(props: EmployeesListProps) -> Element {
         52
     };
     let config = CONFIG.read().clone();
-    let employees =
-        use_resource(move || loader::load_employees(config.to_owned(), *year.read(), week_until));
+    let employees = use_resource(move || {
+        // Subscribe to the sidebar refresh token so any mutation that bumps
+        // it (via `refresh_employee_data` in the employee service) re-runs
+        // this resource and the cached list stays in sync with the detail
+        // view's aggregates.
+        let _refresh_token = *EMPLOYEES_LIST_REFRESH.read();
+        loader::load_employees(config.to_owned(), *year.read(), week_until)
+    });
 
     let mut search = use_signal(String::new);
 

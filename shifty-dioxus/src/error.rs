@@ -8,6 +8,11 @@ pub enum ShiftyError {
 
     #[error("Time ComponentRange error: {0}")]
     TimeComponentRange(#[from] time::error::ComponentRange),
+
+    /// HTTP 409 Conflict — typically optimistic-lock failure on a versioned PUT.
+    /// The wrapped string is the user-facing message (already translated).
+    #[error("{0}")]
+    Conflict(String),
 }
 
 pub fn error_handler(e: ShiftyError) {
@@ -20,6 +25,9 @@ pub fn error_handler(e: ShiftyError) {
         }
         ShiftyError::TimeComponentRange(e) => {
             eprintln!("Error: {}", e);
+        }
+        ShiftyError::Conflict(msg) => {
+            eprintln!("Conflict: {}", msg);
         }
     }
 }

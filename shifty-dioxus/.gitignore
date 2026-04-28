@@ -13,3 +13,6 @@
 # shifty-design: large derived/cache artifacts that exceed jj's snapshot limit
 shifty-design/project/Shifty Preview Offline.html
 shifty-design/project/uploads/current_screenshots-*.png
+
+# Playwright MCP browser-test cache (screenshots, console logs, snapshots)
+.playwright-mcp/

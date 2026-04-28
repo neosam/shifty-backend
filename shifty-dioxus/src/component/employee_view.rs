@@ -35,6 +35,7 @@ pub struct EmployeeViewPlainProps {
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
+    pub on_extra_hour_edit: EventHandler<ExtraHours>,
     pub on_custom_delete: EventHandler<Uuid>,
     pub on_full_year: EventHandler<()>,
     pub on_until_now: EventHandler<()>,
@@ -425,6 +426,9 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                         props.on_extra_hour_delete.call(uuid);
                         props.onupdate.call(());
                     },
+                    on_edit: move |entry| {
+                        props.on_extra_hour_edit.call(entry);
+                    },
                     on_custom_delete: move |uuid| {
                         props.on_custom_delete.call(uuid);
                     },
@@ -611,6 +615,7 @@ pub struct ExtraHoursViewProps {
     pub custom_hours: Rc<[CustomExtraHours]>,
     pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
     pub ondelete: EventHandler<Uuid>,
+    pub on_edit: EventHandler<ExtraHours>,
     pub on_custom_delete: EventHandler<Uuid>,
 }
 
@@ -685,6 +690,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                                 entries: entries.iter().map(|e| (*e).clone()).collect(),
                                 hours_label: hours_str.clone(),
                                 ondelete: props.ondelete,
+                                on_edit: props.on_edit,
                             }
                         }
                     }
@@ -713,6 +719,7 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
                                 entries: entries.into(),
                                 hours_label: hours_str.clone(),
                                 ondelete: props.ondelete,
+                                on_edit: props.on_edit,
                             }
                         }
                     }
@@ -729,6 +736,7 @@ struct ExtraHoursCategorySectionProps {
     entries: Rc<[ExtraHours]>,
     hours_label: ImStr,
     ondelete: EventHandler<Uuid>,
+    on_edit: EventHandler<ExtraHours>,
 }
 
 #[component]
@@ -739,6 +747,8 @@ fn ExtraHoursCategorySection(props: ExtraHoursCategorySectionProps) -> Element {
     let entries = props.entries.clone();
     let hours_label = props.hours_label;
     let ondelete = props.ondelete;
+    let on_edit = props.on_edit;
+    let edit_label: ImStr = ImStr::from(i18n.t(Key::EditExtraHourLabel).as_ref());
     rsx! {
         div { class: "flex flex-col mt-3",
             h3 { class: "text-micro font-bold uppercase text-ink-muted",
@@ -750,9 +760,11 @@ fn ExtraHoursCategorySection(props: ExtraHoursCategorySectionProps) -> Element {
             for entry in entries.iter() {
                 {
                     let entry_id = entry.id;
+                    let entry_for_edit = entry.clone();
                     let date = i18n.format_date(&entry.date_time.date());
                     let amount = format!("{} {}", format_hours(entry.amount, 2), hours_label);
                     let entry_description = entry.description.clone();
+                    let edit_label = edit_label.clone();
                     rsx! {
                         div { class: "flex items-baseline justify-between gap-2 py-1.5 border-b border-border",
                             div { class: "min-w-0 flex flex-col",
@@ -764,6 +776,11 @@ fn ExtraHoursCategorySection(props: ExtraHoursCategorySectionProps) -> Element {
                             div { class: "flex items-center gap-2",
                                 span { class: "font-mono tabular-nums text-body text-ink",
                                     "{amount}"
+                                }
+                                Btn {
+                                    variant: BtnVariant::Secondary,
+                                    on_click: move |_| on_edit.call(entry_for_edit.clone()),
+                                    "{edit_label}"
                                 }
                                 Btn {
                                     variant: BtnVariant::Danger,
@@ -785,6 +802,7 @@ pub struct EmployeeViewProps {
     pub show_vacation: bool,
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
+    pub on_extra_hour_edit: EventHandler<ExtraHours>,
     pub on_custom_delete: EventHandler<Uuid>,
     pub on_add_employee_work_details: Option<EventHandler<()>>,
     pub on_employee_work_details_clicked: EventHandler<Uuid>,
@@ -821,6 +839,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             custom_extra_hours_definitions,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
+            on_extra_hour_edit: props.on_extra_hour_edit,
             on_custom_delete: move |uuid| {
                 employee_service.send(EmployeeAction::DeleteCustomExtraHour(uuid));
                 props.on_custom_delete.call(uuid);
@@ -903,6 +922,50 @@ mod tests {
     #[test]
     fn current_week_expected_returns_none_for_empty_weeks() {
         assert_eq!(current_week_expected_hours(&[], 2026, 17), None);
+    }
+
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn extra_hours_category_section_renders_edit_button_with_translation() {
+        // The Edit button must be present and labeled with the
+        // EditExtraHourLabel translation (English, since the I18N store
+        // defaults to En in tests).
+        fn app() -> Element {
+            let entry = ExtraHours {
+                id: uuid::Uuid::from_u128(1),
+                sales_person_id: uuid::Uuid::nil(),
+                amount: 3.5,
+                category: crate::state::employee::WorkingHoursCategory::ExtraWork("-".into()),
+                description: Rc::from("note"),
+                date_time: time::macros::datetime!(2026-04-15 10:00:00),
+                version: uuid::Uuid::nil(),
+            };
+            rsx! {
+                ExtraHoursCategorySection {
+                    label: Rc::from("Extra work"),
+                    description: None,
+                    entries: Rc::from([entry]),
+                    hours_label: ImStr::from("h"),
+                    ondelete: |_| {},
+                    on_edit: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Edit"),
+            "edit button must carry the EditExtraHourLabel translation: {html}"
+        );
+        // sanity check the delete glyph also renders so the row layout is intact
+        assert!(
+            html.contains("\u{1f5d1}") || html.contains("&#x1f5d1;") || html.contains("🗑"),
+            "delete button glyph must still render: {html}"
+        );
     }
 
     #[test]
