@@ -550,7 +550,7 @@ pub fn DayView(props: DayViewProps) -> Element {
     }
     rsx! {
         ColumnView::<Slot> {
-            height: (props.day_end - props.day_start) as f32 * SCALING + SCALING / 2.0,
+            height: (props.day_end - props.day_start) as f32 * SCALING,
             scale: SCALING,
             offset: SCALING / 2.0,
             slots: props
@@ -1166,10 +1166,21 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
     }
 }
 
+/// Snaps the raw fractional hour bounds of a week's slots to whole-hour
+/// boundaries. The grid body, the time-column whole-hour label loop, and the
+/// day-column heights all derive from these snapped values, so a slot ending
+/// at 19:30 still lands inside a labeled "19:00–20:00" cell instead of
+/// overflowing the grid body and triggering a scrollbar.
+pub(crate) fn snapped_day_bounds(min_hour: f32, max_hour: f32) -> (f32, f32) {
+    (min_hour.floor(), max_hour.ceil())
+}
+
 #[component]
 pub fn WeekView(props: WeekViewProps) -> Element {
-    let day_start = props.shiftplan_data.min_hour();
-    let day_end = props.shiftplan_data.max_hour();
+    let (day_start, day_end) = snapped_day_bounds(
+        props.shiftplan_data.min_hour(),
+        props.shiftplan_data.max_hour(),
+    );
     let has_sunday = props
         .shiftplan_data
         .slots
@@ -1521,6 +1532,100 @@ mod week_cell_slot_render_tests {
             "button should appear after chip area close (button at {:?}, chip-close at {:?}): {html}",
             button_idx,
             chip_area_close_idx,
+        );
+    }
+}
+
+#[cfg(test)]
+mod week_view_hour_snap_tests {
+    use super::*;
+
+    #[test]
+    fn snapped_day_bounds_passes_through_whole_hours() {
+        let (start, end) = snapped_day_bounds(9.0, 18.0);
+        assert_eq!(start, 9.0);
+        assert_eq!(end, 18.0);
+    }
+
+    #[test]
+    fn snapped_day_bounds_floors_fractional_start_and_ceils_fractional_end() {
+        let (start, end) = snapped_day_bounds(9.5, 19.5);
+        assert_eq!(start, 9.0);
+        assert_eq!(end, 20.0);
+    }
+
+    #[test]
+    fn snapped_day_bounds_handles_both_ends_fractional() {
+        let (start, end) = snapped_day_bounds(9.5, 11.5);
+        assert_eq!(start, 9.0);
+        assert_eq!(end, 12.0);
+    }
+
+    #[test]
+    fn snapped_day_bounds_handles_quarter_hour_minutes() {
+        let (start, end) = snapped_day_bounds(9.25, 17.75);
+        assert_eq!(start, 9.0);
+        assert_eq!(end, 18.0);
+    }
+
+    #[test]
+    fn snapped_day_bounds_preserves_zero_zero_for_empty_plan() {
+        let (start, end) = snapped_day_bounds(0.0, 0.0);
+        assert_eq!(start, 0.0);
+        assert_eq!(end, 0.0);
+    }
+
+    #[test]
+    fn body_height_for_fractional_bounds_covers_eleven_whole_hours() {
+        let (day_start, day_end) = snapped_day_bounds(9.5, 19.5);
+        let body_height = (day_end - day_start) * SCALING;
+        assert_eq!(body_height, 11.0 * SCALING);
+    }
+
+    #[test]
+    fn time_column_label_count_for_fractional_bounds_equals_eleven() {
+        let (day_start, day_end) = snapped_day_bounds(9.5, 19.5);
+        let hour_start = day_start.ceil() as u8;
+        let hour_end = day_end.ceil() as u8;
+        assert_eq!(hour_end - hour_start, 11);
+    }
+
+    /// Slot at 9:30 inside a column whose `day_start` was snapped down from
+    /// 9.5 to 9.0 must render at `top = 0.5 * SCALING`. Verifies the slot
+    /// positioning math (`week_view.rs:1032`) cooperates with the snap.
+    #[test]
+    fn slot_at_half_past_renders_with_top_offset_half_scaling() {
+        fn app() -> Element {
+            let slot = Slot {
+                id: Uuid::from_u128(7),
+                day_of_week: Weekday::Monday,
+                from: time::Time::from_hms(9, 30, 0).unwrap(),
+                to: time::Time::from_hms(10, 30, 0).unwrap(),
+                bookings: Rc::from(Vec::<state::shiftplan::Booking>::new()),
+                min_resources: 1,
+            };
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: None,
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::None,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new(app);
+        vdom.rebuild_in_place();
+        let html = dioxus_ssr::render(&vdom);
+        let expected_top = format!("top: {}px", 0.5 * SCALING);
+        assert!(
+            html.contains(&expected_top),
+            "expected slot top offset '{expected_top}' (snapped day_start=9.0, slot starts 9:30), got: {html}"
         );
     }
 }
