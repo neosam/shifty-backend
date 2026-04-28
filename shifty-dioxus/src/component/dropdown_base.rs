@@ -41,17 +41,17 @@ pub fn DropdownBase() -> Element {
     if let Some(dropdown) = dropdown.clone() {
         rsx! {
             div {
-                class: "absolute inset-0 z-40 bg-gray",
+                class: "absolute inset-0 z-40",
                 onclick: {
                     to_owned![dropdown_service];
                     move |_| dropdown_service.send(DropdownAction::CloseDropdown)
                 },
                 div {
-                    class: "absolute z-50 bg-white border border-gray-300 shadow-lg",
+                    class: "absolute z-50 bg-surface text-ink border border-border shadow-lg",
                     id: "dropdown-base",
                     for entry in dropdown.entries.iter().filter(|entry| entry.disabled == false).cloned() {
                         div {
-                            class: "p-2 cursor-pointer",
+                            class: "p-2 cursor-pointer hover:bg-surface-alt",
                             onclick: {
                                 to_owned![dropdown_service, dropdown];
                                 move |_| {
