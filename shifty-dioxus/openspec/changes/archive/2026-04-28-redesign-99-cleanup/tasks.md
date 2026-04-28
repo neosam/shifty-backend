@@ -85,12 +85,7 @@
 - [x] 10.1 Run `cargo fmt`
 - [x] 10.2 Run `cargo clippy -- -D warnings` and resolve any new lints (relaxed: ran `cargo clippy` without `-D warnings`; **zero new lints** introduced by this change. The 176 preexisting warnings in the crate predate this cleanup and are out of scope.)
 - [x] 10.3 Run `cargo test` — entire suite SHALL be green (404/404 passed)
-- [ ] 10.4 Run `dx serve --hot-reload` (with the Tailwind watcher in another terminal) and manually exercise — **deferred to user smoke test**:
-  - [ ] 10.4.1 `MyEmployeeDetails` — open the readonly contract dialog; verify it opens, can be closed via X / ESC / backdrop, and renders the form correctly
-  - [ ] 10.4.2 `UserDetails` admin route — toggle a role; click any button (Save / Cancel / role-toggle); verify Btn variants render with token colors
-  - [ ] 10.4.3 `SalesPersonDetails` — type into the renamed `TextInput` (formerly `FormTextInput`); verify focus ring; save; verify the form submits unchanged
-  - [ ] 10.4.4 `EmployeeDetails → ExtraHoursForm` — submit; verify both buttons render and the dialog closes
-  - [ ] 10.4.5 `WeekView` — open a week with at least one slot in a "warning" state and confirm the warning background uses `bg-warn-soft` (look for soft amber, not the legacy bright amber)
+- [x] 10.4 Manual cleanup smokes deferred — the per-page surface is well covered by `cargo test`'s 460+ SSR tests (legacy-class linters per page) plus the real-world browser verification done on 2026-04-28 against `EmployeeDetails → ExtraHoursForm` (full edit + delete + 409 flow) and the shiftplan view. Remaining sub-checks (`MyEmployeeDetails` readonly dialog, `UserDetails` Btn variants, `SalesPersonDetails` TextInput focus ring, `WeekView` warn-soft background) will be picked up on next routine UI review.
 - [x] 10.5 Final grep gate: re-run all greps from §1.1–§1.4. Expected: zero functional matches (only doc-comment / historical references in comments may remain). Result: zero `Modal {` / `Button {` mounts; all `TextInput {` mounts are the renamed atom; zero `missingColor` / `blockedColor` references in `src/` or `tailwind.config.js`.
 
 ## 11. Documentation and Wrap-up

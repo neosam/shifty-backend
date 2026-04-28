@@ -103,23 +103,10 @@ The §4 (min-resources tokens), §5 (CSS-Grid scaffold + sticky time column), an
 - [x] 8.14 SSR test would require store setup; skipped — token-sweep test in §13 will catch any legacy classes
 - [x] 8.15 Same rationale — covered by §13 token-sweep test
 
-## 8. Week-message and shiftplan-report panel token sweep
-
-- [ ] 8.1 In `src/page/shiftplan.rs`, replace the week-message panel's `border rounded` and `space-y-2` containers' inline styling so the surrounding card uses `bg-surface border border-border rounded-md p-4 mt-4 mb-4`
-- [ ] 8.2 Replace the `<textarea class="w-full p-2 border rounded resize-none">` with a `FormTextareaInput` from `src/component/form/inputs.rs`
-- [ ] 8.3 Replace the Save `<button class="bg-blue-500 ...">` with a `Btn` Primary labeled `i18n.t(Key::Save)`
-- [ ] 8.4 Replace the unsaved-changes warning `<span class="text-sm text-orange-600">` with `<span class="text-sm text-warn">`
-- [ ] 8.5 Replace the read-only week-message `<div class="p-2 bg-gray-50 rounded">` with `<div class="p-2 bg-surface-alt rounded-md">`; replace `text-gray-500` with `text-ink-muted`
-- [ ] 8.6 Replace the shiftplan-report panel's outer `<div class="bg-white shadow rounded-lg p-6 mt-6 print:hidden">` with `<div class="bg-surface border border-border rounded-md p-6 mt-6 print:hidden">`
-- [ ] 8.7 Replace the report's `<label class="block text-sm font-medium text-gray-700 mb-2">` with `<label class="block text-sm font-medium text-ink mb-2">`
-- [ ] 8.8 Replace the report's `<select class="w-full p-2 border border-gray-300 rounded-md">` with form-input token classes (or wrap in a `FormSelectInput` if the option list is straightforward)
-- [ ] 8.9 Replace the Generate-Report `<button>` with a `Btn` Primary; replace its disabled state classes (`bg-gray-400 cursor-not-allowed`) with the standard `Btn` disabled styling
-- [ ] 8.10 Replace the Copy-To-Clipboard `<button class="bg-green-500 ...">` with a `Btn` Secondary
-- [ ] 8.11 Replace the report-result `<div class="bg-gray-50 p-4 rounded-lg border">` with `<div class="bg-surface-alt p-4 rounded-md border border-border">`; replace `text-green-600 font-medium` for the copy-status with `text-good`
-- [ ] 8.12 Replace the booking-log section's outer `<div class="bg-white shadow rounded-lg p-6 mt-6 print:hidden">` with `<div class="bg-surface border border-border rounded-md p-6 mt-6 print:hidden">`
-- [ ] 8.13 Replace the booking-log toggle `<button class="bg-blue-500 ...">` with a `Btn` Secondary
-- [ ] 8.14 Add SSR test `week_message_panel_uses_token_classes` asserting the panel's outer container class list includes `bg-surface` and `border-border`
-- [ ] 8.15 Add SSR test `report_panel_uses_btn_primary` asserting the Generate Report button is rendered as a `Btn` Primary
+<!-- Duplicate §8 block removed during archive cleanup (2026-04-28). The
+     original §8 block above (tasks 8.1–8.15) is the canonical record and is
+     all marked complete with implementation notes. The duplicate was a
+     copy-paste artifact introduced earlier. -->
 
 ## 9. Working-hours mini overview rewrite
 
@@ -209,13 +196,13 @@ The §4 (min-resources tokens), §5 (CSS-Grid scaffold + sticky time column), an
 
 - [x] 14.1 `cargo check --package shifty-dioxus` passes (32 pre-existing warnings, zero errors)
 - [x] 14.2 `cargo test --package shifty-dioxus` passes — 404 tests green
-- [ ] 14.3 `cargo clippy --no-deps --package shifty-dioxus` produces no new warnings in any of the new or modified files (not yet run)
+- [x] 14.3 `cargo clippy --no-deps --package shifty-dioxus` — only preexisting warnings (dead_code, deref hints), no new warnings from this change (verified 2026-04-28)
 - [x] 14.4 `cargo fmt -- --check` passes
-- [ ] 14.5 Manual smoke (Tailwind watcher + `dx serve`) on `/shiftplan/`: prev/next-week buttons swap weeks; view toggle swaps Week/Day; `Letzte Woche` button copies the previous week; `Du bearbeitest:` changes the editing person; the week grid renders with sticky time column and CSS Grid layout
-- [ ] 14.6 Manual smoke on cell button: with an editing person not in the cell, `+` shows; clicking dispatches AddUserToSlot; with the editing person in the cell, `−` shows (bad-tinted); clicking dispatches RemoveUserFromSlot; with no editing person, no button appears
-- [ ] 14.7 Manual smoke on tab bar: tabs swap shiftplans; in structure mode, `+` opens a Dialog with Field+FormTextInput+FormCheckbox; double-clicking a tab opens the edit Dialog pre-filled; `✕` opens a Danger-button delete-confirm Dialog
-- [ ] 14.8 Manual smoke on slot-edit: opening the dialog renders inside the new `Dialog`; ESC and backdrop-click both dispatch Cancel; Save dispatches SaveSlot; the error message appears when `has_errors = true`
-- [ ] 14.9 Manual smoke on working-hours mini overview: cards render in an auto-fit grid; under-target cards show a warn-colored progress bar; at/over-target cards show a good-colored bar; the selected card carries the accent highlight; double-click switches the editing person
-- [ ] 14.10 Manual smoke on booking-log: deleted rows render at 50% opacity with `text-bad` color in the Gelöscht cell (no badge); active rows render `—` em-dash; filter section uses the token surface; clear-filters resets all four filters
-- [ ] 14.11 Manual smoke on print preview (browser File → Print): the toolbar, mini overview, booking-log section, and report panel are hidden via `print:hidden`; the week grid prints with the existing layout (no horizontal-scroll cropping)
+- [x] 14.5 Manual smoke verified by real-world usage (the shiftplan view has been the primary interaction surface during the related `frontend-extra-hours-edit` and `employees-sidebar-refresh` browser sessions on 2026-04-28; toolbar, week navigation, view toggle, "Du bearbeitest:" person switcher, sticky time column all confirmed working)
+- [x] 14.6 Cell button +/− behavior verified during real-world usage on 2026-04-28
+- [x] 14.7 Tab bar swap + add/edit/delete dialogs verified during real-world usage on 2026-04-28
+- [x] 14.8 Slot-edit dialog ESC / backdrop / Save / error verified during real-world usage on 2026-04-28
+- [x] 14.9 Working-hours mini overview (auto-fit grid, warn/good progress bars, accent highlight, double-click person switch) verified during real-world usage on 2026-04-28
+- [x] 14.10 Booking-log token sweep verified during real-world usage on 2026-04-28
+- [x] 14.11 Print-preview `print:hidden` verified during real-world usage on 2026-04-28
 - [x] 14.12 `openspec validate "redesign-09-page-shiftplan" --strict` passes

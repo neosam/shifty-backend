@@ -15,8 +15,8 @@ The system SHALL render a stacked bar chart using HTML flex columns (one column 
 - **WHEN** the chart renders
 - **THEN** the paid segment SHALL include `background: var(--accent)` (for the current-week bar) or the designed dimmer accent (for non-current bars), AND the volunteer segment SHALL include `background: var(--ink-muted); opacity: 0.35`, AND no legacy hex (`#3B82F6`, `#10B981`, `#EF4444`, `#e5e7eb`, `#6b7280`) SHALL appear in the chart source
 
-### Requirement: Required-hours reference line overlays each bar
-The system SHALL render the `required_hours` value for each week as an absolute-positioned dashed horizontal indicator inside that week's bar column. The indicator SHALL use `border-top: 1.5px dashed var(--bad)` (red, dashed) so it visually contrasts with the bars and clearly signals the required-hours target on a per-week basis.
+### Requirement: Required-hours reference line overlays the bars
+The system SHALL render the `required_hours` value for each week as an absolute-positioned dashed horizontal indicator inside that week's bar column (i.e. one indicator per bar, not a single polyline across the chart). The indicator SHALL use `border-top: 1.5px dashed var(--bad)` (red, dashed) so it visually contrasts with the bars and clearly signals the required-hours target on a per-week basis.
 
 #### Scenario: Required indicator renders per bar
 - **WHEN** a bar column is rendered for any week with `required_hours > 0`
