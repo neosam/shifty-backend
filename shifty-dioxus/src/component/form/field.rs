@@ -27,7 +27,7 @@ pub struct FieldProps {
     pub span: Option<u8>,
 }
 
-const LABEL_CLASSES: &str = "text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em]";
+const LABEL_CLASSES: &str = "text-micro text-ink-soft uppercase";
 
 #[component]
 pub fn Field(props: FieldProps) -> Element {
@@ -45,10 +45,10 @@ pub fn Field(props: FieldProps) -> Element {
             { props.children }
 
             if let Some(error) = props.error.as_ref() {
-                span { class: "text-[11px] text-bad", "{error}" }
+                span { class: "text-micro text-bad", "{error}" }
             } else if let Some(hint) = props.hint.as_ref() {
                 if !show_error {
-                    span { class: "text-[11px] text-ink-muted", "{hint}" }
+                    span { class: "text-micro text-ink-muted", "{hint}" }
                 }
             }
         }
@@ -81,11 +81,9 @@ mod tests {
             html.contains("text-ink-soft"),
             "label missing token color: {html}"
         );
-        assert!(
-            html.contains("font-semibold"),
-            "label not bold enough: {html}"
-        );
-        assert!(html.contains("text-[11px]"), "label wrong size: {html}");
+        // text-micro bakes in font-weight: 600 (semibold) and font-size: 11px,
+        // so the label inherits both from the token.
+        assert!(html.contains("text-micro"), "label wrong size: {html}");
     }
 
     #[test]

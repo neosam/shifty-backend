@@ -207,7 +207,7 @@ pub fn CustomExtraHoursManagement() -> Element {
 
     rsx! {
         div { class: "container mx-auto p-4",
-            h1 { class: "text-3xl font-bold mb-6", "{title}" }
+            h1 { class: "text-h1 mb-6", "{title}" }
 
             button {
                 class: "mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
@@ -217,7 +217,7 @@ pub fn CustomExtraHoursManagement() -> Element {
 
             if *show_form.read() {
                 div { class: "mb-6 p-4 border border-gray-300 rounded bg-gray-50",
-                    h2 { class: "text-xl font-semibold mb-4",
+                    h2 { class: "text-h2 mb-4",
                         if editing_id.read().is_some() {
                             "Edit Custom Extra Hours"
                         } else {
@@ -226,7 +226,7 @@ pub fn CustomExtraHoursManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-sm font-medium text-gray-700 mb-2", "{name_str}" }
+                        label { class: "block text-body font-medium text-gray-700 mb-2", "{name_str}" }
                         input {
                             class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
                             value: "{form_name.read()}",
@@ -238,7 +238,7 @@ pub fn CustomExtraHoursManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-sm font-medium text-gray-700 mb-2", "{description_str}" }
+                        label { class: "block text-body font-medium text-gray-700 mb-2", "{description_str}" }
                         textarea {
                             class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
                             value: "{form_description.read()}",
@@ -260,7 +260,7 @@ pub fn CustomExtraHoursManagement() -> Element {
                                     *form_modifies_balance.write() = event.data.value() == "true";
                                 },
                             }
-                            span { class: "text-sm font-medium text-gray-700", "{modifies_balance_str}" }
+                            span { class: "text-body font-medium text-gray-700", "{modifies_balance_str}" }
                         }
                     }
 
@@ -283,27 +283,27 @@ pub fn CustomExtraHoursManagement() -> Element {
                 table { class: "min-w-full bg-white border border-gray-300",
                     thead { class: "bg-gray-50",
                         tr {
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b", "{name_str}" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b", "{description_str}" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b", "{modifies_balance_str}" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b", "{actions_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase border-b", "{name_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase border-b", "{description_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase border-b", "{modifies_balance_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase border-b", "{actions_str}" }
                         }
                     }
                     tbody { class: "bg-white divide-y divide-gray-200",
                         for custom_hour in custom_extra_hours.read().iter() {
                             tr { class: "hover:bg-gray-50",
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-b", "{custom_hour.name}" }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-b",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body font-medium text-gray-900 border-b", "{custom_hour.name}" }
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-500 border-b",
                                     if let Some(ref desc) = custom_hour.description {
                                         "{desc}"
                                     } else {
                                         "-"
                                     }
                                 }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-b",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-500 border-b",
                                     if custom_hour.modifies_balance { "Yes" } else { "No" }
                                 }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm font-medium border-b",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body font-medium border-b",
                                     button {
                                         class: "text-blue-600 hover:text-blue-900 mr-2",
                                         onclick: {

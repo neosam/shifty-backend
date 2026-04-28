@@ -675,9 +675,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let view_day_str = i18n.t(Key::ViewModeDay);
 
     let toggle_active_class =
-        "px-3 py-1 text-[13px] font-medium rounded-[4px] bg-surface text-ink shadow-sm";
+        "px-3 py-1 text-body font-medium rounded-[4px] bg-surface text-ink shadow-sm";
     let toggle_inactive_class =
-        "px-3 py-1 text-[13px] font-medium rounded-[4px] text-ink-muted hover:text-ink";
+        "px-3 py-1 text-body font-medium rounded-[4px] text-ink-muted hover:text-ink";
     let nav_btn_class = "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt print:hidden";
 
     rsx! {
@@ -693,7 +693,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     "‹"
                 }
                 span {
-                    class: "font-mono text-[13px] font-semibold text-ink px-2",
+                    class: "font-mono text-body font-semibold text-ink px-2",
                     style: "font-variant-numeric: tabular-nums;",
                     "{calendar_week_str}"
                 }
@@ -734,7 +734,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     rsx! {
                         if let Some(sp_id) = sales_person_id {
                             a {
-                                class: "px-3 py-1.5 rounded-md text-[13px] font-medium border bg-surface text-ink border-border-strong inline-flex items-center gap-1 hover:bg-surface-alt",
+                                class: "px-3 py-1.5 rounded-md text-body font-medium border bg-surface text-ink border-border-strong inline-flex items-center gap-1 hover:bg-surface-alt",
                                 target: "_blank",
                                 href: format!("{}/sales-person/{}/ical", backend_url, sp_id),
                                 title: "{personal_label}",
@@ -795,9 +795,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         if is_shiftplanner {
                             rsx! {
                                 div { class: "flex items-center gap-2",
-                                    span { class: "text-[12px] text-ink-muted", "{edit_as_str}" }
+                                    span { class: "text-small font-normal text-ink-muted", "{edit_as_str}" }
                                     select {
-                                        class: "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] form-input",
+                                        class: "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body form-input",
                                         onchange: move |event| {
                                             info!("Event: {:?}", event);
                                             let value = event.data.value().parse::<Uuid>().unwrap();
@@ -820,7 +820,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             if let Some(ref current_sales_person) = *current_sales_person.read() {
                                 rsx! {
                                     div { class: "flex items-center gap-2",
-                                        span { class: "text-[12px] text-ink-muted", "{you_are_str}" }
+                                        span { class: "text-small font-normal text-ink-muted", "{you_are_str}" }
                                         PersonChip {
                                             name: ImStr::from(current_sales_person.name.as_ref()),
                                             color: Some(ImStr::from(current_sales_person.background_color.as_ref())),
@@ -834,12 +834,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     }
                     Some(Err(err)) => {
                         rsx! {
-                            div { class: "text-bad text-[12px]", "Error while loading sales persons: {err}" }
+                            div { class: "text-bad text-small font-normal", "Error while loading sales persons: {err}" }
                         }
                     }
                     _ => {
                         rsx! {
-                            div { class: "text-ink-muted text-[12px]", "Loading sales persons..." }
+                            div { class: "text-ink-muted text-small font-normal", "Loading sales persons..." }
                         }
                     }
                 }
@@ -847,8 +847,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         }
         if is_shiftplanner && !booking_conflicts.is_empty() {
             div { class: "mx-4 my-3 px-4 py-3 bg-bad-soft border border-bad rounded-md print:hidden",
-                h2 { class: "text-[14px] font-semibold pb-2 text-bad", "⚠️ {conflict_booking_entries_header}" }
-                ul { class: "list-disc list-inside text-[13px] text-ink",
+                h2 { class: "text-h2 font-semibold pb-2 text-bad", "⚠️ {conflict_booking_entries_header}" }
+                ul { class: "list-disc list-inside text-body text-ink",
                     {
                         let mut unique_booking_conflicts = Vec::new();
                         let i18n = i18n.to_owned();
@@ -1110,13 +1110,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
                             // Week Message Section
                             div { class: "mt-4 mb-4 p-4 bg-surface border border-border rounded-lg",
-                                h3 { class: "text-[14px] font-semibold mb-2 text-ink",
+                                h3 { class: "text-h2 font-semibold mb-2 text-ink",
                                     {i18n.t(Key::WeekMessage)}
                                 }
                                 if is_shiftplanner {
                                     div { class: "space-y-2",
                                         textarea {
-                                            class: "w-full p-2 border border-border-strong bg-surface text-ink text-[13px] rounded-md resize-y form-input",
+                                            class: "w-full p-2 border border-border-strong bg-surface text-ink text-body rounded-md resize-y form-input",
                                             rows: "3",
                                             placeholder: "Enter week message...",
                                             value: "{week_message_draft}",
@@ -1135,7 +1135,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 {i18n.t(Key::Save)}
                                             }
                                             if week_message_draft() != week_message() {
-                                                span { class: "text-[12px] text-warn self-center",
+                                                span { class: "text-small font-normal text-warn self-center",
                                                     {i18n.t(Key::UnsavedChanges)}
                                                 }
                                             }
@@ -1148,7 +1148,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 "No message for this week"
                                             }
                                         } else {
-                                            pre { class: "whitespace-pre-wrap text-ink text-[13px]",
+                                            pre { class: "whitespace-pre-wrap text-ink text-body",
                                                 {week_message()}
                                             }
                                         }
@@ -1158,16 +1158,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             // Shiftplan Report Section (only visible for shiftplanner role)
                             if is_shiftplanner {
                                 div { class: "bg-surface border border-border rounded-lg p-6 mt-6 mx-4 print:hidden",
-                                    h2 { class: "text-[14px] font-semibold mb-4 text-ink", "{i18n.t(Key::ShiftplanReport)}" }
+                                    h2 { class: "text-h2 font-semibold mb-4 text-ink", "{i18n.t(Key::ShiftplanReport)}" }
 
                                     div { class: "space-y-4",
                                         // Template Selection
                                         div { class: "mb-4",
-                                            label { class: "block text-[12px] font-medium text-ink mb-2",
+                                            label { class: "block text-small font-medium text-ink mb-2",
                                                 "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} shiftplan report templates available)"
                                             }
                                             select {
-                                                class: "h-[34px] w-full px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] form-input",
+                                                class: "h-[34px] w-full px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body form-input",
                                                 value: selected_template_id.read().as_ref().map(|id| id.to_string()).unwrap_or_default(),
                                                 onchange: move |event| {
                                                     if let Ok(uuid) = Uuid::parse_str(&event.value()) {
@@ -1230,7 +1230,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                 rsx! {
                                                     div { class: "border-t border-border pt-4",
                                                         div { class: "flex justify-between items-center mb-3",
-                                                            h3 { class: "text-[13px] font-medium text-ink", "{i18n.t(Key::ShiftplanReportGenerated)}" }
+                                                            h3 { class: "text-body font-medium text-ink", "{i18n.t(Key::ShiftplanReportGenerated)}" }
                                                             div { class: "flex items-center gap-2",
                                                                 Btn {
                                                                     variant: BtnVariant::Secondary,
@@ -1252,12 +1252,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                                                     "{i18n.t(Key::CopyToClipboard)}"
                                                                 }
                                                                 if let Some(status) = copy_status.read().clone() {
-                                                                    span { class: "text-[12px] text-good font-medium", "{status}" }
+                                                                    span { class: "text-small text-good font-medium", "{status}" }
                                                                 }
                                                             }
                                                         }
                                                         div { class: "bg-surface-alt p-4 rounded-md border border-border",
-                                                            pre { class: "whitespace-pre-wrap text-[12px] font-mono overflow-x-auto text-ink", "{report_for_display}" }
+                                                            pre { class: "whitespace-pre-wrap text-small font-normal font-mono overflow-x-auto text-ink", "{report_for_display}" }
                                                         }
                                                     }
                                                 }

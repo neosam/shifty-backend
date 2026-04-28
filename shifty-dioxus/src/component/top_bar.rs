@@ -83,22 +83,22 @@ pub(crate) fn is_active_for(target: NavTarget, route: &Route) -> bool {
 
 pub(crate) fn nav_item_class(active: bool) -> &'static str {
     if active {
-        "px-3 py-1.5 rounded-md bg-accent-soft text-accent font-semibold"
+        "px-3 py-1.5 rounded-md bg-accent-soft text-accent text-body font-semibold"
     } else {
-        "px-3 py-1.5 rounded-md text-ink-soft hover:bg-surface-alt"
+        "px-3 py-1.5 rounded-md text-ink-soft text-body font-medium hover:bg-surface-alt"
     }
 }
 
 pub(crate) fn admin_panel_item_class(active: bool) -> &'static str {
     if active {
-        "block w-full text-left px-2.5 py-2 rounded-md bg-accent-soft text-accent font-semibold text-sm"
+        "block w-full text-left px-2.5 py-2 rounded-md bg-accent-soft text-accent text-body font-semibold"
     } else {
-        "block w-full text-left px-2.5 py-2 rounded-md text-ink hover:bg-surface-alt text-sm"
+        "block w-full text-left px-2.5 py-2 rounded-md text-ink text-body hover:bg-surface-alt"
     }
 }
 
 pub(crate) const MOBILE_ADMIN_SECTION_HEADER_CLASS: &str =
-    "mt-1 pt-3 px-3.5 pb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted border-t border-border";
+    "mt-1 pt-3 px-3.5 pb-1 text-micro font-bold uppercase text-ink-muted border-t border-border";
 
 pub(crate) const ADMIN_PANEL_CONTAINER_CLASS: &str =
     "min-w-[220px] bg-surface border border-border rounded-md shadow-md p-1 z-50";
@@ -412,7 +412,7 @@ fn TopBarRouted() -> Element {
             class: "sticky top-0 h-14 max-md:h-[52px] bg-surface text-ink border-b border-border z-40 print:hidden flex items-center px-[18px] max-md:px-[10px] gap-1",
 
             button {
-                class: "md:hidden inline-flex items-center justify-center w-[34px] h-[34px] rounded-md border border-border bg-transparent text-ink-soft text-base flex-shrink-0",
+                class: "md:hidden inline-flex items-center justify-center w-[34px] h-[34px] rounded-md border border-border bg-transparent text-ink-soft text-lg flex-shrink-0",
                 "aria-label": "Toggle navigation",
                 onclick: move |_| {
                     let v = *visible.read();
@@ -421,11 +421,11 @@ fn TopBarRouted() -> Element {
                 "{burger_glyph_str}"
             }
 
-            span { class: "text-lg font-bold tracking-[-0.01em] ml-1 mr-3 max-md:text-base",
+            span { class: "text-h2 font-bold tracking-[-0.01em] ml-1 mr-3 max-md:text-lg",
                 "Shifty"
                 span { class: "text-accent", "." }
                 if !config.is_prod {
-                    span { class: "ml-2 text-xs text-ink-muted font-normal",
+                    span { class: "ml-2 text-small font-normal text-ink-muted",
                         "{config.env_short_description}"
                     }
                 }
@@ -455,7 +455,7 @@ fn TopBarRouted() -> Element {
                                 admin_open.set(!was_open);
                             },
                             "{admin_trigger_label}"
-                            span { class: "text-[11px] opacity-70 ml-0.5", "▾" }
+                            span { class: "text-micro opacity-70 ml-0.5", "▾" }
                         }
                         if admin_panel_visible {
                             if let Some((top, left)) = admin_anchor_value {
@@ -483,6 +483,11 @@ fn TopBarRouted() -> Element {
             }
 
             div { class: "ml-auto flex items-center gap-2 flex-shrink-0",
+                // Theme button glyph: 15 px is the design's specific icon-glyph size
+                // (Shifty Preview.html line 322). It sits between body (14 px) and
+                // lg (16 px) — kept as an arbitrary value because it is a glyph
+                // size, not a typography role. See
+                // openspec/changes/redesign-typography-bump/specs/typography/spec.md.
                 button {
                     class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
                     "aria-label": theme_aria.as_str(),
@@ -499,18 +504,18 @@ fn TopBarRouted() -> Element {
                 }
 
                 if let Some(auth_info) = auth_info.as_ref() {
-                    span { class: "text-xs text-ink-muted ml-1 max-md:hidden", "{you_are_label}" }
+                    span { class: "text-small font-normal text-ink-muted ml-1 max-md:hidden", "{you_are_label}" }
                     DropdownTrigger {
                         entries: logout_entries.clone(),
                         button {
-                            class: "flex items-center gap-2 px-3 py-1 rounded-full bg-surface-alt text-[13px] text-ink font-medium cursor-pointer",
+                            class: "flex items-center gap-2 px-3 py-1 rounded-full bg-surface-alt text-body font-medium text-ink cursor-pointer",
                             "{auth_info.user}"
                         }
                     }
                 } else {
                     a {
                         href: "/authenticate",
-                        class: "px-3 py-1.5 rounded-md text-ink-soft hover:bg-surface-alt text-[13px]",
+                        class: "px-3 py-1.5 rounded-md text-ink-soft hover:bg-surface-alt text-body",
                         "{login_label}"
                     }
                 }
@@ -575,17 +580,18 @@ fn TopBarLanding() -> Element {
         header {
             class: "sticky top-0 h-14 max-md:h-[52px] bg-surface text-ink border-b border-border z-40 print:hidden flex items-center px-[18px] max-md:px-[10px] gap-1",
 
-            span { class: "text-lg font-bold tracking-[-0.01em] ml-1 mr-3 max-md:text-base",
+            span { class: "text-h2 font-bold tracking-[-0.01em] ml-1 mr-3 max-md:text-lg",
                 "Shifty"
                 span { class: "text-accent", "." }
                 if !config.is_prod {
-                    span { class: "ml-2 text-xs text-ink-muted font-normal",
+                    span { class: "ml-2 text-small font-normal text-ink-muted",
                         "{config.env_short_description}"
                     }
                 }
             }
 
             div { class: "ml-auto flex items-center gap-2 flex-shrink-0",
+                // 15 px theme glyph — same justification as TopBarRouted above.
                 button {
                     class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
                     "aria-label": theme_aria.as_str(),
@@ -603,7 +609,7 @@ fn TopBarLanding() -> Element {
 
                 a {
                     href: "/authenticate",
-                    class: "px-3 py-1.5 rounded-md text-ink-soft hover:bg-surface-alt text-[13px]",
+                    class: "px-3 py-1.5 rounded-md text-ink-soft hover:bg-surface-alt text-body",
                     "{login_label}"
                 }
             }
@@ -1111,10 +1117,11 @@ mod tests {
     #[test]
     fn mobile_admin_section_header_class_matches_design_typography() {
         let c = MOBILE_ADMIN_SECTION_HEADER_CLASS;
-        assert!(c.contains("text-[11px]"), "missing text-[11px]: {c}");
+        // text-micro encodes the design's 11 px / 0.06em uppercase eyebrow
+        // (see openspec/changes/redesign-typography-bump).
+        assert!(c.contains("text-micro"), "missing text-micro: {c}");
         assert!(c.contains("font-bold"), "missing font-bold: {c}");
         assert!(c.contains("uppercase"), "missing uppercase: {c}");
-        assert!(c.contains("tracking-[0.06em]"), "missing tracking: {c}");
         assert!(c.contains("text-ink-muted"), "missing text-ink-muted: {c}");
         assert!(c.contains("border-t"), "missing border-t: {c}");
         assert!(c.contains("border-border"), "missing border-border: {c}");

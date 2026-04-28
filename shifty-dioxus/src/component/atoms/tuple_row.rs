@@ -9,28 +9,30 @@ use dioxus::prelude::*;
 
 use crate::base_types::ImStr;
 
-const ROW_BASE: &str = "flex items-baseline justify-between gap-3 py-1.5 border-b border-border";
+const ROW_BASE: &str =
+    "flex items-baseline justify-between gap-3 py-1.5 border-b border-border text-body";
 
 /// Builds the class string for the outer row container.
 pub(crate) fn row_class(dim: bool) -> String {
     let mut out = String::with_capacity(96);
     out.push_str(ROW_BASE);
-    out.push(' ');
     if dim {
-        out.push_str("text-[13px] text-ink-muted");
-    } else {
-        out.push_str("text-[13px]");
+        out.push(' ');
+        out.push_str("text-ink-muted");
     }
     out
 }
 
 /// Builds the class string for the label span.
+///
+/// Labels use the `text-small` token (12 px / 500) per the
+/// `redesign-typography-bump` token-to-element binding; values inherit the
+/// row's `text-body` (14 px / 400).
 pub(crate) fn label_class(dim: bool) -> &'static str {
     if dim {
-        // The whole row already carries text-ink-muted; keep label inheriting.
-        "text-ink-muted"
+        "text-small text-ink-muted"
     } else {
-        "text-ink-soft"
+        "text-small text-ink-soft"
     }
 }
 
@@ -45,7 +47,7 @@ pub struct TupleRowProps {
     pub dim: bool,
 
     /// Optional description rendered below the label/value row in
-    /// `text-xs text-ink-muted`.
+    /// `text-small text-ink-muted`.
     #[props(!optional, default = None)]
     pub description: Option<Element>,
 }
@@ -62,7 +64,7 @@ pub fn TupleRow(props: TupleRowProps) -> Element {
                 span { class: "tuple-row-value", {props.value} }
             }
             if let Some(description) = props.description {
-                div { class: "text-xs text-ink-muted", {description} }
+                div { class: "text-small font-normal text-ink-muted", {description} }
             }
         }
     }
@@ -82,7 +84,7 @@ mod tests {
         assert!(c.contains("py-1.5"));
         assert!(c.contains("border-b"));
         assert!(c.contains("border-border"));
-        assert!(c.contains("text-[13px]"));
+        assert!(c.contains("text-body"));
     }
 
     #[test]
@@ -102,12 +104,12 @@ mod tests {
 
     #[test]
     fn label_class_default_uses_ink_soft() {
-        assert_eq!(label_class(false), "text-ink-soft");
+        assert_eq!(label_class(false), "text-small text-ink-soft");
     }
 
     #[test]
     fn label_class_dim_uses_ink_muted() {
-        assert_eq!(label_class(true), "text-ink-muted");
+        assert_eq!(label_class(true), "text-small text-ink-muted");
     }
 
     fn render(comp: fn() -> Element) -> String {
@@ -128,8 +130,7 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains("text-xs"));
-        assert!(html.contains("text-ink-muted"));
+        assert!(html.contains("text-small font-normal text-ink-muted"));
         assert!(
             html.contains("context note"),
             "description not rendered: {html}"
@@ -147,7 +148,10 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(!html.contains("text-xs"), "description div leaked: {html}");
+        assert!(
+            !html.contains("text-small font-normal text-ink-muted"),
+            "description div leaked: {html}"
+        );
     }
 
     #[test]
@@ -166,6 +170,6 @@ mod tests {
         assert!(html.contains("font-mono"));
         // Layout classes present
         assert!(html.contains("border-b"));
-        assert!(html.contains("text-[13px]"));
+        assert!(html.contains("text-body"));
     }
 }

@@ -65,11 +65,11 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                     "← {i18n.t(Key::BackToUserManagement)}"
                 }
                 div {
-                    h1 { class: "text-2xl md:text-3xl font-bold text-gray-800", "{i18n.t(Key::SalesPersonDetails)}" }
+                    h1 { class: "text-h1 text-gray-800", "{i18n.t(Key::SalesPersonDetails)}" }
                     if props.sales_person_id.is_empty() {
-                        p { class: "text-lg text-gray-600 mt-1", "{i18n.t(Key::CreateNewSalesPersonTitle)}" }
+                        p { class: "text-body text-gray-600 mt-1", "{i18n.t(Key::CreateNewSalesPersonTitle)}" }
                     } else {
-                        p { class: "text-lg text-gray-600 mt-1", "{i18n.t(Key::EditSalesPersonInformation)}" }
+                        p { class: "text-body text-gray-600 mt-1", "{i18n.t(Key::EditSalesPersonInformation)}" }
                     }
                 }
             }
@@ -91,7 +91,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                     Form {
                         // Basic Information Section
                         div { class: "mb-6",
-                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",
+                            h2 { class: "text-h2 text-gray-800 mb-4 pb-2 border-b border-gray-200",
                                 "{i18n.t(Key::BasicInformation)}"
                             }
 
@@ -143,7 +143,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
 
                         // Settings Section
                         div { class: "mb-6",
-                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",
+                            h2 { class: "text-h2 text-gray-800 mb-4 pb-2 border-b border-gray-200",
                                 "{i18n.t(Key::Settings)}"
                             }
 
@@ -223,11 +223,11 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
 
                         // Shiftplan Assignments Section
                         div { class: "mb-6",
-                            h2 { class: "text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200",
+                            h2 { class: "text-h2 text-gray-800 mb-4 pb-2 border-b border-gray-200",
                                 "{i18n.t(Key::ShiftplanAssignments)}"
                             }
 
-                            div { class: "mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700",
+                            div { class: "mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md text-body text-blue-700",
                                 "{i18n.t(Key::ShiftplanAssignmentsInfo)}"
                             }
 
@@ -268,7 +268,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                                         }
                                                         if let Some(assignment) = &current_assignment {
                                                             select {
-                                                                class: "ml-auto text-sm border border-gray-300 rounded px-2 py-1",
+                                                                class: "ml-auto text-body border border-gray-300 rounded px-2 py-1",
                                                                 value: "{assignment.permission_level}",
                                                                 onchange: {
                                                                     let shiftplan_id = shiftplan.id;
@@ -326,7 +326,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                 } else {
                     div { class: "text-center py-12",
                         div { class: "text-6xl mb-4 text-gray-300", "⏳" }
-                        p { class: "text-lg text-gray-500", "{i18n.t(Key::LoadingSalesPersonDetails)}" }
+                        p { class: "text-body text-gray-500", "{i18n.t(Key::LoadingSalesPersonDetails)}" }
                         div { class: "mt-4 animate-pulse",
                             div { class: "h-2 bg-gray-200 rounded w-24 mx-auto" }
                         }

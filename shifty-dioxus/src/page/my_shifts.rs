@@ -168,7 +168,7 @@ pub fn ShiftItemView(shift: ShiftDisplay) -> Element {
     rsx! {
         div { class: "flex items-center gap-2",
             span {
-                class: "font-mono tabular-nums text-sm text-ink",
+                class: "font-mono tabular-nums text-body text-ink",
                 "{shift.time_range}"
             }
             PersonChip {
@@ -186,7 +186,7 @@ pub fn DayRowView(day: DayDisplay) -> Element {
         div {
             style: "{DAY_ROW_STYLE}",
             class: "my-shifts-day-row py-2",
-            span { class: "font-mono tabular-nums text-sm text-ink-soft",
+            span { class: "font-mono tabular-nums text-body text-ink-soft",
                 "{day.label}"
             }
             div { class: "flex flex-col gap-1",
@@ -198,7 +198,7 @@ pub fn DayRowView(day: DayDisplay) -> Element {
                     span { class: "text-ink-muted", "\u{2014}" }
                 }
             }
-            span { class: "font-mono tabular-nums text-sm text-ink text-right",
+            span { class: "font-mono tabular-nums text-body text-ink text-right",
                 "{day.total_hours_text}"
             }
         }
@@ -210,10 +210,10 @@ pub fn WeekCardView(week: WeekDisplay) -> Element {
     rsx! {
         section { class: "rounded-md border border-border bg-surface overflow-hidden",
             div { class: "flex items-baseline justify-between px-4 py-3 border-b border-border",
-                span { class: "text-base font-semibold text-ink",
+                span { class: "text-lg text-ink",
                     "{week.header_label}"
                 }
-                span { class: "font-mono tabular-nums text-sm text-ink",
+                span { class: "font-mono tabular-nums text-body text-ink",
                     "{week.total_hours_text}"
                 }
             }
@@ -255,7 +255,7 @@ pub fn MyShifts() -> Element {
     rsx! {
         TopBar {}
         main { class: "mx-auto max-w-[760px] w-full px-4 py-6 md:py-8 space-y-4",
-            h1 { class: "text-xl font-semibold text-ink",
+            h1 { class: "text-h1 text-ink",
                 "{i18n.t(Key::MyShifts)}"
             }
 

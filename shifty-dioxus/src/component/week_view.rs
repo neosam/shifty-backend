@@ -945,9 +945,9 @@ fn WeekCellChip(props: WeekCellChipProps) -> Element {
 /// Empty string means no button is rendered.
 pub(crate) fn cell_button_classes(button: CellButton) -> &'static str {
     match button {
-        CellButton::Add => "absolute top-[6px] right-[6px] w-5 h-5 inline-flex items-center justify-center rounded-[3px] border border-border-strong bg-surface text-ink-soft text-sm font-bold leading-none hover:bg-surface-alt",
-        CellButton::Remove => "absolute top-[6px] right-[6px] w-5 h-5 inline-flex items-center justify-center rounded-[3px] border border-bad bg-bad-soft text-bad text-sm font-bold leading-none",
-        CellButton::Dropdown => "absolute top-[6px] right-[6px] w-5 h-5 inline-flex items-center justify-center rounded-[3px] border border-border-strong bg-surface text-ink-soft text-sm font-bold leading-none hover:bg-surface-alt",
+        CellButton::Add => "absolute top-[6px] right-[6px] w-5 h-5 inline-flex items-center justify-center rounded-[3px] border border-border-strong bg-surface text-ink-soft text-body font-bold leading-none hover:bg-surface-alt",
+        CellButton::Remove => "absolute top-[6px] right-[6px] w-5 h-5 inline-flex items-center justify-center rounded-[3px] border border-bad bg-bad-soft text-bad text-body font-bold leading-none",
+        CellButton::Dropdown => "absolute top-[6px] right-[6px] w-5 h-5 inline-flex items-center justify-center rounded-[3px] border border-border-strong bg-surface text-ink-soft text-body font-bold leading-none hover:bg-surface-alt",
         CellButton::None => "",
     }
 }
@@ -1001,7 +1001,7 @@ fn WeekDayHeader(props: WeekDayHeaderProps) -> Element {
                     handler.call(weekday);
                 }
             },
-            div { class: "text-[12px] font-bold text-ink",
+            div { class: "text-body font-bold text-ink",
                 "{weekday_label}"
                 if !date_label.is_empty() {
                     span { class: "font-normal text-ink-soft", ", {date_label}" }
@@ -1071,7 +1071,7 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
             ),
             div { class: "flex flex-wrap items-start gap-1",
                 span {
-                    class: format!("font-mono text-[10px] font-bold {}", mr_class),
+                    class: format!("font-mono text-small font-bold {}", mr_class),
                     style: "line-height: 18px;",
                     "{filled_str}"
                 }
@@ -1221,9 +1221,9 @@ pub fn WeekView(props: WeekViewProps) -> Element {
     rsx! {
         div { class: "bg-surface border border-border rounded-lg overflow-auto print:overflow-visible",
             div { class: "fixed bottom-4 left-4 z-50 border border-border bg-surface p-2 rounded-md shadow-lg 2xl:hidden print:hidden",
-                label { class: "text-[12px] text-ink-muted", "Zoom: " }
+                label { class: "text-small font-normal text-ink-muted", "Zoom: " }
                 select {
-                    class: "ml-2 bg-surface text-ink border border-border-strong rounded-md text-[12px]",
+                    class: "ml-2 bg-surface text-ink border border-border-strong rounded-md text-small font-normal",
                     onchange: move |event| {
                         let value = event.data.value();
                         match value.as_str() {
@@ -1268,7 +1268,7 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                                 );
                                 rsx! {
                                     div {
-                                        class: "absolute left-0 right-0 border-t border-border px-2 font-mono text-[11px] text-ink-muted text-right",
+                                        class: "absolute left-0 right-0 border-t border-border px-2 font-mono text-body font-normal text-ink-muted text-right",
                                         style: "{style}",
                                         "{label}"
                                     }

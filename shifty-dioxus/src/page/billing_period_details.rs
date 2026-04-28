@@ -133,19 +133,19 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                 div { class: "max-w-4xl mx-auto",
                     // Header
                     div { class: "mb-6",
-                        h1 { class: "text-3xl font-bold mb-2",
+                        h1 { class: "text-h1 mb-2",
                             "{i18n.t(Key::BillingPeriodDetails)}"
                         }
                         div { class: "flex items-center space-x-4",
-                            span { class: "text-lg text-gray-600",
+                            span { class: "text-body text-gray-600",
                                 "{i18n.format_date(&billing_period.start_date)} - {i18n.format_date(&billing_period.end_date)}"
                             }
                             if billing_period.deleted_at.is_none() {
-                                span { class: "px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full",
+                                span { class: "px-3 py-1 bg-green-100 text-green-800 text-micro uppercase rounded-full",
                                     "{i18n.t(Key::Active)}"
                                 }
                             } else {
-                                span { class: "px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full",
+                                span { class: "px-3 py-1 bg-red-100 text-red-800 text-micro uppercase rounded-full",
                                     "{i18n.t(Key::Deleted)}"
                                 }
                             }
@@ -154,34 +154,34 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
 
                     // Basic Information Card
                     div { class: "bg-white shadow rounded-lg p-6 mb-6",
-                        h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::BasicInformation)}" }
+                        h2 { class: "text-h2 mb-4", "{i18n.t(Key::BasicInformation)}" }
                         div { class: "grid grid-cols-1 md:grid-cols-2 gap-4",
                             div {
-                                label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::StartDate)}" }
-                                p { class: "text-sm text-gray-900", "{i18n.format_date(&billing_period.start_date)}" }
+                                label { class: "block text-body font-medium text-gray-700 mb-1", "{i18n.t(Key::StartDate)}" }
+                                p { class: "text-body text-gray-900", "{i18n.format_date(&billing_period.start_date)}" }
                             }
                             div {
-                                label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::EndDate)}" }
-                                p { class: "text-sm text-gray-900", "{i18n.format_date(&billing_period.end_date)}" }
+                                label { class: "block text-body font-medium text-gray-700 mb-1", "{i18n.t(Key::EndDate)}" }
+                                p { class: "text-body text-gray-900", "{i18n.format_date(&billing_period.end_date)}" }
                             }
                             div {
-                                label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::CreatedAt)}" }
-                                p { class: "text-sm text-gray-900", "{i18n.format_date(&billing_period.created_at.date())}" }
+                                label { class: "block text-body font-medium text-gray-700 mb-1", "{i18n.t(Key::CreatedAt)}" }
+                                p { class: "text-body text-gray-900", "{i18n.format_date(&billing_period.created_at.date())}" }
                             }
                             div {
-                                label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::CreatedBy)}" }
-                                p { class: "text-sm text-gray-900", "{billing_period.created_by.as_ref()}" }
+                                label { class: "block text-body font-medium text-gray-700 mb-1", "{i18n.t(Key::CreatedBy)}" }
+                                p { class: "text-body text-gray-900", "{billing_period.created_by.as_ref()}" }
                             }
                             if let Some(deleted_at) = billing_period.deleted_at {
                                 div {
-                                    label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::DeletedAt)}" }
-                                    p { class: "text-sm text-gray-900", "{i18n.format_date(&deleted_at.date())}" }
+                                    label { class: "block text-body font-medium text-gray-700 mb-1", "{i18n.t(Key::DeletedAt)}" }
+                                    p { class: "text-body text-gray-900", "{i18n.format_date(&deleted_at.date())}" }
                                 }
                             }
                             if let Some(deleted_by) = &billing_period.deleted_by {
                                 div {
-                                    label { class: "block text-sm font-medium text-gray-700 mb-1", "{i18n.t(Key::DeletedBy)}" }
-                                    p { class: "text-sm text-gray-900", "{deleted_by.as_ref()}" }
+                                    label { class: "block text-body font-medium text-gray-700 mb-1", "{i18n.t(Key::DeletedBy)}" }
+                                    p { class: "text-body text-gray-900", "{deleted_by.as_ref()}" }
                                 }
                             }
                         }
@@ -189,16 +189,16 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
 
                     // Custom Report Section
                     div { class: "bg-white shadow rounded-lg p-6 mb-6",
-                        h2 { class: "text-xl font-semibold mb-4", "{i18n.t(Key::CustomReports)}" }
+                        h2 { class: "text-h2 mb-4", "{i18n.t(Key::CustomReports)}" }
 
                         div { class: "space-y-6",
                             // Template Selection and Generation
                             div {
-                                h3 { class: "text-lg font-medium mb-3", "{i18n.t(Key::GenerateReport)}" }
+                                h3 { class: "text-lg mb-3", "{i18n.t(Key::GenerateReport)}" }
 
                                 // Template Selection
                                 div { class: "mb-4",
-                                    label { class: "block text-sm font-medium text-gray-700 mb-2",
+                                    label { class: "block text-body font-medium text-gray-700 mb-2",
                                         "{i18n.t(Key::SelectTemplate)} ({TEXT_TEMPLATE_STORE.read().filtered_templates.len()} billing period templates available)"
                                     }
                                     select {
@@ -269,7 +269,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                     rsx! {
                                         div { class: "border-t pt-6",
                                             div { class: "flex justify-between items-center mb-3",
-                                                h3 { class: "text-lg font-medium", "{i18n.t(Key::GeneratedReport)}" }
+                                                h3 { class: "text-lg text-ink", "{i18n.t(Key::GeneratedReport)}" }
                                                 div { class: "flex items-center gap-2",
                                                     button {
                                                         onclick: move |_| {
@@ -288,16 +288,16 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                                 });
                                                             });
                                                         },
-                                                        class: "bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-sm",
+                                                        class: "bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-body",
                                                         "{i18n.t(Key::CopyToClipboard)}"
                                                     }
                                                     if let Some(status) = copy_status.read().clone() {
-                                                        span { class: "text-sm text-green-600 font-medium", "{status}" }
+                                                        span { class: "text-body text-green-600 font-medium", "{status}" }
                                                     }
                                                 }
                                             }
                                             div { class: "bg-gray-50 p-4 rounded-lg border",
-                                                pre { class: "whitespace-pre-wrap text-sm font-mono overflow-x-auto", "{report}" }
+                                                pre { class: "whitespace-pre-wrap text-body font-mono overflow-x-auto", "{report}" }
                                             }
                                         }
                                     }
@@ -311,7 +311,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                     // Sales Persons Section
                     div { class: "bg-white shadow rounded-lg p-6 mb-6",
                         div { class: "mb-4",
-                            h2 { class: "text-xl font-semibold mb-4",
+                            h2 { class: "text-h2 mb-4",
                                 "{i18n.t(Key::SalesPersons)} ({billing_period.sales_persons.len()} total)"
                             }
 
@@ -319,7 +319,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                             div { class: "flex flex-col md:flex-row gap-4 items-start md:items-center",
                                 // Checkbox filters
                                 div { class: "flex gap-6",
-                                    label { class: "flex items-center gap-2 text-sm",
+                                    label { class: "flex items-center gap-2 text-body",
                                         input {
                                             r#type: "checkbox",
                                             class: "rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50",
@@ -328,7 +328,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                         }
                                         span { "{i18n.t(Key::ShowPaid)}" }
                                     }
-                                    label { class: "flex items-center gap-2 text-sm",
+                                    label { class: "flex items-center gap-2 text-body",
                                         input {
                                             r#type: "checkbox",
                                             class: "rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50",
@@ -414,7 +414,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                     }
                                 } else {
                                     rsx! {
-                                        p { class: "text-sm text-gray-600 mb-4",
+                                        p { class: "text-body text-gray-600 mb-4",
                                             "Showing {filtered_sales_persons.len()} of {billing_period.sales_persons.len()} sales persons"
                                         }
                                         div { class: "space-y-4",
@@ -422,25 +422,25 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                 div { class: "border border-gray-200 rounded-lg p-4",
                                                     div { class: "flex justify-between items-start mb-3",
                                                         div {
-                                                            h3 { class: "text-lg font-medium text-blue-600",
+                                                            h3 { class: "text-lg text-blue-600",
                                                                 "{get_sales_person_name(sales_person.sales_person_id)}"
                                                             }
                                                         }
                                                         if sales_person.deleted_at.is_none() {
-                                                            span { class: "px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full", "{i18n.t(Key::Active)}" }
+                                                            span { class: "px-2 py-1 bg-green-100 text-green-800 text-micro uppercase rounded-full", "{i18n.t(Key::Active)}" }
                                                         } else {
-                                                            span { class: "px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full", "{i18n.t(Key::Deleted)}" }
+                                                            span { class: "px-2 py-1 bg-red-100 text-red-800 text-micro uppercase rounded-full", "{i18n.t(Key::Deleted)}" }
                                                         }
                                                     }
 
                                                     // Values/Metrics
                                                     if !sales_person.values.is_empty() {
                                                         div {
-                                                            h4 { class: "text-sm font-medium text-gray-700 mb-2", "{i18n.t(Key::Values)}" }
+                                                            h4 { class: "text-body font-medium text-gray-700 mb-2", "{i18n.t(Key::Values)}" }
                                                             div { class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3",
                                                                 for (key, value) in sales_person.values.iter() {
                                                                     div { class: "bg-gray-50 p-3 rounded",
-                                                                        div { class: "text-xs font-medium text-gray-600 uppercase tracking-wide",
+                                                                        div { class: "text-micro font-bold text-gray-600 uppercase",
                                                                             {
                                                                                 // Translate known value types
                                                                                 let translated = match key.to_uppercase().as_str() {
@@ -454,16 +454,16 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
                                                                             }
                                                                         }
                                                                         div { class: "mt-1",
-                                                                            p { class: "text-sm",
+                                                                            p { class: "text-body",
                                                                                 {format!("{}: {}", i18n.t(Key::Delta), format_hours(value.value_delta, 2))}
                                                                             }
-                                                                            p { class: "text-sm",
+                                                                            p { class: "text-body",
                                                                                 {format!("{}: {}", i18n.t(Key::YtdFrom), format_hours(value.value_ytd_from, 2))}
                                                                             }
-                                                                            p { class: "text-sm",
+                                                                            p { class: "text-body",
                                                                                 {format!("{}: {}", i18n.t(Key::YtdTo), format_hours(value.value_ytd_to, 2))}
                                                                             }
-                                                                            p { class: "text-sm",
+                                                                            p { class: "text-body",
                                                                                 {format!("{}: {}", i18n.t(Key::FullYear), format_hours(value.value_full_year, 2))}
                                                                             }
                                                                         }

@@ -159,14 +159,14 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     class: "rounded-full inline-block flex-shrink-0",
                     style: "{dot_style}",
                 }
-                h1 { class: "text-xl font-semibold text-ink", "{name}" }
+                h1 { class: "text-h1 text-ink", "{name}" }
                 PersonChip {
                     name: ImStr::from(type_label.as_ref()),
                     color: Some(ImStr::from(pill_color)),
                 }
                 if let Some(expected) = current_week_expected {
                     if expected > 0.0 {
-                        span { class: "font-mono tabular-nums text-ink-muted text-sm",
+                        span { class: "font-mono tabular-nums text-ink-muted text-body",
                             "{expected:.0} {hours_str}"
                         }
                     }
@@ -179,7 +179,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                         aria_label: Some(prev_year_aria),
                         on_click: Some(EventHandler::new(move |_| on_prev_year.call(()))),
                     }
-                    span { class: "font-mono text-base text-ink min-w-[4ch] text-center", "{year}" }
+                    span { class: "font-mono text-lg text-ink min-w-[4ch] text-center", "{year}" }
                     NavBtn {
                         glyph: ImStr::from("›"),
                         aria_label: Some(next_year_aria),
@@ -210,11 +210,11 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                 }
             }
             if !props.full_year {
-                div { class: "text-xs text-ink-muted italic flex flex-wrap items-baseline gap-2",
+                div { class: "text-small font-normal text-ink-muted italic flex flex-wrap items-baseline gap-2",
                     span { "{current_week_note}" }
                     button {
                         r#type: "button",
-                        class: "text-accent underline cursor-pointer text-xs",
+                        class: "text-accent underline cursor-pointer text-small font-normal",
                         onclick: move |_| on_full_year.call(()),
                         "{show_full_year_label}"
                     }
@@ -229,7 +229,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
 
             // Gesamtansicht column
             div { class: "flex flex-col gap-2",
-                h2 { class: "text-sm font-semibold uppercase tracking-wide text-ink-muted",
+                h2 { class: "text-micro font-bold uppercase text-ink-muted",
                     "{overall_header_str}"
                 }
                 TupleRow {
@@ -336,7 +336,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
 
             // Arbeitsverträge + Stunden pro Woche column
             div { class: "flex flex-col gap-2",
-                h2 { class: "text-sm font-semibold uppercase tracking-wide text-ink-muted",
+                h2 { class: "text-micro font-bold uppercase text-ink-muted",
                     "{work_details_header}"
                 }
                 div { class: "flex flex-col gap-2",
@@ -360,12 +360,12 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     }
                 }
                 div { class: "flex items-baseline justify-between mt-3 gap-2",
-                    h3 { class: "text-xs font-semibold uppercase tracking-wide text-ink-muted",
+                    h3 { class: "text-micro font-bold uppercase text-ink-muted",
                         "{working_hours_per_week_heading}"
                     }
                     button {
                         r#type: "button",
-                        class: "text-accent underline cursor-pointer text-xs",
+                        class: "text-accent underline cursor-pointer text-small font-normal",
                         onclick: move |_| {
                             let v = *expand_weeks.read();
                             expand_weeks.set(!v);
@@ -414,7 +414,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
 
             // Zusatzarbeit column
             div { class: "flex flex-col gap-2",
-                h2 { class: "text-sm font-semibold uppercase tracking-wide text-ink-muted",
+                h2 { class: "text-micro font-bold uppercase text-ink-muted",
                     "{extra_hours_heading}"
                 }
                 ExtraHoursView {
@@ -453,8 +453,8 @@ fn ContractCard(props: ContractCardProps) -> Element {
             class: "w-full text-left rounded-md border border-border bg-surface px-3 py-2 hover:bg-surface-alt cursor-pointer",
             onclick: move |_| on_click.call(()),
             div { class: "flex items-baseline justify-between gap-2",
-                span { class: "text-sm font-semibold text-ink", "{from_str} – {to_str}" }
-                span { class: "font-mono tabular-nums text-xs text-ink-muted",
+                span { class: "text-body font-semibold text-ink", "{from_str} – {to_str}" }
+                span { class: "font-mono tabular-nums text-small font-normal text-ink-muted",
                     "{props.details.expected_hours} {hours_label}/Woche"
                 }
             }
@@ -481,7 +481,7 @@ fn WeekListExpanded(props: WeekListExpandedProps) -> Element {
         all
     };
     rsx! {
-        div { class: "mt-2 flex flex-col text-xs",
+        div { class: "mt-2 flex flex-col text-small font-normal",
             for week in visible.into_iter() {
                 {
                     let (iso_year, iso_week, _) = week.from.to_iso_week_date();
@@ -570,10 +570,10 @@ fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
         section { class: "mt-3 rounded-md border border-border bg-surface-alt px-3 py-2 flex flex-col gap-2",
             div { class: "flex items-baseline justify-between gap-2",
                 div { class: "flex flex-col",
-                    h4 { class: "text-sm font-semibold text-ink",
+                    h4 { class: "text-body font-semibold text-ink",
                         "{week_short} {iso_week} · {from_str} – {to_str}"
                     }
-                    span { class: "font-mono tabular-nums text-xs text-ink-muted",
+                    span { class: "font-mono tabular-nums text-small font-normal text-ink-muted",
                         "{summary}"
                     }
                 }
@@ -586,7 +586,7 @@ fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
             if !props.week.days.is_empty() {
                 ul { class: "flex flex-col",
                     for day in props.week.days.iter() {
-                        li { class: "flex items-baseline justify-between gap-2 py-1 border-b border-border text-sm",
+                        li { class: "flex items-baseline justify-between gap-2 py-1 border-b border-border text-body",
                             span { class: "font-mono text-ink", {i18n.format_date(&day.date)} }
                             span { class: "text-ink-muted",
                                 {i18n.t(day.category.to_i18n_key())}
@@ -598,7 +598,7 @@ fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
                     }
                 }
             }
-            div { class: "pt-1 text-xs",
+            div { class: "pt-1 text-small font-normal",
                 span { class: "{status_class}", "{status_text}" }
             }
         }
@@ -741,11 +741,11 @@ fn ExtraHoursCategorySection(props: ExtraHoursCategorySectionProps) -> Element {
     let ondelete = props.ondelete;
     rsx! {
         div { class: "flex flex-col mt-3",
-            h3 { class: "text-xs uppercase tracking-wide font-semibold text-ink-muted",
+            h3 { class: "text-micro font-bold uppercase text-ink-muted",
                 "{label}"
             }
             if let Some(desc) = description {
-                p { class: "text-xs text-ink-muted mb-2", "{desc}" }
+                p { class: "text-small font-normal text-ink-muted mb-2", "{desc}" }
             }
             for entry in entries.iter() {
                 {
@@ -756,13 +756,13 @@ fn ExtraHoursCategorySection(props: ExtraHoursCategorySectionProps) -> Element {
                     rsx! {
                         div { class: "flex items-baseline justify-between gap-2 py-1.5 border-b border-border",
                             div { class: "min-w-0 flex flex-col",
-                                span { class: "text-sm text-ink", "{date}" }
+                                span { class: "text-body text-ink", "{date}" }
                                 if !entry_description.is_empty() {
-                                    span { class: "text-xs text-ink-muted truncate", "{entry_description}" }
+                                    span { class: "text-small font-normal text-ink-muted truncate", "{entry_description}" }
                                 }
                             }
                             div { class: "flex items-center gap-2",
-                                span { class: "font-mono tabular-nums text-sm text-ink",
+                                span { class: "font-mono tabular-nums text-body text-ink",
                                     "{amount}"
                                 }
                                 Btn {

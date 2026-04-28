@@ -62,19 +62,19 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
 
     rsx! {
         section { class: "rounded-md border border-border bg-surface overflow-hidden",
-            table { class: "w-full text-sm",
+            table { class: "w-full text-body",
                 thead { class: "bg-surface-alt text-ink-muted text-left",
                     tr {
-                        th { class: "px-3 py-2 text-xs uppercase tracking-wide font-semibold",
+                        th { class: "px-3 py-2 text-micro font-bold uppercase",
                             "{week_label}"
                         }
-                        th { class: "px-3 py-2 text-xs uppercase tracking-wide font-semibold hidden md:table-cell",
+                        th { class: "px-3 py-2 text-micro font-bold uppercase hidden md:table-cell",
                             "{paid_volunteer}"
                         }
-                        th { class: "px-3 py-2 text-xs uppercase tracking-wide font-semibold",
+                        th { class: "px-3 py-2 text-micro font-bold uppercase",
                             "{available_required_hours}"
                         }
-                        th { class: "px-3 py-2 text-xs uppercase tracking-wide font-semibold",
+                        th { class: "px-3 py-2 text-micro font-bold uppercase",
                             "{missing_hours}"
                         }
                     }
@@ -94,7 +94,7 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                                             div { class: "font-semibold text-ink",
                                                 "{week.year} / {week.week}"
                                             }
-                                            div { class: "text-ink-muted text-xs",
+                                            div { class: "text-ink-muted text-small font-normal",
                                                 "{i18n.format_date(&week.monday_date())} - {i18n.format_date(&week.sunday_date())}"
                                             }
                                         }
@@ -104,7 +104,7 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                                     }
                                     td { class: "px-3 py-2 text-ink font-mono tabular-nums",
                                         div { {format!("{} / {}", format_hours(week.available_hours, 2), format_hours(week.required_hours, 2))} }
-                                        div { class: "text-xs text-ink-muted block md:hidden mt-1",
+                                        div { class: "text-small font-normal text-ink-muted block md:hidden mt-1",
                                             {format!("💰{} | 🤝{}", format_hours(week.paid_hours, 2), format_hours(week.volunteer_hours, 2))}
                                         }
                                     }
@@ -114,7 +114,7 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                                 }
                                 if !week.sales_person_absences.is_empty() {
                                     tr {
-                                        td { class: "px-3 py-2 text-xs text-ink-muted", colspan: "4",
+                                        td { class: "px-3 py-2 text-small font-normal text-ink-muted", colspan: "4",
                                             for absence in week.sales_person_absences.iter() {
                                                 span { class: "mr-3",
                                                     {format!("{}: {} {hours_short}", absence.name, format_hours(absence.absence_hours, 2))}
@@ -173,7 +173,7 @@ pub fn WeeklyOverview() -> Element {
     rsx! {
         TopBar {}
         main { class: "mx-auto max-w-5xl w-full px-4 py-6 md:py-8 space-y-4",
-            h1 { class: "text-xl font-semibold text-ink", "{title}" }
+            h1 { class: "text-h1 text-ink", "{title}" }
             if weekly_summary.data_loaded {
                 div { class: "flex items-center gap-3 print:hidden",
                     NavBtn {

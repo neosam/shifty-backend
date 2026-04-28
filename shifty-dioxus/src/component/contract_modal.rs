@@ -18,7 +18,7 @@ use crate::service::{
 };
 use crate::state::employee_work_details::EmployeeWorkDetails;
 
-const PILL_BASE: &str = "min-w-[38px] h-8 px-2 inline-flex items-center justify-center rounded-md text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50";
+const PILL_BASE: &str = "min-w-[38px] h-8 px-2 inline-flex items-center justify-center rounded-md text-small cursor-pointer disabled:cursor-not-allowed disabled:opacity-50";
 const PILL_ACTIVE: &str = "bg-accent text-accent-ink border border-accent font-semibold";
 const PILL_INACTIVE_WEEKDAY: &str = "bg-surface text-ink border border-border-strong font-medium";
 const PILL_INACTIVE_WEEKEND: &str =
@@ -393,11 +393,11 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
                     },
                     label: rsx! { "{cap_label}" },
                 }
-                span { class: "text-xs text-ink-muted", "{cap_help}" }
+                span { class: "text-small font-normal text-ink-muted", "{cap_help}" }
             }
 
             // Derived hours info
-            div { class: "border-t border-border pt-3 flex flex-col gap-1 text-xs text-ink-muted",
+            div { class: "border-t border-border pt-3 flex flex-col gap-1 text-small font-normal text-ink-muted",
                 span { "{holiday_hours_text}" }
                 span { "{vacation_day_text}" }
             }

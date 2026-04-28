@@ -180,7 +180,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
 
     rsx! {
         form {
-            h1 { class: "text-2xl font-bold", "{form_title}" }
+            h1 { class: "text-h1", "{form_title}" }
 
             div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1",
                 label { class: "block mt-4 mr-4 grow", "{category_str}" }

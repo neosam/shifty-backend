@@ -18,7 +18,7 @@ use crate::state::{
 };
 
 const FORM_INPUT_CLASSES: &str =
-    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input";
+    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input";
 
 #[derive(Clone, PartialEq, Debug, Props)]
 pub struct SlotEditProps {
@@ -114,7 +114,7 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
             width: 460,
             footer: Some(footer),
             div { class: "flex flex-col gap-3",
-                ul { class: "list-disc pl-5 text-[12px] text-ink-muted space-y-1",
+                ul { class: "list-disc pl-5 text-small font-normal text-ink-muted space-y-1",
                     li { "ℹ️ {explanation_str}" }
                     if props.slot.valid_to.is_some() {
                         li { class: "text-warn", "⚠️ {explanation_valid_to_str}" }
@@ -202,7 +202,7 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
                 }
 
                 if props.has_errors {
-                    p { class: "text-bad text-[12px]", "{error_str}" }
+                    p { class: "text-bad text-small font-normal", "{error_str}" }
                 }
             }
         }

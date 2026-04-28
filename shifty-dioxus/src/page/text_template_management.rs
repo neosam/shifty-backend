@@ -126,7 +126,7 @@ pub fn TextTemplateManagement() -> Element {
         TopBar {}
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
-            h1 { class: "text-2xl font-bold mb-4", "{title}" }
+            h1 { class: "text-h1 mb-4", "{title}" }
 
             if !*show_form.read() {
                 button {
@@ -138,7 +138,7 @@ pub fn TextTemplateManagement() -> Element {
 
             if *show_form.read() {
                 div { class: "bg-gray-100 p-4 rounded-lg mb-6",
-                    h2 { class: "text-lg font-semibold mb-4",
+                    h2 { class: "text-h2 mb-4",
                         if editing_id.read().is_some() {
                             "{i18n.t(Key::EditTemplate)}"
                         } else {
@@ -147,7 +147,7 @@ pub fn TextTemplateManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-sm font-medium mb-2", "{i18n.t(Key::TemplateName)}" }
+                        label { class: "block text-body font-medium mb-2", "{i18n.t(Key::TemplateName)}" }
                         input {
                             class: "w-full p-2 border border-gray-300 rounded-md",
                             r#type: "text",
@@ -158,7 +158,7 @@ pub fn TextTemplateManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-sm font-medium mb-2", "{template_type_str}" }
+                        label { class: "block text-body font-medium mb-2", "{template_type_str}" }
                         select {
                             class: "w-full p-2 border border-gray-300 rounded-md",
                             value: form_template_type.read().clone(),
@@ -169,7 +169,7 @@ pub fn TextTemplateManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-sm font-medium mb-2", "{i18n.t(Key::TemplateEngine)}" }
+                        label { class: "block text-body font-medium mb-2", "{i18n.t(Key::TemplateEngine)}" }
                         select {
                             class: "w-full p-2 border border-gray-300 rounded-md",
                             value: match *form_template_engine.read() {
@@ -189,7 +189,7 @@ pub fn TextTemplateManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-sm font-medium mb-2", "{template_text_str}" }
+                        label { class: "block text-body font-medium mb-2", "{template_text_str}" }
                         textarea {
                             class: "w-full p-2 border border-gray-300 rounded-md h-32",
                             value: form_template_text.read().clone(),
@@ -217,36 +217,36 @@ pub fn TextTemplateManagement() -> Element {
                 table { class: "min-w-full bg-white border border-gray-300",
                     thead { class: "bg-gray-50",
                         tr {
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "ID" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "{i18n.t(Key::TemplateName)}" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "{template_type_str}" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "Preview" }
-                            th { class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", "{actions_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "ID" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "{i18n.t(Key::TemplateName)}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "{template_type_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "Preview" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "{actions_str}" }
                         }
                     }
                     tbody { class: "bg-white divide-y divide-gray-200",
                         for template in store.filtered_templates.iter() {
                             tr { key: "{template.id}",
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", "{template.id}" }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-900", "{template.id}" }
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-900",
                                     if let Some(ref name) = template.name {
                                         "{name}"
                                     } else {
                                         span { class: "text-gray-400 italic", "No name" }
                                     }
                                 }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm text-gray-900", "{template.template_type}" }
-                                td { class: "px-6 py-4 text-sm text-gray-900 max-w-xs truncate",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-900", "{template.template_type}" }
+                                td { class: "px-6 py-4 text-body text-gray-900 max-w-xs truncate",
                                     "{template.template_text}"
                                 }
-                                td { class: "px-6 py-4 whitespace-nowrap text-sm font-medium",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body font-medium",
                                     div { class: "flex gap-2",
                                         button {
                                             onclick: {
                                                 let template = template.clone();
                                                 move |_| edit_template(template.clone())
                                             },
-                                            class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs",
+                                            class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-small",
                                             "{edit_str}"
                                         }
                                         button {
@@ -254,7 +254,7 @@ pub fn TextTemplateManagement() -> Element {
                                                 let template_id = template.id;
                                                 move |_| delete_template(template_id)
                                             },
-                                            class: "bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs",
+                                            class: "bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-small",
                                             "{delete_str}"
                                         }
                                     }

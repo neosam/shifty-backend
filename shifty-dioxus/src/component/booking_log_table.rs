@@ -24,10 +24,9 @@ pub struct BookingLogTableProps {
 }
 
 const FORM_INPUT_CLASSES: &str =
-    "h-[34px] w-full px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] form-input";
+    "h-[34px] w-full px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body form-input";
 
-const HEADER_CLASSES: &str =
-    "px-3 py-2 text-left text-[11px] font-semibold text-ink-muted uppercase tracking-[0.04em]";
+const HEADER_CLASSES: &str = "px-3 py-2 text-left text-micro text-ink-muted uppercase";
 
 #[component]
 pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
@@ -108,7 +107,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
             div { class: "bg-surface border border-border rounded-md p-3",
                 div { class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3",
                     div {
-                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
+                        label { class: "block text-micro text-ink-soft uppercase mb-1",
                             {i18n.t(Key::BookingLogFilterName)}
                         }
                         input {
@@ -121,7 +120,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                     }
 
                     div {
-                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
+                        label { class: "block text-micro text-ink-soft uppercase mb-1",
                             {i18n.t(Key::BookingLogFilterDay)}
                         }
                         select {
@@ -161,7 +160,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                     }
 
                     div {
-                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
+                        label { class: "block text-micro text-ink-soft uppercase mb-1",
                             {i18n.t(Key::BookingLogFilterStatus)}
                         }
                         select {
@@ -175,7 +174,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                     }
 
                     div {
-                        label { class: "block text-[11px] font-semibold text-ink-soft uppercase tracking-[0.04em] mb-1",
+                        label { class: "block text-micro text-ink-soft uppercase mb-1",
                             {i18n.t(Key::BookingLogFilterCreatedBy)}
                         }
                         select {
@@ -204,7 +203,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
             // Table section
             div { class: "bg-surface border border-border rounded-lg overflow-hidden",
                 div { class: "overflow-x-auto",
-                    table { class: "w-full text-[12px] border-collapse",
+                    table { class: "w-full text-small font-normal border-collapse",
                         thead {
                             tr { class: "bg-surface-alt text-left",
                                 th { class: HEADER_CLASSES, {i18n.t(Key::BookingLogDay)} }

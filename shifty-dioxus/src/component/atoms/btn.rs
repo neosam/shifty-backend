@@ -25,7 +25,7 @@ impl Default for BtnVariant {
     }
 }
 
-const BASE_CLASSES: &str = "px-3 py-1.5 rounded-md text-[13px] font-medium border";
+const BASE_CLASSES: &str = "px-3 py-1.5 rounded-md text-body font-medium border";
 
 /// Returns the variant-specific portion of the button class string.
 pub(crate) fn variant_classes(variant: BtnVariant) -> &'static str {
@@ -157,7 +157,7 @@ mod tests {
         assert!(c.contains("px-3"));
         assert!(c.contains("py-1.5"));
         assert!(c.contains("rounded-md"));
-        assert!(c.contains("text-[13px]"));
+        assert!(c.contains("text-body"));
         assert!(c.contains("font-medium"));
         assert!(c.contains("border"));
     }

@@ -216,11 +216,11 @@ fn DialogContent(props: DialogContentProps) -> Element {
                     div { class: "min-w-0",
                         h3 {
                             id: "shifty-dialog-title",
-                            class: "m-0 text-base font-bold tracking-tight",
+                            class: "m-0 text-lg",
                             "{props.title}"
                         }
                         if let Some(subtitle) = props.subtitle.as_ref() {
-                            div { class: "text-xs text-ink-muted mt-0.5",
+                            div { class: "text-small font-normal text-ink-muted mt-0.5",
                                 "{subtitle}"
                             }
                         }
@@ -547,11 +547,12 @@ mod tests {
             }
         }
         let html = render(app);
-        // The subtitle slot is the only place that combines `text-xs` with
-        // `text-ink-muted` — the close-X button uses `text-lg text-ink-muted`,
-        // so this assertion is specific to the subtitle div.
+        // No subtitle was provided — the subtitle div should not be rendered.
+        // After the typography redesign, the subtitle uses `text-small`, but
+        // the assertion still applies: when no subtitle is set, the muted
+        // markup must not appear.
         assert!(
-            !html.contains("text-xs text-ink-muted"),
+            !html.contains("text-small font-normal text-ink-muted"),
             "unexpected subtitle markup: {html}"
         );
     }

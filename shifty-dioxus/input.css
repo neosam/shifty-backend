@@ -8,6 +8,22 @@ body {
     color: var(--ink);
 }
 
+/*
+ * Body baseline — see
+ * openspec/changes/redesign-typography-bump/specs/typography/spec.md.
+ * Sourced 1:1 from shifty-design/project/Shifty Preview.html.
+ */
+body {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+    body {
+        font-size: 15px;
+    }
+}
+
 :root {
     --bg: #fbfbfc;
     --surface: #ffffff;

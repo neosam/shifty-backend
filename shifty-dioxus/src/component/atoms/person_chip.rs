@@ -24,7 +24,7 @@ use dioxus::prelude::*;
 
 use crate::base_types::ImStr;
 
-const SHAPE_CLASSES: &str = "inline-flex px-[4px] pl-[7px] py-px rounded-sm text-xs font-medium";
+const SHAPE_CLASSES: &str = "inline-flex px-[4px] pl-[7px] py-px rounded-sm text-body font-medium";
 
 /// Builds the class string for a `PersonChip`.
 ///
@@ -167,7 +167,7 @@ mod tests {
             let c = build_class(has_color, false, false);
             assert!(c.contains("inline-flex"));
             assert!(c.contains("rounded-sm"));
-            assert!(c.contains("text-xs"));
+            assert!(c.contains("text-body"));
             assert!(c.contains("font-medium"));
         }
     }

@@ -87,7 +87,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             }
                         },
                     }
-                    span { class: "text-xs text-gray-500", "({from_day}, Week {from_week}, {from_year})" }
+                    span { class: "text-small font-normal text-gray-500", "({from_day}, Week {from_week}, {from_year})" }
                 }
             }
             FormPair { label: to_label,
@@ -109,7 +109,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             }
                         },
                     }
-                    span { class: "text-xs text-gray-500", "({to_day}, Week {to_week}, {to_year})" }
+                    span { class: "text-small font-normal text-gray-500", "({to_day}, Week {to_week}, {to_year})" }
                 }
             }
             FormPair { label: workdays_label,
@@ -333,7 +333,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         },
                         ""
                     }
-                    span { class: "text-xs text-gray-500", "{cap_planned_hours_help}" }
+                    span { class: "text-small font-normal text-gray-500", "{cap_planned_hours_help}" }
                 }
             }
             FormGroup {

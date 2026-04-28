@@ -23,7 +23,7 @@ use crate::{
 use dioxus::prelude::*;
 
 const SEARCH_INPUT_CLASSES: &str =
-    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input";
+    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input";
 
 const ACCENT_SOFT_HEX: &str = "#eaecfb";
 const WARN_SOFT_HEX: &str = "#fef0d6";
@@ -57,7 +57,7 @@ pub fn UserManagementPage() -> Element {
         TopBar {}
 
         div { class: "px-4 py-4 md:px-6 lg:px-8 max-w-5xl mx-auto",
-            h1 { class: "text-2xl md:text-3xl font-bold mb-6 text-ink",
+            h1 { class: "text-h1 mb-6 text-ink",
                 "{i18n.t(Key::UserManagement)}"
             }
 
@@ -198,7 +198,7 @@ fn DeleteUserConfirmDialog(props: DeleteUserConfirmDialogProps) -> Element {
                     "{i18n.t(Key::DeleteUser)}"
                 }
             }),
-            p { class: "text-sm text-ink", "{body_text}" }
+            p { class: "text-body text-ink", "{body_text}" }
         }
     }
 }
@@ -251,7 +251,7 @@ fn SalesPersonTabContent(props: SalesPersonTabContentProps) -> Element {
         }
 
         table { class: "w-full text-left",
-            thead { class: "border-b border-border text-xs uppercase tracking-wide text-ink-muted",
+            thead { class: "border-b border-border text-micro font-bold uppercase text-ink-muted",
                 tr {
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::SalesPersons)}" }
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnType)}" }
@@ -305,7 +305,7 @@ fn SalesPersonTabContent(props: SalesPersonTabContentProps) -> Element {
                                             color: Some(pill_color),
                                         }
                                         if inactive {
-                                            span { class: "inline-flex px-2 py-0.5 rounded-sm text-xs font-medium bg-bad-soft text-bad",
+                                            span { class: "inline-flex px-2 py-0.5 rounded-sm text-micro font-medium bg-bad-soft text-bad",
                                                 "{i18n.t(Key::Inactive)}"
                                             }
                                         }
@@ -387,7 +387,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
         }
 
         table { class: "w-full text-left",
-            thead { class: "border-b border-border text-xs uppercase tracking-wide text-ink-muted",
+            thead { class: "border-b border-border text-micro font-bold uppercase text-ink-muted",
                 tr {
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::Users)}" }
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnLinkedSalesPerson)}" }
@@ -434,7 +434,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                                         } else {
                                             div { class: "flex flex-wrap gap-1",
                                                 for role in role_list.iter() {
-                                                    span { class: "inline-flex px-2 py-0.5 rounded-sm text-xs font-medium bg-accent-soft text-accent",
+                                                    span { class: "inline-flex px-2 py-0.5 rounded-sm text-micro font-medium bg-accent-soft text-accent",
                                                         "{role}"
                                                     }
                                                 }

@@ -6,7 +6,7 @@ pub fn Employees() -> Element {
     rsx! {
         TopBar {}
         EmployeesShell {
-            div { class: "hidden md:flex h-full items-center justify-center text-ink-muted text-sm p-6",
+            div { class: "hidden md:flex h-full items-center justify-center text-ink-muted text-body p-6",
                 "Wähle einen Mitarbeiter aus der Liste"
             }
         }

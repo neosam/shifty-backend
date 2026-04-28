@@ -33,12 +33,12 @@ pub struct ShiftplanTabBarProps {
 
 /// Returns the active-tab class string.
 pub(crate) fn active_tab_class() -> &'static str {
-    "px-4 py-2 text-[13px] font-semibold border-b-2 border-accent text-accent -mb-px"
+    "px-4 py-2 text-body font-semibold border-b-2 border-accent text-accent -mb-px"
 }
 
 /// Returns the inactive-tab class string.
 pub(crate) fn inactive_tab_class() -> &'static str {
-    "px-4 py-2 text-[13px] font-medium border-b-2 border-transparent text-ink-muted hover:text-ink hover:border-border-strong -mb-px"
+    "px-4 py-2 text-body font-medium border-b-2 border-transparent text-ink-muted hover:text-ink hover:border-border-strong -mb-px"
 }
 
 #[component]
@@ -84,7 +84,7 @@ pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
                             }
                             if props.planning_mode {
                                 button {
-                                    class: "ml-1 text-bad-soft hover:text-bad text-xs px-1",
+                                    class: "ml-1 text-bad-soft hover:text-bad text-small px-1",
                                     "aria-label": "Delete shiftplan",
                                     onclick: move |_| {
                                         delete_confirm_id.set(Some(id));
@@ -98,7 +98,7 @@ pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
             }
             if props.planning_mode {
                 button {
-                    class: "ml-2 px-3 py-2 text-[13px] font-medium text-accent hover:bg-accent-soft rounded-md",
+                    class: "ml-2 px-3 py-2 text-body font-medium text-accent hover:bg-accent-soft rounded-md",
                     "aria-label": "Create shiftplan",
                     onclick: move |_| {
                         dialog_name.set(String::new());

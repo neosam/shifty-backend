@@ -156,10 +156,10 @@ pub fn BillingPeriods() -> Element {
                     "{i18n.t(Key::DeleteBillingPeriod)}"
                 }
             }),
-            div { class: "space-y-3 text-sm text-ink",
+            div { class: "space-y-3 text-body text-ink",
                 p { "{confirm_delete_text}" }
                 if let Some(error) = delete_error.read().as_ref() {
-                    p { class: "text-bad text-xs",
+                    p { class: "text-bad text-small font-normal",
                         {
                             i18n.t(Key::DeleteBillingPeriodError)
                                 .replace("{error}", error)
@@ -203,7 +203,7 @@ pub fn BillingPeriods() -> Element {
 
         main { class: "mx-auto max-w-5xl w-full px-4 py-6 md:py-8 space-y-4",
             div { class: "flex justify-between items-center",
-                h1 { class: "text-xl font-semibold text-ink", "{i18n.t(Key::BillingPeriods)}" }
+                h1 { class: "text-h1 text-ink", "{i18n.t(Key::BillingPeriods)}" }
                 Btn {
                     variant: BtnVariant::Primary,
                     on_click: move |_| page_action_handler.send(BillingPeriodsPageAction::ShowCreateBillingPeriodDialog),
@@ -222,17 +222,17 @@ pub fn BillingPeriods() -> Element {
                             div { class: "rounded-md border border-border bg-surface p-4 hover:bg-surface-alt transition-colors cursor-pointer",
                                 div { class: "flex justify-between items-center gap-4",
                                     div { class: "min-w-0 flex flex-col gap-1",
-                                        h3 { class: "text-sm font-semibold text-ink",
+                                        h3 { class: "text-body font-semibold text-ink",
                                             "{i18n.t(Key::Period)}: {i18n.format_date(&billing_period.start_date)} - {i18n.format_date(&billing_period.end_date)}"
                                         }
-                                        p { class: "text-xs text-ink-muted",
+                                        p { class: "text-small font-normal text-ink-muted",
                                             "{i18n.t(Key::CreatedAt)}: {i18n.format_date(&billing_period.created_at.date())}"
                                         }
-                                        p { class: "text-xs text-ink-muted",
+                                        p { class: "text-small font-normal text-ink-muted",
                                             "{i18n.t(Key::CreatedBy)}: {billing_period.created_by.as_ref()}"
                                         }
                                         if !billing_period.sales_persons.is_empty() {
-                                            p { class: "text-xs text-ink-muted",
+                                            p { class: "text-small font-normal text-ink-muted",
                                                 {
                                                     i18n.t(Key::SalesPersonsIncluded)
                                                         .replace("{count}", &billing_period.sales_persons.len().to_string())
@@ -246,7 +246,7 @@ pub fn BillingPeriods() -> Element {
                                                 let bp_id = billing_period.id;
                                                 rsx! {
                                                     button {
-                                                        class: "px-2 py-1 bg-bad-soft text-bad text-xs rounded-md hover:bg-bad-soft focus:outline-none",
+                                                        class: "px-2 py-1 bg-bad-soft text-bad text-micro rounded-md hover:bg-bad-soft focus:outline-none",
                                                         onclick: move |event: Event<MouseData>| {
                                                             event.prevent_default();
                                                             event.stop_propagation();
@@ -259,11 +259,11 @@ pub fn BillingPeriods() -> Element {
                                             }
                                         }
                                         if billing_period.deleted_at.is_none() {
-                                            span { class: "px-2 py-1 bg-accent-soft text-accent text-xs rounded-full",
+                                            span { class: "px-2 py-1 bg-accent-soft text-accent text-micro uppercase rounded-full",
                                                 "{i18n.t(Key::Active)}"
                                             }
                                         } else {
-                                            span { class: "px-2 py-1 bg-bad-soft text-bad text-xs rounded-full",
+                                            span { class: "px-2 py-1 bg-bad-soft text-bad text-micro uppercase rounded-full",
                                                 "{i18n.t(Key::Deleted)}"
                                             }
                                         }

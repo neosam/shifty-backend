@@ -13,7 +13,7 @@ pub struct ChildrenProps {
 #[component]
 pub fn Header(props: ChildrenProps) -> Element {
     rsx! {
-        h1 { class: "text-2xl font-bold mb-6", {props.children} }
+        h1 { class: "text-h1 mb-6", {props.children} }
     }
 }
 

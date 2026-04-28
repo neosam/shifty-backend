@@ -74,7 +74,7 @@ pub(crate) fn WeeklyOverviewChartView(
     rsx! {
         div {
             // HTML legend
-            div { class: "flex items-center gap-4 mb-3 text-xs text-ink",
+            div { class: "flex items-center gap-4 mb-3 text-small font-normal text-ink",
                 span { class: "inline-flex items-center gap-1.5",
                     span { style: "background: var(--accent); width: 12px; height: 12px; border-radius: 2px; display: inline-block;" }
                     "{paid_label}"
@@ -136,8 +136,8 @@ pub(crate) fn WeeklyOverviewChartView(
 
             // X-axis: 5 evenly-spaced mono labels
             div {
-                class: "font-mono",
-                style: "display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--ink-muted);",
+                class: "font-mono text-micro text-ink-muted",
+                style: "display: flex; justify-content: space-between; margin-top: 6px;",
                 for label_week in axis_label_weeks().iter() {
                     span { "{week_short} {label_week}" }
                 }

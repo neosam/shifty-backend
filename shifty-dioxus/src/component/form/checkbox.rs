@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-const WRAPPER: &str = "inline-flex items-center gap-2 cursor-pointer text-[13px] text-ink";
+const WRAPPER: &str = "inline-flex items-center gap-2 cursor-pointer text-body text-ink";
 const INPUT: &str = "h-4 w-4 rounded-sm border border-border-strong accent-accent form-input";
 
 #[derive(Props, Clone, PartialEq)]

@@ -737,6 +737,10 @@ video {
   margin-bottom: 2rem;
 }
 
+.ml-0\.5 {
+  margin-left: 0.125rem;
+}
+
 .ml-1 {
   margin-left: 0.25rem;
 }
@@ -799,10 +803,6 @@ video {
 
 .mt-8 {
   margin-top: 2rem;
-}
-
-.ml-0\.5 {
-  margin-left: 0.125rem;
 }
 
 .block {
@@ -965,6 +965,10 @@ video {
   min-width: 15rem;
 }
 
+.min-w-\[220px\] {
+  min-width: 220px;
+}
+
 .min-w-\[38px\] {
   min-width: 38px;
 }
@@ -975,10 +979,6 @@ video {
 
 .min-w-full {
   min-width: 100%;
-}
-
-.min-w-\[220px\] {
-  min-width: 220px;
 }
 
 .max-w-3xl {
@@ -1567,9 +1567,19 @@ video {
   padding-right: 0.5rem;
 }
 
+.px-2\.5 {
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+}
+
 .px-3 {
   padding-left: 0.75rem;
   padding-right: 0.75rem;
+}
+
+.px-3\.5 {
+  padding-left: 0.875rem;
+  padding-right: 0.875rem;
 }
 
 .px-4 {
@@ -1657,14 +1667,8 @@ video {
   padding-bottom: 1px;
 }
 
-.px-2\.5 {
-  padding-left: 0.625rem;
-  padding-right: 0.625rem;
-}
-
-.px-3\.5 {
-  padding-left: 0.875rem;
-  padding-right: 0.875rem;
+.pb-1 {
+  padding-bottom: 0.25rem;
 }
 
 .pb-2 {
@@ -1721,10 +1725,6 @@ video {
 
 .pt-6 {
   padding-top: 1.5rem;
-}
-
-.pb-1 {
-  padding-bottom: 0.25rem;
 }
 
 .text-left {
@@ -1793,8 +1793,10 @@ video {
 }
 
 .text-lg {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
+  font-size: 16px;
+  line-height: 22px;
+  letter-spacing: 0;
+  font-weight: 600;
 }
 
 .text-sm {
@@ -1810,6 +1812,41 @@ video {
 .text-xs {
   font-size: 0.75rem;
   line-height: 1rem;
+}
+
+.text-body {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.text-micro {
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.text-h2 {
+  font-size: 18px;
+  line-height: 24px;
+  letter-spacing: -0.005em;
+  font-weight: 600;
+}
+
+.text-small {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+.text-h1 {
+  font-size: 22px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 .font-bold {
@@ -1862,6 +1899,10 @@ video {
   letter-spacing: 0.04em;
 }
 
+.tracking-\[0\.06em\] {
+  letter-spacing: 0.06em;
+}
+
 .tracking-tight {
   letter-spacing: -0.025em;
 }
@@ -1872,10 +1913,6 @@ video {
 
 .tracking-wider {
   letter-spacing: 0.05em;
-}
-
-.tracking-\[0\.06em\] {
-  letter-spacing: 0.06em;
 }
 
 .text-accent {
@@ -2107,6 +2144,23 @@ html,
 body {
   background: var(--bg);
   color: var(--ink);
+}
+
+/*
+ * Body baseline — see
+ * openspec/changes/redesign-typography-bump/specs/typography/spec.md.
+ * Sourced 1:1 from shifty-design/project/Shifty Preview.html.
+ */
+
+body {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  body {
+    font-size: 15px;
+  }
 }
 
 :root {

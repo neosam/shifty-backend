@@ -65,7 +65,7 @@ pub fn DayAggregateView(props: DayAggregateViewProps) -> Element {
                             div {
                                 class: "bg-surface-alt border-b border-r border-border px-[10px] py-2 select-none",
                                 style: "position: sticky; top: 0; z-index: 1;",
-                                div { class: "text-[12px] font-bold text-ink truncate",
+                                div { class: "text-body font-bold text-ink truncate",
                                     "{plan_name}"
                                 }
                             }
@@ -87,7 +87,7 @@ pub fn DayAggregateView(props: DayAggregateViewProps) -> Element {
                             );
                             rsx! {
                                 div {
-                                    class: "absolute left-0 right-0 border-t border-border px-2 font-mono text-[11px] text-ink-muted text-right",
+                                    class: "absolute left-0 right-0 border-t border-border px-2 font-mono text-body font-normal text-ink-muted text-right",
                                     style: "{style}",
                                     "{label}"
                                 }
@@ -355,9 +355,9 @@ pub fn DayButtonBar(props: DayButtonBarProps) -> Element {
 
     let nav_class = "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt print:hidden";
     let day_active_class =
-        "px-3 py-1 text-[13px] font-medium rounded-[4px] bg-surface text-ink shadow-sm border border-border-strong";
+        "px-3 py-1 text-body font-medium rounded-[4px] bg-surface text-ink shadow-sm border border-border-strong";
     let day_inactive_class =
-        "px-3 py-1 text-[13px] font-medium rounded-[4px] text-ink-muted hover:text-ink hover:bg-surface-alt border border-transparent";
+        "px-3 py-1 text-body font-medium rounded-[4px] text-ink-muted hover:text-ink hover:bg-surface-alt border border-transparent";
 
     rsx! {
         div { class: "flex flex-row items-center justify-center gap-1 mb-4",

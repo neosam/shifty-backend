@@ -9,7 +9,7 @@ use dioxus::prelude::*;
 use crate::base_types::ImStr;
 
 const SHARED_INPUT_CLASSES: &str =
-    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input";
+    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input";
 
 #[derive(Props, Clone, PartialEq)]
 pub struct TextInputProps {
@@ -111,7 +111,7 @@ pub struct TextareaInputProps {
 }
 
 const TEXTAREA_CLASSES: &str =
-    "min-h-[68px] px-[10px] py-2 border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input leading-[1.45]";
+    "min-h-[68px] px-[10px] py-2 border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input leading-[1.45]";
 
 #[component]
 pub fn TextareaInput(props: TextareaInputProps) -> Element {
@@ -177,7 +177,10 @@ mod tests {
         assert!(html.contains("rounded-md"), "missing rounded-md: {html}");
         assert!(html.contains("bg-surface"), "missing bg-surface: {html}");
         assert!(html.contains("text-ink"), "missing text-ink: {html}");
-        assert!(html.contains("text-[13px]"), "missing 13px text: {html}");
+        assert!(
+            html.contains("text-body"),
+            "missing text-body token: {html}"
+        );
     }
 
     #[test]

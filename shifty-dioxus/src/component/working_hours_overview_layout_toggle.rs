@@ -12,9 +12,9 @@ pub struct WorkingHoursOverviewLayoutToggleProps {
 
 const PILL_CONTAINER: &str = "inline-flex bg-surface-alt rounded-md p-[2px]";
 const ACTIVE_BTN: &str =
-    "px-3 py-1 rounded-sm text-xs font-semibold bg-surface text-ink shadow-sm cursor-pointer";
+    "px-3 py-1 rounded-sm text-small font-semibold bg-surface text-ink shadow-sm cursor-pointer";
 const INACTIVE_BTN: &str =
-    "px-3 py-1 rounded-sm text-xs font-semibold bg-transparent text-ink-muted cursor-pointer hover:text-ink";
+    "px-3 py-1 rounded-sm text-small font-semibold bg-transparent text-ink-muted cursor-pointer hover:text-ink";
 
 pub(crate) fn pill_button_class(active: bool) -> &'static str {
     if active {

@@ -131,12 +131,11 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                                 "aria-hidden": "true",
                             }
                             div { class: "flex-1 min-w-0",
-                                div { class: "text-xs font-medium text-ink truncate",
+                                div { class: "text-small font-medium text-ink truncate",
                                     "{working_hour.sales_person_name}"
                                 }
                                 div {
-                                    class: "font-mono tabular-nums {hours_class}",
-                                    style: "font-size: 10px;",
+                                    class: "font-mono tabular-nums text-micro {hours_class}",
                                     "{actual_hours_str} / {dynamic_hours_str}h"
                                     if show_balance {
                                         span { class: "text-ink-muted ml-1", "({balance_hours_str})" }
@@ -174,28 +173,28 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
             class: "bg-surface border border-border rounded-lg overflow-hidden select-none",
             style: "overflow-x: auto;",
             table {
-                class: "w-full border-collapse text-sm",
+                class: "w-full border-collapse text-body",
                 thead {
                     tr {
                         class: "bg-surface-alt text-left",
                         th {
-                            class: "px-[14px] py-2 text-xs font-semibold text-ink-muted uppercase tracking-wider",
+                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase",
                             "{i18n.t(Key::WorkingHoursTableEmployee)}"
                         }
                         th {
-                            class: "px-[14px] py-2 text-xs font-semibold text-ink-muted uppercase tracking-wider text-right",
+                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase text-right",
                             "{i18n.t(Key::WorkingHoursTableActual)}"
                         }
                         th {
-                            class: "px-[14px] py-2 text-xs font-semibold text-ink-muted uppercase tracking-wider text-right",
+                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase text-right",
                             "{i18n.t(Key::WorkingHoursTableTarget)}"
                         }
                         th {
-                            class: "px-[14px] py-2 text-xs font-semibold text-ink-muted uppercase tracking-wider text-right",
+                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase text-right",
                             "{i18n.t(Key::WorkingHoursTableDifference)}"
                         }
                         th {
-                            class: "px-[14px] py-2 text-xs font-semibold text-ink-muted uppercase tracking-wider",
+                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase",
                             "{i18n.t(Key::WorkingHoursTableUtilization)}"
                         }
                     }
@@ -264,7 +263,7 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                                                 }
                                             }
                                             span {
-                                                class: "font-mono tabular-nums text-xs text-ink-muted text-right",
+                                                class: "font-mono tabular-nums text-small font-normal text-ink-muted text-right",
                                                 style: "min-width: 38px;",
                                                 "{pct_int}%"
                                             }

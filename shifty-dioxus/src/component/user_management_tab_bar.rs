@@ -15,8 +15,8 @@ pub enum UserMgmtTab {
     Users,
 }
 
-const ACTIVE_CLASSES: &str = "px-4 py-2 text-sm font-medium border-b-2 border-accent text-accent";
-const INACTIVE_CLASSES: &str = "px-4 py-2 text-sm font-medium border-b-2 border-transparent text-ink-soft hover:text-ink hover:border-border-strong";
+const ACTIVE_CLASSES: &str = "px-4 py-2 text-body font-medium border-b-2 border-accent text-accent";
+const INACTIVE_CLASSES: &str = "px-4 py-2 text-body font-medium border-b-2 border-transparent text-ink-soft hover:text-ink hover:border-border-strong";
 
 pub(crate) fn tab_class(active: bool) -> &'static str {
     if active {

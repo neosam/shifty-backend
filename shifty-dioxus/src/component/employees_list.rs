@@ -21,7 +21,7 @@ pub struct EmployeesListProps {
 }
 
 const SEARCH_INPUT_CLASSES: &str =
-    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-[13px] w-full min-w-0 form-input";
+    "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input";
 
 pub(crate) fn matches_search(name: &str, term: &str) -> bool {
     if term.is_empty() {
@@ -59,7 +59,7 @@ pub fn EmployeesList(props: EmployeesListProps) -> Element {
 
     rsx! {
         div { class: "flex flex-col gap-3 p-3",
-            h2 { class: "text-sm font-semibold text-ink-muted uppercase tracking-wide",
+            h2 { class: "text-micro font-bold text-ink-muted uppercase",
                 "{heading}"
             }
             input {
@@ -103,12 +103,12 @@ pub fn EmployeesList(props: EmployeesListProps) -> Element {
                         }
                     }
                     Some(Err(err)) => rsx! {
-                        div { class: "text-bad text-sm px-3 py-2",
+                        div { class: "text-bad text-body px-3 py-2",
                             "Error: {err}"
                         }
                     },
                     None => rsx! {
-                        div { class: "text-ink-muted text-sm px-3 py-2",
+                        div { class: "text-ink-muted text-body px-3 py-2",
                             "Loading…"
                         }
                     },

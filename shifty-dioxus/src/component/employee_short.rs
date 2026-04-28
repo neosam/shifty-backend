@@ -48,10 +48,10 @@ pub fn EmployeeShort(props: EmployeeShortProps) -> Element {
                 class: "rounded-full inline-block flex-shrink-0",
                 style: "{dot_style}",
             }
-            span { class: "flex-1 text-ink truncate text-sm",
+            span { class: "flex-1 text-ink truncate text-body",
                 "{props.employee.sales_person.name}"
             }
-            span { class: "font-mono tabular-nums text-xs text-ink-muted",
+            span { class: "font-mono tabular-nums text-small font-normal text-ink-muted",
                 "{hours}"
             }
         }
