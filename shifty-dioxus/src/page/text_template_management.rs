@@ -3,7 +3,11 @@ use futures_util::StreamExt;
 use uuid::Uuid;
 
 use crate::{
-    component::TopBar,
+    base_types::ImStr,
+    component::{
+        atoms::{Btn, BtnVariant},
+        SelectInput, TextInput, TextareaInput, TopBar,
+    },
     i18n::Key,
     service::{
         i18n::I18N,
@@ -59,7 +63,7 @@ pub fn TextTemplateManagement() -> Element {
         form_template_engine.set(TemplateEngine::Tera);
     };
 
-    let save_template = move |_| {
+    let mut save_template = move |_: ()| {
         let name = form_name.read().clone();
         let template_type = form_template_type.read().clone();
         let template_text = form_template_text.read().clone();
@@ -126,19 +130,21 @@ pub fn TextTemplateManagement() -> Element {
         TopBar {}
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
-            h1 { class: "text-h1 mb-4", "{title}" }
+            h1 { class: "text-h1 mb-4 text-ink", "{title}" }
 
             if !*show_form.read() {
-                button {
-                    onclick: move |_| show_form.set(true),
-                    class: "mb-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded",
-                    "{add_new_str}"
+                div { class: "mb-4",
+                    Btn {
+                        variant: BtnVariant::Primary,
+                        on_click: move |_| show_form.set(true),
+                        "{add_new_str}"
+                    }
                 }
             }
 
             if *show_form.read() {
-                div { class: "bg-gray-100 p-4 rounded-lg mb-6",
-                    h2 { class: "text-h2 mb-4",
+                div { class: "bg-surface-alt border border-border p-4 rounded-lg mb-6",
+                    h2 { class: "text-h2 mb-4 text-ink",
                         if editing_id.read().is_some() {
                             "{i18n.t(Key::EditTemplate)}"
                         } else {
@@ -147,66 +153,73 @@ pub fn TextTemplateManagement() -> Element {
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-body font-medium mb-2", "{i18n.t(Key::TemplateName)}" }
-                        input {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
-                            r#type: "text",
-                            value: form_name.read().clone(),
-                            oninput: move |event| form_name.set(event.value()),
-                            placeholder: "Enter template name (optional)..."
+                        label { class: "block text-body font-medium text-ink-soft mb-2", "{i18n.t(Key::TemplateName)}" }
+                        TextInput {
+                            value: ImStr::from(form_name.read().as_str()),
+                            placeholder: Some(ImStr::from("Enter template name (optional)...")),
+                            on_change: move |value: ImStr| form_name.set(value.to_string()),
                         }
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-body font-medium mb-2", "{template_type_str}" }
-                        select {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
-                            value: form_template_type.read().clone(),
-                            onchange: move |event| form_template_type.set(event.value()),
-                            option { value: "billing-period", "Billing Period" }
-                            option { value: "shiftplan-report", "Shiftplan Report" }
+                        label { class: "block text-body font-medium text-ink-soft mb-2", "{template_type_str}" }
+                        SelectInput {
+                            on_change: move |value: ImStr| form_template_type.set(value.to_string()),
+                            option {
+                                value: "billing-period",
+                                selected: form_template_type.read().as_str() == "billing-period",
+                                "Billing Period"
+                            }
+                            option {
+                                value: "shiftplan-report",
+                                selected: form_template_type.read().as_str() == "shiftplan-report",
+                                "Shiftplan Report"
+                            }
                         }
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-body font-medium mb-2", "{i18n.t(Key::TemplateEngine)}" }
-                        select {
-                            class: "w-full p-2 border border-gray-300 rounded-md",
-                            value: match *form_template_engine.read() {
-                                TemplateEngine::Tera => "tera",
-                                TemplateEngine::MiniJinja => "minijinja",
-                            },
-                            onchange: move |event: Event<FormData>| {
-                                let engine = match event.value().as_str() {
+                        label { class: "block text-body font-medium text-ink-soft mb-2", "{i18n.t(Key::TemplateEngine)}" }
+                        SelectInput {
+                            on_change: move |value: ImStr| {
+                                let engine = match value.as_str() {
                                     "minijinja" => TemplateEngine::MiniJinja,
                                     _ => TemplateEngine::Tera,
                                 };
                                 form_template_engine.set(engine);
                             },
-                            option { value: "tera", "{i18n.t(Key::TemplateEngineTera)}" }
-                            option { value: "minijinja", "{i18n.t(Key::TemplateEngineMiniJinja)}" }
+                            option {
+                                value: "tera",
+                                selected: matches!(*form_template_engine.read(), TemplateEngine::Tera),
+                                "{i18n.t(Key::TemplateEngineTera)}"
+                            }
+                            option {
+                                value: "minijinja",
+                                selected: matches!(*form_template_engine.read(), TemplateEngine::MiniJinja),
+                                "{i18n.t(Key::TemplateEngineMiniJinja)}"
+                            }
                         }
                     }
 
                     div { class: "mb-4",
-                        label { class: "block text-body font-medium mb-2", "{template_text_str}" }
-                        textarea {
-                            class: "w-full p-2 border border-gray-300 rounded-md h-32",
-                            value: form_template_text.read().clone(),
-                            oninput: move |event| form_template_text.set(event.value()),
-                            placeholder: "Enter your template text here..."
+                        label { class: "block text-body font-medium text-ink-soft mb-2", "{template_text_str}" }
+                        TextareaInput {
+                            value: ImStr::from(form_template_text.read().as_str()),
+                            placeholder: Some(ImStr::from("Enter your template text here...")),
+                            rows: 6u8,
+                            on_change: move |value: ImStr| form_template_text.set(value.to_string()),
                         }
                     }
 
                     div { class: "flex gap-2",
-                        button {
-                            onclick: save_template,
-                            class: "bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded",
+                        Btn {
+                            variant: BtnVariant::Primary,
+                            on_click: move |_| save_template(()),
                             "{save_str}"
                         }
-                        button {
-                            onclick: move |_| reset_form(),
-                            class: "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded",
+                        Btn {
+                            variant: BtnVariant::Secondary,
+                            on_click: move |_| reset_form(),
                             "{cancel_str}"
                         }
                     }
@@ -214,47 +227,47 @@ pub fn TextTemplateManagement() -> Element {
             }
 
             div { class: "overflow-x-auto",
-                table { class: "min-w-full bg-white border border-gray-300",
-                    thead { class: "bg-gray-50",
+                table { class: "min-w-full bg-surface border border-border",
+                    thead { class: "bg-surface-alt",
                         tr {
-                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "ID" }
-                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "{i18n.t(Key::TemplateName)}" }
-                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "{template_type_str}" }
-                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "Preview" }
-                            th { class: "px-6 py-3 text-left text-micro font-bold text-gray-500 uppercase", "{actions_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-ink-muted uppercase", "ID" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-ink-muted uppercase", "{i18n.t(Key::TemplateName)}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-ink-muted uppercase", "{template_type_str}" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-ink-muted uppercase", "Preview" }
+                            th { class: "px-6 py-3 text-left text-micro font-bold text-ink-muted uppercase", "{actions_str}" }
                         }
                     }
-                    tbody { class: "bg-white divide-y divide-gray-200",
+                    tbody { class: "divide-y divide-border",
                         for template in store.filtered_templates.iter() {
                             tr { key: "{template.id}",
-                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-900", "{template.id}" }
-                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-900",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-ink", "{template.id}" }
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-ink",
                                     if let Some(ref name) = template.name {
                                         "{name}"
                                     } else {
-                                        span { class: "text-gray-400 italic", "No name" }
+                                        span { class: "text-ink-muted italic", "No name" }
                                     }
                                 }
-                                td { class: "px-6 py-4 whitespace-nowrap text-body text-gray-900", "{template.template_type}" }
-                                td { class: "px-6 py-4 text-body text-gray-900 max-w-xs truncate",
+                                td { class: "px-6 py-4 whitespace-nowrap text-body text-ink", "{template.template_type}" }
+                                td { class: "px-6 py-4 text-body text-ink max-w-xs truncate",
                                     "{template.template_text}"
                                 }
                                 td { class: "px-6 py-4 whitespace-nowrap text-body font-medium",
                                     div { class: "flex gap-2",
-                                        button {
-                                            onclick: {
+                                        Btn {
+                                            variant: BtnVariant::Primary,
+                                            on_click: {
                                                 let template = template.clone();
                                                 move |_| edit_template(template.clone())
                                             },
-                                            class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-small",
                                             "{edit_str}"
                                         }
-                                        button {
-                                            onclick: {
+                                        Btn {
+                                            variant: BtnVariant::Danger,
+                                            on_click: {
                                                 let template_id = template.id;
                                                 move |_| delete_template(template_id)
                                             },
-                                            class: "bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-small",
                                             "{delete_str}"
                                         }
                                     }
@@ -264,6 +277,36 @@ pub fn TextTemplateManagement() -> Element {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn no_legacy_classes_in_source() {
+        let src = include_str!("text_template_management.rs");
+        let test_module_start = src
+            .find("#[cfg(test)]")
+            .expect("test module marker missing");
+        let prefix = &src[..test_module_start];
+        for forbidden in [
+            "bg-gray-",
+            "bg-white",
+            "text-gray-",
+            "text-blue-",
+            "text-red-",
+            "text-green-",
+            "bg-blue-",
+            "bg-green-",
+            "bg-red-",
+            "border-black",
+            "border-gray-",
+        ] {
+            assert!(
+                !prefix.contains(forbidden),
+                "legacy class `{forbidden}` found in source"
+            );
         }
     }
 }
