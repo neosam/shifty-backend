@@ -5,9 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     openspec.url = "github:Fission-AI/OpenSpec";
+    gsd.url = "github:neosam/gsd-flake";
   };
 
-  outputs = { self, nixpkgs, flake-utils, openspec }:
+  outputs = { self, nixpkgs, flake-utils, openspec, gsd }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -47,6 +48,7 @@
             pkg-config
             
             openspec.packages.${system}.default
+            gsd.packages.${system}.default
           ];
         };
       }

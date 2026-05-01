@@ -6,3 +6,4 @@ mutants.out
 mutants.out.old
 .aider*
 .env
+.claude/worktrees/
