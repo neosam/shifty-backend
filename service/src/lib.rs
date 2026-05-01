@@ -4,6 +4,7 @@ use time::Date;
 use time::Time;
 use uuid::Uuid;
 
+pub mod absence;
 pub mod billing_period;
 pub mod billing_period_report;
 pub mod block;
