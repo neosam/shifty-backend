@@ -1535,3 +1535,89 @@ pub struct ImpersonateTO {
     #[serde(default)]
     pub user_id: Option<Arc<str>>,
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// AbsencePeriod (Phase 1 — Range-based absence domain)
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+pub enum AbsenceCategoryTO {
+    Vacation,
+    SickLeave,
+    UnpaidLeave,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::absence::AbsenceCategory> for AbsenceCategoryTO {
+    fn from(c: &service::absence::AbsenceCategory) -> Self {
+        match c {
+            service::absence::AbsenceCategory::Vacation => Self::Vacation,
+            service::absence::AbsenceCategory::SickLeave => Self::SickLeave,
+            service::absence::AbsenceCategory::UnpaidLeave => Self::UnpaidLeave,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&AbsenceCategoryTO> for service::absence::AbsenceCategory {
+    fn from(c: &AbsenceCategoryTO) -> Self {
+        match c {
+            AbsenceCategoryTO::Vacation => Self::Vacation,
+            AbsenceCategoryTO::SickLeave => Self::SickLeave,
+            AbsenceCategoryTO::UnpaidLeave => Self::UnpaidLeave,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct AbsencePeriodTO {
+    #[serde(default)]
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub category: AbsenceCategoryTO,
+    #[schema(value_type = String, format = "date")]
+    pub from_date: time::Date,
+    #[schema(value_type = String, format = "date")]
+    pub to_date: time::Date,
+    #[serde(default)]
+    pub description: Arc<str>,
+    #[serde(default)]
+    pub created: Option<time::PrimitiveDateTime>,
+    #[serde(default)]
+    pub deleted: Option<time::PrimitiveDateTime>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::absence::AbsencePeriod> for AbsencePeriodTO {
+    fn from(a: &service::absence::AbsencePeriod) -> Self {
+        Self {
+            id: a.id,
+            sales_person_id: a.sales_person_id,
+            category: (&a.category).into(),
+            from_date: a.from_date,
+            to_date: a.to_date,
+            description: a.description.clone(),
+            created: a.created,
+            deleted: a.deleted,
+            version: a.version,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&AbsencePeriodTO> for service::absence::AbsencePeriod {
+    fn from(a: &AbsencePeriodTO) -> Self {
+        Self {
+            id: a.id,
+            sales_person_id: a.sales_person_id,
+            category: (&a.category).into(),
+            from_date: a.from_date,
+            to_date: a.to_date,
+            description: a.description.clone(),
+            created: a.created,
+            deleted: a.deleted,
+            version: a.version,
+        }
+    }
+}
