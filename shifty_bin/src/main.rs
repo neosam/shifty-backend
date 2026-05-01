@@ -4,6 +4,7 @@ mod integration_test;
 use std::sync::Arc;
 
 use dao_impl_sqlite::{
+    absence::AbsenceDaoImpl,
     billing_period::BillingPeriodDaoImpl,
     billing_period_sales_person::BillingPeriodSalesPersonDaoImpl, booking::BookingDaoImpl,
     carryover::CarryoverDaoImpl, employee_work_details::EmployeeWorkDetailsDaoImpl,
@@ -35,6 +36,7 @@ type SpecialDayDao = SpecialDayDaoImpl;
 type SalesPersonUnavailableDao = SalesPersonUnavailableDaoImpl;
 type SessionDao = SessionDaoImpl;
 type ShiftplanReportDao = ShiftplanReportDaoImpl;
+type AbsenceDao = AbsenceDaoImpl;
 type ExtraHoursDao = ExtraHoursDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
@@ -219,6 +221,21 @@ impl service_impl::booking_log::BookingLogServiceDeps for BookingLogServiceDepen
 type BookingLogService = service_impl::booking_log::BookingLogServiceImpl<
     BookingLogServiceDependencies,
 >;
+
+pub struct AbsenceServiceDependencies;
+impl service_impl::absence::AbsenceServiceDeps for AbsenceServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type AbsenceDao = AbsenceDao;
+    type PermissionService = PermissionService;
+    type SalesPersonService = SalesPersonService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+// type AbsenceService = service_impl::absence::AbsenceServiceImpl<AbsenceServiceDependencies>;
+type AbsenceService =
+    service_impl::absence::AbsenceServiceImpl<AbsenceServiceDependencies>;
 
 pub struct ExtraHoursServiceDependencies;
 impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDependencies {
@@ -444,6 +461,7 @@ pub struct RestStateImpl {
     booking_log_service: Arc<BookingLogService>,
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
+    absence_service: Arc<AbsenceService>,
     extra_hours_service: Arc<ExtraHoursService>,
     shiftplan_edit_service: Arc<ShiftplanEditService>,
     block_service: Arc<BlockService>,
@@ -473,6 +491,7 @@ impl rest::RestStateDef for RestStateImpl {
     type BookingLogService = BookingLogService;
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
+    type AbsenceService = AbsenceService;
     type ExtraHoursService = ExtraHoursService;
     type ShiftplanEditService = ShiftplanEditService;
     type BlockService = BlockService;
@@ -531,6 +550,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn working_hours_service(&self) -> Arc<Self::WorkingHoursService> {
         self.working_hours_service.clone()
     }
+    fn absence_service(&self) -> Arc<Self::AbsenceService> {
+        self.absence_service.clone()
+    }
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService> {
         self.extra_hours_service.clone()
     }
@@ -584,6 +606,7 @@ impl RestStateImpl {
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
         let booking_log_dao = Arc::new(dao_impl_sqlite::booking_log::BookingLogDaoImpl);
+        let absence_dao = Arc::new(AbsenceDao::new(pool.clone()));
         let extra_hours_dao = Arc::new(ExtraHoursDao::new(pool.clone()));
         let shiftplan_report_dao = Arc::new(ShiftplanReportDao::new(pool.clone()));
         let working_hours_dao = Arc::new(EmployeeWorkDetailsDao::new(pool.clone()));
@@ -677,6 +700,14 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
+        let absence_service = Arc::new(service_impl::absence::AbsenceServiceImpl {
+            absence_dao,
+            permission_service: permission_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
             extra_hours_dao,
             permission_service: permission_service.clone(),
@@ -852,6 +883,7 @@ impl RestStateImpl {
             booking_log_service,
             reporting_service,
             working_hours_service,
+            absence_service,
             extra_hours_service,
             shiftplan_edit_service,
             block_service,
