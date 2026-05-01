@@ -1430,6 +1430,8 @@ fn test_shiftyplan_hours_end_of_year() {
 }
 
 #[cfg(test)]
+mod absence_period;
+#[cfg(test)]
 mod billing_period_custom_reports;
 #[cfg(test)]
 mod billing_period_snapshot_versioning;
