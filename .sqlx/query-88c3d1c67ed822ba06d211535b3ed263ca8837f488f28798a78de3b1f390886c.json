@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO absence_period (id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "88c3d1c67ed822ba06d211535b3ed263ca8837f488f28798a78de3b1f390886c"
+}
