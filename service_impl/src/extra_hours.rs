@@ -15,7 +15,7 @@ use service::{
     permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE},
     sales_person::SalesPersonService,
     uuid_service::UuidService,
-    PermissionService, ServiceError,
+    PermissionService, ServiceError, ValidationFailureItem,
 };
 use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 use tokio::join;
@@ -252,10 +252,85 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
     }
     async fn update(
         &self,
-        _entity: &ExtraHours,
-        _context: Authentication<Self::Context>,
+        request: &ExtraHours,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<ExtraHours, ServiceError> {
-        unimplemented!()
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let logical_id = request.id;
+
+        let active = self
+            .extra_hours_dao
+            .find_by_logical_id(logical_id, tx.clone())
+            .await?
+            .ok_or(ServiceError::EntityNotFound(logical_id))?;
+
+        let (hr_permission, sales_person_permission) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                active.sales_person_id,
+                context,
+                tx.clone().into()
+            ),
+        );
+        hr_permission.or(sales_person_permission)?;
+
+        if request.sales_person_id != active.sales_person_id {
+            return Err(ServiceError::ValidationError(Arc::from([
+                ValidationFailureItem::ModificationNotAllowed("sales_person_id".into()),
+            ])));
+        }
+
+        if request.version != active.version {
+            return Err(ServiceError::EntityConflicts(
+                logical_id,
+                request.version,
+                active.version,
+            ));
+        }
+
+        let mut tombstone = active.clone();
+        tombstone.deleted = Some(self.clock_service.date_time_now());
+        self.extra_hours_dao
+            .update(
+                &tombstone,
+                "extra_hours_service::update::soft_delete",
+                tx.clone(),
+            )
+            .await?;
+
+        let new_id = self
+            .uuid_service
+            .new_uuid("extra_hours_service::update::id");
+        let new_version = self
+            .uuid_service
+            .new_uuid("extra_hours_service::update::version");
+        let now = self.clock_service.date_time_now();
+
+        let new_entity = extra_hours::ExtraHoursEntity {
+            id: new_id,
+            logical_id: active.logical_id,
+            sales_person_id: active.sales_person_id,
+            amount: request.amount,
+            category: (&request.category).into(),
+            description: request.description.clone(),
+            date_time: request.date_time,
+            created: now,
+            deleted: None,
+            version: new_version,
+        };
+        self.extra_hours_dao
+            .create(
+                &new_entity,
+                "extra_hours_service::update::insert",
+                tx.clone(),
+            )
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(ExtraHours::from(&new_entity))
     }
 
     async fn delete(
@@ -275,7 +350,7 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
 
         let mut extra_hours_entity = self
             .extra_hours_dao
-            .find_by_id(extra_hours_id, tx.clone())
+            .find_by_logical_id(extra_hours_id, tx.clone())
             .await?
             .ok_or(ServiceError::EntityNotFound(extra_hours_id))?;
 

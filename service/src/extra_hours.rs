@@ -129,6 +129,8 @@ impl From<&ExtraHoursCategory> for dao::extra_hours::ExtraHoursCategoryEntity {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtraHours {
+    /// Externally-stable id. Maps to the `logical_id` column on the persistence layer
+    /// (which equals the physical row id for the first version of the entry).
     pub id: Uuid,
     pub sales_person_id: Uuid,
     pub amount: f32,
@@ -142,7 +144,7 @@ pub struct ExtraHours {
 impl From<&dao::extra_hours::ExtraHoursEntity> for ExtraHours {
     fn from(extra_hours: &dao::extra_hours::ExtraHoursEntity) -> Self {
         Self {
-            id: extra_hours.id,
+            id: extra_hours.logical_id,
             sales_person_id: extra_hours.sales_person_id,
             amount: extra_hours.amount,
             category: (&extra_hours.category).into(),
@@ -159,6 +161,7 @@ impl TryFrom<&ExtraHours> for dao::extra_hours::ExtraHoursEntity {
     fn try_from(extra_hours: &ExtraHours) -> Result<Self, Self::Error> {
         Ok(Self {
             id: extra_hours.id,
+            logical_id: extra_hours.id,
             sales_person_id: extra_hours.sales_person_id,
             amount: extra_hours.amount,
             category: (&extra_hours.category).into(),
@@ -221,6 +224,7 @@ pub trait ExtraHoursService {
         &self,
         entity: &ExtraHours,
         context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<ExtraHours, ServiceError>;
     async fn delete(
         &self,

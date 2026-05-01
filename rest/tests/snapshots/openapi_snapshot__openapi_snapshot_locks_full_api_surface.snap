@@ -1,6 +1,5 @@
 ---
 source: rest/tests/openapi_snapshot.rs
-assertion_line: 16
 expression: openapi
 ---
 {
@@ -3395,6 +3394,55 @@ expression: openapi
           },
           "404": {
             "description": "Extra hours not found"
+          }
+        },
+        "tags": [
+          "Extra Hours"
+        ]
+      },
+      "put": {
+        "operationId": "update_extra_hours",
+        "parameters": [
+          {
+            "description": "Extra hours id (logical id)",
+            "example": "1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtraHoursTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtraHoursTO"
+                }
+              }
+            },
+            "description": "Updated extra hours"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Extra hours not found"
+          },
+          "409": {
+            "description": "Version conflict"
           }
         },
         "tags": [

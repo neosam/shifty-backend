@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
+  "query": "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) >= ? AND CAST(strftime('%Y', date_time) AS INTEGER) <= ? AND deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -9,55 +9,61 @@
         "type_info": "Blob"
       },
       {
-        "name": "sales_person_id",
+        "name": "logical_id",
         "ordinal": 1,
         "type_info": "Blob"
       },
       {
-        "name": "amount",
+        "name": "sales_person_id",
         "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "amount",
+        "ordinal": 3,
         "type_info": "Float"
       },
       {
         "name": "category",
-        "ordinal": 3,
-        "type_info": "Text"
-      },
-      {
-        "name": "description",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "custom_extra_hours_id",
+        "name": "description",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "custom_extra_hours_id",
+        "ordinal": 6,
         "type_info": "Blob"
       },
       {
         "name": "date_time",
-        "ordinal": 6,
-        "type_info": "Text"
-      },
-      {
-        "name": "created",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 8,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 10,
         "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 3
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -70,5 +76,5 @@
       false
     ]
   },
-  "hash": "1ec62109597c637dbf03afa317ab5067026f1a80644174ae4eb7f5e68120c720"
+  "hash": "da4028b073f1b94ae3128823b284b34623fcba57afa711d2102eee156b402c42"
 }

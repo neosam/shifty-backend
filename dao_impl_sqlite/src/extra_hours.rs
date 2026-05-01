@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 struct ExtraHoursDb {
     id: Vec<u8>,
+    logical_id: Vec<u8>,
     sales_person_id: Vec<u8>,
     amount: f64,
 
@@ -29,6 +30,7 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
     fn try_from(extra_hours: &ExtraHoursDb) -> Result<Self, DaoError> {
         Ok(Self {
             id: Uuid::from_slice(extra_hours.id.as_ref())?,
+            logical_id: Uuid::from_slice(extra_hours.logical_id.as_ref())?,
             sales_person_id: Uuid::from_slice(extra_hours.sales_person_id.as_ref())?,
             amount: extra_hours.amount as f32,
             category: match extra_hours.category.as_str() {
@@ -86,7 +88,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
             id_vec,
         ).fetch_optional(tx.tx.lock().await.as_mut())
             .await
@@ -94,6 +96,24 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .as_ref()
             .map(ExtraHoursEntity::try_from)
 
+            .transpose()?)
+    }
+
+    async fn find_by_logical_id(
+        &self,
+        logical_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<ExtraHoursEntity>, crate::DaoError> {
+        let logical_id_vec = logical_id.as_bytes().to_vec();
+        Ok(query_as!(
+            ExtraHoursDb,
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE logical_id = ? AND deleted IS NULL",
+            logical_id_vec,
+        ).fetch_optional(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?
+            .as_ref()
+            .map(ExtraHoursEntity::try_from)
             .transpose()?)
     }
 
@@ -107,7 +127,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) >= ? AND CAST(strftime('%Y', date_time) AS INTEGER) <= ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) >= ? AND CAST(strftime('%Y', date_time) AS INTEGER) <= ? AND deleted IS NULL",
             id_vec,
             from_year,
             to_year,
@@ -134,7 +154,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let next_monday_str = next_monday.format(&Iso8601::DATE_TIME)?;
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
             monday_str,
             next_monday_str,
         ).fetch_all(tx.tx.lock().await.as_mut())
@@ -152,6 +172,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         tx: Self::Transaction,
     ) -> Result<(), crate::DaoError> {
         let id_vec = entity.id.as_bytes().to_vec();
+        let logical_id_vec = entity.logical_id.as_bytes().to_vec();
         let sales_person_id_vec = entity.sales_person_id.as_bytes().to_vec();
         let category = match entity.category {
             ExtraHoursCategoryEntity::ExtraWork => "ExtraWork",
@@ -176,8 +197,9 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .transpose()?;
         let version_vec = entity.version.as_bytes().to_vec();
         query!(
-            "INSERT INTO extra_hours (id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO extra_hours (id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
+            logical_id_vec,
             sales_person_id_vec,
             entity.amount,
             category,

@@ -4,7 +4,7 @@ use axum::{
     body::Body,
     extract::{Path, Query, State},
     response::Response,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use rest_types::ExtraHoursTO;
@@ -20,6 +20,7 @@ use crate::{error_handler, Context, RestStateDef};
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/", post(create_extra_hours::<RestState>))
+        .route("/{id}", put(update_extra_hours::<RestState>))
         .route("/{id}", delete(delete_extra_hours::<RestState>))
         .route(
             "/by-sales-person/{id}",
@@ -119,6 +120,49 @@ pub async fn create_extra_hours<RestState: RestStateDef>(
 
 #[instrument(skip(rest_state))]
 #[utoipa::path(
+    put,
+    path = "/{id}",
+    tags = ["Extra Hours"],
+    params(
+        ("id", description = "Extra hours id (logical id)", example = "1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6"),
+    ),
+    request_body = ExtraHoursTO,
+    responses(
+        (status = 200, description = "Updated extra hours", body = ExtraHoursTO),
+        (status = 400, description = "Invalid input"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Extra hours not found"),
+        (status = 409, description = "Version conflict"),
+    ),
+)]
+pub async fn update_extra_hours<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(extra_hours_id): Path<Uuid>,
+    Json(extra_hours_to): Json<ExtraHoursTO>,
+) -> Response {
+    error_handler(
+        (async {
+            let mut entity: service::extra_hours::ExtraHours = (&extra_hours_to).into();
+            entity.id = extra_hours_id;
+            let updated = ExtraHoursTO::from(
+                &rest_state
+                    .extra_hours_service()
+                    .update(&entity, context.into(), None)
+                    .await?,
+            );
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::new(serde_json::to_string(&updated).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+#[utoipa::path(
     delete,
     path = "/{id}",
     tags = ["Extra Hours"],
@@ -152,6 +196,7 @@ pub async fn delete_extra_hours<RestState: RestStateDef>(
     paths(
         get_extra_hours_for_sales_person,
         create_extra_hours,
+        update_extra_hours,
         delete_extra_hours
     ),
     components(schemas(ExtraHoursTO)),

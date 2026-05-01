@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+  "query": "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -9,55 +9,61 @@
         "type_info": "Blob"
       },
       {
-        "name": "sales_person_id",
+        "name": "logical_id",
         "ordinal": 1,
         "type_info": "Blob"
       },
       {
-        "name": "amount",
+        "name": "sales_person_id",
         "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "amount",
+        "ordinal": 3,
         "type_info": "Float"
       },
       {
         "name": "category",
-        "ordinal": 3,
-        "type_info": "Text"
-      },
-      {
-        "name": "description",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "custom_extra_hours_id",
+        "name": "description",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "custom_extra_hours_id",
+        "ordinal": 6,
         "type_info": "Blob"
       },
       {
         "name": "date_time",
-        "ordinal": 6,
-        "type_info": "Text"
-      },
-      {
-        "name": "created",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 8,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 10,
         "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -70,5 +76,5 @@
       false
     ]
   },
-  "hash": "0b6b67479706044c9840b21a3b55a961ed3bfe238627937099b0b13872438beb"
+  "hash": "cc316ec41bc35a9ed17ed9dbcbbe5ae05da18f398c8be5ae44672beacc2479b8"
 }

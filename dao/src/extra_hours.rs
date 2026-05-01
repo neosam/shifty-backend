@@ -20,6 +20,7 @@ pub enum ExtraHoursCategoryEntity {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtraHoursEntity {
     pub id: Uuid,
+    pub logical_id: Uuid,
     pub sales_person_id: Uuid,
     pub amount: f32,
     pub category: ExtraHoursCategoryEntity,
@@ -44,6 +45,11 @@ pub trait ExtraHoursDao {
     async fn find_by_id(
         &self,
         id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<ExtraHoursEntity>, crate::DaoError>;
+    async fn find_by_logical_id(
+        &self,
+        logical_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<Option<ExtraHoursEntity>, crate::DaoError>;
     async fn find_by_sales_person_id_and_years(

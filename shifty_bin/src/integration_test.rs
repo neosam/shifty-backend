@@ -1439,4 +1439,6 @@ mod billing_period_snapshot_versioning;
 mod booking_absence_conflict;
 #[cfg(test)]
 mod cutover;
+#[cfg(test)]
+mod extra_hours_update;
 mod dev_seed;
