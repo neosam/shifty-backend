@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use mockall::automock;
 use thiserror::Error;
 
+pub mod absence;
 pub mod billing_period;
 pub mod billing_period_sales_person;
 pub mod booking;
