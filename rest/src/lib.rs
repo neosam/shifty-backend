@@ -1,5 +1,6 @@
 use std::{convert::Infallible, sync::Arc};
 
+mod absence;
 mod billing_period;
 mod block_report;
 mod booking;
@@ -292,6 +293,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type AbsenceService: service::absence::AbsenceService<Context = Context> + Send + Sync + 'static;
     type ShiftplanEditService: service::shiftplan_edit::ShiftplanEditService<Context = Context>
         + Send
         + Sync
@@ -349,6 +351,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn special_day_service(&self) -> Arc<Self::SpecialDayService>;
     fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService>;
     fn booking_service(&self) -> Arc<Self::BookingService>;
+    fn absence_service(&self) -> Arc<Self::AbsenceService>;
     fn custom_extra_hours_service(&self) -> Arc<Self::CustomExtraHoursService>;
     fn booking_information_service(&self) -> Arc<Self::BookingInformationService>;
     fn booking_log_service(&self) -> Arc<Self::BookingLogService>;
@@ -457,6 +460,7 @@ pub async fn auth_info<RestState: RestStateDef>(
 #[derive(OpenApi)]
 #[openapi(
     nest(
+        (path = "/absence-period", api = absence::AbsenceApiDoc),
         (path = "/billing-period", api = billing_period::BillingPeriodApiDoc),
         (path = "/block-report", api = block_report::BlockReportApiDoc),
         (path = "/booking-log", api = booking_log::BookingLogApiDoc),
@@ -536,6 +540,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             "/employee-work-details",
             employee_work_details::generate_route(),
         )
+        .nest("/absence-period", absence::generate_route())
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())
