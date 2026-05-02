@@ -17,14 +17,19 @@ use dao::MockTransaction;
 use dao::MockTransactionDao;
 use mockall::predicate::{always, eq};
 use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService};
+use service::booking::MockBookingService;
 use service::clock::MockClockService;
 use service::employee_work_details::MockEmployeeWorkDetailsService;
 use service::permission::{Authentication, HR_PRIVILEGE};
 use service::sales_person::MockSalesPersonService;
+use service::sales_person_unavailable::MockSalesPersonUnavailableService;
+use service::slot::{MockSlotService, Slot};
 use service::special_days::MockSpecialDayService;
 use service::uuid_service::MockUuidService;
 use service::{MockPermissionService, ServiceError, ValidationFailureItem};
+use shifty_utils::DayOfWeek;
 use time::macros::{date, datetime};
+use time::{Month, Time};
 use uuid::{uuid, Uuid};
 
 use crate::absence::{AbsenceServiceDeps, AbsenceServiceImpl};
@@ -118,6 +123,27 @@ fn default_update_request() -> AbsencePeriod {
     }
 }
 
+/// Default-Slot-Fixture für AbsenceService-Tests. Tests, die einen
+/// spezifischen Slot brauchen (z.B. um day_of_week zu variieren),
+/// überschreiben `slot_service.expect_get_slot()` lokal — sonst greift
+/// dieser Default, damit Bestand-Tests ohne Override (z.B. reine
+/// Self-Overlap-Tests, die niemals Booking-Iteration triggern, oder
+/// Forward-Warning-Pfade ohne explizite Slot-Erwartung) nicht panicken.
+fn default_slot_monday() -> Slot {
+    Slot {
+        id: uuid!("7A7FF57A-782B-4C2E-A68B-4E2D81D79380"),
+        day_of_week: DayOfWeek::Monday,
+        from: Time::from_hms(9, 0, 0).unwrap(),
+        to: Time::from_hms(17, 0, 0).unwrap(),
+        min_resources: 1,
+        valid_from: time::Date::from_calendar_date(2024, Month::January, 1).unwrap(),
+        valid_to: None,
+        deleted: None,
+        version: uuid!("F79C462A-8D4E-42E1-8171-DB4DBD019E50"),
+        shiftplan_id: None,
+    }
+}
+
 pub(crate) struct AbsenceDependencies {
     pub absence_dao: MockAbsenceDao,
     pub permission_service: MockPermissionService,
@@ -127,6 +153,10 @@ pub(crate) struct AbsenceDependencies {
     pub special_day_service: MockSpecialDayService,
     pub employee_work_details_service: MockEmployeeWorkDetailsService,
     pub transaction_dao: MockTransactionDao,
+    // Phase-3 Forward-Warning-Loop-Deps (D-Phase3-08):
+    pub booking_service: MockBookingService,
+    pub sales_person_unavailable_service: MockSalesPersonUnavailableService,
+    pub slot_service: MockSlotService,
 }
 
 impl AbsenceServiceDeps for AbsenceDependencies {
@@ -140,6 +170,9 @@ impl AbsenceServiceDeps for AbsenceDependencies {
     type SpecialDayService = MockSpecialDayService;
     type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
     type TransactionDao = MockTransactionDao;
+    type BookingService = MockBookingService;
+    type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
+    type SlotService = MockSlotService;
 }
 
 impl AbsenceDependencies {
@@ -153,6 +186,9 @@ impl AbsenceDependencies {
             special_day_service: self.special_day_service.into(),
             employee_work_details_service: self.employee_work_details_service.into(),
             transaction_dao: self.transaction_dao.into(),
+            booking_service: self.booking_service.into(),
+            sales_person_unavailable_service: self.sales_person_unavailable_service.into(),
+            slot_service: self.slot_service.into(),
         }
     }
 }
@@ -181,6 +217,22 @@ pub(crate) fn build_dependencies() -> AbsenceDependencies {
         .returning(|_| Ok(MockTransaction));
     transaction_dao.expect_commit().returning(|_| Ok(()));
 
+    // Phase-3 Forward-Warning-Loop-Defaults: leere Bookings + leere
+    // ManualUnavailables; Slot-Default ist `default_slot_monday()` für
+    // den Fall, dass ein Test Bookings injectet, ohne Slot zu überschreiben.
+    let mut booking_service = MockBookingService::new();
+    booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from([])));
+    let mut sales_person_unavailable_service = MockSalesPersonUnavailableService::new();
+    sales_person_unavailable_service
+        .expect_get_all_for_sales_person()
+        .returning(|_, _, _| Ok(Arc::from([])));
+    let mut slot_service = MockSlotService::new();
+    slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(default_slot_monday()));
+
     AbsenceDependencies {
         absence_dao,
         permission_service,
@@ -190,6 +242,9 @@ pub(crate) fn build_dependencies() -> AbsenceDependencies {
         special_day_service,
         employee_work_details_service,
         transaction_dao,
+        booking_service,
+        sales_person_unavailable_service,
+        slot_service,
     }
 }
 
@@ -227,7 +282,7 @@ async fn test_create_success() {
     let result = service
         .create(&default_create_request(), Authentication::Full, None)
         .await;
-    let created = result.expect("create should succeed");
+    let created = result.expect("create should succeed").absence;
     assert_eq!(created.id, alternate_physical_id());
     assert_eq!(created.version, alternate_version());
     assert_eq!(created.created, Some(datetime!(2026 - 04 - 28 12:00:00)));
@@ -406,7 +461,7 @@ async fn test_update_success_soft_deletes_old_inserts_new() {
     let result = service
         .update(&default_update_request(), Authentication::Full, None)
         .await;
-    let updated = result.expect("update should succeed");
+    let updated = result.expect("update should succeed").absence;
     assert_eq!(updated.id, default_logical_id());
     assert_eq!(updated.version, alternate_version());
     assert_eq!(updated.to_date, date!(2026 - 04 - 20));

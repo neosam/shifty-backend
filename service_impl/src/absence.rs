@@ -22,13 +22,19 @@ use dao::{
     TransactionDao,
 };
 use service::{
-    absence::{AbsenceCategory, AbsencePeriod, AbsenceService, ResolvedAbsence},
+    absence::{
+        AbsenceCategory, AbsencePeriod, AbsencePeriodCreateResult, AbsenceService, ResolvedAbsence,
+    },
+    booking::BookingService,
     clock::ClockService,
     employee_work_details::EmployeeWorkDetailsService,
     permission::{Authentication, HR_PRIVILEGE},
     sales_person::SalesPersonService,
+    sales_person_unavailable::SalesPersonUnavailableService,
+    slot::SlotService,
     special_days::{SpecialDayService, SpecialDayType},
     uuid_service::UuidService,
+    warning::Warning,
     PermissionService, ServiceError, ValidationFailureItem,
 };
 use shifty_utils::DateRange;
@@ -46,6 +52,13 @@ gen_service_impl! {
         SpecialDayService: SpecialDayService<Context = Self::Context> = special_day_service,
         EmployeeWorkDetailsService: EmployeeWorkDetailsService<Context = Self::Context, Transaction = Self::Transaction> = employee_work_details_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
+        // Phase-3 (D-Phase3-08): AbsenceService konsumiert BookingService und
+        // SalesPersonUnavailableService für den Forward-Warning-Loop in
+        // create/update sowie SlotService für Booking → Date-Auflösung
+        // (Booking trägt nur slot_id + calendar_week + year).
+        BookingService: BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
+        SalesPersonUnavailableService: SalesPersonUnavailableService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_unavailable_service,
+        SlotService: SlotService<Context = Self::Context, Transaction = Self::Transaction> = slot_service,
     }
 }
 
@@ -58,6 +71,13 @@ fn absence_category_priority(category: &AbsenceCategory) -> u8 {
         AbsenceCategory::Vacation => 2,
         AbsenceCategory::UnpaidLeave => 1,
     }
+}
+
+/// Helfer für `range.contains(date)` — `DateRange` selbst hat kein
+/// `contains` (Phase-1-Surface), wir nutzen die invariante
+/// `from <= date <= to`.
+fn range_contains(range: &DateRange, date: Date) -> bool {
+    range.from() <= date && date <= range.to()
 }
 
 #[async_trait]
@@ -139,7 +159,7 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
         request: &AbsencePeriod,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<AbsencePeriod, ServiceError> {
+    ) -> Result<AbsencePeriodCreateResult, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         let (hr, sp) = join!(
             self.permission_service
@@ -197,8 +217,23 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             .create(&dao_entity, "absence_service::create", tx.clone())
             .await?;
 
+        // Phase 3 — Forward-Warning-Loop (BOOK-01, D-Phase3-04).
+        // Läuft NACH dem DAO-Persist + VOR commit, sodass Self-Conflicts
+        // bereits validiert sind.
+        let warnings = self
+            .compute_forward_warnings(
+                entity.id,
+                entity.sales_person_id,
+                new_range,
+                tx.clone(),
+            )
+            .await?;
+
         self.transaction_dao.commit(tx).await?;
-        Ok(entity)
+        Ok(AbsencePeriodCreateResult {
+            absence: entity,
+            warnings,
+        })
     }
 
     async fn update(
@@ -206,7 +241,7 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
         request: &AbsencePeriod,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<AbsencePeriod, ServiceError> {
+    ) -> Result<AbsencePeriodCreateResult, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         let logical_id = request.id;
 
@@ -291,8 +326,25 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             .create(&new_entity, "absence_service::update::insert", tx.clone())
             .await?;
 
+        // Phase 3 — Forward-Warning-Loop (BOOK-01, D-Phase3-04: kein Diff —
+        // alle Tage in der NEUEN Range, unabhängig vom alten Range).
+        // Stable absence-id ist die `logical_id` (D-07) — Plan-3 nutzt sie
+        // in den Warnings, damit die UI den logisch persistenten Eintrag
+        // referenzieren kann (nicht die rotierte physische `new_id`).
+        let warnings = self
+            .compute_forward_warnings(
+                active.logical_id,
+                active.sales_person_id,
+                new_range,
+                tx.clone(),
+            )
+            .await?;
+
         self.transaction_dao.commit(tx).await?;
-        Ok(AbsencePeriod::from(&new_entity))
+        Ok(AbsencePeriodCreateResult {
+            absence: AbsencePeriod::from(&new_entity),
+            warnings,
+        })
     }
 
     async fn delete(
@@ -458,5 +510,144 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
 
         self.transaction_dao.commit(tx).await?;
         Ok(result)
+    }
+
+    async fn find_overlapping_for_booking(
+        &self,
+        sales_person_id: Uuid,
+        range: DateRange,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[AbsencePeriod]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        // Permission HR ∨ self (D-Phase3-12) — gleiche Read-Regel wie in
+        // `find_by_sales_person`.
+        let (hr, sp) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                sales_person_id,
+                context,
+                tx.clone().into()
+            ),
+        );
+        hr.or(sp)?;
+
+        let entities = self
+            .absence_dao
+            .find_overlapping_for_booking(sales_person_id, range, tx.clone())
+            .await?;
+        let result: Arc<[AbsencePeriod]> = entities.iter().map(AbsencePeriod::from).collect();
+        self.transaction_dao.commit(tx).await?;
+        Ok(result)
+    }
+}
+
+// =========================================================================
+// Phase-3 Forward-Warning-Helper (private to the impl block).
+//
+// `compute_forward_warnings` läuft NACH dem DAO-Persist von `create`/`update`
+// und VOR dem `commit`. Pro Booking-Tag in der neuen Range gibt es genau eine
+// `Warning::AbsenceOverlapsBooking` (D-Phase3-15: keine De-Dup); pro
+// überlappendem ManualUnavailable genau eine `Warning::AbsenceOverlapsManualUnavailable`
+// (D-Phase3-16: KEIN Auto-Cleanup).
+//
+// Performance-Hinweis (C-Phase3-02): Der Loop iteriert pro Booking-betroffene
+// Kalenderwoche genau einmal `BookingService::get_for_week`. Pro Booking
+// genau einmal `SlotService::get_slot` für die day_of_week-Auflösung —
+// in einer Range mit N Wochen und M Bookings sind das O(N + M) Calls.
+// `SalesPersonUnavailableService::get_all_for_sales_person` läuft genau
+// einmal — clientseitiger Filter pro Tag. Plan 06 verifiziert Performance
+// auf 60-Tage-Ranges.
+// =========================================================================
+impl<Deps: AbsenceServiceDeps> AbsenceServiceImpl<Deps> {
+    async fn compute_forward_warnings(
+        &self,
+        absence_id: Uuid,
+        sales_person_id: Uuid,
+        new_range: DateRange,
+        tx: <Deps as AbsenceServiceDeps>::Transaction,
+    ) -> Result<Arc<[Warning]>, ServiceError> {
+        let mut warnings: Vec<Warning> = Vec::new();
+
+        // 1) Bookings — pro betroffener Kalenderwoche genau ein
+        // `BookingService::get_for_week`-Call (deduplizierter batch).
+        // Authentication::Full umgeht die Permission-Probe innerhalb des
+        // Service-internen Loops; die outer Permission ist oben in
+        // create/update bereits HR ∨ self verifiziert.
+        let mut weeks_seen: BTreeSet<(u32, u8)> = BTreeSet::new();
+        for day in new_range.iter_days() {
+            let (iso_year, iso_week, _weekday) = day.to_iso_week_date();
+            let week_key = (iso_year as u32, iso_week);
+            if !weeks_seen.insert(week_key) {
+                continue;
+            }
+            let bookings = self
+                .booking_service
+                .get_for_week(iso_week, iso_year as u32, Authentication::Full, tx.clone().into())
+                .await?;
+            for b in bookings.iter() {
+                if b.sales_person_id != sales_person_id {
+                    continue;
+                }
+                if b.deleted.is_some() {
+                    continue;
+                }
+                // Booking → Date: braucht `Slot.day_of_week`. `Booking`
+                // selbst trägt nur slot_id + calendar_week + year.
+                let slot = self
+                    .slot_service
+                    .get_slot(&b.slot_id, Authentication::Full, tx.clone().into())
+                    .await?;
+                let booking_date = match time::Date::from_iso_week_date(
+                    b.year as i32,
+                    b.calendar_week as u8,
+                    slot.day_of_week.into(),
+                ) {
+                    Ok(d) => d,
+                    Err(_) => continue,
+                };
+                if !range_contains(&new_range, booking_date) {
+                    continue;
+                }
+                warnings.push(Warning::AbsenceOverlapsBooking {
+                    absence_id,
+                    booking_id: b.id,
+                    date: booking_date,
+                });
+            }
+        }
+
+        // 2) ManualUnavailables — ein Call, clientseitiger Range-Filter.
+        let manual_all = self
+            .sales_person_unavailable_service
+            .get_all_for_sales_person(
+                sales_person_id,
+                Authentication::Full,
+                tx.clone().into(),
+            )
+            .await?;
+        for mu in manual_all.iter() {
+            if mu.deleted.is_some() {
+                continue;
+            }
+            let mu_date = match time::Date::from_iso_week_date(
+                mu.year as i32,
+                mu.calendar_week,
+                mu.day_of_week.into(),
+            ) {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+            if !range_contains(&new_range, mu_date) {
+                continue;
+            }
+            warnings.push(Warning::AbsenceOverlapsManualUnavailable {
+                absence_id,
+                unavailable_id: mu.id,
+            });
+        }
+
+        Ok(Arc::from(warnings))
     }
 }
