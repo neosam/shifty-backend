@@ -231,6 +231,10 @@ impl service_impl::absence::AbsenceServiceDeps for AbsenceServiceDependencies {
     type SalesPersonService = SalesPersonService;
     type ClockService = ClockService;
     type UuidService = UuidService;
+    // Phase 2 plan 02-02: SpecialDayService + EmployeeWorkDetailsService
+    // werden fuer derive_hours_for_range benoetigt.
+    type SpecialDayService = SpecialDayService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
     type TransactionDao = TransactionDao;
 }
 // type AbsenceService = service_impl::absence::AbsenceServiceImpl<AbsenceServiceDependencies>;
@@ -700,12 +704,27 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
+        // working_hours_service muss VOR absence_service gebaut werden,
+        // weil AbsenceServiceImpl seit Plan 02-02 employee_work_details_service
+        // als Dependency haelt (derive_hours_for_range Per-Tag-Vertrags-Lookup).
+        let working_hours_service = Arc::new(
+            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl {
+                employee_work_details_dao: working_hours_dao,
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
         let absence_service = Arc::new(service_impl::absence::AbsenceServiceImpl {
             absence_dao,
             permission_service: permission_service.clone(),
             sales_person_service: sales_person_service.clone(),
             clock_service: clock_service.clone(),
             uuid_service: uuid_service.clone(),
+            special_day_service: special_day_service.clone(),
+            employee_work_details_service: working_hours_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
@@ -717,16 +736,6 @@ impl RestStateImpl {
             uuid_service: uuid_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
-        let working_hours_service = Arc::new(
-            service_impl::employee_work_details::EmployeeWorkDetailsServiceImpl {
-                employee_work_details_dao: working_hours_dao,
-                sales_person_service: sales_person_service.clone(),
-                permission_service: permission_service.clone(),
-                clock_service: clock_service.clone(),
-                uuid_service: uuid_service.clone(),
-                transaction_dao: transaction_dao.clone(),
-            },
-        );
         let shiftplan_report_service = Arc::new(ShiftplanReportService {
             shiftplan_report_dao: shiftplan_report_dao.clone(),
             transaction_dao: transaction_dao.clone(),
