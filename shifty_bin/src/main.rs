@@ -291,6 +291,9 @@ impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type ShiftplanService = ShiftplanCatalogService;
     type PermissionService = PermissionService;
     type TransactionDao = TransactionDao;
+    // NEU für Phase 3 (D-Phase3-09):
+    type AbsenceService = AbsenceService;
+    type SalesPersonUnavailableService = SalesPersonUnavailableService;
 }
 
 pub struct BlockServiceDependencies;
@@ -373,6 +376,8 @@ impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditSer
     type EmployeeWorkDetailsService = WorkingHoursService;
     type ExtraHoursService = ExtraHoursService;
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
+    // NEU für Phase 3 (D-Phase3-06):
+    type AbsenceService = AbsenceService;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
@@ -836,6 +841,8 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
                 extra_hours_service: extra_hours_service.clone(),
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
+                // NEU für Phase 3 (D-Phase3-06): Reverse-Warning konsumiert AbsenceService.
+                absence_service: absence_service.clone(),
             });
         let shiftplan_dao = Arc::new(ShiftplanDao::new(pool.clone()));
         let shiftplan_service = Arc::new(service_impl::shiftplan_catalog::ShiftplanServiceImpl {
@@ -854,6 +861,10 @@ impl RestStateImpl {
             shiftplan_service: shiftplan_service.clone(),
             permission_service: permission_service.clone(),
             transaction_dao: transaction_dao.clone(),
+            // NEU für Phase 3 (D-Phase3-09): per-sales-person-Pfade konsumieren
+            // AbsenceService + SalesPersonUnavailableService.
+            absence_service: absence_service.clone(),
+            sales_person_unavailable_service: sales_person_unavailable_service.clone(),
         });
 
         let block_service = Arc::new(service_impl::block::BlockServiceImpl {
