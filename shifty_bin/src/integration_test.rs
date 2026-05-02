@@ -1435,4 +1435,6 @@ mod absence_period;
 mod billing_period_custom_reports;
 #[cfg(test)]
 mod billing_period_snapshot_versioning;
+#[cfg(test)]
+mod booking_absence_conflict;
 mod dev_seed;
