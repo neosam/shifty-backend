@@ -1,10 +1,8 @@
-//! Stub-Tests fuer `AbsenceService::derive_hours_for_range` (REP-01).
+//! Tests fuer `AbsenceService::derive_hours_for_range` (REP-01, Wave 1).
 //!
-//! Wave 1 implementiert die Bodies; aktuell `#[ignore]` damit `cargo test`
-//! gruen bleibt. Der Body ruft die Fixtures aus
-//! `crate::test::reporting_phase2_fixtures` auf, damit der Compiler die
-//! Imports gegen die Phase-2-Fixtures-Datei waehlt — Wave 1 ergaenzt die
-//! eigentlichen Mock-Setups und Assertions.
+//! Plan 02-02 Task 1.1 hat die `#[ignore]`-Attribute entfernt; Task 1.2
+//! ersetzt die `unimplemented!()`-Bodies durch echte Mock-Setups + Assertions.
+//! Fixtures stammen aus `crate::test::reporting_phase2_fixtures`.
 
 #![allow(dead_code)]
 #![allow(unused_imports)]
@@ -14,7 +12,6 @@ use crate::test::reporting_phase2_fixtures::{
     fixture_sick_period, fixture_vacation_period, fixture_work_details_8h_mon_fri,
 };
 
-#[ignore = "Wave 1: REP-01 derive_hours_for_range basic case"]
 #[tokio::test]
 async fn test_derive_hours_for_range_basic() {
     // Wave 1 Implementation:
@@ -38,7 +35,6 @@ async fn test_derive_hours_for_range_basic() {
     unimplemented!("Wave 1 implements REP-01");
 }
 
-#[ignore = "Wave 1: REP-01 holiday=0 case"]
 #[tokio::test]
 async fn test_derive_hours_holiday_is_zero() {
     // Wave 1: SpecialDayService liefert Feiertag fuer 2024-06-04
@@ -46,7 +42,6 @@ async fn test_derive_hours_holiday_is_zero() {
     unimplemented!("Wave 1 implements REP-01 holiday case");
 }
 
-#[ignore = "Wave 1: REP-01 contract change mid-range"]
 #[tokio::test]
 async fn test_derive_hours_contract_change() {
     // Wave 1: 2 Vertraege (8h/Tag bis KW 23, 4h/Tag ab KW 24)

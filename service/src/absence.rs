@@ -11,6 +11,7 @@
 //! Schichtplan-Kollegen-Sicht ist auf Phase 3 verschoben. Schreib-Methoden enforcen
 //! das gleiche Pattern (D-09).
 
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -109,6 +110,17 @@ impl AbsencePeriod {
     }
 }
 
+/// Output von [`AbsenceService::derive_hours_for_range`] — pro Tag bereits
+/// conflict-resolved per D-Phase2-01..03 (Prioritaet:
+/// `SickLeave > Vacation > UnpaidLeave`, BUrlG §9-konform). `hours` traegt
+/// die am jeweiligen Tag gueltigen Vertragsstunden; an Feiertagen oder
+/// Tagen ohne Vertrag liegt KEIN Eintrag in der Map vor.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedAbsence {
+    pub category: AbsenceCategory,
+    pub hours: f32,
+}
+
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait AbsenceService {
@@ -159,6 +171,20 @@ pub trait AbsenceService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
+
+    /// Conflict-resolved per-day hours map for a sales person in `[from, to]`.
+    /// Prioritaet: `SickLeave > Vacation > UnpaidLeave` (D-Phase2-03, BUrlG §9).
+    /// Tage ohne Vertrag, ohne aktive Absence, oder mit
+    /// `SpecialDayType::Holiday` liefern KEINEN Eintrag in der Map.
+    /// Permission: HR ∨ self (gleiche Regel wie [`Self::find_by_sales_person`]).
+    async fn derive_hours_for_range(
+        &self,
+        from: Date,
+        to: Date,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<BTreeMap<Date, ResolvedAbsence>, ServiceError>;
 }
 
 #[cfg(test)]
