@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-last_updated: "2026-05-02T03:58:47.364Z"
+status: in_progress
+last_updated: "2026-05-02T04:12:41Z"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 9
-  completed_plans: 4
-  percent: 44
+  completed_plans: 5
+  percent: 55
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -27,24 +27,30 @@ progress:
 ## Current Position
 
 Phase: 02 (reporting-integration-snapshot-versioning) — EXECUTING
-Plan: 1 of 4
+Plan: 2 of 4 (Plan 01 complete; Plan 02 next)
 
 - **Current milestone**: Range-Based Absence Management
-- **Current phase**: 1 — Absence Domain Foundation
-- **Current plan**: none yet (awaiting `/gsd:discuss-phase` then `/gsd:plan-phase 1`)
-- **Status**: pending
-- **Last action**: roadmap_created (2026-05-01)
-- **Progress**: Phase 0/4 complete (0%) — `[----]`
+- **Current phase**: 02 — Reporting Integration & Snapshot Versioning
+- **Current plan**: 02-01 ✅ Wave-0 Test-Scaffolding (committed in d8dad0aa, f85f4a3f, 0eeff84c, 726e919c)
+- **Status**: phase-2-wave-0-complete (next: 02-02 or 02-03 Wave 1)
+- **Last action**: 02-01-execute-complete (2026-05-02T04:12:41Z)
+- **Progress**: Phase 0/4 complete; Plans 5/9 complete (55%) — `[##--]`
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
 | Phases complete | 0 / 4 |
-| Plans complete | 0 / 0 (no plans drafted yet) |
+| Plans complete | 5 / 9 (Phase 1 vollstaendig + Phase 2 Plan 01 Wave 0) |
 | Requirements mapped | 19 / 19 |
-| Requirements complete | 0 / 19 |
+| Requirements complete | 6 / 19 (Phase-1-vollstaendig + Phase-2-Wave-0 partial: SNAP-01/SNAP-02/REP-02 scaffolded) |
 | Open discuss-phase decisions | 9 (see ROADMAP.md "Discuss-Phase Carry-Overs") |
+
+### Phase-Plan Execution Log
+
+| Phase | Plan | Duration | Tasks | Files | Date |
+|-------|------|----------|-------|-------|------|
+| 02 | 01 | ~12min | 3 (+ 1 Phase-1-Rule-3-Fix) | 8 (5 neu Wave-0 + 3 Phase-1-Fix) | 2026-05-02 |
 
 ## Accumulated Context
 
@@ -73,13 +79,19 @@ Aus `research/ARCHITECTURE.md`:
 
 ### Open Todos
 
-- [ ] `/gsd:discuss-phase` für Phase 1 durchlaufen (Domain-Naming, Kategorie-Scope, lazy-on-read formalisieren).
-- [ ] `/gsd:plan-phase 1` aufrufen, sobald Phase-1-Discuss-Punkte geklärt sind.
+- [ ] `/gsd:execute-plan 02-02` (oder 02-03) — Wave-1-Plans (parallelisierbar).
 - [ ] Production-Data-Profile lauffähig vorbereiten (für Phase 4, kann optional schon parallel laufen — read-only).
+
+### Wave-2-Forcing-State (aus Plan 02-01)
+
+Wave 0 hat ein **build-time Forcing** etabliert, das Wave 2 zwingt, Snapshot-Bump und UnpaidLeave-Variante atomar zu liefern:
+
+- **Pin-Map-Test ROT** (`test_snapshot_schema_version_pinned`): erwartet `CURRENT_SNAPSHOT_SCHEMA_VERSION = 3`, ist aktuell 2. Wird GRUEN sobald Wave 2 das Bump macht.
+- **Compiler-Exhaustive-Match-Test GRUEN** (`test_billing_period_value_type_surface_locked`): listet alle 11 aktuellen Varianten. Wird COMPILE-ERROR sobald Wave 2 die `BillingPeriodValueType::UnpaidLeave`-Variante hinzufuegt -- in der Test-Datei wartet ein auskommentierter Arm zur Aktivierung.
 
 ### Blockers
 
-Keine harten Blocker für Phase 1. Plan-Phase 1 wartet nur auf `/gsd:discuss-phase`-Resolution für die zwei phase-1-blockierenden Decisions (Domain-Naming, Kategorie-Scope).
+Keine harten Blocker. Wave 1 (Plan 02-02 fuer FeatureFlagService + Plan 02-03 fuer derive_hours_for_range) kann sofort starten.
 
 ### Constraints In Force
 
@@ -99,9 +111,9 @@ Keine harten Blocker für Phase 1. Plan-Phase 1 wartet nur auf `/gsd:discuss-pha
 4. Read this file (`STATE.md`) — current position.
 5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
 
-**Next command**: `/gsd:discuss-phase` (zur Resolution der Phase-1-blockierenden Discuss-Carry-Overs), dann `/gsd:plan-phase 1`.
+**Next command**: `/gsd:execute-plan 02-02` oder `/gsd:execute-plan 02-03` (Wave-1, parallelisierbar).
 
 ---
 
 *State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-01*
+*Last updated: 2026-05-02 (Phase 02 Plan 01 — Wave-0 Test-Scaffolding complete)*

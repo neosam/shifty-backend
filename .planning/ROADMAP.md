@@ -8,7 +8,7 @@
 ## Phases
 
 - [x] **Phase 1: Absence Domain Foundation** — neue parallele `absence` Domain (DAO + Service + REST + Permission), additiv, ohne Reporting-Wirkung (completed 2026-05-01)
-- [ ] **Phase 2: Reporting Integration & Snapshot Versioning** — `derive_hours_for_range` + Reporting-Switch hinter Feature-Flag, `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit
+- [/] **Phase 2: Reporting Integration & Snapshot Versioning** — `derive_hours_for_range` + Reporting-Switch hinter Feature-Flag, `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit. Wave 0 (Plan 01) complete 2026-05-02.
 - [ ] **Phase 3: Booking & Shift-Plan Konflikt-Integration** — Forward/Reverse Booking-Warnings + Shift-Plan-Anzeige aus AbsencePeriod ohne Doppel-Eintragung
 - [ ] **Phase 4: Migration & Cutover** — Heuristik-Migration, Validierungs-Gate, atomarer Feature-Flag-Flip mit Carryover-Refresh, REST-Deprecation
 
@@ -57,7 +57,13 @@ Plans:
   4. `CURRENT_SNAPSHOT_SCHEMA_VERSION = 3`; ein Locking-Test (`service_impl/src/test/billing_period_report.rs`) schlägt zur Build-Zeit fehl, wenn die Berechnungs-Logik der Reporting-Inputs sich ändert ohne dass die Konstante sich ändert.
   5. Bestehende Snapshots der Version 2 bleiben lesbar; neue Snapshots (egal ob Flag an oder aus zur Erstellungs-Zeit) tragen Version 3; Validatoren erkennen den Unterschied.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [x] 02-01-PLAN.md — Wave 0 Test-Scaffolding: 5 neue Test-Dateien (Fixtures + Pin/Match-Locking-Test + 3 Stubs), Pin-Test pre-Wave-2 ROT als Wave-2-Forcing. **Completed 2026-05-02 (commits d8dad0aa, f85f4a3f, 0eeff84c, 726e919c).**
+- [ ] 02-02-PLAN.md — Wave 1 FeatureFlagService: neuer Service-Trait + Impl + DAO + Schema-Migration + Privileg.
+- [ ] 02-03-PLAN.md — Wave 1 derive_hours_for_range: AbsenceService um Cross-Category-Resolver + Per-Tag-Vertrags-Lookup + Feiertags-0-Auflösung erweitern.
+- [ ] 02-04-PLAN.md — Wave 2 Atomic Reporting-Switch: Snapshot-Bump 2→3, UnpaidLeave-Variante, Reporting-Switch hinter Flag, Pin-Map-Test (alle 12 Varianten), Match-Test-Aktivierung — alles in einem jj-Commit (D-Phase2-10).
 
 **Discuss-phase carry-overs**: Sick-overlapping-Vacation Policy (BUrlG §9-Konflikt) — muss vor Plan-Phase 2 dokumentiert sein, da `derive_hours_for_range` die Cross-Category-Overlap-Auflösung kennen muss. Liste der `value_type`s im Snapshot (welche werden in der Berechnung berührt) — beeinflusst Locking-Test-Scope.
 
@@ -139,7 +145,7 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 1 — Absence Domain Foundation | 5/5 | Complete | 2026-05-01 |
-| 2 — Reporting Integration & Snapshot Versioning | 0/0 | Not started | — |
+| 2 — Reporting Integration & Snapshot Versioning | 1/4 | In Progress (Wave 0 done) | — |
 | 3 — Booking & Shift-Plan Konflikt-Integration | 0/0 | Not started | — |
 | 4 — Migration & Cutover | 0/0 | Not started | — |
 
@@ -162,4 +168,4 @@ Diese offenen Entscheidungen aus `PROJECT.md`/`research/SUMMARY.md` sind **keine
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-01 — Phase 1 (Absence Domain Foundation) complete*
+*Last updated: 2026-05-02 — Phase 2 Plan 01 (Wave-0 Test-Scaffolding) complete*
