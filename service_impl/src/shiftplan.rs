@@ -104,6 +104,9 @@ pub(crate) fn build_shiftplan_day(
     Ok(ShiftplanDay {
         day_of_week,
         slots: day_slots,
+        // Phase-3 additiv — globale Sicht setzt nie etwas; per-sales-person
+        // Sicht (Wave 3, Plan 03-04) wird das Feld dann setzen.
+        unavailable: None,
     })
 }
 
