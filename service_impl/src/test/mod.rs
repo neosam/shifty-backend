@@ -1,6 +1,8 @@
 #[cfg(test)]
 pub mod absence;
 #[cfg(test)]
+pub mod absence_derive_hours_range;
+#[cfg(test)]
 pub mod block;
 #[cfg(test)]
 pub mod booking;
@@ -12,6 +14,10 @@ pub mod custom_extra_hours;
 pub mod error_test;
 #[cfg(test)]
 mod permission_test;
+#[cfg(test)]
+pub mod reporting_flag_off_bit_identity;
+#[cfg(test)]
+pub mod reporting_flag_on_integration;
 #[cfg(test)]
 pub mod reporting_phase2_fixtures;
 #[cfg(test)]
