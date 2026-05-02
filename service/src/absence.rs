@@ -121,6 +121,18 @@ pub struct ResolvedAbsence {
     pub hours: f32,
 }
 
+/// Output von [`AbsenceService::create`] und [`AbsenceService::update`].
+///
+/// Enthält die persistierte AbsencePeriod plus alle Forward-Warnings für die
+/// NEUE Range (D-Phase3-04: kein Diff-Modus — alle Bookings + ManualUnavailables
+/// in der neuen Range produzieren Warnings). Phase-3-Warnings sind Erfolgs-
+/// pfad (200/201) und entkoppelt von [`crate::ServiceError`] / Validation-422.
+#[derive(Clone, Debug)]
+pub struct AbsencePeriodCreateResult {
+    pub absence: AbsencePeriod,
+    pub warnings: Arc<[crate::warning::Warning]>,
+}
+
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait AbsenceService {
@@ -156,14 +168,30 @@ pub trait AbsenceService {
         entity: &AbsencePeriod,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<AbsencePeriod, ServiceError>;
+    ) -> Result<AbsencePeriodCreateResult, ServiceError>;
 
     async fn update(
         &self,
         entity: &AbsencePeriod,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
-    ) -> Result<AbsencePeriod, ServiceError>;
+    ) -> Result<AbsencePeriodCreateResult, ServiceError>;
+
+    /// Findet alle aktiven Absence-Periods derselben `sales_person_id`, die
+    /// `range` überlappen — kategorie-frei (alle 3 AbsenceCategory-Werte).
+    /// Service-Surface für [`Self::create`]/[`Self::update`]-Forward-Warnings
+    /// (BOOK-01) UND für `ShiftplanEditService::book_slot_with_conflict_check`-
+    /// Reverse-Warnings (BOOK-02; Plan 03-04).
+    ///
+    /// Permission HR ∨ `verify_user_is_sales_person(sales_person_id)`
+    /// (D-Phase3-12; identisch zur Read-Surface der Phase-1).
+    async fn find_overlapping_for_booking(
+        &self,
+        sales_person_id: Uuid,
+        range: DateRange,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[AbsencePeriod]>, ServiceError>;
 
     async fn delete(
         &self,
