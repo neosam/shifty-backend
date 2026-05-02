@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-last_updated: "2026-05-02T23:40:00.000Z"
+last_updated: "2026-05-02T23:55:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_plans: 13
+  percent: 86
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -27,21 +27,21 @@ progress:
 ## Current Position
 
 Phase: 03 (booking-shift-plan-konflikt-integration) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 
 - **Current milestone**: Range-Based Absence Management
-- **Current phase**: 03 — Booking & Shift-Plan Konflikt-Integration (in progress, 4/6 plans complete)
-- **Current plan**: 03-04 ✅ Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring (jj-Changes `448c265e` + `92358f05` + `00ce6d87`)
-- **Status**: phase-3-in-progress (next: `/gsd:execute-plan 03-05` — Wave-4 REST-Layer 5 Wrapper-DTOs + 4 neue Endpunkte + ApiDoc)
-- **Last action**: 03-04-execute-complete (2026-05-02)
-- **Progress**: Phase 1/4 complete; Plans 12/15 complete (80%)
+- **Current phase**: 03 — Booking & Shift-Plan Konflikt-Integration (in progress, 5/6 plans complete)
+- **Current plan**: 03-05 ✅ Wave-4 REST-Layer (5 Wrapper-DTOs + Wrapper-Body für /absence-period + 2 neue /shiftplan-edit-Endpunkte + 2 neue per-sales-person-Endpunkte unter /shiftplan-info + ApiDoc; jj-Changes `1a64ff7b` + `0738d880` + `5b60dc29`)
+- **Status**: phase-3-in-progress (next: `/gsd:execute-plan 03-06` — Wave-5 Integration-Tests + SC1-SC4-Verifikation + ROADMAP-Update)
+- **Last action**: 03-05-execute-complete (2026-05-02)
+- **Progress**: Phase 1/4 complete; Plans 13/15 complete (86%)
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
 | Phases complete | 1 / 4 |
-| Plans complete | 12 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 Plans 01..04) |
+| Plans complete | 13 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 Plans 01..05) |
 | Requirements mapped | 19 / 19 |
 | Requirements complete | 14 / 19 (Phase-1-vollstaendig + Phase-2: SNAP-01/SNAP-02/REP-01/REP-02/REP-03/REP-04) |
 | Open discuss-phase decisions | 9 (see ROADMAP.md "Discuss-Phase Carry-Overs") |
@@ -58,6 +58,7 @@ Plan: 5 of 6
 | 03 | 02 | ~16min | 3 | 7 (1 neu warning.rs + 1 neu deferred-items.md + 5 patches + .sqlx-Cache 4 Files) | 2026-05-02 |
 | 03 | 03 | ~25min | 3 | 6 (alle patches: service/absence + service_impl/absence + test/absence + rest/absence + main.rs + integration_test/absence_period) | 2026-05-02 |
 | 03 | 04 | ~30min | 3 | 7 (alle patches: service/shiftplan_edit + service_impl/shiftplan_edit + test/shiftplan_edit + service/shiftplan + service_impl/shiftplan + test/shiftplan + main.rs) | 2026-05-02 |
+| 03 | 05 | ~25min | 3 | 5 (alle patches: rest-types/lib.rs + rest/absence + rest/shiftplan_edit + rest/shiftplan + rest/lib.rs) | 2026-05-02 |
 
 ## Accumulated Context
 
@@ -88,6 +89,7 @@ Aus `research/ARCHITECTURE.md`:
 - Phase-3 Wave-1 Domain-Surface (2026-05-02): `service::warning::Warning` lebt in eigenem `service/src/warning.rs`-Modul (C-Phase3-01); `pub mod warning;` alphabetisch in `lib.rs`; KEIN `pub use` am Root — Konsumenten via `use service::warning::Warning;`. `AbsenceDao::find_overlapping_for_booking` ist kategorie-frei (alle 3 AbsenceCategoryEntity-Werte) und ohne `exclude_logical_id` (Booking-IDs orthogonal zu Absence-IDs). `ShiftplanDay.unavailable: Option<UnavailabilityMarker>` additiv mit Default `None` — globale Sicht setzt nie etwas.
 - Phase-3 Wave-2 AbsenceService Forward-Warning (2026-05-02): `AbsenceService::create`/`::update` returnen `AbsencePeriodCreateResult { absence, warnings: Arc<[Warning]> }` (Wrapper-Sig-Bruch). Forward-Warning-Loop in `compute_forward_warnings` (private Helper im `impl<Deps> AbsenceServiceImpl<Deps>`) läuft NACH dem DAO-Persist + VOR `commit`; `Authentication::Full` im internen Loop (outer Permission ist HR ∨ self bereits verifiziert). 3 neue Basic-Service-Deps am AbsenceServiceImpl: `BookingService` + `SalesPersonUnavailableService` + `SlotService` (SlotService nötig, weil Booking nur slot_id + calendar_week + year trägt; day_of_week kommt aus Slot). Warnings tragen `absence_id = entity.id` (Create) bzw. `active.logical_id` (Update — D-07-stable). Soft-Delete-Filter für Booking + ManualUnavailable explizit (Pitfall-1 / SC4).
 - Phase-3 Wave-3 Reverse-Warning + per-sales-person-Sicht (2026-05-02): `ShiftplanEditService::book_slot_with_conflict_check` produziert `BookingCreateResult { booking, warnings: Arc<[Warning]> }`; `::copy_week_with_conflict_check` aggregiert Warnings ohne De-Dup (D-Phase3-15). Wrapper-Structs leben in `service/src/shiftplan_edit.rs` (NICHT in `service/src/booking.rs` — D-Phase3-18 Regression-Lock). Permission HR ∨ self für `book_slot`, `shiftplan.edit` für `copy_week` (Bulk-Op-Pattern). `ShiftplanViewService::get_shiftplan_*_for_sales_person` setzt `unavailable: Option<UnavailabilityMarker>` per Tag mit 4-Wege-Match (None/AbsencePeriod/ManualUnavailable/Both, D-Phase3-10). Neuer Parallel-Helper `build_shiftplan_day_for_sales_person` (C-Phase3-03) lässt globale Sicht unangetastet. DI-Konstruktionsreihenfolge unverändert Tier-konform (`absence_service` → `shiftplan_edit_service` → `shiftplan_view_service`).
+- Phase-3 Wave-4 REST-Layer (2026-05-02): 5 inline Phase-3 Wrapper-DTOs in `rest-types/src/lib.rs` (`WarningTO` + `UnavailabilityMarkerTO` als Tag-Enums mit `#[serde(tag = "kind", content = "data", rename_all = "snake_case")]` — utoipa-5-Support, RESEARCH.md Pattern 4; `BookingCreateResultTO` + `CopyWeekResultTO` + `AbsencePeriodCreateResultTO` als Wrapper-Structs). `ShiftplanDayTO.unavailable: Option<UnavailabilityMarkerTO>` additiv mit `#[serde(default, skip_serializing_if = "Option::is_none")]` — globale Endpunkte serialisieren das Feld weiterhin nicht (Wire-Compat); per-sales-person-Endpunkte setzen es. `POST /absence-period` und `PATCH /absence-period/{id}` liefern jetzt `AbsencePeriodCreateResultTO` (Plan-03-TODO eingelöst). Neue Endpunkte `POST /shiftplan-edit/booking` + `POST /shiftplan-edit/copy-week` (BOOK-02 / D-Phase3-02) und `GET /shiftplan-info/{shiftplan_id}/{year}/{week}/sales-person/{sales_person_id}` + `GET /shiftplan-info/day/{year}/{week}/{day_of_week}/sales-person/{sales_person_id}` (PLAN-01). ShiftplanEditApiDoc neu (existing edit_slot/delete_slot/add_vacation bleiben außerhalb der `paths(...)` — Phase-1-Tech-Debt; out-of-scope). `POST /booking` und `POST /booking/copy-week` strikt unangetastet (D-Phase3-18 Regression-Lock).
 
 ### Open Todos
 
@@ -98,7 +100,8 @@ Aus `research/ARCHITECTURE.md`:
 - [x] `/gsd:execute-plan 03-02` — Wave-1 Domain-Surface (Warning-Enum + AbsenceDao::find_overlapping_for_booking + UnavailabilityMarker + ShiftplanDay-Field; jj-Changes `572d6737`+`8fa3eefb`+`35fb3edb`, abgeschlossen 2026-05-02).
 - [x] `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning (Sig-Brüche AbsenceService::create/update zu AbsencePeriodCreateResult + Forward-Warning-Loop + find_overlapping_for_booking + neue DI-Deps; jj-Changes `d744efe4`+`106ea712`+`dfd66a56`, abgeschlossen 2026-05-02).
 - [x] `/gsd:execute-plan 03-04` — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring (6 Plan-01-Wave-3-Stubs aktiviert + 4 neue per-sales-person-Tests; jj-Changes `448c265e`+`92358f05`+`00ce6d87`, abgeschlossen 2026-05-02).
-- [ ] `/gsd:execute-plan 03-05` — Wave-4 REST-Layer (5 Wrapper-DTOs `BookingCreateResultTO`/`CopyWeekResultTO`/`WarningTO`/`UnavailabilityMarkerTO`/`AbsencePeriodCreateResultTO` + 4 neue Endpunkte + ApiDoc; D-Phase3-18 Regression-Lock).
+- [x] `/gsd:execute-plan 03-05` — Wave-4 REST-Layer (5 Wrapper-DTOs + Wrapper-Body für /absence-period + 2 neue /shiftplan-edit-Endpunkte + 2 neue per-sales-person-Endpunkte unter /shiftplan-info + ApiDoc; jj-Changes `1a64ff7b`+`0738d880`+`5b60dc29`, abgeschlossen 2026-05-02).
+- [ ] `/gsd:execute-plan 03-06` — Wave-5 Tests aktivieren + Cross-Source-Integration-Tests (4 Plan-01-Wave-5-Stubs in `shifty_bin/src/integration_test/booking_absence_conflict.rs`) + SC1-SC4-Verifikation + ROADMAP-Update.
 - [ ] Production-Data-Profile lauffähig vorbereiten (für Phase 4, kann optional schon parallel laufen — read-only).
 - [ ] Phase-1-Hygiene: Lokale `localdb.sqlite3`-Drift fixen (siehe `.planning/phases/02-.../deferred-items.md`).
 - [ ] Phase-Hygiene: `dao/Cargo.toml` und `dao_impl_sqlite/Cargo.toml` `features = ["v4"]` ergänzen (siehe `.planning/phases/03-.../deferred-items.md`); aktuell pre-existing Drift, der `cargo test -p dao*` standalone bricht.
@@ -134,9 +137,9 @@ Keine harten Blocker. Phase 2 ist abgeschlossen — atomarer Wave-2-Commit `39be
 4. Read this file (`STATE.md`) — current position.
 5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
 
-**Next command**: `/gsd:execute-plan 03-05` — Wave-4 REST-Layer (5 Wrapper-DTOs + 4 neue Endpunkte + ApiDoc; D-Phase3-18 Regression-Lock).
+**Next command**: `/gsd:execute-plan 03-06` — Wave-5 Tests aktivieren + Cross-Source-Integration-Tests + SC1-SC4-Verifikation + ROADMAP-Update.
 
 ---
 
 *State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-02 (Phase 03 Plan 04 — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person complete)*
+*Last updated: 2026-05-02 (Phase 03 Plan 05 — Wave-4 REST-Layer 5 Wrapper-DTOs + 4 neue Endpunkte + ApiDoc complete)*
