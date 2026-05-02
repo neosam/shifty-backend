@@ -655,6 +655,54 @@ async fn test_get_shiftplan_week_for_sales_person_marker_absence_only() {
     assert!(sunday.unavailable.is_none());
 }
 
+/// Plan 03-06 Test 2b: ManualUnavailable-only on Monday → Monday.unavailable
+/// == Some(ManualUnavailable). Komplementär zu `marker_absence_only`.
+#[tokio::test]
+async fn test_get_shiftplan_week_for_sales_person_marker_manual_only() {
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([])));
+
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    deps.sales_person_unavailable_service.checkpoint();
+    deps.sales_person_unavailable_service
+        .expect_get_by_week_for_sales_person()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![manual_unavailable_w3_monday()])));
+
+    let service = deps.build_service();
+    let result = service
+        .get_shiftplan_week_for_sales_person(
+            Uuid::nil(),
+            2024,
+            3,
+            default_sales_person_id(),
+            ().auth(),
+            None,
+        )
+        .await
+        .expect("get_shiftplan_week_for_sales_person should succeed");
+
+    let monday = &result.days[0];
+    match &monday.unavailable {
+        Some(UnavailabilityMarker::ManualUnavailable) => {}
+        other => panic!("expected ManualUnavailable marker, got {other:?}"),
+    }
+    // Tuesday-Sunday haben keine Markierung.
+    for d in result.days.iter().skip(1) {
+        assert!(
+            d.unavailable.is_none(),
+            "expected no marker on {:?}, got {:?}",
+            d.day_of_week,
+            d.unavailable
+        );
+    }
+}
+
 /// Test 3: Beide Quellen aktiv auf Monday → UnavailabilityMarker::Both
 /// (D-Phase3-10).
 #[tokio::test]
