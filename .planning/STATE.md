@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-05-02T04:53:12.529Z"
+last_updated: "2026-05-02T05:17:35.715Z"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 8
+  percent: 89
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -26,24 +26,24 @@ progress:
 
 ## Current Position
 
-Phase: 02 (reporting-integration-snapshot-versioning) — EXECUTING
-Plan: 4 of 4 (Plans 01 + 02 + 03 complete; Plan 04 next — atomarer Wave-2-Commit)
+Phase: 02 (reporting-integration-snapshot-versioning) — COMPLETE
+Plan: 4 of 4 (alle Plans committed; Phase ready_for_verification)
 
 - **Current milestone**: Range-Based Absence Management
-- **Current phase**: 02 — Reporting Integration & Snapshot Versioning
-- **Current plan**: 02-03 ✅ FeatureFlagService Infrastructure (committed in 791ac463, 68ea539b, aca8e60b)
-- **Status**: phase-2-wave-1-complete (next: 02-04 atomarer Snapshot-Bump-Commit)
-- **Last action**: 02-03-execute-complete (2026-05-02T04:51:00Z)
-- **Progress**: Phase 0/4 complete; Plans 7/9 complete (78%) — `[##--]`
+- **Current phase**: 02 — Reporting Integration & Snapshot Versioning ✅
+- **Current plan**: 02-04 ✅ Atomic Wave-2 Snapshot-Bump + Reporting-Switch (atomar in jj-Change `39be1b73`)
+- **Status**: phase-2-complete (next: Phase-3 oder Phase-4 — siehe ROADMAP.md)
+- **Last action**: 02-04-execute-complete (2026-05-02T05:14:00Z)
+- **Progress**: Phase 1/4 complete; Plans 8/9 complete (89%) — `[####]`
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
-| Phases complete | 0 / 4 |
-| Plans complete | 7 / 9 (Phase 1 vollstaendig + Phase 2 Plans 01+02+03) |
+| Phases complete | 1 / 4 |
+| Plans complete | 8 / 9 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04) |
 | Requirements mapped | 19 / 19 |
-| Requirements complete | 9 / 19 (Phase-1-vollstaendig + Phase-2-Wave-0 partial: SNAP-01/SNAP-02/REP-02 scaffolded; Phase-2-Wave-1: REP-01 + REP-03 + REP-04) |
+| Requirements complete | 14 / 19 (Phase-1-vollstaendig + Phase-2: SNAP-01/SNAP-02/REP-01/REP-02/REP-03/REP-04) |
 | Open discuss-phase decisions | 9 (see ROADMAP.md "Discuss-Phase Carry-Overs") |
 
 ### Phase-Plan Execution Log
@@ -53,6 +53,7 @@ Plan: 4 of 4 (Plans 01 + 02 + 03 complete; Plan 04 next — atomarer Wave-2-Comm
 | 02 | 01 | ~12min | 3 (+ 1 Phase-1-Rule-3-Fix) | 8 (5 neu Wave-0 + 3 Phase-1-Fix) | 2026-05-02 |
 | 02 | 02 | ~11min | 3 | 5 (1 service, 1 service_impl, 2 test, 1 main.rs) | 2026-05-02 |
 | 02 | 03 | ~13min | 3 | 13 (6 neu + 7 patches) | 2026-05-02 |
+| 02 | 04 | ~35min | 3 (+ 1 Rule-1-Auto-Fix; atomar) | 11 (alle in jj-Change 39be1b73) | 2026-05-02 |
 
 ## Accumulated Context
 
@@ -83,7 +84,7 @@ Aus `research/ARCHITECTURE.md`:
 
 - [x] `/gsd:execute-plan 02-02` — Wave 1 derive_hours_for_range (abgeschlossen 2026-05-02).
 - [x] `/gsd:execute-plan 02-03` — Feature-Flag-Infrastruktur (abgeschlossen 2026-05-02).
-- [ ] `/gsd:execute-plan 02-04` — Wave 2 atomarer Snapshot-Bump-Commit (alle Compile-Deps verfuegbar).
+- [x] `/gsd:execute-plan 02-04` — Wave 2 atomarer Snapshot-Bump-Commit (abgeschlossen 2026-05-02, jj-Change `39be1b73`).
 - [ ] Production-Data-Profile lauffähig vorbereiten (für Phase 4, kann optional schon parallel laufen — read-only).
 - [ ] Phase-1-Hygiene: Lokale `localdb.sqlite3`-Drift fixen (siehe `.planning/phases/02-.../deferred-items.md`).
 
@@ -96,7 +97,9 @@ Wave 0 hat ein **build-time Forcing** etabliert, das Wave 2 zwingt, Snapshot-Bum
 
 ### Blockers
 
-Keine harten Blocker. Plan 02-04 (Wave-2-atomarer-Commit) hat alle Compile-Dependencies (`AbsenceService::derive_hours_for_range` aus 02-02 + `FeatureFlagService` aus 02-03 in DI verdrahtet, wartet auf `#[allow(unused_variables)]`-Removal in main.rs).
+Keine harten Blocker. Phase 2 ist abgeschlossen — atomarer Wave-2-Commit `39be1b73` enthaelt Snapshot-Bump 2→3, UnpaidLeave-Variante, Reporting-Switch und alle 4 neuen Tests. Plus Rule-1-Auto-Fix in FeatureFlagService::is_enabled (Authentication::Full-Bypass) macht 7 vorher fehlschlagende Reporting-Integration-Tests gruen.
+
+**Carry-Over fuer Phase 4:** Die in `deferred-items.md` dokumentierten 8 fehlschlagenden `absence_period`-Integration-Tests (pre-existing Phase-1-Migrations-Luecke) sollten von Phase 4 nachgereicht werden, damit `cargo run` auf der lokalen Dev-DB sauber bootet.
 
 ### Constraints In Force
 
@@ -116,9 +119,9 @@ Keine harten Blocker. Plan 02-04 (Wave-2-atomarer-Commit) hat alle Compile-Depen
 4. Read this file (`STATE.md`) — current position.
 5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
 
-**Next command**: `/gsd:execute-plan 02-04` (Wave 2 — atomarer Single-Commit: Snapshot-Bump 2→3 + UnpaidLeave-Variante + Reporting-Switch + Locking-Pin-Map + Match-Test-Aktivierung).
+**Next command**: Phase-2-Verification — `/gsd:verify-phase 02` oder weiter mit Phase 3 / Phase 4 Plan-Erstellung (`/gsd:plan-phase 03` oder `/gsd:plan-phase 04`).
 
 ---
 
 *State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-02 (Phase 02 Plan 03 — Wave-1 FeatureFlagService Infrastructure complete)*
+*Last updated: 2026-05-02 (Phase 02 Plan 04 — Atomic Wave-2 Snapshot-Bump + Reporting-Switch complete)*

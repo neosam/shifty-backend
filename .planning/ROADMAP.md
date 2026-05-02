@@ -63,7 +63,7 @@ Plans:
 - [x] 02-01-PLAN.md — Wave 0 Test-Scaffolding: 5 neue Test-Dateien (Fixtures + Pin/Match-Locking-Test + 3 Stubs), Pin-Test pre-Wave-2 ROT als Wave-2-Forcing. **Completed 2026-05-02 (commits d8dad0aa, f85f4a3f, 0eeff84c, 726e919c).**
 - [x] 02-02-PLAN.md — Wave 1 derive_hours_for_range: AbsenceService um Cross-Category-Resolver + Per-Tag-Vertrags-Lookup + Feiertags-0-Auflösung erweitern. **Completed 2026-05-02 (commits 8fafb6ef, 3e371b06, ae7d0642).**
 - [x] 02-03-PLAN.md — Wave 1 FeatureFlagService: neuer Service-Trait + Impl + DAO + Schema-Migration + Privileg.
-- [ ] 02-04-PLAN.md — Wave 2 Atomic Reporting-Switch: Snapshot-Bump 2→3, UnpaidLeave-Variante, Reporting-Switch hinter Flag, Pin-Map-Test (alle 12 Varianten), Match-Test-Aktivierung — alles in einem jj-Commit (D-Phase2-10).
+- [x] 02-04-PLAN.md — Wave 2 Atomic Reporting-Switch: Snapshot-Bump 2→3, UnpaidLeave-Variante, Reporting-Switch hinter Flag, Pin-Map-Test (alle 12 Varianten), Match-Test-Aktivierung — alles in einem jj-Commit (D-Phase2-10).
 
 **Discuss-phase carry-overs**: Sick-overlapping-Vacation Policy (BUrlG §9-Konflikt) — muss vor Plan-Phase 2 dokumentiert sein, da `derive_hours_for_range` die Cross-Category-Overlap-Auflösung kennen muss. Liste der `value_type`s im Snapshot (welche werden in der Berechnung berührt) — beeinflusst Locking-Test-Scope.
 
