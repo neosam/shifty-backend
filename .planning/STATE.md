@@ -3,13 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-last_updated: "2026-05-02T23:55:00.000Z"
+last_updated: "2026-05-03T00:10:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 13
-  percent: 86
+  completed_plans: 15
+  percent: 75
+# completed_phases counts phases with /gsd:verify-phase passed (Phase 1 + Phase 2);
+# Phase 3 has all 6 plans done (all SCs verified per Test-IDs in 03-VALIDATION.md),
+# awaiting `/gsd:verify-phase 03` to flip Phase-3 status to "Complete".
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -26,25 +29,25 @@ progress:
 
 ## Current Position
 
-Phase: 03 (booking-shift-plan-konflikt-integration) — EXECUTING
-Plan: 6 of 6
+Phase: 4
+Plan: Not started
 
 - **Current milestone**: Range-Based Absence Management
-- **Current phase**: 03 — Booking & Shift-Plan Konflikt-Integration (in progress, 5/6 plans complete)
-- **Current plan**: 03-05 ✅ Wave-4 REST-Layer (5 Wrapper-DTOs + Wrapper-Body für /absence-period + 2 neue /shiftplan-edit-Endpunkte + 2 neue per-sales-person-Endpunkte unter /shiftplan-info + ApiDoc; jj-Changes `1a64ff7b` + `0738d880` + `5b60dc29`)
-- **Status**: phase-3-in-progress (next: `/gsd:execute-plan 03-06` — Wave-5 Integration-Tests + SC1-SC4-Verifikation + ROADMAP-Update)
-- **Last action**: 03-05-execute-complete (2026-05-02)
-- **Progress**: Phase 1/4 complete; Plans 13/15 complete (86%)
+- **Current phase**: 03 — Booking & Shift-Plan Konflikt-Integration (all 6 plans complete; awaiting `/gsd:verify-phase 03`)
+- **Current plan**: 03-06 ✅ Wave-5 Final-Tests + Phase-Closure (4 Forward-Warning-Tests in test/absence.rs, 1 marker_manual_only-Test in test/shiftplan.rs, 4 Cross-Source-Integration-Tests aktiviert, Phase-1-Migration recovered, 03-VALIDATION.md completed, ROADMAP Phase-3 [x]; jj-Changes `e02964a6`+`7aeed067`+`d9ca9ba9`+`02d0642f`+`3e9c74f7`)
+- **Status**: phase-3-all-plans-done (next: `/gsd:verify-phase 03` to flip Phase-3 status to verified-complete; then `/gsd:plan-phase 04` for Migration & Cutover)
+- **Last action**: 03-06-execute-complete (2026-05-02)
+- **Progress**: Phases 1+2 complete; Phase 3 all-plans-done; Plans 15/15 done (100%)
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
-| Phases complete | 1 / 4 |
-| Plans complete | 13 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 Plans 01..05) |
+| Phases complete | 2 / 4 (P1 + P2 verified; P3 all-plans-done, awaiting /gsd:verify-phase 03) |
+| Plans complete | 15 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 vollstaendig 01..06) |
 | Requirements mapped | 19 / 19 |
-| Requirements complete | 14 / 19 (Phase-1-vollstaendig + Phase-2: SNAP-01/SNAP-02/REP-01/REP-02/REP-03/REP-04) |
-| Open discuss-phase decisions | 9 (see ROADMAP.md "Discuss-Phase Carry-Overs") |
+| Requirements complete | 17 / 19 (Phase-1-vollstaendig + Phase-2: SNAP-01/SNAP-02/REP-01..04 + Phase-3: BOOK-01/BOOK-02/PLAN-01) |
+| Open discuss-phase decisions | 4 (Phase-4-blocking) |
 
 ### Phase-Plan Execution Log
 
@@ -59,6 +62,7 @@ Plan: 6 of 6
 | 03 | 03 | ~25min | 3 | 6 (alle patches: service/absence + service_impl/absence + test/absence + rest/absence + main.rs + integration_test/absence_period) | 2026-05-02 |
 | 03 | 04 | ~30min | 3 | 7 (alle patches: service/shiftplan_edit + service_impl/shiftplan_edit + test/shiftplan_edit + service/shiftplan + service_impl/shiftplan + test/shiftplan + main.rs) | 2026-05-02 |
 | 03 | 05 | ~25min | 3 | 5 (alle patches: rest-types/lib.rs + rest/absence + rest/shiftplan_edit + rest/shiftplan + rest/lib.rs) | 2026-05-02 |
+| 03 | 06 | ~25min | 4 (Task-1 Plan-04-Carryover; +Rule-3 Migration-Recovery) | 7 (1 neu Migration + 4 patches Tests/VALIDATION/ROADMAP + 1 SUMMARY + 1 STATE.md) | 2026-05-02 |
 
 ## Accumulated Context
 
@@ -101,7 +105,8 @@ Aus `research/ARCHITECTURE.md`:
 - [x] `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning (Sig-Brüche AbsenceService::create/update zu AbsencePeriodCreateResult + Forward-Warning-Loop + find_overlapping_for_booking + neue DI-Deps; jj-Changes `d744efe4`+`106ea712`+`dfd66a56`, abgeschlossen 2026-05-02).
 - [x] `/gsd:execute-plan 03-04` — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring (6 Plan-01-Wave-3-Stubs aktiviert + 4 neue per-sales-person-Tests; jj-Changes `448c265e`+`92358f05`+`00ce6d87`, abgeschlossen 2026-05-02).
 - [x] `/gsd:execute-plan 03-05` — Wave-4 REST-Layer (5 Wrapper-DTOs + Wrapper-Body für /absence-period + 2 neue /shiftplan-edit-Endpunkte + 2 neue per-sales-person-Endpunkte unter /shiftplan-info + ApiDoc; jj-Changes `1a64ff7b`+`0738d880`+`5b60dc29`, abgeschlossen 2026-05-02).
-- [ ] `/gsd:execute-plan 03-06` — Wave-5 Tests aktivieren + Cross-Source-Integration-Tests (4 Plan-01-Wave-5-Stubs in `shifty_bin/src/integration_test/booking_absence_conflict.rs`) + SC1-SC4-Verifikation + ROADMAP-Update.
+- [x] `/gsd:execute-plan 03-06` — Wave-5 Final-Tests + Phase-Closure (4 Forward-Warning-Tests in test/absence.rs, 1 marker_manual_only-Test in test/shiftplan.rs, 4 Cross-Source-Integration-Tests aktiviert, Phase-1-Migration recovered als Bonus, 03-VALIDATION.md completed, ROADMAP Phase-3 [x]; jj-Changes `e02964a6`+`7aeed067`+`d9ca9ba9`+`02d0642f`+`3e9c74f7`, abgeschlossen 2026-05-02).
+- [ ] `/gsd:verify-phase 03` — Phase-3-Closure-Verification (alle 4 SCs sind in 03-VALIDATION.md durch konkrete Test-IDs erfüllt; Verify-Phase ist nur noch Formal-Akt).
 - [ ] Production-Data-Profile lauffähig vorbereiten (für Phase 4, kann optional schon parallel laufen — read-only).
 - [ ] Phase-1-Hygiene: Lokale `localdb.sqlite3`-Drift fixen (siehe `.planning/phases/02-.../deferred-items.md`).
 - [ ] Phase-Hygiene: `dao/Cargo.toml` und `dao_impl_sqlite/Cargo.toml` `features = ["v4"]` ergänzen (siehe `.planning/phases/03-.../deferred-items.md`); aktuell pre-existing Drift, der `cargo test -p dao*` standalone bricht.
@@ -137,9 +142,9 @@ Keine harten Blocker. Phase 2 ist abgeschlossen — atomarer Wave-2-Commit `39be
 4. Read this file (`STATE.md`) — current position.
 5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
 
-**Next command**: `/gsd:execute-plan 03-06` — Wave-5 Tests aktivieren + Cross-Source-Integration-Tests + SC1-SC4-Verifikation + ROADMAP-Update.
+**Next command**: `/gsd:verify-phase 03` — Phase-3-Closure-Verification (alle 6 Plans sind durch; alle 4 SCs sind in 03-VALIDATION.md durch konkrete Test-IDs erfüllt; D-Phase3-18 Regression-Lock final 0-Diff verifiziert; cargo test --workspace grün mit 336 service_impl + 32 shifty_bin = 368 passing tests).
 
 ---
 
 *State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-02 (Phase 03 Plan 05 — Wave-4 REST-Layer 5 Wrapper-DTOs + 4 neue Endpunkte + ApiDoc complete)*
+*Last updated: 2026-05-02 (Phase 03 Plan 06 — Wave-5 Final-Tests + Phase-Closure complete; all 6 Phase-3 plans done; awaiting `/gsd:verify-phase 03`)*
