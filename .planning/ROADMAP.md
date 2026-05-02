@@ -9,7 +9,7 @@
 
 - [x] **Phase 1: Absence Domain Foundation** — neue parallele `absence` Domain (DAO + Service + REST + Permission), additiv, ohne Reporting-Wirkung (completed 2026-05-01)
 - [x] **Phase 2: Reporting Integration & Snapshot Versioning** — `derive_hours_for_range` + Reporting-Switch hinter Feature-Flag, `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit (completed 2026-05-02)
-- [/] **Phase 3: Booking & Shift-Plan Konflikt-Integration** — Forward/Reverse Booking-Warnings + Shift-Plan-Anzeige aus AbsencePeriod ohne Doppel-Eintragung (Waves 0+1+2 done 2026-05-02; Plans 04..06 outstanding)
+- [/] **Phase 3: Booking & Shift-Plan Konflikt-Integration** — Forward/Reverse Booking-Warnings + Shift-Plan-Anzeige aus AbsencePeriod ohne Doppel-Eintragung (Waves 0+1+2+3 done 2026-05-02; Plans 05+06 outstanding)
 - [ ] **Phase 4: Migration & Cutover** — Heuristik-Migration, Validierungs-Gate, atomarer Feature-Flag-Flip mit Carryover-Refresh, REST-Deprecation
 
 ## Phase Details
@@ -93,8 +93,8 @@ Plans:
 **Wave 2**
 - [x] 03-03-PLAN.md — Wave 2 AbsenceService (Sig-Brüche create/update zu AbsencePeriodCreateResult + Forward-Warning-Loop + find_overlapping_for_booking + neue DI-Deps)
 
-**Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 03-04-PLAN.md — Wave 3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring
+**Wave 3**
+- [x] 03-04-PLAN.md — Wave 3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 03-05-PLAN.md — Wave 4 REST-Layer (5 Wrapper-DTOs + 4 neue Endpunkte + ApiDoc; D-Phase3-18 Regression-Lock)
@@ -166,7 +166,7 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 |---|---|---|---|
 | 1 — Absence Domain Foundation | 5/5 | Complete | 2026-05-01 |
 | 2 — Reporting Integration & Snapshot Versioning | 4/4 | Complete | 2026-05-02 |
-| 3 — Booking & Shift-Plan Konflikt-Integration | 3/6 | In Progress (Waves 0+1+2 done) | — |
+| 3 — Booking & Shift-Plan Konflikt-Integration | 4/6 | In Progress (Waves 0+1+2+3 done) | — |
 | 4 — Migration & Cutover | 0/0 | Not started | — |
 
 ## Discuss-Phase Carry-Overs (Aggregated)
@@ -188,4 +188,4 @@ Diese offenen Entscheidungen aus `PROJECT.md`/`research/SUMMARY.md` sind **keine
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-02 — Phase 3 Plan 03 (Wave-2 AbsenceService Forward-Warning) complete*
+*Last updated: 2026-05-02 — Phase 3 Plan 04 (Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person) complete*
