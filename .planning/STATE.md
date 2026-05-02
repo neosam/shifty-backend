@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-last_updated: "2026-05-02T22:59:00.000Z"
+last_updated: "2026-05-02T23:18:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 15
-  completed_plans: 10
-  percent: 67
+  completed_plans: 11
+  percent: 73
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -27,21 +27,21 @@ progress:
 ## Current Position
 
 Phase: 03 (booking-shift-plan-konflikt-integration) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 
 - **Current milestone**: Range-Based Absence Management
-- **Current phase**: 03 — Booking & Shift-Plan Konflikt-Integration (in progress, 2/6 plans complete)
-- **Current plan**: 03-02 ✅ Wave-1 Domain-Surface (jj-Changes `572d6737` + `8fa3eefb` + `35fb3edb`)
-- **Status**: phase-3-in-progress (next: `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning)
-- **Last action**: 03-02-execute-complete (2026-05-02)
-- **Progress**: Phase 1/4 complete; Plans 10/15 complete (67%)
+- **Current phase**: 03 — Booking & Shift-Plan Konflikt-Integration (in progress, 3/6 plans complete)
+- **Current plan**: 03-03 ✅ Wave-2 AbsenceService Forward-Warning (jj-Changes `d744efe4` + `106ea712` + `dfd66a56`)
+- **Status**: phase-3-in-progress (next: `/gsd:execute-plan 03-04` — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring)
+- **Last action**: 03-03-execute-complete (2026-05-02)
+- **Progress**: Phase 1/4 complete; Plans 11/15 complete (73%)
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
 | Phases complete | 1 / 4 |
-| Plans complete | 10 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 Plans 01..02) |
+| Plans complete | 11 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 Plans 01..03) |
 | Requirements mapped | 19 / 19 |
 | Requirements complete | 14 / 19 (Phase-1-vollstaendig + Phase-2: SNAP-01/SNAP-02/REP-01/REP-02/REP-03/REP-04) |
 | Open discuss-phase decisions | 9 (see ROADMAP.md "Discuss-Phase Carry-Overs") |
@@ -56,6 +56,7 @@ Plan: 3 of 6
 | 02 | 04 | ~35min | 3 (+ 1 Rule-1-Auto-Fix; atomar) | 11 (alle in jj-Change 39be1b73) | 2026-05-02 |
 | 03 | 01 | ~14min | 2 | 5 (2 neu test-stubs + 2 mod-patches + 1 STATE-prep) | 2026-05-02 |
 | 03 | 02 | ~16min | 3 | 7 (1 neu warning.rs + 1 neu deferred-items.md + 5 patches + .sqlx-Cache 4 Files) | 2026-05-02 |
+| 03 | 03 | ~25min | 3 | 6 (alle patches: service/absence + service_impl/absence + test/absence + rest/absence + main.rs + integration_test/absence_period) | 2026-05-02 |
 
 ## Accumulated Context
 
@@ -84,6 +85,7 @@ Aus `research/ARCHITECTURE.md`:
 - `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit wie der Reporting-Switch (per `CLAUDE.md`).
 - Phase-3 Wave-0-Stub-Pattern (2026-05-02): `#[ignore]` + `unimplemented!()` als Standard für Wave-Forcing. Test-Liste sichtbar in `cargo test --list`, Body panic'd bei versehentlichem Aktivieren ohne Implementation. Pattern in `service_impl/src/test/shiftplan_edit.rs` und `shifty_bin/src/integration_test/booking_absence_conflict.rs` etabliert.
 - Phase-3 Wave-1 Domain-Surface (2026-05-02): `service::warning::Warning` lebt in eigenem `service/src/warning.rs`-Modul (C-Phase3-01); `pub mod warning;` alphabetisch in `lib.rs`; KEIN `pub use` am Root — Konsumenten via `use service::warning::Warning;`. `AbsenceDao::find_overlapping_for_booking` ist kategorie-frei (alle 3 AbsenceCategoryEntity-Werte) und ohne `exclude_logical_id` (Booking-IDs orthogonal zu Absence-IDs). `ShiftplanDay.unavailable: Option<UnavailabilityMarker>` additiv mit Default `None` — globale Sicht setzt nie etwas.
+- Phase-3 Wave-2 AbsenceService Forward-Warning (2026-05-02): `AbsenceService::create`/`::update` returnen `AbsencePeriodCreateResult { absence, warnings: Arc<[Warning]> }` (Wrapper-Sig-Bruch). Forward-Warning-Loop in `compute_forward_warnings` (private Helper im `impl<Deps> AbsenceServiceImpl<Deps>`) läuft NACH dem DAO-Persist + VOR `commit`; `Authentication::Full` im internen Loop (outer Permission ist HR ∨ self bereits verifiziert). 3 neue Basic-Service-Deps am AbsenceServiceImpl: `BookingService` + `SalesPersonUnavailableService` + `SlotService` (SlotService nötig, weil Booking nur slot_id + calendar_week + year trägt; day_of_week kommt aus Slot). Warnings tragen `absence_id = entity.id` (Create) bzw. `active.logical_id` (Update — D-07-stable). Soft-Delete-Filter für Booking + ManualUnavailable explizit (Pitfall-1 / SC4).
 
 ### Open Todos
 
@@ -92,7 +94,8 @@ Aus `research/ARCHITECTURE.md`:
 - [x] `/gsd:execute-plan 02-04` — Wave 2 atomarer Snapshot-Bump-Commit (abgeschlossen 2026-05-02, jj-Change `39be1b73`).
 - [x] `/gsd:execute-plan 03-01` — Wave-0 Test-Scaffolding (10 #[ignore]-Stubs; jj-Changes `60776314`+`fd777925`+`a27d19af`, abgeschlossen 2026-05-02).
 - [x] `/gsd:execute-plan 03-02` — Wave-1 Domain-Surface (Warning-Enum + AbsenceDao::find_overlapping_for_booking + UnavailabilityMarker + ShiftplanDay-Field; jj-Changes `572d6737`+`8fa3eefb`+`35fb3edb`, abgeschlossen 2026-05-02).
-- [ ] `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning (Sig-Brüche AbsenceService::create/update + Forward-Warning-Loop + neue DI-Deps).
+- [x] `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning (Sig-Brüche AbsenceService::create/update zu AbsencePeriodCreateResult + Forward-Warning-Loop + find_overlapping_for_booking + neue DI-Deps; jj-Changes `d744efe4`+`106ea712`+`dfd66a56`, abgeschlossen 2026-05-02).
+- [ ] `/gsd:execute-plan 03-04` — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring (6 Plan-01-Stubs in `service_impl/src/test/shiftplan_edit.rs` aktivieren).
 - [ ] Production-Data-Profile lauffähig vorbereiten (für Phase 4, kann optional schon parallel laufen — read-only).
 - [ ] Phase-1-Hygiene: Lokale `localdb.sqlite3`-Drift fixen (siehe `.planning/phases/02-.../deferred-items.md`).
 - [ ] Phase-Hygiene: `dao/Cargo.toml` und `dao_impl_sqlite/Cargo.toml` `features = ["v4"]` ergänzen (siehe `.planning/phases/03-.../deferred-items.md`); aktuell pre-existing Drift, der `cargo test -p dao*` standalone bricht.
@@ -128,9 +131,9 @@ Keine harten Blocker. Phase 2 ist abgeschlossen — atomarer Wave-2-Commit `39be
 4. Read this file (`STATE.md`) — current position.
 5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
 
-**Next command**: `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning (Sig-Brüche AbsenceService::create/update + Forward-Warning-Loop + neue DI-Deps).
+**Next command**: `/gsd:execute-plan 03-04` — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring (6 Plan-01-Stubs in `service_impl/src/test/shiftplan_edit.rs` aktivieren).
 
 ---
 
 *State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-02 (Phase 03 Plan 02 — Wave-1 Domain-Surface complete)*
+*Last updated: 2026-05-02 (Phase 03 Plan 03 — Wave-2 AbsenceService Forward-Warning complete)*
