@@ -8,8 +8,8 @@
 ## Phases
 
 - [x] **Phase 1: Absence Domain Foundation** — neue parallele `absence` Domain (DAO + Service + REST + Permission), additiv, ohne Reporting-Wirkung (completed 2026-05-01)
-- [/] **Phase 2: Reporting Integration & Snapshot Versioning** — `derive_hours_for_range` + Reporting-Switch hinter Feature-Flag, `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit. Wave 0 (Plan 01) + Wave 1 derive_hours (Plan 02) + Wave 1 FeatureFlag (Plan 03) complete 2026-05-02; Wave 2 (Plan 04) outstanding.
-- [ ] **Phase 3: Booking & Shift-Plan Konflikt-Integration** — Forward/Reverse Booking-Warnings + Shift-Plan-Anzeige aus AbsencePeriod ohne Doppel-Eintragung
+- [x] **Phase 2: Reporting Integration & Snapshot Versioning** — `derive_hours_for_range` + Reporting-Switch hinter Feature-Flag, `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit (completed 2026-05-02)
+- [/] **Phase 3: Booking & Shift-Plan Konflikt-Integration** — Forward/Reverse Booking-Warnings + Shift-Plan-Anzeige aus AbsencePeriod ohne Doppel-Eintragung (Wave 0 done 2026-05-02; Plans 02..06 outstanding)
 - [ ] **Phase 4: Migration & Cutover** — Heuristik-Migration, Validierungs-Gate, atomarer Feature-Flag-Flip mit Carryover-Refresh, REST-Deprecation
 
 ## Phase Details
@@ -87,7 +87,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 03-01-PLAN.md — Wave 0 Test-Scaffolding (Stubs für Reverse-Warning + Cross-Source + Pitfall-1)
+- [x] 03-01-PLAN.md — Wave 0 Test-Scaffolding (Stubs für Reverse-Warning + Cross-Source + Pitfall-1)
 - [ ] 03-02-PLAN.md — Wave 1 Domain-Surface (Warning-Enum + AbsenceDao::find_overlapping_for_booking + UnavailabilityMarker + ShiftplanDay-Field)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -153,7 +153,7 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 |---|---|---|---|
 | 1 — Absence Domain Foundation | parallele `absence` Domain end-to-end, additiv | ABS-01, ABS-02, ABS-03, ABS-04, ABS-05 | 5 |
 | 2 — Reporting Integration & Snapshot Versioning | derive-on-read hinter Feature-Flag + Snapshot-Bump 2→3 im selben Commit | REP-01, REP-02, REP-03, REP-04, SNAP-01, SNAP-02 | 5 |
-| 3 — Booking & Shift-Plan Konflikt-Integration | 0/6 | Not started | — |
+| 3 — Booking & Shift-Plan Konflikt-Integration | Forward/Reverse Booking-Warnings + Shift-Plan-Anzeige aus AbsencePeriod ohne Doppel-Eintragung | BOOK-01, BOOK-02, PLAN-01 | 4 |
 | 4 — Migration & Cutover | Heuristik-Migration + Validierungs-Gate + atomarer Flag-Flip + REST-Deprecation | MIG-01, MIG-02, MIG-03, MIG-04, MIG-05 | 6 |
 
 **Total v1 requirements:** 19
@@ -165,8 +165,8 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 1 — Absence Domain Foundation | 5/5 | Complete | 2026-05-01 |
-| 2 — Reporting Integration & Snapshot Versioning | 1/4 | In Progress (Wave 0 done) | — |
-| 3 — Booking & Shift-Plan Konflikt-Integration | 0/6 | Not started | — |
+| 2 — Reporting Integration & Snapshot Versioning | 4/4 | Complete | 2026-05-02 |
+| 3 — Booking & Shift-Plan Konflikt-Integration | 1/6 | In Progress (Wave 0 done) | — |
 | 4 — Migration & Cutover | 0/0 | Not started | — |
 
 ## Discuss-Phase Carry-Overs (Aggregated)
@@ -188,4 +188,4 @@ Diese offenen Entscheidungen aus `PROJECT.md`/`research/SUMMARY.md` sind **keine
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-02 — Phase 2 Plan 02 (Wave-1 derive_hours_for_range) complete*
+*Last updated: 2026-05-02 — Phase 3 Plan 01 (Wave-0 Test-Scaffolding) complete*
