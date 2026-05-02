@@ -3,18 +3,21 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
-    booking::BookingService,
+    absence::AbsenceService,
+    booking::{Booking, BookingService},
     carryover::{Carryover, CarryoverService},
     employee_work_details::EmployeeWorkDetailsService,
     extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursService},
-    permission::Authentication,
+    permission::{Authentication, HR_PRIVILEGE},
     reporting::ReportingService,
     sales_person::SalesPersonService,
     sales_person_unavailable::{SalesPersonUnavailable, SalesPersonUnavailableService},
-    shiftplan_edit::ShiftplanEditService,
+    shiftplan_edit::{BookingCreateResult, CopyWeekResult, ShiftplanEditService},
     slot::{Slot, SlotService},
+    warning::Warning,
     PermissionService, ServiceError,
 };
+use tokio::join;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
@@ -31,7 +34,9 @@ gen_service_impl! {
         EmployeeWorkDetailsService: service::employee_work_details::EmployeeWorkDetailsService<Context = Self::Context, Transaction = Self::Transaction> = employee_work_details_service,
         ExtraHoursService: ExtraHoursService<Context = Self::Context, Transaction = Self::Transaction> = extra_hours_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
-        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
+        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao,
+        // NEU für Phase 3 (D-Phase3-06): Reverse-Warning konsumiert AbsenceService
+        AbsenceService: service::absence::AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service
     }
 }
 
@@ -388,5 +393,165 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 
         self.transaction_dao.commit(tx).await?;
         Ok(())
+    }
+
+    async fn book_slot_with_conflict_check(
+        &self,
+        booking: &Booking,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<BookingCreateResult, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Permission HR ∨ self (Pattern S2 / D-Phase3-12).
+        let (hr, sp) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                booking.sales_person_id,
+                context.clone(),
+                tx.clone().into(),
+            ),
+        );
+        hr.or(sp)?;
+
+        // Slot-Lookup für day_of_week (Pattern aus modify_slot).
+        let slot = self
+            .slot_service
+            .get_slot(&booking.slot_id, Authentication::Full, tx.clone().into())
+            .await?;
+
+        // Date-Konversion: Booking trägt nur (year, calendar_week, slot_id);
+        // wir resolven den exakten Tag via Slot.day_of_week.
+        let booking_date: time::Date = time::Date::from_iso_week_date(
+            booking.year as i32,
+            booking.calendar_week as u8,
+            slot.day_of_week.into(),
+        )?;
+        let single_day_range = shifty_utils::DateRange::new(booking_date, booking_date)
+            .map_err(|_| ServiceError::DateOrderWrong(booking_date, booking_date))?;
+
+        // AbsencePeriod-Lookup (cross-Kategorie, soft-delete-gefiltert im DAO).
+        let absence_periods = self
+            .absence_service
+            .find_overlapping_for_booking(
+                booking.sales_person_id,
+                single_day_range,
+                Authentication::Full,
+                tx.clone().into(),
+            )
+            .await?;
+
+        // ManualUnavailable-Lookup pro Woche.
+        let manual_unavailables = self
+            .sales_person_unavailable_service
+            .get_by_week_for_sales_person(
+                booking.sales_person_id,
+                booking.year,
+                booking.calendar_week as u8,
+                Authentication::Full,
+                tx.clone().into(),
+            )
+            .await?;
+
+        // Persist via Basic-Service — BookingService::create UNVERÄNDERT
+        // (D-Phase3-18 Regression-Lock).
+        let persisted_booking = self
+            .booking_service
+            .create(booking, Authentication::Full, tx.clone().into())
+            .await?;
+
+        // Warnings mit echter persistierter Booking-ID. KEINE De-Dup zwischen
+        // Quellen (D-Phase3-15) — pro Quelle ein eigener Warning-Eintrag.
+        let mut warnings: Vec<Warning> = Vec::new();
+        for ap in absence_periods.iter() {
+            warnings.push(Warning::BookingOnAbsenceDay {
+                booking_id: persisted_booking.id,
+                date: booking_date,
+                absence_id: ap.id,
+                category: ap.category,
+            });
+        }
+        for mu in manual_unavailables.iter() {
+            // Soft-Delete-Filter (Pitfall 1 / SC4) + Day-of-Week-Match.
+            if mu.deleted.is_none() && mu.day_of_week == slot.day_of_week {
+                warnings.push(Warning::BookingOnUnavailableDay {
+                    booking_id: persisted_booking.id,
+                    year: booking.year,
+                    week: booking.calendar_week as u8,
+                    day_of_week: slot.day_of_week,
+                });
+                // Eine Warning pro day_of_week-Match reicht — die DAO liefert
+                // typischerweise nur einen Eintrag pro (sp, year, week, dow).
+                break;
+            }
+        }
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(BookingCreateResult {
+            booking: persisted_booking,
+            warnings: Arc::from(warnings),
+        })
+    }
+
+    async fn copy_week_with_conflict_check(
+        &self,
+        from_calendar_week: u8,
+        from_year: u32,
+        to_calendar_week: u8,
+        to_year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<CopyWeekResult, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Bulk-Operation auf Schichtplan-Ebene → shiftplan.edit-Permission
+        // (analog modify_slot/remove_slot). KEIN HR ∨ self pro Source-Booking,
+        // weil die Operation pro Aufruf alle Bookings einer Woche umfasst.
+        self.permission_service
+            .check_permission("shiftplan.edit", context.clone())
+            .await?;
+
+        // Source-Bookings via BookingService (Basic, unangetastet).
+        let source_bookings = self
+            .booking_service
+            .get_for_week(
+                from_calendar_week,
+                from_year,
+                Authentication::Full,
+                tx.clone().into(),
+            )
+            .await?;
+
+        let mut copied_bookings: Vec<Booking> = Vec::new();
+        let mut all_warnings: Vec<Warning> = Vec::new();
+
+        for source in source_bookings.iter() {
+            // Konstruiere Ziel-Booking — id/version werden vom BookingService
+            // beim create() neu vergeben; calendar_week/year werden überschrieben.
+            let target = Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                deleted: None,
+                deleted_by: None,
+                created_by: None,
+                calendar_week: to_calendar_week as i32,
+                year: to_year,
+                ..source.clone()
+            };
+
+            let result = self
+                .book_slot_with_conflict_check(&target, context.clone(), Some(tx.clone()))
+                .await?;
+            copied_bookings.push(result.booking);
+            all_warnings.extend(result.warnings.iter().cloned());
+        }
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(CopyWeekResult {
+            copied_bookings: Arc::from(copied_bookings),
+            warnings: Arc::from(all_warnings),
+        })
     }
 }
