@@ -8,7 +8,8 @@ use dao_impl_sqlite::{
     billing_period::BillingPeriodDaoImpl,
     billing_period_sales_person::BillingPeriodSalesPersonDaoImpl, booking::BookingDaoImpl,
     carryover::CarryoverDaoImpl, employee_work_details::EmployeeWorkDetailsDaoImpl,
-    extra_hours::ExtraHoursDaoImpl, sales_person::SalesPersonDaoImpl,
+    extra_hours::ExtraHoursDaoImpl, feature_flag::FeatureFlagDaoImpl,
+    sales_person::SalesPersonDaoImpl,
     sales_person_unavailable::SalesPersonUnavailableDaoImpl, session::SessionDaoImpl,
     shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl, special_day::SpecialDayDaoImpl,
     BasicDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
@@ -38,6 +39,7 @@ type SessionDao = SessionDaoImpl;
 type ShiftplanReportDao = ShiftplanReportDaoImpl;
 type AbsenceDao = AbsenceDaoImpl;
 type ExtraHoursDao = ExtraHoursDaoImpl;
+type FeatureFlagDao = FeatureFlagDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
@@ -437,6 +439,17 @@ impl service_impl::toggle::ToggleServiceDeps for ToggleServiceDependencies {
     type TransactionDao = TransactionDao;
 }
 type ToggleService = service_impl::toggle::ToggleServiceImpl<ToggleServiceDependencies>;
+
+pub struct FeatureFlagServiceDependencies;
+impl service_impl::feature_flag::FeatureFlagServiceDeps for FeatureFlagServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type FeatureFlagDao = FeatureFlagDao;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type FeatureFlagService =
+    service_impl::feature_flag::FeatureFlagServiceImpl<FeatureFlagServiceDependencies>;
 
 pub struct ShiftplanCatalogServiceDependencies;
 impl ShiftplanServiceDeps for ShiftplanCatalogServiceDependencies {
@@ -877,6 +890,19 @@ impl RestStateImpl {
             permission_service: permission_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
+
+        // Phase-2 Plan-03: FeatureFlagService DI. Plan 04 (reporting switch)
+        // wires this service into ReportingService via a new dep.
+        let feature_flag_dao = Arc::new(FeatureFlagDao::new(pool.clone()));
+        // Bind explicitly to FeatureFlagService type alias so DI is ready for
+        // Plan 04 to thread it into ReportingService. Marked unused until then.
+        #[allow(unused_variables)]
+        let feature_flag_service: Arc<FeatureFlagService> =
+            Arc::new(service_impl::feature_flag::FeatureFlagServiceImpl {
+                feature_flag_dao: feature_flag_dao.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            });
 
         Self {
             user_service,

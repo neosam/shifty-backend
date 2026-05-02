@@ -48,6 +48,44 @@ von Plan 02-01.
 - **Falls Wave 1 oder Wave 2 in einer Test-Session DB-Tests braucht**: zuerst
   Phase-1-Migration nachreichen.
 
+## Pre-existing localdb.sqlite3-Drift (entdeckt Plan 02-03)
+
+**Entdeckt waehrend:** Task 3.3 von Plan 02-03 (`cargo run --bin shifty_bin`-Smoke-Test).
+
+**Symptom:**
+- `cargo run --bin shifty_bin` panickt mit
+  `Failed to run migrations: VersionMissing(20260428101456)`.
+- `localdb.sqlite3` enthaelt 2 Migrationen, die nicht im
+  `migrations/sqlite/`-Ordner existieren:
+  - `20260428101456 add-logical-id-to-extra-hours`
+  - `20260501162017 create-absence-period`
+
+**Diagnose:**
+- Die DB wurde irgendwann zu Phase-1-Test-Zwecken mit Migrationen "von Hand"
+  erweitert. Diese Migrationen-Files existieren aber nicht im Quell-Tree.
+- Sqlx erkennt den Drift und verweigert den Migration-Run.
+
+**Verifikation, dass `feature_flag` selbst sauber ist:**
+- Auf einer **frischen DB** (per `DATABASE_URL=sqlite:/tmp/...`) laufen alle
+  39 Migrationen inkl. `20260501000000_add-feature-flag-table.sql` sauber durch
+  und seeden `feature_flag` + `privilege` korrekt.
+
+**Warum nicht hier gefixt:**
+- Liegt **ausserhalb des Plan-02-03-Scopes** (FeatureFlag-Infrastruktur).
+- Pre-existing Phase-1-Erbe; die fehlenden Migrations-Files muessen entweder
+  aus einem anderen Branch wiederhergestellt oder die `localdb.sqlite3`
+  geloescht werden (lokaler Dev-State, nicht checked-in).
+
+**Phase-1-Hygiene-Empfehlung:**
+- Beide fehlenden Migrationen nachreichen — vermutlich verloren gegangen waehrend
+  Phase-1-Worktree-Merge (siehe `pvwkysmk` in 02-01-SUMMARY).
+
+**Status fuer Plan 02-03:**
+- `cargo build --workspace` GRUEN.
+- `cargo test --workspace` GRUEN modulo intentional-rotem Pin-Test (Wave-2-Forcing).
+- Frische DB: 39/39 Migrationen GRUEN.
+- Plan-02-03-Erfolg: NICHT betroffen.
+
 ## Zusatz-Anmerkung: Carryover-Phase-1-Fix
 
 Der DateRange-Fix in `shifty-utils` und die `OverlappingPeriod`-Variante in
