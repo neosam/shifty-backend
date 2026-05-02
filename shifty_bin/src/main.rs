@@ -310,6 +310,10 @@ impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependenc
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type UuidService = UuidService;
+    // Phase-2 Plan-04: ReportingService erhaelt Feature-Flag-Switch +
+    // AbsenceService-derived hours fuer Vacation/Sick/UnpaidLeave.
+    type FeatureFlagService = FeatureFlagService;
+    type AbsenceService = AbsenceService;
     type TransactionDao = TransactionDao;
 }
 type ReportingService = service_impl::reporting::ReportingServiceImpl<ReportingServiceDependencies>;
@@ -757,6 +761,20 @@ impl RestStateImpl {
             carryover_dao,
             transaction_dao: transaction_dao.clone(),
         });
+        // Phase-2 Plan-04: FeatureFlagService + AbsenceService werden VOR
+        // ReportingService konstruiert, weil ReportingServiceImpl beide
+        // jetzt als Deps haelt (Feature-Flag-Switch + AbsencePeriod-derived
+        // Vacation/Sick/UnpaidLeave). AbsenceService ist seit Plan 02-02
+        // bereits oben gebaut; FeatureFlagService wurde in Plan 02-03
+        // bisher NACH reporting_service konstruiert und ist hier nach oben
+        // gewandert.
+        let feature_flag_dao = Arc::new(FeatureFlagDao::new(pool.clone()));
+        let feature_flag_service: Arc<FeatureFlagService> =
+            Arc::new(service_impl::feature_flag::FeatureFlagServiceImpl {
+                feature_flag_dao: feature_flag_dao.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            });
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl {
             extra_hours_service: extra_hours_service.clone(),
             shiftplan_report_service: shiftplan_report_service.clone(),
@@ -766,6 +784,8 @@ impl RestStateImpl {
             permission_service: permission_service.clone(),
             clock_service: clock_service.clone(),
             uuid_service: uuid_service.clone(),
+            feature_flag_service: feature_flag_service.clone(),
+            absence_service: absence_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
 
@@ -891,18 +911,9 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
-        // Phase-2 Plan-03: FeatureFlagService DI. Plan 04 (reporting switch)
-        // wires this service into ReportingService via a new dep.
-        let feature_flag_dao = Arc::new(FeatureFlagDao::new(pool.clone()));
-        // Bind explicitly to FeatureFlagService type alias so DI is ready for
-        // Plan 04 to thread it into ReportingService. Marked unused until then.
-        #[allow(unused_variables)]
-        let feature_flag_service: Arc<FeatureFlagService> =
-            Arc::new(service_impl::feature_flag::FeatureFlagServiceImpl {
-                feature_flag_dao: feature_flag_dao.clone(),
-                permission_service: permission_service.clone(),
-                transaction_dao: transaction_dao.clone(),
-            });
+        // Phase-2 Plan-04: FeatureFlagService wird oben (vor reporting_service)
+        // konstruiert und in den ReportingService eingespeist. Die Plan-03-DI
+        // ist damit vollstaendig live (kein #[allow(unused_variables)] mehr).
 
         Self {
             user_service,

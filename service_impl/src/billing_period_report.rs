@@ -34,7 +34,7 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 /// any persisted `value_type` on `billing_period_sales_person`. See
 /// `CLAUDE.md` → "Billing Period Snapshot Schema Versioning" for the rationale
 /// and the full list of trigger conditions.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 2;
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 3;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
@@ -159,6 +159,18 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 value_ytd_from: report_start.sick_leave_hours,
                 value_ytd_to: report_end.sick_leave_hours,
                 value_full_year: report_end_of_year.sick_leave_hours,
+            },
+        );
+        // Phase-2 D-Phase2-04: UnpaidLeave wird ab Snapshot-Schema-Version 3
+        // persistiert. Bei Flag=off kommt der Wert aus der ExtraHours-Kategorie
+        // `UnpaidLeave`; bei Flag=on aus `AbsenceService::derive_hours_for_range`.
+        billing_period_values.insert(
+            BillingPeriodValueType::UnpaidLeave,
+            BillingPeriodValue {
+                value_delta: report_delta.unpaid_leave_hours,
+                value_ytd_from: report_start.unpaid_leave_hours,
+                value_ytd_to: report_end.unpaid_leave_hours,
+                value_full_year: report_end_of_year.unpaid_leave_hours,
             },
         );
         billing_period_values.insert(

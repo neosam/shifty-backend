@@ -28,10 +28,16 @@ impl<Deps: FeatureFlagServiceDeps> FeatureFlagService for FeatureFlagServiceImpl
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError> {
-        // Auth-only: any authenticated user can read flags
-        let user_id = self.permission_service.current_user_id(context).await?;
-        if user_id.is_none() {
-            return Err(ServiceError::Unauthorized);
+        // Auth-only: any authenticated user can read flags. `Authentication::Full`
+        // entspricht einem Service-zu-Service-Aufruf (Backend-internal trust)
+        // und passiert immer; alle anderen Kontexte muessen einen aktiven User
+        // liefern (Phase-2 Plan-04: ReportingService liest is_enabled mit
+        // Authentication::Full pro `get_report_for_employee_range`-Run).
+        if let Authentication::Context(_) = &context {
+            let user_id = self.permission_service.current_user_id(context).await?;
+            if user_id.is_none() {
+                return Err(ServiceError::Unauthorized);
+            }
         }
 
         let tx = self.transaction_dao.use_transaction(tx).await?;

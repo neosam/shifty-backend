@@ -135,6 +135,30 @@ async fn test_is_enabled_unauthenticated_rejected() {
     assert!(matches!(result, Err(ServiceError::Unauthorized)));
 }
 
+#[tokio::test]
+async fn test_is_enabled_authentication_full_bypasses_user_check() {
+    // Plan 02-04: ReportingService ruft is_enabled mit Authentication::Full
+    // (Service-zu-Service-Aufruf, Backend-internal trust). Das darf NICHT
+    // mit Unauthorized scheitern, auch wenn current_user_id None waere.
+    let mut deps = build_dependencies();
+    // Permission service muss NICHT konsultiert werden bei Authentication::Full.
+    // Wenn die Implementation current_user_id() doch ruft, ist das ein Bug.
+    deps.permission_service
+        .expect_current_user_id()
+        .times(0);
+    deps.feature_flag_dao
+        .expect_is_enabled()
+        .with(eq("absence_range_source_active"), always())
+        .returning(|_, _| Ok(true));
+
+    let service = deps.build_service();
+    let result = service
+        .is_enabled("absence_range_source_active", Authentication::Full, None)
+        .await;
+    assert!(result.is_ok());
+    assert!(result.unwrap(), "Authentication::Full muss DAO-Wert durchreichen");
+}
+
 // set tests ---------------------------------------------------------------
 
 #[tokio::test]

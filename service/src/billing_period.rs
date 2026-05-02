@@ -38,6 +38,11 @@ pub enum BillingPeriodValueType {
     ExtraWork,
     VacationHours,
     SickLeave,
+    /// Phase-2 D-Phase2-04: Persistierter UnpaidLeave-Wert (12. Variante).
+    /// Snapshot-Schema-Version 3+. Snapshots vor v3 enthalten KEINEN
+    /// `unpaid_leave`-Eintrag — `from_entities` liefert dort `None`,
+    /// was semantisch `0.0` entspricht.
+    UnpaidLeave,
     Holiday,
     Volunteer,
     CustomExtraHours(Arc<str>),
@@ -53,6 +58,7 @@ impl BillingPeriodValueType {
             BillingPeriodValueType::ExtraWork => "extra_work".into(),
             BillingPeriodValueType::VacationHours => "vacation_hours".into(),
             BillingPeriodValueType::SickLeave => "sick_leave".into(),
+            BillingPeriodValueType::UnpaidLeave => "unpaid_leave".into(),
             BillingPeriodValueType::Holiday => "holiday".into(),
             BillingPeriodValueType::Volunteer => "volunteer".into(),
             BillingPeriodValueType::CustomExtraHours(s) => {
@@ -75,6 +81,7 @@ impl FromStr for BillingPeriodValueType {
             "extra_work" => Ok(BillingPeriodValueType::ExtraWork),
             "vacation_hours" => Ok(BillingPeriodValueType::VacationHours),
             "sick_leave" => Ok(BillingPeriodValueType::SickLeave),
+            "unpaid_leave" => Ok(BillingPeriodValueType::UnpaidLeave),
             "holiday" => Ok(BillingPeriodValueType::Holiday),
             "volunteer" => Ok(BillingPeriodValueType::Volunteer),
             "vacation_days" => Ok(BillingPeriodValueType::VacationDays),

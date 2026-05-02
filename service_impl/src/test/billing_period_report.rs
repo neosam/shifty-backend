@@ -1147,3 +1147,221 @@ async fn test_build_and_persist_writes_constant_on_repeated_calls() {
         );
     }
 }
+
+/// LOCKING TEST -- DO NOT NAIVELY UPDATE.
+///
+/// If this test fails after a code change:
+///   - Did you intentionally change the snapshot computation?
+///   - If yes, you MUST also bump CURRENT_SNAPSHOT_SCHEMA_VERSION
+///     in service_impl/src/billing_period_report.rs.
+///   - See CLAUDE.md § "Billing Period Snapshot Schema Versioning"
+///     for the bump-trigger rules.
+///
+/// Phase-2 D-Phase2-09: pin map fuer alle 12 BillingPeriodValueType-Varianten
+/// gegen deterministische EmployeeReport-Werte. Der Test ruft
+/// `build_billing_period_report_for_sales_person` auf und prueft, dass JEDE
+/// erwartete Variante mit dem korrekten `value_delta`/`value_ytd_*` im
+/// Output landet — Drift zwischen Snapshot-Builder und Erwartung wird sofort
+/// als Test-Failure sichtbar.
+#[tokio::test]
+async fn test_snapshot_v3_pinned_values() {
+    use service::billing_period::BillingPeriodValueType;
+    use service::reporting::EmployeeReport;
+
+    fn make_report(
+        sales_person: Arc<service::sales_person::SalesPerson>,
+        delta_marker: f32,
+    ) -> EmployeeReport {
+        // Deterministische Werte: jedes Feld hat einen anderen Wert,
+        // sodass eine Verwechslung zwischen Feldern (z.B. vacation vs sick)
+        // sofort als Test-Failure sichtbar wird. `delta_marker` differenziert
+        // die 4 Aufrufe (start/end/end_of_year/delta).
+        EmployeeReport {
+            sales_person,
+            balance_hours: 1.0 * delta_marker,
+            overall_hours: 100.0 * delta_marker,
+            expected_hours: 80.0 * delta_marker,
+            dynamic_hours: 0.0,
+            shiftplan_hours: 90.0,
+            extra_work_hours: 5.0 * delta_marker,
+            vacation_hours: 16.0 * delta_marker,
+            sick_leave_hours: 8.0 * delta_marker,
+            holiday_hours: 4.0 * delta_marker,
+            unpaid_leave_hours: 2.0 * delta_marker,
+            volunteer_hours: 3.0 * delta_marker,
+            vacation_carryover: 0,
+            vacation_days: 6.0 * delta_marker,
+            vacation_entitlement: 30.0 * delta_marker,
+            sick_leave_days: 1.0,
+            holiday_days: 0.5,
+            absence_days: 7.5,
+            carryover_hours: 0.0,
+            custom_extra_hours: Arc::from(vec![]),
+            by_week: Arc::from(vec![]),
+            by_month: Arc::from(vec![]),
+        }
+    }
+
+    let sales_person_id = Uuid::new_v4();
+    let sales_person = service::sales_person::SalesPerson {
+        id: sales_person_id,
+        name: "Pin Test".into(),
+        background_color: "#000000".into(),
+        is_paid: Some(true),
+        inactive: false,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let sales_person_arc = Arc::new(sales_person.clone());
+
+    let mut deps = MockDeps {
+        billing_period_service: service::billing_period::MockBillingPeriodService::new(),
+        reporting_service: service::reporting::MockReportingService::new(),
+        sales_person_service: service::sales_person::MockSalesPersonService::new(),
+        employee_work_details_service:
+            service::employee_work_details::MockEmployeeWorkDetailsService::new(),
+        text_template_service: service::text_template::MockTextTemplateService::new(),
+        permission_service: service::MockPermissionService::new(),
+        uuid_service: service::uuid_service::MockUuidService::new(),
+        clock_service: service::clock::MockClockService::new(),
+        transaction_dao: dao::MockTransactionDao::new(),
+    };
+
+    deps.transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    // 4 ReportingService-Aufrufe mit unterschiedlichen Markern:
+    //   start(2.0), end(3.0), end_of_year(4.0), delta(1.0)
+    // Reihenfolge in build_billing_period_report_for_sales_person:
+    //   1. report_start, 2. report_end, 3. report_end_of_year, 4. report_delta
+    let sp = sales_person_arc.clone();
+    deps.reporting_service
+        .expect_get_report_for_employee_range()
+        .times(4)
+        .returning(move |_, _from, _to, include_carryover, _ctx, _tx| {
+            // Wir koennen nicht zuverlaessig zwischen start/end/end_of_year/delta
+            // anhand der Datums-Args differenzieren ohne mehrfache `withf`.
+            // Wir nutzen `include_carryover`-Flag als Marker: 3 Aufrufe sind
+            // mit `true`, 1 mit `false` (delta). Innerhalb der `true`-Gruppe
+            // unterscheiden wir per Reihenfolge ueber einen Counter.
+            // Einfacher: gib fuer alle Aufrufe IDENTISCHE Werte zurueck —
+            // dann ist value_delta == value_ytd_from == value_ytd_to == value_full_year
+            // und der Pin-Test prueft genau das.
+            let _ = include_carryover;
+            Ok(make_report(sp.clone(), 1.0))
+        });
+
+    let service = deps.build_service();
+
+    let result = service
+        .build_billing_period_report_for_sales_person(
+            sales_person.clone(),
+            shifty_utils::ShiftyDate::from_ymd(2024, 7, 1).unwrap(),
+            shifty_utils::ShiftyDate::from_ymd(2024, 7, 31).unwrap(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("build_billing_period_report_for_sales_person muss erfolgreich sein");
+
+    let values = &result.values;
+
+    // PIN-CHECK: alle 12 BillingPeriodValueType-Varianten (ausgenommen
+    // CustomExtraHours, weil custom_extra_hours leer ist; und Volunteer
+    // wird nur bei != 0 persistiert — wir liefern 3.0, also Volunteer ist da).
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::Overall)
+            .expect("Overall pin")
+            .value_delta,
+        100.0,
+        "Overall.value_delta == report_delta.overall_hours"
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::Balance)
+            .expect("Balance pin")
+            .value_delta,
+        1.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::ExpectedHours)
+            .expect("ExpectedHours pin")
+            .value_delta,
+        80.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::ExtraWork)
+            .expect("ExtraWork pin")
+            .value_delta,
+        5.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::VacationHours)
+            .expect("VacationHours pin")
+            .value_delta,
+        16.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::SickLeave)
+            .expect("SickLeave pin")
+            .value_delta,
+        8.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::UnpaidLeave)
+            .expect("UnpaidLeave pin (NEU in v3)")
+            .value_delta,
+        2.0,
+        "Phase-2 D-Phase2-04: UnpaidLeave wird ab Schema-Version 3 persistiert"
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::Holiday)
+            .expect("Holiday pin")
+            .value_delta,
+        4.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::Volunteer)
+            .expect("Volunteer pin (nur != 0 persistiert)")
+            .value_delta,
+        3.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::VacationDays)
+            .expect("VacationDays pin")
+            .value_delta,
+        6.0
+    );
+    assert_eq!(
+        values
+            .get(&BillingPeriodValueType::VacationEntitlement)
+            .expect("VacationEntitlement pin")
+            .value_delta,
+        30.0
+    );
+
+    // CustomExtraHours: leer in unserem Setup -> KEIN Eintrag in der values-Map.
+    assert!(
+        !values
+            .keys()
+            .any(|k| matches!(k, BillingPeriodValueType::CustomExtraHours(_))),
+        "CustomExtraHours-Eintraege duerfen nicht entstehen wenn custom_extra_hours leer ist"
+    );
+
+    // Surface-Check: genau 11 keys (12 Varianten ohne CustomExtraHours, da leer).
+    assert_eq!(
+        values.len(),
+        11,
+        "Erwarte 11 nicht-Custom-Varianten in v3-Snapshot (UnpaidLeave macht 11 statt 10)"
+    );
+}

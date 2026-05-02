@@ -4,10 +4,12 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
+    absence::{AbsenceCategory, AbsenceService},
     carryover::CarryoverService,
     clock::ClockService,
     employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
     extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType},
+    feature_flag::FeatureFlagService,
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
         CustomExtraHours, EmployeeReport, ExtraHoursReportCategory, GroupedReportHours,
@@ -65,6 +67,9 @@ gen_service_impl! {
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         ClockService: ClockService = clock_service,
         UuidService: UuidService = uuid_service,
+        // Phase-2 Plan-04: Feature-Flag-Switch + AbsenceService-derived hours.
+        FeatureFlagService: FeatureFlagService<Context = Self::Context, Transaction = Self::Transaction> = feature_flag_service,
+        AbsenceService: AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
@@ -464,6 +469,77 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             )
             .await?;
 
+        // Phase-2 Plan-04 (D-Phase2-08-A): Feature-Flag-gesteuerter
+        // Reporting-Switch. Einmaliger Read am Anfang; Wert ist konstant
+        // fuer den Rest der Funktion (T-02-04-03: keine Race-Condition).
+        let use_absence_range_source = self
+            .feature_flag_service
+            .is_enabled(
+                "absence_range_source_active",
+                Authentication::Full,
+                tx.clone(),
+            )
+            .await?;
+
+        // A2 Decision (CONTEXT, Pitfall 5): Wenn Flag=on, filtere
+        // Vacation/SickLeave/UnpaidLeave aus der ExtraHours-Liste
+        // BEVOR `hours_per_week` aggregiert. Eindeutige Quelle pro Run
+        // (T-02-04-04). ExtraWork/Holiday/Volunteer/Custom bleiben
+        // unangetastet. Schritt 1 + Schritt 2 (siehe PLAN B2-Fix).
+        let extra_hours: Arc<[ExtraHours]> = if use_absence_range_source {
+            extra_hours
+                .iter()
+                .filter(|eh| {
+                    !matches!(
+                        eh.category,
+                        ExtraHoursCategory::Vacation
+                            | ExtraHoursCategory::SickLeave
+                            | ExtraHoursCategory::UnpaidLeave
+                    )
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+                .into()
+        } else {
+            extra_hours
+        };
+
+        // Schritt 3 (B2-Fix): Bei Flag=on liefert `derive_hours_for_range`
+        // die conflict-resolved Per-Tag-Stunden. Wir summieren nach Kategorie
+        // fuer die EmployeeReport-Aggregat-Felder. Wochen-Aufschluesselung
+        // (`by_week[i].vacation_hours` etc.) bleibt 0.0 — akzeptierter
+        // Trade-off (Phase-2-Scope: nur Aggregat-Felder fliessen in Snapshot,
+        // siehe PLAN Schritt 4 / Pitfall 5).
+        let (
+            absence_derived_vacation_hours,
+            absence_derived_sick_leave_hours,
+            absence_derived_unpaid_leave_hours,
+        ): (f32, f32, f32) = if use_absence_range_source {
+            let derived = self
+                .absence_service
+                .derive_hours_for_range(
+                    from_date.to_date(),
+                    to_date.to_date(),
+                    *sales_person_id,
+                    context.clone(),
+                    tx.clone(),
+                )
+                .await?;
+            let mut v = 0.0_f32;
+            let mut s = 0.0_f32;
+            let mut u = 0.0_f32;
+            for resolved in derived.values() {
+                match resolved.category {
+                    AbsenceCategory::Vacation => v += resolved.hours,
+                    AbsenceCategory::SickLeave => s += resolved.hours,
+                    AbsenceCategory::UnpaidLeave => u += resolved.hours,
+                }
+            }
+            (v, s, u)
+        } else {
+            (0.0, 0.0, 0.0)
+        };
+
         let shiftplan_hours = shiftplan_report
             .iter()
             .filter(|r| {
@@ -560,27 +636,42 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::ExtraWork)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
-            vacation_hours: extra_hours
-                .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Vacation)
-                .map(|extra_hours| extra_hours.amount)
-                .sum(),
-            sick_leave_hours: extra_hours
-                .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::SickLeave)
-                .map(|extra_hours| extra_hours.amount)
-                .sum(),
+            // Phase-2 Plan-04: Bei Flag=on kommen vacation/sick_leave/unpaid_leave
+            // aus `AbsenceService::derive_hours_for_range`; bei Flag=off aus
+            // ExtraHours (pre-Phase-2-Verhalten, bit-identisch — SC-2).
+            vacation_hours: if use_absence_range_source {
+                absence_derived_vacation_hours
+            } else {
+                extra_hours
+                    .iter()
+                    .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Vacation)
+                    .map(|extra_hours| extra_hours.amount)
+                    .sum()
+            },
+            sick_leave_hours: if use_absence_range_source {
+                absence_derived_sick_leave_hours
+            } else {
+                extra_hours
+                    .iter()
+                    .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::SickLeave)
+                    .map(|extra_hours| extra_hours.amount)
+                    .sum()
+            },
             holiday_hours: extra_hours
                 .iter()
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
             volunteer_hours: by_week.iter().map(|w| w.volunteer_hours).sum::<f32>(),
-            unpaid_leave_hours: extra_hours
-                .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::UnpaidLeave)
-                .map(|extra_hours| extra_hours.amount)
-                .sum(),
+            unpaid_leave_hours: if use_absence_range_source {
+                absence_derived_unpaid_leave_hours
+            } else {
+                extra_hours
+                    .iter()
+                    .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::UnpaidLeave)
+                    .map(|extra_hours| extra_hours.amount)
+                    .sum()
+            },
             carryover_hours: previous_year_carryover,
             by_week,
             by_month: Arc::new([]),

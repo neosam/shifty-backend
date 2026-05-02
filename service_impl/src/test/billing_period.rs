@@ -349,3 +349,80 @@ async fn test_delete_billing_period_cascades_sales_person_entries() {
 
     assert!(result.is_ok());
 }
+
+/// Phase-2 SC-5 (D-Phase2-05): v2-Snapshots ohne `unpaid_leave`-Zeile bleiben
+/// nach dem Schema-Bump 2->3 lesbar. `BillingPeriodSalesPerson::from_entities`
+/// ignoriert fehlende `value_type`s — der Caller bekommt
+/// `values.get(&UnpaidLeave) == None`, was semantisch `0.0` entspricht.
+#[test]
+fn test_from_entities_missing_unpaid_leave_is_zero() {
+    use dao::billing_period_sales_person::BillingPeriodSalesPersonEntity;
+    use service::billing_period::{BillingPeriodSalesPerson, BillingPeriodValueType};
+
+    let id = Uuid::new_v4();
+    let billing_period_id = Uuid::new_v4();
+    let sales_person_id = Uuid::new_v4();
+    let now = datetime!(2024 - 06 - 01 10:00:00);
+
+    // v2-Snapshot: enthaelt `vacation_hours` und `sick_leave`, aber KEINE
+    // `unpaid_leave`-Zeile (typisch fuer alle vor Phase-2-Plan-04 erzeugten
+    // Snapshots).
+    let entities = vec![
+        BillingPeriodSalesPersonEntity {
+            id,
+            billing_period_id,
+            sales_person_id,
+            value_type: "vacation_hours".into(),
+            value_delta: 16.0,
+            value_ytd_from: 0.0,
+            value_ytd_to: 16.0,
+            value_full_year: 16.0,
+            created_at: now,
+            created_by: "v2-snapshot".into(),
+            deleted_at: None,
+            deleted_by: None,
+        },
+        BillingPeriodSalesPersonEntity {
+            id,
+            billing_period_id,
+            sales_person_id,
+            value_type: "sick_leave".into(),
+            value_delta: 8.0,
+            value_ytd_from: 0.0,
+            value_ytd_to: 8.0,
+            value_full_year: 8.0,
+            created_at: now,
+            created_by: "v2-snapshot".into(),
+            deleted_at: None,
+            deleted_by: None,
+        },
+    ];
+
+    let result = BillingPeriodSalesPerson::from_entities(&entities)
+        .expect("v2-Snapshot mit Entities muss BillingPeriodSalesPerson liefern");
+
+    // Vacation/SickLeave sind in der values-Map, weil sie als `value_type`
+    // existierten.
+    assert!(
+        result
+            .values
+            .contains_key(&BillingPeriodValueType::VacationHours),
+        "vacation_hours muss in v2-Snapshot lesbar sein"
+    );
+    assert!(
+        result
+            .values
+            .contains_key(&BillingPeriodValueType::SickLeave),
+        "sick_leave muss in v2-Snapshot lesbar sein"
+    );
+
+    // KERN-ASSERT: UnpaidLeave fehlt in der Map (kein Eintrag in v2).
+    // Caller-Konvention: `.get().map(|v| v.value_delta).unwrap_or(0.0)`.
+    assert!(
+        result
+            .values
+            .get(&BillingPeriodValueType::UnpaidLeave)
+            .is_none(),
+        "v2-Snapshot ohne unpaid_leave-Zeile muss get(UnpaidLeave) == None liefern (semantisch 0.0)"
+    );
+}

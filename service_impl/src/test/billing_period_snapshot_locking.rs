@@ -51,12 +51,12 @@ fn test_billing_period_value_type_surface_locked() {
             BillingPeriodValueType::ExtraWork => {}
             BillingPeriodValueType::VacationHours => {}
             BillingPeriodValueType::SickLeave => {}
+            BillingPeriodValueType::UnpaidLeave => {}
             BillingPeriodValueType::Holiday => {}
             BillingPeriodValueType::Volunteer => {}
             BillingPeriodValueType::VacationDays => {}
             BillingPeriodValueType::VacationEntitlement => {}
             BillingPeriodValueType::CustomExtraHours(_) => {}
-            // POST-WAVE-2: BillingPeriodValueType::UnpaidLeave => {}
         }
     }
     // Compiler-only Check: ensure_locked wird nie aufgerufen.
