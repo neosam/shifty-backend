@@ -19,7 +19,7 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
-use rest_types::{AbsenceCategoryTO, AbsencePeriodTO};
+use rest_types::{AbsenceCategoryTO, AbsencePeriodCreateResultTO, AbsencePeriodTO, WarningTO};
 use service::absence::AbsenceService;
 use tracing::instrument;
 use utoipa::OpenApi;
@@ -47,7 +47,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     tags = ["Absence"],
     request_body = AbsencePeriodTO,
     responses(
-        (status = 201, description = "Absence period created", body = AbsencePeriodTO),
+        (status = 201, description = "Absence period created (with warnings if any)", body = AbsencePeriodCreateResultTO),
         (status = 403, description = "Forbidden"),
         (status = 422, description = "Validation error"),
     ),
@@ -60,17 +60,16 @@ pub async fn create_absence_period<RestState: RestStateDef>(
     error_handler(
         (async {
             let svc = rest_state.absence_service();
-            // Phase-3-Plan-03 minimaler Diff: Wrapper-Result wird unwrappt
-            // und nur `.absence` in den Body gemappt — Warnings werden
-            // dropped. Plan 05 ergänzt `AbsencePeriodCreateResultTO` und
-            // dreht die Body-Form um.
-            // TODO Plan-05: AbsencePeriodCreateResultTO statt AbsencePeriodTO im Body.
+            // Phase-3 Plan-05: Body ist jetzt der volle Wrapper-Result
+            // mit Forward-Warnings (BOOK-01). Frontend rendert
+            // `.warnings` als Liste; `.absence` ist die persistierte
+            // AbsencePeriod (analog Phase 1).
             let result = svc.create(&(&body).into(), context.into(), None).await?;
-            let entity = AbsencePeriodTO::from(&result.absence);
+            let to = AbsencePeriodCreateResultTO::from(&result);
             Ok(Response::builder()
                 .status(201)
                 .header("Content-Type", "application/json")
-                .body(Body::new(serde_json::to_string(&entity).unwrap()))
+                .body(Body::new(serde_json::to_string(&to).unwrap()))
                 .unwrap())
         })
         .await,
@@ -146,7 +145,7 @@ pub async fn get_absence_period<RestState: RestStateDef>(
     params(("id", description = "Absence period logical id")),
     request_body = AbsencePeriodTO,
     responses(
-        (status = 200, description = "Updated absence period", body = AbsencePeriodTO),
+        (status = 200, description = "Updated absence period (with warnings if any)", body = AbsencePeriodCreateResultTO),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Not found"),
         (status = 409, description = "Version conflict"),
@@ -164,13 +163,14 @@ pub async fn update_absence_period<RestState: RestStateDef>(
             let svc = rest_state.absence_service();
             let mut entity: service::absence::AbsencePeriod = (&body).into();
             entity.id = absence_id; // path-id wins (D-01 / Pitfall guard)
-            // TODO Plan-05: AbsencePeriodCreateResultTO statt AbsencePeriodTO im Body.
+            // Phase-3 Plan-05: Body ist jetzt der volle Wrapper-Result
+            // mit Forward-Warnings (BOOK-01).
             let result = svc.update(&entity, context.into(), None).await?;
-            let updated = AbsencePeriodTO::from(&result.absence);
+            let to = AbsencePeriodCreateResultTO::from(&result);
             Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
-                .body(Body::new(serde_json::to_string(&updated).unwrap()))
+                .body(Body::new(serde_json::to_string(&to).unwrap()))
                 .unwrap())
         })
         .await,
@@ -247,7 +247,12 @@ pub async fn get_absence_periods_for_sales_person<RestState: RestStateDef>(
         delete_absence_period,
         get_absence_periods_for_sales_person,
     ),
-    components(schemas(AbsencePeriodTO, AbsenceCategoryTO)),
+    components(schemas(
+        AbsencePeriodTO,
+        AbsenceCategoryTO,
+        AbsencePeriodCreateResultTO,
+        WarningTO,
+    )),
     tags(
         (name = "Absence", description = "Absence period management (range-based)"),
     ),

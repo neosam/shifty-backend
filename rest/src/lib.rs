@@ -470,6 +470,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/blocks", api = my_block::MyBlockApiDoc),
         (path = "/report", api = report::ReportApiDoc),
         (path = "/shiftplan-catalog", api = shiftplan_catalog::ShiftplanCatalogApiDoc),
+        (path = "/shiftplan-edit", api = shiftplan_edit::ShiftplanEditApiDoc),
         (path = "/shiftplan-info", api = shiftplan::ShiftplanApiDoc),
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
