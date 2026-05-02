@@ -974,6 +974,11 @@ pub struct ShiftplanSlotTO {
 pub struct ShiftplanDayTO {
     pub day_of_week: DayOfWeekTO,
     pub slots: Vec<ShiftplanSlotTO>,
+    /// Phase-3-Marker — gesetzt nur durch die per-sales-person-Sicht
+    /// (`get_shiftplan_*_for_sales_person`). Globale Schichtplan-Endpunkte
+    /// lassen das Feld immer `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unavailable: Option<UnavailabilityMarkerTO>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -1010,6 +1015,7 @@ impl From<&service::shiftplan::ShiftplanDay> for ShiftplanDayTO {
         Self {
             day_of_week: day.day_of_week.into(),
             slots: day.slots.iter().map(Into::into).collect(),
+            unavailable: day.unavailable.as_ref().map(UnavailabilityMarkerTO::from),
         }
     }
 }
@@ -1618,6 +1624,206 @@ impl From<&AbsencePeriodTO> for service::absence::AbsencePeriod {
             created: a.created,
             deleted: a.deleted,
             version: a.version,
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Phase 3 — Cross-Source-Warning + Wrapper-Result-DTOs
+// ──────────────────────────────────────────────────────────────────────
+//
+// 5 inline DTOs für die Phase-3 REST-Surface:
+// * `WarningTO`             — Tag-Enum (4 Varianten), JSON-Form
+//                             `{ "kind": ..., "data": { ... } }`.
+// * `UnavailabilityMarkerTO`— Tag-Enum (3 Varianten) für die per-sales-
+//                             person-Sicht (`ShiftplanDayTO.unavailable`).
+// * `BookingCreateResultTO` — Wrapper für `POST /shiftplan-edit/booking`.
+// * `CopyWeekResultTO`      — Wrapper für `POST /shiftplan-edit/copy-week`.
+// * `AbsencePeriodCreateResultTO` — Wrapper für `POST /absence-period`
+//                             und `PATCH /absence-period/{id}`.
+//
+// Tag-Enums nutzen `#[serde(tag = "kind", content = "data",
+// rename_all = "snake_case")]` (utoipa-5-Support für `#[serde(tag,
+// content)]`, RESEARCH.md Pattern 4).
+
+/// Cross-Source-Konflikt-Warning für REST. Eine Warning pro betroffenem
+/// Booking-Tag (D-Phase3-15: KEINE De-Dup zwischen Quellen).
+///
+/// JSON-Form: `{ "kind": "booking_on_absence_day", "data": { ... } }`.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "kind", content = "data", rename_all = "snake_case")]
+pub enum WarningTO {
+    /// Beim Anlegen eines Bookings auf einem Tag, der durch eine
+    /// AbsencePeriod abgedeckt ist (Reverse-Warning, BOOK-02).
+    BookingOnAbsenceDay {
+        booking_id: Uuid,
+        #[schema(value_type = String, format = "date")]
+        date: time::Date,
+        absence_id: Uuid,
+        category: AbsenceCategoryTO,
+    },
+    /// Beim Anlegen eines Bookings auf einem Tag, der durch
+    /// `sales_person_unavailable` abgedeckt ist (Reverse-Warning,
+    /// BOOK-02).
+    BookingOnUnavailableDay {
+        booking_id: Uuid,
+        year: u32,
+        week: u8,
+        day_of_week: DayOfWeekTO,
+    },
+    /// Beim Anlegen einer AbsencePeriod, die ein bestehendes Booking
+    /// überlappt (Forward-Warning, BOOK-01).
+    AbsenceOverlapsBooking {
+        absence_id: Uuid,
+        booking_id: Uuid,
+        #[schema(value_type = String, format = "date")]
+        date: time::Date,
+    },
+    /// Beim Anlegen einer AbsencePeriod, die einen bestehenden manuellen
+    /// `sales_person_unavailable`-Eintrag überdeckt (Forward-Warning,
+    /// BOOK-01, D-Phase3-16: KEIN Auto-Cleanup).
+    AbsenceOverlapsManualUnavailable {
+        absence_id: Uuid,
+        unavailable_id: Uuid,
+    },
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::warning::Warning> for WarningTO {
+    fn from(w: &service::warning::Warning) -> Self {
+        match w {
+            service::warning::Warning::BookingOnAbsenceDay {
+                booking_id,
+                date,
+                absence_id,
+                category,
+            } => Self::BookingOnAbsenceDay {
+                booking_id: *booking_id,
+                date: *date,
+                absence_id: *absence_id,
+                category: category.into(),
+            },
+            service::warning::Warning::BookingOnUnavailableDay {
+                booking_id,
+                year,
+                week,
+                day_of_week,
+            } => Self::BookingOnUnavailableDay {
+                booking_id: *booking_id,
+                year: *year,
+                week: *week,
+                day_of_week: (*day_of_week).into(),
+            },
+            service::warning::Warning::AbsenceOverlapsBooking {
+                absence_id,
+                booking_id,
+                date,
+            } => Self::AbsenceOverlapsBooking {
+                absence_id: *absence_id,
+                booking_id: *booking_id,
+                date: *date,
+            },
+            service::warning::Warning::AbsenceOverlapsManualUnavailable {
+                absence_id,
+                unavailable_id,
+            } => Self::AbsenceOverlapsManualUnavailable {
+                absence_id: *absence_id,
+                unavailable_id: *unavailable_id,
+            },
+        }
+    }
+}
+
+/// Per-Tag-Marker für die per-sales-person-Sicht (D-Phase3-10). Tag-Enum
+/// analog [`WarningTO`].
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "kind", content = "data", rename_all = "snake_case")]
+pub enum UnavailabilityMarkerTO {
+    AbsencePeriod {
+        absence_id: Uuid,
+        category: AbsenceCategoryTO,
+    },
+    ManualUnavailable,
+    /// Doppel-Quelle: AbsencePeriod UND ManualUnavailable am selben Tag.
+    /// `absence_id`/`category` der AbsencePeriod werden mitgeführt
+    /// (semantisch reicher).
+    Both {
+        absence_id: Uuid,
+        category: AbsenceCategoryTO,
+    },
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan::UnavailabilityMarker> for UnavailabilityMarkerTO {
+    fn from(m: &service::shiftplan::UnavailabilityMarker) -> Self {
+        match m {
+            service::shiftplan::UnavailabilityMarker::AbsencePeriod {
+                absence_id,
+                category,
+            } => Self::AbsencePeriod {
+                absence_id: *absence_id,
+                category: category.into(),
+            },
+            service::shiftplan::UnavailabilityMarker::ManualUnavailable => Self::ManualUnavailable,
+            service::shiftplan::UnavailabilityMarker::Both {
+                absence_id,
+                category,
+            } => Self::Both {
+                absence_id: *absence_id,
+                category: category.into(),
+            },
+        }
+    }
+}
+
+/// Wrapper für `POST /shiftplan-edit/booking` (BOOK-02 Reverse-Warning).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BookingCreateResultTO {
+    pub booking: BookingTO,
+    pub warnings: Vec<WarningTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan_edit::BookingCreateResult> for BookingCreateResultTO {
+    fn from(r: &service::shiftplan_edit::BookingCreateResult) -> Self {
+        Self {
+            booking: BookingTO::from(&r.booking),
+            warnings: r.warnings.iter().map(WarningTO::from).collect(),
+        }
+    }
+}
+
+/// Wrapper für `POST /shiftplan-edit/copy-week` (BOOK-02 / D-Phase3-02).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CopyWeekResultTO {
+    pub copied_bookings: Vec<BookingTO>,
+    pub warnings: Vec<WarningTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::shiftplan_edit::CopyWeekResult> for CopyWeekResultTO {
+    fn from(r: &service::shiftplan_edit::CopyWeekResult) -> Self {
+        Self {
+            copied_bookings: r.copied_bookings.iter().map(BookingTO::from).collect(),
+            warnings: r.warnings.iter().map(WarningTO::from).collect(),
+        }
+    }
+}
+
+/// Wrapper für `POST /absence-period` und `PATCH /absence-period/{id}`
+/// (BOOK-01 Forward-Warning).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct AbsencePeriodCreateResultTO {
+    pub absence: AbsencePeriodTO,
+    pub warnings: Vec<WarningTO>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::absence::AbsencePeriodCreateResult> for AbsencePeriodCreateResultTO {
+    fn from(r: &service::absence::AbsencePeriodCreateResult) -> Self {
+        Self {
+            absence: AbsencePeriodTO::from(&r.absence),
+            warnings: r.warnings.iter().map(WarningTO::from).collect(),
         }
     }
 }
