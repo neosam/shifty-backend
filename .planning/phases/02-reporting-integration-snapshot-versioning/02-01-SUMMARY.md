@@ -134,6 +134,18 @@ Jeder Task wurde atomar via `jj describe` + `jj new` committed:
 - **`hx`-Editor-Crash bei `jj describe`/`jj split` ohne TTY.** Helix-Editor versucht `crossterm` zu initialisieren und panickt mit "reader source not set". Workaround: `JJ_EDITOR=true jj describe -m '...'` (no-op-Editor uebernimmt die `-m`-Description direkt). Anwendbar fuer alle weiteren `jj`-Befehle in headless/agent-Kontexten.
 - **`jj split` braucht `--interactive` per Default.** Wenn man Filesets als positional args gibt, ist der Modus implizit non-interactive — aber jj startet trotzdem den Editor fuer die Description-Bearbeitung. `JJ_EDITOR=true` umgeht das.
 
+### Out-of-Scope-Discovery (siehe deferred-items.md)
+
+`cargo test --workspace --no-fail-fast` zeigt 8 fehlschlagende Phase-1-Integration-Tests
+in `shifty_bin/src/integration_test/absence_period.rs` mit
+`SqliteError "no such table: absence_period"`. Ursache: fehlende
+`<TS>_create-absence-period.sql`-Migration. Pre-existing Phase-1-Luecke,
+**ausserhalb des Plan-02-01-Scopes**. Doku in
+`.planning/phases/02-reporting-integration-snapshot-versioning/deferred-items.md`.
+
+Auswirkung auf Plan-02-01-Erfolg: KEINE — Wave-0-Tests sind alle
+service_impl-Lib-Tests, kein DB-Zugriff.
+
 ## Self-Verification
 
 Lokale Verifikation der Acceptance-Criteria:
