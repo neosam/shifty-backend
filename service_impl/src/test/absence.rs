@@ -808,3 +808,244 @@ async fn test_find_all_non_hr_is_forbidden() {
     let result = service.find_all(Authentication::Full, None).await;
     test_forbidden(&result);
 }
+
+// =========================================================================
+// Phase 3 — Forward-Warning-Tests (Plan 03-06 / BOOK-01)
+//
+// Tests den Forward-Warning-Loop in `compute_forward_warnings`, der NACH
+// dem DAO-Persist von `create`/`update` läuft. Pro Booking-Tag in der
+// neuen Range entsteht eine `Warning::AbsenceOverlapsBooking`; pro
+// überlappendem ManualUnavailable eine
+// `Warning::AbsenceOverlapsManualUnavailable`. D-Phase3-15: keine De-Dup.
+// =========================================================================
+
+use service::booking::Booking;
+use service::sales_person_unavailable::SalesPersonUnavailable;
+use service::warning::Warning;
+
+/// Booking auf 2026-04-13 (W16 Mon) — liegt INNERHALB von
+/// `default_create_request()` und `default_update_request()` (beide Ranges
+/// schließen W16 Mon ein).
+fn fixture_booking_in_range() -> Booking {
+    Booking {
+        id: uuid!("BB000000-0000-0000-0000-0000000000A1"),
+        sales_person_id: default_sales_person_id(),
+        slot_id: uuid!("7A7FF57A-782B-4C2E-A68B-4E2D81D79380"),
+        calendar_week: 16,
+        year: 2026,
+        created: Some(datetime!(2026 - 04 - 01 12:00:00)),
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: uuid!("BB000000-0000-0000-0000-0000000000B1"),
+    }
+}
+
+/// ManualUnavailable auf 2026-04-13 (W16 Mon) — liegt INNERHALB der
+/// Default-Create-Range.
+fn fixture_manual_unavailable_in_range() -> SalesPersonUnavailable {
+    SalesPersonUnavailable {
+        id: uuid!("CC000000-0000-0000-0000-0000000000A1"),
+        sales_person_id: default_sales_person_id(),
+        year: 2026,
+        calendar_week: 16,
+        day_of_week: DayOfWeek::Monday,
+        created: Some(datetime!(2026 - 04 - 01 12:00:00)),
+        deleted: None,
+        version: uuid!("CC000000-0000-0000-0000-0000000000B1"),
+    }
+}
+
+#[tokio::test]
+async fn test_create_warning_for_booking_in_range() {
+    // SC1 / Forward-Warning auf einem Booking in der neuen Range.
+    let mut deps = build_dependencies();
+    deps.absence_dao
+        .expect_find_overlapping()
+        .returning(|_, _, _, _, _| Ok(Arc::from([])));
+    deps.absence_dao
+        .expect_create()
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .returning(|_| alternate_physical_id());
+
+    // BookingService liefert pro Wochenaufruf je 1 Booking auf Monday.
+    // Forward-Warning-Loop iteriert über die Range; W15 hat den Sonntag,
+    // W16 hat Mon-Wed. Slot ist Monday → nur W16-Mon matcht.
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![fixture_booking_in_range()])));
+
+    let service = deps.build_service();
+    let result = service
+        .create(&default_create_request(), Authentication::Full, None)
+        .await
+        .expect("create should succeed");
+
+    assert!(
+        !result.warnings.is_empty(),
+        "expected at least one forward warning, got 0"
+    );
+    let any_booking_warning = result.warnings.iter().any(|w| {
+        matches!(
+            w,
+            Warning::AbsenceOverlapsBooking { booking_id, date, .. }
+                if *booking_id == fixture_booking_in_range().id
+                    && *date == date!(2026 - 04 - 13)
+        )
+    });
+    assert!(
+        any_booking_warning,
+        "expected AbsenceOverlapsBooking with booking-id + date 2026-04-13, got {:?}",
+        result.warnings
+    );
+    // absence_id muss auf die NEU erstellte AbsencePeriod zeigen.
+    for w in result.warnings.iter() {
+        if let Warning::AbsenceOverlapsBooking { absence_id, .. } = w {
+            assert_eq!(*absence_id, alternate_physical_id());
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_create_warning_for_manual_unavailable_in_range() {
+    // Forward-Warning bei ManualUnavailable in der neuen Range.
+    let mut deps = build_dependencies();
+    deps.absence_dao
+        .expect_find_overlapping()
+        .returning(|_, _, _, _, _| Ok(Arc::from([])));
+    deps.absence_dao
+        .expect_create()
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .returning(|_| alternate_physical_id());
+
+    deps.sales_person_unavailable_service.checkpoint();
+    deps.sales_person_unavailable_service
+        .expect_get_all_for_sales_person()
+        .returning(|_, _, _| Ok(Arc::from(vec![fixture_manual_unavailable_in_range()])));
+
+    let service = deps.build_service();
+    let result = service
+        .create(&default_create_request(), Authentication::Full, None)
+        .await
+        .expect("create should succeed");
+
+    let manual_warning = result.warnings.iter().find(|w| {
+        matches!(
+            w,
+            Warning::AbsenceOverlapsManualUnavailable { unavailable_id, .. }
+                if *unavailable_id == fixture_manual_unavailable_in_range().id
+        )
+    });
+    assert!(
+        manual_warning.is_some(),
+        "expected AbsenceOverlapsManualUnavailable, got {:?}",
+        result.warnings
+    );
+    if let Some(Warning::AbsenceOverlapsManualUnavailable { absence_id, .. }) = manual_warning {
+        assert_eq!(*absence_id, alternate_physical_id());
+    }
+}
+
+#[tokio::test]
+async fn test_update_returns_warnings_for_full_new_range() {
+    // D-Phase3-04: update-Warnings für ALLE Tage der NEUEN Range, kein
+    // Diff-Modus. Update erweitert Range bis 2026-04-20 (W17 Mon) — Booking
+    // auf W16 Mon UND Booking auf W17 Mon würden beide warnen, falls beide
+    // im Mock vorhanden. Hier: 1 Booking auf W16 Mon + 1 weiteres auf W17
+    // Mon → 2 Forward-Warnings.
+    let mut deps = build_dependencies();
+    deps.absence_dao
+        .expect_find_by_logical_id()
+        .returning(|_, _| Ok(Some(default_active_entity())));
+    deps.absence_dao
+        .expect_find_overlapping()
+        .returning(|_, _, _, _, _| Ok(Arc::from([])));
+    deps.absence_dao
+        .expect_update()
+        .returning(|_, _, _| Ok(()));
+    deps.absence_dao
+        .expect_create()
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .returning(|_| alternate_physical_id());
+
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|week, year, _, _| {
+            // W16 → Booking-Mon; W17 → weiteres Booking-Mon.
+            let booking = Booking {
+                id: uuid!("BB000000-0000-0000-0000-0000000000C0"),
+                sales_person_id: default_sales_person_id(),
+                slot_id: uuid!("7A7FF57A-782B-4C2E-A68B-4E2D81D79380"),
+                calendar_week: week as i32,
+                year,
+                created: Some(datetime!(2026 - 04 - 01 12:00:00)),
+                deleted: None,
+                created_by: None,
+                deleted_by: None,
+                version: Uuid::nil(),
+            };
+            if year == 2026 && (week == 16 || week == 17) {
+                Ok(Arc::from(vec![booking]))
+            } else {
+                Ok(Arc::from(Vec::<Booking>::new()))
+            }
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .update(&default_update_request(), Authentication::Full, None)
+        .await
+        .expect("update should succeed");
+
+    let booking_warnings: Vec<&Warning> = result
+        .warnings
+        .iter()
+        .filter(|w| matches!(w, Warning::AbsenceOverlapsBooking { .. }))
+        .collect();
+    assert_eq!(
+        booking_warnings.len(),
+        2,
+        "expected 2 booking-warnings (W16 Mon + W17 Mon — full new range, no diff), got {:?}",
+        result.warnings
+    );
+    // absence_id muss auf den logical_id (= default_logical_id) zeigen
+    // (D-07: stable über Updates).
+    for w in booking_warnings.iter() {
+        if let Warning::AbsenceOverlapsBooking { absence_id, .. } = w {
+            assert_eq!(*absence_id, default_logical_id());
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_find_overlapping_for_booking_forbidden() {
+    // D-Phase3-12: Permission HR ∨ verify_user_is_sales_person — beide
+    // Pfade Forbidden → Forbidden propagiert.
+    use shifty_utils::DateRange;
+
+    let mut deps = build_dependencies();
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .with(eq(HR_PRIVILEGE), always())
+        .returning(|_, _| Err(ServiceError::Forbidden));
+    deps.sales_person_service.checkpoint();
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
+
+    let service = deps.build_service();
+    let range = DateRange::new(date!(2026 - 04 - 12), date!(2026 - 04 - 15)).unwrap();
+    let result = service
+        .find_overlapping_for_booking(default_sales_person_id(), range, Authentication::Full, None)
+        .await;
+    test_forbidden(&result);
+}
