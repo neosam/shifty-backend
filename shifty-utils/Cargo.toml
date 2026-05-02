@@ -7,6 +7,9 @@ edition = "2024"
 thiserror = "2.0.12"
 time = "0.3.41"
 
+[dev-dependencies]
+time = { version = "0.3.41", features = ["macros"] }
+
 
 [lints.rust]
 warnings = "deny"

@@ -52,6 +52,9 @@ pub enum ValidationFailureItem {
     InvalidValue(Arc<str>),
     IdDoesNotExist(Arc<str>, Uuid),
     Duplicate,
+    /// Eine andere `AbsencePeriod` (logical_id) ueberlappt den angefragten
+    /// Zeitraum (Phase 1, D-13/D-15).
+    OverlappingPeriod(Uuid),
 }
 
 #[derive(Debug, Error)]

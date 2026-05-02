@@ -9,6 +9,83 @@ pub enum ShiftyDateUtilsError {
     DateError(#[from] time::error::ComponentRange),
 }
 
+/// Inklusiver Datums-Range `[from..=to]`.
+///
+/// Konstruktor lehnt invertierte Ranges (`to < from`) ab. Nutzbar als Domain-
+/// Modell fuer alles Range-basierte: Absence-Perioden (Phase 1), Per-Tag-
+/// Iteration in `derive_hours_for_range` (Phase 2), Booking-Konflikt-Detection
+/// (Phase 3) etc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DateRange {
+    from: time::Date,
+    to: time::Date,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum DateRangeError {
+    #[error("Invalid date range: from ({from}) > to ({to})")]
+    Inverted { from: time::Date, to: time::Date },
+}
+
+impl DateRange {
+    /// Erstellt einen neuen inklusiven `DateRange`. Lehnt invertierte Ranges ab.
+    pub fn new(from: time::Date, to: time::Date) -> Result<Self, DateRangeError> {
+        if to < from {
+            return Err(DateRangeError::Inverted { from, to });
+        }
+        Ok(Self { from, to })
+    }
+
+    pub fn from(&self) -> time::Date {
+        self.from
+    }
+
+    pub fn to(&self) -> time::Date {
+        self.to
+    }
+
+    /// Anzahl Tage im Range (inklusiv): `to - from + 1`.
+    pub fn day_count(&self) -> u64 {
+        // `from <= to` ist via `new()` invariant; `to - from` ist daher non-negative.
+        let diff = (self.to - self.from).whole_days();
+        // `+1` weil Range inklusiv.
+        (diff as u64) + 1
+    }
+
+    /// Iteriert pro Tag von `from` (inkl) bis `to` (inkl).
+    pub fn iter_days(&self) -> DateRangeIterator {
+        DateRangeIterator {
+            current: Some(self.from),
+            end: self.to,
+        }
+    }
+}
+
+pub struct DateRangeIterator {
+    current: Option<time::Date>,
+    end: time::Date,
+}
+
+impl Iterator for DateRangeIterator {
+    type Item = time::Date;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.current?;
+        if cur > self.end {
+            self.current = None;
+            return None;
+        }
+        // Vor dem naechsten Schritt next_day() berechnen, um Overflow am Date::MAX
+        // zu vermeiden.
+        if cur == self.end {
+            self.current = None;
+        } else {
+            self.current = cur.next_day();
+        }
+        Some(cur)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub enum DayOfWeek {
     Monday,
@@ -335,5 +412,61 @@ mod tests {
         assert_eq!(max_date1, date2);
         assert_eq!(max_date2, date3);
         assert_eq!(max_date3, date4);
+    }
+
+    #[test]
+    fn date_range_accepts_valid_inclusive_range() {
+        let from = time::macros::date!(2024 - 06 - 03);
+        let to = time::macros::date!(2024 - 06 - 09);
+        let range = DateRange::new(from, to).expect("valid range must succeed");
+        assert_eq!(range.from(), from);
+        assert_eq!(range.to(), to);
+    }
+
+    #[test]
+    fn date_range_accepts_single_day() {
+        let day = time::macros::date!(2024 - 06 - 03);
+        let range = DateRange::new(day, day).expect("from == to is valid");
+        assert_eq!(range.day_count(), 1);
+    }
+
+    #[test]
+    fn date_range_rejects_inverted_range() {
+        let later = time::macros::date!(2024 - 06 - 09);
+        let earlier = time::macros::date!(2024 - 06 - 03);
+        let result = DateRange::new(later, earlier);
+        assert!(matches!(result, Err(DateRangeError::Inverted { .. })));
+    }
+
+    #[test]
+    fn date_range_day_count_inclusive() {
+        let from = time::macros::date!(2024 - 06 - 03); // Mo
+        let to = time::macros::date!(2024 - 06 - 09); // So
+        let range = DateRange::new(from, to).unwrap();
+        assert_eq!(range.day_count(), 7);
+    }
+
+    #[test]
+    fn date_range_iter_days_visits_all_days_inclusive() {
+        let from = time::macros::date!(2024 - 06 - 03);
+        let to = time::macros::date!(2024 - 06 - 05);
+        let range = DateRange::new(from, to).unwrap();
+        let days: Vec<time::Date> = range.iter_days().collect();
+        assert_eq!(
+            days,
+            vec![
+                time::macros::date!(2024 - 06 - 03),
+                time::macros::date!(2024 - 06 - 04),
+                time::macros::date!(2024 - 06 - 05),
+            ]
+        );
+    }
+
+    #[test]
+    fn date_range_iter_days_single_day() {
+        let day = time::macros::date!(2024 - 06 - 03);
+        let range = DateRange::new(day, day).unwrap();
+        let days: Vec<time::Date> = range.iter_days().collect();
+        assert_eq!(days, vec![day]);
     }
 }
