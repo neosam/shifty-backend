@@ -83,7 +83,27 @@ Plans:
   3. Eine Shift-Plan-Anzeige für einen Mitarbeiter über einen Zeitraum markiert alle Tage als nicht verfügbar, wenn ein `AbsencePeriod` den Tag enthält **oder** ein `sales_person_unavailable`-Eintrag existiert; manuelle `sales_person_unavailable`-Einträge bleiben für Einzeltage außerhalb fester Zeiträume möglich (kein Konflikt zwischen den Quellen).
   4. Soft-deleted `AbsencePeriod`s triggern keine Warnung und keine Shift-Plan-Markierung (Pitfall-6-Test grün).
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+**Wave 1**
+- [ ] 03-01-PLAN.md — Wave 0 Test-Scaffolding (Stubs für Reverse-Warning + Cross-Source + Pitfall-1)
+- [ ] 03-02-PLAN.md — Wave 1 Domain-Surface (Warning-Enum + AbsenceDao::find_overlapping_for_booking + UnavailabilityMarker + ShiftplanDay-Field)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 03-03-PLAN.md — Wave 2 AbsenceService (Sig-Brüche create/update + Forward-Warning-Loop + neue DI-Deps)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 03-04-PLAN.md — Wave 3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 03-05-PLAN.md — Wave 4 REST-Layer (5 Wrapper-DTOs + 4 neue Endpunkte + ApiDoc; D-Phase3-18 Regression-Lock)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 03-06-PLAN.md — Wave 5 Tests aktivieren + Integration-Tests + SC1-SC4-Verifikation + ROADMAP-Update
+
+**Cross-cutting constraints:**
+- BookingService-Files (`service/src/booking.rs`, `service_impl/src/booking.rs`, `rest/src/booking.rs`, `service_impl/src/test/booking.rs`) bleiben UNVERÄNDERT (D-Phase3-18 Regression-Lock).
 
 **Discuss-phase carry-overs**: keine offenen Entscheidungen blockierend für diese Phase. Reverse-Warning-Direction ist durch BOOK-02 bereits eindeutig festgelegt (symmetrisch).
 
@@ -133,7 +153,7 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 |---|---|---|---|
 | 1 — Absence Domain Foundation | parallele `absence` Domain end-to-end, additiv | ABS-01, ABS-02, ABS-03, ABS-04, ABS-05 | 5 |
 | 2 — Reporting Integration & Snapshot Versioning | derive-on-read hinter Feature-Flag + Snapshot-Bump 2→3 im selben Commit | REP-01, REP-02, REP-03, REP-04, SNAP-01, SNAP-02 | 5 |
-| 3 — Booking & Shift-Plan Konflikt-Integration | Forward/Reverse Konflikt-Warnings + Shift-Plan-Auto-Markierung | BOOK-01, BOOK-02, PLAN-01 | 4 |
+| 3 — Booking & Shift-Plan Konflikt-Integration | 0/6 | Not started | — |
 | 4 — Migration & Cutover | Heuristik-Migration + Validierungs-Gate + atomarer Flag-Flip + REST-Deprecation | MIG-01, MIG-02, MIG-03, MIG-04, MIG-05 | 6 |
 
 **Total v1 requirements:** 19
@@ -146,7 +166,7 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 |---|---|---|---|
 | 1 — Absence Domain Foundation | 5/5 | Complete | 2026-05-01 |
 | 2 — Reporting Integration & Snapshot Versioning | 1/4 | In Progress (Wave 0 done) | — |
-| 3 — Booking & Shift-Plan Konflikt-Integration | 0/0 | Not started | — |
+| 3 — Booking & Shift-Plan Konflikt-Integration | 0/6 | Not started | — |
 | 4 — Migration & Cutover | 0/0 | Not started | — |
 
 ## Discuss-Phase Carry-Overs (Aggregated)

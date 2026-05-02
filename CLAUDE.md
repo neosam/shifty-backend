@@ -121,6 +121,38 @@ gen_service_impl! {
 }
 ```
 
+### Service-Tier-Konventionen: Basic vs. Business-Logic Services
+
+Service-Implementations werden in zwei Schichten geführt. Diese Trennung verhindert
+zyklische DI-Kopplung und hält die Konstruktionsreihenfolge in
+`shifty_bin/src/main.rs` deterministisch.
+
+**Basic Services (Entity-Manager)** verwalten genau ein Fach-Objekt:
+- CRUD + Validation + Permission-Gates für ihr Aggregat.
+- Konsumieren nur DAOs, `PermissionService`, `TransactionDao`.
+- Konsumieren KEINE anderen Domain-Services.
+- Beispiele: `BookingService`, `SalesPersonService`, `SalesPersonUnavailableService`,
+  `SlotService`, `ShiftplanService` (Stamm-Daten), `SpecialDayService`.
+
+**Business-Logic Services** kombinieren mehrere Aggregate oder pflegen Cross-Entity-
+Invarianten:
+- Dürfen Basic Services und andere Business-Logic Services konsumieren — solange
+  kein zyklisches Coupling entsteht.
+- Beispiele: `AbsenceService` (Multi-Tag-Range, Kategorie-Logik, Konflikt-Lookups),
+  `ShiftplanViewService` (Read-Aggregat), `ShiftplanEditService` (Write-Aggregat),
+  `ReportingService`, `BookingInformationService`, `CarryoverService`,
+  `WorkingHoursService`.
+
+**Regeln:**
+- Wenn zwei Services sich gegenseitig brauchen → einer ist Basic, einer ist
+  Business-Logic; der Basic kennt den Business-Logic-Service nicht. Bei Bedarf
+  wandert die Cross-Entity-Operation in einen dritten Service eine Schicht höher.
+- DI-Konstruktion in `shifty_bin/src/main.rs`: erst alle Basic Services, dann die
+  Business-Logic-Schicht — keine `OnceLock`-/Forward-Decl-Tricks.
+- Faustregel zur Klassifizierung: Dependencies zählen. Nur DAOs + Permission +
+  Transaction → basic. Sobald ein anderer Domain-Service als Dep auftaucht →
+  business-logic.
+
 ### DAO Implementation
 - Database interactions use SQLx with compile-time query checking
 - Entities converted from database rows via `TryFrom` trait

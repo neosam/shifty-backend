@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-last_updated: "2026-05-02T15:27:47.934Z"
+last_updated: "2026-05-02T20:12:53.614Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 9
+  total_plans: 15
   completed_plans: 8
-  percent: 89
+  percent: 53
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -76,8 +76,9 @@ Aus `research/ARCHITECTURE.md`:
 
 - Parallele `absence` Domain (nicht Erweiterung von `extra_hours`).
 - Hybrid materialize-on-snapshot / derive-on-read (Live-Reports derive on read; BillingPeriod-Snapshots materialize-once).
-- Direction: `BookingService → AbsenceService` (nie umgekehrt; vermeidet Circular Dep).
-- `BookingCreateResult { booking, warnings }`-Wrapper für nicht-blockierende Warnings.
+- Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt — verhindert Circular Dep). Siehe `shifty-backend/CLAUDE.md` § "Service-Tier-Konventionen: Basic vs. Business-Logic Services".
+- Service-Tier-Konvention etabliert (2026-05-02): Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. Konflikt-aware Schreib-Pfade (z.B. Booking-mit-Warning) leben im Business-Logic-Tier (z.B. `ShiftplanEditService`), nicht in Basic Services. Doku: `shifty-backend/CLAUDE.md` § "Service-Tier-Konventionen".
+- `BookingCreateResult { booking, warnings }`-Wrapper für nicht-blockierende Warnings (lebt im Business-Logic-Tier, nicht im `BookingService` selbst).
 - `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit wie der Reporting-Switch (per `CLAUDE.md`).
 
 ### Open Todos
