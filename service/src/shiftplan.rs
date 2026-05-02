@@ -93,4 +93,40 @@ pub trait ShiftplanViewService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ShiftplanDayAggregate, ServiceError>;
+
+    /// Phase 3 — per-sales-person-Variante (PLAN-01).
+    ///
+    /// Liefert die Schichtplan-Woche, wobei jeder Tag das Feld `unavailable`
+    /// gesetzt bekommt, falls für `sales_person_id` an diesem Tag eine
+    /// aktive AbsencePeriod und/oder ein aktiver `sales_person_unavailable`-
+    /// Eintrag existiert. Soft-deleted Einträge werden gefiltert
+    /// (Pitfall 1 / SC4).
+    ///
+    /// Permission: HR ∨ `verify_user_is_sales_person(sales_person_id)`
+    /// (D-Phase3-12).
+    async fn get_shiftplan_week_for_sales_person(
+        &self,
+        shiftplan_id: uuid::Uuid,
+        year: u32,
+        week: u8,
+        sales_person_id: uuid::Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<ShiftplanWeek, ServiceError>;
+
+    /// Phase 3 — per-sales-person-Day-Variante (PLAN-01). Analog zu
+    /// [`Self::get_shiftplan_week_for_sales_person`], aber liefert nur den
+    /// einen `day_of_week` als Aggregat über alle Shiftplans.
+    ///
+    /// Permission: HR ∨ `verify_user_is_sales_person(sales_person_id)`
+    /// (D-Phase3-12).
+    async fn get_shiftplan_day_for_sales_person(
+        &self,
+        year: u32,
+        week: u8,
+        day_of_week: DayOfWeek,
+        sales_person_id: uuid::Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<ShiftplanDayAggregate, ServiceError>;
 }

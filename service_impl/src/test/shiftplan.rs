@@ -1,9 +1,11 @@
 use crate::test::error_test::*;
 use dao::{MockTransaction, MockTransactionDao};
 use service::{
+    absence::{AbsencePeriod, MockAbsenceService},
     booking::{Booking, MockBookingService},
     permission::MockPermissionService,
     sales_person::{MockSalesPersonService, SalesPerson},
+    sales_person_unavailable::{MockSalesPersonUnavailableService, SalesPersonUnavailable},
     shiftplan::ShiftplanViewService,
     shiftplan_catalog::{MockShiftplanService, Shiftplan},
     slot::{MockSlotService, Slot},
@@ -64,6 +66,9 @@ pub struct ShiftplanViewServiceDependencies {
     pub shiftplan_service: MockShiftplanService,
     pub permission_service: MockPermissionService,
     pub transaction_dao: MockTransactionDao,
+    // Phase-3 per-sales-person-Pfade (Plan 03-04 / D-Phase3-09):
+    pub absence_service: MockAbsenceService,
+    pub sales_person_unavailable_service: MockSalesPersonUnavailableService,
 }
 impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type Context = ();
@@ -75,6 +80,8 @@ impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type ShiftplanService = MockShiftplanService;
     type PermissionService = MockPermissionService;
     type TransactionDao = MockTransactionDao;
+    type AbsenceService = MockAbsenceService;
+    type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
 }
 
 impl ShiftplanViewServiceDependencies {
@@ -87,6 +94,8 @@ impl ShiftplanViewServiceDependencies {
             shiftplan_service: self.shiftplan_service.into(),
             permission_service: self.permission_service.into(),
             transaction_dao: self.transaction_dao.into(),
+            absence_service: self.absence_service.into(),
+            sales_person_unavailable_service: self.sales_person_unavailable_service.into(),
         }
     }
 }
@@ -103,6 +112,21 @@ pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
     sales_person_service
         .expect_get_all()
         .returning(|_, _| Ok(Arc::new([default_sales_person()])));
+    // Phase-3: verify_user_is_sales_person läuft per `tokio::join!` parallel
+    // zur HR-Probe — Default Forbidden, Tests die HR ∨ self prüfen müssen
+    // diesen Mock NICHT überschreiben (HR-Grant trifft via .or() den Erfolg);
+    // forbidden-Tests können beide Probes lokal auf Forbidden setzen.
+    sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Err(service::ServiceError::Forbidden));
+    // SHIFTPLANNER-Privileg-Check (in get_shiftplan_*-Bodies) löst, wenn
+    // grant'd, einen `get_all_user_assignments`-Call aus — Default leere
+    // HashMap, damit Tests, die HR auf Ok setzen (und damit SHIFTPLANNER
+    // implizit auch grant'd, weil die Mock-`expect_check_permission` keinen
+    // Privilege-Filter setzt), nicht panicken.
+    sales_person_service
+        .expect_get_all_user_assignments()
+        .returning(|_, _| Ok(HashMap::new()));
 
     let mut transaction_dao = MockTransactionDao::new();
     transaction_dao
@@ -122,6 +146,19 @@ pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
 
     let shiftplan_service = MockShiftplanService::new();
 
+    // Phase-3-Defaults: leere AbsencePeriods + leere ManualUnavailables.
+    // Globalsicht-Tests rufen diese Services nie; per-sales-person-Tests
+    // überschreiben sie lokal.
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_find_by_sales_person()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
+
+    let mut sales_person_unavailable_service = MockSalesPersonUnavailableService::new();
+    sales_person_unavailable_service
+        .expect_get_by_week_for_sales_person()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<SalesPersonUnavailable>::new())));
+
     ShiftplanViewServiceDependencies {
         slot_service,
         booking_service,
@@ -130,6 +167,8 @@ pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
         shiftplan_service,
         permission_service,
         transaction_dao,
+        absence_service,
+        sales_person_unavailable_service,
     }
 }
 
@@ -526,4 +565,219 @@ async fn test_get_shiftplan_day_invalid_week() {
         .get_shiftplan_day(2024, 0, DayOfWeek::Monday, ().auth(), None)
         .await;
     assert!(result.is_err());
+}
+
+// ---- Phase-3 per-sales-person-Tests (Plan 03-04 Wave 3) ----
+
+use service::absence::AbsenceCategory;
+use service::shiftplan::UnavailabilityMarker;
+use time::macros::{date, datetime};
+
+/// 2024-W3 Monday — `time::Date::from_iso_week_date(2024, 3, Monday)` =
+/// 2024-01-15.
+fn absence_period_w3_monday() -> AbsencePeriod {
+    AbsencePeriod {
+        id: uuid!("AB000000-0000-0000-0000-000000000001"),
+        sales_person_id: default_sales_person_id(),
+        category: AbsenceCategory::Vacation,
+        from_date: date!(2024 - 01 - 15),
+        to_date: date!(2024 - 01 - 19),
+        description: "Urlaub".into(),
+        created: Some(datetime!(2024 - 01 - 01 12:00:00)),
+        deleted: None,
+        version: uuid!("CC000000-0000-0000-0000-000000000099"),
+    }
+}
+
+fn manual_unavailable_w3_monday() -> SalesPersonUnavailable {
+    SalesPersonUnavailable {
+        id: uuid!("CC000000-0000-0000-0000-000000000010"),
+        sales_person_id: default_sales_person_id(),
+        year: 2024,
+        calendar_week: 3,
+        day_of_week: DayOfWeek::Monday,
+        created: Some(datetime!(2024 - 01 - 01 12:00:00)),
+        deleted: None,
+        version: uuid!("CC000000-0000-0000-0000-000000000100"),
+    }
+}
+
+/// Test 2: AbsencePeriod-Mock-Hit on Monday → Monday.unavailable ==
+/// Some(AbsencePeriod{..}).
+#[tokio::test]
+async fn test_get_shiftplan_week_for_sales_person_marker_absence_only() {
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([])));
+
+    // HR grant via permission_service.
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    deps.absence_service.checkpoint();
+    deps.absence_service
+        .expect_find_by_sales_person()
+        .returning(|_, _, _| Ok(Arc::from(vec![absence_period_w3_monday()])));
+
+    let service = deps.build_service();
+    let result = service
+        .get_shiftplan_week_for_sales_person(
+            Uuid::nil(),
+            2024,
+            3,
+            default_sales_person_id(),
+            ().auth(),
+            None,
+        )
+        .await
+        .expect("get_shiftplan_week_for_sales_person should succeed");
+
+    let monday = &result.days[0];
+    assert_eq!(monday.day_of_week, DayOfWeek::Monday);
+    match &monday.unavailable {
+        Some(UnavailabilityMarker::AbsencePeriod {
+            absence_id,
+            category,
+        }) => {
+            assert_eq!(*absence_id, absence_period_w3_monday().id);
+            assert_eq!(*category, AbsenceCategory::Vacation);
+        }
+        other => panic!("expected AbsencePeriod marker, got {other:?}"),
+    }
+    // Andere Tage haben keinen Marker (Tuesday-Friday auch von der Range
+    // umfasst, aber nicht Sa/So).
+    let saturday = &result.days[5];
+    let sunday = &result.days[6];
+    assert!(saturday.unavailable.is_none());
+    assert!(sunday.unavailable.is_none());
+}
+
+/// Test 3: Beide Quellen aktiv auf Monday → UnavailabilityMarker::Both
+/// (D-Phase3-10).
+#[tokio::test]
+async fn test_get_shiftplan_week_for_sales_person_marker_both() {
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([])));
+
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    deps.absence_service.checkpoint();
+    deps.absence_service
+        .expect_find_by_sales_person()
+        .returning(|_, _, _| Ok(Arc::from(vec![absence_period_w3_monday()])));
+
+    deps.sales_person_unavailable_service.checkpoint();
+    deps.sales_person_unavailable_service
+        .expect_get_by_week_for_sales_person()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![manual_unavailable_w3_monday()])));
+
+    let service = deps.build_service();
+    let result = service
+        .get_shiftplan_week_for_sales_person(
+            Uuid::nil(),
+            2024,
+            3,
+            default_sales_person_id(),
+            ().auth(),
+            None,
+        )
+        .await
+        .expect("get_shiftplan_week_for_sales_person should succeed");
+
+    let monday = &result.days[0];
+    match &monday.unavailable {
+        Some(UnavailabilityMarker::Both {
+            absence_id,
+            category,
+        }) => {
+            assert_eq!(*absence_id, absence_period_w3_monday().id);
+            assert_eq!(*category, AbsenceCategory::Vacation);
+        }
+        other => panic!("expected Both marker, got {other:?}"),
+    }
+}
+
+/// Test 4: Soft-deleted AbsencePeriod (`deleted.is_some()`) wird NICHT als
+/// Marker gesetzt (Pitfall-1 / SC4).
+#[tokio::test]
+async fn test_get_shiftplan_week_for_sales_person_softdeleted_absence_no_marker() {
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([])));
+
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    deps.absence_service.checkpoint();
+    deps.absence_service
+        .expect_find_by_sales_person()
+        .returning(|_, _, _| {
+            Ok(Arc::from(vec![AbsencePeriod {
+                deleted: Some(datetime!(2024 - 01 - 02 09:00:00)),
+                ..absence_period_w3_monday()
+            }]))
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .get_shiftplan_week_for_sales_person(
+            Uuid::nil(),
+            2024,
+            3,
+            default_sales_person_id(),
+            ().auth(),
+            None,
+        )
+        .await
+        .expect("get_shiftplan_week_for_sales_person should succeed");
+
+    for day in result.days.iter() {
+        assert!(
+            day.unavailable.is_none(),
+            "soft-deleted AbsencePeriod must not produce marker, got {:?} on {:?}",
+            day.unavailable,
+            day.day_of_week
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_get_shiftplan_week_for_sales_person_forbidden() {
+    // permission default Forbidden + verify default unset → Mock returns
+    // Err on verify_user_is_sales_person.
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([])));
+    deps.sales_person_service.checkpoint();
+    deps.sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::new([default_sales_person()])));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Err(service::ServiceError::Forbidden));
+
+    let service = deps.build_service();
+    let result = service
+        .get_shiftplan_week_for_sales_person(
+            Uuid::nil(),
+            2024,
+            3,
+            default_sales_person_id(),
+            ().auth(),
+            None,
+        )
+        .await;
+    test_forbidden(&result);
 }
