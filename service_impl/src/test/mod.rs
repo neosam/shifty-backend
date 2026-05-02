@@ -31,6 +31,8 @@ pub mod sales_person_unavailable;
 #[cfg(test)]
 pub mod shiftplan;
 #[cfg(test)]
+pub mod shiftplan_edit;
+#[cfg(test)]
 pub mod shiftplan_catalog;
 #[cfg(test)]
 pub mod slot;
