@@ -14,6 +14,7 @@ pub mod carryover;
 pub mod custom_extra_hours;
 pub mod employee_work_details;
 pub mod extra_hours;
+pub mod feature_flag;
 pub mod sales_person;
 pub mod sales_person_shiftplan;
 pub mod sales_person_unavailable;
