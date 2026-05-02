@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT enabled FROM feature_flag WHERE key = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "enabled",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fbda2a934b29cf50c13ebe40b0c0ac8a042bb9b77c781df9e6d80004c78a074a"
+}

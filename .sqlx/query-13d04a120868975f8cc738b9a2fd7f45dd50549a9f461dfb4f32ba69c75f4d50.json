@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE feature_flag\n               SET enabled = ?, update_timestamp = ?, update_process = ?\n               WHERE key = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "13d04a120868975f8cc738b9a2fd7f45dd50549a9f461dfb4f32ba69c75f4d50"
+}

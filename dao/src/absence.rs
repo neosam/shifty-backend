@@ -84,6 +84,24 @@ pub trait AbsenceDao {
         tx: Self::Transaction,
     ) -> Result<Arc<[AbsencePeriodEntity]>, crate::DaoError>;
 
+    /// Findet aktive Absence-Periods derselben `sales_person_id`, die `range`
+    /// inklusiv überlappen — **kategorie-frei** (alle 3 AbsenceCategory-Werte
+    /// werden zurückgegeben). Verwendet vom
+    /// `AbsenceService::find_overlapping_for_booking`-Pfad und vom
+    /// `ShiftplanEditService::book_slot_with_conflict_check`-Pfad
+    /// (Phase 3, D-Phase3-05).
+    ///
+    /// Nutzt den bestehenden Composite-Index
+    /// `idx_absence_period_sales_person_from(sales_person_id, from_date)
+    ///  WHERE deleted IS NULL` (Phase-1-D-04). Single-Roundtrip auch bei
+    /// copy_week-Loops; Performance-skalierbar.
+    async fn find_overlapping_for_booking(
+        &self,
+        sales_person_id: Uuid,
+        range: DateRange,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[AbsencePeriodEntity]>, crate::DaoError>;
+
     async fn create(
         &self,
         entity: &AbsencePeriodEntity,

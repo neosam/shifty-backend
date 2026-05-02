@@ -203,6 +203,38 @@ impl AbsenceDao for AbsenceDaoImpl {
             .collect::<Result<Arc<[_]>, _>>()?)
     }
 
+    async fn find_overlapping_for_booking(
+        &self,
+        sales_person_id: Uuid,
+        range: DateRange,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[AbsencePeriodEntity]>, DaoError> {
+        let sp_vec = sales_person_id.as_bytes().to_vec();
+        // ISO-8601 YYYY-MM-DD; lex-sort == date-sort.
+        let from_str = range.from().format(&Iso8601::DATE)?;
+        let to_str = range.to().format(&Iso8601::DATE)?;
+
+        Ok(query_as!(
+            AbsencePeriodDb,
+            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version \
+             FROM absence_period \
+             WHERE sales_person_id = ? \
+               AND from_date <= ? \
+               AND to_date >= ? \
+               AND deleted IS NULL \
+             ORDER BY from_date",
+            sp_vec,
+            to_str,   // range.to → from_date <= range.to
+            from_str, // range.from → to_date >= range.from
+        )
+        .fetch_all(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(AbsencePeriodEntity::try_from)
+        .collect::<Result<Arc<[_]>, _>>()?)
+    }
+
     async fn create(
         &self,
         entity: &AbsencePeriodEntity,
