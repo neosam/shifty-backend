@@ -58,6 +58,11 @@ async fn create_absence_period(test_setup: &TestSetup, sales_person_id: Uuid) ->
         )
         .await
         .unwrap()
+        // Phase-3-Plan-03: AbsenceService::create returniert nun
+        // AbsencePeriodCreateResult { absence, warnings } — Integration-Tests
+        // unwrappen hier .absence; Warnings werden in Plan 06-Tests
+        // (Cross-Source-Stubs) explizit verifiziert.
+        .absence
 }
 
 /// Spec: every freshly-created absence_period has id == logical_id (D-07).
@@ -107,7 +112,9 @@ async fn test_update_creates_tombstone_and_new_active_row() {
             None,
         )
         .await
-        .unwrap();
+        .unwrap()
+        // Phase-3-Plan-03: AbsencePeriodCreateResult.absence-Unwrap.
+        .absence;
 
     assert_eq!(
         updated.id, initial.id,

@@ -238,6 +238,16 @@ impl service_impl::absence::AbsenceServiceDeps for AbsenceServiceDependencies {
     type SpecialDayService = SpecialDayService;
     type EmployeeWorkDetailsService = WorkingHoursService;
     type TransactionDao = TransactionDao;
+    // Phase 3 plan 03-03 (D-Phase3-08): AbsenceService konsumiert
+    // BookingService + SalesPersonUnavailableService + SlotService für den
+    // Forward-Warning-Loop in create/update. Service-Tier-Konvention:
+    // AbsenceService ist Business-Logic, BookingService/SalesPersonUnavailable/
+    // Slot sind Basic — Direction Business-Logic ↑ konsumiert Basic ↓; kein
+    // Cycle, da BookingService nichts von AbsenceService weiß (D-Phase3-18
+    // Regression-Lock).
+    type BookingService = BookingService;
+    type SalesPersonUnavailableService = SalesPersonUnavailableService;
+    type SlotService = SlotService;
 }
 // type AbsenceService = service_impl::absence::AbsenceServiceImpl<AbsenceServiceDependencies>;
 type AbsenceService =
@@ -743,6 +753,14 @@ impl RestStateImpl {
             special_day_service: special_day_service.clone(),
             employee_work_details_service: working_hours_service.clone(),
             transaction_dao: transaction_dao.clone(),
+            // Phase 3 plan 03-03: Forward-Warning-Loop-Deps (D-Phase3-08).
+            // Konstruktionsreihenfolge: booking_service (Z. 699),
+            // sales_person_unavailable_service (Z. 678), slot_service
+            // (Z. 658) sind alle VOR absence_service (hier) gebaut —
+            // Tier-Konform (Basic vor Business-Logic).
+            booking_service: booking_service.clone(),
+            sales_person_unavailable_service: sales_person_unavailable_service.clone(),
+            slot_service: slot_service.clone(),
         });
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
             extra_hours_dao,

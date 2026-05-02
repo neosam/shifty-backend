@@ -60,9 +60,13 @@ pub async fn create_absence_period<RestState: RestStateDef>(
     error_handler(
         (async {
             let svc = rest_state.absence_service();
-            let entity = AbsencePeriodTO::from(
-                &svc.create(&(&body).into(), context.into(), None).await?,
-            );
+            // Phase-3-Plan-03 minimaler Diff: Wrapper-Result wird unwrappt
+            // und nur `.absence` in den Body gemappt — Warnings werden
+            // dropped. Plan 05 ergänzt `AbsencePeriodCreateResultTO` und
+            // dreht die Body-Form um.
+            // TODO Plan-05: AbsencePeriodCreateResultTO statt AbsencePeriodTO im Body.
+            let result = svc.create(&(&body).into(), context.into(), None).await?;
+            let entity = AbsencePeriodTO::from(&result.absence);
             Ok(Response::builder()
                 .status(201)
                 .header("Content-Type", "application/json")
@@ -160,9 +164,9 @@ pub async fn update_absence_period<RestState: RestStateDef>(
             let svc = rest_state.absence_service();
             let mut entity: service::absence::AbsencePeriod = (&body).into();
             entity.id = absence_id; // path-id wins (D-01 / Pitfall guard)
-            let updated = AbsencePeriodTO::from(
-                &svc.update(&entity, context.into(), None).await?,
-            );
+            // TODO Plan-05: AbsencePeriodCreateResultTO statt AbsencePeriodTO im Body.
+            let result = svc.update(&entity, context.into(), None).await?;
+            let updated = AbsencePeriodTO::from(&result.absence);
             Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
