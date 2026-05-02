@@ -13,6 +13,8 @@ pub mod error_test;
 #[cfg(test)]
 mod permission_test;
 #[cfg(test)]
+pub mod reporting_phase2_fixtures;
+#[cfg(test)]
 pub mod sales_person;
 #[cfg(test)]
 pub mod sales_person_shiftplan;
