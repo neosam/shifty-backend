@@ -18,8 +18,10 @@ use dao::MockTransactionDao;
 use mockall::predicate::{always, eq};
 use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService};
 use service::clock::MockClockService;
+use service::employee_work_details::MockEmployeeWorkDetailsService;
 use service::permission::{Authentication, HR_PRIVILEGE};
 use service::sales_person::MockSalesPersonService;
+use service::special_days::MockSpecialDayService;
 use service::uuid_service::MockUuidService;
 use service::{MockPermissionService, ServiceError, ValidationFailureItem};
 use time::macros::{date, datetime};
@@ -116,13 +118,15 @@ fn default_update_request() -> AbsencePeriod {
     }
 }
 
-struct AbsenceDependencies {
-    absence_dao: MockAbsenceDao,
-    permission_service: MockPermissionService,
-    sales_person_service: MockSalesPersonService,
-    clock_service: MockClockService,
-    uuid_service: MockUuidService,
-    transaction_dao: MockTransactionDao,
+pub(crate) struct AbsenceDependencies {
+    pub absence_dao: MockAbsenceDao,
+    pub permission_service: MockPermissionService,
+    pub sales_person_service: MockSalesPersonService,
+    pub clock_service: MockClockService,
+    pub uuid_service: MockUuidService,
+    pub special_day_service: MockSpecialDayService,
+    pub employee_work_details_service: MockEmployeeWorkDetailsService,
+    pub transaction_dao: MockTransactionDao,
 }
 
 impl AbsenceServiceDeps for AbsenceDependencies {
@@ -133,28 +137,34 @@ impl AbsenceServiceDeps for AbsenceDependencies {
     type SalesPersonService = MockSalesPersonService;
     type ClockService = MockClockService;
     type UuidService = MockUuidService;
+    type SpecialDayService = MockSpecialDayService;
+    type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
     type TransactionDao = MockTransactionDao;
 }
 
 impl AbsenceDependencies {
-    fn build_service(self) -> AbsenceServiceImpl<AbsenceDependencies> {
+    pub(crate) fn build_service(self) -> AbsenceServiceImpl<AbsenceDependencies> {
         AbsenceServiceImpl {
             absence_dao: self.absence_dao.into(),
             permission_service: self.permission_service.into(),
             sales_person_service: self.sales_person_service.into(),
             clock_service: self.clock_service.into(),
             uuid_service: self.uuid_service.into(),
+            special_day_service: self.special_day_service.into(),
+            employee_work_details_service: self.employee_work_details_service.into(),
             transaction_dao: self.transaction_dao.into(),
         }
     }
 }
 
-fn build_dependencies() -> AbsenceDependencies {
+pub(crate) fn build_dependencies() -> AbsenceDependencies {
     let absence_dao = MockAbsenceDao::new();
     let mut permission_service = MockPermissionService::new();
     let mut sales_person_service = MockSalesPersonService::new();
     let mut clock_service = MockClockService::new();
     let uuid_service = MockUuidService::new();
+    let special_day_service = MockSpecialDayService::new();
+    let employee_work_details_service = MockEmployeeWorkDetailsService::new();
     let mut transaction_dao = MockTransactionDao::new();
 
     permission_service
@@ -177,6 +187,8 @@ fn build_dependencies() -> AbsenceDependencies {
         sales_person_service,
         clock_service,
         uuid_service,
+        special_day_service,
+        employee_work_details_service,
         transaction_dao,
     }
 }
