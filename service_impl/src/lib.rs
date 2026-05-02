@@ -16,6 +16,7 @@ pub mod config;
 pub mod custom_extra_hours;
 pub mod employee_work_details;
 pub mod extra_hours;
+pub mod feature_flag;
 pub mod ical;
 pub mod macros;
 pub mod permission;

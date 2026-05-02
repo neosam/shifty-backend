@@ -13,6 +13,8 @@ pub mod custom_extra_hours;
 #[cfg(test)]
 pub mod error_test;
 #[cfg(test)]
+pub mod feature_flag;
+#[cfg(test)]
 mod permission_test;
 #[cfg(test)]
 pub mod reporting_flag_off_bit_identity;
