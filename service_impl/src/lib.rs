@@ -11,6 +11,7 @@ pub mod booking;
 pub mod booking_information;
 pub mod booking_log;
 pub mod carryover;
+pub mod carryover_rebuild;
 pub mod clock;
 pub mod config;
 pub mod custom_extra_hours;
