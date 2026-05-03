@@ -1827,3 +1827,169 @@ impl From<&service::absence::AbsencePeriodCreateResult> for AbsencePeriodCreateR
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 4 — Cutover DTOs (Plan 04-06)
+//
+// Inline per Phase-3 wrapper-DTO precedent (BookingCreateResultTO above).
+// `From` impls are gated behind `feature = "service-impl"` so the wasm /
+// frontend build doesn't drag the service crate in.
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverGateDriftRowTO {
+    pub sales_person_id: Uuid,
+    pub sales_person_name: String,
+    pub category: AbsenceCategoryTO,
+    pub year: u32,
+    pub legacy_sum: f32,
+    pub derived_sum: f32,
+    pub drift: f32,
+    pub quarantined_extra_hours_count: u32,
+    pub quarantine_reasons: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverGateDriftReportTO {
+    pub gate_run_id: Uuid,
+    /// ISO-8601 UTC timestamp string (OpenAPI-portable).
+    pub run_at: String,
+    pub dry_run: bool,
+    pub drift_threshold: f32,
+    pub total_drift_rows: u32,
+    pub drift: Vec<CutoverGateDriftRowTO>,
+    pub passed: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverRunResultTO {
+    pub run_id: Uuid,
+    /// ISO-8601 UTC timestamp string (OpenAPI-portable).
+    pub ran_at: String,
+    pub dry_run: bool,
+    pub gate_passed: bool,
+    pub total_clusters: u32,
+    pub migrated_clusters: u32,
+    pub quarantined_rows: u32,
+    pub gate_drift_rows: u32,
+    pub diff_report_path: Option<String>,
+}
+
+/// Body shape for the HTTP-403 returned when a deprecated ExtraHoursCategory
+/// is POST'd after the cutover flag is on (D-Phase4-09).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ExtraHoursCategoryDeprecatedErrorTO {
+    /// Always `"extra_hours_category_deprecated"`.
+    pub error: String,
+    /// Lowercase variant name (e.g. `"vacation"`).
+    pub category: String,
+    /// User-facing migration hint.
+    pub message: String,
+}
+
+/// Per-(sales_person, category, year) profile bucket per C-Phase4-05.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverProfileBucketTO {
+    pub sales_person_id: Uuid,
+    pub sales_person_name: String,
+    pub category: AbsenceCategoryTO,
+    pub year: u32,
+    pub row_count: u32,
+    /// Equivalent to `sum_amount` in the service-layer struct.
+    pub sum_hours: f32,
+    pub fractional_count: u32,
+    pub weekend_on_workday_only_count: u32,
+    pub iso_53_indicator: bool,
+}
+
+/// Production-data profile envelope — wraps every bucket plus run metadata.
+/// Persisted to `.planning/migration-backup/profile-{ts}.json` and returned
+/// verbatim from `POST /admin/cutover/profile`.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverProfileTO {
+    pub profile_run_id: Uuid,
+    /// ISO-8601 UTC timestamp string.
+    pub run_at: String,
+    pub total_buckets: u32,
+    pub buckets: Vec<CutoverProfileBucketTO>,
+    /// Server-controlled file path under `.planning/migration-backup/`.
+    pub output_path: String,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::DriftRow> for CutoverGateDriftRowTO {
+    fn from(r: &service::cutover::DriftRow) -> Self {
+        Self {
+            sales_person_id: r.sales_person_id,
+            sales_person_name: r.sales_person_name.to_string(),
+            category: AbsenceCategoryTO::from(&r.category),
+            year: r.year,
+            legacy_sum: r.legacy_sum,
+            derived_sum: r.derived_sum,
+            drift: r.drift,
+            quarantined_extra_hours_count: r.quarantined_extra_hours_count,
+            quarantine_reasons: r
+                .quarantine_reasons
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::CutoverRunResult> for CutoverRunResultTO {
+    fn from(r: &service::cutover::CutoverRunResult) -> Self {
+        let ran_at = r
+            .ran_at
+            .assume_utc()
+            .format(&time::format_description::well_known::Iso8601::DEFAULT)
+            .unwrap_or_default();
+        Self {
+            run_id: r.run_id,
+            ran_at,
+            dry_run: r.dry_run,
+            gate_passed: r.gate_passed,
+            total_clusters: r.total_clusters,
+            migrated_clusters: r.migrated_clusters,
+            quarantined_rows: r.quarantined_rows,
+            gate_drift_rows: r.gate_drift_rows,
+            diff_report_path: r.diff_report_path.as_ref().map(|s| s.to_string()),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::CutoverProfileBucket> for CutoverProfileBucketTO {
+    fn from(b: &service::cutover::CutoverProfileBucket) -> Self {
+        Self {
+            sales_person_id: b.sales_person_id,
+            sales_person_name: b.sales_person_name.to_string(),
+            category: AbsenceCategoryTO::from(&b.category),
+            year: b.year,
+            row_count: b.row_count,
+            sum_hours: b.sum_amount,
+            fractional_count: b.fractional_count,
+            weekend_on_workday_only_count: b.weekend_on_workday_only_contract_count,
+            iso_53_indicator: b.iso_53_indicator,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::CutoverProfile> for CutoverProfileTO {
+    fn from(p: &service::cutover::CutoverProfile) -> Self {
+        let run_at = p
+            .generated_at
+            .assume_utc()
+            .format(&time::format_description::well_known::Iso8601::DEFAULT)
+            .unwrap_or_default();
+        Self {
+            profile_run_id: p.run_id,
+            run_at,
+            total_buckets: p.buckets.len() as u32,
+            buckets: p.buckets.iter().map(CutoverProfileBucketTO::from).collect(),
+            output_path: p.profile_path.to_string(),
+        }
+    }
+}
