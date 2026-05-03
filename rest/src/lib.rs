@@ -6,6 +6,7 @@ mod block_report;
 mod booking;
 mod booking_information;
 mod booking_log;
+mod cutover;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;
@@ -248,12 +249,19 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
-        // Phase 4 / Operation 4 in 04-RESEARCH.md — Plan 04-06 (Wave 2) replaces
-        // this stub with the body-shaped 403 response per D-Phase4-09.
-        Err(RestError::ServiceError(err @ ServiceError::ExtraHoursCategoryDeprecated(_))) => {
+        // Phase 4 (Plan 04-06) — D-Phase4-09: deprecated POST /extra-hours
+        // categories return 403 with a snapshot-locked JSON body shape so the
+        // frontend can branch on `error == "extra_hours_category_deprecated"`.
+        Err(RestError::ServiceError(ServiceError::ExtraHoursCategoryDeprecated(category))) => {
+            let body = rest_types::ExtraHoursCategoryDeprecatedErrorTO {
+                error: "extra_hours_category_deprecated".to_string(),
+                category: format!("{:?}", category).to_lowercase(),
+                message: "Use POST /absence-period for this category".to_string(),
+            };
             Response::builder()
                 .status(403)
-                .body(Body::new(err.to_string()))
+                .header("Content-Type", "application/json")
+                .body(Body::new(serde_json::to_string(&body).unwrap_or_default()))
                 .unwrap()
         }
     }
@@ -347,6 +355,11 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 4 (Plan 04-06) — Cutover orchestration. Business-Logic-Tier service.
+    type CutoverService: service::cutover::CutoverService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -378,6 +391,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn user_invitation_service(&self) -> Arc<Self::UserInvitationService>;
     fn toggle_service(&self) -> Arc<Self::ToggleService>;
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
+    fn cutover_service(&self) -> Arc<Self::CutoverService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
@@ -488,6 +502,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/toggle", api = toggle::ToggleApiDoc),
         (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
+        (path = "/admin/cutover", api = cutover::CutoverApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
 )]
@@ -569,7 +584,9 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     #[cfg(feature = "mock_auth")]
     let app = app.nest("/dev", dev::generate_route());
 
-    let app = app.nest("/admin/impersonate", impersonate::generate_route());
+    let app = app
+        .nest("/admin/cutover", cutover::generate_route())
+        .nest("/admin/impersonate", impersonate::generate_route());
 
     let app = app
         .with_state(rest_state.clone())
