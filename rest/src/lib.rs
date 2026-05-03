@@ -248,6 +248,14 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        // Phase 4 / Operation 4 in 04-RESEARCH.md — Plan 04-06 (Wave 2) replaces
+        // this stub with the body-shaped 403 response per D-Phase4-09.
+        Err(RestError::ServiceError(err @ ServiceError::ExtraHoursCategoryDeprecated(_))) => {
+            Response::builder()
+                .status(403)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
     }
 }
 

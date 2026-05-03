@@ -270,4 +270,20 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         self.transaction_dao.commit(tx).await?;
         Ok(())
     }
+
+    /// Phase 4 / C-Phase4-04 — bulk soft-delete stub.
+    ///
+    /// Wave-0 trait surface ONLY: real implementation lands in Plan 04-04
+    /// (extra-hours-flag-gate-and-soft-delete). Calling this in Wave 0 is a
+    /// programmer error — every test that exercises this path is `#[ignore]`d
+    /// in Wave 0 per the Phase-3 Wave-0 stub pattern.
+    async fn soft_delete_bulk(
+        &self,
+        _ids: Arc<[Uuid]>,
+        _update_process: &str,
+        _context: Authentication<Self::Context>,
+        _tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        unimplemented!("Plan 04-04 implements ExtraHoursService::soft_delete_bulk")
+    }
 }
