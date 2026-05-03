@@ -18,8 +18,8 @@ use axum::{
     Extension, Router,
 };
 use rest_types::{
-    CutoverProfileBucketTO, CutoverProfileTO, CutoverRunResultTO,
-    ExtraHoursCategoryDeprecatedErrorTO,
+    CutoverGateDriftReportTO, CutoverGateDriftRowTO, CutoverProfileBucketTO,
+    CutoverProfileTO, CutoverRunResultTO, ExtraHoursCategoryDeprecatedErrorTO,
 };
 use serde::Deserialize;
 use service::cutover::CutoverService;
@@ -158,6 +158,8 @@ pub async fn cutover_profile_handler<RestState: RestStateDef>(
     ),
     components(schemas(
         CutoverRunResultTO,
+        CutoverGateDriftRowTO,
+        CutoverGateDriftReportTO,
         CutoverProfileTO,
         CutoverProfileBucketTO,
         ExtraHoursCategoryDeprecatedErrorTO,
