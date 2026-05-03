@@ -8,8 +8,10 @@ use dao::{
 };
 use service::{
     clock::ClockService,
+    cutover::CUTOVER_ADMIN_PRIVILEGE,
     custom_extra_hours::CustomExtraHoursService,
-    extra_hours::{ExtraHours, ExtraHoursService},
+    extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursService},
+    feature_flag::FeatureFlagService,
     permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE},
     sales_person::SalesPersonService,
     uuid_service::UuidService,
@@ -25,6 +27,7 @@ gen_service_impl! {
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
         CustomExtraHoursService: CustomExtraHoursService<Context = Self::Context, Transaction = Self::Transaction> = custom_extra_hours_service,
+        FeatureFlagService: FeatureFlagService<Context = Self::Context, Transaction = Self::Transaction> = feature_flag_service,
         ClockService: ClockService = clock_service,
         UuidService: UuidService = uuid_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
@@ -185,11 +188,41 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
                 .check_permission(HR_PRIVILEGE, context.clone()),
             self.sales_person_service.verify_user_is_sales_person(
                 extra_hours.sales_person_id,
-                context,
+                context.clone(),
                 tx.clone().into()
             ),
         );
         hr_permission.or(sales_person_permission)?;
+
+        // Phase-4 D-Phase4-09 service-layer flag-gate: once
+        // `absence_range_source_active` is true (post-cutover), creating new
+        // Vacation/SickLeave/UnpaidLeave entries via this surface is
+        // deprecated — clients must use POST /absence-period instead.
+        // ExtraWork/Holiday/Unavailable/VolunteerWork/Custom remain
+        // unaffected by the gate. The check happens AFTER the permission gate
+        // (so unauthorized callers still get Forbidden, not Deprecated) and
+        // BEFORE the DAO insert (so a deprecated request makes no state
+        // change; the Tx rolls back via Drop on the early Err).
+        if matches!(
+            extra_hours.category,
+            ExtraHoursCategory::Vacation
+                | ExtraHoursCategory::SickLeave
+                | ExtraHoursCategory::UnpaidLeave
+        ) {
+            let flag_active = self
+                .feature_flag_service
+                .is_enabled(
+                    "absence_range_source_active",
+                    Authentication::Full,
+                    Some(tx.clone()),
+                )
+                .await?;
+            if flag_active {
+                return Err(ServiceError::ExtraHoursCategoryDeprecated(
+                    extra_hours.category.clone(),
+                ));
+            }
+        }
 
         let mut extra_hours = extra_hours.to_owned();
         if !extra_hours.id.is_nil() {
@@ -271,19 +304,43 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         Ok(())
     }
 
-    /// Phase 4 / C-Phase4-04 — bulk soft-delete stub.
+    /// Phase 4 / C-Phase4-04 — bulk soft-delete by id list.
     ///
-    /// Wave-0 trait surface ONLY: real implementation lands in Plan 04-04
-    /// (extra-hours-flag-gate-and-soft-delete). Calling this in Wave 0 is a
-    /// programmer error — every test that exercises this path is `#[ignore]`d
-    /// in Wave 0 per the Phase-3 Wave-0 stub pattern.
+    /// Permission-gates `CUTOVER_ADMIN_PRIVILEGE` BEFORE doing any DAO work.
+    /// This ordering is verified by `soft_delete_bulk_forbidden_for_unprivileged_user`
+    /// (T-04-04-01 Elevation-of-Privilege mitigation): the test pins
+    /// `MockExtraHoursDao::expect_soft_delete_bulk().times(0)` so it fails
+    /// if the impl ever calls the DAO before the permission check denies.
+    ///
+    /// Caller is the cutover commit phase (Plan 04-05). The Tx is provided by
+    /// the caller and NOT committed here — the cutover service holds the Tx
+    /// until the final atomic commit.
     async fn soft_delete_bulk(
         &self,
-        _ids: Arc<[Uuid]>,
-        _update_process: &str,
-        _context: Authentication<Self::Context>,
-        _tx: Option<Self::Transaction>,
+        ids: Arc<[Uuid]>,
+        update_process: &str,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
-        unimplemented!("Plan 04-04 implements ExtraHoursService::soft_delete_bulk")
+        // Permission gate FIRST — strictly BEFORE any tx/DAO work.
+        self.permission_service
+            .check_permission(CUTOVER_ADMIN_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let now = self.clock_service.date_time_now();
+        let new_version = self
+            .uuid_service
+            .new_uuid("extra_hours_service::soft_delete_bulk version");
+
+        self.extra_hours_dao
+            .soft_delete_bulk(&ids, now, update_process, new_version, tx.clone())
+            .await?;
+
+        // Tx held by caller (cutover commit phase, Plan 04-05) — DO NOT commit
+        // here. `use_transaction` returns the caller-provided Tx untouched
+        // when `tx` is `Some(_)` per Pattern-1 Tx-forwarding contract.
+        Ok(())
     }
 }
