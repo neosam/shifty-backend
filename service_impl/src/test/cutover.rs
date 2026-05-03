@@ -101,7 +101,8 @@ fn build_dependencies() -> CutoverDependencies {
 }
 
 /// Standard MockTransactionDao that returns MockTransaction for use_transaction
-/// and accepts rollback. Wave-1 always rolls back at the end of run().
+/// and accepts both rollback and commit. Wave-1 (dry_run=true) always rolls
+/// back; Wave-2 commit-path tests need both calls available.
 fn build_default_transaction_dao() -> MockTransactionDao {
     let mut transaction_dao = MockTransactionDao::new();
     transaction_dao
@@ -110,8 +111,22 @@ fn build_default_transaction_dao() -> MockTransactionDao {
     transaction_dao
         .expect_rollback()
         .returning(|_| Ok(()));
-    // commit is never called in Wave-1 run()
     transaction_dao
+        .expect_commit()
+        .returning(|_| Ok(()));
+    transaction_dao
+}
+
+/// Set the gate to "no scope" — `find_legacy_scope_set` returns an empty Arc,
+/// which short-circuits the gate's per-(sp, year) loop. Used by all Wave-1
+/// tests that were originally written before the gate existed; their
+/// migration-phase semantics are unchanged, but `run()` now also calls
+/// `compute_gate` which writes the diff-report file. Empty scope → no drift
+/// rows → gate.passed = true.
+fn install_empty_gate_scope(deps: &mut CutoverDependencies) {
+    deps.cutover_dao
+        .expect_find_legacy_scope_set()
+        .returning(|_| Ok(Arc::from([])));
 }
 
 /// Permission service that ALWAYS allows. Used for happy-path heuristic tests
@@ -227,6 +242,7 @@ fn legacy_row_with_id(id: Uuid, day: time::Date, amount: f32) -> LegacyExtraHour
 async fn cluster_merges_consecutive_workdays_with_exact_match() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     // 5 consecutive Mon-Fri rows in week 23/2024 with exact 8h match.
     let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([
@@ -263,10 +279,15 @@ async fn cluster_merges_consecutive_workdays_with_exact_match() {
         .await
         .expect("run succeeded");
     assert_eq!(result.total_clusters, 1);
-    assert_eq!(result.migrated_clusters, 1);
+    // dry_run path rolls back → migrated_clusters reports 0.
+    assert_eq!(result.migrated_clusters, 0);
     assert_eq!(result.quarantined_rows, 0);
-    assert!(!result.gate_passed, "Wave-1 leaves gate_passed=false");
+    assert!(
+        result.gate_passed,
+        "empty gate scope → gate trivially passes"
+    );
     assert!(result.dry_run);
+    assert!(result.diff_report_path.is_some());
 
     // Tuple-shape verification: re-drive the helper directly to assert the
     // returned `(MigrationStats, Arc<[Uuid]>)` contract that Plan 04-05
@@ -319,6 +340,7 @@ async fn cluster_merges_consecutive_workdays_with_exact_match() {
 async fn quarantine_amount_below_contract() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     // 1 row Monday with amount = 4h (8h contract).
     let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([legacy_row(date!(2024 - 06 - 03), 4.0)]);
@@ -381,6 +403,7 @@ async fn quarantine_amount_below_contract() {
 async fn quarantine_amount_above_contract() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     let rows: Arc<[LegacyExtraHoursRow]> =
         Arc::from([legacy_row(date!(2024 - 06 - 03), 10.0)]);
@@ -413,6 +436,7 @@ async fn quarantine_amount_above_contract() {
 async fn quarantine_weekend_entry_workday_contract() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     // Saturday 2024-06-08 — 8h Vacation, but Mo-Fr-only contract.
     let rows: Arc<[LegacyExtraHoursRow]> =
@@ -444,6 +468,7 @@ async fn quarantine_weekend_entry_workday_contract() {
 async fn quarantine_contract_not_active() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     // Contract starts 2024-01-01; row is dated 2023-06-03.
     let rows: Arc<[LegacyExtraHoursRow]> =
@@ -481,6 +506,7 @@ async fn quarantine_contract_not_active() {
 async fn quarantine_iso_53_gap() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     // 2 rows that would form a continuous Mon-Fri-only cluster across the year
     // boundary if year-equality were not enforced:
@@ -526,6 +552,7 @@ async fn quarantine_iso_53_gap() {
 async fn idempotent_rerun_skips_mapped() {
     let mut deps = build_dependencies();
     deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
 
     // First run already migrated everything; second run sees no legacy rows.
     deps.cutover_dao

@@ -1,21 +1,33 @@
-//! Phase 4 — Cutover orchestration (Wave 1: Migration phase only).
+//! Phase 4 — Cutover orchestration (Wave 1 + Wave 2).
 //!
-//! Wave 1 implements:
-//!   - `gen_service_impl!` DI block (8 sub-services per Architectural Map row 1)
+//! Wave 1 implemented (Plan 04-02):
+//!   - `gen_service_impl!` DI block (10 sub-services per Architectural Map row 1)
 //!   - Permission-Branch in `run` (HR for dry_run; cutover_admin for commit)
 //!   - Heuristik-Cluster-Algorithmus per RESEARCH.md Operation 1
 //!   - Pre-fetch of EmployeeWorkDetails per sales_person (C-Phase4-06)
 //!   - Persistence to `absence_period` (direct DAO insert per Anti-Pattern guidance)
 //!     + `absence_period_migration_source` mapping rows
 //!     + `absence_migration_quarantine` rows
-//!   - **ALWAYS rollback** at the end of `run` — Wave 2 plans replace this with
-//!     gate logic + commit/rollback branch.
+//!
+//! Wave 2 (this plan, 04-05) extends `run` with:
+//!   - `compute_gate`: per (sp, kategorie, jahr) compares `legacy_sum`
+//!     (via `CutoverDao::sum_legacy_extra_hours`) against `derived_sum`
+//!     (via `AbsenceService::derive_hours_for_range`). Tolerance < 0.01h
+//!     absolute (D-Phase4-05). Produces a JSON diff-report file at
+//!     `.planning/migration-backup/cutover-gate-{unix_timestamp}.json`
+//!     (D-Phase4-06) plus `tracing::error!` per drift row.
+//!   - `commit_phase`: backup carryover (D-Phase4-13) → rebuild carryover for
+//!     scope (D-Phase4-12) → soft-delete migrated extra_hours (D-Phase4-10) →
+//!     flip feature flag (D-Phase4-09). All in the same atomic Tx
+//!     (D-Phase4-14).
+//!   - Branch logic: dry_run OR !gate_passed → rollback;
+//!     !dry_run AND gate_passed → commit_phase + commit Tx.
 //!
 //! The private helper `migrate_legacy_extra_hours_to_clusters` returns a locked
 //! tuple `(MigrationStats, Arc<[Uuid]>)`. The `Arc<[Uuid]>` is the verbatim list
 //! of `extra_hours.id` values that ended up in a migrated cluster (NOT the
-//! quarantined ones). Plan 04-05 commit_phase consumes this list verbatim as
-//! the input to `ExtraHoursService::soft_delete_bulk`.
+//! quarantined ones). `commit_phase` consumes this list verbatim as the input
+//! to `ExtraHoursService::soft_delete_bulk`.
 
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
@@ -28,10 +40,11 @@ use dao::absence::{AbsenceCategoryEntity, AbsenceDao, AbsencePeriodEntity};
 use dao::cutover::{CutoverDao, LegacyExtraHoursRow, MigrationSourceRow, QuarantineRow};
 use dao::extra_hours::ExtraHoursCategoryEntity;
 use dao::TransactionDao;
-use service::absence::AbsenceService;
+use service::absence::{AbsenceCategory, AbsenceService};
 use service::carryover_rebuild::CarryoverRebuildService;
 use service::cutover::{
-    CutoverProfile, CutoverRunResult, CutoverService, QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
+    CutoverProfile, CutoverRunResult, CutoverService, DriftRow, GateResult, QuarantineReason,
+    CUTOVER_ADMIN_PRIVILEGE,
 };
 use service::employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService};
 use service::extra_hours::ExtraHoursService;
@@ -109,26 +122,55 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
         let ran_at = time::PrimitiveDateTime::new(now.date(), now.time());
 
         // 3. Migration phase. The tuple shape is LOCKED per Plan 04-02 task 2
-        //    acceptance criteria — Plan 04-05 consumes `migrated_ids` verbatim
-        //    in `ExtraHoursService::soft_delete_bulk`.
-        let (migration_stats, _migrated_ids) = self
+        //    acceptance criteria — Wave 2 commit_phase consumes `migrated_ids`
+        //    verbatim in `ExtraHoursService::soft_delete_bulk`.
+        let (migration_stats, migrated_ids) = self
             .migrate_legacy_extra_hours_to_clusters(run_id, ran_at, tx.clone())
             .await?;
 
-        // 4. Wave-1 stop point — ALWAYS rollback. Wave 2 (Plan 04-05) replaces
-        //    this with gate-then-commit logic.
-        self.transaction_dao.rollback(tx).await?;
+        // 4. Gate phase (Wave 2 / Plan 04-05). Always runs — even on dry_run —
+        //    because it is the single source of truth for `gate_passed` and
+        //    produces the diff-report file path returned in CutoverRunResult.
+        let gate = self.compute_gate(run_id, ran_at, dry_run, tx.clone()).await?;
+
+        // 5. Branch on dry_run + gate result (D-Phase4-08 + D-Phase4-14).
+        if dry_run || !gate.passed {
+            self.transaction_dao.rollback(tx).await?;
+            return Ok(CutoverRunResult {
+                run_id,
+                ran_at,
+                dry_run,
+                gate_passed: gate.passed,
+                total_clusters: migration_stats.clusters as u32,
+                // No commit — `migrated_clusters` reflects the in-Tx work that
+                // was rolled back. Conservatively report 0 so callers can
+                // distinguish committed from rolled-back runs (REST handler in
+                // Plan 04-06 surfaces this in the response body).
+                migrated_clusters: 0,
+                quarantined_rows: migration_stats.quarantined as u32,
+                gate_drift_rows: gate.drift_rows.len() as u32,
+                diff_report_path: Some(gate.diff_report_path.clone()),
+            });
+        }
+
+        // 6. Commit phase (Wave 2). Only reached when !dry_run AND gate.passed.
+        //    Pass the Plan-04-02 `migrated_ids` straight into the helper.
+        self.commit_phase(run_id, ran_at, &gate, migrated_ids, tx.clone())
+            .await?;
+
+        // 7. Atomic flip — single commit point per D-Phase4-14.
+        self.transaction_dao.commit(tx).await?;
 
         Ok(CutoverRunResult {
             run_id,
             ran_at,
             dry_run,
-            gate_passed: false, // Wave 1 placeholder; Wave 2 (04-05) sets the real value.
+            gate_passed: true,
             total_clusters: migration_stats.clusters as u32,
             migrated_clusters: migration_stats.clusters as u32,
             quarantined_rows: migration_stats.quarantined as u32,
-            gate_drift_rows: 0, // Wave 1 placeholder.
-            diff_report_path: None, // Wave 1 placeholder.
+            gate_drift_rows: 0,
+            diff_report_path: Some(gate.diff_report_path),
         })
     }
 
@@ -340,6 +382,238 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
         };
         let migrated_ids_arc: Arc<[Uuid]> = Arc::from(migrated_ids.into_boxed_slice());
         Ok((stats, migrated_ids_arc))
+    }
+
+    /// Cutover gate per D-Phase4-05 + D-Phase4-06.
+    ///
+    /// Walks the global `(sales_person_id, year)` scope set produced by
+    /// `CutoverDao::find_legacy_scope_set` and, per (sp, kategorie, jahr),
+    /// compares `legacy_sum` (DAO sum over `extra_hours.amount` for the three
+    /// legacy categories) against `derived_sum` (sum over the per-day output
+    /// of `AbsenceService::derive_hours_for_range`, filtered by category).
+    ///
+    /// Tolerance: 0.01h absolute. Anything strictly above produces a
+    /// `DriftRow` and a `tracing::error!` log line. The full gate result is
+    /// also persisted as a JSON file at
+    /// `.planning/migration-backup/cutover-gate-{unix_timestamp}.json`
+    /// (Unix-timestamp filename per Assumption A7 in 04-RESEARCH.md — Linux +
+    /// Windows safe; ISO with `:` is not Windows-safe).
+    ///
+    /// Reuses `derive_hours_for_range` verbatim per D-Phase2-08-A — no
+    /// re-implementation of the conflict-resolution logic, so the gate
+    /// measures EXACTLY what the post-cutover live read returns.
+    pub(crate) async fn compute_gate(
+        &self,
+        cutover_run_id: Uuid,
+        ran_at: time::PrimitiveDateTime,
+        dry_run: bool,
+        tx: <Deps as CutoverServiceDeps>::Transaction,
+    ) -> Result<GateResult, ServiceError> {
+        const DRIFT_THRESHOLD: f32 = 0.01;
+
+        let scope = self.cutover_dao.find_legacy_scope_set(tx.clone()).await?;
+        let mut drift_rows: Vec<DriftRow> = Vec::new();
+
+        // The three legacy categories — fixed order so the diff-report is
+        // stable across runs.
+        let categories: [(ExtraHoursCategoryEntity, AbsenceCategory); 3] = [
+            (ExtraHoursCategoryEntity::Vacation, AbsenceCategory::Vacation),
+            (ExtraHoursCategoryEntity::SickLeave, AbsenceCategory::SickLeave),
+            (
+                ExtraHoursCategoryEntity::UnpaidLeave,
+                AbsenceCategory::UnpaidLeave,
+            ),
+        ];
+
+        for &(sp_id, year) in scope.iter() {
+            // One sales-person lookup per (sp, year) tuple — used for the
+            // DriftRow.sales_person_name field. Skipped if no drift rows are
+            // emitted for this (sp, year), but cheap to fetch up front.
+            let sp = self
+                .sales_person_service
+                .get(sp_id, Authentication::Full, Some(tx.clone()))
+                .await?;
+            let sp_name: Arc<str> = sp.name.clone();
+
+            // One derive_hours_for_range call per (sp, year), then partition
+            // by category — saves N×3 calls per scope tuple.
+            let year_i32 = year as i32;
+            let year_start = time::Date::from_calendar_date(year_i32, time::Month::January, 1)
+                .map_err(|_| ServiceError::InternalError)?;
+            let year_end = time::Date::from_calendar_date(year_i32, time::Month::December, 31)
+                .map_err(|_| ServiceError::InternalError)?;
+            let derived = self
+                .absence_service
+                .derive_hours_for_range(
+                    year_start,
+                    year_end,
+                    sp_id,
+                    Authentication::Full,
+                    Some(tx.clone()),
+                )
+                .await?;
+
+            for (category_dao, category_svc) in categories.iter() {
+                let legacy_sum = self
+                    .cutover_dao
+                    .sum_legacy_extra_hours(sp_id, category_dao, year, tx.clone())
+                    .await?;
+
+                let derived_sum: f32 = derived
+                    .values()
+                    .filter(|r| r.category == *category_svc)
+                    .map(|r| r.hours)
+                    .sum();
+
+                let drift = (legacy_sum - derived_sum).abs();
+                if drift > DRIFT_THRESHOLD {
+                    let (quarantined_count, reasons) = self
+                        .cutover_dao
+                        .count_quarantine_for_drift_row(
+                            sp_id,
+                            category_dao,
+                            year,
+                            cutover_run_id,
+                            tx.clone(),
+                        )
+                        .await?;
+                    tracing::error!(
+                        "[cutover-gate] drift sp={} cat={:?} year={}: legacy={} derived={} drift={}",
+                        sp_id,
+                        category_svc,
+                        year,
+                        legacy_sum,
+                        derived_sum,
+                        drift
+                    );
+                    drift_rows.push(DriftRow {
+                        sales_person_id: sp_id,
+                        sales_person_name: sp_name.clone(),
+                        category: *category_svc,
+                        year,
+                        legacy_sum,
+                        derived_sum,
+                        drift,
+                        quarantined_extra_hours_count: quarantined_count,
+                        quarantine_reasons: reasons,
+                    });
+                }
+            }
+        }
+
+        // Diff-report file. Use the run-timestamp's Unix epoch as the filename
+        // suffix (Assumption A7 mitigation — colon-free, monotonic).
+        std::fs::create_dir_all(".planning/migration-backup")
+            .map_err(|_| ServiceError::InternalError)?;
+        let unix_ts = ran_at.assume_utc().unix_timestamp();
+        let report_path = format!(".planning/migration-backup/cutover-gate-{}.json", unix_ts);
+
+        let run_at_iso = ran_at
+            .assume_utc()
+            .format(&time::format_description::well_known::Iso8601::DEFAULT)
+            .unwrap_or_else(|_| String::new());
+
+        let report_json = serde_json::json!({
+            "gate_run_id": cutover_run_id.to_string(),
+            "run_at": run_at_iso,
+            "dry_run": dry_run,
+            "drift_threshold": DRIFT_THRESHOLD,
+            "total_drift_rows": drift_rows.len(),
+            "drift": drift_rows.iter().map(|r| serde_json::json!({
+                "sales_person_id": r.sales_person_id.to_string(),
+                "sales_person_name": r.sales_person_name.as_ref(),
+                "category": format!("{:?}", r.category),
+                "year": r.year,
+                "legacy_sum": r.legacy_sum,
+                "derived_sum": r.derived_sum,
+                "drift": r.drift,
+                "quarantined_extra_hours_count": r.quarantined_extra_hours_count,
+                "quarantine_reasons": r.quarantine_reasons.iter().map(|s| s.as_ref()).collect::<Vec<&str>>(),
+            })).collect::<Vec<_>>(),
+            "passed": drift_rows.is_empty(),
+        });
+
+        std::fs::write(
+            &report_path,
+            serde_json::to_string_pretty(&report_json)
+                .map_err(|_| ServiceError::InternalError)?,
+        )
+        .map_err(|_| ServiceError::InternalError)?;
+
+        let passed = drift_rows.is_empty();
+        Ok(GateResult {
+            passed,
+            drift_rows: Arc::from(drift_rows.into_boxed_slice()),
+            diff_report_path: Arc::from(report_path.as_str()),
+            scope_set: scope,
+        })
+    }
+
+    /// Commit-phase orchestration per D-Phase4-09..14. Only called from
+    /// `run()` when `!dry_run` AND `gate.passed`. All sub-service calls share
+    /// the cutover Tx and rely on the outer `transaction_dao.commit(tx)` call
+    /// in `run()` for atomicity.
+    ///
+    /// Step a (D-Phase4-13): backup `employee_yearly_carryover` for the gate
+    /// scope set BEFORE we update it. Single multi-row INSERT-INTO-SELECT in
+    /// the DAO.
+    ///
+    /// Step b (D-Phase4-12): rebuild `employee_yearly_carryover` per (sp,
+    /// year) tuple — Carryover-Refresh-Scope = gate scope set.
+    ///
+    /// Step c (D-Phase4-10): soft-delete the legacy `extra_hours` rows that
+    /// were merged into `absence_period` clusters. The id list comes verbatim
+    /// from the locked Plan-04-02 contract — no re-fetch, no re-derivation.
+    /// Quarantined rows are NOT in this list (they remain live for HR
+    /// triage).
+    ///
+    /// Step d (D-Phase4-09): atomic feature-flag flip. After this point, any
+    /// concurrent reader (e.g. `ReportingService`) sees the post-cutover
+    /// world; the flip is observable to other transactions only after the
+    /// outer `commit(tx)` succeeds.
+    pub(crate) async fn commit_phase(
+        &self,
+        cutover_run_id: Uuid,
+        ran_at: time::PrimitiveDateTime,
+        gate: &GateResult,
+        migrated_ids: Arc<[Uuid]>,
+        tx: <Deps as CutoverServiceDeps>::Transaction,
+    ) -> Result<(), ServiceError> {
+        // Step a — pre-cutover carryover backup (D-Phase4-13).
+        self.cutover_dao
+            .backup_carryover_for_scope(cutover_run_id, ran_at, &gate.scope_set, tx.clone())
+            .await?;
+
+        // Step b — rebuild carryover per scope tuple (D-Phase4-12).
+        for &(sp_id, year) in gate.scope_set.iter() {
+            self.carryover_rebuild_service
+                .rebuild_for_year(sp_id, year, Authentication::Full, Some(tx.clone()))
+                .await?;
+        }
+
+        // Step c — soft-delete migrated extra_hours rows (D-Phase4-10).
+        // `migrated_ids` is the verbatim Arc<[Uuid]> from
+        // migrate_legacy_extra_hours_to_clusters in this same `run()`.
+        self.extra_hours_service
+            .soft_delete_bulk(
+                migrated_ids,
+                CUTOVER_MIGRATION_PROCESS,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+
+        // Step d — atomic feature-flag flip (D-Phase4-09).
+        self.feature_flag_service
+            .set(
+                "absence_range_source_active",
+                true,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+
+        Ok(())
     }
 }
 
