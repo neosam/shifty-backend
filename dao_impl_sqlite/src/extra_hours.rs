@@ -6,7 +6,7 @@ use dao::{
     extra_hours::{ExtraHoursCategoryEntity, ExtraHoursDao, ExtraHoursEntity},
     DaoError,
 };
-use sqlx::{query, query_as};
+use sqlx::{query, query_as, QueryBuilder, Sqlite};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;
 
@@ -224,5 +224,53 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         _tx: Self::Transaction,
     ) -> Result<(), crate::DaoError> {
         unimplemented!()
+    }
+
+    /// Phase 4 / C-Phase4-04 — bulk soft-delete by id list.
+    ///
+    /// Single UPDATE with `WHERE deleted IS NULL AND id IN (...)`. The
+    /// `deleted IS NULL` clause makes re-runs idempotent: rows already
+    /// soft-deleted (e.g., by a prior cutover attempt that committed before
+    /// rolling back due to a later step failing) are silently skipped.
+    async fn soft_delete_bulk(
+        &self,
+        ids: &[Uuid],
+        deleted_at: PrimitiveDateTime,
+        update_process: &str,
+        new_version: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+
+        let deleted_at_str = deleted_at.format(&Iso8601::DATE_TIME)?;
+        let new_version_vec = new_version.as_bytes().to_vec();
+
+        // Schema reference: 20240618125847_paid-sales-persons.sql
+        // Columns: deleted TEXT, update_process TEXT, update_timestamp TEXT, update_version BLOB(16).
+        let mut qb: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE extra_hours SET deleted = ");
+        qb.push_bind(deleted_at_str.clone());
+        qb.push(", update_process = ");
+        qb.push_bind(update_process.to_string());
+        qb.push(", update_timestamp = ");
+        qb.push_bind(deleted_at_str);
+        qb.push(", update_version = ");
+        qb.push_bind(new_version_vec);
+        qb.push(" WHERE deleted IS NULL AND id IN (");
+
+        let mut sep = qb.separated(", ");
+        for id in ids {
+            sep.push_bind(id.as_bytes().to_vec());
+        }
+        qb.push(")");
+
+        qb.build()
+            .execute(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?;
+
+        Ok(())
     }
 }
