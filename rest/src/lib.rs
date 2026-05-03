@@ -6,7 +6,7 @@ mod block_report;
 mod booking;
 mod booking_information;
 mod booking_log;
-mod cutover;
+pub mod cutover;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;

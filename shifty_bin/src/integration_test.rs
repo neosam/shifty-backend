@@ -1437,4 +1437,6 @@ mod billing_period_custom_reports;
 mod billing_period_snapshot_versioning;
 #[cfg(test)]
 mod booking_absence_conflict;
+#[cfg(test)]
+mod cutover;
 mod dev_seed;

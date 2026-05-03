@@ -63,6 +63,13 @@ features = ["json"]
 [dev-dependencies]
 proptest = "1.5.0"
 serde_json = "1.0"
+# Phase 4 (Plan 04-07) — REST integration tests issue tower::oneshot calls
+# against the in-process Cutover router for the SC-1 profile-via-REST test.
+# `tower` provides ServiceExt::oneshot; `http-body-util` collects Response bodies.
+# `axum` is needed to build the test router; matches the version in rest/Cargo.toml.
+tower = { version = "0.5.2", features = ["util"] }
+http-body-util = "0.1"
+axum = "0.8.7"
 
 [dev-dependencies.rest-types]
 path = "../rest-types"
