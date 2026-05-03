@@ -75,6 +75,3 @@ warnings = "deny"
 
 [lints.clippy]
 all = "deny"
-
-[dev-dependencies]
-insta = { version = "1.47.2", features = ["json"] }
