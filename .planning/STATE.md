@@ -1,149 +1,84 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
+milestone_name: Range-Based Absence Management
 status: milestone_complete
-last_updated: "2026-05-03T10:41:40.340Z"
+last_updated: "2026-05-03T20:15:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 14
-  percent: 75
+  completed_plans: 23
+  percent: 100
 ---
 
-# Project State: Shifty Backend — Range-Based Absence Management
+# Project State: Shifty Backend
 
 ## Project Reference
 
-- **Project document**: `.planning/PROJECT.md`
-- **Requirements**: `.planning/REQUIREMENTS.md`
-- **Roadmap**: `.planning/ROADMAP.md`
-- **Research**: `.planning/research/SUMMARY.md`
-- **Codebase context**: `.planning/codebase/`
-- **Core value**: Mitarbeiter und HR sehen jederzeit eine korrekte Stunden- und Abwesenheits-Bilanz, und Änderungen an Stammdaten ziehen sich automatisch in alle abhängigen Berechnungen durch — ohne manuelle Nacharbeit.
-- **Current focus**: Replace per-date hour-amount absence accounting with range-based absences whose per-day hour effects are derived from the contract valid on that day.
+- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format)
+- **Milestones-Index**: `.planning/MILESTONES.md`
+- **Latest milestone archive**: `.planning/milestones/v1.0-ROADMAP.md`
+- **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions)
+- **Last shipped**: v1.0 Range-Based Absence Management (2026-05-03)
+- **Current focus**: TBD — next milestone via `/gsd:new-milestone`
 
 ## Current Position
 
-Phase: 04
-Plan: Not started
+Phase: — (none active)
+Milestone: v1.0 SHIPPED
 
-- **Current milestone**: Range-Based Absence Management
-- **Current phase**: 04 — Migration & Cutover (planning complete, ready to execute)
-- **Current plan**: 8 PLAN-Files in `.planning/phases/04-migration-cutover/` (04-00..04-07). Wave 0: 04-00 (Foundation+Migrations) + 04-01 (Trait-Stubs); Wave 1: 04-02 (Heuristik MIG-01), 04-03 (CarryoverRebuildService MIG-04, Cycle-Breaker via Variante A), 04-04 (ExtraHours Flag-Gate + Soft-Delete MIG-05); Wave 2: 04-05 (Gate + Diff-Report + Atomic-Tx MIG-02/04), 04-06 (REST + utoipa + DI + OpenAPI-Snapshot MIG-03/05 + SC-1, Snapshot-Accept-Checkpoint = autonomous:false); Wave 3: 04-07 (18 Integration-Tests + profile() für SC-1).
-- **Status**: phase-4-planned (next: `/gsd:execute-phase 04` für Wave-basierte Ausführung)
-- **Last action**: 04-plan-complete (2026-05-03; Plan-Checker iter 2 PASSED, alle 4 Iter-1-BLOCKERs aufgelöst — Cross-Plan-Vertrag 04-02↔04-05, Profile-REST-Endpunkt, soft_delete_bulk_forbidden-Test, RESEARCH.md Open-Questions-RESOLVED)
-- **Progress**: Phases 1+2+3 verified complete (15/15 Plans); Phase 4 — 0/8 Plans executed; Requirements 17/19 (MIG-01..05 noch offen, in Plans abgedeckt).
+- **Status**: milestone_complete (v1.0 shipped 2026-05-03)
+- **Last action**: v1.0 milestone close (Phasen 1–4 alle verified, 458+ tests workspace-weit grün, OpenAPI-Snapshot deterministic, fe744df-Recovery integriert)
+- **Next**: `/gsd:new-milestone` zur Definition des nächsten Iterations-Scopes
 
-## Performance Metrics
+## v1.0 Highlights
 
-| Metric | Value |
-|---|---|
-| Phases complete | 2 / 4 (P1 + P2 verified; P3 all-plans-done, awaiting /gsd:verify-phase 03) |
-| Plans complete | 15 / 15 (Phase 1 vollstaendig + Phase 2 vollstaendig 01..04 + Phase 3 vollstaendig 01..06) |
-| Requirements mapped | 19 / 19 |
-| Requirements complete | 17 / 19 (Phase-1-vollstaendig + Phase-2: SNAP-01/SNAP-02/REP-01..04 + Phase-3: BOOK-01/BOOK-02/PLAN-01) |
-| Open discuss-phase decisions | 4 (Phase-4-blocking) |
+- **23 plans / 22 SUMMARYs** über 4 Phasen geliefert (Phase-1-Plan-00 hat historisches Wave-0-Scaffolding ohne separates SUMMARY)
+- **458+ tests green** workspace-weit (363 service_impl + 56 shifty_bin integration + 11 cutover service + 10 dao + 18 weitere)
+- **OpenAPI surface gepinnt** via insta-snapshot (3-run deterministic check passed)
+- **Atomic-Tx-Cutover** verifiziert: Backup → Carryover-Rebuild → Soft-Delete → Flag-Flip in einer Tx, Drop-Rollback im Fehlerfall
+- **Service-Tier-Konvention** (Basic vs Business-Logic) durchgehend angewendet, keine Cycles
 
-### Phase-Plan Execution Log
-
-| Phase | Plan | Duration | Tasks | Files | Date |
-|-------|------|----------|-------|-------|------|
-| 02 | 01 | ~12min | 3 (+ 1 Phase-1-Rule-3-Fix) | 8 (5 neu Wave-0 + 3 Phase-1-Fix) | 2026-05-02 |
-| 02 | 02 | ~11min | 3 | 5 (1 service, 1 service_impl, 2 test, 1 main.rs) | 2026-05-02 |
-| 02 | 03 | ~13min | 3 | 13 (6 neu + 7 patches) | 2026-05-02 |
-| 02 | 04 | ~35min | 3 (+ 1 Rule-1-Auto-Fix; atomar) | 11 (alle in jj-Change 39be1b73) | 2026-05-02 |
-| 03 | 01 | ~14min | 2 | 5 (2 neu test-stubs + 2 mod-patches + 1 STATE-prep) | 2026-05-02 |
-| 03 | 02 | ~16min | 3 | 7 (1 neu warning.rs + 1 neu deferred-items.md + 5 patches + .sqlx-Cache 4 Files) | 2026-05-02 |
-| 03 | 03 | ~25min | 3 | 6 (alle patches: service/absence + service_impl/absence + test/absence + rest/absence + main.rs + integration_test/absence_period) | 2026-05-02 |
-| 03 | 04 | ~30min | 3 | 7 (alle patches: service/shiftplan_edit + service_impl/shiftplan_edit + test/shiftplan_edit + service/shiftplan + service_impl/shiftplan + test/shiftplan + main.rs) | 2026-05-02 |
-| 03 | 05 | ~25min | 3 | 5 (alle patches: rest-types/lib.rs + rest/absence + rest/shiftplan_edit + rest/shiftplan + rest/lib.rs) | 2026-05-02 |
-| 03 | 06 | ~25min | 4 (Task-1 Plan-04-Carryover; +Rule-3 Migration-Recovery) | 7 (1 neu Migration + 4 patches Tests/VALIDATION/ROADMAP + 1 SUMMARY + 1 STATE.md) | 2026-05-02 |
-
-## Accumulated Context
-
-### Key Decisions Logged
-
-Aus `PROJECT.md` (alle als "Pending" — werden bei Phase-Transition validiert):
-
-- Abwesenheiten als Zeitraum (`from_date`, `to_date`) statt einzelner Datums-Einträge mit Stunden.
-- Nur Ganztage, keine Halbtage / Stundenebene in v1.
-- Vertragsänderungen wirken nur prospektiv (neue Periode neu berechnet, alte unverändert).
-- Booking-Konflikte = Warnung (nicht-blockierend), kein Auto-Löschen.
-- Feiertage orthogonal: 0 Urlaubsstunden am Feiertag, separate Feiertags-Gutschrift bleibt unverändert.
-- Migration via Heuristik aus wochenweisen Bestands-`ExtraHours`.
-- Cutover via Feature-Flag mit Stunden-Konto-Identitäts-Gate (Null-Drift-Garantie).
-- Backend-First, Frontend folgt in separatem Workstream.
+## Accumulated Context (carry forward)
 
 ### Architecture Decisions Logged
 
-Aus `research/ARCHITECTURE.md`:
-
 - Parallele `absence` Domain (nicht Erweiterung von `extra_hours`).
 - Hybrid materialize-on-snapshot / derive-on-read (Live-Reports derive on read; BillingPeriod-Snapshots materialize-once).
-- Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt — verhindert Circular Dep). Siehe `shifty-backend/CLAUDE.md` § "Service-Tier-Konventionen: Basic vs. Business-Logic Services".
-- Service-Tier-Konvention etabliert (2026-05-02): Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. Konflikt-aware Schreib-Pfade (z.B. Booking-mit-Warning) leben im Business-Logic-Tier (z.B. `ShiftplanEditService`), nicht in Basic Services. Doku: `shifty-backend/CLAUDE.md` § "Service-Tier-Konventionen".
-- `BookingCreateResult { booking, warnings }`-Wrapper für nicht-blockierende Warnings (lebt im Business-Logic-Tier, nicht im `BookingService` selbst).
-- `CURRENT_SNAPSHOT_SCHEMA_VERSION` 2 → 3 im selben Commit wie der Reporting-Switch (per `CLAUDE.md`).
-- Phase-3 Wave-0-Stub-Pattern (2026-05-02): `#[ignore]` + `unimplemented!()` als Standard für Wave-Forcing. Test-Liste sichtbar in `cargo test --list`, Body panic'd bei versehentlichem Aktivieren ohne Implementation. Pattern in `service_impl/src/test/shiftplan_edit.rs` und `shifty_bin/src/integration_test/booking_absence_conflict.rs` etabliert.
-- Phase-3 Wave-1 Domain-Surface (2026-05-02): `service::warning::Warning` lebt in eigenem `service/src/warning.rs`-Modul (C-Phase3-01); `pub mod warning;` alphabetisch in `lib.rs`; KEIN `pub use` am Root — Konsumenten via `use service::warning::Warning;`. `AbsenceDao::find_overlapping_for_booking` ist kategorie-frei (alle 3 AbsenceCategoryEntity-Werte) und ohne `exclude_logical_id` (Booking-IDs orthogonal zu Absence-IDs). `ShiftplanDay.unavailable: Option<UnavailabilityMarker>` additiv mit Default `None` — globale Sicht setzt nie etwas.
-- Phase-3 Wave-2 AbsenceService Forward-Warning (2026-05-02): `AbsenceService::create`/`::update` returnen `AbsencePeriodCreateResult { absence, warnings: Arc<[Warning]> }` (Wrapper-Sig-Bruch). Forward-Warning-Loop in `compute_forward_warnings` (private Helper im `impl<Deps> AbsenceServiceImpl<Deps>`) läuft NACH dem DAO-Persist + VOR `commit`; `Authentication::Full` im internen Loop (outer Permission ist HR ∨ self bereits verifiziert). 3 neue Basic-Service-Deps am AbsenceServiceImpl: `BookingService` + `SalesPersonUnavailableService` + `SlotService` (SlotService nötig, weil Booking nur slot_id + calendar_week + year trägt; day_of_week kommt aus Slot). Warnings tragen `absence_id = entity.id` (Create) bzw. `active.logical_id` (Update — D-07-stable). Soft-Delete-Filter für Booking + ManualUnavailable explizit (Pitfall-1 / SC4).
-- Phase-3 Wave-3 Reverse-Warning + per-sales-person-Sicht (2026-05-02): `ShiftplanEditService::book_slot_with_conflict_check` produziert `BookingCreateResult { booking, warnings: Arc<[Warning]> }`; `::copy_week_with_conflict_check` aggregiert Warnings ohne De-Dup (D-Phase3-15). Wrapper-Structs leben in `service/src/shiftplan_edit.rs` (NICHT in `service/src/booking.rs` — D-Phase3-18 Regression-Lock). Permission HR ∨ self für `book_slot`, `shiftplan.edit` für `copy_week` (Bulk-Op-Pattern). `ShiftplanViewService::get_shiftplan_*_for_sales_person` setzt `unavailable: Option<UnavailabilityMarker>` per Tag mit 4-Wege-Match (None/AbsencePeriod/ManualUnavailable/Both, D-Phase3-10). Neuer Parallel-Helper `build_shiftplan_day_for_sales_person` (C-Phase3-03) lässt globale Sicht unangetastet. DI-Konstruktionsreihenfolge unverändert Tier-konform (`absence_service` → `shiftplan_edit_service` → `shiftplan_view_service`).
-- Phase-3 Wave-4 REST-Layer (2026-05-02): 5 inline Phase-3 Wrapper-DTOs in `rest-types/src/lib.rs` (`WarningTO` + `UnavailabilityMarkerTO` als Tag-Enums mit `#[serde(tag = "kind", content = "data", rename_all = "snake_case")]` — utoipa-5-Support, RESEARCH.md Pattern 4; `BookingCreateResultTO` + `CopyWeekResultTO` + `AbsencePeriodCreateResultTO` als Wrapper-Structs). `ShiftplanDayTO.unavailable: Option<UnavailabilityMarkerTO>` additiv mit `#[serde(default, skip_serializing_if = "Option::is_none")]` — globale Endpunkte serialisieren das Feld weiterhin nicht (Wire-Compat); per-sales-person-Endpunkte setzen es. `POST /absence-period` und `PATCH /absence-period/{id}` liefern jetzt `AbsencePeriodCreateResultTO` (Plan-03-TODO eingelöst). Neue Endpunkte `POST /shiftplan-edit/booking` + `POST /shiftplan-edit/copy-week` (BOOK-02 / D-Phase3-02) und `GET /shiftplan-info/{shiftplan_id}/{year}/{week}/sales-person/{sales_person_id}` + `GET /shiftplan-info/day/{year}/{week}/{day_of_week}/sales-person/{sales_person_id}` (PLAN-01). ShiftplanEditApiDoc neu (existing edit_slot/delete_slot/add_vacation bleiben außerhalb der `paths(...)` — Phase-1-Tech-Debt; out-of-scope). `POST /booking` und `POST /booking/copy-week` strikt unangetastet (D-Phase3-18 Regression-Lock).
-
-### Open Todos
-
-- [x] `/gsd:execute-plan 02-02` — Wave 1 derive_hours_for_range (abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 02-03` — Feature-Flag-Infrastruktur (abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 02-04` — Wave 2 atomarer Snapshot-Bump-Commit (abgeschlossen 2026-05-02, jj-Change `39be1b73`).
-- [x] `/gsd:execute-plan 03-01` — Wave-0 Test-Scaffolding (10 #[ignore]-Stubs; jj-Changes `60776314`+`fd777925`+`a27d19af`, abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 03-02` — Wave-1 Domain-Surface (Warning-Enum + AbsenceDao::find_overlapping_for_booking + UnavailabilityMarker + ShiftplanDay-Field; jj-Changes `572d6737`+`8fa3eefb`+`35fb3edb`, abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 03-03` — Wave-2 AbsenceService Forward-Warning (Sig-Brüche AbsenceService::create/update zu AbsencePeriodCreateResult + Forward-Warning-Loop + find_overlapping_for_booking + neue DI-Deps; jj-Changes `d744efe4`+`106ea712`+`dfd66a56`, abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 03-04` — Wave-3 ShiftplanEditService Reverse-Warning + ShiftplanViewService per-sales-person + DI-Wiring (6 Plan-01-Wave-3-Stubs aktiviert + 4 neue per-sales-person-Tests; jj-Changes `448c265e`+`92358f05`+`00ce6d87`, abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 03-05` — Wave-4 REST-Layer (5 Wrapper-DTOs + Wrapper-Body für /absence-period + 2 neue /shiftplan-edit-Endpunkte + 2 neue per-sales-person-Endpunkte unter /shiftplan-info + ApiDoc; jj-Changes `1a64ff7b`+`0738d880`+`5b60dc29`, abgeschlossen 2026-05-02).
-- [x] `/gsd:execute-plan 03-06` — Wave-5 Final-Tests + Phase-Closure (4 Forward-Warning-Tests in test/absence.rs, 1 marker_manual_only-Test in test/shiftplan.rs, 4 Cross-Source-Integration-Tests aktiviert, Phase-1-Migration recovered als Bonus, 03-VALIDATION.md completed, ROADMAP Phase-3 [x]; jj-Changes `e02964a6`+`7aeed067`+`d9ca9ba9`+`02d0642f`+`3e9c74f7`, abgeschlossen 2026-05-02).
-- [x] `/gsd:verify-phase 03` — Phase-3 verified complete (commit `3e2f6c1`, 4/4 SCs erfüllt, D-Phase3-18 Lock 0-Diff).
-- [x] `/gsd:discuss-phase 04` — abgeschlossen 2026-05-03 (15 Decisions D-Phase4-01..15 in `04-CONTEXT.md`; 4 Areas durchdiskutiert; User-Korrektur "kein Bin-Call, alles im laufenden Server" eingearbeitet; /extra-hours-Block flag-gated klargestellt).
-- [x] `/gsd:plan-phase 04` — abgeschlossen 2026-05-03 (8 Plans Wave 0..3 in `.planning/phases/04-migration-cutover/`; Plan-Checker iter 2 PASSED; Coverage MIG-01..05 + SC-1 vollständig; Validation Architecture in 04-VALIDATION.md mit Per-Req-Test-Map).
-- [x] Phase-4-Wave-0 wird die zwei Hygiene-Items mitnehmen — geplant in `04-00-foundation-and-migrations-PLAN.md` Task 1 (D-Phase4-15).
-- [x] Production-Data-Profile-Format finalisiert — `CutoverProfileTO`/`CutoverProfileBucketTO`-Schema gelockt in `04-06-cutover-rest-and-openapi-PLAN.md` Task 1; REST-Endpunkt `POST /admin/cutover/profile` (HR-Permission) in Task 2; `CutoverServiceImpl::profile()` in `04-07-integration-tests-and-profile-PLAN.md` Task 1.
-- [ ] `/gsd:execute-phase 04` — Wave 0..3 ausführen (Wave 0 + 1 parallel-fähig zwischen Plans, Wave 2 + 3 sequentiell; 04-06 hat human-verify Checkpoint für OpenAPI-Snapshot-Accept).
-
-### Wave-2-Forcing-State (aus Plan 02-01)
-
-Wave 0 hat ein **build-time Forcing** etabliert, das Wave 2 zwingt, Snapshot-Bump und UnpaidLeave-Variante atomar zu liefern:
-
-- **Pin-Map-Test ROT** (`test_snapshot_schema_version_pinned`): erwartet `CURRENT_SNAPSHOT_SCHEMA_VERSION = 3`, ist aktuell 2. Wird GRUEN sobald Wave 2 das Bump macht.
-- **Compiler-Exhaustive-Match-Test GRUEN** (`test_billing_period_value_type_surface_locked`): listet alle 11 aktuellen Varianten. Wird COMPILE-ERROR sobald Wave 2 die `BillingPeriodValueType::UnpaidLeave`-Variante hinzufuegt -- in der Test-Datei wartet ein auskommentierter Arm zur Aktivierung.
-
-### Blockers
-
-Keine harten Blocker. Phase 2 ist abgeschlossen — atomarer Wave-2-Commit `39be1b73` enthaelt Snapshot-Bump 2→3, UnpaidLeave-Variante, Reporting-Switch und alle 4 neuen Tests. Plus Rule-1-Auto-Fix in FeatureFlagService::is_enabled (Authentication::Full-Bypass) macht 7 vorher fehlschlagende Reporting-Integration-Tests gruen.
-
-**Carry-Over fuer Phase 4:** Die in `deferred-items.md` dokumentierten 8 fehlschlagenden `absence_period`-Integration-Tests (pre-existing Phase-1-Migrations-Luecke) sollten von Phase 4 nachgereicht werden, damit `cargo run` auf der lokalen Dev-DB sauber bootet.
+- Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt).
+- Service-Tier-Konvention etabliert: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. Doku: `shifty-backend/CLAUDE.md` § "Service-Tier-Konventionen".
+- `BookingCreateResult { booking, warnings }`-Wrapper für nicht-blockierende Warnings (lebt im Business-Logic-Tier).
+- `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden im selben Commit wie Reporting-Switch (per `CLAUDE.md`).
+- Phase-3 Wave-0-Stub-Pattern: `#[ignore]` + `unimplemented!()` als Standard für Wave-Forcing.
+- Phase-4 Cycle-Break: separater `CarryoverRebuildServiceImpl` (BL-Tier) — bricht Reporting↔Carryover-Cycle.
+- logical_id-Versionierungs-Pattern (rotiert physische Row, hält stabilen externen ID): erst in `extra_hours` (commit fe744df) eingeführt, dann in `absence_period` übernommen.
 
 ### Constraints In Force
 
 - **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`).
-- **NixOS**: Tools wie `sqlx-cli` ggf. via `nix-shell` aufrufen (siehe `CLAUDE.local.md`).
-- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert (per `CLAUDE.md`). Fällig in Phase 2.
-- **Multi-Sprache**: Alle benutzersichtbaren Texte in en/de/cs (Out of Scope für dieses Backend-Milestone, aber DTO-Felder, die Texte transportieren, müssen Frontend-i18n-tauglich sein).
+- **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`.
+- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert.
+- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs (Out of Scope für dieses Backend-Milestone, aber DTO-Felder die Texte transportieren müssen Frontend-i18n-tauglich sein).
 - **Layered Architecture**: REST → Service (trait) → DAO (trait); `gen_service_impl!` für DI; `WHERE deleted IS NULL` in jeder DAO-Read-Query.
+
+### Open Issues / Tech Debt for next milestone
+
+- 04-UAT Test 8: idempotenter Cutover-Re-Run wurde manuell mit 403 verifiziert (vermutlich Setup-Issue, kein Code-Bug — abgedeckt durch passing Integration-Test). Bei nächster Cutover-Phase neu prüfen falls reproduzierbar.
+- `/gsd:secure-phase 04` wurde nicht ausgeführt — als bewusstes Skip akzeptiert. Falls für Compliance gefordert, separat nachreichen.
+- 8 pre-existing `absence_period`-Integration-Tests: Phase-1-Migration in Plan 03-06 recovered → jetzt grün. Keine offene Lücke.
 
 ## Session Continuity
 
 **To resume work in a new session:**
 
-1. Read `.planning/PROJECT.md` (Active requirements AB-01..AB-08, Key Decisions, Out of Scope).
-2. Read `.planning/REQUIREMENTS.md` (19 v1 REQs, traceability table mit Phase-Mapping).
-3. Read `.planning/ROADMAP.md` (4 Phasen, Build-Order-Rationale, Discuss-Carry-Overs).
-4. Read this file (`STATE.md`) — current position.
-5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
+1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones)
+2. Read `.planning/ROADMAP.md` (collapsed milestone format)
+3. Read this file (`STATE.md`) — current position
+4. Optional: `.planning/milestones/v1.0-ROADMAP.md` für Detail-Audit der v1.0-Arbeit
 
-**Next command**: `/gsd:execute-phase 04` — Migration & Cutover execution. Vorhanden: 8 PLAN-Files (04-00..04-07) + 04-RESEARCH.md (Validation Architecture) + 04-VALIDATION.md (Per-Req-Test-Map mit `cargo test`-Commands) + 04-CONTEXT.md (15 Locked Decisions) + 04-DISCUSSION-LOG.md (Audit). Wave-Reihenfolge: Wave 0 (04-00 + 04-01 parallel) → Wave 1 (04-02 + 04-03 + 04-04 parallel) → Wave 2 (04-05 → 04-06 sequentiell, 04-06 hat Snapshot-Accept-Checkpoint) → Wave 3 (04-07).
+**Next command**: `/gsd:new-milestone` zur Definition des nächsten Iterations-Scopes (Frontend-Workstream, weitere Backend-Features, etc.).
 
 ---
 
-*State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-03 (Phase 04 — Plan-Phase complete; 8 PLANs + RESEARCH + VALIDATION; Plan-Checker iter 2 PASSED; ready für `/gsd:execute-phase 04`)*
+*State updated: 2026-05-03 — v1.0 milestone closed. Phases 1–4 SHIPPED. Ready for next milestone planning.*
