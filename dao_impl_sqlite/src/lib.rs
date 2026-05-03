@@ -336,4 +336,11 @@ impl dao::TransactionDao for TransactionDaoImpl {
         }
         Ok(())
     }
+
+    async fn rollback(&self, transaction: Self::Transaction) -> Result<(), DaoError> {
+        if let Some(tx) = Arc::into_inner(transaction.tx) {
+            tx.into_inner().rollback().await.map_db_error()?;
+        }
+        Ok(())
+    }
 }
