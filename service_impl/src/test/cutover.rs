@@ -10,6 +10,7 @@
 //! Wave 2 plans (04-05) will activate the gate-tolerance tests still marked
 //! `#[ignore = "wave-2-..."]`.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use mockall::predicate::{always, eq};
@@ -20,7 +21,7 @@ use dao::absence::MockAbsenceDao;
 use dao::cutover::{LegacyExtraHoursRow, MockCutoverDao};
 use dao::extra_hours::ExtraHoursCategoryEntity;
 use dao::{MockTransaction, MockTransactionDao};
-use service::absence::MockAbsenceService;
+use service::absence::{AbsenceCategory, MockAbsenceService, ResolvedAbsence};
 use service::carryover_rebuild::MockCarryoverRebuildService;
 use service::cutover::{CutoverService, CUTOVER_ADMIN_PRIVILEGE};
 use service::employee_work_details::{
@@ -29,7 +30,7 @@ use service::employee_work_details::{
 use service::extra_hours::MockExtraHoursService;
 use service::feature_flag::MockFeatureFlagService;
 use service::permission::{Authentication, HR_PRIVILEGE};
-use service::sales_person::MockSalesPersonService;
+use service::sales_person::{MockSalesPersonService, SalesPerson};
 use service::{MockPermissionService, ServiceError};
 use shifty_utils::DayOfWeek;
 
@@ -662,19 +663,206 @@ async fn run_forbidden_for_hr_only_when_committing() {
 }
 
 // ----------------------------------------------------------------------------
-// Wave-2 placeholders — implemented in Plan 04-05.
+// Wave-2 gate-tolerance boundary tests (Plan 04-05).
+//
+// Both drive `run(dry_run=true, ...)` end-to-end so the full
+// migration → gate → branch → rollback path is exercised, including the
+// diff-report file write (D-Phase4-06). The migration phase contributes 0
+// rows (empty find_legacy_extra_hours_not_yet_migrated) so the assertions
+// focus exclusively on gate behavior.
 // ----------------------------------------------------------------------------
 
-#[tokio::test]
-#[ignore = "wave-2-implements-gate-tolerance"]
-async fn gate_tolerance_pass_below_threshold() {
-    unimplemented!("wave-2");
+/// Build a SalesPerson fixture with the given id + name. Local helper since the
+/// shared `fixture_sales_person` lives in `reporting_phase2_fixtures` and we
+/// want stable values for these tests.
+fn cutover_test_sales_person() -> SalesPerson {
+    SalesPerson {
+        id: fixture_sp_id(),
+        name: Arc::from("Test Cutover Person"),
+        background_color: Arc::from("#000000"),
+        is_paid: Some(true),
+        inactive: false,
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
+/// Common gate-test setup: empty migration phase + 1-tuple scope set
+/// (`(fixture_sp_id, 2024)`) + sales-person lookup. Caller provides the
+/// derived-hours map and the legacy-Vacation sum; SickLeave + UnpaidLeave
+/// always 0 to isolate the Vacation drift.
+fn arrange_gate_test(
+    deps: &mut CutoverDependencies,
+    legacy_vacation_sum: f32,
+    derived_hours: BTreeMap<time::Date, ResolvedAbsence>,
+) {
+    deps.permission_service = permission_service_allow_all();
+
+    // Migration phase: no legacy rows to migrate.
+    deps.cutover_dao
+        .expect_find_legacy_extra_hours_not_yet_migrated()
+        .returning(|_| Ok(Arc::from([])));
+
+    // Gate phase scope: exactly one (sp, year) tuple.
+    deps.cutover_dao
+        .expect_find_legacy_scope_set()
+        .returning(|_| Ok(Arc::from([(fixture_sp_id(), 2024u32)])));
+
+    // sales_person_service.get for DriftRow.sales_person_name.
+    deps.sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(cutover_test_sales_person()));
+
+    // derive_hours_for_range stub (1 call per (sp, year) tuple).
+    let derived_clone = derived_hours.clone();
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(move |_, _, _, _, _| Ok(derived_clone.clone()));
+
+    // sum_legacy_extra_hours stub: Vacation = caller's value; others = 0.0.
+    deps.cutover_dao
+        .expect_sum_legacy_extra_hours()
+        .withf(|_, cat, _, _| matches!(cat, ExtraHoursCategoryEntity::Vacation))
+        .returning(move |_, _, _, _| Ok(legacy_vacation_sum));
+    deps.cutover_dao
+        .expect_sum_legacy_extra_hours()
+        .withf(|_, cat, _, _| {
+            matches!(
+                cat,
+                ExtraHoursCategoryEntity::SickLeave | ExtraHoursCategoryEntity::UnpaidLeave
+            )
+        })
+        .returning(|_, _, _, _| Ok(0.0));
 }
 
 #[tokio::test]
-#[ignore = "wave-2-implements-gate-tolerance"]
+async fn gate_tolerance_pass_below_threshold() {
+    let mut deps = build_dependencies();
+
+    // legacy_sum = 100.000, derived_sum = 100.005 → drift = 0.005 < 0.01.
+    let mut derived: BTreeMap<time::Date, ResolvedAbsence> = BTreeMap::new();
+    derived.insert(
+        date!(2024 - 06 - 03),
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 100.005,
+        },
+    );
+    arrange_gate_test(&mut deps, 100.000, derived);
+
+    // Below-threshold drift → count_quarantine_for_drift_row MUST NOT be
+    // called for any category.
+    deps.cutover_dao
+        .expect_count_quarantine_for_drift_row()
+        .times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service
+        .run(true, ().auth(), None)
+        .await
+        .expect("run succeeded");
+
+    assert!(
+        result.gate_passed,
+        "drift 0.005h is strictly below the 0.01h threshold"
+    );
+    assert_eq!(result.gate_drift_rows, 0);
+    assert!(result.dry_run);
+    let report_path = result
+        .diff_report_path
+        .expect("diff report path is always returned");
+
+    let p = std::path::Path::new(report_path.as_ref());
+    assert!(p.exists(), "diff report file should exist at {:?}", p);
+    let body = std::fs::read_to_string(p).expect("diff report readable");
+    assert!(
+        body.contains("\"passed\": true"),
+        "diff report JSON should record passed=true: {}",
+        body
+    );
+    assert!(
+        body.contains("\"total_drift_rows\": 0"),
+        "diff report JSON should record 0 drift rows: {}",
+        body
+    );
+
+    let _ = std::fs::remove_file(p);
+}
+
+#[tokio::test]
 async fn gate_tolerance_fail_above_threshold() {
-    unimplemented!("wave-2");
+    let mut deps = build_dependencies();
+
+    // legacy_sum = 100.000, derived_sum = 100.020 → drift = 0.020 > 0.01.
+    let mut derived: BTreeMap<time::Date, ResolvedAbsence> = BTreeMap::new();
+    derived.insert(
+        date!(2024 - 06 - 03),
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 100.020,
+        },
+    );
+    arrange_gate_test(&mut deps, 100.000, derived);
+
+    // Above-threshold drift → count_quarantine_for_drift_row MUST be called
+    // exactly once for the Vacation row.
+    deps.cutover_dao
+        .expect_count_quarantine_for_drift_row()
+        .withf(|_, cat, year, _, _| {
+            matches!(cat, ExtraHoursCategoryEntity::Vacation) && *year == 2024
+        })
+        .times(1)
+        .returning(|_, _, _, _, _| {
+            Ok((
+                2,
+                Arc::from([
+                    Arc::<str>::from("amount_below_contract_hours"),
+                    Arc::<str>::from("contract_hours_zero_for_day"),
+                ]),
+            ))
+        });
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service
+        .run(true, ().auth(), None)
+        .await
+        .expect("run succeeded");
+
+    assert!(
+        !result.gate_passed,
+        "drift 0.02h is strictly above the 0.01h threshold"
+    );
+    assert_eq!(result.gate_drift_rows, 1);
+    assert!(result.dry_run);
+    let report_path = result
+        .diff_report_path
+        .expect("diff report path is always returned");
+
+    let p = std::path::Path::new(report_path.as_ref());
+    assert!(p.exists(), "diff report file should exist at {:?}", p);
+    let body = std::fs::read_to_string(p).expect("diff report readable");
+    assert!(
+        body.contains("\"passed\": false"),
+        "diff report JSON should record passed=false: {}",
+        body
+    );
+    assert!(
+        body.contains("\"total_drift_rows\": 1"),
+        "diff report JSON should record 1 drift row: {}",
+        body
+    );
+    assert!(
+        body.contains("\"sales_person_name\": \"Test Cutover Person\""),
+        "diff report JSON should embed the sales-person name: {}",
+        body
+    );
+    assert!(
+        body.contains("\"category\": \"Vacation\""),
+        "diff report JSON should record the category: {}",
+        body
+    );
+
+    let _ = std::fs::remove_file(p);
 }
 
 // Suppress unused-import warning for `legacy_row_with_id` if no test uses it

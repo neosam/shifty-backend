@@ -501,12 +501,18 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
             }
         }
 
-        // Diff-report file. Use the run-timestamp's Unix epoch as the filename
-        // suffix (Assumption A7 mitigation — colon-free, monotonic).
+        // Diff-report file. Use the run-timestamp's Unix epoch in nanoseconds
+        // as the filename suffix (Assumption A7 mitigation — colon-free,
+        // monotonic, Linux + Windows filesystem-safe). Nanosecond precision
+        // also prevents collisions for back-to-back runs in tests / rapid
+        // operator retries.
         std::fs::create_dir_all(".planning/migration-backup")
             .map_err(|_| ServiceError::InternalError)?;
-        let unix_ts = ran_at.assume_utc().unix_timestamp();
-        let report_path = format!(".planning/migration-backup/cutover-gate-{}.json", unix_ts);
+        let unix_ts_nanos = ran_at.assume_utc().unix_timestamp_nanos();
+        let report_path = format!(
+            ".planning/migration-backup/cutover-gate-{}.json",
+            unix_ts_nanos
+        );
 
         let run_at_iso = ran_at
             .assume_utc()
