@@ -13,9 +13,11 @@ pub mod booking;
 pub mod booking_information;
 pub mod booking_log;
 pub mod carryover;
+pub mod carryover_rebuild;
 pub mod clock;
 pub mod config;
 pub mod custom_extra_hours;
+pub mod cutover;
 pub mod datetime_utils;
 pub mod employee_work_details;
 pub mod extra_hours;
@@ -117,6 +119,9 @@ pub enum ServiceError {
 
     #[error("Billing period {0} is not the latest billing period")]
     NotLatestBillingPeriod(Uuid),
+
+    #[error("ExtraHours category {0:?} is deprecated; use POST /absence-period for this category")]
+    ExtraHoursCategoryDeprecated(crate::extra_hours::ExtraHoursCategory),
 
     #[error("Internal error")]
     InternalError,

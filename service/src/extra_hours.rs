@@ -228,6 +228,19 @@ pub trait ExtraHoursService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
+
+    /// Bulk soft-delete (Phase 4 cutover, C-Phase4-04). Marks every id as
+    /// `deleted = NOW()` with a caller-provided `update_process` tag for audit.
+    /// Bypasses per-row permission checks: caller MUST hold `cutover_admin` and
+    /// pass the cutover-tx as `Some(tx)`. ANY id not present is silently
+    /// ignored (idempotent for re-runs).
+    async fn soft_delete_bulk(
+        &self,
+        ids: Arc<[Uuid]>,
+        update_process: &str,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }
 
 #[cfg(test)]
