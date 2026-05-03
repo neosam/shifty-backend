@@ -77,4 +77,18 @@ pub trait ExtraHoursDao {
         process: &str,
         tx: Self::Transaction,
     ) -> Result<(), crate::DaoError>;
+
+    /// Bulk soft-delete by id list (Phase 4 cutover, C-Phase4-04).
+    /// Issues `UPDATE extra_hours SET deleted = ?, update_process = ?,
+    /// update_timestamp = ?, update_version = ? WHERE deleted IS NULL AND id IN (...)`.
+    /// Silently no-ops on ids that are already soft-deleted (`deleted IS NOT NULL`)
+    /// to keep re-runs idempotent. Caller passes the cutover Tx as `tx`.
+    async fn soft_delete_bulk(
+        &self,
+        ids: &[Uuid],
+        deleted_at: time::PrimitiveDateTime,
+        update_process: &str,
+        new_version: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<(), crate::DaoError>;
 }
