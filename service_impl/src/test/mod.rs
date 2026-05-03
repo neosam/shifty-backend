@@ -54,3 +54,5 @@ pub mod session;
 pub mod toggle;
 #[cfg(test)]
 pub mod employee_work_details;
+#[cfg(test)]
+pub mod extra_hours;
