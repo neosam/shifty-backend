@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT eh.id            AS \"id!: Vec<u8>\",\n                      eh.sales_person_id AS \"sales_person_id!: Vec<u8>\",\n                      eh.category      AS \"category!: String\",\n                      eh.date_time     AS \"date_time!: String\",\n                      eh.amount        AS \"amount!: f64\"\n               FROM extra_hours eh\n               WHERE eh.deleted IS NULL\n                 AND eh.category IN ('Vacation', 'SickLeave', 'UnpaidLeave')\n               ORDER BY eh.sales_person_id, eh.category, eh.date_time",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id!: Vec<u8>",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "category!: String",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "date_time!: String",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "amount!: f64",
+        "ordinal": 4,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3e02f6f5081af5f0a35a62a678218a4fa8c5a88790f493897381c91d9fb6930f"
+}

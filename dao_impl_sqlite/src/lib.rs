@@ -12,6 +12,7 @@ pub mod booking;
 pub mod booking_log;
 pub mod carryover;
 pub mod custom_extra_hours;
+pub mod cutover;
 pub mod employee_work_details;
 pub mod extra_hours;
 pub mod feature_flag;

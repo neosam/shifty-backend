@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT\n                     eh.sales_person_id AS \"sales_person_id!: Vec<u8>\",\n                     CAST(strftime('%Y', eh.date_time) AS INTEGER) AS \"year!: i64\"\n               FROM extra_hours eh\n               WHERE eh.deleted IS NULL\n                 AND eh.category IN ('Vacation', 'SickLeave', 'UnpaidLeave')\n                 AND eh.amount != 0.0\n               ORDER BY eh.sales_person_id, CAST(strftime('%Y', eh.date_time) AS INTEGER)",
+  "describe": {
+    "columns": [
+      {
+        "name": "sales_person_id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "year!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3e172bb19f84e4fe114e9a3f2ce7c62db5a94a72e8a5141ac40356d7f04bc98e"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT reason AS \"reason!: String\"\n               FROM absence_migration_quarantine\n               WHERE sales_person_id = ?\n                 AND category = ?\n                 AND CAST(strftime('%Y', date_time) AS INTEGER) = ?\n                 AND cutover_run_id = ?\n               ORDER BY reason",
+  "describe": {
+    "columns": [
+      {
+        "name": "reason!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "368af16858ea139ef8caa6bfb297f449c1705d15b108803621da11aec72be261"
+}

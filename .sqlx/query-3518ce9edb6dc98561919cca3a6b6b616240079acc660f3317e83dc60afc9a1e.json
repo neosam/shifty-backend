@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO absence_migration_quarantine\n               (extra_hours_id, reason, sales_person_id, category, date_time, amount, cutover_run_id, migrated_at)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n               ON CONFLICT(extra_hours_id) DO UPDATE SET\n                 reason = excluded.reason,\n                 cutover_run_id = excluded.cutover_run_id,\n                 migrated_at = excluded.migrated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "3518ce9edb6dc98561919cca3a6b6b616240079acc660f3317e83dc60afc9a1e"
+}

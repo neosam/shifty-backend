@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(SUM(amount), 0.0) AS \"sum!: f64\"\n               FROM extra_hours\n               WHERE deleted IS NULL\n                 AND sales_person_id = ?\n                 AND category = ?\n                 AND CAST(strftime('%Y', date_time) AS INTEGER) = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "sum!: f64",
+        "ordinal": 0,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cb4478f2038537555ac4f75cdc1ee966e3607f464952096fe4afa8cadc25780a"
+}
