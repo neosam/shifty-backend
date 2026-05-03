@@ -7,3 +7,7 @@ mutants.out.old
 .aider*
 .env
 .claude/worktrees/
+
+# Phase 4 — Cutover diff reports (contain PII like sales_person_name)
+.planning/migration-backup/*.json
+!.planning/migration-backup/.gitkeep
