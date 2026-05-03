@@ -40,6 +40,7 @@ type ShiftplanReportDao = ShiftplanReportDaoImpl;
 type AbsenceDao = AbsenceDaoImpl;
 type ExtraHoursDao = ExtraHoursDaoImpl;
 type FeatureFlagDao = FeatureFlagDaoImpl;
+type CutoverDao = dao_impl_sqlite::cutover::CutoverDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
@@ -475,6 +476,41 @@ impl service_impl::feature_flag::FeatureFlagServiceDeps for FeatureFlagServiceDe
 type FeatureFlagService =
     service_impl::feature_flag::FeatureFlagServiceImpl<FeatureFlagServiceDependencies>;
 
+// Phase 4 / Plan 04-03 — Cycle-breaking carryover rebuild service.
+// Business-Logic-Tier: consumes ReportingService + CarryoverService.
+pub struct CarryoverRebuildServiceDependencies;
+impl service_impl::carryover_rebuild::CarryoverRebuildServiceDeps
+    for CarryoverRebuildServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type ReportingService = ReportingService;
+    type CarryoverService = CarryoverService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type CarryoverRebuildService =
+    service_impl::carryover_rebuild::CarryoverRebuildServiceImpl<CarryoverRebuildServiceDependencies>;
+
+// Phase 4 / Plan 04-02+04-05 — Cutover orchestration.
+// Business-Logic-Tier: 10 deps (CutoverDao + AbsenceDao + 7 sub-services + TransactionDao).
+pub struct CutoverServiceDependencies;
+impl service_impl::cutover::CutoverServiceDeps for CutoverServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type CutoverDao = CutoverDao;
+    type AbsenceDao = AbsenceDao;
+    type AbsenceService = AbsenceService;
+    type ExtraHoursService = ExtraHoursService;
+    type CarryoverRebuildService = CarryoverRebuildService;
+    type FeatureFlagService = FeatureFlagService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type CutoverService = service_impl::cutover::CutoverServiceImpl<CutoverServiceDependencies>;
+
 pub struct ShiftplanCatalogServiceDependencies;
 impl ShiftplanServiceDeps for ShiftplanCatalogServiceDependencies {
     type Context = Context;
@@ -516,6 +552,7 @@ pub struct RestStateImpl {
     user_invitation_service: Arc<UserInvitationService>,
     toggle_service: Arc<ToggleService>,
     sales_person_shiftplan_service: Arc<SalesPersonShiftplanService>,
+    cutover_service: Arc<CutoverService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -546,6 +583,7 @@ impl rest::RestStateDef for RestStateImpl {
     type UserInvitationService = UserInvitationService;
     type ToggleService = ToggleService;
     type SalesPersonShiftplanService = SalesPersonShiftplanService;
+    type CutoverService = CutoverService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -633,6 +671,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService> {
         self.sales_person_shiftplan_service.clone()
+    }
+    fn cutover_service(&self) -> Arc<Self::CutoverService> {
+        self.cutover_service.clone()
     }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
@@ -755,7 +796,7 @@ impl RestStateImpl {
             },
         );
         let absence_service = Arc::new(service_impl::absence::AbsenceServiceImpl {
-            absence_dao,
+            absence_dao: absence_dao.clone(),
             permission_service: permission_service.clone(),
             sales_person_service: sales_person_service.clone(),
             clock_service: clock_service.clone(),
@@ -949,6 +990,32 @@ impl RestStateImpl {
         // konstruiert und in den ReportingService eingespeist. Die Plan-03-DI
         // ist damit vollstaendig live (kein #[allow(unused_variables)] mehr).
 
+        // Phase 4 (Plan 04-06) — Cutover orchestration DI.
+        // Construction order: carryover_rebuild_service (needs reporting +
+        // carryover) → cutover_dao → cutover_service (needs ALL the above).
+        // All upstream services (absence, extra_hours, feature_flag, working_hours,
+        // sales_person, permission, transaction_dao) are already constructed.
+        let cutover_dao = Arc::new(CutoverDao::new(pool.clone()));
+        let carryover_rebuild_service =
+            Arc::new(service_impl::carryover_rebuild::CarryoverRebuildServiceImpl {
+                reporting_service: reporting_service.clone(),
+                carryover_service: carryover_service.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            });
+        let cutover_service = Arc::new(service_impl::cutover::CutoverServiceImpl {
+            cutover_dao: cutover_dao.clone(),
+            absence_dao: absence_dao.clone(),
+            absence_service: absence_service.clone(),
+            extra_hours_service: extra_hours_service.clone(),
+            carryover_rebuild_service: carryover_rebuild_service.clone(),
+            feature_flag_service: feature_flag_service.clone(),
+            employee_work_details_service: working_hours_service.clone(),
+            sales_person_service: sales_person_service.clone(),
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         Self {
             user_service,
             session_service,
@@ -977,6 +1044,7 @@ impl RestStateImpl {
             user_invitation_service,
             toggle_service,
             sales_person_shiftplan_service,
+            cutover_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }
