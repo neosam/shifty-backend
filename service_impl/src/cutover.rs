@@ -43,8 +43,8 @@ use dao::TransactionDao;
 use service::absence::{AbsenceCategory, AbsenceService};
 use service::carryover_rebuild::CarryoverRebuildService;
 use service::cutover::{
-    CutoverProfile, CutoverRunResult, CutoverService, DriftRow, GateResult, QuarantineReason,
-    CUTOVER_ADMIN_PRIVILEGE,
+    CutoverProfile, CutoverProfileBucket, CutoverRunResult, CutoverService, DriftRow, GateResult,
+    QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
 };
 use service::employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService};
 use service::extra_hours::ExtraHoursService;
@@ -174,13 +174,205 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
         })
     }
 
+    /// Production-Data-Profile per SC-1 + C-Phase4-05.
+    ///
+    /// Reads ALL legacy `extra_hours` rows (Vacation/SickLeave/UnpaidLeave —
+    /// regardless of mapping state) and bins them per (sales_person, category,
+    /// year). Per bucket we compute:
+    ///
+    ///   * `row_count`            — number of legacy rows
+    ///   * `sum_amount`           — Σ row.amount
+    ///   * `fractional_count`     — rows where `|amount − contract_hours_per_day| > 0.001`
+    ///   * `weekend_on_workday_only_contract_count` — rows landing on a NON-workday
+    ///     of the active contract (with non-zero amount)
+    ///   * `iso_53_indicator`    — `true` if any row falls into ISO week 53
+    ///
+    /// The aggregation needs the per-day contract lookup, so we pre-fetch
+    /// `EmployeeWorkDetails` per sales_person up front (mirrors the cluster
+    /// algorithm in `migrate_legacy_extra_hours_to_clusters`).
+    ///
+    /// Permission: HR (matches `gate-dry-run`; profile is non-destructive).
+    /// Uses a fresh Tx that is rolled back at the end — profile is read-only
+    /// from a state perspective; the only side-effect is writing the JSON file
+    /// at `.planning/migration-backup/profile-{unix_timestamp}.json` (Unix-
+    /// timestamp filename per Assumption A7 — Linux + Windows safe).
     async fn profile(
         &self,
-        _context: Authentication<Self::Context>,
-        _tx: Option<Self::Transaction>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<CutoverProfile, ServiceError> {
-        // Implemented in Plan 04-07 Task 1.
-        Err(ServiceError::InternalError)
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await?;
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let run_id = Uuid::new_v4();
+        let now = time::OffsetDateTime::now_utc();
+        let generated_at = time::PrimitiveDateTime::new(now.date(), now.time());
+
+        let all_legacy = self
+            .cutover_dao
+            .find_all_legacy_extra_hours(tx.clone())
+            .await?;
+
+        // Pre-fetch contracts + sales-person names per distinct sp_id (mirror
+        // cluster-algorithm pre-fetch from Plan 04-02 Task 2 — one service call
+        // per sp; HashMap lookup per row).
+        let distinct_sps: BTreeSet<Uuid> =
+            all_legacy.iter().map(|r| r.sales_person_id).collect();
+        let mut work_details_by_sp: HashMap<Uuid, Arc<[EmployeeWorkDetails]>> = HashMap::new();
+        let mut sp_names: HashMap<Uuid, Arc<str>> = HashMap::new();
+        for sp_id in distinct_sps {
+            let wd = self
+                .employee_work_details_service
+                .find_by_sales_person_id(sp_id, Authentication::Full, Some(tx.clone()))
+                .await?;
+            work_details_by_sp.insert(sp_id, wd);
+            let sp = self
+                .sales_person_service
+                .get(sp_id, Authentication::Full, Some(tx.clone()))
+                .await?;
+            sp_names.insert(sp_id, sp.name.clone());
+        }
+
+        // Bucket: (sp_id, category_discriminator, year) -> aggregate counters.
+        // We use a HashMap with a `u8` discriminator for the category so the
+        // key implements `Hash`. The output Vec is sorted at the end for a
+        // deterministic JSON diff across runs.
+        let mut buckets: HashMap<(Uuid, u8, u32), CutoverProfileBucket> = HashMap::new();
+
+        for row in all_legacy.iter() {
+            // Skip non-legacy categories defensively (DAO already filters, but
+            // the profile() call is read-only and stable-against-row-types).
+            let (svc_cat, cat_disc): (AbsenceCategory, u8) = match &row.category {
+                ExtraHoursCategoryEntity::Vacation => (AbsenceCategory::Vacation, 0),
+                ExtraHoursCategoryEntity::SickLeave => (AbsenceCategory::SickLeave, 1),
+                ExtraHoursCategoryEntity::UnpaidLeave => (AbsenceCategory::UnpaidLeave, 2),
+                _ => continue,
+            };
+            let year = row.date_time.date().year() as u32;
+            let day = row.date_time.date();
+            let key = (row.sales_person_id, cat_disc, year);
+
+            let work_details = work_details_by_sp
+                .get(&row.sales_person_id)
+                .map(|arc| arc.as_ref())
+                .unwrap_or(&[]);
+
+            let active_contract = work_details.iter().find(|wh| {
+                if wh.deleted.is_some() {
+                    return false;
+                }
+                let from_date = match wh.from_date() {
+                    Ok(d) => d.to_date(),
+                    Err(_) => return false,
+                };
+                let to_date = match wh.to_date() {
+                    Ok(d) => d.to_date(),
+                    Err(_) => return false,
+                };
+                from_date <= day && day <= to_date
+            });
+            let contract_hours = active_contract.map(|c| c.hours_per_day()).unwrap_or(0.0);
+            let is_workday = active_contract
+                .map(|c| c.has_day_of_week(day.weekday()))
+                .unwrap_or(false);
+            let is_weekend_on_workday_only = !is_workday && row.amount > 0.0;
+            let is_fractional = (row.amount - contract_hours).abs() > 0.001;
+            let is_iso_53 = day.iso_week() == 53;
+
+            let entry = buckets.entry(key).or_insert_with(|| CutoverProfileBucket {
+                sales_person_id: row.sales_person_id,
+                sales_person_name: sp_names
+                    .get(&row.sales_person_id)
+                    .cloned()
+                    .unwrap_or_else(|| Arc::from("")),
+                category: svc_cat,
+                year,
+                row_count: 0,
+                sum_amount: 0.0,
+                fractional_count: 0,
+                weekend_on_workday_only_contract_count: 0,
+                iso_53_indicator: false,
+            });
+            entry.row_count += 1;
+            entry.sum_amount += row.amount;
+            if is_fractional {
+                entry.fractional_count += 1;
+            }
+            if is_weekend_on_workday_only {
+                entry.weekend_on_workday_only_contract_count += 1;
+            }
+            if is_iso_53 {
+                entry.iso_53_indicator = true;
+            }
+        }
+
+        // Persist JSON file (Unix timestamp for filesystem-safe filename —
+        // Assumption A7 from 04-RESEARCH.md). Use `_nanos` for collision-safety
+        // when tests run back-to-back (mirrors Plan 04-05 compute_gate path).
+        std::fs::create_dir_all(".planning/migration-backup")
+            .map_err(|_| ServiceError::InternalError)?;
+        let unix_ts_nanos = generated_at.assume_utc().unix_timestamp_nanos();
+        let profile_path = format!(
+            ".planning/migration-backup/profile-{}.json",
+            unix_ts_nanos
+        );
+
+        let generated_at_iso = generated_at
+            .assume_utc()
+            .format(&time::format_description::well_known::Iso8601::DEFAULT)
+            .unwrap_or_default();
+
+        // Sort buckets for a stable JSON diff: (sp_id, category, year).
+        let mut sorted_buckets: Vec<CutoverProfileBucket> = buckets.into_values().collect();
+        sorted_buckets.sort_by(|a, b| {
+            a.sales_person_id
+                .cmp(&b.sales_person_id)
+                .then_with(|| {
+                    let a_cat = absence_category_order_key(&a.category);
+                    let b_cat = absence_category_order_key(&b.category);
+                    a_cat.cmp(&b_cat)
+                })
+                .then_with(|| a.year.cmp(&b.year))
+        });
+
+        let body = serde_json::json!({
+            "run_id": run_id.to_string(),
+            "generated_at": generated_at_iso,
+            "buckets": sorted_buckets.iter().map(|b| serde_json::json!({
+                "sales_person_id": b.sales_person_id.to_string(),
+                "sales_person_name": b.sales_person_name.as_ref(),
+                "category": format!("{:?}", b.category),
+                "year": b.year,
+                "row_count": b.row_count,
+                "sum_amount": b.sum_amount,
+                "fractional_count": b.fractional_count,
+                "fractional_quote": if b.row_count > 0 {
+                    b.fractional_count as f32 / b.row_count as f32
+                } else { 0.0 },
+                "weekend_on_workday_only_contract_count": b.weekend_on_workday_only_contract_count,
+                "iso_53_indicator": b.iso_53_indicator,
+            })).collect::<Vec<_>>(),
+        });
+        std::fs::write(
+            &profile_path,
+            serde_json::to_string_pretty(&body).map_err(|_| ServiceError::InternalError)?,
+        )
+        .map_err(|_| ServiceError::InternalError)?;
+
+        // profile() is read-only — roll back the Tx so any side-effect inside
+        // the sub-service calls (none expected, but defense-in-depth) does not
+        // bleed into the database.
+        self.transaction_dao.rollback(tx).await?;
+
+        let buckets_arc: Arc<[CutoverProfileBucket]> = Arc::from(sorted_buckets);
+        Ok(CutoverProfile {
+            run_id,
+            generated_at,
+            buckets: buckets_arc,
+            profile_path: Arc::from(profile_path.as_str()),
+        })
     }
 }
 
@@ -664,6 +856,17 @@ fn close_current_cluster(
         source_ids,
     });
     current.rows.clear();
+}
+
+/// Stable ordinal key for `AbsenceCategory`. Used by `profile()` to produce
+/// a deterministic bucket-list ordering in the JSON output (the enum itself
+/// does not implement `Ord`).
+fn absence_category_order_key(c: &AbsenceCategory) -> u8 {
+    match c {
+        AbsenceCategory::Vacation => 0,
+        AbsenceCategory::SickLeave => 1,
+        AbsenceCategory::UnpaidLeave => 2,
+    }
 }
 
 /// Map the extra_hours legacy category enum to the absence_period category enum.
