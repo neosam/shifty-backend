@@ -121,7 +121,7 @@ pub enum ServiceError {
     NotLatestBillingPeriod(Uuid),
 
     #[error("ExtraHours category {0:?} is deprecated; use POST /absence-period for this category")]
-    ExtraHoursCategoryDeprecated(crate::extra_hours::ExtraHoursCategory),
+    ExtraHoursCategoryDeprecated(Box<crate::extra_hours::ExtraHoursCategory>),
 
     #[error("Internal error")]
     InternalError,

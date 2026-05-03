@@ -653,10 +653,8 @@ async fn create_vacation_returns_403_error_variant_when_flag_on() {
     let result = service.create(&entity, ().auth(), None).await;
     assert!(
         matches!(
-            result,
-            Err(ServiceError::ExtraHoursCategoryDeprecated(
-                ExtraHoursCategory::Vacation
-            ))
+            &result,
+            Err(ServiceError::ExtraHoursCategoryDeprecated(c)) if **c == ExtraHoursCategory::Vacation
         ),
         "expected ExtraHoursCategoryDeprecated(Vacation), got: {:?}",
         result

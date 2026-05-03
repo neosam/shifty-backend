@@ -117,22 +117,22 @@ async fn test_derive_hours_for_range_basic() {
     );
     // Do (06-06): keine Absence aktiv -> kein Eintrag
     assert!(
-        result.get(&date!(2024 - 06 - 06)).is_none(),
+        !result.contains_key(&date!(2024 - 06 - 06)),
         "Thursday has no absence"
     );
     // Fr (06-07): keine Absence aktiv -> kein Eintrag
     assert!(
-        result.get(&date!(2024 - 06 - 07)).is_none(),
+        !result.contains_key(&date!(2024 - 06 - 07)),
         "Friday has no absence"
     );
     // Sa (06-08): kein Werktag -> kein Eintrag
     assert!(
-        result.get(&date!(2024 - 06 - 08)).is_none(),
+        !result.contains_key(&date!(2024 - 06 - 08)),
         "Saturday is not a workday in the contract"
     );
     // So (06-09): kein Werktag -> kein Eintrag
     assert!(
-        result.get(&date!(2024 - 06 - 09)).is_none(),
+        !result.contains_key(&date!(2024 - 06 - 09)),
         "Sunday is not a workday in the contract"
     );
     assert_eq!(result.len(), 3, "exactly 3 resolved days expected");
@@ -190,7 +190,7 @@ async fn test_derive_hours_holiday_is_zero() {
 
     // Di 2024-06-04 = Holiday -> kein Eintrag (auch nicht SickLeave)
     assert!(
-        result.get(&date!(2024 - 06 - 04)).is_none(),
+        !result.contains_key(&date!(2024 - 06 - 04)),
         "Tuesday is a holiday — no entry expected"
     );
     // Mo + Mi unveraendert: Vacation 8h
@@ -334,7 +334,7 @@ async fn test_derive_hours_contract_change() {
         );
     }
     // Do/Fr KW 23 (06-06, 06-07): keine Absence -> kein Eintrag
-    assert!(result.get(&date!(2024 - 06 - 06)).is_none());
-    assert!(result.get(&date!(2024 - 06 - 07)).is_none());
+    assert!(!result.contains_key(&date!(2024 - 06 - 06)));
+    assert!(!result.contains_key(&date!(2024 - 06 - 07)));
     assert_eq!(result.len(), 8, "3 days @ 8h + 5 days @ 4h = 8 entries");
 }

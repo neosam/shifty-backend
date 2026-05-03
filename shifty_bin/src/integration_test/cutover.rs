@@ -112,7 +112,7 @@ async fn add_user_with_role(
     }
 
     // Idempotent user-role assignment.
-    let user_roles = permission_dao.roles_for_user(username.into()).await.unwrap();
+    let user_roles = permission_dao.roles_for_user(username).await.unwrap();
     if !user_roles.iter().any(|r| r.name.as_ref() == role) {
         permission_dao
             .add_user_role(username, role, "test-fixture")
@@ -692,7 +692,7 @@ async fn test_extra_hours_post_flag_gated_before_after() {
         matches!(
             &after,
             Err(ServiceError::ExtraHoursCategoryDeprecated(c))
-                if *c == ExtraHoursCategory::Vacation
+                if **c == ExtraHoursCategory::Vacation
         ),
         "post-cutover Vacation create MUST be rejected, got: {:?}",
         after
@@ -1317,11 +1317,13 @@ async fn per_sales_person_per_year_per_category_invariant() {
     for ((_sp_id, cat, _year), pre_sum) in pre_sums.iter() {
         let post_sum: f32 = derived
             .values()
-            .filter(|r| match (cat, &r.category) {
-                (ExtraHoursCategory::Vacation, AbsenceCategory::Vacation) => true,
-                (ExtraHoursCategory::SickLeave, AbsenceCategory::SickLeave) => true,
-                (ExtraHoursCategory::UnpaidLeave, AbsenceCategory::UnpaidLeave) => true,
-                _ => false,
+            .filter(|r| {
+                matches!(
+                    (cat, &r.category),
+                    (ExtraHoursCategory::Vacation, AbsenceCategory::Vacation)
+                        | (ExtraHoursCategory::SickLeave, AbsenceCategory::SickLeave)
+                        | (ExtraHoursCategory::UnpaidLeave, AbsenceCategory::UnpaidLeave)
+                )
             })
             .map(|r| r.hours)
             .sum();

@@ -169,7 +169,7 @@ async fn test_set_requires_admin_permission() {
         .expect_set()
         .withf(|key, value, process, _| {
             key == "absence_range_source_active"
-                && *value == true
+                && *value
                 && process == "feature-flag-service"
         })
         .returning(|_, _, _, _| Ok(()));

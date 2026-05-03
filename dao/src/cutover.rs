@@ -14,6 +14,9 @@ use uuid::Uuid;
 use crate::extra_hours::ExtraHoursEntity;
 use crate::{DaoError, MockTransaction, Transaction};
 
+/// Result of `count_quarantine_for_drift_row`: (row_count, distinct_reasons).
+pub type QuarantineCountForDriftRow = (u32, Arc<[Arc<str>]>);
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct LegacyExtraHoursRow {
     /// Mirror of `extra_hours.id` — the idempotency key (NOT logical_id; see D-Phase4-04).
@@ -121,7 +124,7 @@ pub trait CutoverDao {
         year: u32,
         cutover_run_id: Uuid,
         tx: Self::Transaction,
-    ) -> Result<(u32, Arc<[Arc<str>]>), DaoError>;
+    ) -> Result<QuarantineCountForDriftRow, DaoError>;
 
     /// INSERT INTO employee_yearly_carryover_pre_cutover_backup (...) SELECT (...)
     /// FROM employee_yearly_carryover WHERE (sales_person_id, year) IN scope_set.

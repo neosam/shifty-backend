@@ -218,9 +218,9 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
                 )
                 .await?;
             if flag_active {
-                return Err(ServiceError::ExtraHoursCategoryDeprecated(
+                return Err(ServiceError::ExtraHoursCategoryDeprecated(Box::new(
                     extra_hours.category.clone(),
-                ));
+                )));
             }
         }
 

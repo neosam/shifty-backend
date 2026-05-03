@@ -419,10 +419,9 @@ fn test_from_entities_missing_unpaid_leave_is_zero() {
     // KERN-ASSERT: UnpaidLeave fehlt in der Map (kein Eintrag in v2).
     // Caller-Konvention: `.get().map(|v| v.value_delta).unwrap_or(0.0)`.
     assert!(
-        result
+        !result
             .values
-            .get(&BillingPeriodValueType::UnpaidLeave)
-            .is_none(),
+            .contains_key(&BillingPeriodValueType::UnpaidLeave),
         "v2-Snapshot ohne unpaid_leave-Zeile muss get(UnpaidLeave) == None liefern (semantisch 0.0)"
     );
 }

@@ -4,7 +4,7 @@
 //! - `gate-dry-run` (HR) — runs `CutoverService::run(dry_run=true)`; rolls back the cutover Tx.
 //! - `commit`       (cutover_admin) — runs `CutoverService::run(dry_run=false)`; commits.
 //! - `profile`      (HR — read-only) — runs `CutoverService::profile()`; full extra_hours scan
-//!                   that persists `.planning/migration-backup/profile-{ts}.json`.
+//!   that persists `.planning/migration-backup/profile-{ts}.json`.
 //!
 //! Permission enforcement happens at the service layer (D-Phase4-07 + Pattern 3 in
 //! 04-RESEARCH.md). REST handlers are thin shims: serialize the result via the

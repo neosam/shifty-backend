@@ -491,7 +491,7 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
             }
 
             // (d) extends current cluster?
-            let extends = current.rows.last().map_or(false, |last| {
+            let extends = current.rows.last().is_some_and(|last| {
                 last.sales_person_id == row.sales_person_id
                     && last.category == row.category
                     && last.date_time.date().year() == day.year()

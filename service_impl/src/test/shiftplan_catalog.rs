@@ -247,7 +247,7 @@ async fn test_delete() {
         .returning(|_, _, _| Ok(()));
     deps.clock_service
         .expect_date_time_now()
-        .returning(|| generate_default_datetime());
+        .returning(generate_default_datetime);
 
     let service = deps.build_service();
     let result = service
