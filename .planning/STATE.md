@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-last_updated: "2026-05-03T15:00:00.000Z"
+status: ready_to_execute
+last_updated: "2026-05-03T10:41:40.340Z"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 15
-  completed_plans: 15
-  percent: 75
-# Phase 1+2+3 verified complete (Phase 3 verified 2026-05-03 in commit 3e2f6c1).
-# Phase 4 context gathered 2026-05-03 (15 decisions, ready for /gsd:plan-phase 04).
+  completed_phases: 2
+  total_plans: 23
+  completed_plans: 14
+  percent: 61
 ---
 
 # Project State: Shifty Backend — Range-Based Absence Management
@@ -28,15 +26,15 @@ progress:
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 04 (migration-cutover) — EXECUTING
+Plan: 1 of 8
 
 - **Current milestone**: Range-Based Absence Management
-- **Current phase**: 04 — Migration & Cutover (context gathered, ready to plan)
-- **Current plan**: 04-CONTEXT.md ✅ Discuss-Phase abgeschlossen 2026-05-03; 15 Decisions (D-Phase4-01..15) über alle 4 Areas (Migrations-Heuristik, Cutover-Gate-Mechanik, REST-Strategie + Schicksal alter ExtraHours, Carryover-Refresh + Atomic-Tx); inkl. User-Korrektur: Cutover läuft im laufenden Server (kein Bin-Restart); inkl. Klarstellung: /extra-hours-Block ist flag-gated (vor Cutover unverändert).
-- **Status**: phase-4-context-ready (next: `/gsd:plan-phase 04` for Migration & Cutover plan creation)
-- **Last action**: 04-discuss-complete (2026-05-03)
-- **Progress**: Phases 1+2+3 verified complete; Phase 4 context gathered; Plans 15/15 done für completed phases.
+- **Current phase**: 04 — Migration & Cutover (planning complete, ready to execute)
+- **Current plan**: 8 PLAN-Files in `.planning/phases/04-migration-cutover/` (04-00..04-07). Wave 0: 04-00 (Foundation+Migrations) + 04-01 (Trait-Stubs); Wave 1: 04-02 (Heuristik MIG-01), 04-03 (CarryoverRebuildService MIG-04, Cycle-Breaker via Variante A), 04-04 (ExtraHours Flag-Gate + Soft-Delete MIG-05); Wave 2: 04-05 (Gate + Diff-Report + Atomic-Tx MIG-02/04), 04-06 (REST + utoipa + DI + OpenAPI-Snapshot MIG-03/05 + SC-1, Snapshot-Accept-Checkpoint = autonomous:false); Wave 3: 04-07 (18 Integration-Tests + profile() für SC-1).
+- **Status**: phase-4-planned (next: `/gsd:execute-phase 04` für Wave-basierte Ausführung)
+- **Last action**: 04-plan-complete (2026-05-03; Plan-Checker iter 2 PASSED, alle 4 Iter-1-BLOCKERs aufgelöst — Cross-Plan-Vertrag 04-02↔04-05, Profile-REST-Endpunkt, soft_delete_bulk_forbidden-Test, RESEARCH.md Open-Questions-RESOLVED)
+- **Progress**: Phases 1+2+3 verified complete (15/15 Plans); Phase 4 — 0/8 Plans executed; Requirements 17/19 (MIG-01..05 noch offen, in Plans abgedeckt).
 
 ## Performance Metrics
 
@@ -107,9 +105,10 @@ Aus `research/ARCHITECTURE.md`:
 - [x] `/gsd:execute-plan 03-06` — Wave-5 Final-Tests + Phase-Closure (4 Forward-Warning-Tests in test/absence.rs, 1 marker_manual_only-Test in test/shiftplan.rs, 4 Cross-Source-Integration-Tests aktiviert, Phase-1-Migration recovered als Bonus, 03-VALIDATION.md completed, ROADMAP Phase-3 [x]; jj-Changes `e02964a6`+`7aeed067`+`d9ca9ba9`+`02d0642f`+`3e9c74f7`, abgeschlossen 2026-05-02).
 - [x] `/gsd:verify-phase 03` — Phase-3 verified complete (commit `3e2f6c1`, 4/4 SCs erfüllt, D-Phase3-18 Lock 0-Diff).
 - [x] `/gsd:discuss-phase 04` — abgeschlossen 2026-05-03 (15 Decisions D-Phase4-01..15 in `04-CONTEXT.md`; 4 Areas durchdiskutiert; User-Korrektur "kein Bin-Call, alles im laufenden Server" eingearbeitet; /extra-hours-Block flag-gated klargestellt).
-- [ ] `/gsd:plan-phase 04` — Migration & Cutover plan creation (Wave 0 Hygiene + Migrations + Insta; Wave 1 CutoverService + Heuristik; Wave 2 Gate + REST; Wave 3 E2E-Tests).
-- [ ] Phase-4-Wave-0 wird die zwei Hygiene-Items (`dao/Cargo.toml` + `dao_impl_sqlite/Cargo.toml` `features = ["v4"]`; localdb-Drift-Doku) mitnehmen (D-Phase4-15).
-- [ ] Production-Data-Profile-Format wird in Plan-Phase 4 finalisiert (C-Phase4-05; SC-1).
+- [x] `/gsd:plan-phase 04` — abgeschlossen 2026-05-03 (8 Plans Wave 0..3 in `.planning/phases/04-migration-cutover/`; Plan-Checker iter 2 PASSED; Coverage MIG-01..05 + SC-1 vollständig; Validation Architecture in 04-VALIDATION.md mit Per-Req-Test-Map).
+- [x] Phase-4-Wave-0 wird die zwei Hygiene-Items mitnehmen — geplant in `04-00-foundation-and-migrations-PLAN.md` Task 1 (D-Phase4-15).
+- [x] Production-Data-Profile-Format finalisiert — `CutoverProfileTO`/`CutoverProfileBucketTO`-Schema gelockt in `04-06-cutover-rest-and-openapi-PLAN.md` Task 1; REST-Endpunkt `POST /admin/cutover/profile` (HR-Permission) in Task 2; `CutoverServiceImpl::profile()` in `04-07-integration-tests-and-profile-PLAN.md` Task 1.
+- [ ] `/gsd:execute-phase 04` — Wave 0..3 ausführen (Wave 0 + 1 parallel-fähig zwischen Plans, Wave 2 + 3 sequentiell; 04-06 hat human-verify Checkpoint für OpenAPI-Snapshot-Accept).
 
 ### Wave-2-Forcing-State (aus Plan 02-01)
 
@@ -142,9 +141,9 @@ Keine harten Blocker. Phase 2 ist abgeschlossen — atomarer Wave-2-Commit `39be
 4. Read this file (`STATE.md`) — current position.
 5. Optional: `research/SUMMARY.md` für TL;DR der Architektur- und Risiko-Entscheidungen.
 
-**Next command**: `/gsd:plan-phase 04` — Migration & Cutover plan creation. Vorhanden: `04-CONTEXT.md` mit 15 Decisions, `04-DISCUSSION-LOG.md` als Audit-Trail. Plan-Phase wählt Wave-Schnitt (Vorgabe aus CONTEXT.md `<code_context>`: Wave 0 Hygiene+Migrations+Insta → Wave 1 CutoverService+Heuristik → Wave 2 Gate+REST → Wave 3 E2E-Tests).
+**Next command**: `/gsd:execute-phase 04` — Migration & Cutover execution. Vorhanden: 8 PLAN-Files (04-00..04-07) + 04-RESEARCH.md (Validation Architecture) + 04-VALIDATION.md (Per-Req-Test-Map mit `cargo test`-Commands) + 04-CONTEXT.md (15 Locked Decisions) + 04-DISCUSSION-LOG.md (Audit). Wave-Reihenfolge: Wave 0 (04-00 + 04-01 parallel) → Wave 1 (04-02 + 04-03 + 04-04 parallel) → Wave 2 (04-05 → 04-06 sequentiell, 04-06 hat Snapshot-Accept-Checkpoint) → Wave 3 (04-07).
 
 ---
 
 *State initialized: 2026-05-01 after roadmap creation*
-*Last updated: 2026-05-03 (Phase 04 — Discuss-Phase complete; CONTEXT.md + DISCUSSION-LOG.md geschrieben; ready für `/gsd:plan-phase 04`)*
+*Last updated: 2026-05-03 (Phase 04 — Plan-Phase complete; 8 PLANs + RESEARCH + VALIDATION; Plan-Checker iter 2 PASSED; ready für `/gsd:execute-phase 04`)*

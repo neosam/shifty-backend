@@ -125,7 +125,22 @@ Plans:
   5. Ein Per-Mitarbeiter-Per-Jahr-Per-Kategorie-Invariant-Test (`shifty_bin/src/integration_test/`) bestätigt: Pre-Migration-Stunden-Summe == Post-Migration-derived-Stunden-Summe für jede Kombination.
   6. Bestehende `/extra-hours`-REST-Endpunkte für Vacation/Sick/UnpaidLeave bleiben entweder funktional (read-compat shim) oder sind mit klarer Deprecation-Strategie und Aufrufer-Information abgelöst; ein OpenAPI-Snapshot-Test verhindert ein stilles Breaking Change auf bestehenden Endpunkten.
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+**Wave 1**
+- [ ] 04-00-foundation-and-migrations-PLAN.md — Wave 0 Foundation: 4 SQLite migrations (3 new tables + cutover_admin privilege seed), uuid `v4`-Feature in dao+dao_impl_sqlite (D-Phase4-15), insta dev-dep + OpenAPI-snapshot skeleton (#[ignore] until Wave 2), `.planning/migration-backup/.gitkeep` + `.gitignore`-PII-Schutz, deferred-items.md.
+- [ ] 04-01-service-traits-and-stubs-PLAN.md — Wave 0 Trait/DTO contracts: `service::cutover::CutoverService` + `service::carryover_rebuild::CarryoverRebuildService` + `dao::cutover::CutoverDao` traits, `ServiceError::ExtraHoursCategoryDeprecated`-Variante, `ExtraHoursService::soft_delete_bulk`-Trait-Method, `service_impl/src/test/cutover.rs`-Skeleton mit #[ignore]-Stubs.
+- [ ] 04-02-cutover-service-heuristic-PLAN.md — Wave 1 Heuristik (MIG-01): `dao_impl_sqlite::cutover::CutoverDaoImpl` (8 SQLx-Methods), `service_impl::cutover::CutoverServiceImpl` mit Strict-Cluster-Heuristik (D-Phase4-02) + Pre-fetched Verträge (C-Phase4-06) + Quarantäne + Year-Boundary-Break, 8 Service-Mock-Tests (cluster-merge + 5 quarantine + idempotence + 2 forbidden).
+- [ ] 04-03-carryover-rebuild-service-PLAN.md — Wave 1 Cycle-Breaker (MIG-04): NEUER `CarryoverRebuildServiceImpl` (Variante A: Business-Logic-Service konsumiert ReportingService + CarryoverService) — bricht den Reporting→Carryover-Cycle (Pitfall 1). 1 Forbidden-Test.
+- [ ] 04-04-extra-hours-flag-gate-and-soft-delete-PLAN.md — Wave 1 ExtraHours-Patches (MIG-05): Service-Layer-Flag-Gate in `ExtraHoursServiceImpl::create` (D-Phase4-09), `soft_delete_bulk`-Impl (C-Phase4-04), neue FeatureFlagService-DI-Dep, 4 Tests.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 04-05-cutover-gate-and-diff-report-PLAN.md — Wave 2 Gate + Atomic-Tx (MIG-02 + MIG-04): `compute_gate()` per (sp, kat, jahr) mit `derive_hours_for_range`-Reuse (D-Phase4-05), Diff-Report-JSON-File (D-Phase4-06), `commit_phase()` mit Backup + CarryoverRebuild + Soft-Delete + Flag-Set in einer atomaren Tx (D-Phase4-13/14), 2 Tolerance-Tests.
+- [ ] 04-06-cutover-rest-and-openapi-PLAN.md — Wave 2 REST + DI (MIG-03 + MIG-05): 4 inline DTOs in `rest-types/src/lib.rs`, `rest/src/cutover.rs` mit 2 Handlers + utoipa + ApiDoc, error_handler 403-Mapping, `shifty_bin/src/main.rs` DI mit **MANDATORY DI-Re-Order** (FeatureFlagService VOR ExtraHoursService), OpenAPI-Snapshot-Accept (Mensch-Verify-Checkpoint).
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 04-07-integration-tests-and-profile-PLAN.md — Wave 3 E2E + SC-1 (alle MIGs + SC-1/3/5): `CutoverServiceImpl::profile()` (Production-Data-Profile per C-Phase4-05) + 18 Integration-Tests in `shifty_bin/src/integration_test/cutover.rs` (idempotence, atomic-rollback, scope-set, backup-before-update, soft-delete, flag-flip, REST-permission-Matrix, gate-uses-derive-path, SC-5-Per-(sp,kat,year)-Invariant).
 
 **Discuss-phase carry-overs (blockierend für Plan-Phase 4):**
   - Migrations-Heuristik-Spezifika: Werktage = Mo-Fr fix? Verhalten bei Teilwochen? Bruchstunden-Behandlung? Vertragswechsel mitten in der Woche?
@@ -167,7 +182,7 @@ Die Phasen-Reihenfolge folgt strikt der Research-Empfehlung (`research/SUMMARY.m
 | 1 — Absence Domain Foundation | 5/5 | Complete | 2026-05-01 |
 | 2 — Reporting Integration & Snapshot Versioning | 4/4 | Complete | 2026-05-02 |
 | 3 — Booking & Shift-Plan Konflikt-Integration | 6/6 | Complete | 2026-05-02 |
-| 4 — Migration & Cutover | 0/0 | Not started | — |
+| 4 — Migration & Cutover | 0/8 | Planned | — |
 
 ## Discuss-Phase Carry-Overs (Aggregated)
 
@@ -188,4 +203,4 @@ Diese offenen Entscheidungen aus `PROJECT.md`/`research/SUMMARY.md` sind **keine
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-02 — Phase 3 complete (all 6 plans done; SC1-SC4 verified; D-Phase3-18 Regression-Lock final 0-diff)*
+*Last updated: 2026-05-03 — Phase 4 plan-phase complete (8 plans across 4 waves; locked decision: separate CarryoverRebuildService BL service vs. CarryoverService::rebuild_for_year; OpenAPI snapshot accepted via human-verify checkpoint in Plan 04-06)*
