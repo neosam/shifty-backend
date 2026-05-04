@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Slot Capacity & Constraints
 status: phase_in_progress
-last_updated: "2026-05-04T06:02:17Z"
+last_updated: "2026-05-04T06:13:08Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
-  percent: 33
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -26,12 +26,12 @@ progress:
 ## Current Position
 
 Phase: 05 (slot-paid-capacity-warning) — EXECUTING
-Plan: 3 of 6 (05-01 + 05-03 done; Wave 2 remainder = 05-04 next, then Wave 3)
+Plan: 4 of 6 (05-01 + 05-03 + 05-04 done; Wave 2 complete; Wave 3 next = 05-02 + 05-05 + 05-06)
 Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
-- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 2 partially complete (2/6 plans, 33%)
-- **Last action** (2026-05-04): Plan 05-03 executed. `service::slot::Slot` now carries `max_paid_employees: Option<u8>`; both `From` impls round-trip the field; Plan 05-01's 2 Rule-3 shims replaced with real flow. 5 owned test files migrated (slot/booking/block/absence/shiftplan_edit). 3 new service tests verify create-with-limit, update-changes-limit, update-clears-limit. Permission Pflicht-Test covered transitively via existing `SHIFTPLANNER_PRIVILEGE` gate. 3 new Rule-3 forward-compat shims placed at OUT-OF-SCOPE compile-blocker sites: `service_impl/src/test/shiftplan.rs` (Plan 05-04 owns), `rest-types/src/lib.rs::From<&SlotTO>` (Plan 05-05 owns), `shifty_bin/.../booking_absence_conflict.rs` (integration). 451+ tests green workspace-wide (3 new + 448 baseline).
-- **Next**: Plan 05-04 — Shiftplan-View read aggregation: `ShiftplanSlot.current_paid_count: u8` computed inline in `build_shiftplan_day` + 4 read tests + extension of `test/shiftplan.rs` (the Rule-3 mechanical shim is already in place; Plan 04 still owns the read-aggregation logic and new tests).
+- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 2 complete, Wave 3 pending (3/6 plans, 50%)
+- **Last action** (2026-05-04): Plan 05-04 executed. `service::shiftplan::ShiftplanSlot` now carries `current_paid_count: u8`; `build_shiftplan_day` derives it inline from already-resolved bookings via `is_paid` filter (D-04). `build_shiftplan_day_for_sales_person` inherits transitively (no edit). 4 new read-aggregation tests verify D-04 (zero-when-no-paid, mixed paid/unpaid), D-09 (always populated even without limit), D-05 (paid in absence still counts). Plan 05-03's Rule-3 forward-compat shim in `service_impl/src/test/shiftplan.rs` is RESOLVED — comments replaced with permanent Phase-5 annotations. 455 tests green workspace-wide (4 new + 451 baseline). Remaining Rule-3 shims (Plan 05-03's, in `rest-types/src/lib.rs` and `shifty_bin/.../booking_absence_conflict.rs`) are out of Plan-04 scope — Plan 05-05 will resolve them.
+- **Next**: Wave 3 — Plan 05-02 (Warning enum 5th variant `PaidEmployeeLimitExceeded`) + Plan 05-05 (REST DTO surface: `SlotTO.max_paid_employees`, `WarningTO` 5th variant, `ShiftplanSlotTO.current_paid_count`) + Plan 05-06 (`ShiftplanEditService` warning emission in `book_slot_with_conflict_check` + 6 booking-pfad tests).
 
 ## v1.0 Highlights
 
@@ -49,6 +49,7 @@ Milestone: v1.1 Slot Capacity & Constraints (in progress)
 - **Phase-5-Plan-01 Forward-Compat-Shim-Pattern (Rule 3):** Wenn ein DAO-Feld eine Phase vor seinem Service-Layer-Mirror landet, hardcode `None` in `From<&Service::Slot> for SlotEntity` und im zentralen Test-Fixture, mit Inline-Kommentar auf den Folge-Plan. Plan 05-03 muss beide Stellen ersetzen.
 - **Phase-5-Plan-03 Service-Tier-Wiring:** `service::Slot` bekommt das neue Feld; `create_slot`/`update_slot` brauchen KEINE direkte Code-Änderung, weil sie bereits `..slot.clone()`-Spread verwenden — das Feld fließt transparent durch. Field bewusst NICHT in `ModificationNotAllowed`-Liste (D-11: in-place mutable). `SHIFTPLANNER_PRIVILEGE`-Gate deckt Permission-Pflicht-Test transitiv ab.
 - **Phase-5-Plan-03 Sequential-Wave-2-Friction:** Plan 03 + Plan 04 waren als parallele Wave-2-Siblings geplant (disjoint files). Bei sequenzieller Ausführung blockiert das Test-Target-Compile, weil `cargo test --lib slot::` nur Test-Filter ist, kein Compile-Filter. Lösung: Rule-3-Shim in 3 OUT-OF-SCOPE-Sites (`test/shiftplan.rs`, `rest-types/src/lib.rs`, `shifty_bin/.../booking_absence_conflict.rs`) — minimal mechanisches `max_paid_employees: None` mit Folge-Plan-Kommentar.
+- **Phase-5-Plan-04 Read-Aggregation-Pattern:** `ShiftplanSlot.current_paid_count: u8` wird inline in `build_shiftplan_day` aus bereits resolvten `slot_bookings` per `.filter(|sb| sb.sales_person.is_paid.unwrap_or(false)).count().min(u8::MAX as usize) as u8` abgeleitet. `build_shiftplan_day_for_sales_person` erbt transitiv (calls `build_shiftplan_day` als ersten Schritt). Als `u8` (nicht `Option<u8>`), weil DTO-Contract simpler bleibt und Cost minimal ist (eine Filter-Iteration über schon geladene Bookings). Plan-Adapt: `is_paid` ist `Option<bool>` (nicht `bool`) — `.unwrap_or(false)` als minimal-invasiver Adapter (Rule 1).
 - Parallele `absence` Domain (nicht Erweiterung von `extra_hours`).
 - Hybrid materialize-on-snapshot / derive-on-read (Live-Reports derive on read; BillingPeriod-Snapshots materialize-once).
 - Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt).
