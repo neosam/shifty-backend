@@ -82,10 +82,11 @@ async fn create_monday_slot(test_setup: &TestSetup, shiftplan_id: Option<Uuid>) 
                 from: Time::from_hms(9, 0, 0).unwrap(),
                 to: Time::from_hms(17, 0, 0).unwrap(),
                 min_resources: 1,
-                // Phase 5 Plan 03 (Rule 3 - blocker fix): service::Slot now
-                // carries max_paid_employees: Option<u8>. None = no limit
-                // (default semantics); this integration test does not
-                // exercise the paid-capacity-warning path (Plan 05-06).
+                // Phase 5 (D-15): no paid-capacity limit configured —
+                // this test exercises the booking-vs-absence conflict
+                // path, not the paid-capacity-warning path (D-08, owned
+                // by `ShiftplanEditService::book_slot_with_conflict_check`
+                // in Plan 05-06). `None` = no limit, no check, no warning.
                 max_paid_employees: None,
                 valid_from: date!(2024 - 01 - 01),
                 valid_to: None,

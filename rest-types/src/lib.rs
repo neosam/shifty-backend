@@ -976,6 +976,13 @@ pub struct ShiftplanBookingTO {
 pub struct ShiftplanSlotTO {
     pub slot: SlotTO,
     pub bookings: Vec<ShiftplanBookingTO>,
+    /// Phase 5 (D-09): Wire-Mirror von
+    /// `service::shiftplan::ShiftplanSlot.current_paid_count`. Live-Count
+    /// der Bookings im Slot (für die View-Woche), deren Sales Person
+    /// `is_paid == true` hat (D-04). Soft-deleted Bookings/Sales Persons
+    /// sind upstream gefiltert; Absence-Status zählt nicht (D-05). Immer
+    /// populated, unabhängig von `slot.max_paid_employees`.
+    pub current_paid_count: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -1013,6 +1020,7 @@ impl From<&service::shiftplan::ShiftplanSlot> for ShiftplanSlotTO {
         Self {
             slot: (&slot.slot).into(),
             bookings: slot.bookings.iter().map(Into::into).collect(),
+            current_paid_count: slot.current_paid_count,
         }
     }
 }
