@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Range-Based Absence Management
-status: milestone_complete
-last_updated: "2026-05-03T20:15:00.000Z"
+milestone: v1.1
+milestone_name: Slot Capacity & Constraints
+status: phase_planned
+last_updated: "2026-05-04T05:39:54.781Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 23
-  completed_plans: 23
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 6
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
@@ -21,16 +21,17 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v1.0-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions)
 - **Last shipped**: v1.0 Range-Based Absence Management (2026-05-03)
-- **Current focus**: TBD — next milestone via `/gsd:new-milestone`
+- **Current focus**: v1.1 Phase 5 Slot Paid Capacity Warning — planning complete, ready for execute
 
 ## Current Position
 
-Phase: — (none active)
-Milestone: v1.0 SHIPPED
+Phase: 05 (slot-paid-capacity-warning) — EXECUTING
+Plan: 1 of 6
+Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
-- **Status**: milestone_complete (v1.0 shipped 2026-05-03)
-- **Last action**: v1.0 milestone close (Phasen 1–4 alle verified, 458+ tests workspace-weit grün, OpenAPI-Snapshot deterministic, fe744df-Recovery integriert)
-- **Next**: `/gsd:new-milestone` zur Definition des nächsten Iterations-Scopes
+- **Status**: phase_planned (Phase 5 / Milestone v1.1)
+- **Last action** (2026-05-04): Phase 5 planning complete. 6 PLAN.md files in 3 waves (W1: 05-01 DAO+migration; W2: 05-03 Slot service, 05-04 Shiftplan view; W3: 05-02 Warning enum, 05-05 REST DTOs, 05-06 ShiftplanEdit warning emission). Plan-Checker passed nach 1 Revision (3 Blocker + 3 Warnings adressiert). Coverage-Gate-Override siehe frontmatter.
+- **Next**: `/gsd:execute-phase 5` — wave-by-wave execution. User commits manually per jj nach jedem Plan (commit_docs disabled).
 
 ## v1.0 Highlights
 

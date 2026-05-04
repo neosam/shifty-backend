@@ -3,6 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
+- 🚧 **v1.1 Slot Capacity & Constraints** — Phase 5 (in planning)
 
 ## Phases
 
@@ -22,6 +23,29 @@
 
 </details>
 
+### v1.1 Slot Capacity & Constraints (in planning)
+
+- [ ] **Phase 5: Slot Paid Capacity Warning** (planned, 0/6 plans)
+
+---
+
+### Phase 5: Slot Paid Capacity Warning
+
+**Goal**: Slots erhalten ein optionales Capacity-Limit `max_paid_employees: Option<u8>`. Wenn der Live-Count an aktiven Bookings im Slot mit `sales_person.is_paid = true` das konfigurierte Limit übersteigt, emittiert das Backend nicht-blockierende Warnings (1) im `BookingCreateResult.warnings` analog zum v1.0-Phase-3-Pattern und (2) im Shiftplan-Week-View-Read-DTO als `current_paid_count` neben `max_paid_employees`. Buchen bleibt erlaubt — die Warning ist informativ, nicht blockierend. `NULL`-Konfiguration bedeutet „kein Limit" (kein Check, keine Warning, keine Read-Felder). Frontend ist out of scope (separater Workstream im shifty-dioxus Repo).
+
+**Depends on**: Nothing (additive backend feature)
+**Plans**: 6 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Wave 1 — Migration + DAO: nullable `slot.max_paid_employees INTEGER` + `SlotEntity.max_paid_employees: Option<u8>` + all SQLite read/write sites
+- [ ] 05-03-PLAN.md — Wave 2 — Slot service wiring: `service::slot::Slot.max_paid_employees`, `From` impls, `SlotServiceImpl` create/update flow + 3 service tests + cross-file fixture migration in 5 test files (slot, booking, block, absence, shiftplan_edit — NOT shiftplan, that's Plan 04)
+- [ ] 05-04-PLAN.md — Wave 2 — Shiftplan-View read aggregation: `ShiftplanSlot.current_paid_count: u8` computed inline in `build_shiftplan_day` + 4 read tests + Slot fixture migration in `test/shiftplan.rs` (Plan 04 owns this file's fixtures since it adds the new tests there)
+- [ ] 05-02-PLAN.md — Wave 3 — Service-tier Warning enum: add 5th variant `Warning::PaidEmployeeLimitExceeded` (lands together with 05-05 to keep workspace build green: rest-types `From<&Warning>` arm is exhaustive without wildcard)
+- [ ] 05-05-PLAN.md — Wave 3 — REST DTO surface: extend `SlotTO`, `WarningTO` (5th variant + From-arm), `ShiftplanSlotTO` in `rest-types/src/lib.rs`
+- [ ] 05-06-PLAN.md — Wave 3 — `ShiftplanEditService` warning emission in `book_slot_with_conflict_check` + private `count_paid_bookings_in_slot_week` helper + 6 booking-pfad tests
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status   | Completed  |
@@ -30,7 +54,8 @@
 | 2 — Reporting Integration & Snapshot Versioning | v1.0 | 4/4 | Complete | 2026-05-02 |
 | 3 — Booking & Shift-Plan Konflikt-Integration | v1.0 | 6/6 | Complete | 2026-05-02 |
 | 4 — Migration & Cutover | v1.0 | 8/8 | Complete | 2026-05-03 |
+| 5 — Slot Paid Capacity Warning | v1.1 | 0/6  | Planned  | —          |
 
 ---
 
-*Last updated: 2026-05-03 — v1.0 milestone shipped. Next milestone TBD via `/gsd:new-milestone`.*
+*Last updated: 2026-05-03 — Phase 5 planning complete (revision 1): 6 plans across 3 waves. Wave 1 (1 plan): 05-01 (DAO+migration). Wave 2 (parallel, 2 plans on disjoint files): 05-03 (Slot service + fixture migration in 5 test files), 05-04 (Shiftplan view + fixture migration in test/shiftplan.rs + 4 read tests). Wave 3 (parallel, 3 plans): 05-02 (Warning enum 5th variant), 05-05 (REST DTOs incl. WarningTO 5th arm), 05-06 (ShiftplanEdit warning emission + 6 tests). Notes: (a) 05-02 moved from Wave 1 to Wave 3 because rest-types `From<&Warning>` is exhaustive-without-wildcard — adding the 5th variant breaks workspace build until 05-05's `From`-arm lands in the same wave. (b) Plan 03 vs Plan 04 in Wave 2 are kept on disjoint files: Plan 03 owns fixture migration in 5 test files (slot, booking, block, absence, shiftplan_edit); Plan 04 owns `test/shiftplan.rs` since it's adding new tests there anyway. Workspace-wide `cargo test -p service_impl --lib` requires both plans to land — each plan's standalone gate is `cargo test -p service_impl --lib slot::` (Plan 03) and `cargo test -p service_impl --lib shiftplan::` (Plan 04). Next: `/gsd:execute-phase 5` (run wave-by-wave; user commits manually with jj per CLAUDE.local.md).*
