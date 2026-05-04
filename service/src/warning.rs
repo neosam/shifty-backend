@@ -51,4 +51,23 @@ pub enum Warning {
         absence_id: Uuid,
         unavailable_id: Uuid,
     },
+    /// Phase 5 (D-08): emittiert beim Anlegen eines Bookings über
+    /// `ShiftplanEditService::book_slot_with_conflict_check`, wenn der
+    /// Ziel-Slot ein konfiguriertes `max_paid_employees`-Limit hat und der
+    /// resultierende Live-Count der bezahlten Mitarbeiter:innen in dieser
+    /// (year, week, slot)-Kombination das Limit STRIKT übersteigt
+    /// (`current_paid_count > max_paid_employees`, D-06).
+    ///
+    /// Die Buchung wird trotzdem persistiert (D-07) — die Warning ist
+    /// rein informativ. NULL `max_paid_employees` triggert NICHT (D-15).
+    /// Übersetzung der Variant-Bedeutung passiert im Frontend (en/de/cs);
+    /// das Backend trägt nur strukturierte Daten.
+    PaidEmployeeLimitExceeded {
+        slot_id: Uuid,
+        booking_id: Uuid,
+        year: u32,
+        week: u8,
+        current_paid_count: u8,
+        max_paid_employees: u8,
+    },
 }
