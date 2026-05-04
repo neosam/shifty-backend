@@ -1,58 +1,73 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Slot Capacity & Constraints
-status: phase_complete
-last_updated: "2026-05-04T06:43:00Z"
+milestone: none
+milestone_name: "(planning next)"
+status: milestone_complete
+last_shipped: v1.1
+last_updated: "2026-05-04T09:00:00Z"
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format)
+- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0 + v1.1 archived)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.0-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.1-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions)
-- **Last shipped**: v1.0 Range-Based Absence Management (2026-05-03)
-- **Current focus**: v1.1 Phase 5 Slot Paid Capacity Warning — COMPLETE (6/6 plans, 100%)
+- **Last shipped**: v1.1 Slot Capacity & Constraints (2026-05-04)
+- **Current focus**: Planning next milestone via `/gsd:new-milestone`
 
 ## Current Position
 
-Phase: 05 (slot-paid-capacity-warning) — COMPLETE
-Plan: 6 of 6 (all done; Wave 3 closed)
-Milestone: v1.1 Slot Capacity & Constraints (Phase 5 — only phase — complete; ready for ship)
+Milestone: v1.1 SHIPPED 2026-05-04. No active phase. No active plan.
 
-- **Status**: phase_complete (Phase 5 / Milestone v1.1) — 6/6 plans (100%). Workspace `cargo build` GREEN; `cargo test --workspace` 461 tests pass; `cargo run` boots cleanly to `127.0.0.1:3000`. All Phase-5 forward-compat shims closed (workspace `grep "Phase 5 Plan ... (Rule 3"` returns 0 across .rs files).
-- **Last action** (2026-05-04): Plan 05-06 executed. `service_impl/src/shiftplan_edit.rs::book_slot_with_conflict_check` emits `Warning::PaidEmployeeLimitExceeded` after persistence (D-07: no rollback) when `slot.max_paid_employees.is_some()` AND `current_paid_count > max` (D-06 strict, D-15 NULL-skip). Private helper `count_paid_bookings_in_slot_week` lives on `ShiftplanEditServiceImpl` (Business-Logic-Tier per CLAUDE.md Service-Tier-Konventionen + v1.0 D-Phase3-18 BookingService Basic-Tier regression-lock). 6 service-tier tests cover D-04/D-05/D-06/D-07/D-15 invariants in `service_impl/src/test/shiftplan_edit.rs`. Legacy `POST /booking` and `BookingService::create` UNVERAENDERT (D-16, D-Phase3-18). 2 atomic jj commits (`2e13be7d` Task 1 emission + helper, `ef2efbe0` Task 2 6 tests). Workspace test count: 461 (+6 over Plan 05-05 baseline 455).
-- **Next**: Phase 5 done. Frontend-Workstream (shifty-dioxus repo) ist out of scope. Nächste Schritte: `/gsd:new-milestone` zur Definition des nächsten Iterations-Scopes (z. B. Frontend-Implementation, weitere Backend-Features wie Min-Paid-Capacity / Skill-Matching).
+- **Status**: milestone_complete. Workspace `cargo build --workspace` GREEN; `cargo test --workspace` 461 tests pass; `cargo run` boots cleanly to `127.0.0.1:3000`.
+- **Last action** (2026-05-04): v1.1 milestone closed. Archive at `milestones/v1.1-ROADMAP.md`. ROADMAP.md kollabiert auf `<details>`-Block. MILESTONES.md mit v1.1-Eintrag erweitert.
+- **Next**: `/gsd:new-milestone` zur Scope-Definition. Backlog-Optionen (aus v1.1-Deferred):
+  - Frontend-Workstream (shifty-dioxus) — UI für Capacity-Anzeige + Editor
+  - Min-Paid-Capacity / Skill-Matching — weitere Slot-Constraints
+  - Andere Backend-Themen (Performance, Reporting-UX, Permissions)
 
-## v1.0 Highlights
+## Shipped Milestones
 
-- **23 plans / 22 SUMMARYs** über 4 Phasen geliefert (Phase-1-Plan-00 hat historisches Wave-0-Scaffolding ohne separates SUMMARY)
-- **458+ tests green** workspace-weit (363 service_impl + 56 shifty_bin integration + 11 cutover service + 10 dao + 18 weitere)
-- **OpenAPI surface gepinnt** via insta-snapshot (3-run deterministic check passed)
-- **Atomic-Tx-Cutover** verifiziert: Backup → Carryover-Rebuild → Soft-Delete → Flag-Flip in einer Tx, Drop-Rollback im Fehlerfall
-- **Service-Tier-Konvention** (Basic vs Business-Logic) durchgehend angewendet, keine Cycles
+### v1.1 — Slot Capacity & Constraints (2026-05-04)
+
+- **1 Phase, 6 Plans**, 461 tests green (+6 über v1.0-Baseline 455)
+- Slots: `max_paid_employees: Option<u8>` mit nicht-blockierender Warning-Emission
+- 16/16 D-decisions verified (status: passed, gaps_remaining = [])
+- Legacy `POST /booking` + `BookingService::create` unverändert (D-Phase3-18 Regression-Lock gehalten)
+
+### v1.0 — Range-Based Absence Management (2026-05-03)
+
+- **23 plans / 22 SUMMARYs** über 4 Phasen geliefert
+- 458+ tests green workspace-weit
+- OpenAPI surface gepinnt via insta-snapshot (3-run deterministic check passed)
+- Atomic-Tx-Cutover verifiziert (Backup → Carryover-Rebuild → Soft-Delete → Flag-Flip)
+- Service-Tier-Konvention (Basic vs Business-Logic) durchgehend angewendet
 
 ## Accumulated Context (carry forward)
 
 ### Architecture Decisions Logged
 
-- **Phase-5-Plan-06 Warning-Emission-Heart-Pattern:** Soft-Warning-Emission im Business-Logic-Tier-Service: insert die Limit-Check-Logik zwischen die existierende Cross-Source-Warning-Emission und das finale `transaction_dao.commit(tx)`. Persistierte Entity ist in-hand (`persisted_booking`), warnings-Akkumulator ist in-hand. Kein Rollback (D-07). Helper als private Methode auf einem zweiten `impl<Deps>`-Block für saubere Trennung. Helper-Signatur: `tx: Deps::Transaction` by-value (keine `Option<>`) — Helper wird nur aus dem Caller heraus aufgerufen, der bereits `use_transaction`'d hat. Inner cross-service-calls verwenden `Authentication::Full` (outer caller's permission war bereits via `hr.or(sp)?` validiert). D-12-Korrektur: Helper lebt auf `ShiftplanEditServiceImpl` (Business-Logic-Tier), NICHT auf `BookingService` (Basic-Tier per CLAUDE.md § Service-Tier-Konventionen + v1.0 D-Phase3-18 Regression-Lock); Plan-File `<objective>` overrid CONTEXT.md D-12's BookingService-Mention explizit. D-16: Legacy `POST /booking` und `BookingService::create` UNVERAENDERT (grep returns 0). Saturating-Cast `count.min(u8::MAX as usize) as u8` mirroriert Plan 05-04 read-side derivation.
-- **Phase-5-Plan-05 Wire-Tier-Mirror-Pattern:** Additive Phase-5-Service-Tier-Field/Variant landet wire-tier in `rest-types/src/lib.rs` durch 3 Mechanismen: (1) Struct-Feld auf `*TO` + beide `From`-Impls — Backward-Compat via `#[serde(default)]` (Pitfall #8); (2) Enum-Variant am Ende von `WarningTO` mit `#[serde(rename_all = "snake_case")]`-Auto-Tag + matching arm in `From<&Warning>` — rustc enforced Exhaustivität, kein Wildcard nötig (existierende 4 Arms sind explicit); (3) Cascade-DTOs (BlockTO, BookingCreateResultTO etc.) erben automatisch via `Vec<*TO>`-Embedding — keine manuelle Edit nötig. Plan addiert KEINE Tests (Wire-Mirror-Korrektheit = rustc + Rust type system).
-- **Phase-5-Plan-01 Foundation:** Nullable Slot-Capacity-Spalte landet ohne Backfill (D-15) — migration kopiert `min_resources`-Pattern, strippt aber `DEFAULT` und `NOT NULL`. Read-Site-Cast `row.col.map(|n| n as u8)` ist die Standard-Konvention für nullable INTEGER → `Option<u8>` (analog zu `min_resources as u8` für nicht-nullable). `update_slot` UPDATE wird für den neuen Knob in-place erweitert (kein Temporal-Replay-Concern für nicht-zeitliche Slot-Konfig); `min_resources`-Gap explizit out-of-scope.
-- **Phase-5-Plan-01 Forward-Compat-Shim-Pattern (Rule 3):** Wenn ein DAO-Feld eine Phase vor seinem Service-Layer-Mirror landet, hardcode `None` in `From<&Service::Slot> for SlotEntity` und im zentralen Test-Fixture, mit Inline-Kommentar auf den Folge-Plan. Plan 05-03 muss beide Stellen ersetzen.
-- **Phase-5-Plan-03 Service-Tier-Wiring:** `service::Slot` bekommt das neue Feld; `create_slot`/`update_slot` brauchen KEINE direkte Code-Änderung, weil sie bereits `..slot.clone()`-Spread verwenden — das Feld fließt transparent durch. Field bewusst NICHT in `ModificationNotAllowed`-Liste (D-11: in-place mutable). `SHIFTPLANNER_PRIVILEGE`-Gate deckt Permission-Pflicht-Test transitiv ab.
-- **Phase-5-Plan-03 Sequential-Wave-2-Friction:** Plan 03 + Plan 04 waren als parallele Wave-2-Siblings geplant (disjoint files). Bei sequenzieller Ausführung blockiert das Test-Target-Compile, weil `cargo test --lib slot::` nur Test-Filter ist, kein Compile-Filter. Lösung: Rule-3-Shim in 3 OUT-OF-SCOPE-Sites (`test/shiftplan.rs`, `rest-types/src/lib.rs`, `shifty_bin/.../booking_absence_conflict.rs`) — minimal mechanisches `max_paid_employees: None` mit Folge-Plan-Kommentar.
-- **Phase-5-Plan-04 Read-Aggregation-Pattern:** `ShiftplanSlot.current_paid_count: u8` wird inline in `build_shiftplan_day` aus bereits resolvten `slot_bookings` per `.filter(|sb| sb.sales_person.is_paid.unwrap_or(false)).count().min(u8::MAX as usize) as u8` abgeleitet. `build_shiftplan_day_for_sales_person` erbt transitiv (calls `build_shiftplan_day` als ersten Schritt). Als `u8` (nicht `Option<u8>`), weil DTO-Contract simpler bleibt und Cost minimal ist (eine Filter-Iteration über schon geladene Bookings). Plan-Adapt: `is_paid` ist `Option<bool>` (nicht `bool`) — `.unwrap_or(false)` als minimal-invasiver Adapter (Rule 1).
-- **Phase-5-Plan-02 Wave-Coupling-Pattern:** Wenn ein additiver Variant zu einem Domain-Enum (`service::warning::Warning`) ein exhaustive downstream `match` ohne Wildcard bricht (`rest-types/src/lib.rs:1705`, `From<&Warning> for WarningTO`), schedule Producer-Plan + Consumer-Plan in der GLEICHEN Wave. Standalone-Akzeptanz reduziert sich auf `cargo build -p {producer-crate}` (hier `service`); Workspace-Build flippt erst nach Consumer-Plan zurück auf grün. Plan-File dokumentiert das in `<wave-3 placement rationale>` und `<acceptance_criteria>`. Variante carries 6 Felder (`slot_id`, `booking_id`, `year`, `week`, `current_paid_count`, `max_paid_employees`) — `booking_id`/`year`/`week` ergänzen die D-08-Literal-3-Felder um die Booking-Context-Konvention der existierenden 4 Varianten und Plan-06-Emission-Shape.
+**v1.1 (Phase 5 — Slot Paid Capacity Warning):**
+
+- **Warning-Emission-Heart-Pattern** (Plan 05-06): Soft-Warning-Emission im Business-Logic-Tier-Service; insert die Limit-Check-Logik zwischen die existierende Cross-Source-Warning-Emission und das finale `transaction_dao.commit(tx)`. Persistierte Entity in-hand, warnings-Akkumulator in-hand. Kein Rollback (D-07). Helper als private Methode auf einem zweiten `impl<Deps>`-Block; Helper-Signatur: `tx: Deps::Transaction` by-value. Inner cross-service-calls verwenden `Authentication::Full`. D-12-Korrektur: Helper lebt auf `ShiftplanEditServiceImpl` (Business-Logic-Tier), NICHT auf `BookingService` (Basic-Tier per CLAUDE.md + v1.0 D-Phase3-18 Regression-Lock).
+- **Wire-Tier-Mirror-Pattern** (Plan 05-05): Additive Service-Tier-Field/Variant landet wire-tier in `rest-types/src/lib.rs` durch 3 Mechanismen: (1) Struct-Feld auf `*TO` + beide `From`-Impls — Backward-Compat via `#[serde(default)]`; (2) Enum-Variant am Ende mit `#[serde(rename_all = "snake_case")]`-Auto-Tag + matching `From`-Arm (rustc enforced Exhaustivität); (3) Cascade-DTOs erben automatisch via `Vec<*TO>`-Embedding.
+- **Wave-Coupling-Pattern** (Plan 05-02): Wenn ein additiver Variant zu einem Domain-Enum ein exhaustive downstream `match` ohne Wildcard bricht, schedule Producer-Plan + Consumer-Plan in der GLEICHEN Wave; Standalone-Akzeptanz reduziert sich auf `cargo build -p {producer-crate}`.
+- **Read-Aggregation-Pattern** (Plan 05-04): `current_paid_count: u8` wird inline in `build_shiftplan_day` aus bereits resolvten `slot_bookings` per `.filter(|sb| sb.sales_person.is_paid.unwrap_or(false)).count().min(u8::MAX as usize) as u8` abgeleitet. Als `u8` (nicht `Option<u8>`).
+- **Forward-Compat-Shim-Pattern (Rule 3)** (Plan 05-01, 05-03): Wenn DAO-Feld eine Phase vor seinem Service-Layer-Mirror landet, hardcode `None` in `From<&Service::Slot> for SlotEntity` und im zentralen Test-Fixture mit Inline-Kommentar auf Folge-Plan.
+- **Sequential-Wave-Friction-Mitigation** (Plan 05-03): Wenn parallel-geplante Wave-Plans sequenziell ausgeführt werden, Rule-3-Shims in OUT-OF-SCOPE-Sites mit Folge-Plan-Kommentar einsetzen statt Wave-Reorder.
+- **D-12-Override-Präzedenz**: Wenn CONTEXT.md einen Tier-Hint liefert, der gegen CLAUDE.md Service-Tier-Konvention verstößt, **das Plan-File `<objective>` overrid**et CONTEXT.md explizit. Service-Tier-Konvention ist die durchsetzungsstärkere Regel.
+
+**v1.0 (Phasen 1–4):**
+
 - Parallele `absence` Domain (nicht Erweiterung von `extra_hours`).
 - Hybrid materialize-on-snapshot / derive-on-read (Live-Reports derive on read; BillingPeriod-Snapshots materialize-once).
 - Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt).
@@ -68,26 +83,28 @@ Milestone: v1.1 Slot Capacity & Constraints (Phase 5 — only phase — complete
 - **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`).
 - **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`.
 - **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert.
-- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs (Out of Scope für dieses Backend-Milestone, aber DTO-Felder die Texte transportieren müssen Frontend-i18n-tauglich sein).
+- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs (Out of Scope für Backend-Milestones, aber DTO-Felder die Texte transportieren müssen Frontend-i18n-tauglich sein — Phase 5 D-08 hält das durch strukturierte Variants ohne Strings).
 - **Layered Architecture**: REST → Service (trait) → DAO (trait); `gen_service_impl!` für DI; `WHERE deleted IS NULL` in jeder DAO-Read-Query.
+- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. CLAUDE.md ist die durchsetzungsstärkere Regel — Plan-File `<objective>` darf CONTEXT.md-Tier-Hints overriden, wenn diese gegen die Konvention verstoßen würden (Phase-5-D-12-Präzedenz).
 
 ### Open Issues / Tech Debt for next milestone
 
-- 04-UAT Test 8: idempotenter Cutover-Re-Run wurde manuell mit 403 verifiziert (vermutlich Setup-Issue, kein Code-Bug — abgedeckt durch passing Integration-Test). Bei nächster Cutover-Phase neu prüfen falls reproduzierbar.
-- `/gsd:secure-phase 04` wurde nicht ausgeführt — als bewusstes Skip akzeptiert. Falls für Compliance gefordert, separat nachreichen.
-- 8 pre-existing `absence_period`-Integration-Tests: Phase-1-Migration in Plan 03-06 recovered → jetzt grün. Keine offene Lücke.
+- **Frontend-Workstream (shifty-dioxus)** — UI-Anzeige `current_paid_count` / `max_paid_employees` per Slot + Capacity-Editor in Slot-Settings stehen aus.
+- **Min-Paid-Capacity / Skill-Matching** — weitere Slot-Constraints als künftige Backend-Features gemerkt.
+- **04-UAT Test 8** (idempotenter Cutover-Re-Run): manuell mit 403 verifiziert (vermutlich Setup-Issue, kein Code-Bug — abgedeckt durch passing Integration-Test). Bei nächster Cutover-Phase neu prüfen falls reproduzierbar.
+- **`/gsd:secure-phase 04`** wurde nicht ausgeführt — als bewusstes Skip akzeptiert. Falls für Compliance gefordert, separat nachreichen.
 
 ## Session Continuity
 
 **To resume work in a new session:**
 
-1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones)
+1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones — v1.0 + v1.1)
 2. Read `.planning/ROADMAP.md` (collapsed milestone format)
 3. Read this file (`STATE.md`) — current position
-4. Optional: `.planning/milestones/v1.0-ROADMAP.md` für Detail-Audit der v1.0-Arbeit
+4. Optional: `.planning/milestones/v1.1-ROADMAP.md` für Detail-Audit der v1.1-Arbeit (Phase 5 D-decisions, Patterns, Wave-Topologie)
 
-**Next command**: `/gsd:new-milestone` zur Definition des nächsten Iterations-Scopes (Frontend-Workstream, weitere Backend-Features, etc.).
+**Next command**: `/gsd:new-milestone` zur Scope-Definition des nächsten Iterations-Themas (Frontend-Workstream, weitere Backend-Features, etc.).
 
 ---
 
-*State updated: 2026-05-03 — v1.0 milestone closed. Phases 1–4 SHIPPED. Ready for next milestone planning.*
+*State updated: 2026-05-04 — v1.1 milestone closed. Phase 5 SHIPPED. Ready for next milestone planning.*
