@@ -487,6 +487,44 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             }
         }
 
+        // Phase 5 (D-04, D-06, D-07, D-08, D-15, D-16): Paid-Employee-Limit-
+        // Soft-Warning. Slot wurde oben (line 419-422) bereits geladen;
+        // `slot.max_paid_employees: Option<u8>` ist in-hand.
+        // - D-15 (NULL = no limit): nur prüfen, wenn `Some(max)` gesetzt.
+        // - D-06 (strikt-größer): Warning nur bei `current > max`, NICHT bei
+        //   `current == max`.
+        // - D-07 (kein Rollback): Buchung bleibt persistiert; Warning ist
+        //   informativ.
+        // - D-04 (Count-Regel): aktive Bookings im (slot_id, year, week) mit
+        //   `sales_person.is_paid = true`, soft-deletes ausgefiltert.
+        // - D-05 (Absence orthogonal): Absence-Status der gebuchten Person
+        //   ist irrelevant — eingetragen ist eingetragen.
+        // - D-16 (Endpoint-Scope): ausschließlich auf diesem conflict-aware
+        //   Pfad. Legacy `POST /booking` (BookingService::create) bleibt
+        //   unverändert.
+        // Cast: `booking.calendar_week` ist `i32`; mirroring der existierenden
+        // `as u8`-Konvention (siehe BookingOnUnavailableDay-Emission oben).
+        if let Some(max) = slot.max_paid_employees {
+            let current_paid_count = self
+                .count_paid_bookings_in_slot_week(
+                    booking.slot_id,
+                    booking.year,
+                    booking.calendar_week as u8,
+                    tx.clone(),
+                )
+                .await?;
+            if current_paid_count > max {
+                warnings.push(Warning::PaidEmployeeLimitExceeded {
+                    slot_id: booking.slot_id,
+                    booking_id: persisted_booking.id,
+                    year: booking.year,
+                    week: booking.calendar_week as u8,
+                    current_paid_count,
+                    max_paid_employees: max,
+                });
+            }
+        }
+
         self.transaction_dao.commit(tx).await?;
         Ok(BookingCreateResult {
             booking: persisted_booking,
@@ -553,5 +591,58 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             copied_bookings: Arc::from(copied_bookings),
             warnings: Arc::from(all_warnings),
         })
+    }
+}
+
+// Phase 5 (D-04, D-05, D-12) — private Helpers für die Paid-Employee-Limit-
+// Warning-Emission. Lebt im Business-Logic-Tier (`ShiftplanEditServiceImpl`),
+// NICHT auf dem Basic-Tier `BookingService` (CLAUDE.md § "Service-Tier-
+// Konventionen" + v1.0 D-Phase3-18 Regression-Lock: BookingService bleibt
+// strikt Basic-Tier).
+impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditServiceImpl<Deps> {
+    /// Phase 5 (D-04, D-05): zählt aktive Bookings im (slot_id, year, week)
+    /// deren Sales Person aktuell `is_paid = true` hat.
+    ///
+    /// Filter-Predikat (mirrors `service_impl::shiftplan::build_shiftplan_day`
+    /// aus Plan 05-04 für behavioural consistency):
+    /// - `bookings.deleted IS NULL` — wird upstream im `booking_dao` gefiltert;
+    ///   die zusätzliche `b.deleted.is_none()`-Prüfung hier ist
+    ///   belt-and-suspenders.
+    /// - `sales_person.is_paid.unwrap_or(false) == true` UND
+    ///   `sales_person.deleted IS NULL` — wird upstream durch
+    ///   `SalesPersonService::get_all_paid` gefiltert (DAO `all_paid` =
+    ///   `WHERE deleted IS NULL AND is_paid = 1`).
+    /// - Absence-Status der gebuchten Person ist **irrelevant** (D-05):
+    ///   eingetragen ist eingetragen.
+    ///
+    /// Verwendet `Authentication::Full` für die inneren Cross-Service-
+    /// Lookups — die Permission des äußeren Aufrufers wurde bereits in
+    /// `book_slot_with_conflict_check` validiert (HR ∨ self).
+    ///
+    /// Saturating-Cast `count.min(u8::MAX as usize) as u8` analog zu
+    /// Plan 05-04's `current_paid_count`-Derivation in `build_shiftplan_day`.
+    async fn count_paid_bookings_in_slot_week(
+        &self,
+        slot_id: Uuid,
+        year: u32,
+        week: u8,
+        tx: Deps::Transaction,
+    ) -> Result<u8, ServiceError> {
+        let bookings = self
+            .booking_service
+            .get_for_week(week, year, Authentication::Full, Some(tx.clone()))
+            .await?;
+        let paid_persons = self
+            .sales_person_service
+            .get_all_paid(Authentication::Full, Some(tx.clone()))
+            .await?;
+        let paid_ids: std::collections::HashSet<Uuid> =
+            paid_persons.iter().map(|sp| sp.id).collect();
+        let count = bookings
+            .iter()
+            .filter(|b| b.slot_id == slot_id && b.deleted.is_none())
+            .filter(|b| paid_ids.contains(&b.sales_person_id))
+            .count();
+        Ok(count.min(u8::MAX as usize) as u8)
     }
 }
