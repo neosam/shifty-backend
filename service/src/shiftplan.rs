@@ -47,6 +47,12 @@ pub struct ShiftplanDay {
 pub struct ShiftplanSlot {
     pub slot: crate::slot::Slot,
     pub bookings: Vec<ShiftplanBooking>,
+    /// Phase 5 (D-04, D-05, D-09): live count of bookings whose
+    /// `sales_person.is_paid == true`. Always populated regardless of whether
+    /// `slot.max_paid_employees` is configured. Soft-deleted bookings and
+    /// soft-deleted sales persons are excluded upstream by the DAO/service
+    /// layer; absence status of the booked person is irrelevant (D-05).
+    pub current_paid_count: u8,
 }
 
 #[derive(Debug, Clone)]
