@@ -94,9 +94,24 @@ pub(crate) fn build_shiftplan_day(
                 })
                 .collect::<Result<Vec<_>, ServiceError>>()?;
 
+            // Phase 5 (D-04, D-05, D-09): count bookings whose
+            // `sales_person.is_paid == true`. Soft-deleted bookings are
+            // already filtered upstream by booking_dao
+            // (`WHERE deleted IS NULL`); soft-deleted sales_persons are
+            // already filtered upstream by SalesPersonService. Absence
+            // status of the booked person is irrelevant (D-05) — anyone
+            // booked counts. Always populated regardless of whether
+            // `slot.max_paid_employees` is configured (D-09).
+            let current_paid_count: u8 = slot_bookings
+                .iter()
+                .filter(|sb| sb.sales_person.is_paid.unwrap_or(false))
+                .count()
+                .min(u8::MAX as usize) as u8;
+
             day_slots.push(ShiftplanSlot {
                 slot: slot.clone(),
                 bookings: slot_bookings,
+                current_paid_count,
             });
         }
     }

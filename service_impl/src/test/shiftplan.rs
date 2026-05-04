@@ -38,11 +38,9 @@ pub fn default_slot() -> Slot {
         from: Time::from_hms(9, 0, 0).unwrap(),
         to: Time::from_hms(17, 0, 0).unwrap(),
         min_resources: 1,
-        // Phase 5 Plan 03 (Rule 3 - blocker fix): service::Slot gained the new
-        // mandatory `max_paid_employees: Option<u8>` field. This file is owned
-        // by Plan 05-04 (same wave); Plan 03 only adds the minimum mechanical
-        // shim required to keep the test target compiling. Plan 05-04 will
-        // build on this and add the read-aggregation tests.
+        // Phase 5 (D-09): default fixture has no paid-employee limit. Tests
+        // that exercise the Phase-5 paid-cap path build slot variants via
+        // `Slot { max_paid_employees: Some(N), ..default_slot() }`.
         max_paid_employees: None,
         valid_from: Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         valid_to: None,
@@ -330,7 +328,7 @@ fn slot_with_day_and_time(day: DayOfWeek, from_h: u8, to_h: u8) -> Slot {
         from: Time::from_hms(from_h, 0, 0).unwrap(),
         to: Time::from_hms(to_h, 0, 0).unwrap(),
         min_resources: 1,
-        // Phase 5 Plan 03 (Rule 3 - blocker fix): see default_slot above.
+        // Phase 5 (D-09): default fixture has no paid-employee limit.
         max_paid_employees: None,
         valid_from: Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         valid_to: None,
@@ -487,6 +485,158 @@ fn test_build_shiftplan_day_sorts_slots_by_from_time() {
     assert_eq!(result.slots.len(), 2);
     assert_eq!(result.slots[0].slot.id, early_slot.id);
     assert_eq!(result.slots[1].slot.id, late_slot.id);
+}
+
+// --- Phase-5 read-aggregation tests for current_paid_count
+//     (D-04: count where sales_person.is_paid == true; D-05: absence
+//     status irrelevant; D-09: always populated even without limit). ---
+
+fn unpaid_sales_person(id: Uuid, name: &str) -> SalesPerson {
+    SalesPerson {
+        id,
+        name: name.into(),
+        background_color: "#00FF00".into(),
+        is_paid: Some(false),
+        inactive: false,
+        deleted: None,
+        version: Uuid::new_v4(),
+    }
+}
+
+fn paid_sales_person(id: Uuid, name: &str) -> SalesPerson {
+    SalesPerson {
+        id,
+        name: name.into(),
+        background_color: "#0000FF".into(),
+        is_paid: Some(true),
+        inactive: false,
+        deleted: None,
+        version: Uuid::new_v4(),
+    }
+}
+
+#[test]
+fn test_shiftplan_week_emits_current_paid_count_zero_when_no_paid() {
+    // D-04: bookings exist, but no booked sales_person has is_paid == true →
+    // current_paid_count == 0.
+    let slot = slot_with_day_and_time(DayOfWeek::Monday, 9, 17);
+    let sp_a = unpaid_sales_person(Uuid::new_v4(), "A");
+    let sp_b = unpaid_sales_person(Uuid::new_v4(), "B");
+    let booking_a = default_booking(slot.id, sp_a.id);
+    let booking_b = default_booking(slot.id, sp_b.id);
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Monday,
+        &[slot],
+        &[booking_a, booking_b],
+        &[sp_a, sp_b],
+        &[],
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    assert_eq!(result.slots[0].bookings.len(), 2);
+    assert_eq!(result.slots[0].current_paid_count, 0);
+}
+
+#[test]
+fn test_shiftplan_week_emits_current_paid_count_mixed() {
+    // D-04: mix of paid (2) and unpaid (1) bookings → count = 2.
+    let slot = slot_with_day_and_time(DayOfWeek::Monday, 9, 17);
+    let paid_a = paid_sales_person(Uuid::new_v4(), "Paid A");
+    let paid_b = paid_sales_person(Uuid::new_v4(), "Paid B");
+    let unpaid = unpaid_sales_person(Uuid::new_v4(), "Unpaid");
+    let booking_paid_a = default_booking(slot.id, paid_a.id);
+    let booking_paid_b = default_booking(slot.id, paid_b.id);
+    let booking_unpaid = default_booking(slot.id, unpaid.id);
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Monday,
+        &[slot],
+        &[booking_paid_a, booking_paid_b, booking_unpaid],
+        &[paid_a, paid_b, unpaid],
+        &[],
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    assert_eq!(result.slots[0].bookings.len(), 3);
+    assert_eq!(result.slots[0].current_paid_count, 2);
+}
+
+#[test]
+fn test_shiftplan_week_emits_current_paid_count_with_no_limit() {
+    // D-09: current_paid_count is always populated regardless of whether
+    // slot.max_paid_employees is configured. Slot here has no limit
+    // (None), one paid booking → count == 1.
+    let slot = Slot {
+        max_paid_employees: None,
+        ..slot_with_day_and_time(DayOfWeek::Monday, 9, 17)
+    };
+    let paid = paid_sales_person(Uuid::new_v4(), "Paid");
+    let booking = default_booking(slot.id, paid.id);
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Monday,
+        &[slot],
+        &[booking],
+        &[paid],
+        &[],
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    assert!(result.slots[0].slot.max_paid_employees.is_none());
+    assert_eq!(result.slots[0].current_paid_count, 1);
+}
+
+#[test]
+fn test_shiftplan_week_paid_in_absence_still_counts() {
+    // D-05: absence status of the booked person is irrelevant — anyone
+    // booked counts. `build_shiftplan_day` does not consult the absence
+    // service at all; this test proves the count purely depends on
+    // `sales_person.is_paid` and the booking's existence. The presence of
+    // an absence period in the test fixture is informational — it must NOT
+    // suppress the count.
+    let slot = Slot {
+        max_paid_employees: Some(1),
+        ..slot_with_day_and_time(DayOfWeek::Monday, 9, 17)
+    };
+    let paid = paid_sales_person(Uuid::new_v4(), "Paid In Absence");
+    let booking = default_booking(slot.id, paid.id);
+
+    // Construct an absence period for `paid` that overlaps the booking
+    // week. `build_shiftplan_day` ignores the absence stream by design
+    // (D-05) — it is not even an input parameter.
+    let _absence_overlap = AbsencePeriod {
+        id: uuid!("AB000000-0000-0000-0000-000000000099"),
+        sales_person_id: paid.id,
+        category: AbsenceCategory::Vacation,
+        from_date: date!(2024 - 01 - 15),
+        to_date: date!(2024 - 01 - 19),
+        description: "Booked-while-on-vacation".into(),
+        created: Some(datetime!(2024 - 01 - 01 12:00:00)),
+        deleted: None,
+        version: uuid!("AB000000-0000-0000-0000-000000000098"),
+    };
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Monday,
+        &[slot],
+        &[booking],
+        &[paid],
+        &[],
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    // D-05 enforced: the paid booking is counted even though the person
+    // is in an active absence period.
+    assert_eq!(result.slots[0].current_paid_count, 1);
 }
 
 // --- Service tests for get_shiftplan_day ---
