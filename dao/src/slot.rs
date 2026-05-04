@@ -14,6 +14,7 @@ pub struct SlotEntity {
     pub from: time::Time,
     pub to: time::Time,
     pub min_resources: u8,
+    pub max_paid_employees: Option<u8>,
     pub valid_from: time::Date,
     pub valid_to: Option<time::Date>,
     pub deleted: Option<time::PrimitiveDateTime>,
