@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Slot Capacity & Constraints
 status: phase_in_progress
-last_updated: "2026-05-04T06:13:08Z"
+last_updated: "2026-05-04T08:16:30Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State: Shifty Backend
@@ -26,12 +26,12 @@ progress:
 ## Current Position
 
 Phase: 05 (slot-paid-capacity-warning) — EXECUTING
-Plan: 4 of 6 (05-01 + 05-03 + 05-04 done; Wave 2 complete; Wave 3 next = 05-02 + 05-05 + 05-06)
+Plan: 5 of 6 (05-01 + 05-03 + 05-04 + 05-02 done; Wave 3 partial; Wave 3 remaining = 05-05 + 05-06)
 Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
-- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 2 complete, Wave 3 pending (3/6 plans, 50%)
-- **Last action** (2026-05-04): Plan 05-04 executed. `service::shiftplan::ShiftplanSlot` now carries `current_paid_count: u8`; `build_shiftplan_day` derives it inline from already-resolved bookings via `is_paid` filter (D-04). `build_shiftplan_day_for_sales_person` inherits transitively (no edit). 4 new read-aggregation tests verify D-04 (zero-when-no-paid, mixed paid/unpaid), D-09 (always populated even without limit), D-05 (paid in absence still counts). Plan 05-03's Rule-3 forward-compat shim in `service_impl/src/test/shiftplan.rs` is RESOLVED — comments replaced with permanent Phase-5 annotations. 455 tests green workspace-wide (4 new + 451 baseline). Remaining Rule-3 shims (Plan 05-03's, in `rest-types/src/lib.rs` and `shifty_bin/.../booking_absence_conflict.rs`) are out of Plan-04 scope — Plan 05-05 will resolve them.
-- **Next**: Wave 3 — Plan 05-02 (Warning enum 5th variant `PaidEmployeeLimitExceeded`) + Plan 05-05 (REST DTO surface: `SlotTO.max_paid_employees`, `WarningTO` 5th variant, `ShiftplanSlotTO.current_paid_count`) + Plan 05-06 (`ShiftplanEditService` warning emission in `book_slot_with_conflict_check` + 6 booking-pfad tests).
+- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 3 partial (4/6 plans, 67%). Workspace build temporarily failing with expected E0004 in `rest-types/src/lib.rs:1705` (non-exhaustive match on `&Warning`); resolves when Plan 05-05 lands its `From<&Warning>` arm in same wave.
+- **Last action** (2026-05-04): Plan 05-02 executed. `service::warning::Warning` extended from 4 to 5 variants — new `PaidEmployeeLimitExceeded { slot_id: Uuid, booking_id: Uuid, year: u32, week: u8, current_paid_count: u8, max_paid_employees: u8 }` (D-08 + D-13). Pure additive — existing 4 variants byte-preserved, no other files touched, single jj commit (`4d0ec8f3`). `cargo build -p service` green standalone; workspace E0004 in `rest-types/src/lib.rs:1705` is the planned Wave-3 wave-coupling signal (Plan 05-05's `WarningTO` 5th variant + From-arm fixes it).
+- **Next**: Wave 3 remaining — Plan 05-05 (REST DTO surface: `SlotTO.max_paid_employees` + `#[serde(default)]`, `WarningTO::PaidEmployeeLimitExceeded` + From-arm to fix workspace E0004, `ShiftplanSlotTO.current_paid_count`, plus resolution of Plan 05-03's remaining Rule-3 shims in `rest-types/src/lib.rs` and `shifty_bin/.../booking_absence_conflict.rs`) + Plan 05-06 (`ShiftplanEditService::book_slot_with_conflict_check` emission of `Warning::PaidEmployeeLimitExceeded` + private `count_paid_bookings_in_slot_week` helper + 6 booking-pfad tests).
 
 ## v1.0 Highlights
 
@@ -50,6 +50,7 @@ Milestone: v1.1 Slot Capacity & Constraints (in progress)
 - **Phase-5-Plan-03 Service-Tier-Wiring:** `service::Slot` bekommt das neue Feld; `create_slot`/`update_slot` brauchen KEINE direkte Code-Änderung, weil sie bereits `..slot.clone()`-Spread verwenden — das Feld fließt transparent durch. Field bewusst NICHT in `ModificationNotAllowed`-Liste (D-11: in-place mutable). `SHIFTPLANNER_PRIVILEGE`-Gate deckt Permission-Pflicht-Test transitiv ab.
 - **Phase-5-Plan-03 Sequential-Wave-2-Friction:** Plan 03 + Plan 04 waren als parallele Wave-2-Siblings geplant (disjoint files). Bei sequenzieller Ausführung blockiert das Test-Target-Compile, weil `cargo test --lib slot::` nur Test-Filter ist, kein Compile-Filter. Lösung: Rule-3-Shim in 3 OUT-OF-SCOPE-Sites (`test/shiftplan.rs`, `rest-types/src/lib.rs`, `shifty_bin/.../booking_absence_conflict.rs`) — minimal mechanisches `max_paid_employees: None` mit Folge-Plan-Kommentar.
 - **Phase-5-Plan-04 Read-Aggregation-Pattern:** `ShiftplanSlot.current_paid_count: u8` wird inline in `build_shiftplan_day` aus bereits resolvten `slot_bookings` per `.filter(|sb| sb.sales_person.is_paid.unwrap_or(false)).count().min(u8::MAX as usize) as u8` abgeleitet. `build_shiftplan_day_for_sales_person` erbt transitiv (calls `build_shiftplan_day` als ersten Schritt). Als `u8` (nicht `Option<u8>`), weil DTO-Contract simpler bleibt und Cost minimal ist (eine Filter-Iteration über schon geladene Bookings). Plan-Adapt: `is_paid` ist `Option<bool>` (nicht `bool`) — `.unwrap_or(false)` als minimal-invasiver Adapter (Rule 1).
+- **Phase-5-Plan-02 Wave-Coupling-Pattern:** Wenn ein additiver Variant zu einem Domain-Enum (`service::warning::Warning`) ein exhaustive downstream `match` ohne Wildcard bricht (`rest-types/src/lib.rs:1705`, `From<&Warning> for WarningTO`), schedule Producer-Plan + Consumer-Plan in der GLEICHEN Wave. Standalone-Akzeptanz reduziert sich auf `cargo build -p {producer-crate}` (hier `service`); Workspace-Build flippt erst nach Consumer-Plan zurück auf grün. Plan-File dokumentiert das in `<wave-3 placement rationale>` und `<acceptance_criteria>`. Variante carries 6 Felder (`slot_id`, `booking_id`, `year`, `week`, `current_paid_count`, `max_paid_employees`) — `booking_id`/`year`/`week` ergänzen die D-08-Literal-3-Felder um die Booking-Context-Konvention der existierenden 4 Varianten und Plan-06-Emission-Shape.
 - Parallele `absence` Domain (nicht Erweiterung von `extra_hours`).
 - Hybrid materialize-on-snapshot / derive-on-read (Live-Reports derive on read; BillingPeriod-Snapshots materialize-once).
 - Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt).
