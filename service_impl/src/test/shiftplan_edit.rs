@@ -23,7 +23,7 @@ use service::{
     employee_work_details::MockEmployeeWorkDetailsService,
     extra_hours::MockExtraHoursService,
     reporting::MockReportingService,
-    sales_person::MockSalesPersonService,
+    sales_person::{MockSalesPersonService, SalesPerson},
     sales_person_unavailable::{MockSalesPersonUnavailableService, SalesPersonUnavailable},
     shiftplan_edit::ShiftplanEditService,
     slot::{MockSlotService, Slot},
@@ -485,5 +485,558 @@ async fn test_copy_week_with_conflict_check_forbidden() {
         .copy_week_with_conflict_check(16, 2026, 17, 2026, ().auth(), None)
         .await;
     test_forbidden(&result);
+}
+
+// ---------- Phase 5 (Plan 05-06): Paid-Employee-Limit-Warning Tests ----------
+//
+// Pflicht-Coverage (CONTEXT.md):
+//  - test_book_paid_into_full_slot_emits_warning      (D-04, D-06, D-08, D-13)
+//  - test_book_paid_at_limit_no_warning               (D-06 strikt: equal → kein Trigger)
+//  - test_book_unpaid_into_full_slot_no_warning       (D-04: nur paid zaehlt)
+//  - test_book_with_no_limit_no_warning               (D-15: NULL = no check)
+//  - test_book_paid_in_absence_still_counts           (D-05: Absence orthogonal)
+//  - test_book_persists_even_when_warning_fires       (D-07: kein Rollback)
+//
+// D-16 (Endpoint-Scope) wird NICHT durch einen Service-Tier-Test abgedeckt —
+// er ist eine architektonische Aussage, die durch grep auf
+// `service_impl/src/booking.rs` und `rest/src/booking.rs` belegt wird:
+// dort darf `PaidEmployeeLimitExceeded` NICHT erscheinen. Die Acceptance-
+// Criteria in 05-06-PLAN.md decken das ab.
+
+fn paid_sp_a_id() -> Uuid {
+    uuid!("11111111-1111-1111-1111-111111111111")
+}
+fn paid_sp_b_id() -> Uuid {
+    uuid!("22222222-2222-2222-2222-222222222222")
+}
+fn paid_sp_c_id() -> Uuid {
+    uuid!("33333333-3333-3333-3333-333333333333")
+}
+fn unpaid_sp_id() -> Uuid {
+    uuid!("44444444-4444-4444-4444-444444444444")
+}
+
+fn paid_sales_person(id: Uuid) -> SalesPerson {
+    SalesPerson {
+        id,
+        name: "Paid SP".into(),
+        background_color: "#fff".into(),
+        is_paid: Some(true),
+        inactive: false,
+        deleted: None,
+        version: uuid!("AAAA0000-0000-0000-0000-000000000001"),
+    }
+}
+
+fn slot_with_paid_limit(max: u8) -> Slot {
+    Slot {
+        max_paid_employees: Some(max),
+        ..monday_slot()
+    }
+}
+
+/// Existing paid booking in the same (slot_id, year=2026, week=17) tuple,
+/// pre-populated by a different sales-person-id. Used to seed
+/// `BookingService::get_for_week` so the post-persist count includes them.
+fn existing_paid_booking(sales_person_id: Uuid, booking_id: Uuid) -> Booking {
+    Booking {
+        id: booking_id,
+        sales_person_id,
+        slot_id: default_slot_id(),
+        calendar_week: 17,
+        year: 2026,
+        created: Some(datetime!(2026 - 04 - 19 12:00:00)),
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: uuid!("BBBB0000-0000-0000-0000-000000000001"),
+    }
+}
+
+/// D-04, D-06, D-08, D-13: Slot mit `max=2`, 2 bestehende paid-Bookings + 1
+/// neu zu persistierendes (paid_sp_c) → post-persist-count = 3 > max=2 →
+/// genau eine `PaidEmployeeLimitExceeded`-Warning mit den korrekten Feldern.
+/// Buchung wird trotzdem persistiert (D-07-Vorboten — der dedizierte
+/// Persistence-Test ist `test_book_persists_even_when_warning_fires`).
+#[tokio::test]
+async fn test_book_paid_into_full_slot_emits_warning() {
+    let mut deps = build_dependencies(true, false);
+
+    // Slot trägt das Limit max=2.
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    // Booking zu persistieren = paid_sp_c. Override `expect_create` so the
+    // returned Booking trägt den Test-Sales-Person-Id (Default-Mock liefert
+    // einen anderen sp). Die persistierte ID bleibt `default_booking_id()`.
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+
+    // get_for_week liefert (D-04: post-persist-Sicht): 2 bestehende
+    // paid-Bookings + 1 frisch persistiertes = 3 paid in slot.
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(17u8), eq(2026u32), always(), always())
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                existing_paid_booking(
+                    paid_sp_b_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000002"),
+                ),
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: paid_sp_c_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    // get_all_paid liefert die 3 paid Sales-Personen.
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+                paid_sales_person(paid_sp_c_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_c_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    let paid_warnings: Vec<&Warning> = result
+        .warnings
+        .iter()
+        .filter(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. }))
+        .collect();
+    assert_eq!(
+        paid_warnings.len(),
+        1,
+        "expected exactly one PaidEmployeeLimitExceeded warning, got {:?}",
+        result.warnings
+    );
+    match paid_warnings[0] {
+        Warning::PaidEmployeeLimitExceeded {
+            slot_id,
+            booking_id,
+            year,
+            week,
+            current_paid_count,
+            max_paid_employees,
+        } => {
+            assert_eq!(*slot_id, default_slot_id());
+            assert_eq!(*booking_id, default_booking_id());
+            assert_eq!(*year, 2026);
+            assert_eq!(*week, 17);
+            assert_eq!(*current_paid_count, 3);
+            assert_eq!(*max_paid_employees, 2);
+        }
+        other => panic!("expected PaidEmployeeLimitExceeded, got {other:?}"),
+    }
+}
+
+/// D-06 strikt: bei `current_paid_count == max_paid_employees` darf KEINE
+/// Warning fliegen. Setup: max=2, post-persist 2 paid bookings.
+#[tokio::test]
+async fn test_book_paid_at_limit_no_warning() {
+    let mut deps = build_dependencies(true, false);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: paid_sp_b_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_b_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    assert!(
+        !result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "D-06 strikt: equal-count must NOT trigger PaidEmployeeLimitExceeded; got {:?}",
+        result.warnings
+    );
+}
+
+/// D-04: unpaid Sales-Person zaehlt nicht zum Limit. Setup: max=2, 2
+/// bestehende paid-Bookings, neu zu persistierendes Booking gehoert zu einer
+/// **unpaid** Sales-Person. Post-persist paid-count = 2 (das neue zaehlt
+/// NICHT) → kein `current > max` → keine Warning.
+#[tokio::test]
+async fn test_book_unpaid_into_full_slot_no_warning() {
+    let mut deps = build_dependencies(true, false);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                existing_paid_booking(
+                    paid_sp_b_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000002"),
+                ),
+                // Frisch persistiertes Booking — Sales-Person ist UNPAID.
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: unpaid_sp_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    // get_all_paid liefert NUR die 2 paid SPs — der unpaid SP ist nicht in
+    // der Liste, daher zaehlt er via `paid_ids.contains(...)` nicht.
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: unpaid_sp_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    assert!(
+        !result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "D-04: unpaid sales-person must NOT count toward paid-limit; got {:?}",
+        result.warnings
+    );
+}
+
+/// D-15: `slot.max_paid_employees = None` ⇒ kein Check, keine Warning. Der
+/// Helper darf hier nicht aufgerufen werden — wir registrieren bewusst KEIN
+/// `expect_get_all_paid`. Dass `get_all_paid` nicht aufgerufen wird, wird
+/// implizit dadurch verifiziert, dass `MockSalesPersonService` ohne
+/// matching expectation panic'en wuerde, falls der Helper triggert.
+#[tokio::test]
+async fn test_book_with_no_limit_no_warning() {
+    // Default-Slot hat max_paid_employees: None — kein Override noetig.
+    let deps = build_dependencies(true, false);
+    let service = deps.build_service();
+
+    let result = service
+        .book_slot_with_conflict_check(&default_booking(), ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    assert!(
+        !result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "D-15: NULL limit must NOT emit any PaidEmployeeLimitExceeded; got {:?}",
+        result.warnings
+    );
+}
+
+/// D-05: Absence-Status der gebuchten Person ist orthogonal. Setup: max=1,
+/// 1 bestehendes paid-Booking + 1 frisches paid-Booking ergeben 2 Paid-
+/// Eintraege > max=1 → Warning fliegt — UND zusaetzlich greift die
+/// existierende `BookingOnAbsenceDay`-Warning (Plan 03-04). Beide Pfade
+/// fliegen unabhaengig.
+#[tokio::test]
+async fn test_book_paid_in_absence_still_counts() {
+    let mut deps = build_dependencies(true, false);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(1)));
+
+    // AbsenceService liefert eine ueberlappende AbsencePeriod fuer die
+    // gebuchte Person — sollte D-05 NICHT vom Count ausschliessen.
+    deps.absence_service.checkpoint();
+    deps.absence_service
+        .expect_find_overlapping_for_booking()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![default_absence_period()])));
+
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: paid_sp_b_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_b_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    // Paid-Limit-Warning fliegt — Absence verhindert das Counting NICHT.
+    let paid_count = result
+        .warnings
+        .iter()
+        .filter(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. }))
+        .count();
+    assert_eq!(
+        paid_count, 1,
+        "D-05: absence orthogonal — paid-limit warning must still fire; got {:?}",
+        result.warnings
+    );
+
+    // Absence-Pfad fliegt unabhaengig (Plan 03-04 BookingOnAbsenceDay).
+    let absence_count = result
+        .warnings
+        .iter()
+        .filter(|w| matches!(w, Warning::BookingOnAbsenceDay { .. }))
+        .count();
+    assert_eq!(
+        absence_count, 1,
+        "BookingOnAbsenceDay must fire independently; got {:?}",
+        result.warnings
+    );
+}
+
+/// D-07: trotz Warning bleibt das Booking persistiert (kein Tx-Rollback).
+/// `result.booking.id == persisted_booking.id` belegt, dass das vom
+/// `BookingService::create`-Mock zurueckgegebene Booking unverändert in
+/// `BookingCreateResult.booking` landet — der commit am Ende von
+/// `book_slot_with_conflict_check` lief durch.
+#[tokio::test]
+async fn test_book_persists_even_when_warning_fires() {
+    let mut deps = build_dependencies(true, false);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(1)));
+
+    deps.booking_service.checkpoint();
+    // Persistiertes Booking trägt eine eindeutige UUID, die wir im Result
+    // wiederfinden muessen.
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| {
+            // 2 paid Bookings → > max=1 → Warning fliegt.
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: paid_sp_b_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_b_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    // D-07: Booking ist im Result-Wrapper mit der vom Mock vergebenen ID
+    // — der commit ist durchgelaufen, kein Rollback.
+    assert_eq!(
+        result.booking.id,
+        default_booking_id(),
+        "D-07: booking must be persisted even when warning fires"
+    );
+    // Warning ist trotzdem da.
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "warning must fire alongside persistence; got {:?}",
+        result.warnings
+    );
 }
 
