@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
-- 🚧 **v1.1 Slot Capacity & Constraints** — Phase 5 (in planning)
+- ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (completed 2026-05-04, ready for ship)
 
 ## Phases
 
@@ -23,9 +23,9 @@
 
 </details>
 
-### v1.1 Slot Capacity & Constraints (in planning)
+### v1.1 Slot Capacity & Constraints (completed 2026-05-04)
 
-- [ ] **Phase 5: Slot Paid Capacity Warning** (in progress, 5/6 plans)
+- [x] **Phase 5: Slot Paid Capacity Warning** (6/6 plans, completed 2026-05-04)
 
 ---
 
@@ -42,7 +42,7 @@ Plans:
 - [x] 05-04-PLAN.md — Wave 2 — Shiftplan-View read aggregation: `ShiftplanSlot.current_paid_count: u8` computed inline in `build_shiftplan_day` + 4 read tests + Plan 05-03 Rule-3 shim resolution in `test/shiftplan.rs` — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-04-SUMMARY.md))
 - [x] 05-02-PLAN.md — Wave 3 — Service-tier Warning enum: 5th variant `Warning::PaidEmployeeLimitExceeded { slot_id, booking_id, year, week, current_paid_count, max_paid_employees }` (D-08 + D-13). Pure additive; existing 4 variants byte-preserved; `cargo build -p service` green; workspace E0004 in `rest-types/src/lib.rs:1705` deferred to Plan 05-05 (same Wave 3) — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-02-SUMMARY.md))
 - [x] 05-05-PLAN.md — Wave 3 — REST DTO surface: extend `SlotTO.max_paid_employees: Option<u8>` (D-10) with `#[serde(default)]`, `WarningTO::PaidEmployeeLimitExceeded` 5th variant + `From<&Warning>` arm (D-08, resolves Plan 05-02 wave-coupled E0004), `ShiftplanSlotTO.current_paid_count: u8` (D-09); Plan-05-03 Rule-3 shims in this file + integration test resolved (workspace shim catalog fully closed) — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-05-SUMMARY.md))
-- [ ] 05-06-PLAN.md — Wave 3 — `ShiftplanEditService` warning emission in `book_slot_with_conflict_check` + private `count_paid_bookings_in_slot_week` helper + 6 booking-pfad tests
+- [x] 05-06-PLAN.md — Wave 3 — `ShiftplanEditService::book_slot_with_conflict_check` emits `Warning::PaidEmployeeLimitExceeded` after persistence (D-07: no rollback) when `slot.max_paid_employees.is_some()` AND `current_paid_count > max` (D-06 strict, D-15); private `count_paid_bookings_in_slot_week` helper on `ShiftplanEditServiceImpl` (Business-Logic-Tier per CLAUDE.md + v1.0 D-Phase3-18 regression-lock); 6 service-tier tests covering D-04/D-05/D-06/D-07/D-15. Legacy `POST /booking` + `BookingService::create` UNVERAENDERT (D-16, D-Phase3-18) — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-06-SUMMARY.md))
 
 ---
 
@@ -54,8 +54,8 @@ Plans:
 | 2 — Reporting Integration & Snapshot Versioning | v1.0 | 4/4 | Complete | 2026-05-02 |
 | 3 — Booking & Shift-Plan Konflikt-Integration | v1.0 | 6/6 | Complete | 2026-05-02 |
 | 4 — Migration & Cutover | v1.0 | 8/8 | Complete | 2026-05-03 |
-| 5 — Slot Paid Capacity Warning | v1.1 | 5/6  | In progress | —          |
+| 5 — Slot Paid Capacity Warning | v1.1 | 6/6  | Complete | 2026-05-04 |
 
 ---
 
-*Last updated: 2026-05-04 — Plan 05-05 (Wave 3 partial) executed: `rest-types/src/lib.rs` extended with 3 additive wire-tier mirrors of the Phase-5 service-tier additions — `SlotTO.max_paid_employees: Option<u8>` with `#[serde(default)]` (D-10), `WarningTO::PaidEmployeeLimitExceeded` 5th variant + `From<&Warning>` arm (D-08, resolves Plan 05-02 wave-coupled E0004), `ShiftplanSlotTO.current_paid_count: u8` (D-09). Both Plan-05-03 Rule-3 forward-compat shims (in this file + in `shifty_bin/.../booking_absence_conflict.rs`) closed; workspace `grep "Phase 5 Plan 03 (Rule 3"` returns 0 across .rs. Workspace `cargo build` GREEN; 455 tests pass (no new tests — wire-mirror correctness enforced by rustc exhaustive match + Rust type system). 3 atomic jj commits. Wave 3 progress: 2/3 (05-02 + 05-05 done, 05-06 remaining).*
+*Last updated: 2026-05-04 — Plan 05-06 executed (last in phase): `ShiftplanEditService::book_slot_with_conflict_check` emits `Warning::PaidEmployeeLimitExceeded` after persistence (D-07: no rollback) when `slot.max_paid_employees.is_some()` AND `current_paid_count > max` (D-06 strict, D-15 NULL-skip). Private helper `count_paid_bookings_in_slot_week` lives on `ShiftplanEditServiceImpl` (Business-Logic-Tier per CLAUDE.md + v1.0 D-Phase3-18 regression-lock); reuses `get_for_week` + `get_all_paid` (both already in deps). 6 service-tier tests in `service_impl/src/test/shiftplan_edit.rs` cover D-04 (paid-only count), D-05 (absence orthogonal), D-06 (strikt-größer; equal does NOT trigger), D-07 (kein Rollback), D-15 (NULL-skip). Legacy `POST /booking` + `BookingService::create` UNVERAENDERT (D-16, D-Phase3-18) — both verified via `grep -c "PaidEmployeeLimitExceeded"` returning 0. 2 atomic jj commits (`2e13be7d` Task 1, `ef2efbe0` Task 2). Workspace `cargo build` GREEN; 461 tests pass (376 service_impl + 56 shifty_bin + 11 cutover + 10 dao + 8 other; +6 over Plan 05-05 baseline 455). `cargo run` boots cleanly to `127.0.0.1:3000`. **Phase 5 — and Milestone v1.1 — complete (6/6 plans, 100%).** Frontend-Workstream (shifty-dioxus) bleibt out of scope.*
