@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Slot Capacity & Constraints
-status: phase_planned
-last_updated: "2026-05-04T05:39:54.781Z"
+status: phase_in_progress
+last_updated: "2026-05-04T05:47:38Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State: Shifty Backend
@@ -26,12 +26,12 @@ progress:
 ## Current Position
 
 Phase: 05 (slot-paid-capacity-warning) — EXECUTING
-Plan: 1 of 6
+Plan: 2 of 6 (05-01 done; Wave 2 = 05-03 + 05-04 next)
 Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
-- **Status**: phase_planned (Phase 5 / Milestone v1.1)
-- **Last action** (2026-05-04): Phase 5 planning complete. 6 PLAN.md files in 3 waves (W1: 05-01 DAO+migration; W2: 05-03 Slot service, 05-04 Shiftplan view; W3: 05-02 Warning enum, 05-05 REST DTOs, 05-06 ShiftplanEdit warning emission). Plan-Checker passed nach 1 Revision (3 Blocker + 3 Warnings adressiert). Coverage-Gate-Override siehe frontmatter.
-- **Next**: `/gsd:execute-phase 5` — wave-by-wave execution. User commits manually per jj nach jedem Plan (commit_docs disabled).
+- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 1 complete (1/6 plans, 17%)
+- **Last action** (2026-05-04): Plan 05-01 executed. Migration `20260503221640_add-max-paid-employees-to-slot.sql` applied (nullable `slot.max_paid_employees INTEGER`). `SlotEntity.max_paid_employees: Option<u8>` added; all 4 SQLite read sites + INSERT + UPDATE wired. 2 Rule-3 forward-compat shims (`service/src/slot.rs::From<&Slot>` and `service_impl/src/test/slot.rs::generate_default_slot_entity` both hardcode `None`) — Plan 05-03 must replace these with real flow once `service::Slot` gains the field. 448 tests green workspace-wide.
+- **Next**: Wave 2 — execute Plans 05-03 (Slot service wiring + From impls + service-tier fixture migration in 5 test files) and 05-04 (Shiftplan-View read aggregation + `current_paid_count` + fixture migration in `test/shiftplan.rs`). They operate on disjoint files and can run in parallel.
 
 ## v1.0 Highlights
 
@@ -45,6 +45,8 @@ Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
 ### Architecture Decisions Logged
 
+- **Phase-5-Plan-01 Foundation:** Nullable Slot-Capacity-Spalte landet ohne Backfill (D-15) — migration kopiert `min_resources`-Pattern, strippt aber `DEFAULT` und `NOT NULL`. Read-Site-Cast `row.col.map(|n| n as u8)` ist die Standard-Konvention für nullable INTEGER → `Option<u8>` (analog zu `min_resources as u8` für nicht-nullable). `update_slot` UPDATE wird für den neuen Knob in-place erweitert (kein Temporal-Replay-Concern für nicht-zeitliche Slot-Konfig); `min_resources`-Gap explizit out-of-scope.
+- **Phase-5-Plan-01 Forward-Compat-Shim-Pattern (Rule 3):** Wenn ein DAO-Feld eine Phase vor seinem Service-Layer-Mirror landet, hardcode `None` in `From<&Service::Slot> for SlotEntity` und im zentralen Test-Fixture, mit Inline-Kommentar auf den Folge-Plan. Plan 05-03 muss beide Stellen ersetzen.
 - Parallele `absence` Domain (nicht Erweiterung von `extra_hours`).
 - Hybrid materialize-on-snapshot / derive-on-read (Live-Reports derive on read; BillingPeriod-Snapshots materialize-once).
 - Direction: `AbsenceService → BookingService` (Business-Logic-Tier konsumiert Basic-Tier; nie umgekehrt).
