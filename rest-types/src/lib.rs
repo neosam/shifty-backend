@@ -1641,7 +1641,7 @@ impl From<&AbsencePeriodTO> for service::absence::AbsencePeriod {
 // ──────────────────────────────────────────────────────────────────────
 //
 // 5 inline DTOs für die Phase-3 REST-Surface:
-// * `WarningTO`             — Tag-Enum (4 Varianten), JSON-Form
+// * `WarningTO`             — Tag-Enum (5 Varianten), JSON-Form
 //                             `{ "kind": ..., "data": { ... } }`.
 // * `UnavailabilityMarkerTO`— Tag-Enum (3 Varianten) für die per-sales-
 //                             person-Sicht (`ShiftplanDayTO.unavailable`).
@@ -1694,6 +1694,20 @@ pub enum WarningTO {
         absence_id: Uuid,
         unavailable_id: Uuid,
     },
+    /// Phase 5 (D-08): Wire-Mirror von `service::warning::Warning::PaidEmployeeLimitExceeded`.
+    /// Emittiert wenn der Live-Count an bezahlten Mitarbeiter:innen in
+    /// (year, week, slot) das konfigurierte `max_paid_employees`-Limit
+    /// strikt übersteigt (`current > max`, D-06). Buchung wird trotzdem
+    /// persistiert (D-07). JSON-Tag (auto via `rename_all = "snake_case"`):
+    /// `paid_employee_limit_exceeded`.
+    PaidEmployeeLimitExceeded {
+        slot_id: Uuid,
+        booking_id: Uuid,
+        year: u32,
+        week: u8,
+        current_paid_count: u8,
+        max_paid_employees: u8,
+    },
 }
 
 #[cfg(feature = "service-impl")]
@@ -1737,6 +1751,21 @@ impl From<&service::warning::Warning> for WarningTO {
             } => Self::AbsenceOverlapsManualUnavailable {
                 absence_id: *absence_id,
                 unavailable_id: *unavailable_id,
+            },
+            service::warning::Warning::PaidEmployeeLimitExceeded {
+                slot_id,
+                booking_id,
+                year,
+                week,
+                current_paid_count,
+                max_paid_employees,
+            } => Self::PaidEmployeeLimitExceeded {
+                slot_id: *slot_id,
+                booking_id: *booking_id,
+                year: *year,
+                week: *week,
+                current_paid_count: *current_paid_count,
+                max_paid_employees: *max_paid_employees,
             },
         }
     }
