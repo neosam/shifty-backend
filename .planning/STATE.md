@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Slot Capacity & Constraints
 status: phase_in_progress
-last_updated: "2026-05-04T08:16:30Z"
+last_updated: "2026-05-04T06:30:00Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State: Shifty Backend
@@ -26,12 +26,12 @@ progress:
 ## Current Position
 
 Phase: 05 (slot-paid-capacity-warning) — EXECUTING
-Plan: 5 of 6 (05-01 + 05-03 + 05-04 + 05-02 done; Wave 3 partial; Wave 3 remaining = 05-05 + 05-06)
+Plan: 6 of 6 (05-01 + 05-02 + 05-03 + 05-04 + 05-05 done; Wave 3 partial; Wave 3 remaining = 05-06)
 Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
-- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 3 partial (4/6 plans, 67%). Workspace build temporarily failing with expected E0004 in `rest-types/src/lib.rs:1705` (non-exhaustive match on `&Warning`); resolves when Plan 05-05 lands its `From<&Warning>` arm in same wave.
-- **Last action** (2026-05-04): Plan 05-02 executed. `service::warning::Warning` extended from 4 to 5 variants — new `PaidEmployeeLimitExceeded { slot_id: Uuid, booking_id: Uuid, year: u32, week: u8, current_paid_count: u8, max_paid_employees: u8 }` (D-08 + D-13). Pure additive — existing 4 variants byte-preserved, no other files touched, single jj commit (`4d0ec8f3`). `cargo build -p service` green standalone; workspace E0004 in `rest-types/src/lib.rs:1705` is the planned Wave-3 wave-coupling signal (Plan 05-05's `WarningTO` 5th variant + From-arm fixes it).
-- **Next**: Wave 3 remaining — Plan 05-05 (REST DTO surface: `SlotTO.max_paid_employees` + `#[serde(default)]`, `WarningTO::PaidEmployeeLimitExceeded` + From-arm to fix workspace E0004, `ShiftplanSlotTO.current_paid_count`, plus resolution of Plan 05-03's remaining Rule-3 shims in `rest-types/src/lib.rs` and `shifty_bin/.../booking_absence_conflict.rs`) + Plan 05-06 (`ShiftplanEditService::book_slot_with_conflict_check` emission of `Warning::PaidEmployeeLimitExceeded` + private `count_paid_bookings_in_slot_week` helper + 6 booking-pfad tests).
+- **Status**: phase_in_progress (Phase 5 / Milestone v1.1) — Wave 3 partial (5/6 plans, 83%). Workspace `cargo build` GREEN — Plan 05-02's intentional E0004 in `rest-types/src/lib.rs:1705` resolved by Plan 05-05's `From<&Warning>` arm. All Plan-05-03 Rule-3 forward-compat shims closed across .rs files (workspace `grep "Phase 5 Plan 03 (Rule 3"` returns 0).
+- **Last action** (2026-05-04): Plan 05-05 executed. `rest-types/src/lib.rs` extended with 3 additive wire-tier mirrors: `SlotTO.max_paid_employees: Option<u8>` (D-10) with `#[serde(default)]`, `WarningTO::PaidEmployeeLimitExceeded` 5th variant + `From<&Warning>` arm (D-08, resolves Plan 05-02 wave-coupled E0004), `ShiftplanSlotTO.current_paid_count: u8` (D-09). Plan-05-03 Rule-3 shims in this file (forward + reverse Slot↔SlotTO impls) and in `shifty_bin/src/integration_test/booking_absence_conflict.rs` resolved with permanent annotations — full forward-compat shim catalog from Plan 05-01/05-03 now closed. 3 atomic jj commits (`de79cd6f`, `c60119ff`, `945a1703`). Workspace `cargo build` green; 455 workspace tests pass (no new tests in this plan — wire-mirror correctness is enforced by rustc exhaustive match + Rust's named-field type system).
+- **Next**: Wave 3 remaining — Plan 05-06 (`ShiftplanEditService::book_slot_with_conflict_check` emission of `Warning::PaidEmployeeLimitExceeded` + private `count_paid_bookings_in_slot_week` helper + 6 booking-pfad tests).
 
 ## v1.0 Highlights
 
@@ -45,6 +45,7 @@ Milestone: v1.1 Slot Capacity & Constraints (in progress)
 
 ### Architecture Decisions Logged
 
+- **Phase-5-Plan-05 Wire-Tier-Mirror-Pattern:** Additive Phase-5-Service-Tier-Field/Variant landet wire-tier in `rest-types/src/lib.rs` durch 3 Mechanismen: (1) Struct-Feld auf `*TO` + beide `From`-Impls — Backward-Compat via `#[serde(default)]` (Pitfall #8); (2) Enum-Variant am Ende von `WarningTO` mit `#[serde(rename_all = "snake_case")]`-Auto-Tag + matching arm in `From<&Warning>` — rustc enforced Exhaustivität, kein Wildcard nötig (existierende 4 Arms sind explicit); (3) Cascade-DTOs (BlockTO, BookingCreateResultTO etc.) erben automatisch via `Vec<*TO>`-Embedding — keine manuelle Edit nötig. Plan addiert KEINE Tests (Wire-Mirror-Korrektheit = rustc + Rust type system).
 - **Phase-5-Plan-01 Foundation:** Nullable Slot-Capacity-Spalte landet ohne Backfill (D-15) — migration kopiert `min_resources`-Pattern, strippt aber `DEFAULT` und `NOT NULL`. Read-Site-Cast `row.col.map(|n| n as u8)` ist die Standard-Konvention für nullable INTEGER → `Option<u8>` (analog zu `min_resources as u8` für nicht-nullable). `update_slot` UPDATE wird für den neuen Knob in-place erweitert (kein Temporal-Replay-Concern für nicht-zeitliche Slot-Konfig); `min_resources`-Gap explizit out-of-scope.
 - **Phase-5-Plan-01 Forward-Compat-Shim-Pattern (Rule 3):** Wenn ein DAO-Feld eine Phase vor seinem Service-Layer-Mirror landet, hardcode `None` in `From<&Service::Slot> for SlotEntity` und im zentralen Test-Fixture, mit Inline-Kommentar auf den Folge-Plan. Plan 05-03 muss beide Stellen ersetzen.
 - **Phase-5-Plan-03 Service-Tier-Wiring:** `service::Slot` bekommt das neue Feld; `create_slot`/`update_slot` brauchen KEINE direkte Code-Änderung, weil sie bereits `..slot.clone()`-Spread verwenden — das Feld fließt transparent durch. Field bewusst NICHT in `ModificationNotAllowed`-Liste (D-11: in-place mutable). `SHIFTPLANNER_PRIVILEGE`-Gate deckt Permission-Pflicht-Test transitiv ab.

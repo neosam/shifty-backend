@@ -25,7 +25,7 @@
 
 ### v1.1 Slot Capacity & Constraints (in planning)
 
-- [ ] **Phase 5: Slot Paid Capacity Warning** (in progress, 4/6 plans)
+- [ ] **Phase 5: Slot Paid Capacity Warning** (in progress, 5/6 plans)
 
 ---
 
@@ -41,7 +41,7 @@ Plans:
 - [x] 05-03-PLAN.md — Wave 2 — Slot service wiring: `service::slot::Slot.max_paid_employees`, `From` impls, `SlotServiceImpl` create/update flow + 3 service tests + cross-file fixture migration in 5 test files (slot, booking, block, absence, shiftplan_edit) + 3 Rule-3 forward-compat shims for sequential-execution compile blockers — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-03-SUMMARY.md))
 - [x] 05-04-PLAN.md — Wave 2 — Shiftplan-View read aggregation: `ShiftplanSlot.current_paid_count: u8` computed inline in `build_shiftplan_day` + 4 read tests + Plan 05-03 Rule-3 shim resolution in `test/shiftplan.rs` — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-04-SUMMARY.md))
 - [x] 05-02-PLAN.md — Wave 3 — Service-tier Warning enum: 5th variant `Warning::PaidEmployeeLimitExceeded { slot_id, booking_id, year, week, current_paid_count, max_paid_employees }` (D-08 + D-13). Pure additive; existing 4 variants byte-preserved; `cargo build -p service` green; workspace E0004 in `rest-types/src/lib.rs:1705` deferred to Plan 05-05 (same Wave 3) — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-02-SUMMARY.md))
-- [ ] 05-05-PLAN.md — Wave 3 — REST DTO surface: extend `SlotTO`, `WarningTO` (5th variant + From-arm), `ShiftplanSlotTO` in `rest-types/src/lib.rs`
+- [x] 05-05-PLAN.md — Wave 3 — REST DTO surface: extend `SlotTO.max_paid_employees: Option<u8>` (D-10) with `#[serde(default)]`, `WarningTO::PaidEmployeeLimitExceeded` 5th variant + `From<&Warning>` arm (D-08, resolves Plan 05-02 wave-coupled E0004), `ShiftplanSlotTO.current_paid_count: u8` (D-09); Plan-05-03 Rule-3 shims in this file + integration test resolved (workspace shim catalog fully closed) — **completed 2026-05-04** ([SUMMARY](phases/05-slot-paid-capacity-warning/05-05-SUMMARY.md))
 - [ ] 05-06-PLAN.md — Wave 3 — `ShiftplanEditService` warning emission in `book_slot_with_conflict_check` + private `count_paid_bookings_in_slot_week` helper + 6 booking-pfad tests
 
 ---
@@ -54,8 +54,8 @@ Plans:
 | 2 — Reporting Integration & Snapshot Versioning | v1.0 | 4/4 | Complete | 2026-05-02 |
 | 3 — Booking & Shift-Plan Konflikt-Integration | v1.0 | 6/6 | Complete | 2026-05-02 |
 | 4 — Migration & Cutover | v1.0 | 8/8 | Complete | 2026-05-03 |
-| 5 — Slot Paid Capacity Warning | v1.1 | 4/6  | In progress | —          |
+| 5 — Slot Paid Capacity Warning | v1.1 | 5/6  | In progress | —          |
 
 ---
 
-*Last updated: 2026-05-04 — Plan 05-02 (Wave 3 partial) executed: `service::warning::Warning` extended from 4 to 5 variants — new `PaidEmployeeLimitExceeded { slot_id, booking_id, year, week, current_paid_count, max_paid_employees }` (D-08 + D-13). Pure additive (existing 4 variants byte-preserved). `cargo build -p service` green standalone. Workspace `cargo build` temporarily fails with expected E0004 in `rest-types/src/lib.rs:1705` (non-exhaustive match on `&Warning`) — Plan 05-05 (same Wave 3) adds the corresponding `WarningTO` 5th variant + From-arm to flip workspace back to green. Wave 3 progress: 1/3 (05-02 done, 05-05 + 05-06 remaining).*
+*Last updated: 2026-05-04 — Plan 05-05 (Wave 3 partial) executed: `rest-types/src/lib.rs` extended with 3 additive wire-tier mirrors of the Phase-5 service-tier additions — `SlotTO.max_paid_employees: Option<u8>` with `#[serde(default)]` (D-10), `WarningTO::PaidEmployeeLimitExceeded` 5th variant + `From<&Warning>` arm (D-08, resolves Plan 05-02 wave-coupled E0004), `ShiftplanSlotTO.current_paid_count: u8` (D-09). Both Plan-05-03 Rule-3 forward-compat shims (in this file + in `shifty_bin/.../booking_absence_conflict.rs`) closed; workspace `grep "Phase 5 Plan 03 (Rule 3"` returns 0 across .rs. Workspace `cargo build` GREEN; 455 tests pass (no new tests — wire-mirror correctness enforced by rustc exhaustive match + Rust type system). 3 atomic jj commits. Wave 3 progress: 2/3 (05-02 + 05-05 done, 05-06 remaining).*
