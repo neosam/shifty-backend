@@ -37,6 +37,7 @@ pub fn generate_default_slot() -> Slot {
         from: time::Time::from_hms(10, 0, 0).unwrap(),
         to: time::Time::from_hms(11, 0, 0).unwrap(),
         min_resources: 2,
+        max_paid_employees: None,
         valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 1).unwrap(),
         valid_to: None,
         deleted: None,
@@ -51,15 +52,31 @@ pub fn generate_default_slot_entity() -> SlotEntity {
         from: time::Time::from_hms(10, 0, 0).unwrap(),
         to: time::Time::from_hms(11, 0, 0).unwrap(),
         min_resources: 2,
-        // Phase 5 Plan 01 (Rule 3 - blocker fix): default to no-limit so
-        // existing slot/booking/shiftplan tests stay green. Plan 05-03 will
-        // add a paid-limit fixture variant.
         max_paid_employees: None,
         valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 1).unwrap(),
         valid_to: None,
         deleted: None,
         version: uuid!("86DE856C-D176-4F1F-A4FE-0D9844C02C03"),
         shiftplan_id: Some(default_shiftplan_id()),
+    }
+}
+
+/// Phase 5: fixture variant of `generate_default_slot` carrying a paid-employee
+/// limit. Used by the create-with-limit / update-changes / update-clears tests.
+pub fn generate_slot_with_paid_limit(max: u8) -> Slot {
+    Slot {
+        max_paid_employees: Some(max),
+        ..generate_default_slot()
+    }
+}
+
+/// Phase 5: fixture variant of `generate_default_slot_entity` carrying a
+/// paid-employee limit. Used to mock `slot_dao.expect_get_slot()` returns
+/// in the update-changes / update-clears tests.
+pub fn generate_default_slot_entity_with_paid_limit(max: u8) -> SlotEntity {
+    SlotEntity {
+        max_paid_employees: Some(max),
+        ..generate_default_slot_entity()
     }
 }
 
@@ -1009,4 +1026,161 @@ async fn test_create_slot_with_shiftplan_id_succeeds() {
     };
     let result = service.create_slot(&slot, ().auth(), None).await;
     assert!(result.is_ok());
+}
+
+// =====================================================================
+// Phase 5 Plan 03 — max_paid_employees create/update/clear coverage.
+//
+// Bridges DAO (Plan 05-01) → service-tier (this plan) → downstream consumers
+// (ShiftplanEditService warning emission, Plan 05-06; Shiftplan-View read
+// aggregation, Plan 05-04). These tests verify the field round-trips
+// through `create_slot` / `update_slot` and is mutable in-place per D-11.
+// Permission coverage is transitive via the existing
+// `test_update_slot_no_permission` (the SHIFTPLANNER_PRIVILEGE gate at
+// service_impl/src/slot.rs lines 292-294 fires before any field-level work).
+// =====================================================================
+
+#[tokio::test]
+async fn test_create_slot_with_paid_limit() {
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    // Mock receives a SlotEntity carrying max_paid_employees: Some(3).
+    dependencies
+        .slot_dao
+        .expect_create_slot()
+        .with(
+            eq(generate_default_slot_entity_with_paid_limit(3)),
+            eq("slot-service"),
+            always(),
+        )
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    dependencies
+        .uuid_service
+        .expect_new_uuid()
+        .with(eq("slot-id"))
+        .returning(|_| default_id());
+    dependencies
+        .uuid_service
+        .expect_new_uuid()
+        .with(eq("slot-version"))
+        .returning(|_| default_version());
+    dependencies
+        .slot_dao
+        .expect_get_slots()
+        .returning(|_| Ok(Arc::new([])));
+
+    let slot_service = dependencies.build_service();
+    let result = slot_service
+        .create_slot(
+            &Slot {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                ..generate_slot_with_paid_limit(3)
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+    let returned = result.unwrap();
+    assert_eq!(returned.max_paid_employees, Some(3));
+    assert_eq!(returned, generate_slot_with_paid_limit(3));
+}
+
+#[tokio::test]
+async fn test_update_slot_changes_max_paid_employees() {
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    // Persisted entity has max_paid_employees: Some(2). Update will mutate
+    // it to Some(5); the DAO update mock asserts the new value lands.
+    dependencies
+        .slot_dao
+        .expect_get_slot()
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity_with_paid_limit(2))));
+    dependencies
+        .slot_dao
+        .expect_update_slot()
+        .once()
+        .with(
+            eq(SlotEntity {
+                max_paid_employees: Some(5),
+                version: default_changed_version(),
+                ..generate_default_slot_entity()
+            }),
+            eq("slot-service"),
+            always(),
+        )
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    dependencies
+        .uuid_service
+        .expect_new_uuid()
+        .with(eq("slot-version"))
+        .returning(|_| default_changed_version());
+
+    let slot_service = dependencies.build_service();
+    let result = slot_service
+        .update_slot(
+            &Slot {
+                max_paid_employees: Some(5),
+                ..generate_default_slot()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(
+        result.is_ok(),
+        "update_slot must allow max_paid_employees mutation (D-11): {:?}",
+        result
+    );
+}
+
+#[tokio::test]
+async fn test_update_slot_clears_max_paid_employees() {
+    let mut dependencies = build_dependencies(true, "shiftplanner");
+    // Persisted entity has Some(5); update payload sets it to None
+    // ("no limit"). Persisted entity must reflect the clear.
+    dependencies
+        .slot_dao
+        .expect_get_slot()
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(generate_default_slot_entity_with_paid_limit(5))));
+    dependencies
+        .slot_dao
+        .expect_update_slot()
+        .once()
+        .with(
+            eq(SlotEntity {
+                max_paid_employees: None,
+                version: default_changed_version(),
+                ..generate_default_slot_entity()
+            }),
+            eq("slot-service"),
+            always(),
+        )
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    dependencies
+        .uuid_service
+        .expect_new_uuid()
+        .with(eq("slot-version"))
+        .returning(|_| default_changed_version());
+
+    let slot_service = dependencies.build_service();
+    let result = slot_service
+        .update_slot(
+            &Slot {
+                max_paid_employees: None,
+                ..generate_default_slot()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(
+        result.is_ok(),
+        "update_slot must allow clearing max_paid_employees (D-11): {:?}",
+        result
+    );
 }

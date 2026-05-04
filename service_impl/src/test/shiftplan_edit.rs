@@ -72,6 +72,7 @@ fn monday_slot() -> Slot {
         from: Time::from_hms(9, 0, 0).unwrap(),
         to: Time::from_hms(17, 0, 0).unwrap(),
         min_resources: 1,
+        max_paid_employees: None,
         valid_from: time::Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         valid_to: None,
         deleted: None,

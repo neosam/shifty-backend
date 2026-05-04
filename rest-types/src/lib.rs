@@ -325,6 +325,12 @@ pub struct SlotTO {
 #[cfg(feature = "service-impl")]
 impl From<&service::slot::Slot> for SlotTO {
     fn from(slot: &service::slot::Slot) -> Self {
+        // Phase 5 Plan 03 (Rule 3 - blocker fix): service::Slot now carries
+        // `max_paid_employees: Option<u8>`, but `SlotTO` does not yet have a
+        // mirror field — that's Plan 05-05's scope. Drop the value here so
+        // the REST tier still builds. Plan 05-05 will add the SlotTO field
+        // and round-trip the value end-to-end.
+        let _ = slot.max_paid_employees;
         Self {
             id: slot.id,
             day_of_week: slot.day_of_week.into(),
@@ -348,6 +354,11 @@ impl From<&SlotTO> for service::slot::Slot {
             from: slot.from,
             to: slot.to,
             min_resources: slot.min_resources,
+            // Phase 5 Plan 03 (Rule 3 - blocker fix): SlotTO does not yet
+            // carry `max_paid_employees` — Plan 05-05 will add it. Default
+            // to None so SlotTO → Slot keeps compiling; users posting via
+            // REST today get the no-limit semantics.
+            max_paid_employees: None,
             valid_from: slot.valid_from,
             valid_to: slot.valid_to,
             deleted: slot.deleted,

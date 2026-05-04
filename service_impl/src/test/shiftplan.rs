@@ -38,6 +38,12 @@ pub fn default_slot() -> Slot {
         from: Time::from_hms(9, 0, 0).unwrap(),
         to: Time::from_hms(17, 0, 0).unwrap(),
         min_resources: 1,
+        // Phase 5 Plan 03 (Rule 3 - blocker fix): service::Slot gained the new
+        // mandatory `max_paid_employees: Option<u8>` field. This file is owned
+        // by Plan 05-04 (same wave); Plan 03 only adds the minimum mechanical
+        // shim required to keep the test target compiling. Plan 05-04 will
+        // build on this and add the read-aggregation tests.
+        max_paid_employees: None,
         valid_from: Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         valid_to: None,
         deleted: None,
@@ -324,6 +330,8 @@ fn slot_with_day_and_time(day: DayOfWeek, from_h: u8, to_h: u8) -> Slot {
         from: Time::from_hms(from_h, 0, 0).unwrap(),
         to: Time::from_hms(to_h, 0, 0).unwrap(),
         min_resources: 1,
+        // Phase 5 Plan 03 (Rule 3 - blocker fix): see default_slot above.
+        max_paid_employees: None,
         valid_from: Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         valid_to: None,
         deleted: None,

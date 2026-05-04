@@ -160,6 +160,7 @@ pub fn build_dependencies(permission: bool, role: &'static str) -> BookingServic
             from: time::Time::from_hms(8, 0, 0).unwrap(),
             to: time::Time::from_hms(16, 0, 0).unwrap(),
             min_resources: 1,
+            max_paid_employees: None,
             valid_from: time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
             valid_to: None,
             deleted: None,
