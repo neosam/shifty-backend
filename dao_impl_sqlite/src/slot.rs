@@ -26,7 +26,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
     type Transaction = TransactionImpl;
 
     async fn get_slots(&self, tx: Self::Transaction) -> Result<Arc<[SlotEntity]>, DaoError> {
-        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE deleted IS NULL")
+        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, max_paid_employees, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE deleted IS NULL")
             .fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -40,6 +40,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                     from: Time::parse(&row.time_from, &Iso8601::TIME)?,
                     to: Time::parse(&row.time_to, &Iso8601::TIME)?,
                     min_resources: row.min_resources as u8,
+                    max_paid_employees: row.max_paid_employees.map(|n| n as u8),
                     valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
                     valid_to: row
                         .valid_to
@@ -64,7 +65,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         tx: Self::Transaction,
     ) -> Result<Option<SlotEntity>, DaoError> {
         let id_vec = id.as_bytes().to_vec();
-        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE id = ?", id_vec)
+        let result = query!(r"SELECT id, day_of_week, time_from, time_to, min_resources, max_paid_employees, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE id = ?", id_vec)
             .fetch_optional(tx.tx.lock().await.as_mut())
             .await
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?;
@@ -77,6 +78,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                     from: Time::parse(&row.time_from, &Iso8601::TIME)?,
                     to: Time::parse(&row.time_to, &Iso8601::TIME)?,
                     min_resources: row.min_resources as u8,
+                    max_paid_employees: row.max_paid_employees.map(|n| n as u8),
                     valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
                     valid_to: row
                         .valid_to
@@ -108,7 +110,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let sunday_str = sunday.format(&Iso8601::DATE)?;
         let shiftplan_id_vec = shiftplan_id.as_bytes().to_vec();
         let result = query!(r"
-                SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id
+                SELECT id, day_of_week, time_from, time_to, min_resources, max_paid_employees, valid_from, valid_to, deleted, update_version, shiftplan_id
                 FROM slot
                 WHERE deleted IS NULL
                 AND valid_from <= ?
@@ -127,6 +129,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                     from: Time::parse(&row.time_from, &Iso8601::TIME)?,
                     to: Time::parse(&row.time_to, &Iso8601::TIME)?,
                     min_resources: row.min_resources as u8,
+                    max_paid_employees: row.max_paid_employees.map(|n| n as u8),
                     valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
                     valid_to: row
                         .valid_to
@@ -156,7 +159,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let monday_str = monday.format(&Iso8601::DATE)?;
         let sunday_str = sunday.format(&Iso8601::DATE)?;
         let result = query!(r"
-                SELECT slot.id, slot.day_of_week, slot.time_from, slot.time_to, slot.min_resources, slot.valid_from, slot.valid_to, slot.deleted, slot.update_version, slot.shiftplan_id
+                SELECT slot.id, slot.day_of_week, slot.time_from, slot.time_to, slot.min_resources, slot.max_paid_employees, slot.valid_from, slot.valid_to, slot.deleted, slot.update_version, slot.shiftplan_id
                 FROM slot
                 LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id
                 WHERE slot.deleted IS NULL
@@ -176,6 +179,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                     from: Time::parse(&row.time_from, &Iso8601::TIME)?,
                     to: Time::parse(&row.time_to, &Iso8601::TIME)?,
                     min_resources: row.min_resources as u8,
+                    max_paid_employees: row.max_paid_employees.map(|n| n as u8),
                     valid_from: Date::parse(&row.valid_from, &Iso8601::DATE)?,
                     valid_to: row
                         .valid_to
@@ -210,8 +214,9 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
         let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
         let min_resources = slot.min_resources;
+        let max_paid_employees = slot.max_paid_employees;
         let shiftplan_id_vec = slot.shiftplan_id.map(|id| id.as_bytes().to_vec());
-        query!("INSERT INTO slot (id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version, update_process, min_resources, shiftplan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        query!("INSERT INTO slot (id, day_of_week, time_from, time_to, valid_from, valid_to, deleted, update_version, update_process, min_resources, max_paid_employees, shiftplan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             day_of_week,
             from,
@@ -222,6 +227,7 @@ impl dao::slot::SlotDao for SlotDaoImpl {
             version_vec,
             process,
             min_resources,
+            max_paid_employees,
             shiftplan_id_vec,
         )
         .execute(tx.tx.lock().await.as_mut())
@@ -240,9 +246,11 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let version_vec = slot.version.as_bytes().to_vec();
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
         let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
-        query!("UPDATE slot SET valid_to = ?, deleted = ?, update_version = ?, update_process = ? WHERE id = ?",
+        let max_paid_employees = slot.max_paid_employees;
+        query!("UPDATE slot SET valid_to = ?, deleted = ?, max_paid_employees = ?, update_version = ?, update_process = ? WHERE id = ?",
             valid_to,
             deleted,
+            max_paid_employees,
             version_vec,
             process,
             id_vec,

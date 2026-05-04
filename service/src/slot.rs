@@ -46,6 +46,11 @@ impl From<&Slot> for dao::slot::SlotEntity {
             from: slot.from,
             to: slot.to,
             min_resources: slot.min_resources,
+            // Phase 5 Plan 01 (Rule 3 - blocker fix): SlotEntity got the new
+            // `max_paid_employees: Option<u8>` field. `service::Slot` does not yet
+            // carry it — that's Plan 05-03's scope. Hardcode `None` here so the
+            // workspace builds; Plan 05-03 will replace this with `slot.max_paid_employees`.
+            max_paid_employees: None,
             valid_from: slot.valid_from,
             valid_to: slot.valid_to,
             deleted: slot.deleted,

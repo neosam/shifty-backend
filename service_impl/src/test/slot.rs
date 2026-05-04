@@ -51,6 +51,10 @@ pub fn generate_default_slot_entity() -> SlotEntity {
         from: time::Time::from_hms(10, 0, 0).unwrap(),
         to: time::Time::from_hms(11, 0, 0).unwrap(),
         min_resources: 2,
+        // Phase 5 Plan 01 (Rule 3 - blocker fix): default to no-limit so
+        // existing slot/booking/shiftplan tests stay green. Plan 05-03 will
+        // add a paid-limit fixture variant.
+        max_paid_employees: None,
         valid_from: time::Date::from_calendar_date(2022, 1.try_into().unwrap(), 1).unwrap(),
         valid_to: None,
         deleted: None,
