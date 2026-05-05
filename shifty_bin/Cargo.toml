@@ -1,6 +1,6 @@
 [package]
 name = "shifty_bin"
-version = "1.13.0-dev"
+version = "1.12.3"
 edition = "2021"
 resolver = "2"
 
