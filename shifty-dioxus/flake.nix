@@ -6,9 +6,10 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
     openspec.url = "github:Fission-AI/OpenSpec";
+    gsd.url = "github:neosam/gsd-flake";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, openspec }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, openspec, gsd }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -195,6 +196,7 @@ EOF
             lld
             binaryen
             openspec.packages.${system}.default
+            gsd.packages.${system}.default
           ];
 
           RUST_TARGET = "wasm32-unknown-unknown";
