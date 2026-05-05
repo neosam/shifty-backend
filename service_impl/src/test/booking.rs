@@ -968,3 +968,62 @@ async fn test_delete_booking_planner_only_allowed_for_shiftplanner() {
     let result = service.delete(default_id(), ().auth(), None).await;
     assert!(result.is_ok());
 }
+
+/// Regression: when current_user_id resolves to None (e.g. inner caller used
+/// Authentication::Full), BookingService::create must fall back to the
+/// caller-provided booking.created_by so the audit trail in the bookings_view
+/// is never NULL on active write paths.
+#[tokio::test]
+async fn test_create_falls_back_to_booking_created_by_when_user_is_anon() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    // Override the build_dependencies default which returns Some("test_user").
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.permission_service
+        .expect_current_user_id()
+        .returning(|_| Ok(None));
+
+    deps.booking_dao
+        .expect_create()
+        .with(
+            eq(BookingEntity {
+                created: generate_default_datetime(),
+                created_by: Some("upstream-user".into()),
+                ..default_booking_entity()
+            }),
+            eq("booking-service"),
+            always(),
+        )
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-id"))
+        .returning(|_| default_id());
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| default_version());
+
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                created_by: Some("upstream-user".into()),
+                ..default_booking()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_ok(), "create should succeed: {result:?}");
+    assert_eq!(
+        result.unwrap().created_by,
+        Some("upstream-user".into()),
+        "created_by must fall back to the caller-provided value"
+    );
+}

@@ -7,6 +7,8 @@ pub mod block;
 #[cfg(test)]
 pub mod booking;
 #[cfg(test)]
+pub mod booking_log;
+#[cfg(test)]
 pub mod carryover;
 #[cfg(test)]
 pub mod carryover_rebuild;

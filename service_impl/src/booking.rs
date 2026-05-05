@@ -282,11 +282,16 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .permission_service
             .current_user_id(context.clone())
             .await?;
+        // current_user is None for Authentication::Full callers (system pathways
+        // such as copy_week and shiftplan_edit). Those callers must pre-populate
+        // booking.created_by with the originating user; we fall back to it here
+        // so the audit trail in bookings_view never carries NULL for active code
+        // paths.
         let new_booking = Booking {
             id: new_id,
             version: new_version,
             created: Some(self.clock_service.date_time_now()),
-            created_by: current_user,
+            created_by: current_user.or_else(|| booking.created_by.clone()),
             ..booking.clone()
         };
 
@@ -332,6 +337,13 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             )
             .await?;
 
+        // Resolve the originating user once so we can attribute the copies
+        // even though the inner create() runs under Authentication::Full.
+        let creator = self
+            .permission_service
+            .current_user_id(context.clone())
+            .await?;
+
         // Remove entries which are already in the destination week
         let to_week_ids: Arc<[(Uuid, Uuid)]> = to_week
             .iter()
@@ -346,7 +358,7 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
                 new_booking.calendar_week = to_calendar_week as i32;
                 new_booking.year = to_year;
                 new_booking.created = None;
-                new_booking.created_by = None;
+                new_booking.created_by = creator.clone();
                 new_booking.deleted_by = None;
                 new_booking.version = Uuid::nil();
                 new_booking

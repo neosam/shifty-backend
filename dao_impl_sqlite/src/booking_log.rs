@@ -6,6 +6,7 @@ use shifty_utils::DayOfWeek;
 use sqlx::query_as;
 use std::sync::Arc;
 use time::PrimitiveDateTime;
+use tracing::error;
 
 struct BookingLogDb {
     name: Option<String>,
@@ -31,7 +32,63 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
         let time_from_str = db.time_from.as_ref().ok_or_else(|| DaoError::EnumValueNotFound("time_from is NULL".into()))?;
         let time_to_str = db.time_to.as_ref().ok_or_else(|| DaoError::EnumValueNotFound("time_to is NULL".into()))?;
         let created_str = db.created.as_ref().ok_or_else(|| DaoError::EnumValueNotFound("created is NULL".into()))?;
-        let created_by_str = db.created_by.as_ref().ok_or_else(|| DaoError::EnumValueNotFound("created_by is NULL".into()))?;
+        // created_by is intentionally nullable in the schema (Migration
+        // 20250115000000): pre-audit-tracking bookings carry NULL. Modelled as
+        // Option<Arc<str>> all the way up to the DTO; live write paths still
+        // populate it (BookingService::create + Authentication::Full callers
+        // pre-fill booking.created_by).
+
+        let iso = &time::format_description::well_known::Iso8601::DEFAULT;
+        let time_from = time::Time::parse(time_from_str, iso).map_err(|e| {
+            error!(
+                column = "time_from",
+                value = %time_from_str,
+                year = year,
+                calendar_week = calendar_week,
+                error = ?e,
+                "booking_log: failed to parse time_from"
+            );
+            e
+        })?;
+        let time_to = time::Time::parse(time_to_str, iso).map_err(|e| {
+            error!(
+                column = "time_to",
+                value = %time_to_str,
+                year = year,
+                calendar_week = calendar_week,
+                error = ?e,
+                "booking_log: failed to parse time_to"
+            );
+            e
+        })?;
+        let created = PrimitiveDateTime::parse(created_str, iso).map_err(|e| {
+            error!(
+                column = "created",
+                value = %created_str,
+                year = year,
+                calendar_week = calendar_week,
+                error = ?e,
+                "booking_log: failed to parse created"
+            );
+            e
+        })?;
+        let deleted = db
+            .deleted
+            .as_ref()
+            .map(|d| {
+                PrimitiveDateTime::parse(d, iso).map_err(|e| {
+                    error!(
+                        column = "deleted",
+                        value = %d,
+                        year = year,
+                        calendar_week = calendar_week,
+                        error = ?e,
+                        "booking_log: failed to parse deleted"
+                    );
+                    e
+                })
+            })
+            .transpose()?;
 
         Ok(Self {
             year: year as u32,
@@ -39,15 +96,11 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
             day_of_week: DayOfWeek::from_number(day_of_week_num as u8)
                 .ok_or_else(|| DaoError::InvalidDayOfWeek(day_of_week_num as u8))?,
             name: name.clone().into(),
-            time_from: time::Time::parse(time_from_str, &time::format_description::well_known::Iso8601::DEFAULT)?,
-            time_to: time::Time::parse(time_to_str, &time::format_description::well_known::Iso8601::DEFAULT)?,
-            created: PrimitiveDateTime::parse(created_str, &time::format_description::well_known::Iso8601::DEFAULT)?,
-            deleted: db
-                .deleted
-                .as_ref()
-                .map(|d| PrimitiveDateTime::parse(d, &time::format_description::well_known::Iso8601::DEFAULT))
-                .transpose()?,
-            created_by: created_by_str.clone().into(),
+            time_from,
+            time_to,
+            created,
+            deleted,
+            created_by: db.created_by.as_ref().map(|s| s.clone().into()),
             deleted_by: db.deleted_by.as_ref().map(|s| s.clone().into()),
         })
     }

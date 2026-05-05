@@ -206,6 +206,12 @@ pub(crate) fn build_dependencies(
                 Err(ServiceError::Forbidden)
             }
         });
+    // Default: book_slot_with_conflict_check resolves the originator for
+    // created_by attribution. Tests that exercise system pathways
+    // (Authentication::Full) can override this.
+    permission_service
+        .expect_current_user_id()
+        .returning(|_| Ok(Some("test-user".into())));
 
     let mut sales_person_service = MockSalesPersonService::new();
     sales_person_service
@@ -485,6 +491,35 @@ async fn test_copy_week_with_conflict_check_forbidden() {
         .copy_week_with_conflict_check(16, 2026, 17, 2026, ().auth(), None)
         .await;
     test_forbidden(&result);
+}
+
+/// Regression: book_slot_with_conflict_check must attribute created_by to the
+/// originating user (resolved via permission_service.current_user_id) before
+/// delegating to BookingService::create with Authentication::Full. Otherwise
+/// the bookings_view ends up with NULL created_by entries that crash
+/// BookingLogService reads.
+#[tokio::test]
+async fn test_book_slot_attributes_creator_when_input_lacks_created_by() {
+    let mut deps = build_dependencies(true, false);
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .withf(|booking, _, _| booking.created_by.as_deref() == Some("test-user"))
+        .returning(|_, _, _| Ok(persisted_booking()));
+    let service = deps.build_service();
+
+    // Input booking deliberately has created_by: None (the realistic frontend
+    // payload — the auth context is the only source of truth).
+    let input = Booking {
+        created_by: None,
+        ..default_booking()
+    };
+
+    let result = service
+        .book_slot_with_conflict_check(&input, ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+    assert_eq!(result.booking.id, default_booking_id());
 }
 
 // ---------- Phase 5 (Plan 05-06): Paid-Employee-Limit-Warning Tests ----------

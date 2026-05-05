@@ -55,7 +55,13 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
     ) -> Result<Slot, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
-            .check_permission("shiftplan.edit", context)
+            .check_permission("shiftplan.edit", context.clone())
+            .await?;
+
+        // Resolve the editor for created_by attribution on the rebooked entries.
+        let editor = self
+            .permission_service
+            .current_user_id(context.clone())
             .await?;
 
         let mut stored_slot = self
@@ -128,6 +134,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             new_booking.year = booking.year;
             new_booking.calendar_week = booking.calendar_week;
             new_booking.created = None;
+            new_booking.created_by = editor.clone();
 
             self.booking_service
                 .create(&new_booking, Authentication::Full, tx.clone().into())
@@ -455,10 +462,21 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .await?;
 
         // Persist via Basic-Service — BookingService::create UNVERÄNDERT
-        // (D-Phase3-18 Regression-Lock).
+        // (D-Phase3-18 Regression-Lock). Wir reichen den ursprünglichen User
+        // via booking.created_by durch, damit das Audit-Feld nicht NULL bleibt
+        // (BookingService::create läuft hier mit Authentication::Full und kann
+        // den User sonst nicht ableiten).
+        let creator = self
+            .permission_service
+            .current_user_id(context.clone())
+            .await?;
+        let booking_with_creator = Booking {
+            created_by: creator,
+            ..booking.clone()
+        };
         let persisted_booking = self
             .booking_service
-            .create(booking, Authentication::Full, tx.clone().into())
+            .create(&booking_with_creator, Authentication::Full, tx.clone().into())
             .await?;
 
         // Warnings mit echter persistierter Booking-ID. KEINE De-Dup zwischen

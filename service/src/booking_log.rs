@@ -17,7 +17,7 @@ pub struct BookingLog {
     pub time_to: time::Time,
     pub created: PrimitiveDateTime,
     pub deleted: Option<PrimitiveDateTime>,
-    pub created_by: Arc<str>,
+    pub created_by: Option<Arc<str>>,
     pub deleted_by: Option<Arc<str>>,
 }
 

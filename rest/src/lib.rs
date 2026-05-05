@@ -64,7 +64,7 @@ use tower_cookies::CookieManagerLayer;
 use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
-use tracing::info;
+use tracing::{error, info};
 use utoipa::openapi::ServerBuilder;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -120,8 +120,8 @@ pub enum RestError {
 }
 
 fn error_handler(result: Result<Response, RestError>) -> Response {
-    if result.is_err() {
-        println!("REST error mapping: {:?}", result);
+    if let Err(ref err) = result {
+        error!(error = ?err, "REST error mapping");
     }
     match result {
         Ok(response) => response,
