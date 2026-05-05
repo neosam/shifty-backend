@@ -401,7 +401,6 @@ pub enum Key {
     WorkingHoursTableEmployee,
     WorkingHoursTableActual,
     WorkingHoursTableTarget,
-    WorkingHoursTableDifference,
     WorkingHoursTableUtilization,
     WorkingHoursTableTotal,
 }

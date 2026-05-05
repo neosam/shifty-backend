@@ -165,8 +165,6 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
     let total_target: f32 = props.rows.iter().map(|r| r.dynamic_hours).sum();
     let total_actual_str = format_hours(total_actual, 1);
     let total_target_str = format_hours(total_target, 1);
-    let total_diff_str = signed_hours_diff(total_actual, total_target);
-    let total_diff_class = hours_text_class(total_actual, total_target);
 
     rsx! {
         div {
@@ -190,12 +188,12 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                             "{i18n.t(Key::WorkingHoursTableTarget)}"
                         }
                         th {
-                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase text-right",
-                            "{i18n.t(Key::WorkingHoursTableDifference)}"
-                        }
-                        th {
                             class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase",
                             "{i18n.t(Key::WorkingHoursTableUtilization)}"
+                        }
+                        th {
+                            class: "px-[14px] py-2 text-micro font-bold text-ink-muted uppercase text-right",
+                            "{i18n.t(Key::Balance)}"
                         }
                     }
                 }
@@ -205,10 +203,11 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                             let sales_person_id = working_hour.sales_person_id;
                             let actual = working_hour.actual_hours;
                             let target = working_hour.dynamic_hours;
+                            let balance = working_hour.balance_hours;
                             let actual_str = format_hours(actual, 1);
                             let target_str = format_hours(target, 1);
-                            let diff_str = signed_hours_diff(actual, target);
-                            let diff_class = hours_text_class(actual, target);
+                            let balance_str = signed_hours_diff(balance, 0.0);
+                            let balance_class = hours_text_class(balance, 0.0);
                             let bar_class = progress_bar_class(actual, target);
                             let pct = progress_bar_percent(actual, target);
                             let pct_int = pct.round() as i32;
@@ -246,10 +245,6 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                                         "{target_str}h"
                                     }
                                     td {
-                                        class: "font-mono tabular-nums px-[14px] py-2 text-right font-semibold {diff_class}",
-                                        "{diff_str}"
-                                    }
-                                    td {
                                         class: "px-[14px] py-2",
                                         style: "min-width: 140px;",
                                         div {
@@ -269,6 +264,10 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                                             }
                                         }
                                     }
+                                    td {
+                                        class: "font-mono tabular-nums px-[14px] py-2 text-right font-semibold {balance_class}",
+                                        "{balance_str}"
+                                    }
                                 }
                             }
                         }
@@ -287,10 +286,7 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                             class: "font-mono tabular-nums px-[14px] py-2 text-right font-semibold text-ink-muted",
                             "{total_target_str}h"
                         }
-                        td {
-                            class: "font-mono tabular-nums px-[14px] py-2 text-right font-bold {total_diff_class}",
-                            "{total_diff_str}"
-                        }
+                        td { class: "px-[14px] py-2" }
                         td { class: "px-[14px] py-2" }
                     }
                 }
@@ -604,11 +600,19 @@ mod tests {
     }
 
     #[test]
-    fn table_layout_difference_positive_uses_text_good() {
+    fn table_layout_balance_positive_uses_text_good() {
         fn app() -> Element {
             rsx! {
                 WorkingHoursMiniOverview {
-                    working_hours: Rc::from([make_row("A", "#abc", 22.0, 20.0)].to_vec()),
+                    working_hours: Rc::from([WorkingHoursMini {
+                        sales_person_id: Uuid::nil(),
+                        sales_person_name: "A".into(),
+                        expected_hours: 20.0,
+                        dynamic_hours: 20.0,
+                        actual_hours: 22.0,
+                        balance_hours: 3.5,
+                        background_color: "#abc".into(),
+                    }].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
                     on_dbl_click: |_| {},
@@ -616,16 +620,24 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains("+2.0h"), "missing +2.0h: {html}");
+        assert!(html.contains("+3.5h"), "missing +3.5h balance: {html}");
         assert!(html.contains("text-good"), "missing text-good: {html}");
     }
 
     #[test]
-    fn table_layout_difference_negative_uses_text_warn() {
+    fn table_layout_balance_negative_uses_text_warn() {
         fn app() -> Element {
             rsx! {
                 WorkingHoursMiniOverview {
-                    working_hours: Rc::from([make_row("A", "#abc", 15.0, 20.0)].to_vec()),
+                    working_hours: Rc::from([WorkingHoursMini {
+                        sales_person_id: Uuid::nil(),
+                        sales_person_name: "A".into(),
+                        expected_hours: 20.0,
+                        dynamic_hours: 20.0,
+                        actual_hours: 15.0,
+                        balance_hours: -7.0,
+                        background_color: "#abc".into(),
+                    }].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
                     on_dbl_click: |_| {},
@@ -633,8 +645,44 @@ mod tests {
             }
         }
         let html = render(app);
-        assert!(html.contains("-5.0h"), "missing -5.0h: {html}");
+        assert!(html.contains("-7.0h"), "missing -7.0h balance: {html}");
         assert!(html.contains("text-warn"), "missing text-warn: {html}");
+    }
+
+    /// The balance column must reflect `balance_hours`, not `actual - target`.
+    /// Why: a positive workload diff for the current week can coexist with a
+    /// negative carry-over balance (or vice versa). Replacing the column was
+    /// the whole point of this change.
+    #[test]
+    fn table_layout_balance_independent_of_actual_target_diff() {
+        fn app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    // Positive week diff (+2h) but a negative balance overall.
+                    working_hours: Rc::from([WorkingHoursMini {
+                        sales_person_id: Uuid::nil(),
+                        sales_person_name: "A".into(),
+                        expected_hours: 20.0,
+                        dynamic_hours: 20.0,
+                        actual_hours: 22.0,
+                        balance_hours: -4.0,
+                        background_color: "#abc".into(),
+                    }].to_vec()),
+                    selected_sales_person_id: None,
+                    layout: WorkingHoursLayout::Table,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("-4.0h"),
+            "balance column must show balance_hours, not actual-target: {html}"
+        );
+        assert!(
+            !html.contains("+2.0h"),
+            "balance column must NOT show actual-target diff: {html}"
+        );
     }
 
     #[test]
@@ -654,14 +702,33 @@ mod tests {
         assert!(html.contains("50%"), "missing 50% label: {html}");
     }
 
+    /// Footer aggregates actual and target hours, but deliberately does NOT
+    /// aggregate balance — a sum of individual hour-account balances has no
+    /// meaningful interpretation.
     #[test]
-    fn table_layout_footer_aggregates_totals() {
+    fn table_layout_footer_aggregates_actual_and_target_but_not_balance() {
         fn app() -> Element {
             rsx! {
                 WorkingHoursMiniOverview {
                     working_hours: Rc::from([
-                        make_row("A", "#abc", 5.0, 10.0),
-                        make_row("B", "#def", 12.0, 10.0),
+                        WorkingHoursMini {
+                            sales_person_id: Uuid::nil(),
+                            sales_person_name: "A".into(),
+                            expected_hours: 10.0,
+                            dynamic_hours: 10.0,
+                            actual_hours: 5.0,
+                            balance_hours: -2.5,
+                            background_color: "#abc".into(),
+                        },
+                        WorkingHoursMini {
+                            sales_person_id: Uuid::nil(),
+                            sales_person_name: "B".into(),
+                            expected_hours: 10.0,
+                            dynamic_hours: 10.0,
+                            actual_hours: 12.0,
+                            balance_hours: 4.5,
+                            background_color: "#def".into(),
+                        },
                     ].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
@@ -670,11 +737,17 @@ mod tests {
             }
         }
         let html = render(app);
+        // Per-row balances rendered in body cells.
+        assert!(html.contains("-2.5h"), "missing row balance -2.5h: {html}");
+        assert!(html.contains("+4.5h"), "missing row balance +4.5h: {html}");
+        // Footer aggregates actual and target only.
         assert!(html.contains("17.0h"), "missing actual total 17.0h: {html}");
         assert!(html.contains("20.0h"), "missing target total 20.0h: {html}");
-        // 17 - 20 = -3.0, but order matters here — Bob comes before A alphabetically?
-        // Sort is alphabetical by name; A < B → A,B. Diff = (5+12) - (10+10) = -3.0.
-        assert!(html.contains("-3.0h"), "missing footer diff -3.0h: {html}");
+        // Sum of balance_hours would be -2.5 + 4.5 = +2.0; must not appear.
+        assert!(
+            !html.contains("+2.0h"),
+            "balance must not be aggregated in footer: {html}"
+        );
     }
 
     #[test]
@@ -741,6 +814,60 @@ mod tests {
         assert!(
             html.contains("bg-accent-soft"),
             "missing bg-accent-soft on selected row: {html}"
+        );
+    }
+
+    /// The balance column belongs at the right edge — utilization (the
+    /// progress bar) is the at-a-glance signal, balance is the deep-detail
+    /// follow-up. Verified at the rendered-HTML level so we catch a
+    /// reordering regression even if the source structure changes.
+    #[test]
+    fn table_layout_balance_column_is_right_of_utilization() {
+        fn app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    working_hours: Rc::from([WorkingHoursMini {
+                        sales_person_id: Uuid::nil(),
+                        sales_person_name: "A".into(),
+                        expected_hours: 10.0,
+                        dynamic_hours: 10.0,
+                        actual_hours: 5.0,
+                        balance_hours: 1.5,
+                        background_color: "#abc".into(),
+                    }].to_vec()),
+                    selected_sales_person_id: None,
+                    layout: WorkingHoursLayout::Table,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        let utilization = html.find("Utilization").expect("Utilization header missing");
+        let balance = html.find("Balance").expect("Balance header missing");
+        assert!(
+            utilization < balance,
+            "Balance header must appear after Utilization in the rendered table: {html}"
+        );
+    }
+
+    /// The trailing column is the locked anchor for the "Stundenkonto"
+    /// (balance) label. Reading at the source level keeps the assertion robust
+    /// against locale switches in test setup.
+    #[test]
+    fn table_layout_uses_balance_key_for_trailing_column_header() {
+        let source = include_str!("working_hours_mini_overview.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        let table_block = production
+            .split_once("fn TableLayout")
+            .map(|(_, after)| after)
+            .expect("TableLayout function not found in source");
+        assert!(
+            table_block.contains("Key::Balance"),
+            "TableLayout source must reference Key::Balance for the column header"
+        );
+        assert!(
+            !table_block.contains("Key::WorkingHoursTableDifference"),
+            "TableLayout source must no longer reference the legacy difference key"
         );
     }
 

@@ -682,7 +682,6 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::WorkingHoursTableEmployee, "Mitarbeiter");
     i18n.add_text(Locale::De, Key::WorkingHoursTableActual, "Ist");
     i18n.add_text(Locale::De, Key::WorkingHoursTableTarget, "Soll");
-    i18n.add_text(Locale::De, Key::WorkingHoursTableDifference, "Differenz");
     i18n.add_text(Locale::De, Key::WorkingHoursTableUtilization, "Auslastung");
     i18n.add_text(Locale::De, Key::WorkingHoursTableTotal, "Summe");
 }
