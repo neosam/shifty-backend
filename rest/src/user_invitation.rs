@@ -97,10 +97,11 @@ pub async fn authenticate_with_invitation<RestState: RestStateDef>(
                     let session_id = session.id.to_string();
 
                     // Mark the token as redeemed with the session ID
-                    if let Err(_) = rest_state
+                    if rest_state
                         .user_invitation_service()
                         .mark_token_redeemed(&token, &session_id, None)
                         .await
+                        .is_err()
                     {
                         // Log error but don't fail the authentication
                         tracing::warn!("Failed to mark invitation token as redeemed");

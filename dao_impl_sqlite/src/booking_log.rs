@@ -39,7 +39,7 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
         // pre-fill booking.created_by).
 
         let iso = &time::format_description::well_known::Iso8601::DEFAULT;
-        let time_from = time::Time::parse(time_from_str, iso).map_err(|e| {
+        let time_from = time::Time::parse(time_from_str, iso).inspect_err(|e| {
             error!(
                 column = "time_from",
                 value = %time_from_str,
@@ -48,9 +48,8 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
                 error = ?e,
                 "booking_log: failed to parse time_from"
             );
-            e
         })?;
-        let time_to = time::Time::parse(time_to_str, iso).map_err(|e| {
+        let time_to = time::Time::parse(time_to_str, iso).inspect_err(|e| {
             error!(
                 column = "time_to",
                 value = %time_to_str,
@@ -59,9 +58,8 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
                 error = ?e,
                 "booking_log: failed to parse time_to"
             );
-            e
         })?;
-        let created = PrimitiveDateTime::parse(created_str, iso).map_err(|e| {
+        let created = PrimitiveDateTime::parse(created_str, iso).inspect_err(|e| {
             error!(
                 column = "created",
                 value = %created_str,
@@ -70,13 +68,12 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
                 error = ?e,
                 "booking_log: failed to parse created"
             );
-            e
         })?;
         let deleted = db
             .deleted
             .as_ref()
             .map(|d| {
-                PrimitiveDateTime::parse(d, iso).map_err(|e| {
+                PrimitiveDateTime::parse(d, iso).inspect_err(|e| {
                     error!(
                         column = "deleted",
                         value = %d,
@@ -85,7 +82,6 @@ impl TryFrom<&BookingLogDb> for BookingLogEntity {
                         error = ?e,
                         "booking_log: failed to parse deleted"
                     );
-                    e
                 })
             })
             .transpose()?;
