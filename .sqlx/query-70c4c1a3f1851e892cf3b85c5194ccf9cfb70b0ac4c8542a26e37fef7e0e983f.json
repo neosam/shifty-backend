@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT slot.id, slot.day_of_week, slot.time_from, slot.time_to, slot.min_resources, slot.valid_from, slot.valid_to, slot.deleted, slot.update_version, slot.shiftplan_id\n                FROM slot\n                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id\n                WHERE slot.deleted IS NULL\n                AND slot.valid_from <= ?\n                AND (slot.valid_to IS NULL OR slot.valid_to >= ?)\n                AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)",
+  "query": "SELECT id, day_of_week, time_from, time_to, min_resources, max_paid_employees, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -29,33 +29,38 @@
         "type_info": "Integer"
       },
       {
-        "name": "valid_from",
+        "name": "max_paid_employees",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "valid_to",
+        "name": "valid_from",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "valid_to",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 9,
         "type_info": "Blob"
       },
       {
         "name": "shiftplan_id",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
       false,
@@ -63,6 +68,7 @@
       false,
       false,
       false,
+      true,
       false,
       true,
       true,
@@ -70,5 +76,5 @@
       true
     ]
   },
-  "hash": "5408f295220125368cc591c967cb485ee5e7b55ffc55acdd4b8e900f4e1960bc"
+  "hash": "70c4c1a3f1851e892cf3b85c5194ccf9cfb70b0ac4c8542a26e37fef7e0e983f"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id\n                FROM slot\n                WHERE deleted IS NULL\n                AND valid_from <= ?\n                AND (valid_to IS NULL OR valid_to >= ?)\n                AND shiftplan_id = ?",
+  "query": "SELECT id, day_of_week, time_from, time_to, min_resources, max_paid_employees, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE deleted IS NULL",
   "describe": {
     "columns": [
       {
@@ -29,33 +29,38 @@
         "type_info": "Integer"
       },
       {
-        "name": "valid_from",
+        "name": "max_paid_employees",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "valid_to",
+        "name": "valid_from",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "valid_to",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 9,
         "type_info": "Blob"
       },
       {
         "name": "shiftplan_id",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 0
     },
     "nullable": [
       false,
@@ -63,6 +68,7 @@
       false,
       false,
       false,
+      true,
       false,
       true,
       true,
@@ -70,5 +76,5 @@
       true
     ]
   },
-  "hash": "bf63945de40d6d515b50b046b442a2210004a8fca8211d60b556eecb4ce85720"
+  "hash": "243f5a18cf67e6836dc9df2e239cb05cd3e0b5df3f7f40a8e93c38a5ec11ac59"
 }

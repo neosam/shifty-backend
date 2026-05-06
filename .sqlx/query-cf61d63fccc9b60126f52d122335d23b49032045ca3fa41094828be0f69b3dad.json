@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, day_of_week, time_from, time_to, min_resources, valid_from, valid_to, deleted, update_version, shiftplan_id FROM slot WHERE id = ?",
+  "query": "\n                SELECT slot.id, slot.day_of_week, slot.time_from, slot.time_to, slot.min_resources, slot.max_paid_employees, slot.valid_from, slot.valid_to, slot.deleted, slot.update_version, slot.shiftplan_id\n                FROM slot\n                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id\n                WHERE slot.deleted IS NULL\n                AND slot.valid_from <= ?\n                AND (slot.valid_to IS NULL OR slot.valid_to >= ?)\n                AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)",
   "describe": {
     "columns": [
       {
@@ -29,33 +29,38 @@
         "type_info": "Integer"
       },
       {
-        "name": "valid_from",
+        "name": "max_paid_employees",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "valid_to",
+        "name": "valid_from",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "deleted",
+        "name": "valid_to",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 9,
         "type_info": "Blob"
       },
       {
         "name": "shiftplan_id",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Blob"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -63,6 +68,7 @@
       false,
       false,
       false,
+      true,
       false,
       true,
       true,
@@ -70,5 +76,5 @@
       true
     ]
   },
-  "hash": "3e093d974b0b36ac4be3e85ac866be494e2f293a745f5883d6204c92d9232d07"
+  "hash": "cf61d63fccc9b60126f52d122335d23b49032045ca3fa41094828be0f69b3dad"
 }
