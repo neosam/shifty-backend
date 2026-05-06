@@ -283,15 +283,19 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .current_user_id(context.clone())
             .await?;
         // current_user is None for Authentication::Full callers (system pathways
-        // such as copy_week and shiftplan_edit). Those callers must pre-populate
-        // booking.created_by with the originating user; we fall back to it here
-        // so the audit trail in bookings_view never carries NULL for active code
-        // paths.
+        // such as shiftplan_edit's modify_slot). Fallback chain:
+        //   1. authenticated user from context
+        //   2. caller-supplied booking.created_by (e.g. book_slot_with_conflict_check
+        //      pre-populates this with the originating frontend user)
+        //   3. "system" sentinel — keeps the audit trail self-describing
+        //      (NULL only ever appears for legacy pre-audit-tracking rows).
         let new_booking = Booking {
             id: new_id,
             version: new_version,
             created: Some(self.clock_service.date_time_now()),
-            created_by: current_user.or_else(|| booking.created_by.clone()),
+            created_by: current_user
+                .or_else(|| booking.created_by.clone())
+                .or_else(|| Some("system".into())),
             ..booking.clone()
         };
 
@@ -422,8 +426,11 @@ impl<Deps: BookingServiceDeps> BookingService for BookingServiceImpl<Deps> {
             .permission_service
             .current_user_id(context.clone())
             .await?;
+        // Same "system" fallback as create() — Authentication::Full delete
+        // paths (modify_slot, remove_slot) would otherwise leave deleted_by
+        // NULL in the audit trail.
         booking_entity.deleted = Some(self.clock_service.date_time_now());
-        booking_entity.deleted_by = current_user;
+        booking_entity.deleted_by = current_user.or_else(|| Some("system".into()));
         booking_entity.version = self.uuid_service.new_uuid("booking-version");
         self.booking_dao
             .update(&booking_entity, BOOKING_SERVICE_PROCESS, tx.clone())

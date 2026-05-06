@@ -55,13 +55,7 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
     ) -> Result<Slot, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
-            .check_permission("shiftplan.edit", context.clone())
-            .await?;
-
-        // Resolve the editor for created_by attribution on the rebooked entries.
-        let editor = self
-            .permission_service
-            .current_user_id(context.clone())
+            .check_permission("shiftplan.edit", context)
             .await?;
 
         let mut stored_slot = self
@@ -134,7 +128,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             new_booking.year = booking.year;
             new_booking.calendar_week = booking.calendar_week;
             new_booking.created = None;
-            new_booking.created_by = editor.clone();
+            // created_by = None → BookingService::create's fallback chain stamps
+            // "system" (Authentication::Full). The original booker's authorship
+            // survives in the soft-deleted predecessor row in bookings_view.
+            new_booking.created_by = None;
 
             self.booking_service
                 .create(&new_booking, Authentication::Full, tx.clone().into())

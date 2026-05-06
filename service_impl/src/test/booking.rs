@@ -969,6 +969,100 @@ async fn test_delete_booking_planner_only_allowed_for_shiftplanner() {
     assert!(result.is_ok());
 }
 
+/// Regression: with both current_user_id and booking.created_by None
+/// (the modify_slot system pathway), create() must stamp "system" so the
+/// new audit row is self-describing.
+#[tokio::test]
+async fn test_create_stamps_system_when_no_user_and_no_booking_created_by() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.permission_service
+        .expect_current_user_id()
+        .returning(|_| Ok(None));
+
+    deps.booking_dao
+        .expect_create()
+        .with(
+            eq(BookingEntity {
+                created: generate_default_datetime(),
+                created_by: Some("system".into()),
+                ..default_booking_entity()
+            }),
+            eq("booking-service"),
+            always(),
+        )
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-id"))
+        .returning(|_| default_id());
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| default_version());
+
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                created_by: None,
+                ..default_booking()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(result.is_ok(), "create should succeed: {result:?}");
+    assert_eq!(result.unwrap().created_by, Some("system".into()));
+}
+
+/// Regression: BookingService::delete called via Authentication::Full
+/// (modify_slot, remove_slot) must stamp deleted_by = "system" instead
+/// of leaving NULL in the audit trail.
+#[tokio::test]
+async fn test_delete_stamps_system_when_no_user() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.permission_service
+        .expect_current_user_id()
+        .returning(|_| Ok(None));
+
+    deps.booking_dao
+        .expect_find_by_id()
+        .with(eq(default_id()), always())
+        .returning(|_, _| Ok(Some(default_booking_entity())));
+    deps.booking_dao
+        .expect_update()
+        .with(
+            eq(BookingEntity {
+                deleted: Some(generate_default_datetime()),
+                deleted_by: Some("system".into()),
+                version: alternate_version(),
+                ..default_booking_entity()
+            }),
+            eq("booking-service"),
+            always(),
+        )
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| alternate_version());
+
+    let service = deps.build_service();
+    let result = service.delete(default_id(), ().auth(), None).await;
+    assert!(result.is_ok(), "delete should succeed: {result:?}");
+}
+
 /// Regression: when current_user_id resolves to None (e.g. inner caller used
 /// Authentication::Full), BookingService::create must fall back to the
 /// caller-provided booking.created_by so the audit trail in the bookings_view
