@@ -146,7 +146,8 @@ pub struct BookingLogTO {
     #[serde(default)]
     #[schema(value_type = Option<String>, format = "date-time")]
     pub deleted: Option<PrimitiveDateTime>,
-    pub created_by: Arc<str>,
+    #[serde(default)]
+    pub created_by: Option<Arc<str>>,
     #[serde(default)]
     pub deleted_by: Option<Arc<str>>,
 }

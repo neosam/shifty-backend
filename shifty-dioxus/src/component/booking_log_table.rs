@@ -36,7 +36,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
         let mut creators: Vec<String> = props
             .bookings
             .iter()
-            .map(|b| b.created_by.to_string())
+            .filter_map(|b| b.created_by.as_ref().map(|s| s.to_string()))
             .collect();
         creators.sort();
         creators.dedup();
@@ -76,11 +76,11 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                 _ => {}
             }
 
-            if !props.created_by_filter.is_empty()
-                && props.created_by_filter != "all"
-                && b.created_by.as_ref() != props.created_by_filter
-            {
-                return false;
+            if !props.created_by_filter.is_empty() && props.created_by_filter != "all" {
+                let creator = b.created_by.as_deref().unwrap_or("");
+                if creator != props.created_by_filter {
+                    return false;
+                }
             }
 
             true
@@ -238,6 +238,16 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                                         .as_ref()
                                         .map(|s| s.to_string())
                                         .unwrap_or_else(|| "—".to_string());
+                                    let created_by_str = booking
+                                        .created_by
+                                        .as_ref()
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| "—".to_string());
+                                    let created_by_cell_class = if booking.created_by.is_some() {
+                                        "px-3 py-2 text-ink"
+                                    } else {
+                                        "px-3 py-2 text-ink-muted"
+                                    };
                                     let row_class = if is_deleted {
                                         "border-t border-border opacity-50"
                                     } else {
@@ -260,7 +270,7 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
                                             td { class: "px-3 py-2 text-ink", {&booking.sales_person_name} }
                                             td { class: "px-3 py-2 font-mono whitespace-nowrap", {time_str} }
                                             td { class: "px-3 py-2 text-ink-muted whitespace-nowrap", {created_str} }
-                                            td { class: "px-3 py-2 text-ink", {&booking.created_by} }
+                                            td { class: created_by_cell_class, {created_by_str} }
                                             td { class: deleted_cell_class, {deleted_str} }
                                             td { class: deleted_by_cell_class, {deleted_by_str} }
                                         }
@@ -290,7 +300,7 @@ mod tests {
             time_from: time!(09:00),
             time_to: time!(13:00),
             created: time::PrimitiveDateTime::new(date!(2026 - 04 - 20), time!(09:00)),
-            created_by: "admin".into(),
+            created_by: Some("admin".into()),
             deleted: Some(time::PrimitiveDateTime::new(
                 date!(2026 - 04 - 21),
                 time!(10:00),
@@ -308,7 +318,22 @@ mod tests {
             time_from: time!(09:00),
             time_to: time!(13:00),
             created: time::PrimitiveDateTime::new(date!(2026 - 04 - 20), time!(09:00)),
-            created_by: "admin".into(),
+            created_by: Some("admin".into()),
+            deleted: None,
+            deleted_by: None,
+        }
+    }
+
+    fn legacy_booking_without_creator() -> BookingLog {
+        BookingLog {
+            year: 2026,
+            calendar_week: 17,
+            sales_person_name: "Mira".into(),
+            day_of_week: Weekday::Wednesday,
+            time_from: time!(09:00),
+            time_to: time!(13:00),
+            created: time::PrimitiveDateTime::new(date!(2026 - 04 - 20), time!(09:00)),
+            created_by: None,
             deleted: None,
             deleted_by: None,
         }
@@ -460,6 +485,67 @@ mod tests {
         assert!(
             html.contains("border-border"),
             "missing border-border: {html}"
+        );
+    }
+
+    #[test]
+    fn booking_log_renders_em_dash_for_null_created_by() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from([legacy_booking_without_creator()].to_vec()),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Mira"),
+            "expected booking row to render: {html}"
+        );
+        assert!(
+            html.contains("—"),
+            "expected em-dash placeholder for null created_by: {html}"
+        );
+    }
+
+    #[test]
+    fn booking_log_creator_filter_excludes_null_creators() {
+        fn app() -> Element {
+            rsx! {
+                BookingLogTable {
+                    bookings: Rc::from(
+                        [active_booking(), legacy_booking_without_creator()].to_vec(),
+                    ),
+                    name_filter: String::new(),
+                    on_name_filter_change: |_| {},
+                    day_filter: None,
+                    on_day_filter_change: |_| {},
+                    status_filter: "all".to_string(),
+                    on_status_filter_change: |_| {},
+                    created_by_filter: "all".to_string(),
+                    on_created_by_filter_change: |_| {},
+                    on_clear_filters: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("value=\"admin\""),
+            "expected admin option in creator dropdown: {html}"
+        );
+        // Ensure the empty creator did not produce a stray empty <option value="">
+        assert!(
+            !html.contains("<option value=\"\""),
+            "did not expect empty creator option: {html}"
         );
     }
 

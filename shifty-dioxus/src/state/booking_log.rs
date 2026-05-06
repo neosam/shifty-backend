@@ -15,7 +15,7 @@ pub struct BookingLog {
     pub time_to: time::Time,
     pub created: PrimitiveDateTime,
     pub deleted: Option<PrimitiveDateTime>,
-    pub created_by: Rc<str>,
+    pub created_by: Option<Rc<str>>,
     pub deleted_by: Option<Rc<str>>,
 }
 
@@ -30,7 +30,7 @@ impl From<&BookingLogTO> for BookingLog {
             time_to: log.time_to,
             created: log.created,
             deleted: log.deleted,
-            created_by: log.created_by.to_string().into(),
+            created_by: log.created_by.as_ref().map(|s| s.to_string().into()),
             deleted_by: log.deleted_by.as_ref().map(|s| s.to_string().into()),
         }
     }
