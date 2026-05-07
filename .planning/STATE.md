@@ -2,15 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
-status: planning
-last_updated: "2026-05-07T19:58:20.906Z"
-last_activity: 2026-05-07
+status: Defining requirements
+last_updated: "2026-05-07T20:45:29.769Z"
+last_activity: 2026-05-07 — Milestone v1.3 started
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +26,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 8 — Absence-CRUD-Page Foundation (context gathered)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-07 — Milestone v1.3 started
+Status: Ready for `/gsd-plan-phase 8`
+Last activity: 2026-05-07 — Phase 8 CONTEXT.md geschrieben (`.planning/phases/08-absence-crud-page-foundation/08-CONTEXT.md`); Backend-Erweiterung im Scope (Resturlaubs-Endpoint für VacationEntitlementCard / VacationPerPersonList) — `Notes for plan-phase` in ROADMAP.md ist bezüglich "Backend bleibt unangetastet" obsolet
 
 ## Shipped Milestones
 

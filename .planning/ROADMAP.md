@@ -100,6 +100,32 @@
 
 </details>
 
+## Phase Details
+
+### Phase 8: Absence-CRUD-Page Foundation
+
+**Goal:** Neue Top-Level-Route `absences` in `shifty-backend/shifty-dioxus` ist via Menü erreichbar und bietet vollständiges CRUD gegen `/absence-period`. HR-vs-Employee-Sicht kommt aus dem Auth-Context (kein User-Toggle). Die Form bietet Datum-Range-Picker (Ganztage), Kategorie-Dropdown (`Vacation` / `SickLeave` / `UnpaidLeave`) und Description; nicht-blockierende `AbsencePeriodCreateResultTO.warnings[]` werden gerendert. Zusätzlich wird ein neuer Backend-Resturlaubs-Endpoint nachgezogen, weil `VacationEntitlementCard` und `VacationPerPersonList` aus dem Mockup einen autoritativen Resturlaubs-Wert anzeigen (siehe CONTEXT.md D-02/D-03).
+
+**Depends on:** v1.0 Phase 1 (Absence-Backend-Domain), v1.0 Phase 4 (Cutover-Surface), v1.2 Phase 6 (rest-types-Unification — `AbsencePeriodTO` / `AbsenceCategoryTO` / `AbsencePeriodCreateResultTO` / `WarningTO` aus zentralem `rest-types` referenzierbar), v1.2 Phase 7 (WASM-Compile + Runtime-Smoke grün).
+
+**Requirements:** FUI-A-01, FUI-A-02, FUI-A-03, FUI-A-04
+
+**Success Criteria** (was muss WAHR sein, nachdem die Phase abgeschlossen ist):
+
+1. Route `/absences` ist via Menü erreichbar; HR-Privileg-Check schaltet Filter über alle Mitarbeiter frei (Auth-Context, kein User-Toggle) (FUI-A-01).
+2. Form erlaubt CRUD eines `AbsencePeriodTO` mit Datum-Range-Picker (Ganztage), Kategorie-Dropdown (`Vacation` / `SickLeave` / `UnpaidLeave`), Description; Self-Overlap-`422` aus Backend wird als Validation-Error gerendert (FUI-A-02, FUI-A-03).
+3. `AbsencePeriodCreateResultTO.warnings[]` aus POST/PUT-Antwort wird als nicht-blockierende Hinweisliste gerendert (FUI-A-04).
+4. Neuer Backend-Resturlaubs-Endpoint (Shape Plan-Phase-Decision) liefert für `(sales_person_id [, year])` einen Wert mit entitled / used / planned / remaining (oder semantisch äquivalent); `hr ∨ self`-Permission analog zu `/absence-period`; OpenAPI-`#[utoipa::path]`-Annotation; `ToSchema` auf der DTO. Frontend-Komponenten `VacationEntitlementCard` (eigener User) und `VacationPerPersonList` (HR-Übersicht) konsumieren diesen Endpoint.
+5. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün (Backend-Erweiterung darf keine Regression verursachen); UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete + Resturlaubs-Anzeige) erfolgreich.
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+**Notes for plan-phase:** Misch-Phase Backend + Frontend im Monorepo (`shifty-backend/`). **Frontend-Schwerpunkt** (`shifty-dioxus/`): Page + Modal + Service + State + Loader + API-Layer + i18n; Backend-Endpoints `/absence-period` (GET-list, GET-by-id, POST, PUT, DELETE, GET-by-sales-person) sind in v1.0 Phase 1 geshipped (`rest/src/absence.rs`); DTOs (`AbsencePeriodTO`, `AbsenceCategoryTO`, `AbsencePeriodCreateResultTO`, `WarningTO`) liegen in `rest-types/src/lib.rs:1565..2040`. **Backend-Erweiterung neu in Scope:** Resturlaubs-Endpoint + neuer DTO `VacationBalanceTO` (Name + Shape Plan-Phase-Decision) + neuer Service. Erwartete Tier-Klassifizierung: **Business-Logic-Tier** (kombiniert `WorkingHoursService` + `AbsenceService`/`AbsenceDao`, ggf. `SpecialDayService`). Permission `hr ∨ self`. Siehe `shifty-backend/CLAUDE.md` § "Service-Tier-Konventionen". Mockup-Quellen: `shifty-backend/shifty-dioxus/shifty-design/project/absences.jsx` (729 Zeilen, `AbsencePage` + `AbsenceModal` + `WarningList` + `CategoryBadge` + `StatusPill` + `VacationEntitlementCard` + `VacationPerPersonList` — alles im Phase-8-Scope) und Integrations-Brief `shifty-backend/shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md`. Tweak `viewAs` aus dem Mockup ist NICHT zu übernehmen — Sicht kommt aus Auth-Context (`hr`-Privileg). Confirm-Dialog im Mockup verwendet `window.confirm`; im echten Frontend ist Dioxus-Dialog-Komponente zu nutzen (`shifty-backend/shifty-dioxus/src/component/dialog.rs`). i18n De / En / Cs ist Teil dieser Phase (Page-Titel, Kategorie-Labels, Form-Labels, Warning-Texte) — kein nachgelagerter Audit, sondern direkt mit der Implementierung. Out-of-Scope-Mockup-Komponenten: `UnavailabilityChip` → Phase 10; Deprecation-Banner für legacy `extra_hours` → Phase 11. Vollständige Decision-Liste: `.planning/phases/08-absence-crud-page-foundation/08-CONTEXT.md` (D-01..D-14). Plan-phase legt fest, ob api/loader/state/page-Komponenten und Backend-Erweiterung in einer oder mehreren Waves laufen.
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
