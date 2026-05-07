@@ -1,49 +1,45 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Frontend rest-types Konsolidierung
-status: ready_to_complete
-last_updated: "2026-05-07T19:10:00.000Z"
-last_activity: 2026-05-07 -- Phase 7 verified, milestone closure-ready
+milestone: between-milestones
+milestone_name: v1.2 archived; v1.3 not yet started
+status: ready_for_new_milestone
+last_updated: "2026-05-07T19:50:00.000Z"
+last_activity: 2026-05-07 -- v1.2 milestone archived; awaiting /gsd-new-milestone v1.3
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0 + v1.1 archived; v1.2 inline expanded)
+- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0, v1.1, v1.2 archived)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.1-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.2-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped**: v1.1 Slot Capacity & Constraints (2026-05-04)
-- **Current milestone**: v1.2 Frontend rest-types Konsolidierung (closure-ready 2026-05-07, awaiting `/gsd-complete-milestone v1.2`)
-- **Current focus**: Milestone-Closure — Phase 6 (5/5, 8/8 V-Truths) und Phase 7 (1/1, 4/4 Success Criteria) abgeschlossen. Nächster Schritt: `/gsd-complete-milestone v1.2` zur Archivierung; danach `/gsd-new-milestone v1.3` für Frontend-Abwesenheiten-Maske (Seed-Trigger erfüllt).
+- **Last shipped**: v1.2 Frontend rest-types Konsolidierung (2026-05-07)
+- **Current milestone**: keiner aktiv — v1.3 ist vorbereitet (Note + Seed + FUI-A-Briefing), aber noch nicht via `/gsd-new-milestone v1.3` gestartet
+- **Current focus**: Übergang zu v1.3 — Frontend-Abwesenheiten-Maske als Hauptthema, Seed `abwesenheiten-frontend-milestone.md` matcht beim Start automatisch
 
 ## Current Position
 
-Phase: 7
-Plan: 1/1 complete
-Status: Milestone closure-ready
-Last activity: 2026-05-07 — Phase 7 verified (User-UAT auf Integrationsumgebung + lokale cargo check/test Re-Verifikation)
-
-- **Backend baseline**: `cargo check --workspace` GREEN (32 s); `cargo test --workspace --no-run` GREEN; 461 Tests grün (v1.1-Baseline). Diese Baseline wird in Phase 7 als Regressions-Schwelle gegen RC-01 verwendet.
-- **Frontend baseline**: `shifty-dioxus/` baut gegen seinen eigenen Fork `shifty-dioxus/rest-types/` v1.0.5-dev (1468 Zeilen). Backend-`rest-types` v1.13.0-dev hat 2041 Zeilen — 17 fehlende TO-Structs/Enums, 4 fehlende Felder, fehlende Match-Arme. Phase 6 schließt diese Lücke.
-- **Backlog (deferred to v1.3+)**: Frontend Capacity-Editor & `current_paid_count`-Anzeige (FUI-01, FUI-02), `VolunteerWork`/`UnpaidLeave`-UI (FUI-03), `cap_planned_hours_to_expected`-Settings-UI (FUI-04), Min-Paid-Capacity / Skill-Matching (SC-01, SC-02), 04-UAT Test 8 Re-Check, `/gsd:secure-phase 04`, zwei offene Review-Todos.
-
-## v1.2 Phase Plan
-
-| Phase | Goal | Requirements | Status |
-|-------|------|--------------|--------|
-| 6 — rest-types Unification & Frontend Compile-Through | Backend-`rest-types` als single source of truth verdrahten; Frontend-Fork löschen; alle fehlenden TOs adressieren bis WASM-Compile grün | RT-01, RT-02, RT-03, FC-01, FC-02 | ✓ Complete (5/5 plans, 8/8 V-Truths verified, 2026-05-07) |
-| 7 — Runtime Smoke & Regression Safety | `dx serve` startet ohne Panics; manueller Login + Shiftplan-Navigation; Backend-Workspace ohne Regression | FC-03, RC-01 | ✓ Complete (1/1 plan, 4/4 Success Criteria verified, 2026-05-07) |
+Phase: —
+Plan: —
+Status: Between milestones (v1.2 archived; awaiting `/gsd-new-milestone v1.3`)
+Last activity: 2026-05-07 — v1.2 archived
 
 ## Shipped Milestones
+
+### v1.2 — Frontend rest-types Konsolidierung (2026-05-07)
+
+- **2 Phases (6, 7), 6 Plans**, 466 tests green workspace-weit
+- Backend-`rest-types` als single source of truth verdrahtet; Frontend-Fork gelöscht; WASM-Build grün
+- Phase 7 als Subsumption-Closure-Phase abgeschlossen (User-UAT auf Integrationsumgebung + Phase-6-V-Truth-Reuse)
+- 8/8 V-Truths (P6) + 4/4 Success Criteria (P7) verified
 
 ### v1.1 — Slot Capacity & Constraints (2026-05-04)
 
@@ -63,6 +59,14 @@ Last activity: 2026-05-07 — Phase 7 verified (User-UAT auf Integrationsumgebun
 ## Accumulated Context (carry forward)
 
 ### Architecture Decisions Logged
+
+**v1.2 (Phasen 6–7 — Frontend rest-types Konsolidierung):**
+
+- **Cross-Workspace-Path-Dep mit `default-features = false`** (Plan 06-01): `shifty-dioxus/Cargo.toml` referenziert die Backend-`rest-types`-Crate via `path = "../rest-types"` mit explizitem `default-features = false`, um den `service-impl`-Feature-Pull-In zu vermeiden, der den WASM-Build durch das `service`-Crate sprengen würde.
+- **Wave-0 Backend-Prep vor Cargo-Swap** (Plan 06-00): Pre-Migration der Invitation-DTO-Familie mit konsistentem Derive-Set (`Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema`) macht den Wave-1-Cargo-Swap mechanisch sauber. Backend-Derive-Erweiterung statt Frontend-Hack ist die korrekte Lösung für `assert_eq!`-Tests.
+- **State-Editor-Mirror für nicht-editierte Felder** (Plan 06-04): `SlotEditItem` muss `max_paid_employees` als Field-Mirror tragen, weil sonst der Edit-Roundtrip (`SlotTO -> SlotEditItem -> SlotTO`) den Backend-Wert auf `None` setzt. Field-Mirror mit Default ist Pflicht für Datenintegrität, auch wenn das Feld in der aktuellen Phase nicht editiert wird.
+- **Subsumption-Verification-Pattern** (Phase 7): Reine UAT-/Smoke-Phasen ohne eigenen Code-Change können in einem einzigen Plan-Summary mit Verweis auf die vorhergehende Phase abgeschlossen werden. Voraussetzungen: (1) automatische Test-Kriterien sind in der Vorgänger-Phase grün dokumentiert; (2) manuelle UAT-Kriterien sind vom User auf einer realen Umgebung verifiziert; (3) beide Belege werden in der Closure-Phase explizit referenziert.
+- **No-op-Match-Arm-Pattern** (Plan 06-04): Für Phasen, deren Scope explizit "keine User-facing Features" ist, sind exhaustive Match-Arme via `WarningTO::PaidEmployeeLimitExceeded => rsx! { "" }` ausdrücklich erlaubt. UI-Closure folgt im nächsten Milestone.
 
 **v1.1 (Phase 5 — Slot Paid Capacity Warning):**
 
@@ -90,34 +94,38 @@ Last activity: 2026-05-07 — Phase 7 verified (User-UAT auf Integrationsumgebun
 
 - **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`). KEINE `git commit`/`git add` aus Agents heraus.
 - **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`. Für WASM-Builds in `shifty-dioxus/` ggf. `nix develop` für `wasm32-unknown-unknown`-Toolchain + `dx`/Tailwind.
-- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. (Für v1.2 nicht relevant — keine Reporting-Änderung.)
-- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. v1.2 fügt KEIN neues sichtbares UI hinzu (no-op-Match-Arme sind ausdrücklich ok), daher keine i18n-Pflicht. Falls ein Plan ausnahmsweise Text rendert, en/de/cs alle drei.
-- **Layered Architecture**: REST → Service (trait) → DAO (trait); `gen_service_impl!` für DI; `WHERE deleted IS NULL` in jeder DAO-Read-Query. (Backend-seitig in v1.2 nur `rest-types`-Cargo.toml-Anpassungen erwartet — keine Service/DAO-Edits.)
+- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert.
+- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. v1.3 wird Frontend-Abwesenheiten-Maske mit signifikantem i18n-Volumen einführen — gleichzeitig in allen drei Locales pflegen (kein Locale::En-statt-Locale::De-Bug).
+- **Layered Architecture**: REST → Service (trait) → DAO (trait); `gen_service_impl!` für DI; `WHERE deleted IS NULL` in jeder DAO-Read-Query.
 - **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. Plan-File `<objective>` darf CONTEXT.md-Tier-Hints overriden (Phase-5-D-12-Präzedenz).
-- **rest-types-Cross-Crate-Konstruktion**: Backend-`rest-types/Cargo.toml` hat ein `service-impl`-Feature, das auf das `service`-Crate zeigt. Frontend MUSS dieses Feature OFF lassen (`default-features = false`) — sonst zieht es das `service`-Crate in den WASM-Build und reißt die Toolchain auseinander. v1.2-Phase-6 muss verifizieren, dass das `default-features = false`-Setting tatsächlich greift.
+- **rest-types-Cross-Crate-Konstruktion** (etabliert in v1.2): Backend-`rest-types/Cargo.toml` hat ein `service-impl`-Feature, das auf das `service`-Crate zeigt. Frontend MUSS dieses Feature OFF lassen (`default-features = false`) — sonst zieht es das `service`-Crate in den WASM-Build und reißt die Toolchain auseinander.
 
-### Open Issues / Tech Debt for v1.3+ (post-v1.2)
+### Open Issues / Tech Debt for v1.3+ (live backlog)
 
-- **Frontend User-facing Closure** — UI-Anzeige `current_paid_count`/`max_paid_employees`, Capacity-Editor in Slot-Settings, sichtbare `VolunteerWork`/`UnpaidLeave`-Rendering, `cap_planned_hours_to_expected`-Settings-UI. v1.2 macht den Compile-Pfad frei; v1.3 baut die UI darauf.
-- **Min-Paid-Capacity / Skill-Matching** — weitere Slot-Constraints als künftige Backend-Features gemerkt (SC-01, SC-02).
+- **Frontend Abwesenheiten-Maske** (FUI-A-01..09) — neue Top-Level-Maske gegen `/absence-period` REST-API (HR-Sicht + Employee-Self-Service); siehe `notes/abwesenheiten-frontend-context.md` und `seeds/abwesenheiten-frontend-milestone.md`. **Hauptthema für v1.3.**
+- **Frontend User-facing Closure** (FUI-01..04) — sichtbares `current_paid_count`/`max_paid_employees`-Rendering, Capacity-Editor in Slot-Settings, sichtbare `VolunteerWork`/`UnpaidLeave`-Rendering, `cap_planned_hours_to_expected`-Settings-UI. v1.2 hat den Compile-Pfad freigemacht; v1.3 baut die UI darauf.
+- **Min-Paid-Capacity / Skill-Matching** (SC-01, SC-02) — weitere Slot-Constraints als künftige Backend-Features gemerkt.
 - **04-UAT Test 8** (idempotenter Cutover-Re-Run): bei nächster Cutover-Phase neu prüfen.
 - **`/gsd:secure-phase 04`** — als bewusstes Skip akzeptiert; Compliance separat klären falls gefordert.
 - **Zwei offene Review-Todos** (`list_user_invitations` silent-empty, OIDC `silentRenewIframe`) — eigener Todo-Lifecycle.
-- **Drift-Detection-Skript** als langfristige Versicherung — sobald Phase 6 die strukturelle Lösung (eine Crate) etabliert hat, ist ein CI-Diff-Skript überflüssig. Falls die Konsolidierung aus irgendeinem Grund nicht kompletter Erfolg ist, wäre ein `compare-rest-types.sh` der Fallback (CONCERNS §1 "Fix Approach Option 1").
+
+### Phase-Verzeichnis-Cleanup (optional)
+
+`.planning/phases/01-04` (v1.0), `.planning/phases/05` (v1.1), `.planning/phases/06-07` (v1.2) liegen alle noch im aktiven `phases/`-Verzeichnis. `gsd-sdk milestone.complete` hat sie nicht automatisch in `milestones/v1.X-phases/` verschoben (`archived.phases: false`). Bei Bedarf manuell via `/gsd-cleanup` oder `mkdir milestones/v1.X-phases && mv phases/...` archivieren.
 
 ## Session Continuity
 
 **To resume work in a new session:**
 
-1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones — v1.0 + v1.1)
-2. Read `.planning/ROADMAP.md` (collapsed v1.0/v1.1, expanded v1.2 mit Phasen 6 + 7)
-3. Read this file (`STATE.md`) — current position
-4. Read `.planning/REQUIREMENTS.md` — v1.2-Requirements (RT/FC/RC) und Traceability
-5. Read `.planning/codebase/frontend/CONCERNS.md` §1 — die konkrete Drift-Inventur, die Phase 6 abarbeiten muss
-6. Optional: `.planning/codebase/frontend/INTEGRATIONS.md` — `api.rs`-Endpoint-Map und OIDC-Notes für Phase-7-UAT-Setup
+1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones — v1.0, v1.1, v1.2)
+2. Read `.planning/ROADMAP.md` (alle drei Milestones collapsed)
+3. Read this file (`STATE.md`) — current position (between milestones)
+4. Read `.planning/notes/abwesenheiten-frontend-context.md` — v1.3 Briefing
+5. Read `.planning/seeds/abwesenheiten-frontend-milestone.md` — v1.3 Sub-Phasen-Skizze
+6. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief für Frontend-Abwesenheiten
 
-**Next command**: `/gsd-complete-milestone v1.2` — archiviert v1.2 (ROADMAP-Block in `milestones/v1.2-ROADMAP.md`, REQUIREMENTS in `milestones/v1.2-REQUIREMENTS.md`, MILESTONES.md-Eintrag, ROADMAP.md-Reorganisation, PROJECT.md Evolution-Review). Danach `/gsd-new-milestone v1.3` für Frontend Abwesenheiten-Maske — der Seed `seeds/abwesenheiten-frontend-milestone.md` matcht beim Start automatisch.
+**Next command**: `/gsd-new-milestone v1.3` — startet den v1.3 Milestone-Setup-Workflow (questioning → research → requirements → roadmap). Der Seed `abwesenheiten-frontend-milestone.md` matcht beim Start automatisch und liefert die Sub-Phasen-Skizze.
 
 ---
 
-*State updated: 2026-05-07 — v1.2 milestone closure-ready. Beide Phasen 6 und 7 abgeschlossen, alle 7 v1.2-Requirements (RT-01..03, FC-01..03, RC-01) abgehakt. Bereit für /gsd-complete-milestone v1.2 → /gsd-new-milestone v1.3.*
+*State updated: 2026-05-07 — v1.2 milestone archived. Between milestones; v1.3 vorbereitet (Note + Seed + FUI-A-Block in archiviertem REQUIREMENTS), aber noch nicht gestartet.*

@@ -1,6 +1,7 @@
 ---
 type: project_charter
 last_updated: 2026-05-07
+last_milestone: v1.2 Frontend rest-types Konsolidierung (shipped 2026-05-07)
 ---
 
 # Shifty — Project Charter
@@ -62,30 +63,49 @@ für Phasen mit Frontend-Anteil.
 
 ## Bekannte Constraints
 
-### `rest-types`-Drift (Hochrisiko für Cross-Subprojekt-Konsistenz)
+### `rest-types`-Drift — RESOLVED in v1.2 (2026-05-07)
 
+**Vorher (bis v1.1):**
 - **Backend**: `rest-types/` v1.13.0-dev, 2041 Zeilen — single source of truth
   für Backend
 - **Frontend**: `shifty-dioxus/rest-types/` v1.0.5-dev, 1468 Zeilen —
   gedrifteter Fork
 
-Frontend kompiliert *nicht* gegen den Backend-Stand. Heißt: ein neuer Match-Arm
-oder Feldname im Backend-`rest-types` schlägt sich nicht automatisch im
-Frontend-Compile nieder. **Plan-Disziplin muss diese Lücke schließen**, bis die
-Konsolidierung läuft (geplant in einer Folge-Phase: Frontend-Drift schließen +
-Backend-`rest-types` als einzige Dependency setzen, mit
-`default-features = false` für WASM-Kompatibilität).
+Frontend kompilierte *nicht* gegen den Backend-Stand — ein neuer Match-Arm oder
+Feldname im Backend-`rest-types` schlug sich nicht automatisch im Frontend-Compile
+nieder. Plan-Disziplin musste die Lücke manuell schließen.
 
-Bekannte v1.1-Drift-Schulden im Frontend-Backlog (laut
-`.planning/codebase/frontend/CONCERNS.md` §1 sogar substanzieller — 17 fehlende
-TO-Structs/Enums total):
+**Nach v1.2 (gelöst):**
+- Eine einzige `rest-types`-Crate im Repo (`rest-types/`) — single source of truth.
+- `shifty-dioxus/Cargo.toml` deklariert `[dependencies.rest-types] path = "../rest-types" default-features = false`
+  (kein WASM-inkompatibler `service`-Pull-In via Feature-Gate).
+- Verzeichnis `shifty-dioxus/rest-types/` ist gelöscht.
+- Alle in CONCERNS.md §1 katalogisierten 17 fehlenden TOs/Enum-Varianten und 4
+  fehlenden Felder sind im Frontend referenzierbar; Match-Arme exhaustiv (rustc-
+  enforced); `cargo build --target wasm32-unknown-unknown` grün.
+- 466 Backend-Tests grün ohne Regression. Phase 7 (Smoke + Regression) verifiziert.
 
-- `current_paid_count` / `max_paid_employees` werden aktuell vom Frontend
-  nicht gerendert (Phase 5 explizit Backend-only ausgeliefert)
-- `VolunteerWork` / `UnpaidLeave` Extra-Hours-Kategorien fehlen in
-  Frontend-Match-Armen
-- `cap_planned_hours_to_expected` nicht im Frontend-Settings-UI
-- `WarningTO`, `AbsencePeriodTO`, Cutover-DTOs aus v1.0 fehlen komplett
+**Strukturelle Drift-Tax beseitigt:** Künftige Backend-API-Änderungen brechen
+den Frontend-Compile, falls dort nicht mit-angepasst — die Plan-Disziplin-Caveat
+aus v1.0/v1.1 ist nicht mehr nötig.
+
+### Bekannte Frontend-UI-Closure-Schulden (deferred to v1.3+)
+
+Folgendes ist **state-only / no-op-rendering** im aktuellen Frontend, weil v1.2
+explizit "keine User-facing Features" als Scope hatte. Diese Punkte werden in
+v1.3 (oder später) als sichtbare UI nachgezogen:
+
+- `current_paid_count` / `max_paid_employees` werden state-only gespiegelt, aber
+  noch nicht gerendert (FUI-01, FUI-02)
+- `VolunteerWork` / `UnpaidLeave` Extra-Hours-Kategorien sind in Match-Armen
+  durch no-op-`rsx! { "" }` abgedeckt, aber ohne sichtbares UI (FUI-03)
+- `cap_planned_hours_to_expected`-Settings-UI fehlt (FUI-04)
+- **Frontend-Abwesenheiten-Maske** (FUI-A-01..09): Top-Level-Maske
+  "Abwesenheiten" gegen `/absence-period` REST-API mit HR-Sicht +
+  Employee-Self-Service. Backend ist seit v1.0 fertig; Mockup in
+  `shifty-dioxus/shifty-design/project/absences.jsx`. Briefing in
+  `notes/abwesenheiten-frontend-context.md`; Seed
+  `seeds/abwesenheiten-frontend-milestone.md`.
 
 ### Co-Location vollzogen (2026-05-07)
 
@@ -112,41 +132,58 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Current Milestone: v1.2 Frontend rest-types Konsolidierung
+## Current Milestone: v1.3 (next, planning ahead)
 
-**Goal:** Backend-`rest-types` wird single source of truth — Frontend depends
-darauf ohne eigene Fork-Crate. Drift-Tax-Risiko strukturell beseitigt; keine
-neuen User-facing-Features.
+**Status:** Noch nicht via `/gsd-new-milestone v1.3` gestartet — vorbereitet
+durch Note + Seed + FUI-A-Block in REQUIREMENTS-Backlog.
 
-**Target outcomes:**
-- Genau eine `rest-types`-Crate im Workspace (`rest-types/`); `shifty-dioxus/rest-types/` gelöscht
-- `shifty-dioxus/Cargo.toml` zeigt auf die Backend-Crate mit `default-features = false`
-  (kein WASM-inkompatibler `service`-Pull-In)
-- Frontend kompiliert gegen den echten Backend-API-Stand: alle bisher fehlenden
-  TOs/Enum-Varianten verfügbar; Match-Arme erschöpfend (minimal/no-op-Rendering OK,
-  neue UI ist explizit nicht in Scope)
-- `cargo build` im Frontend-Subordner grün; `dx serve`-Smoke-Test grün
-- Backend-Tests bleiben grün (keine Regression)
+**Erwarteter Scope (basierend auf Seed `seeds/abwesenheiten-frontend-milestone.md`):**
 
-**Bewusst nicht in v1.2:**
-- Capacity-Editor in Slot-Settings, sichtbare `current_paid_count`-Anzeige
-- `VolunteerWork`/`UnpaidLeave`-Kategorien als UI-Element
-- Min-Paid-Capacity / Skill-Matching (Backend-Backlog für v1.3+)
-- 04-UAT Test 8 Re-Check, `/gsd:secure-phase 04` (separat)
-- Die zwei offenen Review-Todos (`list_user_invitations` silent-empty,
-  `silentRenewIframe`) — eigener Todo-Lifecycle
+- **Frontend Abwesenheiten-Maske** (FUI-A-01..09) als Hauptthema: neue
+  Top-Level-Route `absences` gegen `/absence-period` REST-API; HR-Sicht (alle
+  Mitarbeiter, Filter) + Employee-Self-Service (eigene Liste); Form mit
+  Datum-Range-Picker + Kategorie-Dropdown + Description; nicht-blockierende
+  Warnings-Anzeige aus `AbsencePeriodCreateResultTO.warnings[]`.
+- **Booking-Flow umstellen** auf `POST /shiftplan-edit/booking` für Reverse-
+  Warnings; alter `POST /booking` bleibt für Bestands-Calls.
+- **Shiftplan-Wochen-View** mit `UnavailabilityMarkerTO` farbig pro Tag pro
+  Person.
+- **Migrations-Hinweis-UX** für alte `extra_hours`-Buttons (vor Cutover
+  Soft-Migration; nach Cutover `403 ExtraHoursCategoryDeprecatedErrorTO`-
+  Handling).
+- **i18n** in De / En / Cs.
+- Optional: **User-facing Closure** der v1.1-/v1.2-Restanten (FUI-01..04 —
+  sichtbares `current_paid_count`/`max_paid_employees`, Capacity-Editor,
+  `VolunteerWork`/`UnpaidLeave` als UI-Element, `cap_planned_hours_to_expected`-
+  Settings).
 
-**Folgemilestone-Vorschau:** v1.3 könnte den User-facing Closure (Capacity-Editor,
-neue API-Felder im UI sichtbar) übernehmen. Plan-Disziplin-Caveat ist nach v1.2
-durch Compile-Zwang abgesichert: jede künftige Backend-API-Änderung bricht das
-Frontend, falls dort nicht mit-angepasst.
+**Bewusst nicht in v1.3 (vorerst):**
+
+- Halbtage / Stundenebene für Abwesenheiten (Backend modelliert nur Ganztage)
+- Genehmigungs-Workflow (Backend kennt keinen Approval-Schritt)
+- Min-Paid-Capacity / Skill-Matching (SC-01, SC-02 — Backend-Themen für später)
+- Admin-Cutover-UI (`/admin/cutover/*` ist getrenntes Admin-Surface; CLI-Flow
+  reicht weiter)
+
+**Quellen für den Start von v1.3:**
+
+- `seeds/abwesenheiten-frontend-milestone.md` (Trigger erfüllt)
+- `notes/abwesenheiten-frontend-context.md` (Briefing aus Backend-Brief +
+  Mockup-Walkthrough)
+- `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md`
+  (Backend-Integrations-Brief, 174 Zeilen)
+- `shifty-dioxus/shifty-design/project/absences.jsx` (Mockup, 729 Zeilen JSX —
+  Vorlage für Dioxus-Portierung)
 
 ## Active Milestones Index
 
 Siehe `.planning/ROADMAP.md`. Geshipt:
 - v1.0 Range-Based Absence Management — 2026-05-03 (Phasen 1–4)
 - v1.1 Slot Capacity & Constraints — 2026-05-04 (Phase 5)
-- v1.2 Frontend rest-types Konsolidierung — *in planning*
+- v1.2 Frontend rest-types Konsolidierung — 2026-05-07 (Phasen 6–7)
+
+Nächst: v1.3 (Frontend Abwesenheiten + optional UI-Closure-Restanten) —
+zu starten via `/gsd-new-milestone v1.3`.
 
 ## Evolution
 

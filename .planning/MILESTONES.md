@@ -14,6 +14,7 @@ Historischer Index aller geshipten Milestones. Jeder Eintrag verlinkt auf die De
 Zeitraum-basierte Abwesenheits-Domäne (Vacation/SickLeave/UnpaidLeave) ersetzt die wochenweise `ExtraHours`-Buchhaltung. Per-Tag-Stunden werden aus dem am jeweiligen Tag gültigen Vertrag abgeleitet (`derive_hours_for_range`); doppelte Eintragung zwischen ExtraHours und Shift-Plan entfällt. Komplette Bestandsdaten-Migration mit atomarer Cutover-Tx hinter Validierungs-Gate (Toleranz < 0.01h Drift).
 
 **Key accomplishments:**
+
 1. **Phase 1** — `absence_period`-Schema + DAO + Service + REST + 8 Integration-Tests; additiv ohne Reporting-Effekt; logical_id-Versionierung etabliert (später auch in `extra_hours` übernommen)
 2. **Phase 2** — `derive_hours_for_range` (per-Tag-Vertrags-Lookup mit Feiertags-Orthogonalität), FeatureFlagService-Infrastruktur, atomarer Snapshot-Bump 2→3 + Reporting-Switch in einem Commit
 3. **Phase 3** — Forward-/Reverse-Booking-Warnings über AbsencePeriod, ShiftplanView-Marker per-sales-person, BookingService-Files unangetastet (D-Phase3-18 Regression-Lock 0-Diff)
@@ -23,6 +24,7 @@ Zeitraum-basierte Abwesenheits-Domäne (Vacation/SickLeave/UnpaidLeave) ersetzt 
 **Test verification:** 458+ tests green workspace-wide. OpenAPI snapshot deterministic. Cold-start smoke pass.
 
 **Known deferred items:**
+
 - 04-UAT Test 8 (idempotenter Re-Run nach Commit): manuell 403 erhalten, vermutlich Setup-Issue (kein cutover_admin-Grant in dev-DB); Code-Pfad abgedeckt durch passing Integration-Test `test_idempotence_rerun_no_op`.
 - `/gsd:secure-phase 04` wurde nicht ausgeführt — als bewusstes Skip akzeptiert (Threats in Plan-SUMMARYs durchgängig als mitigated/accepted dokumentiert).
 
@@ -41,6 +43,7 @@ Während Plan 04-02 wurde der frühere Commit `fe744df` (logical_id für extra_h
 Slots erhalten ein optionales Capacity-Limit `max_paid_employees: Option<u8>`. Wenn der Live-Count an aktiven Bookings im Slot mit `sales_person.is_paid = true` das konfigurierte Limit übersteigt, emittiert das Backend nicht-blockierende `Warning::PaidEmployeeLimitExceeded` über (a) `BookingCreateResult.warnings` im Conflict-Aware-Booking-Endpoint und (b) `current_paid_count` neben `max_paid_employees` per Slot im Shiftplan-Week-View. Buchen bleibt erlaubt — die Warning ist informativ (D-07: kein Tx-Rollback). `NULL`-Konfiguration bedeutet "kein Limit". Backend-additiv über alle Layer (SQLite-Migration, DAO, Service, REST). Frontend out of scope.
 
 **Key accomplishments:**
+
 1. **DAO Foundation** (Plan 05-01) — Nullable `slot.max_paid_employees INTEGER` ohne DEFAULT/NOT NULL, `SlotEntity.max_paid_employees: Option<u8>`, 4 SELECTs + INSERT + UPDATE in `dao_impl_sqlite/src/slot.rs`; Forward-Compat-Shims (Rule 3) für sequenzielle-Wave-2-Compile-Blocker.
 2. **Service-Tier Wiring** (Plans 05-03, 05-04) — `service::slot::Slot.max_paid_employees`, `From` impls bridge DAO ↔ Service; `ShiftplanSlot.current_paid_count: u8` inline-derived in `build_shiftplan_day` aus bereits resolvten Bookings (Read-Aggregation-Pattern); Fixture-Migration in 5 Test-Files.
 3. **Warning Surface** (Plans 05-02, 05-05) — 5. `Warning::PaidEmployeeLimitExceeded`-Variante mit 6 strukturierten Feldern (slot_id, booking_id, year, week, current_paid_count, max_paid_employees); REST-DTO-Mirror auf `SlotTO`/`WarningTO`/`ShiftplanSlotTO` mit `#[serde(default)]`-Backward-Compat (Wire-Tier-Mirror-Pattern); Wave-Coupling-Pattern für Producer-Consumer-Plans.
@@ -50,7 +53,35 @@ Slots erhalten ein optionales Capacity-Limit `max_paid_employees: Option<u8>`. W
 **Test verification:** 461 tests green workspace-wide (+6 über v1.0-Baseline 455). `cargo build --workspace` GREEN. `cargo run` boots cleanly to `127.0.0.1:3000`. `05-VERIFICATION.md`: 16/16 D-decisions verified, status: passed (gaps_remaining = []).
 
 **Known deferred items:**
+
 - **Frontend-Workstream (shifty-dioxus)** — bewusst out of scope. Capacity-Editor in Slot-Settings + UI-Anzeige `current_paid_count` / `max_paid_employees` folgen in separatem Repo.
 - **Min-Paid-Capacity / Skill-Matching** — gemerkt für künftiges Backend-Milestone.
+
+---
+
+## v1.2 — Frontend rest-types Konsolidierung
+
+**Shipped:** 2026-05-07
+**Phases:** 6–7 (2 phases, 6 plans, 6 SUMMARYs)
+**Archive:** [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
+
+**Delivered:**
+Backend-`rest-types` ist die einzige Quelle der Wahrheit für API-DTOs. Der parallele Frontend-Fork `shifty-dioxus/rest-types/` ist gelöscht; `shifty-dioxus` zieht via Cross-Workspace-Path-Dep (`path = "../rest-types"`, `default-features = false`) gegen die Backend-Crate. Alle in CONCERNS.md §1 katalogisierten 17 fehlenden TOs/Enum-Varianten und 4 fehlenden Felder sind im Frontend referenzierbar; Match-Arme sind exhaustiv (rustc-enforced); `cargo build --target wasm32-unknown-unknown` liefert Exit-Code 0. Backend-Workspace bleibt regression-frei (466 Tests grün, ohne Re-Run-Effekt aus dem Cargo-Feature-Umbau). Keine User-facing Features hinzugefügt — explizit "Compile-Pfad freimachen für v1.3+ UI-Closure"-Scope.
+
+**Key accomplishments:**
+
+1. **Wave-0 Backend-Prep** (Plan 06-00) — Invitation-DTO-Familie (`InvitationStatus`, `InvitationResponse`, `GenerateInvitationRequest`) nach `rest-types` migriert mit konsistentem `Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema`-Derive-Set; `shifty_utils`-Import feature-gated; `ShiftplanTO` mit `PartialEq, Eq` ergänzt. Backend swap-ready für Wave 1.
+2. **Wave-1 Cargo-Swap + Fork-Delete** (Plan 06-01) — `shifty-dioxus/Cargo.toml` deklariert `[dependencies.rest-types] path = "../rest-types" default-features = false`; Verzeichnis `shifty-dioxus/rest-types/` aus dem Tree gelöscht (RT-01 + RT-02 erfüllt). Wave 2 öffnet sich mit den erwarteten Compile-Errors aus dem CONCERNS-§1-Katalog.
+3. **Wave-2 Cluster-Fixes** (Plans 06-02, 06-03) — Frontend `Slot`-State erweitert um `max_paid_employees: Option<u8>` + `current_paid_count: u8` (state-only, kein Rendering — UI-Closure ist v1.3-Scope); `Weekday::from_num_from_monday`-Panic durch defensiven Fallback ersetzt; Cluster F (`invitation.redeemed_at`) auf Borrow-Form umgestellt nach Wave-0-`Option<OffsetDateTime> → Option<String>`-Migration.
+4. **Wave-3 WASM-Compile-Closure** (Plan 06-04) — Cluster E (`SlotEditItem`-State-Mirror für `max_paid_employees` mit beiden `From`-Richtungen, preserve-on-edit-roundtrip) und Cluster H (`TemplateEngineTO PartialEq, Eq, Copy` für `assert_eq!`-Frontend-Tests) gefixt. WASM-Build grün. Visuelles Delta über die gesamte Phase 6 = 0 (UI-SPEC Regel 4 verifiziert via `jj diff` über `tailwind.config.js`, `input.css`, `src/i18n/`).
+5. **Phase 7 — Runtime Smoke + Regression Safety** (Plan 07-00) — Alle 4 Phase-7-Success-Criteria verifiziert: dx serve / Login / Shiftplan-Navigation auf Integrationsumgebung (User-UAT 2026-05-07); Backend `cargo check --workspace` + `cargo test --workspace` re-verifiziert (Subsumption von Phase-6-VERIFICATION V-Truth #6 + #7 plus lokaler Re-Run zur Phase-Closure-Zeit). Subsumption-Pattern für reine Closure-Phasen etabliert.
+
+**Test verification:** 466 tests green workspace-wide. `cargo build --target wasm32-unknown-unknown` GREEN. WASM-Artefakt 149 MB unter `shifty-dioxus/target/wasm32-unknown-unknown/debug/`. Frontend rendert auf Integrationsumgebung ohne Panic. 8/8 V-Truths verified (Phase 6) + 4/4 Success Criteria verified (Phase 7).
+
+**Known deferred items (deferred to v1.3+):**
+
+- **Frontend User-facing Closure (FUI-01..04)** — sichtbares `current_paid_count`/`max_paid_employees`-Rendering, Capacity-Editor in Slot-Settings, `VolunteerWork`/`UnpaidLeave`-UI, `cap_planned_hours_to_expected`-Settings. Compile-Pfad ist jetzt frei; v1.3 baut die UI darauf.
+- **Frontend Abwesenheiten-Maske (FUI-A-01..09)** — Top-Level-Maske "Abwesenheiten" mit HR-Sicht + Employee-Self-Service gegen `/absence-period` REST-API. Mockup vorhanden (`shifty-dioxus/shifty-design/project/absences.jsx`, 729 Zeilen JSX). Briefing in `notes/abwesenheiten-frontend-context.md`; Seed `seeds/abwesenheiten-frontend-milestone.md` matcht beim `/gsd-new-milestone v1.3`-Start automatisch.
+- **Min-Paid-Capacity / Skill-Matching (SC-01, SC-02)** — Backend-Slot-Constraints für künftiges Backend-Milestone.
 
 ---
