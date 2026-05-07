@@ -165,6 +165,8 @@ pub async fn load_shift_plan(
             from: slot.slot.from,
             to: slot.slot.to,
             min_resources: slot.slot.min_resources,
+            max_paid_employees: slot.slot.max_paid_employees,
+            current_paid_count: slot.current_paid_count,
             bookings: slot
                 .bookings
                 .iter()
@@ -216,6 +218,8 @@ pub async fn load_day_aggregate(
                     from: slot.slot.from,
                     to: slot.slot.to,
                     min_resources: slot.slot.min_resources,
+                    max_paid_employees: slot.slot.max_paid_employees,
+                    current_paid_count: slot.current_paid_count,
                     bookings: slot
                         .bookings
                         .iter()
