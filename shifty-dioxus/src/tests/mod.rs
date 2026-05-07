@@ -515,6 +515,7 @@ mod shiftplan_catalog_tests {
             deleted: None,
             version: Uuid::new_v4(),
             shiftplan_id: Some(shiftplan_id),
+            max_paid_employees: None,
         };
 
         let edit_item = SlotEditItem::from(&slot_to);
@@ -537,6 +538,7 @@ mod shiftplan_catalog_tests {
             deleted: None,
             version: Uuid::new_v4(),
             shiftplan_id: None,
+            max_paid_employees: None,
         };
 
         let edit_item = SlotEditItem::from(&slot_to);
@@ -557,6 +559,7 @@ mod shiftplan_catalog_tests {
             deleted: None,
             version: Uuid::new_v4(),
             shiftplan_id: Some(shiftplan_id),
+            max_paid_employees: None,
         };
 
         let edit_item = SlotEditItem::from(&slot_to);
@@ -576,6 +579,7 @@ mod shiftplan_catalog_tests {
             valid_to: None,
             version: Uuid::new_v4(),
             shiftplan_id: Some(shiftplan_id),
+            max_paid_employees: None,
         };
 
         let slot_to = SlotTO::from(&edit_item);
@@ -596,6 +600,7 @@ mod shiftplan_catalog_tests {
             deleted: None,
             version: Uuid::new_v4(),
             shiftplan_id: Some(shiftplan_id),
+            max_paid_employees: None,
         };
 
         let edit_item = SlotEditItem::from(&original);

@@ -16,6 +16,10 @@ pub struct SlotEditItem {
     pub valid_to: Option<time::Date>,
     pub version: Uuid,
     pub shiftplan_id: Option<Uuid>,
+    /// Mirror of `SlotTO.max_paid_employees` — not edited in the v1.2 UI but
+    /// preserved on edit-roundtrip so the backend value is not overwritten with
+    /// `None`. v1.3 FUI-02 will expose this in the slot editor (UI-SPEC Regel 2).
+    pub max_paid_employees: Option<u8>,
 }
 impl SlotEditItem {
     pub fn empty() -> Self {
@@ -29,6 +33,7 @@ impl SlotEditItem {
             valid_to: None,
             version: Uuid::nil(),
             shiftplan_id: None,
+            max_paid_employees: None,
         }
     }
 
@@ -52,6 +57,7 @@ impl From<&SlotTO> for SlotEditItem {
             valid_to: slot.valid_to,
             version: slot.version,
             shiftplan_id: slot.shiftplan_id,
+            max_paid_employees: slot.max_paid_employees,
         }
     }
 }
@@ -68,6 +74,7 @@ impl From<&SlotEditItem> for SlotTO {
             deleted: None,
             version: slot.version,
             shiftplan_id: slot.shiftplan_id,
+            max_paid_employees: slot.max_paid_employees,
         }
     }
 }
