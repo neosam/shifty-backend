@@ -1346,7 +1346,7 @@ pub struct CreateBillingPeriodRequestTO {
     pub end_date: time::Date,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, ToSchema)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, ToSchema)]
 pub enum TemplateEngineTO {
     #[serde(rename = "tera")]
     #[default]
