@@ -9,4 +9,5 @@ members = [
     "rest-types",
     "shifty-utils",
 ]
+exclude = ["shifty-dioxus"]
 resolver = "2"
