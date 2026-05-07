@@ -31,7 +31,9 @@
           version = "1.13.0-dev";
 
           src = ./.;
-          sourceRoot = "source/shifty-dioxus";
+          setSourceRoot = ''
+            sourceRoot=$(echo */shifty-dioxus | head -n1)
+          '';
 
           cargoLock = {
             lockFile = ./shifty-dioxus/Cargo.lock;
