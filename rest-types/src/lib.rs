@@ -2040,3 +2040,57 @@ impl From<&service::cutover::CutoverProfile> for CutoverProfileTO {
         }
     }
 }
+
+// =====================
+// User Invitation API (migrated from rest/src/user_invitation.rs in v1.2 Phase 6)
+// =====================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum InvitationStatus {
+    /// Invitation is valid and can be used
+    Valid,
+    /// Invitation has expired and cannot be used
+    Expired,
+    /// Invitation has already been redeemed
+    Redeemed,
+    /// Invitation session has been revoked
+    #[serde(rename = "sessionrevoked")]
+    SessionRevoked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct GenerateInvitationRequest {
+    /// Username of the user to invite
+    pub username: String,
+    /// Expiration time in hours (default: 168 hours = 7 days)
+    pub expiration_hours: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+pub struct InvitationResponse {
+    /// Unique ID of the invitation
+    pub id: Uuid,
+    /// Username of the invited user
+    pub username: String,
+    /// Invitation token (UUID)
+    pub token: Uuid,
+    /// Complete invitation link URL
+    pub invitation_link: String,
+    /// When the invitation was redeemed (null if not yet redeemed; RFC3339 string for WASM-compat)
+    pub redeemed_at: Option<String>,
+    /// Current status of the invitation
+    pub status: InvitationStatus,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<service::user_invitation::InvitationStatus> for InvitationStatus {
+    fn from(status: service::user_invitation::InvitationStatus) -> Self {
+        match status {
+            service::user_invitation::InvitationStatus::Valid => Self::Valid,
+            service::user_invitation::InvitationStatus::Expired => Self::Expired,
+            service::user_invitation::InvitationStatus::Redeemed => Self::Redeemed,
+            service::user_invitation::InvitationStatus::SessionRevoked => Self::SessionRevoked,
+        }
+    }
+}

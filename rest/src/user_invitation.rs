@@ -2,14 +2,11 @@ use axum::extract::{Path, Request, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
-use serde::{Deserialize, Serialize};
 use service::permission::Authentication;
-use service::user_invitation::{
-    InvitationStatus as ServiceInvitationStatus, UserInvitationService,
-};
+use service::user_invitation::UserInvitationService;
 use time::OffsetDateTime;
 use tracing::instrument;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
 #[cfg(feature = "oidc")]
@@ -19,55 +16,20 @@ use tower_cookies::{Cookie, Cookies};
 
 use crate::{error_handler, Context, RestStateDef};
 
-// Re-export InvitationStatus with ToSchema for OpenAPI documentation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum InvitationStatus {
-    /// Invitation is valid and can be used
-    Valid,
-    /// Invitation has expired and cannot be used
-    Expired,
-    /// Invitation has already been redeemed
-    Redeemed,
-    /// Invitation session has been revoked
-    #[serde(rename = "sessionrevoked")]
-    SessionRevoked,
-}
+// Re-exported from rest_types for the unified DTO surface (v1.2 Phase 6).
+// The `From<service::user_invitation::InvitationStatus> for InvitationStatus`
+// impl moved to rest-types/src/lib.rs (under the `service-impl` feature).
+pub use rest_types::{GenerateInvitationRequest, InvitationResponse, InvitationStatus};
 
-impl From<ServiceInvitationStatus> for InvitationStatus {
-    fn from(status: ServiceInvitationStatus) -> Self {
-        match status {
-            ServiceInvitationStatus::Valid => InvitationStatus::Valid,
-            ServiceInvitationStatus::Expired => InvitationStatus::Expired,
-            ServiceInvitationStatus::Redeemed => InvitationStatus::Redeemed,
-            ServiceInvitationStatus::SessionRevoked => InvitationStatus::SessionRevoked,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct GenerateInvitationRequest {
-    /// Username of the user to invite
-    pub username: String,
-    /// Expiration time in hours (default: 168 hours = 7 days)
-    pub expiration_hours: Option<i64>,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct InvitationResponse {
-    /// Unique ID of the invitation
-    pub id: Uuid,
-    /// Username of the invited user
-    pub username: String,
-    /// Invitation token (UUID)
-    pub token: Uuid,
-    /// Complete invitation link URL
-    pub invitation_link: String,
-    /// When the invitation was redeemed (null if not yet redeemed)
-    #[serde(with = "time::serde::rfc3339::option")]
-    pub redeemed_at: Option<OffsetDateTime>,
-    /// Current status of the invitation
-    pub status: InvitationStatus,
+/// Format an `Option<OffsetDateTime>` as an RFC3339 string for the wire
+/// representation in `InvitationResponse.redeemed_at`. `None` stays `None`;
+/// formatting failures (extremely rare for valid `OffsetDateTime`) collapse to
+/// an empty string to keep the response shape stable.
+fn redeemed_at_to_rfc3339(value: Option<OffsetDateTime>) -> Option<String> {
+    value.map(|dt| {
+        dt.format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default()
+    })
 }
 
 #[cfg(feature = "oidc")]
@@ -207,7 +169,7 @@ pub async fn generate_invitation<RestState: RestStateDef>(
                 username: invitation.username.to_string(),
                 token: invitation.token,
                 invitation_link,
-                redeemed_at: invitation.redeemed_at,
+                redeemed_at: redeemed_at_to_rfc3339(invitation.redeemed_at),
                 status: invitation.status.into(),
             };
 
@@ -255,7 +217,7 @@ pub async fn list_user_invitations<RestState: RestStateDef>(
                         username: inv.username,
                         token: inv.token,
                         invitation_link,
-                        redeemed_at: inv.redeemed_at,
+                        redeemed_at: redeemed_at_to_rfc3339(inv.redeemed_at),
                         status: inv.status.into(),
                     }
                 })
