@@ -166,6 +166,12 @@ This crate is a **drifted fork** of the backend's own `rest-types` crate.
     expected to be set by the backend's bootstrap response (e.g. an injected
     `<script>` or future server-rendered template). Today this means the keep-
     alive is effectively dormant unless something else writes the variable.
+  - **Operator-confirmed (2026-05-07):** The dormant iframe + keep-alive code is
+    not an active bug — production runs stable on the backend-cookie-session
+    model (`/auth-info` ping + 401-triggered reload above). The iframe is
+    likely a leftover from an earlier browser-side OIDC client setup. Origin
+    and intended future use are open — see
+    `.planning/todos/pending/2026-05-07-review-silent-renew-iframe-in-index-html.md`.
 - There is no mock-auth toggle on the frontend; a development backend with the
   `mock_auth` feature is the standard way to log in without a live OIDC IdP.
 
