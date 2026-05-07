@@ -60,11 +60,11 @@
 **Plans:** 5 plans
 
 Plans:
-- [ ] 06-00-PLAN.md — Wave 0 Backend-rest-types Vorbereitung (InvitationStatus-Familie + ShiftplanTO Derives + shifty_utils Feature-Gate)
-- [ ] 06-01-PLAN.md — Wave 1 Cargo-Swap + Fork-Delete (RT-01 + RT-02)
-- [ ] 06-02-PLAN.md — Wave 2 Slot-Capacity State-Mirror (Cluster E + Weekday-Panic-Defense)
-- [ ] 06-03-PLAN.md — Wave 2 Invitation-Surface Cutover (Cluster F: redeemed_at-String-Migration)
-- [ ] 06-04-PLAN.md — Wave 3 WASM-Compile-Closure (residual fixes + FC-02 phase gate)
+- [x] 06-00-PLAN.md — Wave 0 Backend-rest-types Vorbereitung (InvitationStatus-Familie + ShiftplanTO Derives + shifty_utils Feature-Gate)
+- [x] 06-01-PLAN.md — Wave 1 Cargo-Swap + Fork-Delete (RT-01 + RT-02)
+- [x] 06-02-PLAN.md — Wave 2 Slot-Capacity State-Mirror (Cluster E + Weekday-Panic-Defense)
+- [x] 06-03-PLAN.md — Wave 2 Invitation-Surface Cutover (Cluster F: redeemed_at-String-Migration)
+- [x] 06-04-PLAN.md — Wave 3 WASM-Compile-Closure (residual fixes + FC-02 phase gate)
 
 **UI hint**: yes
 
