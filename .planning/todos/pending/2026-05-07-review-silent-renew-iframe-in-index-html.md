@@ -3,9 +3,9 @@ created: 2026-05-07T10:50:00
 title: "Review: silentRenewIframe in index.html — Zweck und Verwendung unklar"
 area: frontend / auth
 files:
-  - ../shifty-dioxus/index.html:29
-  - ../shifty-dioxus/index.html:31-39
-  - ../shifty-dioxus/flake.nix:117-134
+  - shifty-dioxus/index.html:29
+  - shifty-dioxus/index.html:31-39
+  - shifty-dioxus/flake.nix:117-134
 ---
 
 ## Beobachtung
@@ -13,7 +13,7 @@ files:
 Aus Frontend-Codebase-Map, nicht als Bug verifiziert.
 **Bitte einschätzen: löschen, dokumentieren oder anders behandeln?**
 
-`../shifty-dioxus/index.html:29` enthält:
+`shifty-dioxus/index.html:29` enthält:
 
 ```html
 <iframe id="silentRenewIframe" style="display:none;"></iframe>

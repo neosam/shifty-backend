@@ -7,16 +7,18 @@ last_updated: 2026-05-07
 
 ## Was ist Shifty
 
-Employee shift planning + HR-Management mit zwei gekoppelten Subprojekten:
+Employee shift planning + HR-Management mit zwei gekoppelten Subprojekten,
+beide co-located in **diesem** Repo seit 2026-05-07:
 
-- **`shifty-backend/`** (dieses Repo): Rust-Backend (Axum, SQLite, layered architecture).
+- **`/`** (Cargo-Workspace-Root): Rust-Backend (Axum, SQLite, layered architecture).
   Authoritative source für Domain-Logik, REST-API, Persistenz, Reporting.
-- **`../shifty-dioxus/`** (Schwester-Repo): Dioxus-Frontend (WASM). Konsumiert das
-  Backend ausschließlich über REST.
+- **`shifty-dioxus/`** (eigener kleiner Workspace): Dioxus-Frontend (WASM).
+  Konsumiert das Backend ausschließlich über REST. Aus dem Cargo-Workspace
+  des Backends explizit ausgeschlossen (`exclude = ["shifty-dioxus"]`).
 
 Geteilte Crates:
 
-- **`rest-types`**: API-DTOs. Heute in *beiden* Repos dupliziert — siehe
+- **`rest-types`**: API-DTOs. Heute in *beiden* Subprojekten dupliziert — siehe
   [Bekannte Constraints](#bekannte-constraints).
 
 ## GSD-Scope-Regel
@@ -34,8 +36,8 @@ welche Pfade in beiden Subprojekten betroffen sind:
 - `rest-types/src/...`
 
 **Frontend-Pfade:**
-- `../shifty-dioxus/src/...`
-- `../shifty-dioxus/rest-types/src/...`   (bis Konsolidierung)
+- `shifty-dioxus/src/...`
+- `shifty-dioxus/rest-types/src/...`   (bis Konsolidierung)
 ```
 
 "Frontend out of scope" ist erlaubt, **braucht aber eine begründete Notiz im
@@ -51,19 +53,19 @@ für Phasen mit Frontend-Anteil.
 
 | Zweck | Quelle |
 |---|---|
-| Backend-Konventionen | `shifty-backend/CLAUDE.md` |
-| Frontend-Konventionen | `../shifty-dioxus/CLAUDE.md` (Executor lädt automatisch beim Lesen von Frontend-Files) |
-| Frontend-Codebase-Map | `.planning/codebase/frontend/` (manuell verortet — `gsd:map-codebase` läuft nicht out-of-the-box auf Sister-Verzeichnis) |
+| Backend-Konventionen | `CLAUDE.md` (Repo-Root) |
+| Frontend-Konventionen | `shifty-dioxus/CLAUDE.md` (Executor lädt automatisch beim Lesen von Frontend-Files) |
+| Frontend-Codebase-Map | `.planning/codebase/frontend/` (separater Subordner, weil das Frontend einen eigenständigen Subprojekt-Scope hat) |
 | Backend-Codebase-Map | (`CLAUDE.md` ist detailliert genug; bewusst keine `.planning/codebase/`-Map) |
 | Roadmap & Phasen | `.planning/ROADMAP.md`, `.planning/phases/` |
-| Lokale Dev-Conventions | `shifty-backend/CLAUDE.local.md` (jj-only, NixOS-Spezifika) |
+| Lokale Dev-Conventions | `CLAUDE.local.md` (jj-only, NixOS-Spezifika) |
 
 ## Bekannte Constraints
 
 ### `rest-types`-Drift (Hochrisiko für Cross-Subprojekt-Konsistenz)
 
-- **Backend**: `shifty-backend/rest-types/` v1.13.0-dev, 2041 Zeilen — single
-  source of truth für Backend
+- **Backend**: `rest-types/` v1.13.0-dev, 2041 Zeilen — single source of truth
+  für Backend
 - **Frontend**: `shifty-dioxus/rest-types/` v1.0.5-dev, 1468 Zeilen —
   gedrifteter Fork
 
@@ -74,30 +76,46 @@ Konsolidierung läuft (geplant in einer Folge-Phase: Frontend-Drift schließen +
 Backend-`rest-types` als einzige Dependency setzen, mit
 `default-features = false` für WASM-Kompatibilität).
 
-Bekannte v1.1-Drift-Schulden im Frontend-Backlog:
+Bekannte v1.1-Drift-Schulden im Frontend-Backlog (laut
+`.planning/codebase/frontend/CONCERNS.md` §1 sogar substanzieller — 17 fehlende
+TO-Structs/Enums total):
 
 - `current_paid_count` / `max_paid_employees` werden aktuell vom Frontend
   nicht gerendert (Phase 5 explizit Backend-only ausgeliefert)
 - `VolunteerWork` / `UnpaidLeave` Extra-Hours-Kategorien fehlen in
   Frontend-Match-Armen
 - `cap_planned_hours_to_expected` nicht im Frontend-Settings-UI
+- `WarningTO`, `AbsencePeriodTO`, Cutover-DTOs aus v1.0 fehlen komplett
 
-### Co-Location offen
+### Co-Location vollzogen (2026-05-07)
 
-Frontend liegt aktuell als Schwester-Verzeichnis. Plan-Pfade müssen relative
-`../shifty-dioxus/...`-Pfade benutzen. Read/Edit-Tools funktionieren
-verzeichnisagnostisch. Eine spätere Co-Location-Phase (`cp -r` plus
-`exclude = ["shifty-dioxus"]` in Backend-Workspace) kann das vereinfachen,
-ist aber nicht Voraussetzung für gemeinsame GSD-Phasen.
+Frontend lebt jetzt als Subordner unter `shifty-dioxus/`. History wurde via
+`git filter-repo --to-subdirectory-filter shifty-dioxus` umgeschrieben und in
+einem Merge-Commit hier eingespielt — alle 381 Frontend-Commits mit
+Original-Author/Date/Message erhalten, nur Commit-IDs sind neu. File-History
+funktioniert: `jj log -r '::@' shifty-dioxus/<pfad>` zeigt die echte Frontend-
+History.
+
+Cargo-Workspace-Boundary explizit: `exclude = ["shifty-dioxus"]` plus
+implizit über die explizite `members`-Liste ohne Glob. Beide Subprojekte
+bauen weiter unabhängig (`cargo check --workspace` im Root für Backend;
+`dx serve` aus `shifty-dioxus/` für Frontend).
+
+Eigenes altes `../shifty-dioxus/`-Repo bleibt als Archiv liegen — keine
+Aktion nötig, kein Push erforderlich.
 
 ### Versionsabgleich
 
-Beide Repos haben heute zufällig identische Versionsstände (`1.13.0-dev`).
-Bei Releases müssen Backend- und Frontend-Versionen bewusst synchron gehalten
-werden — Update via `cli-update-version.sh` in beiden Repos.
+Beide Subprojekte haben heute zufällig identische Versionsstände
+(`1.13.0-dev`). Releases müssen Backend- und Frontend-Versionen weiterhin
+bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
+und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
+spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
 ## Aktive Milestone
 
 Siehe `.planning/ROADMAP.md`. Vorletzte Milestone (v1.1 — Slot Capacity)
 abgeschlossen am 2026-05-04. Nächste Milestone noch nicht definiert —
-`/gsd:new-milestone` als nächster Schritt.
+`/gsd:new-milestone` als nächster Schritt. Vorgemerkt als wahrscheinlicher
+Scope: **Frontend-Konsolidierung** (rest-types vereinheitlichen + Drift
+schließen + v1.0/v1.1-Frontend-Backlog abarbeiten, ~3–5 Tage).

@@ -3,7 +3,7 @@ created: 2026-05-07T10:50:00
 title: "Review: list_user_invitations gibt bei Parse-Fehler stilles leeres Array zurück"
 area: frontend / api
 files:
-  - ../shifty-dioxus/src/api.rs:1127-1171
+  - shifty-dioxus/src/api.rs:1127-1171
 ---
 
 ## Beobachtung
@@ -11,7 +11,7 @@ files:
 Aus Frontend-Codebase-Map (`.planning/codebase/frontend/CONCERNS.md` §2),
 nicht reproduziert. **Bitte bestätigen oder als false positive markieren.**
 
-`list_user_invitations` in `../shifty-dioxus/src/api.rs:1127-1171` macht bei
+`list_user_invitations` in `shifty-dioxus/src/api.rs:1127-1171` macht bei
 Deserialization-Fehler folgendes (Zeilen 1163–1169):
 
 ```rust
