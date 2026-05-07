@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
+#[cfg(feature = "service-impl")]
 use shifty_utils::{derive_from_reference, LazyLoad};
 use time::{PrimitiveDateTime, Weekday};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, ToSchema)]
 pub struct ShiftplanTO {
     #[serde(default)]
     pub id: Uuid,
