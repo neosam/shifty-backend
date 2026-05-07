@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: "(planning next)"
-status: milestone_complete
-last_shipped: v1.1
-last_updated: "2026-05-04T09:00:00Z"
+milestone: v1.2
+milestone_name: Frontend rest-types Konsolidierung
+status: executing
+last_updated: "2026-05-07T13:22:40.398Z"
+last_activity: 2026-05-07 -- Phase 06 planning complete
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 5
   completed_plans: 0
   percent: 0
 ---
@@ -17,23 +17,31 @@ progress:
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0 + v1.1 archived)
+- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0 + v1.1 archived; v1.2 inline expanded)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v1.1-ROADMAP.md`
-- **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions)
+- **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped**: v1.1 Slot Capacity & Constraints (2026-05-04)
-- **Current focus**: Planning next milestone via `/gsd:new-milestone`
+- **Current milestone**: v1.2 Frontend rest-types Konsolidierung (planning, started 2026-05-07)
+- **Current focus**: Phase 6 — rest-types Unification & Frontend Compile-Through (Plan-Decomposition steht aus via `/gsd:plan-phase 6`)
 
 ## Current Position
 
-Milestone: v1.1 SHIPPED 2026-05-04. No active phase. No active plan.
+Phase: **Phase 6 — rest-types Unification & Frontend Compile-Through** (not started; awaits plan-decomposition)
+Plan: —
+Status: Ready to execute
+Last activity: 2026-05-07 -- Phase 06 planning complete
 
-- **Status**: milestone_complete. Workspace `cargo build --workspace` GREEN; `cargo test --workspace` 461 tests pass; `cargo run` boots cleanly to `127.0.0.1:3000`.
-- **Last action** (2026-05-04): v1.1 milestone closed. Archive at `milestones/v1.1-ROADMAP.md`. ROADMAP.md kollabiert auf `<details>`-Block. MILESTONES.md mit v1.1-Eintrag erweitert.
-- **Next**: `/gsd:new-milestone` zur Scope-Definition. Backlog-Optionen (aus v1.1-Deferred):
-  - Frontend-Workstream (shifty-dioxus) — UI für Capacity-Anzeige + Editor
-  - Min-Paid-Capacity / Skill-Matching — weitere Slot-Constraints
-  - Andere Backend-Themen (Performance, Reporting-UX, Permissions)
+- **Backend baseline**: `cargo check --workspace` GREEN (32 s); `cargo test --workspace --no-run` GREEN; 461 Tests grün (v1.1-Baseline). Diese Baseline wird in Phase 7 als Regressions-Schwelle gegen RC-01 verwendet.
+- **Frontend baseline**: `shifty-dioxus/` baut gegen seinen eigenen Fork `shifty-dioxus/rest-types/` v1.0.5-dev (1468 Zeilen). Backend-`rest-types` v1.13.0-dev hat 2041 Zeilen — 17 fehlende TO-Structs/Enums, 4 fehlende Felder, fehlende Match-Arme. Phase 6 schließt diese Lücke.
+- **Backlog (deferred to v1.3+)**: Frontend Capacity-Editor & `current_paid_count`-Anzeige (FUI-01, FUI-02), `VolunteerWork`/`UnpaidLeave`-UI (FUI-03), `cap_planned_hours_to_expected`-Settings-UI (FUI-04), Min-Paid-Capacity / Skill-Matching (SC-01, SC-02), 04-UAT Test 8 Re-Check, `/gsd:secure-phase 04`, zwei offene Review-Todos.
+
+## v1.2 Phase Plan
+
+| Phase | Goal | Requirements | Status |
+|-------|------|--------------|--------|
+| 6 — rest-types Unification & Frontend Compile-Through | Backend-`rest-types` als single source of truth verdrahten; Frontend-Fork löschen; alle fehlenden TOs adressieren bis WASM-Compile grün | RT-01, RT-02, RT-03, FC-01, FC-02 | Not started |
+| 7 — Runtime Smoke & Regression Safety | `dx serve` startet ohne Panics; manueller Login + Shiftplan-Navigation; Backend-Workspace ohne Regression | FC-03, RC-01 | Not started |
 
 ## Shipped Milestones
 
@@ -80,31 +88,36 @@ Milestone: v1.1 SHIPPED 2026-05-04. No active phase. No active plan.
 
 ### Constraints In Force
 
-- **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`).
-- **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`.
-- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert.
-- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs (Out of Scope für Backend-Milestones, aber DTO-Felder die Texte transportieren müssen Frontend-i18n-tauglich sein — Phase 5 D-08 hält das durch strukturierte Variants ohne Strings).
-- **Layered Architecture**: REST → Service (trait) → DAO (trait); `gen_service_impl!` für DI; `WHERE deleted IS NULL` in jeder DAO-Read-Query.
-- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. CLAUDE.md ist die durchsetzungsstärkere Regel — Plan-File `<objective>` darf CONTEXT.md-Tier-Hints overriden, wenn diese gegen die Konvention verstoßen würden (Phase-5-D-12-Präzedenz).
+- **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`). KEINE `git commit`/`git add` aus Agents heraus.
+- **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`. Für WASM-Builds in `shifty-dioxus/` ggf. `nix develop` für `wasm32-unknown-unknown`-Toolchain + `dx`/Tailwind.
+- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. (Für v1.2 nicht relevant — keine Reporting-Änderung.)
+- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. v1.2 fügt KEIN neues sichtbares UI hinzu (no-op-Match-Arme sind ausdrücklich ok), daher keine i18n-Pflicht. Falls ein Plan ausnahmsweise Text rendert, en/de/cs alle drei.
+- **Layered Architecture**: REST → Service (trait) → DAO (trait); `gen_service_impl!` für DI; `WHERE deleted IS NULL` in jeder DAO-Read-Query. (Backend-seitig in v1.2 nur `rest-types`-Cargo.toml-Anpassungen erwartet — keine Service/DAO-Edits.)
+- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. Plan-File `<objective>` darf CONTEXT.md-Tier-Hints overriden (Phase-5-D-12-Präzedenz).
+- **rest-types-Cross-Crate-Konstruktion**: Backend-`rest-types/Cargo.toml` hat ein `service-impl`-Feature, das auf das `service`-Crate zeigt. Frontend MUSS dieses Feature OFF lassen (`default-features = false`) — sonst zieht es das `service`-Crate in den WASM-Build und reißt die Toolchain auseinander. v1.2-Phase-6 muss verifizieren, dass das `default-features = false`-Setting tatsächlich greift.
 
-### Open Issues / Tech Debt for next milestone
+### Open Issues / Tech Debt for v1.3+ (post-v1.2)
 
-- **Frontend-Workstream (shifty-dioxus)** — UI-Anzeige `current_paid_count` / `max_paid_employees` per Slot + Capacity-Editor in Slot-Settings stehen aus.
-- **Min-Paid-Capacity / Skill-Matching** — weitere Slot-Constraints als künftige Backend-Features gemerkt.
-- **04-UAT Test 8** (idempotenter Cutover-Re-Run): manuell mit 403 verifiziert (vermutlich Setup-Issue, kein Code-Bug — abgedeckt durch passing Integration-Test). Bei nächster Cutover-Phase neu prüfen falls reproduzierbar.
-- **`/gsd:secure-phase 04`** wurde nicht ausgeführt — als bewusstes Skip akzeptiert. Falls für Compliance gefordert, separat nachreichen.
+- **Frontend User-facing Closure** — UI-Anzeige `current_paid_count`/`max_paid_employees`, Capacity-Editor in Slot-Settings, sichtbare `VolunteerWork`/`UnpaidLeave`-Rendering, `cap_planned_hours_to_expected`-Settings-UI. v1.2 macht den Compile-Pfad frei; v1.3 baut die UI darauf.
+- **Min-Paid-Capacity / Skill-Matching** — weitere Slot-Constraints als künftige Backend-Features gemerkt (SC-01, SC-02).
+- **04-UAT Test 8** (idempotenter Cutover-Re-Run): bei nächster Cutover-Phase neu prüfen.
+- **`/gsd:secure-phase 04`** — als bewusstes Skip akzeptiert; Compliance separat klären falls gefordert.
+- **Zwei offene Review-Todos** (`list_user_invitations` silent-empty, OIDC `silentRenewIframe`) — eigener Todo-Lifecycle.
+- **Drift-Detection-Skript** als langfristige Versicherung — sobald Phase 6 die strukturelle Lösung (eine Crate) etabliert hat, ist ein CI-Diff-Skript überflüssig. Falls die Konsolidierung aus irgendeinem Grund nicht kompletter Erfolg ist, wäre ein `compare-rest-types.sh` der Fallback (CONCERNS §1 "Fix Approach Option 1").
 
 ## Session Continuity
 
 **To resume work in a new session:**
 
 1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones — v1.0 + v1.1)
-2. Read `.planning/ROADMAP.md` (collapsed milestone format)
+2. Read `.planning/ROADMAP.md` (collapsed v1.0/v1.1, expanded v1.2 mit Phasen 6 + 7)
 3. Read this file (`STATE.md`) — current position
-4. Optional: `.planning/milestones/v1.1-ROADMAP.md` für Detail-Audit der v1.1-Arbeit (Phase 5 D-decisions, Patterns, Wave-Topologie)
+4. Read `.planning/REQUIREMENTS.md` — v1.2-Requirements (RT/FC/RC) und Traceability
+5. Read `.planning/codebase/frontend/CONCERNS.md` §1 — die konkrete Drift-Inventur, die Phase 6 abarbeiten muss
+6. Optional: `.planning/codebase/frontend/INTEGRATIONS.md` — `api.rs`-Endpoint-Map und OIDC-Notes für Phase-7-UAT-Setup
 
-**Next command**: `/gsd:new-milestone` zur Scope-Definition des nächsten Iterations-Themas (Frontend-Workstream, weitere Backend-Features, etc.).
+**Next command**: `/gsd:plan-phase 6` zur Decomposition der rest-types-Unification in Plans (Wave-Topologie-Vorschlag steht im ROADMAP.md unter Phase 6 "Notes for plan-phase").
 
 ---
 
-*State updated: 2026-05-04 — v1.1 milestone closed. Phase 5 SHIPPED. Ready for next milestone planning.*
+*State updated: 2026-05-07 — v1.2 milestone in planning. Phasen 6–7 definiert (7/7 Requirements gemappt). Plan-Decomposition für Phase 6 als Nächstes.*

@@ -112,10 +112,55 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Aktive Milestone
+## Current Milestone: v1.2 Frontend rest-types Konsolidierung
 
-Siehe `.planning/ROADMAP.md`. Vorletzte Milestone (v1.1 — Slot Capacity)
-abgeschlossen am 2026-05-04. Nächste Milestone noch nicht definiert —
-`/gsd:new-milestone` als nächster Schritt. Vorgemerkt als wahrscheinlicher
-Scope: **Frontend-Konsolidierung** (rest-types vereinheitlichen + Drift
-schließen + v1.0/v1.1-Frontend-Backlog abarbeiten, ~3–5 Tage).
+**Goal:** Backend-`rest-types` wird single source of truth — Frontend depends
+darauf ohne eigene Fork-Crate. Drift-Tax-Risiko strukturell beseitigt; keine
+neuen User-facing-Features.
+
+**Target outcomes:**
+- Genau eine `rest-types`-Crate im Workspace (`rest-types/`); `shifty-dioxus/rest-types/` gelöscht
+- `shifty-dioxus/Cargo.toml` zeigt auf die Backend-Crate mit `default-features = false`
+  (kein WASM-inkompatibler `service`-Pull-In)
+- Frontend kompiliert gegen den echten Backend-API-Stand: alle bisher fehlenden
+  TOs/Enum-Varianten verfügbar; Match-Arme erschöpfend (minimal/no-op-Rendering OK,
+  neue UI ist explizit nicht in Scope)
+- `cargo build` im Frontend-Subordner grün; `dx serve`-Smoke-Test grün
+- Backend-Tests bleiben grün (keine Regression)
+
+**Bewusst nicht in v1.2:**
+- Capacity-Editor in Slot-Settings, sichtbare `current_paid_count`-Anzeige
+- `VolunteerWork`/`UnpaidLeave`-Kategorien als UI-Element
+- Min-Paid-Capacity / Skill-Matching (Backend-Backlog für v1.3+)
+- 04-UAT Test 8 Re-Check, `/gsd:secure-phase 04` (separat)
+- Die zwei offenen Review-Todos (`list_user_invitations` silent-empty,
+  `silentRenewIframe`) — eigener Todo-Lifecycle
+
+**Folgemilestone-Vorschau:** v1.3 könnte den User-facing Closure (Capacity-Editor,
+neue API-Felder im UI sichtbar) übernehmen. Plan-Disziplin-Caveat ist nach v1.2
+durch Compile-Zwang abgesichert: jede künftige Backend-API-Änderung bricht das
+Frontend, falls dort nicht mit-angepasst.
+
+## Active Milestones Index
+
+Siehe `.planning/ROADMAP.md`. Geshipt:
+- v1.0 Range-Based Absence Management — 2026-05-03 (Phasen 1–4)
+- v1.1 Slot Capacity & Constraints — 2026-05-04 (Phase 5)
+- v1.2 Frontend rest-types Konsolidierung — *in planning*
+
+## Evolution
+
+Dieses Dokument entwickelt sich an Phase-Übergängen und Milestone-Grenzen.
+
+**Nach jedem Phase-Übergang** (via `/gsd:transition`):
+1. Requirements invalidiert? → unter "Bewusst nicht in v1.x" mit Begründung
+2. Requirements validiert? → in MILESTONES.md verlinken mit Phase-Referenz
+3. Neue Requirements aufgetaucht? → "Folgemilestone-Vorschau" anpassen
+4. Decisions zu loggen? → in den Constraints-Abschnitt oder `.planning/extracted-learnings/`
+5. "Was ist Shifty" noch akkurat? → nachziehen wenn die Realität gedriftet ist
+
+**Nach jeder Milestone** (via `/gsd:complete-milestone`):
+1. Komplettreview aller Sektionen
+2. Constraints-Audit: noch gültig?
+3. Bekannte Constraints: was wurde gelöst, was bleibt
+4. Backlog-Items aus STATE.md → in den Folgemilestone-Vorschau heben oder fallenlassen
