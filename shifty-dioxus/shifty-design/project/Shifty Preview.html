@@ -159,28 +159,39 @@
 <div id="root"></div>
 <script type="text/babel" src="preview-data.jsx"></script>
 <script type="text/babel" src="modal.jsx"></script>
+<script type="text/babel" src="absences.jsx"></script>
 <script type="text/babel">
 const { useState, useMemo, useEffect } = React;
-const { PEOPLE, PERSON_BY_ID, WEEK_DEFAULT, YEAR_SUMMARY, MY_SHIFTS } = window.SHIFTY_DATA;
+const { PEOPLE, PERSON_BY_ID, WEEK_DEFAULT, YEAR_SUMMARY, MY_SHIFTS, ABSENCES, ABSENCE_CATEGORIES, UNAVAILABILITY_BY_PERSON, FEATURE_FLAGS } = window.SHIFTY_DATA;
 
 // ─── shared bits ─────────────────────────────────────────────
-// Top-level nav. Admin-only items are grouped under "Verwaltung" so the bar
-// stays narrow enough to never need horizontal scroll on a laptop.
-const ROUTES = [
+// Top-level nav. HR/admin sees the full bar with a "Verwaltung" dropdown for
+// admin-only pages. A regular employee gets a flat nav with the routes that
+// match their permissions: Schichtplan, Meine Schichten, Mein Zeitkonto,
+// Abwesenheiten (own only).
+const ROUTES_HR = [
   { id: 'shiftplan', label: 'Schichtplan' },
   { id: 'my-shifts', label: 'Meine Schichten' },
   { id: 'overview',  label: 'Jahresübersicht' },
 ];
+const ROUTES_EMPLOYEE = [
+  { id: 'shiftplan', label: 'Schichtplan' },
+  { id: 'my-shifts', label: 'Meine Schichten' },
+  { id: 'overview',  label: 'Mein Zeitkonto' },
+  { id: 'absences',  label: 'Abwesenheiten' },
+];
 const ADMIN_GROUP = {
   label: 'Verwaltung',
   items: [
-    { id: 'employees', label: 'Mitarbeiter' },
-    { id: 'billing',   label: 'Abrechnungszeiträume' },
-    { id: 'users',     label: 'Benutzerverwaltung' },
+    { id: 'employees',  label: 'Mitarbeiter' },
+    { id: 'absences',   label: 'Abwesenheiten' },
+    { id: 'billing',    label: 'Abrechnungszeiträume' },
+    { id: 'users',      label: 'Benutzerverwaltung' },
   ],
 };
 
-function TopBar({ route, setRoute, currentUser, theme, setTheme }) {
+function TopBar({ route, setRoute, currentUser, theme, setTheme, viewAs }) {
+  const isHr = viewAs !== 'employee';
   const themeIcon = theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '⌬';
   const themeTitle = theme === 'dark' ? 'Dunkel' : theme === 'light' ? 'Hell' : 'System';
   const [menuOpen, setMenuOpen] = useState(false);
@@ -245,12 +256,12 @@ function TopBar({ route, setRoute, currentUser, theme, setTheme }) {
         Shifty<span style={{ color: 'var(--accent)' }}>.</span>
       </span>
       <nav className="topbar-nav">
-        {ROUTES.map((r) => (
+        {(isHr ? ROUTES_HR : ROUTES_EMPLOYEE).map((r) => (
           <button key={r.id} onClick={() => handleNav(r.id)} style={navBtnStyle(route === r.id)}>
             {r.label}
           </button>
         ))}
-        <span ref={adminMenuRef} data-admin-menu className="topbar-admin-wrap" style={{ position: 'relative', display: 'inline-block' }}>
+        {isHr && <span ref={adminMenuRef} data-admin-menu className="topbar-admin-wrap" style={{ position: 'relative', display: 'inline-block' }}>
           <button
             ref={adminTriggerRef}
             className="topbar-admin-trigger"
@@ -294,9 +305,9 @@ function TopBar({ route, setRoute, currentUser, theme, setTheme }) {
             </div>
             );
           })()}
-        </span>
+        </span>}
         {/* Mobile flattens the dropdown into an inline labelled section. Hidden on desktop via CSS. */}
-        <div className="topbar-admin-mobile" style={{ display: 'none' }}>
+        {isHr && <div className="topbar-admin-mobile" style={{ display: 'none' }}>
           <div style={{
             fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
             color: 'var(--ink-muted)', padding: '12px 14px 4px',
@@ -307,7 +318,7 @@ function TopBar({ route, setRoute, currentUser, theme, setTheme }) {
               {it.label}
             </button>
           ))}
-        </div>
+        </div>}
       </nav>
       <span className="topbar-mobile-spacer" style={{ display: 'none', flex: 1 }} />
       <button
@@ -463,14 +474,34 @@ function SchichtplanPage({ onSlotClick }) {
           display: 'grid', gridTemplateColumns: '76px repeat(6, minmax(140px, 1fr))', minWidth: 920,
         }}>
           <div style={{ ...headerCell, borderRight: '1px solid var(--border)', position: 'sticky', left: 0, zIndex: 3 }} />
-          {w.days.map((d, i) => (
-            <div key={i} style={{ ...headerCell, borderRight: i < 5 ? '1px solid var(--border)' : 'none' }}>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>{d.long}, {d.date}</div>
-              <div className="mono" style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 2 }}>
-                {dayTotals[i].toFixed(1)}h
+          {w.days.map((d, i) => {
+            const personMarkers = UNAVAILABILITY_BY_PERSON[editingFor] || [];
+            const dayMarker = personMarkers[i];
+            // Aggregate: also show the count of *other* people with absences on this day
+            const othersAbsent = Object.entries(UNAVAILABILITY_BY_PERSON)
+              .filter(([pid, ms]) => pid !== editingFor && ms[i] && ms[i].kind !== 'manual_unavailable')
+              .length;
+            return (
+              <div key={i} style={{ ...headerCell, borderRight: i < 5 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{d.long}, {d.date}</div>
+                  {dayMarker && <UnavailabilityChip marker={dayMarker} compact />}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, gap: 6 }}>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--ink-muted)' }}>
+                    {dayTotals[i].toFixed(1)}h
+                  </div>
+                  {othersAbsent > 0 && (
+                    <span title={`${othersAbsent} weitere Personen abwesend`} className="mono" style={{
+                      fontSize: 10, fontWeight: 600,
+                      padding: '0 5px', borderRadius: 999,
+                      background: 'var(--surface-2)', color: 'var(--ink-muted)',
+                    }}>−{othersAbsent}</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {w.hours.map((h, hi) => (
             <React.Fragment key={h}>
@@ -490,6 +521,8 @@ function SchichtplanPage({ onSlotClick }) {
                 const stateBg = colConflict ? 'var(--bad-soft)' : missing ? 'var(--warn-soft)' : 'var(--surface)';
                 const editingPerson = PERSON_BY_ID[editingFor];
                 const editingAssigned = cell.assigned.some((a) => a.id === editingFor);
+                const editingMarker = (UNAVAILABILITY_BY_PERSON[editingFor] || [])[di];
+                const editingAbsent = editingMarker && editingMarker.kind !== 'manual_unavailable';
                 return (
                   <div key={di}
                     style={{
@@ -520,31 +553,40 @@ function SchichtplanPage({ onSlotClick }) {
                       overflowY: 'auto', overflowX: 'hidden',
                       alignContent: 'flex-start',
                     }}>
-                      {cell.assigned.map((a, i) => (
-                        <PersonChip key={i} person={PERSON_BY_ID[a.id]} conflict={a.conflict} />
-                      ))}
+                      {cell.assigned.map((a, i) => {
+                        const personMarker = (UNAVAILABILITY_BY_PERSON[a.id] || [])[di];
+                        const isAbsent = personMarker && personMarker.kind !== 'manual_unavailable';
+                        return (
+                          <PersonChip key={i} person={PERSON_BY_ID[a.id]} conflict={a.conflict} dim={isAbsent} />
+                        );
+                      })}
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         if (editingAssigned) {
                           alert('Entfernen: ' + editingPerson.name + ' aus ' + w.days[di].long + ' ' + h);
+                        } else if (editingAbsent) {
+                          // Reverse-warning aus POST /shiftplan-edit/booking — nicht-blockierend
+                          const meta = window.categoryMeta(editingMarker.data.category);
+                          const ok = confirm('⚠ Konflikt-Hinweis (nicht blockierend)\n\n' + editingPerson.name + ' hat an diesem Tag eine ' + meta.label + '-Abwesenheit eingetragen.\n\nBuchung trotzdem anlegen?');
+                          if (ok) alert('Buchung angelegt — Reverse-Warning gespeichert.');
                         } else {
                           alert('Hinzufügen: ' + editingPerson.name + ' zu ' + w.days[di].long + ' ' + h);
                         }
                       }}
-                      title={editingAssigned ? `${editingPerson.name} entfernen` : `${editingPerson.name} hinzufügen`}
+                      title={editingAssigned ? `${editingPerson.name} entfernen` : editingAbsent ? `Achtung: ${editingPerson.name} ist abwesend` : `${editingPerson.name} hinzufügen`}
                       style={{
                         position: 'absolute',
                         top: 6, right: 6,
                         width: 20, height: 20, padding: 0, lineHeight: '18px',
-                        border: '1px solid ' + (editingAssigned ? 'var(--bad)' : 'var(--border-strong)'),
-                        background: editingAssigned ? 'var(--bad-soft)' : 'var(--surface)',
-                        color: editingAssigned ? 'var(--bad)' : 'var(--ink-soft)',
+                        border: '1px solid ' + (editingAssigned ? 'var(--bad)' : editingAbsent ? 'var(--warn)' : 'var(--border-strong)'),
+                        background: editingAssigned ? 'var(--bad-soft)' : editingAbsent ? 'var(--warn-soft)' : 'var(--surface)',
+                        color: editingAssigned ? 'var(--bad)' : editingAbsent ? 'var(--warn)' : 'var(--ink-soft)',
                         borderRadius: 3, cursor: 'pointer', fontSize: 14, fontWeight: 700,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         zIndex: 2,
-                      }}>{editingAssigned ? '−' : '+'}</button>
+                      }}>{editingAssigned ? '−' : editingAbsent ? '!' : '+'}</button>
                   </div>
                 );
               })}
@@ -840,12 +882,14 @@ function SlotModal({ slot, onClose }) {
 }
 
 // ─── Meine Schichten ─────────────────────────────────────────
-function MyShiftsPage() {
+function MyShiftsPage({ setRoute }) {
   return (
     <div style={{ padding: 18, maxWidth: 760, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, fontWeight: 600, margin: '6px 0 18px', letterSpacing: '-0.01em' }}>Meine Schichten</h1>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {MY_SHIFTS.map((w) => (
+        {MY_SHIFTS.map((w) => {
+          const meta = w.absence ? window.categoryMeta(w.absence.category) : null;
+          return (
           <div key={w.week} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', background: 'var(--surface-alt)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
@@ -853,46 +897,73 @@ function MyShiftsPage() {
               </div>
               <div className="mono" style={{ fontSize: 14, fontWeight: 600 }}>{w.total.toFixed(1)}h</div>
             </div>
+            {w.absence && (
+              <div style={{
+                padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
+                background: meta.soft, borderBottom: '1px solid var(--border)',
+                borderLeft: `3px solid ${meta.color}`,
+              }}>
+                <span style={{ width: 22, height: 22, borderRadius: 4, background: meta.color, color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{meta.short}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{meta.label} · {w.absence.from.split('-').reverse().join('.')} – {w.absence.to.split('-').reverse().join('.')}</div>
+                  {w.absence.description && <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{w.absence.description}</div>}
+                </div>
+                <button onClick={() => setRoute && setRoute('absences')} style={{
+                  padding: '5px 10px', fontSize: 12, fontWeight: 500,
+                  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--r-sm)', color: 'var(--ink)', cursor: 'pointer',
+                }}>Verwalten →</button>
+              </div>
+            )}
             <div>
-              {w.days.map((d, i) => (
+              {w.days.map((d, i) => {
+                const showWarn = d.note?.startsWith('⚠') || d.warning;
+                return (
                 <div key={i} className="my-shifts-day" style={{
                   display: 'grid', gridTemplateColumns: '110px 1fr 60px',
                   padding: '10px 16px', alignItems: 'center', gap: 12,
                   borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                  background: d.note?.startsWith('⚠') ? 'var(--warn-soft)' : 'transparent',
+                  background: showWarn ? 'var(--warn-soft)' : d.absent ? meta?.soft : 'transparent',
+                  position: 'relative',
                 }}>
-                  <div className="mono" style={{ fontSize: 12, color: 'var(--ink-muted)' }}>{d.day}</div>
+                  {d.absent && !showWarn && <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: meta.color }} />}
+                  <div className="mono" style={{ fontSize: 12, color: d.absent ? meta.color : 'var(--ink-muted)', fontWeight: d.absent ? 600 : 400 }}>{d.day}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {d.items.length === 0 ? (
-                      <span style={{ fontSize: 12, color: 'var(--ink-muted)', fontStyle: 'italic' }}>{d.note || 'frei'}</span>
+                      <span style={{ fontSize: 12, color: d.absent ? meta.color : 'var(--ink-muted)', fontStyle: 'italic', fontWeight: d.absent ? 600 : 400 }}>
+                        {d.absent ? meta.label : (d.note || 'frei')}
+                      </span>
                     ) : d.items.map((it, j) => (
-                      <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="mono" style={{ fontSize: 12, fontWeight: 500 }}>{it.time}</span>
+                      <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: d.absent ? 0.65 : 1 }}>
+                        <span className="mono" style={{ fontSize: 12, fontWeight: 500, textDecoration: d.absent ? 'line-through' : 'none' }}>{it.time}</span>
                         <span style={{ padding: '1px 7px', borderRadius: 'var(--r-sm)', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12, fontWeight: 600 }}>{it.area}</span>
                       </div>
                     ))}
+                    {d.warning && <span style={{ fontSize: 12, color: 'var(--warn)', fontWeight: 600 }}>⚠ {d.warning}</span>}
                     {d.note && d.note.startsWith('⚠') && <span style={{ fontSize: 12, color: 'var(--warn)', fontWeight: 600 }}>{d.note}</span>}
                   </div>
-                  <div className="mono" style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-muted)', textAlign: 'right' }}>
-                    {d.hours > 0 ? `${d.hours.toFixed(1)}h` : '—'}
+                  <div className="mono" style={{ fontSize: 12, fontWeight: 500, color: d.absent ? meta.color : 'var(--ink-muted)', textAlign: 'right' }}>
+                    {d.absent && d.items.length === 0 ? '0h' : d.hours > 0 ? `${d.hours.toFixed(1)}h` : '—'}
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           </div>
-        ))}
+        );})}
       </div>
     </div>
   );
 }
 
 // ─── Jahresübersicht ─────────────────────────────────────────
-function OverviewPage({ setRoute }) {
+function OverviewPage({ setRoute, viewAs }) {
+  const isHr = viewAs !== 'employee';
+  const heading = isHr ? 'Jahresübersicht' : 'Mein Zeitkonto';
   const max = Math.max(...YEAR_SUMMARY.flatMap((w) => [w.required, w.paid]));
   return (
     <div style={{ padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>Jahresübersicht</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>{heading}</h1>
         <div style={{ flex: 1 }} />
         <button style={navBtn}>‹</button>
         <span className="mono" style={{ fontSize: 14, fontWeight: 600, padding: '0 6px' }}>2026</span>
@@ -973,7 +1044,7 @@ function OverviewPage({ setRoute }) {
 }
 
 // ─── Mitarbeiter ─────────────────────────────────────────────
-function EmployeesPage({ onSelect, selected, modalVariant }) {
+function EmployeesPage({ onSelect, selected, modalVariant, setRoute }) {
   const [filter, setFilter] = useState('');
   const filtered = PEOPLE.filter((p) => p.name.toLowerCase().includes(filter.toLowerCase()));
   return (
@@ -1016,7 +1087,7 @@ function EmployeesPage({ onSelect, selected, modalVariant }) {
       </div>
 
       <div className="employees-detail">
-        <EmployeeDetail person={PERSON_BY_ID[selected]} onBack={() => onSelect(null)} modalVariant={modalVariant} />
+        <EmployeeDetail person={PERSON_BY_ID[selected]} onBack={() => onSelect(null)} modalVariant={modalVariant} setRoute={setRoute} />
       </div>
     </div>
   );
@@ -1031,7 +1102,7 @@ function TupleRow({ label, value, dim }) {
   );
 }
 
-function EmployeeDetail({ person, onBack, modalVariant: modalVariantProp }) {
+function EmployeeDetail({ person, onBack, modalVariant: modalVariantProp, setRoute }) {
   const [year, setYear] = useState(2026);
   const [contractOpen, setContractOpen] = useState(false);
   const [contractInitial, setContractInitial] = useState(null);
@@ -1313,6 +1384,7 @@ function EmployeeDetail({ person, onBack, modalVariant: modalVariantProp }) {
         open={extraOpen}
         onClose={() => setExtraOpen(false)}
         variant={modalVariant}
+        onGoToAbsences={() => setRoute && setRoute('absences')}
       />
     </div>
   );
@@ -1351,7 +1423,7 @@ function BillingPage({ detailLayout = 'split' }) {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>Abrechnungszeiträume</h1>
           <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 2 }}>
-            Snapshots der Stunden pro SalesPerson für die Lohnabrechnung. Beim Anlegen wird der Zeitraum eingefroren.
+            Snapshots der Stunden pro SalesPerson für die Lohnabrechnung.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1494,15 +1566,6 @@ function BillingDetailPage({ period, onBack, layout }) {
               <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999, background: 'var(--good-soft)', color: 'var(--good)', fontWeight: 600 }}>Aktiv</span>
             )}
           </div>
-        </div>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          fontSize: 11, padding: '4px 10px', borderRadius: 999,
-          background: 'var(--surface-2)', color: 'var(--ink-muted)',
-          fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
-          alignSelf: 'flex-start',
-        }}>
-          <span aria-hidden="true">🔒</span> Eingefroren · Read-only
         </div>
       </div>
 
@@ -1826,7 +1889,7 @@ function BillingDetailSplit({ rows, selectedId, onSelect, period }) {
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--ink-muted)', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-          <span aria-hidden="true">🔒</span> Werte sind beim Anlegen am {period.createdAt} eingefroren. Spätere Änderungen an Schichten oder Stunden wirken sich nicht mehr aus.
+          Angelegt am {period.createdAt} von {period.createdBy}.
         </div>
       </div>
     </div>
@@ -1984,7 +2047,8 @@ function App() {
   const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{
     "modalVariant": "center",
     "workingHoursLayout": "cards",
-    "billingDetailLayout": "cards"
+    "billingDetailLayout": "cards",
+    "viewAs": "hr"
   }/*EDITMODE-END*/;
   const [tweaks, setTweaks] = useState(TWEAK_DEFAULS);
   const [tweaksOpen, setTweaksOpen] = useState(false);
@@ -2037,14 +2101,23 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <TopBar route={route} setRoute={setRoute} currentUser={currentUser} theme={theme} setTheme={setTheme} />
+      <TopBar route={route} setRoute={setRoute} currentUser={currentUser} theme={theme} setTheme={setTheme} viewAs={tweaks.viewAs} />
       <main style={{ flex: 1, maxWidth: 1400, width: '100%', margin: '0 auto', minWidth: 0 }}>
-        {route === 'shiftplan' && <SchichtplanPage onSlotClick={setSlot} />}
-        {route === 'my-shifts' && <MyShiftsPage />}
-        {route === 'overview'  && <OverviewPage setRoute={setRoute} />}
-        {route === 'employees' && <EmployeesPage onSelect={setSelectedEmployee} selected={selectedEmployee} modalVariant={tweaks.modalVariant} />}
-        {route === 'billing'   && <BillingPage detailLayout={tweaks.billingDetailLayout} />}
-        {route === 'users'     && <UsersPage />}
+        {(() => {
+          // Employees only have access to: shiftplan, my-shifts, overview, absences.
+          // Snap any admin-only route back to shiftplan when viewing as employee.
+          const employeeRoutes = ['shiftplan', 'my-shifts', 'overview', 'absences'];
+          const effectiveRoute = (tweaks.viewAs === 'employee' && !employeeRoutes.includes(route)) ? 'shiftplan' : route;
+          return (<>
+        {effectiveRoute === 'shiftplan' && <SchichtplanPage onSlotClick={setSlot} />}
+        {effectiveRoute === 'my-shifts' && <MyShiftsPage setRoute={setRoute} />}
+        {effectiveRoute === 'overview'  && <OverviewPage setRoute={setRoute} viewAs={tweaks.viewAs} />}
+        {effectiveRoute === 'employees' && <EmployeesPage onSelect={setSelectedEmployee} selected={selectedEmployee} modalVariant={tweaks.modalVariant} setRoute={setRoute} />}
+        {effectiveRoute === 'absences'  && <AbsencePage currentUser={currentUser} modalVariant={tweaks.modalVariant} viewAs={tweaks.viewAs} />}
+        {effectiveRoute === 'billing'   && <BillingPage detailLayout={tweaks.billingDetailLayout} />}
+        {effectiveRoute === 'users'     && <UsersPage />}
+          </>);
+        })()}
       </main>
       <SlotModal slot={slot} onClose={() => setSlot(null)} />
 
@@ -2067,7 +2140,22 @@ function App() {
             }}>×</button>
           </div>
           <div style={{ padding: 14, overflowY: 'auto' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 16, marginBottom: 6 }}>
+              Rolle (Abwesenheiten)
+            </div>
+            <div style={{ display: 'flex', background: 'var(--surface-alt)', padding: 2, borderRadius: 'var(--r-md)' }}>
+              {[['hr', 'HR / Admin'], ['employee', 'Mitarbeiter']].map(([k, lbl]) => (
+                <button key={k} onClick={() => updateTweak('viewAs', k)} style={{
+                  flex: 1, padding: '5px 10px', borderRadius: 'var(--r-sm)', border: 'none',
+                  background: tweaks.viewAs === k ? 'var(--surface)' : 'transparent',
+                  color: tweaks.viewAs === k ? 'var(--ink)' : 'var(--ink-muted)',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  boxShadow: tweaks.viewAs === k ? '0 1px 2px rgba(15,18,30,0.06)' : 'none',
+                }}>{lbl}</button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 16, marginBottom: 6 }}>
               Modal-Stil
             </div>
             <ModalVariantTweak value={tweaks.modalVariant} onChange={(v) => updateTweak('modalVariant', v)} />

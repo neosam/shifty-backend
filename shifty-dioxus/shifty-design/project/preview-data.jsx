@@ -69,31 +69,108 @@ const YEAR_SUMMARY = (() => {
 })();
 
 // "Meine Schichten" — Astrid's upcoming shifts
+// Week 17 fully overlaps absence a-001 (Vacation 20.04–26.04). Per UX-spec these
+// bookings stay (no auto-cleanup) but get the booking_on_absence_day reverse-warning.
 const MY_SHIFTS = [
   {
     week: 17, year: 2026, range: '20.04 – 26.04',
+    absence: { id: 'a-001', category: 'Vacation', from: '2026-04-20', to: '2026-04-26', description: 'Familienurlaub Italien' },
     days: [
-      { day: 'Mo 20.04', items: [{ time: '09:00–13:00', area: 'Laden' }, { time: '14:00–17:00', area: 'Laden' }], hours: 7.0 },
-      { day: 'Di 21.04', items: [], hours: 0 },
-      { day: 'Mi 22.04', items: [{ time: '09:00–13:00', area: 'Laden' }], hours: 4.0 },
-      { day: 'Do 23.04', items: [{ time: '09:00–12:00', area: 'Laden' }], hours: 3.0 },
-      { day: 'Fr 24.04', items: [{ time: '13:00–18:00', area: 'Laden' }], hours: 5.0, note: '⚠ Konflikt: 14:00 doppelt gebucht' },
-      { day: 'Sa 25.04', items: [{ time: '14:00–18:00', area: 'Backen' }], hours: 4.0 },
+      { day: 'Mo 20.04', date: '2026-04-20', items: [{ time: '09:00–13:00', area: 'Laden' }, { time: '14:00–17:00', area: 'Laden' }], hours: 7.0, absent: true, warning: 'Buchung auf Urlaubstag' },
+      { day: 'Di 21.04', date: '2026-04-21', items: [], hours: 0, absent: true },
+      { day: 'Mi 22.04', date: '2026-04-22', items: [{ time: '09:00–13:00', area: 'Laden' }], hours: 4.0, absent: true, warning: 'Buchung auf Urlaubstag' },
+      { day: 'Do 23.04', date: '2026-04-23', items: [{ time: '09:00–12:00', area: 'Laden' }], hours: 3.0, absent: true, warning: 'Buchung auf Urlaubstag' },
+      { day: 'Fr 24.04', date: '2026-04-24', items: [{ time: '13:00–18:00', area: 'Laden' }], hours: 5.0, absent: true, warning: 'Buchung auf Urlaubstag' },
+      { day: 'Sa 25.04', date: '2026-04-25', items: [{ time: '14:00–18:00', area: 'Backen' }], hours: 4.0, absent: true, warning: 'Buchung auf Urlaubstag' },
     ],
     total: 23.0,
   },
   {
     week: 18, year: 2026, range: '27.04 – 03.05',
     days: [
-      { day: 'Mo 27.04', items: [{ time: '09:00–13:00', area: 'Laden' }], hours: 4.0 },
-      { day: 'Di 28.04', items: [{ time: '09:00–17:00', area: 'Laden' }], hours: 8.0 },
-      { day: 'Mi 29.04', items: [], hours: 0 },
-      { day: 'Do 30.04', items: [{ time: '09:00–13:00', area: 'Laden' }], hours: 4.0 },
-      { day: 'Fr 01.05', items: [], hours: 0, note: 'Feiertag' },
-      { day: 'Sa 02.05', items: [{ time: '10:00–14:00', area: 'Laden' }], hours: 4.0 },
+      { day: 'Mo 27.04', date: '2026-04-27', items: [{ time: '09:00–13:00', area: 'Laden' }], hours: 4.0 },
+      { day: 'Di 28.04', date: '2026-04-28', items: [{ time: '09:00–17:00', area: 'Laden' }], hours: 8.0 },
+      { day: 'Mi 29.04', date: '2026-04-29', items: [], hours: 0 },
+      { day: 'Do 30.04', date: '2026-04-30', items: [{ time: '09:00–13:00', area: 'Laden' }], hours: 4.0 },
+      { day: 'Fr 01.05', date: '2026-05-01', items: [], hours: 0, note: 'Feiertag' },
+      { day: 'Sa 02.05', date: '2026-05-02', items: [{ time: '10:00–14:00', area: 'Laden' }], hours: 4.0 },
     ],
     total: 20.0,
   },
 ];
 
-window.SHIFTY_DATA = { PEOPLE, PERSON_BY_ID, WEEK_DEFAULT, YEAR_SUMMARY, MY_SHIFTS };
+// ─── Absence-Domain (Range-based, Backend v1.0) ──────────────
+// Mirrors AbsencePeriodTO from rest-types: from_date / to_date inclusive.
+// Stunden pro Tag werden serverseitig aus dem gültigen Vertrag abgeleitet
+// (derive_hours_for_range) — Frontend hält nur Range + Kategorie + $version.
+const ABSENCE_CATEGORIES = {
+  Vacation:    { id: 'Vacation',    label: 'Urlaub',            short: 'U',  color: 'var(--good)',      soft: 'var(--good-soft)' },
+  SickLeave:   { id: 'SickLeave',   label: 'Krank',             short: 'K',  color: 'var(--bad)',       soft: 'var(--bad-soft)' },
+  UnpaidLeave: { id: 'UnpaidLeave', label: 'Unbezahlter Urlaub',short: 'UU', color: 'var(--ink-muted)', soft: 'var(--surface-2)' },
+};
+
+// Sample AbsencePeriodTOs. Mix of past, current and future ranges.
+// Note: WEEK_DEFAULT week = KW17/2026 (20.04 – 26.04).
+const ABSENCES = [
+  { id: 'a-001', sales_person_id: 'p3', category: 'Vacation',    from_date: '2026-04-20', to_date: '2026-04-26', description: 'Familienurlaub Italien', created: '2026-03-10T09:14:00Z', deleted: null, version: 'v-1', warnings: [
+    { kind: 'absence_overlaps_booking', data: { absence_id: 'a-001', booking_id: 'b-771', date: '2026-04-22' } },
+    { kind: 'absence_overlaps_booking', data: { absence_id: 'a-001', booking_id: 'b-772', date: '2026-04-23' } },
+  ]},
+  { id: 'a-002', sales_person_id: 'p5', category: 'SickLeave',   from_date: '2026-04-22', to_date: '2026-04-24', description: 'Grippe — Attest liegt vor', created: '2026-04-22T07:02:00Z', deleted: null, version: 'v-1', warnings: [
+    { kind: 'absence_overlaps_booking', data: { absence_id: 'a-002', booking_id: 'b-803', date: '2026-04-22' } },
+    { kind: 'absence_overlaps_manual_unavailable', data: { absence_id: 'a-002', unavailable_id: 'u-44' } },
+  ]},
+  { id: 'a-003', sales_person_id: 'p11', category: 'Vacation',   from_date: '2026-05-04', to_date: '2026-05-15', description: 'Urlaub Mai', created: '2026-02-18T11:30:00Z', deleted: null, version: 'v-1', warnings: [] },
+  { id: 'a-004', sales_person_id: 'p1', category: 'Vacation',    from_date: '2026-07-13', to_date: '2026-08-02', description: 'Sommerurlaub', created: '2026-01-05T16:55:00Z', deleted: null, version: 'v-1', warnings: [] },
+  { id: 'a-005', sales_person_id: 'p8', category: 'UnpaidLeave', from_date: '2026-06-01', to_date: '2026-06-07', description: 'Familienangelegenheit', created: '2026-04-12T08:21:00Z', deleted: null, version: 'v-1', warnings: [] },
+  { id: 'a-006', sales_person_id: 'p2', category: 'Vacation',    from_date: '2026-03-23', to_date: '2026-03-27', description: 'Skiurlaub', created: '2026-01-30T14:12:00Z', deleted: null, version: 'v-1', warnings: [] },
+  { id: 'a-007', sales_person_id: 'p4', category: 'SickLeave',   from_date: '2026-04-13', to_date: '2026-04-15', description: '', created: '2026-04-13T08:05:00Z', deleted: null, version: 'v-1', warnings: [] },
+  { id: 'a-008', sales_person_id: 'p9', category: 'Vacation',    from_date: '2026-04-27', to_date: '2026-05-03', description: 'Pfingsten verlängert', created: '2026-03-22T10:00:00Z', deleted: null, version: 'v-1', warnings: [] },
+];
+
+// Per-day UnavailabilityMarker for the current shiftplan week, keyed by sales_person_id.
+// Mirrors UnavailabilityMarkerTO. `Both` indicates redundant manual_unavailable after cutover.
+// Index 0..5 = Mo..Sa to match WEEK_DEFAULT.days.
+const UNAVAILABILITY_BY_PERSON = {
+  p3:  [ {kind:'absence_period', data:{absence_id:'a-001', category:'Vacation'}},
+         {kind:'absence_period', data:{absence_id:'a-001', category:'Vacation'}},
+         {kind:'absence_period', data:{absence_id:'a-001', category:'Vacation'}},
+         {kind:'absence_period', data:{absence_id:'a-001', category:'Vacation'}},
+         {kind:'absence_period', data:{absence_id:'a-001', category:'Vacation'}},
+         {kind:'absence_period', data:{absence_id:'a-001', category:'Vacation'}} ],
+  p5:  [ null,
+         null,
+         {kind:'absence_period', data:{absence_id:'a-002', category:'SickLeave'}},
+         {kind:'both',           data:{absence_id:'a-002', category:'SickLeave'}},
+         {kind:'absence_period', data:{absence_id:'a-002', category:'SickLeave'}},
+         null ],
+  p10: [ null, null, null, null, {kind:'manual_unavailable'}, {kind:'manual_unavailable'} ],
+  p12: [ null, null, null, null, null, {kind:'manual_unavailable'} ],
+};
+
+// Cutover feature flag (`absence_range_source_active`). After flip, ExtraHours
+// for V/SK/UL is deprecated → POST returns 403 ExtraHoursCategoryDeprecatedErrorTO.
+const FEATURE_FLAGS = { absence_range_source_active: true };
+
+// Vacation entitlement per person for the current year.
+// Shape mirrors a backend "vacation_quota" view: total contractual days +
+// carryover from previous year, plus already-approved/used days.
+// (Backend may compute "used" from absence ranges; we mirror it for the demo.)
+const VACATION_QUOTA = {
+  p1:  { year: 2026, total: 28, carryover: 3,  used: 4,  pending: 0 },
+  p2:  { year: 2026, total: 28, carryover: 0,  used: 12, pending: 0 },
+  p3:  { year: 2026, total: 24, carryover: 2,  used: 7,  pending: 0 },
+  p4:  { year: 2026, total: 28, carryover: 5,  used: 0,  pending: 0 },
+  p5:  { year: 2026, total: 26, carryover: 1,  used: 8,  pending: 0 },
+  p6:  { year: 2026, total: 28, carryover: 0,  used: 14, pending: 0 },
+  p7:  { year: 2026, total: 28, carryover: 4,  used: 6,  pending: 0 },
+  p8:  { year: 2026, total: 28, carryover: 2,  used: 10, pending: 0 },
+  p9:  { year: 2026, total: 20, carryover: 0,  used: 5,  pending: 0 },
+  p10: { year: 2026, total: 0,  carryover: 0,  used: 0,  pending: 0 }, // freiwillig
+  p11: { year: 2026, total: 16, carryover: 0,  used: 3,  pending: 0 },
+  p12: { year: 2026, total: 0,  carryover: 0,  used: 0,  pending: 0 }, // freiwillig
+  p13: { year: 2026, total: 24, carryover: 1,  used: 8,  pending: 0 },
+  p14: { year: 2026, total: 28, carryover: 0,  used: 11, pending: 0 },
+};
+
+window.SHIFTY_DATA = { PEOPLE, PERSON_BY_ID, WEEK_DEFAULT, YEAR_SUMMARY, MY_SHIFTS, ABSENCES, ABSENCE_CATEGORIES, UNAVAILABILITY_BY_PERSON, FEATURE_FLAGS, VACATION_QUOTA };

@@ -324,32 +324,61 @@ function ContractModal({ open, onClose, variant, initial }) {
   );
 }
 
-function ExtraHoursModal({ open, onClose, variant }) {
+function ExtraHoursModal({ open, onClose, variant, onGoToAbsences }) {
   const [date, setDate]     = useStateM('17.04.2026');
-  const [cat, setCat]       = useStateM('Urlaub');
+  const [cat, setCat]       = useStateM('Zusatzarbeit');
   const [hours, setHours]   = useStateM(8);
   const [note, setNote]     = useStateM('');
 
+  const flagOn = (window.SHIFTY_DATA && window.SHIFTY_DATA.FEATURE_FLAGS && window.SHIFTY_DATA.FEATURE_FLAGS.absence_range_source_active);
+
+  // Nach absence_range_source_active=true antwortet der Server für diese Kategorien mit 403
+  // ExtraHoursCategoryDeprecatedErrorTO → Frontend leitet auf die neue Abwesenheits-Maske um.
+  const deprecatedCats = { 'Urlaub': 'Vacation', 'Krank': 'SickLeave', 'Unbezahlt': 'UnpaidLeave' };
+
   const cats = [
-    { id: 'Urlaub',       color: 'var(--good)',   soft: 'var(--good-soft)' },
-    { id: 'Krank',        color: 'var(--bad)',    soft: 'var(--bad-soft)' },
+    { id: 'Urlaub',       color: 'var(--good)',   soft: 'var(--good-soft)',   deprecated: flagOn },
+    { id: 'Krank',        color: 'var(--bad)',    soft: 'var(--bad-soft)',    deprecated: flagOn },
+    { id: 'Unbezahlt',    color: 'var(--ink-muted)', soft: 'var(--surface-2)', deprecated: flagOn },
     { id: 'Zusatzarbeit', color: 'var(--accent)', soft: 'var(--accent-soft)' },
     { id: 'Feiertage',    color: 'var(--warn)',   soft: 'var(--warn-soft)' },
-    { id: 'Unbezahlt',    color: 'var(--ink-muted)', soft: 'var(--surface-2)' },
   ];
+
+  const isDeprecated = !!deprecatedCats[cat] && flagOn;
 
   return (
     <Modal
       open={open} onClose={onClose} variant={variant}
       title="Sonstige Stunden hinzufügen"
-      subtitle="Urlaub, Krankheit, Zusatzarbeit oder Feiertage eintragen."
+      subtitle="Zusatzarbeit oder Feiertage eintragen."
       width={460}
       footer={<>
         <Btn kind="ghost" onClick={onClose}>Abbrechen</Btn>
-        <Btn kind="primary" onClick={onClose}>Hinzufügen</Btn>
+        {isDeprecated
+          ? <Btn kind="primary" onClick={() => { onClose && onClose(); onGoToAbsences && onGoToAbsences(); }}>Zur Abwesenheits-Maske</Btn>
+          : <Btn kind="primary" onClick={onClose}>Hinzufügen</Btn>}
       </>}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {isDeprecated && (
+        <div style={{
+          marginBottom: 12, padding: '10px 12px',
+          background: 'var(--warn-soft)', border: '1px solid var(--warn)',
+          borderRadius: 'var(--r-md)', color: 'var(--ink)',
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <span style={{ color: 'var(--warn)', fontSize: 14, lineHeight: '20px' }}>⚠</span>
+          <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>Diese Kategorie ist nicht mehr hier verfügbar</div>
+            <div style={{ color: 'var(--ink-soft)' }}>
+              <strong>{cat}</strong> ({deprecatedCats[cat]}) wird ab v1.0 als <em>Zeitraum</em> in der neuen Maske <strong>„Abwesenheiten"</strong> erfasst — Stunden werden automatisch aus dem gültigen Vertrag abgeleitet.
+            </div>
+            <div className="mono" style={{ marginTop: 6, fontSize: 11, color: 'var(--ink-muted)' }}>
+              HTTP 403 · extra_hours_category_deprecated
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, opacity: isDeprecated ? 0.5 : 1, pointerEvents: isDeprecated ? 'none' : 'auto' }}>
         <Field label="Datum">
           <TextInput type="date" value={toIso(date)} onChange={(e) => setDate(fromIso(e.target.value))} />
         </Field>
@@ -370,9 +399,11 @@ function ExtraHoursModal({ open, onClose, variant }) {
                     color: active ? c.color : 'var(--ink-soft)',
                     fontSize: 12, fontWeight: active ? 600 : 500, cursor: 'pointer',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
+                    opacity: c.deprecated && !active ? 0.6 : 1,
                   }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, display: 'inline-block' }} />
                   {c.id}
+                  {c.deprecated && <span title="Wird in der neuen Abwesenheits-Maske erfasst" style={{ fontSize: 10, color: 'var(--warn)' }}>⚠</span>}
                 </button>
               );
             })}
