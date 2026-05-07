@@ -26,7 +26,8 @@ wasm-bindgen-futures = "0.4.47"
 gloo-timers = { version = "0.3.0", features = ["futures"] }
 
 [dependencies.rest-types]
-path = "rest-types"
+path = "../rest-types"
+default-features = false
 
 [dependencies.uuid]
 version = "1.17"
