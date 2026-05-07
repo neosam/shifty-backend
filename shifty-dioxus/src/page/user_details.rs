@@ -194,7 +194,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                         }
                                                     }
                                                 }
-                                                if let Some(redeemed_at) = invitation.redeemed_at {
+                                                if let Some(redeemed_at) = &invitation.redeemed_at {
                                                     span { class: "text-small font-normal text-gray-500",
                                                         "{i18n.t(Key::Redeemed)}: {redeemed_at}"
                                                     }
