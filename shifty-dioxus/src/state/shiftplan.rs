@@ -56,7 +56,10 @@ impl Weekday {
             4 => Weekday::Friday,
             5 => Weekday::Saturday,
             6 => Weekday::Sunday,
-            _ => panic!("Invalid weekday number: {}", num),
+            // Defensive fallback (Phase 6, UI-SPEC Regel 3): invalid input maps
+            // to Monday rather than panicking the WASM runtime. Real callers pass
+            // values 0..=6 by construction.
+            _ => Weekday::Monday,
         }
     }
 }
@@ -169,6 +172,12 @@ pub struct Slot {
     pub to: time::Time,
     pub bookings: Rc<[Booking]>,
     pub min_resources: u8,
+    /// Optional cap on paid employees per slot/week (None = no limit).
+    /// Phase 6: state-mirror only; Phase v1.3 FUI-02 renders.
+    pub max_paid_employees: Option<u8>,
+    /// Live count of paid bookings for the view-week.
+    /// Phase 6: state-mirror only; Phase v1.3 FUI-01 renders.
+    pub current_paid_count: u8,
 }
 impl Identifiable for Slot {
     fn id(&self) -> Rc<str> {
@@ -193,6 +202,10 @@ impl From<&SlotTO> for Slot {
             to: slot.to,
             bookings: [].into(),
             min_resources: slot.min_resources,
+            max_paid_employees: slot.max_paid_employees,
+            // Default — loader.rs sets the real value when constructing
+            // Slot from a ShiftplanSlotTO (load_shift_plan, load_day_aggregate).
+            current_paid_count: 0,
         }
     }
 }
