@@ -1360,6 +1360,8 @@ mod week_cell_slot_render_tests {
             to: time::Time::from_hms(10, 0, 0).unwrap(),
             bookings: Rc::from(bookings),
             min_resources,
+            max_paid_employees: None,
+            current_paid_count: 0,
         }
     }
 
@@ -1603,6 +1605,8 @@ mod week_view_hour_snap_tests {
                 to: time::Time::from_hms(10, 30, 0).unwrap(),
                 bookings: Rc::from(Vec::<state::shiftplan::Booking>::new()),
                 min_resources: 1,
+                max_paid_employees: None,
+                current_paid_count: 0,
             };
             rsx! {
                 WeekCellSlot {

@@ -216,6 +216,8 @@ mod tests {
             to: time::Time::from_hms(16, 0, 0).unwrap(),
             bookings: Rc::new([]),
             min_resources: 1,
+            max_paid_employees: None,
+            current_paid_count: 0,
         }
     }
 
