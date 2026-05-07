@@ -2,6 +2,7 @@
 type: project_charter
 last_updated: 2026-05-07
 last_milestone: v1.2 Frontend rest-types Konsolidierung (shipped 2026-05-07)
+current_milestone: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten
 ---
 
 # Shifty — Project Charter
@@ -132,12 +133,15 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Current Milestone: v1.3 (next, planning ahead)
+## Current Milestone: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten
 
-**Status:** Noch nicht via `/gsd-new-milestone v1.3` gestartet — vorbereitet
-durch Note + Seed + FUI-A-Block in REQUIREMENTS-Backlog.
+**Status:** Aktiv seit 2026-05-07 — gestartet via `/gsd-new-milestone v1.3`.
 
-**Erwarteter Scope (basierend auf Seed `seeds/abwesenheiten-frontend-milestone.md`):**
+**Goal:** Dioxus-Frontend liefert sichtbare Abwesenheiten-Maske gegen
+`/absence-period` REST-API und schließt die UI-Restanten aus v1.1/v1.2
+(sichtbare Capacity-Anzeige, neue Extra-Hours-Kategorien, Settings-Felder).
+
+**Target features:**
 
 - **Frontend Abwesenheiten-Maske** (FUI-A-01..09) als Hauptthema: neue
   Top-Level-Route `absences` gegen `/absence-period` REST-API; HR-Sicht (alle
@@ -147,17 +151,17 @@ durch Note + Seed + FUI-A-Block in REQUIREMENTS-Backlog.
 - **Booking-Flow umstellen** auf `POST /shiftplan-edit/booking` für Reverse-
   Warnings; alter `POST /booking` bleibt für Bestands-Calls.
 - **Shiftplan-Wochen-View** mit `UnavailabilityMarkerTO` farbig pro Tag pro
-  Person.
+  Person inkl. `both`-Visual-Indication.
 - **Migrations-Hinweis-UX** für alte `extra_hours`-Buttons (vor Cutover
   Soft-Migration; nach Cutover `403 ExtraHoursCategoryDeprecatedErrorTO`-
   Handling).
-- **i18n** in De / En / Cs.
-- Optional: **User-facing Closure** der v1.1-/v1.2-Restanten (FUI-01..04 —
-  sichtbares `current_paid_count`/`max_paid_employees`, Capacity-Editor,
+- **i18n** in De / En / Cs für alle neuen Strings.
+- **User-facing Closure** der v1.1-/v1.2-Restanten (FUI-01..04 — sichtbares
+  `current_paid_count`/`max_paid_employees`, Capacity-Editor,
   `VolunteerWork`/`UnpaidLeave` als UI-Element, `cap_planned_hours_to_expected`-
   Settings).
 
-**Bewusst nicht in v1.3 (vorerst):**
+**Bewusst nicht in v1.3:**
 
 - Halbtage / Stundenebene für Abwesenheiten (Backend modelliert nur Ganztage)
 - Genehmigungs-Workflow (Backend kennt keinen Approval-Schritt)
@@ -165,15 +169,16 @@ durch Note + Seed + FUI-A-Block in REQUIREMENTS-Backlog.
 - Admin-Cutover-UI (`/admin/cutover/*` ist getrenntes Admin-Surface; CLI-Flow
   reicht weiter)
 
-**Quellen für den Start von v1.3:**
+**Quellen:**
 
-- `seeds/abwesenheiten-frontend-milestone.md` (Trigger erfüllt)
+- `seeds/abwesenheiten-frontend-milestone.md` (Trigger erfüllt; Sub-Phasen-Skizze)
 - `notes/abwesenheiten-frontend-context.md` (Briefing aus Backend-Brief +
   Mockup-Walkthrough)
 - `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md`
-  (Backend-Integrations-Brief, 174 Zeilen)
+  (Backend-Integrations-Brief)
 - `shifty-dioxus/shifty-design/project/absences.jsx` (Mockup, 729 Zeilen JSX —
   Vorlage für Dioxus-Portierung)
+- `.planning/REQUIREMENTS.md` + `.planning/ROADMAP.md` für v1.3-Scope
 
 ## Active Milestones Index
 
@@ -182,8 +187,7 @@ Siehe `.planning/ROADMAP.md`. Geshipt:
 - v1.1 Slot Capacity & Constraints — 2026-05-04 (Phase 5)
 - v1.2 Frontend rest-types Konsolidierung — 2026-05-07 (Phasen 6–7)
 
-Nächst: v1.3 (Frontend Abwesenheiten + optional UI-Closure-Restanten) —
-zu starten via `/gsd-new-milestone v1.3`.
+Aktiv: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten — siehe oben.
 
 ## Evolution
 

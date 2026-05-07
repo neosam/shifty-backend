@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: between-milestones
-milestone_name: v1.2 archived; v1.3 not yet started
-status: ready_for_new_milestone
-last_updated: "2026-05-07T19:50:00.000Z"
-last_activity: 2026-05-07 -- v1.2 milestone archived; awaiting /gsd-new-milestone v1.3
+milestone: v1.3
+milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
+status: planning
+last_updated: "2026-05-07T19:58:20.906Z"
+last_activity: 2026-05-07
 progress:
   total_phases: 0
   completed_phases: 0
@@ -22,15 +22,15 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v1.2-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped**: v1.2 Frontend rest-types Konsolidierung (2026-05-07)
-- **Current milestone**: keiner aktiv — v1.3 ist vorbereitet (Note + Seed + FUI-A-Briefing), aber noch nicht via `/gsd-new-milestone v1.3` gestartet
-- **Current focus**: Übergang zu v1.3 — Frontend-Abwesenheiten-Maske als Hauptthema, Seed `abwesenheiten-frontend-milestone.md` matcht beim Start automatisch
+- **Current milestone**: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (gestartet 2026-05-07)
+- **Current focus**: v1.3 — Frontend-Abwesenheiten-Maske gegen `/absence-period` als Hauptthema; UI-Closure FUI-01..04 sekundär
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: Between milestones (v1.2 archived; awaiting `/gsd-new-milestone v1.3`)
-Last activity: 2026-05-07 — v1.2 archived
+Status: Defining requirements
+Last activity: 2026-05-07 — Milestone v1.3 started
 
 ## Shipped Milestones
 
@@ -117,15 +117,17 @@ Last activity: 2026-05-07 — v1.2 archived
 
 **To resume work in a new session:**
 
-1. Read `.planning/MILESTONES.md` (alle bisher geshipten Milestones — v1.0, v1.1, v1.2)
-2. Read `.planning/ROADMAP.md` (alle drei Milestones collapsed)
-3. Read this file (`STATE.md`) — current position (between milestones)
-4. Read `.planning/notes/abwesenheiten-frontend-context.md` — v1.3 Briefing
-5. Read `.planning/seeds/abwesenheiten-frontend-milestone.md` — v1.3 Sub-Phasen-Skizze
-6. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief für Frontend-Abwesenheiten
+1. Read `.planning/MILESTONES.md` (geshipte Milestones — v1.0, v1.1, v1.2)
+2. Read `.planning/ROADMAP.md` (v1.3-Phasen aktiv; v1.0–v1.2 collapsed)
+3. Read `.planning/REQUIREMENTS.md` (v1.3-Scope, REQ-IDs, Coverage)
+4. Read this file (`STATE.md`) — current position
+5. Read `.planning/notes/abwesenheiten-frontend-context.md` — v1.3 Briefing
+6. Read `.planning/seeds/abwesenheiten-frontend-milestone.md` — Sub-Phasen-Skizze
+7. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief
+8. Read `shifty-dioxus/shifty-design/project/absences.jsx` — Mockup (729 Zeilen JSX)
 
-**Next command**: `/gsd-new-milestone v1.3` — startet den v1.3 Milestone-Setup-Workflow (questioning → research → requirements → roadmap). Der Seed `abwesenheiten-frontend-milestone.md` matcht beim Start automatisch und liefert die Sub-Phasen-Skizze.
+**Next command**: `/gsd-discuss-phase 8` — gather context für die erste v1.3-Phase (Absence-CRUD-Page Foundation), oder `/gsd-plan-phase 8` für direkten Plan-Einstieg.
 
 ---
 
-*State updated: 2026-05-07 — v1.2 milestone archived. Between milestones; v1.3 vorbereitet (Note + Seed + FUI-A-Block in archiviertem REQUIREMENTS), aber noch nicht gestartet.*
+*State updated: 2026-05-07 — v1.3 gestartet (Frontend Abwesenheiten + UI-Closure-Restanten). Phasen 8+ definiert in ROADMAP.md.*

@@ -5,9 +5,62 @@
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (shipped 2026-05-04) — siehe [`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
-- 📋 **v1.3 (next)** — Frontend Abwesenheiten-Maske geplant; siehe `seeds/abwesenheiten-frontend-milestone.md` und `notes/abwesenheiten-frontend-context.md`. Start via `/gsd-new-milestone v1.3`.
+- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (active, started 2026-05-07)
 
 ## Phases
+
+### v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (active)
+
+- [ ] **Phase 8: Absence-CRUD-Page Foundation** (Frontend)
+  Neue Top-Level-Route `absences` mit CRUD gegen `/absence-period`, HR/Employee-Sicht aus Auth-Context, Form (Range-Picker + Kategorie + Description) und Forward-Warnings-Anzeige.
+  Requirements: FUI-A-01, FUI-A-02, FUI-A-03, FUI-A-04
+  Success Criteria:
+  1. Route `/absences` ist via Menü erreichbar; HR-Privileg-Check schaltet Filter über alle Mitarbeiter frei (Auth-Context, kein User-Toggle)
+  2. Form erlaubt CRUD eines `AbsencePeriodTO` mit Datum-Range-Picker (Ganztage), Kategorie-Dropdown (`Vacation`/`SickLeave`/`UnpaidLeave`), Description; Self-Overlap-`422` wird als Validation-Error gerendert
+  3. `AbsencePeriodCreateResultTO.warnings[]` aus POST/PUT-Antwort wird als nicht-blockierende Hinweisliste angezeigt
+  4. `cargo build --target wasm32-unknown-unknown` grün; UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete)
+
+- [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
+  Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
+  Requirements: FUI-A-05, FUI-A-06
+  Success Criteria:
+  1. Booking aus Shiftplan-Editor postet auf `/shiftplan-edit/booking`; `BookingCreateResultTO.warnings[]` löst Dioxus-Confirm-Dialog aus (kein `window.confirm`) vor finaler Buchung
+  2. Wochen-Kopie postet auf `/shiftplan-edit/copy-week`; aggregierte `CopyWeekResultTO.warnings[]` werden in einer zusammengefassten Anzeige gerendert
+  3. Alter `POST /booking` bleibt parallel verfügbar (verifiziert durch grep-Check, dass alte Call-Sites unverändert sind)
+
+- [ ] **Phase 10: Shiftplan-View Unavailability-Marker** (Frontend)
+  Shiftplan-Wochen-View visualisiert `UnavailabilityMarkerTO` farbig pro Tag pro Person mit drei Visual-States.
+  Requirements: FUI-A-07
+  Success Criteria:
+  1. Wochen-View nutzt per-sales-person Endpoint `/shiftplan-info/{shiftplan_id}/{year}/{week}/sales-person/{sales_person_id}`
+  2. `UnavailabilityMarkerTO::AbsencePeriod` mit Kategorie-Farbe gerendert (Vacation = grün, SickLeave = orange, UnpaidLeave = grau — Final-Farben in UI-SPEC)
+  3. `UnavailabilityMarkerTO::ManualUnavailable` neutral gerendert; `UnavailabilityMarkerTO::Both` mit eigener Visual-Indication (signalisiert redundanten manuellen Eintrag nach Cutover, optional Aufräum-Button)
+
+- [ ] **Phase 11: Migrations-Hinweis-UX + Deprecation-Handling** (Frontend)
+  Alte `extra_hours`-basierten "Urlaub eintragen"-Eingangswege werden auf neue Maske umgelenkt; nach Cutover wird `403 ExtraHoursCategoryDeprecatedErrorTO` mit User-Hinweis abgefangen.
+  Requirements: FUI-A-08
+  Success Criteria:
+  1. `add_extra_hours_form.rs`, `extra_hours_modal.rs`, `add_extra_days_form.rs`, `add_extra_hours_choice.rs` verlinken für `Vacation` / `SickLeave` / `UnpaidLeave` auf `/absences` (Soft-Migration vor Cutover)
+  2. `403 ExtraHoursCategoryDeprecatedErrorTO`-Response wird abgefangen, Toast/Banner mit Migrations-Hinweis und Link zur neuen Maske gerendert
+  3. Cutover-Flag-Status (`absence_range_source_active`) wird defensiv gehandhabt: lesen immer aus `/absence-period`; Schreiben über alte Maske nur falls Flag noch aus, sonst Redirect
+
+- [ ] **Phase 12: UI-Closure v1.1/v1.2-Restanten** (Frontend)
+  Schließe sichtbares `current_paid_count`/`max_paid_employees`-Rendering, Capacity-Editor in Slot-Settings, sichtbare `VolunteerWork`/`UnpaidLeave`-Kategorien und `cap_planned_hours_to_expected`-Settings.
+  Requirements: FUI-01, FUI-02, FUI-03, FUI-04
+  Success Criteria:
+  1. `current_paid_count` ist im Shiftplan-Week-View pro Slot sichtbar; mit Layout-Variante `2/3 bezahlt` wenn `max_paid_employees` konfiguriert; `Warning::PaidEmployeeLimitExceeded` wird visuell hervorgehoben
+  2. Slot-Settings haben Capacity-Editor mit Clear-Button für `None` (kein Limit); Round-Trip-Test (open → save unverändert) bewahrt den Backend-Wert
+  3. `VolunteerWork` / `UnpaidLeave` werden in Extra-Hours-Listen sichtbar gerendert (kein `rsx! { "" }` mehr aus v1.2 Plan 06-04); Kategorien sind in der Anlage-Form auswählbar (sofern Cutover-Flag-Konsistenz erlaubt)
+  4. `cap_planned_hours_to_expected` ist im Sales-Person-Settings-UI als Toggle editierbar; Server-Round-Trip verifiziert
+
+- [ ] **Phase 13: i18n-Vollständigkeits-Audit + v1.3 Smoke-Closure** (Subsumption-Closure)
+  Cross-Phase i18n-Audit: alle in v1.3 hinzugefügten Strings sind in De / En / Cs vollständig. Plus Final-UAT auf Integrationsumgebung (Subsumption-Pattern wie v1.2 Phase 7).
+  Requirements: FUI-A-09
+  Success Criteria:
+  1. Alle in Phasen 8–12 hinzugefügten i18n-Keys sind in `en.rs`, `de.rs`, `cs.rs` vollständig (kein Locale::En-statt-Locale::De-Bug); diff-Audit dokumentiert
+  2. Final-UAT: HR-Login + Employee-Login je einmal durch alle drei Locales (Page-Load, Form-Anlage, Warning-Render, Deprecation-Toast)
+  3. Backend `cargo check --workspace` + `cargo test --workspace` re-verifiziert (keine Regression durch Frontend-Phasen-Coupling)
+  4. WASM-Build `cargo build --target wasm32-unknown-unknown` grün als finaler Compile-Gate
 
 <details>
 <summary>✅ v1.0 Range-Based Absence Management (Phasen 1–4) — SHIPPED 2026-05-03</summary>
@@ -49,8 +102,8 @@
 
 ## Progress
 
-| Phase | Milestone | Plans Complete | Status   | Completed  |
-|-------|-----------|----------------|----------|------------|
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
 | 1 — Absence Domain Foundation | v1.0 | 5/5 | Complete | 2026-05-01 |
 | 2 — Reporting Integration & Snapshot Versioning | v1.0 | 4/4 | Complete | 2026-05-02 |
 | 3 — Booking & Shift-Plan Konflikt-Integration | v1.0 | 6/6 | Complete | 2026-05-02 |
@@ -58,7 +111,13 @@
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
+| 8 — Absence-CRUD-Page Foundation | v1.3 | 0/? | Pending | — |
+| 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
+| 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
+| 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
+| 12 — UI-Closure v1.1/v1.2-Restanten | v1.3 | 0/? | Pending | — |
+| 13 — i18n-Vollständigkeits-Audit + v1.3 Smoke-Closure | v1.3 | 0/? | Pending | — |
 
 ---
 
-*Last updated: 2026-05-07 — v1.2 archived. Next milestone v1.3 (Frontend Abwesenheiten-Maske) geplant; via `/gsd-new-milestone v1.3` starten — Seed `abwesenheiten-frontend-milestone.md` matcht beim Start automatisch.*
+*Last updated: 2026-05-07 — v1.3 gestartet via `/gsd-new-milestone v1.3`. Phasen 8–13 abgeleitet aus 13 Requirements (FUI-A-01..09, FUI-01..04). 13/13 Coverage ✓.*
