@@ -26,14 +26,16 @@ wieder gegen die echte API. Keine neuen User-facing Features.
   `InvitationStatus`, etc.) — minimal/no-op-Rendering ist akzeptabel
 - [ ] **FC-02**: `cargo build --target wasm32-unknown-unknown` im
   `shifty-dioxus/`-Subordner grün
-- [ ] **FC-03**: `dx serve` startet das Frontend ohne Runtime-Panics; Login
-  + Navigation zur Shiftplan-Seite funktioniert manuell
+- [x] **FC-03**: `dx serve` startet das Frontend ohne Runtime-Panics; Login
+  + Navigation zur Shiftplan-Seite funktioniert manuell — verifiziert
+  durch User-UAT auf Integrationsumgebung 2026-05-07
 
 ### Regression Safety (RC)
 
-- [ ] **RC-01**: Backend-Workspace `cargo check --workspace` und
+- [x] **RC-01**: Backend-Workspace `cargo check --workspace` und
   `cargo test --workspace` bleiben grün (keine Regression durch Cross-
-  Crate-Änderungen am Backend-`rest-types`)
+  Crate-Änderungen am Backend-`rest-types`) — Phase-6-VERIFICATION V-Truth
+  #6 + #7 (466 Tests) plus Re-Verifikation 2026-05-07 zur Phase-7-Closure
 
 ## Future Requirements (deferred to v1.3+)
 
@@ -45,6 +47,51 @@ wieder gegen die echte API. Keine neuen User-facing Features.
 - **FUI-03**: `VolunteerWork` / `UnpaidLeave` als sichtbare Extra-Hours-
   Kategorien im Frontend-UI
 - **FUI-04**: `cap_planned_hours_to_expected` im Frontend-Settings-UI
+
+### Frontend Abwesenheiten-Maske (FUI-A) — v1.3-Kandidat
+
+Frontend-Sicht für die in v1.0 geshippte range-based Absence-Domain.
+Backend ist fertig (`/absence-period` CRUD, `WarningTO`,
+`UnavailabilityMarkerTO`, Cutover-Flag), Frontend hat aktuell keine
+Maske. Quellen: `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md`
+(Brief), `shifty-dioxus/shifty-design/project/absences.jsx` (Mockup,
+729 Zeilen). Begleitende Note: `notes/abwesenheiten-frontend-context.md`.
+Begleitender Seed: `seeds/abwesenheiten-frontend-milestone.md`.
+
+- **FUI-A-01**: Neue Top-Level-Route `absences` (Menü-Eintrag
+  "Abwesenheiten") mit CRUD gegen `/absence-period` (POST/GET/GET-by-id/
+  PUT/DELETE/GET-by-sales-person)
+- **FUI-A-02**: HR-Sicht (Auth-Privileg `hr`) zeigt Liste über alle
+  Mitarbeiter mit Filter; Employee-Sicht zeigt nur eigene Einträge.
+  Sicht-Auswahl kommt aus dem Auth-Context, nicht aus einem User-Toggle
+- **FUI-A-03**: Form-Komponente: Datum-Range-Picker (Ganztage),
+  Kategorie-Dropdown (`Vacation` / `SickLeave` / `UnpaidLeave`),
+  Description-Feld; Self-Overlap-`422`-Antwort wird als Validation-Error
+  gerendert
+- **FUI-A-04**: `AbsencePeriodCreateResultTO.warnings[]` aus POST/PUT-
+  Antwort wird als nicht-blockierende Hinweisliste angezeigt (Forward-
+  Warnings: Booking-Konflikt, Manual-Unavailable-Konflikt)
+- **FUI-A-05**: Booking-Flow im Shiftplan-Editor wird auf `POST
+  /shiftplan-edit/booking` umgestellt; `BookingCreateResultTO.warnings[]`
+  (Reverse-Warnings) werden als nicht-blockierender Confirm-Dialog vor
+  finaler Buchung gerendert. `POST /booking` bleibt parallel verfügbar
+- **FUI-A-06**: Wochen-Kopie nutzt `POST /shiftplan-edit/copy-week`;
+  aggregierte `CopyWeekResultTO.warnings[]` werden zusammengefasst
+  angezeigt
+- **FUI-A-07**: Shiftplan-Wochen-View nutzt den per-sales-person
+  Endpoint und rendert `ShiftplanDayTO.unavailable:
+  Option<UnavailabilityMarkerTO>` farbig pro Tag pro Person
+  (`absence_period` mit Kategorie-Farbe, `manual_unavailable`,
+  `both` mit eigener Visual-Indication)
+- **FUI-A-08**: Bestehende "Urlaub eintragen"-Buttons via `extra_hours`
+  (in `add_extra_hours_form.rs`, `extra_hours_modal.rs`, etc.) werden
+  vor Cutover auf die neue Maske verlinkt; nach Cutover wird
+  `403 ExtraHoursCategoryDeprecatedErrorTO` abgefangen und mit User-
+  Hinweis auf die neue Maske umgeleitet
+- **FUI-A-09**: i18n-Strings (Page-Titel, Kategorie-Labels, Warning-Texte,
+  Deprecation-Hinweis) sind in De / En / Cs vollständig (alle drei
+  Locales gleichzeitig erweitert, kein Locale::En-statt-Locale::De-Bug
+  wie historisch in `de.rs`)
 
 ### Backend Slot Constraints (SC)
 

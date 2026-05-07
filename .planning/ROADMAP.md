@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (shipped 2026-05-04) — siehe [`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md)
-- 🚧 **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (in planning, started 2026-05-07)
+- ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (closure-ready 2026-05-07, awaiting `/gsd-complete-milestone v1.2`)
 
 ## Phases
 
@@ -34,10 +34,12 @@
 
 </details>
 
-### 🚧 v1.2 Frontend rest-types Konsolidierung (in flight)
+### ✅ v1.2 Frontend rest-types Konsolidierung (Phasen 6–7) — READY TO ARCHIVE
 
-- [ ] **Phase 6: rest-types Unification & Frontend Compile-Through** — Backend-`rest-types` als single source of truth verdrahten, Frontend-Fork löschen, alle 17 fehlenden TOs/Enum-Varianten + 4 fehlenden Felder + Match-Arme im Frontend-Code adressieren bis `cargo build --target wasm32-unknown-unknown` grün ist.
-- [ ] **Phase 7: Runtime Smoke & Regression Safety** — `dx serve` startet ohne Runtime-Panics; Login + Shiftplan-Navigation manuell verifiziert; Backend-Workspace `cargo check` + `cargo test` ohne Regression nach Cargo-Feature-Umbau in `rest-types`.
+- [x] **Phase 6: rest-types Unification & Frontend Compile-Through** (5/5 plans) — completed 2026-05-07
+  Backend-`rest-types` als single source of truth verdrahtet, Frontend-Fork gelöscht, 17 fehlende TOs/Enum-Varianten + 4 fehlende Felder + Match-Arme im Frontend-Code adressiert; `cargo build --target wasm32-unknown-unknown` grün; 466 Backend-Tests grün ohne Regression. 8/8 V-Truths verified.
+- [x] **Phase 7: Runtime Smoke & Regression Safety** (1/1 plan) — completed 2026-05-07
+  Frontend-Boot, Login und Shiftplan-Navigation auf Integrationsumgebung verifiziert (User-UAT 2026-05-07); Backend `cargo check --workspace` + `cargo test --workspace` re-verifiziert (Subsumption von Phase-6 V-Truth #6 + #7 plus lokaler Re-Run). 4/4 Success Criteria verified.
 
 ## Phase Details
 
@@ -102,9 +104,9 @@ Plans:
 | 3 — Booking & Shift-Plan Konflikt-Integration | v1.0 | 6/6 | Complete | 2026-05-02 |
 | 4 — Migration & Cutover | v1.0 | 8/8 | Complete | 2026-05-03 |
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
-| 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 0/5 | Planned | — |
-| 7 — Runtime Smoke & Regression Safety | v1.2 | 0/0 | Not started | — |
+| 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
+| 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 
 ---
 
-*Last updated: 2026-05-07 — v1.2 milestone in planning. Phase 6: 5 plans across 3 waves (Wave 0 backend prep, Wave 1 cargo-swap, Wave 2 cluster-fixes, Wave 3 wasm-closure); Phase 7 plan-decomposition pending.*
+*Last updated: 2026-05-07 — v1.2 milestone closure-ready. Phase 6 (5/5 plans, 8/8 V-Truths verified) und Phase 7 (1/1 plan, 4/4 Success Criteria verified — Subsumption von Phase-6 + User-UAT auf Integrationsumgebung) abgeschlossen. Bereit für /gsd-complete-milestone v1.2.*

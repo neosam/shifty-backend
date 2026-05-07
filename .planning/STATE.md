@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Frontend rest-types Konsolidierung
-status: ready_to_plan
-last_updated: "2026-05-07T13:33:05.185Z"
-last_activity: 2026-05-07 -- Phase 06 execution started
+status: ready_to_complete
+last_updated: "2026-05-07T19:10:00.000Z"
+last_activity: 2026-05-07 -- Phase 7 verified, milestone closure-ready
 progress:
   total_phases: 2
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 0
-  percent: 50
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -22,15 +22,15 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v1.1-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped**: v1.1 Slot Capacity & Constraints (2026-05-04)
-- **Current milestone**: v1.2 Frontend rest-types Konsolidierung (planning, started 2026-05-07)
-- **Current focus**: Phase 6 — rest-types Unification & Frontend Compile-Through (Plan-Decomposition steht aus via `/gsd:plan-phase 6`)
+- **Current milestone**: v1.2 Frontend rest-types Konsolidierung (closure-ready 2026-05-07, awaiting `/gsd-complete-milestone v1.2`)
+- **Current focus**: Milestone-Closure — Phase 6 (5/5, 8/8 V-Truths) und Phase 7 (1/1, 4/4 Success Criteria) abgeschlossen. Nächster Schritt: `/gsd-complete-milestone v1.2` zur Archivierung; danach `/gsd-new-milestone v1.3` für Frontend-Abwesenheiten-Maske (Seed-Trigger erfüllt).
 
 ## Current Position
 
 Phase: 7
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-07
+Plan: 1/1 complete
+Status: Milestone closure-ready
+Last activity: 2026-05-07 — Phase 7 verified (User-UAT auf Integrationsumgebung + lokale cargo check/test Re-Verifikation)
 
 - **Backend baseline**: `cargo check --workspace` GREEN (32 s); `cargo test --workspace --no-run` GREEN; 461 Tests grün (v1.1-Baseline). Diese Baseline wird in Phase 7 als Regressions-Schwelle gegen RC-01 verwendet.
 - **Frontend baseline**: `shifty-dioxus/` baut gegen seinen eigenen Fork `shifty-dioxus/rest-types/` v1.0.5-dev (1468 Zeilen). Backend-`rest-types` v1.13.0-dev hat 2041 Zeilen — 17 fehlende TO-Structs/Enums, 4 fehlende Felder, fehlende Match-Arme. Phase 6 schließt diese Lücke.
@@ -40,8 +40,8 @@ Last activity: 2026-05-07
 
 | Phase | Goal | Requirements | Status |
 |-------|------|--------------|--------|
-| 6 — rest-types Unification & Frontend Compile-Through | Backend-`rest-types` als single source of truth verdrahten; Frontend-Fork löschen; alle fehlenden TOs adressieren bis WASM-Compile grün | RT-01, RT-02, RT-03, FC-01, FC-02 | Not started |
-| 7 — Runtime Smoke & Regression Safety | `dx serve` startet ohne Panics; manueller Login + Shiftplan-Navigation; Backend-Workspace ohne Regression | FC-03, RC-01 | Not started |
+| 6 — rest-types Unification & Frontend Compile-Through | Backend-`rest-types` als single source of truth verdrahten; Frontend-Fork löschen; alle fehlenden TOs adressieren bis WASM-Compile grün | RT-01, RT-02, RT-03, FC-01, FC-02 | ✓ Complete (5/5 plans, 8/8 V-Truths verified, 2026-05-07) |
+| 7 — Runtime Smoke & Regression Safety | `dx serve` startet ohne Panics; manueller Login + Shiftplan-Navigation; Backend-Workspace ohne Regression | FC-03, RC-01 | ✓ Complete (1/1 plan, 4/4 Success Criteria verified, 2026-05-07) |
 
 ## Shipped Milestones
 
@@ -116,8 +116,8 @@ Last activity: 2026-05-07
 5. Read `.planning/codebase/frontend/CONCERNS.md` §1 — die konkrete Drift-Inventur, die Phase 6 abarbeiten muss
 6. Optional: `.planning/codebase/frontend/INTEGRATIONS.md` — `api.rs`-Endpoint-Map und OIDC-Notes für Phase-7-UAT-Setup
 
-**Next command**: `/gsd:plan-phase 6` zur Decomposition der rest-types-Unification in Plans (Wave-Topologie-Vorschlag steht im ROADMAP.md unter Phase 6 "Notes for plan-phase").
+**Next command**: `/gsd-complete-milestone v1.2` — archiviert v1.2 (ROADMAP-Block in `milestones/v1.2-ROADMAP.md`, REQUIREMENTS in `milestones/v1.2-REQUIREMENTS.md`, MILESTONES.md-Eintrag, ROADMAP.md-Reorganisation, PROJECT.md Evolution-Review). Danach `/gsd-new-milestone v1.3` für Frontend Abwesenheiten-Maske — der Seed `seeds/abwesenheiten-frontend-milestone.md` matcht beim Start automatisch.
 
 ---
 
-*State updated: 2026-05-07 — v1.2 milestone in planning. Phasen 6–7 definiert (7/7 Requirements gemappt). Plan-Decomposition für Phase 6 als Nächstes.*
+*State updated: 2026-05-07 — v1.2 milestone closure-ready. Beide Phasen 6 und 7 abgeschlossen, alle 7 v1.2-Requirements (RT-01..03, FC-01..03, RC-01) abgehakt. Bereit für /gsd-complete-milestone v1.2 → /gsd-new-milestone v1.3.*
