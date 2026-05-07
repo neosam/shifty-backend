@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dx build)",
+      "Bash(cargo check:*)",
+      "Bash(grep:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo search:*)",
+      "Bash(cargo:*)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits"
+  }
+}

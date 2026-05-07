@@ -1,0 +1,41 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: "true"
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Cache Dioxus CLI
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/dx
+        key: ${{ runner.os }}-dioxus-v0.6.5
+        restore-keys: |
+          ${{ runner.os }}-dioxus-v0.6.5
+    - name: Install dioxus
+      run: |
+        if which dx > /dev/null; then
+          echo "dioxus is already installed"
+        else
+          cargo install dioxus-cli --locked
+        fi
+    # - name: Formatting
+    #   run: cargo fmt --all -- --check
+    #- name: Install tailwindcss
+    #  run: npm install tailwindcss
+    #- name: Run tailwindcss
+    #  run: npx tailwindcss -i ./input.css -o assets/tailwind.css
+    - name: Build local version
+      run: dx build

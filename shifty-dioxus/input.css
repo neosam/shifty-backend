@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+    background: var(--bg);
+    color: var(--ink);
+}
+
+/*
+ * Body baseline — see
+ * openspec/changes/redesign-typography-bump/specs/typography/spec.md.
+ * Sourced 1:1 from shifty-design/project/Shifty Preview.html.
+ */
+body {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+    body {
+        font-size: 15px;
+    }
+}
+
+:root {
+    --bg: #fbfbfc;
+    --surface: #ffffff;
+    --surface-alt: #f4f5f7;
+    --surface-2: #eef0f4;
+    --border: #e6e8ec;
+    --border-strong: #d0d3da;
+    --ink: #0e1117;
+    --ink-soft: #3a4150;
+    --ink-muted: #6b7382;
+    --accent: #3a4cd1;
+    --accent-ink: #ffffff;
+    --accent-soft: #eaecfb;
+    --good: #0e7a4d;
+    --good-soft: #defaee;
+    --warn: #a65a08;
+    --warn-soft: #fef0d6;
+    --bad: #b8281a;
+    --bad-soft: #fde4e1;
+    --modal-veil: rgba(14, 17, 23, 0.4);
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 10px;
+    /* PersonChip text color — identical in both themes by design (see .person-pill rule below). */
+    --chip-ink: #0e1117;
+}
+
+[data-theme="dark"] {
+    --bg: #0e1014;
+    --surface: #16191f;
+    --surface-alt: #1c2027;
+    --surface-2: #232831;
+    --border: #2a2f39;
+    --border-strong: #3a4151;
+    --ink: #eef0f4;
+    --ink-soft: #b8bdc7;
+    --ink-muted: #7a8290;
+    --accent: #8b97ff;
+    --accent-ink: #0e1014;
+    --accent-soft: #232a4a;
+    --good: #4ed59a;
+    --good-soft: #16322a;
+    --warn: #f0b766;
+    --warn-soft: #3a2a14;
+    --bad: #ef6a5b;
+    --bad-soft: #3a1c18;
+    --modal-veil: rgba(0, 0, 0, 0.6);
+    /* Identical to light theme — PersonChip text must stay dark on pastel
+       backgrounds even in dark mode (see .person-pill rule below). */
+    --chip-ink: #0e1117;
+}
+
+/*
+ * PersonChip dark-text invariant.
+ *
+ * Person pills carry a pastel background color set inline from
+ * `person.color`. The text on these pastel backgrounds must always render
+ * in dark ink, regardless of the active theme, so that contrast remains
+ * legible. The `!important` is intentional: it guarantees the rule wins
+ * over any theme-level color rule that future contributors might add. This
+ * is the only `!important` declared in this stylesheet.
+ *
+ * The class is applied conditionally by `PersonChip` (only when a color
+ * is present) — the dashed-border, no-color path uses `text-ink-soft` and
+ * intentionally does NOT carry `.person-pill`.
+ */
+.person-pill {
+    color: var(--chip-ink) !important;
+}
+
+@layer utilities {
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .scale-down-50 {
+        zoom: 0.5;
+    }
+
+    .scale-down-75 {
+        zoom: 0.75;
+    }
+
+    .scale-down-100 {
+        zoom: 1.0;
+    }
+}
+
+/*
+ * Dialog animations.
+ *
+ * Keyframes are defined here (CSS) and applied via inline `animation:`
+ * style on the panel/backdrop in `src/component/dialog.rs`. Inline
+ * application keeps variant-specific timing/easing close to where the
+ * variant is selected, while keyframe definitions live in CSS.
+ */
+@keyframes shifty-modal-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes shifty-modal-pop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shifty-modal-slide-right {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes shifty-modal-slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+/*
+ * Global focus ring for the redesigned form input atoms.
+ *
+ * Each `Form*Input` adds the `form-input` class so the component code does
+ * not need to inline focus styles. Uses design tokens for accent colors,
+ * so light/dark themes are handled automatically.
+ */
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}

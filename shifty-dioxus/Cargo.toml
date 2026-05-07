@@ -1,0 +1,80 @@
+[package]
+name = "shifty-dioxus"
+version = "1.13.0-dev"
+authors = ["Simon Goller <neosam+github@posteo.de>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dioxus = { version = "0.6.1", features = ["web", "router"] }
+
+# Debug
+tracing = "0.1.41"
+dioxus-logger = "0.6.2"
+reqwest = { version = "0.12.15", features = ["json"] }
+serde = { version = "1.0.219", features = ["rc"] }
+serde_json = "1.0.140"
+async-recursion = "1.1.1"
+futures = "0.3.30"
+thiserror = "2.0.17"
+futures-util = "0.3.30"
+js-sys = "0.3.77"
+manganis = "0.6.2"
+wasm-bindgen = "0.2.97"
+wasm-bindgen-futures = "0.4.47"
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+
+[dependencies.rest-types]
+path = "rest-types"
+
+[dependencies.uuid]
+version = "1.17"
+features = ["v4", "js"]
+[dependencies.time]
+version = "0.3.41"
+features = [
+    "macros",
+    "serde-human-readable",
+    "parsing",
+    "formatting",
+    "serde",
+    "std",
+]
+[dependencies.web-sys]
+version = "0.3.77"
+features = [
+    "Window",
+    "Navigator",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "CssStyleDeclaration",
+    "Node",
+    "Storage",
+    "MediaQueryList",
+    "MediaQueryListEvent",
+    "DomRect",
+    "EventTarget",
+    "MouseEvent",
+    "KeyboardEvent",
+]
+
+[profile]
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+tokio-test = "0.4"
+mockito = "1.2"
+dioxus-ssr = "0.6"

@@ -1,0 +1,92 @@
+[application]
+
+# App (Project) Name
+name = "shifty-dioxus"
+
+# Dioxus App Default Platform
+# desktop, web
+default_platform = "web"
+
+# `build` & `serve` dist path
+out_dir = "dist"
+
+# resource (assets) file folder
+asset_dir = "assets"
+
+[web.app]
+
+# HTML title tag content
+title = "Shifty"
+
+[web.watcher]
+
+# when watcher trigger, regenerate the `index.html`
+reload_html = true
+
+# which files or dirs will be watcher monitoring
+watch_path = ["src", "assets"]
+
+# include `assets` in web platform
+[web.resource]
+
+# CSS style file
+
+style = ["/tailwind.css"]
+
+# Javascript code file
+script = []
+
+[web.resource.dev]
+
+# Javascript code file
+# serve: [dev-server] only
+script = []
+
+[[web.proxy]]
+backend = "http://localhost:3000/billing-period"
+[[web.proxy]]
+backend = "http://localhost:3000/blocks"
+[[web.proxy]]
+backend = "http://localhost:3000/block-report"
+[[web.proxy]]
+backend = "http://localhost:3000/slot"
+[[web.proxy]]
+backend = "http://localhost:3000/auth-info"
+[[web.proxy]]
+backend = "http://localhost:3000/booking"
+[[web.proxy]]
+backend = "http://localhost:3000/custom-extra-hours"
+[[web.proxy]]
+backend = "http://localhost:3000/special-days"
+[[web.proxy]]
+backend = "http://localhost:3000/booking-information"
+[[web.proxy]]
+backend = "http://localhost:3000/booking-log"
+[[web.proxy]]
+backend = "http://localhost:3000/sales-person"
+[[web.proxy]]
+backend = "http://localhost:3000/authenticate"
+[[web.proxy]]
+backend = "http://localhost:3000/report"
+[[web.proxy]]
+backend = "http://localhost:3000/extra-hours"
+[[web.proxy]]
+backend = "http://localhost:3000/working-hours"
+[[web.proxy]]
+backend = "http://localhost:3000/version"
+[[web.proxy]]
+backend = "http://localhost:3000/permission"
+[[web.proxy]]
+backend = "http://localhost:3000/shiftplan-edit"
+[[web.proxy]]
+backend = "http://localhost:3000/shiftplan-info"
+[[web.proxy]]
+backend = "http://localhost:3000/shiftplan-catalog"
+[[web.proxy]]
+backend = "http://localhost:3000/week-message"
+[[web.proxy]]
+backend = "http://localhost:3000/text-templates"
+[[web.proxy]]
+backend = "http://localhost:3000/user-invitation"
+[[web.proxy]]
+backend = "http://localhost:3000/sales-person-shiftplan"
