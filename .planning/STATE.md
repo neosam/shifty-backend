@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Frontend rest-types Konsolidierung
 status: executing
-last_updated: "2026-05-07T13:22:40.398Z"
-last_activity: 2026-05-07 -- Phase 06 planning complete
+last_updated: "2026-05-07T13:33:05.185Z"
+last_activity: 2026-05-07 -- Phase 06 execution started
 progress:
   total_phases: 2
   completed_phases: 0
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: **Phase 6 — rest-types Unification & Frontend Compile-Through** (not started; awaits plan-decomposition)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-07 -- Phase 06 planning complete
+Phase: 06 (rest-types-unification-frontend-compile-through) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 06
+Last activity: 2026-05-07 -- Phase 06 execution started
 
 - **Backend baseline**: `cargo check --workspace` GREEN (32 s); `cargo test --workspace --no-run` GREEN; 461 Tests grün (v1.1-Baseline). Diese Baseline wird in Phase 7 als Regressions-Schwelle gegen RC-01 verwendet.
 - **Frontend baseline**: `shifty-dioxus/` baut gegen seinen eigenen Fork `shifty-dioxus/rest-types/` v1.0.5-dev (1468 Zeilen). Backend-`rest-types` v1.13.0-dev hat 2041 Zeilen — 17 fehlende TO-Structs/Enums, 4 fehlende Felder, fehlende Match-Arme. Phase 6 schließt diese Lücke.
