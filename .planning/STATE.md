@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T08:55:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-02 complete (VacationBalance Service-Impl + REST + DI; 7 unit tests; cargo test --workspace green)
+last_updated: "2026-05-08T11:05:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-03 complete (OpenAPI surface-assertion test; Option-B-Pivot vom flaky insta-snapshot weg; 3-run-determinism green)
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
-  percent: 33
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 3 of 6 (08-01 + 08-02 complete; 08-03 next — OpenAPI insta-Snapshot Refresh)
+Plan: 4 of 6 (08-01 + 08-02 + 08-03 complete; 08-04 next — Frontend Foundation: api/state/loader/i18n)
 Status: Executing Phase 08
-Last activity: 2026-05-08 -- Plan 08-02 complete (VacationBalance Service-Impl + REST + DI; 7 unit tests green)
+Last activity: 2026-05-08 -- Plan 08-03 complete (OpenAPI surface-assertion test, Option-B-Pivot)
 
 ## Shipped Milestones
 
@@ -62,6 +62,8 @@ Last activity: 2026-05-08 -- Plan 08-02 complete (VacationBalance Service-Impl +
 
 **v1.3 (Phasen 8+ — Frontend Abwesenheiten + UI-Closure-Restanten):**
 
+- **Surface-Assertion statt Full-Snapshot für OpenAPI-Drift-Detection** (Plan 08-03): Wenn ein Test einen `info.version`-bound Field aus `Cargo.toml` pinnt, schlägt er bei jedem Versions-Bump als Noise fehl. Lösung: Pfad-Liste + Schema-Namen-Liste + Tag-Namen-Liste via `assert!` auf `ApiDoc::openapi().paths.paths.keys()` etc., kein insta. Bodies pinnen wir NICHT — DTO-Feld-Churn wäre Noise. Pattern für künftige Crates, die utoipa::OpenApi nutzen.
+- **Plan-Pivot mit User-Approval-Pattern** (Plan 08-03): Wenn der Plan-Body eine Tool-/Werkzeug-Annahme macht, die seit Plan-Phase falsch geworden ist (hier: insta-snapshot bewusst entfernt), und der User eine Alternative approved, wird (a) Plan-Frontmatter `must_haves.truths`/`tags`/`files_modified`/`autonomous` aktualisiert, (b) die Plan-Body-Tasks NICHT umgeschrieben (historischer Record), (c) die SUMMARY.md ist die ground-truth was tatsächlich gebaut wurde, (d) im SUMMARY ein "Architectural Pivot (User-Approved)"-Eintrag dokumentiert das.
 - **Read-only Aggregat-DTO ohne `$version`-Field** (Plan 08-01): `VacationBalanceTO` ist ein berechnetes Aggregat — kein Optimistic-Lock-Konflikt möglich, daher entfällt das `$version`-Pattern aus AbsencePeriodTO. Bewusste Abweichung; Plan 08-02-REST-Endpoint liefert immer frische Werte.
 - **Wave-1-Foundation-Plan ohne Test-Code** (Plan 08-01): Trait + Domain + DTO als reine Interface-Foundation; Tests landen in Wave 2 (Plan 08-02), wo die Service-Impl gegen `MockVacationBalanceService` testbar wird. Dieses Pattern ersetzt das Wave-0-Stub-`#[ignore]`-Pattern für reine BL-Tier-Trait-Foundations und ist stiller als ein Stub.
 - **Active-Period-Split-on-today** (Plan 08-02): Wenn eine Vacation-Periode heute aktiv ist (`today ∈ [from, to]`), splittet `VacationBalanceServiceImpl::compute_balance` die Tage auf `clock.date_now()` als Stichtag — Vergangenheits-Anteil zu `used_days`, Zukunfts-Anteil zu `planned_days`. So gibt es keine Diskontinuität, wenn eine Periode genau heute beginnt oder endet, und das Frontend-Aggregat ist heute und morgen gleich aussagekräftig.
