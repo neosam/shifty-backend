@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T15:50:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-05 complete (AbsencesPage + AbsenceModal + 9 inline components + Route + TopBar entry + 11 dioxus-ssr snapshot tests; VALIDATION.md flipped to nyquist_compliant: true; WASM build green; 503/503 frontend tests green)
+last_updated: "2026-05-08T17:30:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-07 (Gap-Closure) complete (admin-auto-grant trigger + Feature-Flag REST + FE FeatureFlagsState + TopBar cutover-gate + HR-submenu + responsive AbsencesPage; cargo test --workspace + WASM build green; 509/509 FE tests green)
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 6
-  completed_plans: 5
-  percent: 83
+  total_plans: 7
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 6 of 6 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 complete; 08-06 next — UAT smoke)
-Status: Executing Phase 08 (Wave-0 closed via 08-05 Task 3 — VALIDATION.md flipped to nyquist_compliant: true, wave_0_complete: true, status approved)
-Last activity: 2026-05-08 -- Plan 08-05 complete (AbsencesPage + Modal + Routing + TopBar; 1685 LOC absences.rs; 11 snapshot tests; 4 atomic jj-commits 87dbcbe8/de3382bc/00ff958b/33ffc5ff)
+Plan: 6 of 7 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 + 08-07 complete; 08-06 next — UAT smoke)
+Status: Executing Phase 08 (Plan 08-07 Gap-Closure shipped: DEVUSER hat Vollzugriff via admin-auto-grant trigger; Feature-Flag REST exposed; FE TopBar cutover-gated; AbsencesPage responsive)
+Last activity: 2026-05-08 -- Plan 08-07 (Gap-Closure) complete (5 atomic jj-commits b02bb160/733a4904/e05603a5/148c628b/55c06e06 + plan-setup 3e5480ee + summary commit pending; admin-auto-grant trigger 4 tests, Feature-Flag REST 6 tests, FE state 3 tests, TopBar 42 tests inkl. 3 neue, AbsencesPage responsive WASM-grün)
 
 ## Shipped Milestones
 
@@ -62,6 +62,9 @@ Last activity: 2026-05-08 -- Plan 08-05 complete (AbsencesPage + Modal + Routing
 
 **v1.3 (Phasen 8+ — Frontend Abwesenheiten + UI-Closure-Restanten):**
 
+- **Admin-Auto-Grant via SQLite-Trigger** (Plan 08-07): Statt jede Privilege-Migration manuell mit einem `INSERT INTO role_privilege ('admin', 'X', ...)` zu duplizieren, läuft eine einmalige Migration `20260508120000_admin-auto-grant-privilege.sql` mit Backfill (alle existierenden Privilegien an admin) + AFTER-INSERT-Trigger (jedes neue Privileg auto-grant an admin). Beide Pfade nutzen `INSERT OR IGNORE` plus das existierende `UNIQUE(role_name, privilege_name)`-Constraint aus `20240426150045_user-roles.sql` als Idempotenz-Garant. DEVUSER hat in DEV automatisch alle Privilegien; Production-Deployment braucht keine manuelle Pflege mehr.
+- **Feature-Flag REST + FE-State** (Plan 08-07): `GET /feature-flag/{key}` als auth-only readable Endpoint mit fail-safe `enabled: false` für unknown keys. Frontend-`FeatureFlagsState` defaultet zu `Option<bool>::None` per Flag (nicht `Some(false)`), damit UI-Logik explizit `Some(true)` matcht — verhindert das "sichtbar/unsichtbar/sichtbar"-Flackern während des ersten Service-Loads.
+- **Static-Classification + Context-Overlay-Pattern für TopBar-Hierarchie** (Plan 08-07): `is_admin_target(target) -> bool` bleibt user-agnostisch und backwards-kompatibel; `is_admin_target_with_context(target, has_hr) -> bool` ist additiv und liftet `NavTarget::Absences` für HR-User in die Admin-Group, ohne die statische API zu brechen. Plan-08-05-Tests bleiben unangetastet (sales-only); Plan-08-07-Tests sind explizit auf das neue HR-Verhalten ausgelegt.
 - **Surface-Assertion statt Full-Snapshot für OpenAPI-Drift-Detection** (Plan 08-03): Wenn ein Test einen `info.version`-bound Field aus `Cargo.toml` pinnt, schlägt er bei jedem Versions-Bump als Noise fehl. Lösung: Pfad-Liste + Schema-Namen-Liste + Tag-Namen-Liste via `assert!` auf `ApiDoc::openapi().paths.paths.keys()` etc., kein insta. Bodies pinnen wir NICHT — DTO-Feld-Churn wäre Noise. Pattern für künftige Crates, die utoipa::OpenApi nutzen.
 - **Plan-Pivot mit User-Approval-Pattern** (Plan 08-03): Wenn der Plan-Body eine Tool-/Werkzeug-Annahme macht, die seit Plan-Phase falsch geworden ist (hier: insta-snapshot bewusst entfernt), und der User eine Alternative approved, wird (a) Plan-Frontmatter `must_haves.truths`/`tags`/`files_modified`/`autonomous` aktualisiert, (b) die Plan-Body-Tasks NICHT umgeschrieben (historischer Record), (c) die SUMMARY.md ist die ground-truth was tatsächlich gebaut wurde, (d) im SUMMARY ein "Architectural Pivot (User-Approved)"-Eintrag dokumentiert das.
 - **Read-only Aggregat-DTO ohne `$version`-Field** (Plan 08-01): `VacationBalanceTO` ist ein berechnetes Aggregat — kein Optimistic-Lock-Konflikt möglich, daher entfällt das `$version`-Pattern aus AbsencePeriodTO. Bewusste Abweichung; Plan 08-02-REST-Endpoint liefert immer frische Werte.
@@ -152,4 +155,4 @@ Last activity: 2026-05-08 -- Plan 08-05 complete (AbsencesPage + Modal + Routing
 
 ---
 
-*State updated: 2026-05-08 — Plan 08-05 abgeschlossen (AbsencesPage + AbsenceModal + 9 inline components + Routing + TopBar; 1685 LOC absences.rs; 11 dioxus-ssr snapshot tests; VALIDATION.md flipped to nyquist_compliant: true + wave_0_complete: true; FUI-A-01..04 alle erfüllt). Phase-8-Progress 5/6 (83%). Plan 08-06 als nächstes — UAT smoke.*
+*State updated: 2026-05-08 — Plan 08-07 (Gap-Closure) abgeschlossen (admin-auto-grant trigger + Feature-Flag REST + FE FeatureFlagsState + TopBar cutover-gate + HR-only Verwaltung-Submenu + responsive AbsencesPage layout; 5 atomic jj-commits + plan-setup + summary; cargo test --workspace + WASM build green; 509/509 FE tests). Phase-8-Progress 6/7 (86%). Plan 08-06 als nächstes — UAT smoke.*

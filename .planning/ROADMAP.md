@@ -118,7 +118,7 @@
 4. Neuer Backend-Resturlaubs-Endpoint (Shape Plan-Phase-Decision) liefert für `(sales_person_id [, year])` einen Wert mit entitled / used / planned / remaining (oder semantisch äquivalent); `hr ∨ self`-Permission analog zu `/absence-period`; OpenAPI-`#[utoipa::path]`-Annotation; `ToSchema` auf der DTO. Frontend-Komponenten `VacationEntitlementCard` (eigener User) und `VacationPerPersonList` (HR-Übersicht) konsumieren diesen Endpoint.
 5. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün (Backend-Erweiterung darf keine Regression verursachen); UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete + Resturlaubs-Anzeige) erfolgreich.
 
-**Plans:** 6 plans (3 Backend-Waves + 3 Frontend-Waves)
+**Plans:** 7 plans (3 Backend-Waves + 3 Frontend-Waves + 1 Gap-Closure-Plan)
 
 - [x] 08-01-PLAN.md — Service-Trait + Domain-Struct (`VacationBalanceService`) + DTO (`VacationBalanceTO`) — Wave 1, BL-Tier interface foundation (completed 2026-05-08)
 - [x] 08-02-PLAN.md — Service-Impl (BL-Tier per gen_service_impl!) + 7 Unit-Tests + REST-Endpoints (utoipa) + DI-Wiring in main.rs — Wave 2 (completed 2026-05-08)
@@ -126,6 +126,7 @@
 - [x] 08-04-PLAN.md — Frontend Foundation: api.rs (8 fns) + ShiftyError::Validation + state-types + loader + service-coroutines + 60 i18n-Keys (de/en/cs) + Dx-Proxy-Einträge — Wave 4 (completed 2026-05-08)
 - [x] 08-05-PLAN.md — AbsencesPage + AbsenceModal + 9 inline components (WarningList + CategoryBadge + StatusPill + VacationEntitlementCard + VacationPerPersonList + AbsenceList + AbsenceFilterBar + StatsGrid + DeleteConfirmDialog) + Route::Absences + TopBar entry + 11 dioxus-ssr snapshot tests + WASM-Build-Gate — Wave 5; closes Wave-0-Item-3 in VALIDATION.md (nyquist_compliant: true) (completed 2026-05-08)
 - [ ] 08-06-PLAN.md — UAT-Smoke (HR + Employee) + Final-Regression-Gates (cargo test --workspace + WASM-Build) — Wave 6 closure
+- [x] 08-07-PLAN.md — Gap-Closure: admin-auto-grant trigger sqlx-Migration + GET /feature-flag/{key} REST-Endpoint + Frontend FeatureFlagsState + TopBar Cutover-Gate + HR-Submenu + Responsive AbsencesPage Layout (completed 2026-05-08)
 
 **UI hint**: yes
 
@@ -144,7 +145,7 @@
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
-| 8 — Absence-CRUD-Page Foundation | v1.3 | 5/6 | In Progress | — |
+| 8 — Absence-CRUD-Page Foundation | v1.3 | 6/7 | In Progress | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
@@ -153,4 +154,4 @@
 
 ---
 
-*Last updated: 2026-05-08 — Plan 08-05 complete (AbsencesPage + Modal + 9 inline components + Routing + TopBar + 11 dioxus-ssr snapshot tests; FUI-A-01..04 erfüllt; VALIDATION.md flipped to nyquist_compliant: true). Phase 8 progress 5/6.*
+*Last updated: 2026-05-08 — Plan 08-07 (Gap-Closure) complete: admin-auto-grant trigger + Feature-Flag REST + FE FeatureFlagsState + TopBar cutover-gate + HR-submenu + responsive AbsencesPage. 7 jj-commits; cargo test --workspace + WASM build green. Phase 8 progress 6/7 (Plan 08-06 UAT smoke remains).*
