@@ -41,6 +41,7 @@ pub mod toggle;
 pub mod user_invitation;
 pub mod user_service;
 pub mod uuid_service;
+pub mod vacation_balance;
 pub mod warning;
 pub mod week_message;
 
