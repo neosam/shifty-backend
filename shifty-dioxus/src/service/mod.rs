@@ -8,6 +8,7 @@ pub mod dropdown;
 pub mod employee;
 pub mod employee_work_details;
 pub mod error;
+pub mod feature_flag;
 pub mod i18n;
 pub mod slot_edit;
 pub mod text_template;

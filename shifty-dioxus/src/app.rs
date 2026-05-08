@@ -26,6 +26,17 @@ pub fn App() -> Element {
     use_coroutine(service::billing_period::billing_period_service);
     use_coroutine(service::absence::absence_service);
     use_coroutine(service::vacation_balance::vacation_balance_service);
+    // Plan 08-07 Gap-Closure (Task 3): Feature-Flag-Service muss laufen, bevor
+    // das TopBar (Task 4) den `absence_range_source_active`-Flag liest.
+    let feature_flag_handle =
+        use_coroutine(service::feature_flag::feature_flag_service);
+    // Direkt nach Service-Konstruktion einen einmaligen Load für den
+    // Cutover-Flag triggern. `use_effect`-mit-leerer-Dep wäre eine
+    // Alternative; ein direkter `send` reicht hier, weil das Service nach
+    // dem ersten Polling-Tick alle pending Actions abarbeitet.
+    feature_flag_handle.send(
+        service::feature_flag::FeatureFlagAction::LoadAbsenceRangeSourceActive,
+    );
     let config = CONFIG.read();
     if !config.backend.is_empty() {
         let title = config.application_title.clone();

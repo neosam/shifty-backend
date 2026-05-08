@@ -4,7 +4,7 @@ use rest_types::{
     AbsencePeriodCreateResultTO, AbsencePeriodTO, BillingPeriodTO, BlockTO, BookingConflictTO,
     BookingLogTO, BookingTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
     CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
-    ExtraHoursCategoryTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, RoleTO,
+    ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse, RoleTO,
     SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
     SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO,
     VacationBalanceTO, VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
@@ -615,6 +615,23 @@ pub async fn get_team_vacation_balance(
 ) -> Result<Rc<[VacationBalanceTO]>, reqwest::Error> {
     info!("Fetching team vacation balance for year {year}");
     let url = format!("{}/vacation-balance/team/{}", config.backend, year);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// Phase 8 Plan 08-07 Gap-Closure (Task 3) — `GET /feature-flag/{key}`.
+/// Backend liefert für unbekannte Keys `200 OK` mit `enabled: false`
+/// (fail-safe). Das ruft der `feature_flag_service`-Coroutine genau einmal
+/// pro App-Start für `absence_range_source_active`.
+pub async fn get_feature_flag(
+    config: Config,
+    key: &str,
+) -> Result<FeatureFlagTO, reqwest::Error> {
+    info!("Fetching feature flag {key}");
+    let url = format!("{}/feature-flag/{}", config.backend, key);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;

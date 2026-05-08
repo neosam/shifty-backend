@@ -5,6 +5,7 @@ pub mod config;
 pub mod dropdown;
 pub mod employee;
 pub mod employee_work_details;
+pub mod feature_flag;
 pub mod sales_person_available;
 pub mod shiftplan;
 pub mod slot_edit;

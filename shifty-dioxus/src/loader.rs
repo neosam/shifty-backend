@@ -16,6 +16,7 @@ use crate::{
         booking_log::BookingLog,
         employee::{Employee, ExtraHours},
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
+        feature_flag::FeatureFlag,
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
         slot_edit::SlotEditItem,
@@ -929,4 +930,21 @@ pub async fn load_team_vacation(
 ) -> Result<Rc<[VacationBalance]>, ShiftyError> {
     let tos = api::get_team_vacation_balance(config, year).await?;
     Ok(tos.iter().map(VacationBalance::from).collect())
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Feature-Flag loader (Phase 8 Plan 08-07 Gap-Closure, Task 3)
+//
+// Backend `GET /feature-flag/{key}` liefert auch für unbekannte Keys
+// `enabled: false` (fail-safe). Der Loader maps das auf den Frontend
+// `FeatureFlag`-Mirror; `service::feature_flag::feature_flag_service`
+// hängt die `enabled`-Werte für bekannte Keys in `FEATURE_FLAGS_STORE` rein.
+// ─────────────────────────────────────────────────────────────────────────
+
+pub async fn load_feature_flag(
+    config: Config,
+    key: &str,
+) -> Result<FeatureFlag, ShiftyError> {
+    let to = api::get_feature_flag(config, key).await?;
+    Ok((&to).into())
 }
