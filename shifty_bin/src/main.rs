@@ -254,6 +254,29 @@ impl service_impl::absence::AbsenceServiceDeps for AbsenceServiceDependencies {
 type AbsenceService =
     service_impl::absence::AbsenceServiceImpl<AbsenceServiceDependencies>;
 
+// Phase 8 (D-04, 08-02-PLAN.md): VacationBalanceServiceImpl ist BL-Tier.
+// Konsumiert AbsenceService + EmployeeWorkDetails (alias WorkingHoursService)
+// + CarryoverService + SalesPersonService + PermissionService + ClockService
+// + TransactionDao. Type-Alias-Namen (WorkingHoursService statt
+// EmployeeWorkDetailsService) folgen der bestehenden main.rs-Konvention.
+pub struct VacationBalanceServiceDependencies;
+impl service_impl::vacation_balance::VacationBalanceServiceDeps
+    for VacationBalanceServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type AbsenceService = AbsenceService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
+    type CarryoverService = CarryoverService;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type TransactionDao = TransactionDao;
+}
+type VacationBalanceService = service_impl::vacation_balance::VacationBalanceServiceImpl<
+    VacationBalanceServiceDependencies,
+>;
+
 pub struct ExtraHoursServiceDependencies;
 impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDependencies {
     type Context = Context;
@@ -539,6 +562,7 @@ pub struct RestStateImpl {
     reporting_service: Arc<ReportingService>,
     working_hours_service: Arc<WorkingHoursService>,
     absence_service: Arc<AbsenceService>,
+    vacation_balance_service: Arc<VacationBalanceService>,
     extra_hours_service: Arc<ExtraHoursService>,
     shiftplan_edit_service: Arc<ShiftplanEditService>,
     block_service: Arc<BlockService>,
@@ -570,6 +594,7 @@ impl rest::RestStateDef for RestStateImpl {
     type ReportingService = ReportingService;
     type WorkingHoursService = WorkingHoursService;
     type AbsenceService = AbsenceService;
+    type VacationBalanceService = VacationBalanceService;
     type ExtraHoursService = ExtraHoursService;
     type ShiftplanEditService = ShiftplanEditService;
     type BlockService = BlockService;
@@ -631,6 +656,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn absence_service(&self) -> Arc<Self::AbsenceService> {
         self.absence_service.clone()
+    }
+    fn vacation_balance_service(&self) -> Arc<Self::VacationBalanceService> {
+        self.vacation_balance_service.clone()
     }
     fn extra_hours_service(&self) -> Arc<Self::ExtraHoursService> {
         self.extra_hours_service.clone()
@@ -844,6 +872,24 @@ impl RestStateImpl {
             carryover_dao,
             transaction_dao: transaction_dao.clone(),
         });
+        // Phase 8 (D-04, Pitfall 3): VacationBalanceServiceImpl ist BL-Tier
+        // und MUSS NACH absence_service (Z. ~798), working_hours_service
+        // (Z. ~788) und carryover_service (oben) konstruiert werden — sonst
+        // sind die Variablen nicht im Scope. Konsumiert keine Services, die
+        // ihrerseits VacationBalance konsumieren — kein Cycle.
+        let vacation_balance_service = Arc::new(
+            service_impl::vacation_balance::VacationBalanceServiceImpl::<
+                VacationBalanceServiceDependencies,
+            > {
+                absence_service: absence_service.clone(),
+                employee_work_details_service: working_hours_service.clone(),
+                carryover_service: carryover_service.clone(),
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl {
             extra_hours_service: extra_hours_service.clone(),
             shiftplan_report_service: shiftplan_report_service.clone(),
@@ -1031,6 +1077,7 @@ impl RestStateImpl {
             reporting_service,
             working_hours_service,
             absence_service,
+            vacation_balance_service,
             extra_hours_service,
             shiftplan_edit_service,
             block_service,
