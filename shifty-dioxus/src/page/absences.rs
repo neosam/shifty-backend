@@ -345,7 +345,10 @@ fn VacationEntitlementSelfBody(props: VacationEntitlementSelfBodyProps) -> Eleme
                     "{i18n.t(Key::VacationDaysRemaining)}"
                 }
             }
-            div { class: "p-4 grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5",
+            // Plan 08-07 Task 5: 5 Stat-Boxes — auf Mobile gestapelt 1-col,
+            // ab sm 2-col (paarweise), ab md alle 5 nebeneinander für das
+            // Desktop-Hero-Layout neben der Hero-Zahl.
+            div { class: "p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5",
                 StatBox {
                     label: ImStr::from(i18n.t(Key::VacationStatContract).as_ref()),
                     value: ImStr::from(entitled_contract_str.as_str()),
@@ -406,7 +409,9 @@ fn VacationEntitlementHrBody(props: VacationEntitlementHrBodyProps) -> Element {
                     "/ {format_decimal(sum_entitled)} {i18n.t(Key::VacationDaysRemaining)}"
                 }
             }
-            div { class: "grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5",
+            // Plan 08-07 Task 5: HR-Aggregate-Stat-Boxes — analog Self-Variante
+            // als deterministisches 1/2/5-cols-Stepping.
+            div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5",
                 StatBox {
                     label: ImStr::from(i18n.t(Key::VacationStatContract).as_ref()),
                     value: ImStr::from(format_decimal(sum_entitled - sum_carryover as f32).as_str()),
@@ -511,7 +516,11 @@ pub fn VacationPerPersonList(props: VacationPerPersonListProps) -> Element {
                     }
                 }
             }
-            div { class: "grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2",
+            // Plan 08-07 Task 5: Per-Person-Karten — Mobile 1-col, ab sm 2-col,
+            // ab lg ebenfalls 2-col (Plan-Anker; auto-fill würde sonst auf
+            // breiten Bildschirmen 4 Spalten zeigen, was die Information
+            // dünn streckt).
+            div { class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2",
                 for row in visible.iter() {
                     PersonVacationCard {
                         balance: row.clone(),
@@ -1139,8 +1148,11 @@ pub fn AbsenceFilterBar(props: AbsenceFilterBarProps) -> Element {
     let on_status = props.on_status_change;
     let on_show_past = props.on_show_past_change;
     let show_past = props.show_past;
+    // Plan 08-07 Task 5: Filter-Bar — Mobile vertikal-stacked (jeder Filter
+    // füllt die volle Breite), ab `md` in eine Zeile mit `flex-wrap`-Fallback
+    // für sehr schmale Desktop-Fenster.
     rsx! {
-        div { class: "bg-surface border border-border rounded-lg px-3.5 py-2.5 flex flex-wrap items-center gap-2.5",
+        div { class: "bg-surface border border-border rounded-lg px-3.5 py-2.5 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-2.5",
             label { class: "flex items-center gap-2",
                 span { class: "text-micro uppercase text-ink-muted font-semibold",
                     "{i18n.t(Key::AbsenceFilterCategoryLabel)}"
@@ -1285,8 +1297,12 @@ pub fn StatsGrid(props: StatsGridProps) -> Element {
         .as_ref()
         .replace("{year}", &year_str);
     let active_label = i18n.t(Key::AbsenceStatActive).as_ref().to_string();
+    // Plan 08-07 Task 5: Explizite Breakpoint-Steps statt auto-fit, damit das
+    // Desktop-Layout deterministisch zwei oder drei Spalten zeigt — der
+    // existierende `auto-fit,minmax(160px,1fr)` faltete je nach Container-
+    // Breite zu unschönen 1-col-Fallbacks.
     rsx! {
-        div { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5",
+        div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5",
             StatBox {
                 label: ImStr::from(sick_label.as_str()),
                 value: ImStr::from(format!("{}", sick_days).as_str()),
@@ -1339,7 +1355,10 @@ pub fn AbsenceList(props: AbsenceListProps) -> Element {
     }
     rsx! {
         div { class: "bg-surface border border-border rounded-lg overflow-hidden",
-            div { class: "bg-surface-alt border-b border-border px-4 py-2 grid grid-cols-[1.5fr_170px_140px_90px_70px] gap-3.5 text-micro text-ink-muted uppercase font-semibold",
+            // Plan 08-07 Task 5: Header bleibt nur ab `md` sichtbar — auf
+            // Mobile zeigt jede Row die Felder gestapelt mit eigenen Labels
+            // (kein redundanter Spaltenkopf).
+            div { class: "hidden md:grid bg-surface-alt border-b border-border px-4 py-2 grid-cols-[1.5fr_170px_140px_90px_70px] gap-3.5 text-micro text-ink-muted uppercase font-semibold",
                 div { "{i18n.t(Key::AbsenceColEmployee)}" }
                 div { "{i18n.t(Key::AbsenceColRange)}" }
                 div { "{i18n.t(Key::AbsenceColCategory)}" }
@@ -1382,9 +1401,11 @@ fn AbsenceListRow(props: AbsenceListRowProps) -> Element {
     let to_str = format!("{}", absence.to_date);
     let person_name = absence.person_name.as_ref();
     rsx! {
+        // Plan 08-07 Task 5: Auf Mobile vertikal-stacked, ab `md` als 5-spaltiges
+        // Grid (passend zum Header oben). Gap auf Mobile knapp, ab `md` größer.
         button {
             r#type: "button",
-            class: "w-full text-left grid grid-cols-[1.5fr_170px_140px_90px_70px] gap-3.5 px-4 py-3.5 border-t border-border hover:bg-surface-alt focus:bg-surface-alt focus:outline-none",
+            class: "w-full text-left flex flex-col gap-2 md:grid md:grid-cols-[1.5fr_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border hover:bg-surface-alt focus:bg-surface-alt focus:outline-none",
             onclick: move |_| on_click.call(absence_for_click.clone()),
             div { class: "flex flex-col gap-0.5 min-w-0",
                 span { class: "text-body font-semibold text-ink truncate",
