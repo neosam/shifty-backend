@@ -13,6 +13,13 @@ pub enum ShiftyError {
     /// The wrapped string is the user-facing message (already translated).
     #[error("{0}")]
     Conflict(String),
+
+    /// HTTP 422 Validation error — e.g. self-overlap of absence periods (D-11).
+    /// The wrapped string is the raw response body from the backend; callers
+    /// (modal-side) typically render an i18n-translated banner and discard the
+    /// raw text.
+    #[error("{0}")]
+    Validation(String),
 }
 
 pub fn error_handler(e: ShiftyError) {
@@ -28,6 +35,9 @@ pub fn error_handler(e: ShiftyError) {
         }
         ShiftyError::Conflict(msg) => {
             eprintln!("Conflict: {}", msg);
+        }
+        ShiftyError::Validation(msg) => {
+            eprintln!("Validation: {}", msg);
         }
     }
 }

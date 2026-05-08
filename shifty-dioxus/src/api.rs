@@ -1,13 +1,13 @@
 use std::rc::Rc;
 
 use rest_types::{
-    BillingPeriodTO, BlockTO, BookingConflictTO, BookingLogTO, BookingTO,
-    CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO, CustomExtraHoursTO, DayOfWeekTO,
-    EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO,
-    GenerateInvitationRequest, InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
-    ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
-    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationPayloadTO, WeekMessageTO,
-    WeeklySummaryTO,
+    AbsencePeriodCreateResultTO, AbsencePeriodTO, BillingPeriodTO, BlockTO, BookingConflictTO,
+    BookingLogTO, BookingTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
+    CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
+    ExtraHoursCategoryTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, RoleTO,
+    SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
+    SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO,
+    VacationBalanceTO, VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -465,6 +465,161 @@ pub async fn update_extra_hour(
     let updated: ExtraHoursTO = response.json().await?;
     info!("Updated");
     Ok(updated)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AbsencePeriod CRUD + VacationBalance read (Phase 8 Wave 4)
+//
+// Backend endpoints:
+//   GET    /absence-period                              → list all (HR-scope)
+//   GET    /absence-period/by-sales-person/{sp_id}      → list per person
+//   GET    /absence-period/{id}                         → single
+//   POST   /absence-period                              → create (returns
+//                                                         AbsencePeriodCreateResultTO with
+//                                                         non-blocking warnings[])
+//   PUT    /absence-period/{id}                         → update (409 / 422)
+//   DELETE /absence-period/{id}                         → soft-delete
+//   GET    /vacation-balance/{sp_id}/{year}             → self
+//   GET    /vacation-balance/team/{year}                → all paid employees
+// ─────────────────────────────────────────────────────────────────────────
+
+pub async fn list_absence_periods(
+    config: Config,
+) -> Result<Rc<[AbsencePeriodTO]>, reqwest::Error> {
+    info!("Fetching absence periods (all)");
+    let url = format!("{}/absence-period", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn list_absence_periods_by_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Rc<[AbsencePeriodTO]>, reqwest::Error> {
+    info!("Fetching absence periods for sales person {sales_person_id}");
+    let url = format!(
+        "{}/absence-period/by-sales-person/{}",
+        config.backend, sales_person_id
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_absence_period(
+    config: Config,
+    id: Uuid,
+) -> Result<AbsencePeriodTO, reqwest::Error> {
+    info!("Fetching absence period {id}");
+    let url = format!("{}/absence-period/{}", config.backend, id);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// POST `/absence-period`. The backend rejects non-nil ids and versions on
+/// create with HTTP 422 (`IdSetOnCreate`). To prevent accidental ID/version
+/// passthrough from the caller (Plan 04 Task 1, W-7 / Pitfall 9 in
+/// `08-RESEARCH.md`), this function defensively zeroes both fields before
+/// sending.
+pub async fn create_absence_period(
+    config: Config,
+    mut body: AbsencePeriodTO,
+) -> Result<AbsencePeriodCreateResultTO, ShiftyError> {
+    // W-7 defensive Uuid::nil — backend assigns id and version on create.
+    body.id = Uuid::nil();
+    body.version = Uuid::nil();
+    info!(
+        "Creating absence period for sales person {}",
+        body.sales_person_id
+    );
+    let url = format!("{}/absence-period", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Create returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let result: AbsencePeriodCreateResultTO = response.json().await?;
+    info!("Created");
+    Ok(result)
+}
+
+/// PUT `/absence-period/{id}`. Version-conflicts surface as 409, self-overlap
+/// validation surfaces as 422 (D-08 / D-11 in `08-CONTEXT.md`).
+pub async fn update_absence_period(
+    config: Config,
+    id: Uuid,
+    body: AbsencePeriodTO,
+) -> Result<AbsencePeriodCreateResultTO, ShiftyError> {
+    info!("Updating absence period {id}");
+    let url = format!("{}/absence-period/{}", config.backend, id);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::CONFLICT {
+        info!("Update returned 409 Conflict");
+        return Err(ShiftyError::Conflict(String::new()));
+    }
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Update returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let result: AbsencePeriodCreateResultTO = response.json().await?;
+    info!("Updated");
+    Ok(result)
+}
+
+pub async fn delete_absence_period(config: Config, id: Uuid) -> Result<(), reqwest::Error> {
+    info!("Deleting absence period {id}");
+    let url = format!("{}/absence-period/{}", config.backend, id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
+}
+
+pub async fn get_vacation_balance(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+) -> Result<VacationBalanceTO, reqwest::Error> {
+    info!(
+        "Fetching vacation balance for sales person {sales_person_id} year {year}"
+    );
+    let url = format!(
+        "{}/vacation-balance/{}/{}",
+        config.backend, sales_person_id, year
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+pub async fn get_team_vacation_balance(
+    config: Config,
+    year: u32,
+) -> Result<Rc<[VacationBalanceTO]>, reqwest::Error> {
+    info!("Fetching team vacation balance for year {year}");
+    let url = format!("{}/vacation-balance/team/{}", config.backend, year);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
 }
 
 pub async fn get_version(config: Config) -> Result<Rc<str>, reqwest::Error> {

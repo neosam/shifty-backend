@@ -12,6 +12,7 @@ use crate::{
     base_types::ImStr,
     error::ShiftyError,
     state::{
+        absence_period::AbsencePeriod,
         booking_log::BookingLog,
         employee::{Employee, ExtraHours},
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
@@ -19,6 +20,7 @@ use crate::{
         shiftplan::{Booking, BookingConflict, SalesPerson},
         slot_edit::SlotEditItem,
         text_template::TextTemplate,
+        vacation_balance::VacationBalance,
         week::Week,
         weekly_overview::WeeklySummary,
         Config, Shiftplan, Slot, User, Weekday,
@@ -866,4 +868,65 @@ pub async fn load_blocks(
 ) -> Result<Rc<[BlockTO]>, ShiftyError> {
     let blocks = api::get_blocks(config, from_year, from_week, to_year, to_week).await?;
     Ok(blocks)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AbsencePeriod + VacationBalance loaders (Phase 8 Wave 4)
+//
+// `load_absence_periods_all` joins the SalesPerson list to fill in the
+// `person_name` and `background_color` side-fields on `AbsencePeriod` —
+// the HR-facing list renders one row per absence with the employee name
+// and color chip. The per-sales-person variant skips the join because
+// the page already knows whose absences it is rendering (Self-view).
+// ─────────────────────────────────────────────────────────────────────────
+
+pub async fn load_absence_periods_all(
+    config: Config,
+    sales_persons: Rc<[SalesPerson]>,
+) -> Result<Rc<[AbsencePeriod]>, ShiftyError> {
+    let absence_tos = api::list_absence_periods(config).await?;
+    let absences: Rc<[AbsencePeriod]> = absence_tos
+        .iter()
+        .map(|to| to.into())
+        .map(|absence: AbsencePeriod| {
+            if let Some(sp) = sales_persons
+                .iter()
+                .find(|sp| sp.id == absence.sales_person_id)
+            {
+                AbsencePeriod {
+                    person_name: sp.name.as_ref().into(),
+                    background_color: sp.background_color.as_ref().into(),
+                    ..absence
+                }
+            } else {
+                absence
+            }
+        })
+        .collect();
+    Ok(absences)
+}
+
+pub async fn load_absence_periods_by_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Rc<[AbsencePeriod]>, ShiftyError> {
+    let absence_tos = api::list_absence_periods_by_sales_person(config, sales_person_id).await?;
+    Ok(absence_tos.iter().map(AbsencePeriod::from).collect())
+}
+
+pub async fn load_vacation_balance(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+) -> Result<VacationBalance, ShiftyError> {
+    let to = api::get_vacation_balance(config, sales_person_id, year).await?;
+    Ok((&to).into())
+}
+
+pub async fn load_team_vacation(
+    config: Config,
+    year: u32,
+) -> Result<Rc<[VacationBalance]>, ShiftyError> {
+    let tos = api::get_team_vacation_balance(config, year).await?;
+    Ok(tos.iter().map(VacationBalance::from).collect())
 }

@@ -1,3 +1,4 @@
+pub mod absence_period;
 pub mod auth_info;
 pub mod booking_log;
 pub mod config;
@@ -10,6 +11,7 @@ pub mod slot_edit;
 pub mod text_template;
 pub mod tooltip;
 pub mod user_management;
+pub mod vacation_balance;
 pub mod week;
 pub mod weekly_overview;
 
