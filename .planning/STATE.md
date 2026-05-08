@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T13:30:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-04 complete (Frontend Foundation — api / state / loader / service-coroutines / 60 i18n-keys × 3 locales / Dx-Proxy; 6 tasks; WASM-build green)
+last_updated: "2026-05-08T15:50:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-05 complete (AbsencesPage + AbsenceModal + 9 inline components + Route + TopBar entry + 11 dioxus-ssr snapshot tests; VALIDATION.md flipped to nyquist_compliant: true; WASM build green; 503/503 frontend tests green)
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 5 of 6 (08-01 + 08-02 + 08-03 + 08-04 complete; 08-05 next — AbsencesPage + Modal + Routing + TopBar)
-Status: Executing Phase 08
-Last activity: 2026-05-08 -- Plan 08-04 complete (Frontend Foundation; api / state / loader / service-coroutines / 60 i18n-keys × 3 locales / Dx-Proxy; 6 atomic jj-commits)
+Plan: 6 of 6 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 complete; 08-06 next — UAT smoke)
+Status: Executing Phase 08 (Wave-0 closed via 08-05 Task 3 — VALIDATION.md flipped to nyquist_compliant: true, wave_0_complete: true, status approved)
+Last activity: 2026-05-08 -- Plan 08-05 complete (AbsencesPage + Modal + Routing + TopBar; 1685 LOC absences.rs; 11 snapshot tests; 4 atomic jj-commits 87dbcbe8/de3382bc/00ff958b/33ffc5ff)
 
 ## Shipped Milestones
 
@@ -73,6 +73,14 @@ Last activity: 2026-05-08 -- Plan 08-04 complete (Frontend Foundation; api / sta
 - **Defensive Uuid::nil im API-Create-Body** (Plan 08-04): `api::create_absence_period` setzt im Function-Body als ersten Schritt `body.id = Uuid::nil(); body.version = Uuid::nil();`, unabhängig vom Caller-State. Verhindert, dass ein Edit→Create-Mode-Switch im Modal vergisst, die `id` zu nullen, was sonst Backend-422 (`IdSetOnCreate`) liefert. Funktion ist jetzt selbstkonsistent — Caller-Hygiene ist nicht mehr Korrektheits-Voraussetzung.
 - **Per-Locale-Reference-Matcher-Tests gegen Pitfall 2** (Plan 08-04): Über den standard `i18n_*_present_in_all_locales`-Test hinaus drei zusätzliche Tests `i18n_*_match_{german,english,czech}_reference`, die je 4-5 Stichproben mit dem Original-String matchen. Fängt versehentliche `Locale::En, …`-Kalls in `de.rs` (oder `Locale::De, …` in `en.rs`/`cs.rs`), die sonst still durchgehen würden, weil Tests mit "?? "-Fallback nur fehlende Keys, nicht falsch-getaggte erkennen.
 - **Frontend-State-with-Side-Join-Pattern erweitert** (Plan 08-04): `AbsencePeriod` trägt zwei `Arc<str>`-Felder (`person_name`, `background_color`), die der Loader aus der SalesPerson-Liste füllt — analog zum existierenden `Booking::label`/`background_color`-Pattern in `loader::load_bookings`. From-TO setzt sie initial leer; nur `load_absence_periods_all` (HR-Variante) joinst sie auf, weil die Self-Variante den User bereits kennt.
+- **Single-File Page-Composition** (Plan 08-05): Die 9 domain-spezifischen Helper-Components (Modal, WarningList, CategoryBadge, StatusPill, VacationEntitlementCard, VacationPerPersonList, AbsenceList, AbsenceFilterBar, StatsGrid, DeleteConfirmDialog, plus zwei Banner) liegen INLINE in `shifty-dioxus/src/page/absences.rs` (1685 LOC, ~1330 prod + 355 tests). Plan-05 component-inventory schreibt das so vor — Extraction nach `component/absence_modal.rs` ist optional und nur sinnvoll bei Re-Use über die /absences-Surface hinaus. Soft-Cap bei 1500 prod-LOC.
+- **Router-Variant-Alias-Pattern** (Plan 08-05): `dioxus_router`'s `#[derive(Routable)]` macht name-based component lookup. Wenn der Plan-Acceptance-Grep eine andere Bezeichnung verlangt (`AbsencesPage` als Component-Name + `Route::Absences {}` als Variant), löst ein zusätzlicher `pub use crate::page::AbsencesPage as Absences;` in router.rs beide Constraints ohne Component-Rename.
+- **Newtype-Wrapper für Non-PartialEq Rc<[T]> in Dioxus Props** (Plan 08-05): `WarningTO` aus `rest-types` derived nicht `PartialEq` (Uuid + Date + AbsenceCategoryTO Payloads). `Rc<[WarningTO]>: PartialEq` braucht aber `T: PartialEq`. Lösung: `WarningsList(Rc<[WarningTO]>)`-Newtype mit `impl PartialEq via Rc::ptr_eq`. Compares „same allocation" — exakt für Re-Use-Cases, akzeptabel als false-negative-Häufigkeit (führt nur zu Re-Render, nicht zu Korrektheits-Bug). Keine `PartialEq`-Derive-Erweiterung im rest-types-Crate nötig.
+- **Hook-basierter I18N-Locale-Pin in Snapshot-Tests** (Plan 08-05): Direkte `*I18N.write() = generate(Locale::De)` außerhalb eines Dioxus-Reactive-Scopes panic mit `RuntimeError`. Lösung: `pin_de_locale()`-Helper, der den Write inside `use_hook(...)` ausführt. `VirtualDom::new(app)` provided eine Runtime; der Hook läuft beim ersten Render einmalig BEFOR Descendant-Components I18N lesen. Pattern für künftige Locale-spezifische Snapshot-Tests im Frontend.
+- **cfg-gated current_date_for_init()** (Plan 08-05): Production WASM-Build ruft `js::current_datetime().date()`; native Test-Build returns `time::macros::date!(2026-05-08)`. Pitfall-9-Audit-Grep scannt Production-Render-Path auf hardcoded Dates — der cfg-Gate hält den hardcoded Wert ausschließlich in `#[cfg(not(target_arch = "wasm32"))]` / `#[cfg(test)]` und keeps the audit clean.
+- **Defensive Uuid::nil() at TWO layers** (Plan 08-05 verstärkt 08-04): Plan 08-04 setzt `Uuid::nil()` für id+version im api-Layer (`create_absence_period`). Plan 08-05 setzt sie ZUSÄTZLICH im Modal-Submit-Code, dokumentiert mit Inline-Kommentar auf Pitfall 9 / W-7. Auditors die nach Pitfall-9-Pattern grep-en finden's in beiden Layern — UI-Logik UND Wire-Layer.
+- **`compute_status` Pure-Function mit injected `today`** (Plan 08-05): Status-Berechnung Active/Planned/Finished ist client-side reine Pure-Function `compute_status(from, to, today) -> AbsenceStatus`. Tests pinnen `today` und covern 3 Boundary-Cases (today before from → Planned, in range → Active, after to → Finished). Page wired today via `current_date_for_init()` at mount, satisfying Pitfall 8 ohne Service-Roundtrip.
+- **Wave-0-Closure via Test-Layer (B-2)** (Plan 08-05 Task 3): VALIDATION.md Wave-0-Item-3 fordert "dioxus-ssr Snapshot-Test-Stub für absence-Components". Plan 05 Task 3 schließt das mit 11 Tests (3 CategoryBadge × 3 StatusPill × 3 compute_status × 2 AbsenceFilterBar). Frontmatter `nyquist_compliant: true` + `wave_0_complete: true` ist nach diesen Tests gesetzt. Phase 8 ist UAT-bereit.
 
 **v1.2 (Phasen 6–7 — Frontend rest-types Konsolidierung):**
 
@@ -140,8 +148,8 @@ Last activity: 2026-05-08 -- Plan 08-04 complete (Frontend Foundation; api / sta
 7. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief
 8. Read `shifty-dioxus/shifty-design/project/absences.jsx` — Mockup (729 Zeilen JSX)
 
-**Next command**: `/gsd-discuss-phase 8` — gather context für die erste v1.3-Phase (Absence-CRUD-Page Foundation), oder `/gsd-plan-phase 8` für direkten Plan-Einstieg.
+**Next command**: `/gsd-execute-phase 8` für Plan 08-06 (UAT smoke; finale Closure-Phase) oder `/gsd-plan-phase 9` falls Phase 9 als nächste v1.3-Phase aufgeht.
 
 ---
 
-*State updated: 2026-05-08 — Plan 08-04 abgeschlossen (Frontend Foundation: api / state / loader / service-coroutines / i18n × 3 / Dx-Proxy). Phase-8-Progress 4/6 (67%). Plan 08-05 als nächstes — AbsencesPage + Modal + Routing + TopBar.*
+*State updated: 2026-05-08 — Plan 08-05 abgeschlossen (AbsencesPage + AbsenceModal + 9 inline components + Routing + TopBar; 1685 LOC absences.rs; 11 dioxus-ssr snapshot tests; VALIDATION.md flipped to nyquist_compliant: true + wave_0_complete: true; FUI-A-01..04 alle erfüllt). Phase-8-Progress 5/6 (83%). Plan 08-06 als nächstes — UAT smoke.*
