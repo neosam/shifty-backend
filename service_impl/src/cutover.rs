@@ -1025,6 +1025,19 @@ fn extra_hours_category_to_absence(c: &ExtraHoursCategoryEntity) -> AbsenceCateg
 /// Returns `None` if the row should be processed by the strict-match path
 /// instead.
 ///
+/// **Gate-phase reconstruction (verified per Plan 08-09 task 3).** A lump-sum
+/// row is migrated as `absence_period { from: monday, to: sunday }`. The
+/// gate's `compute_gate` calls `AbsenceService::derive_hours_for_range`, which
+/// iterates each day in the range and emits a `ResolvedAbsence { hours: contract.hours_per_day() }`
+/// only when (i) a contract is active on that date, (ii) the weekday is a
+/// contract-workday, and (iii) no holiday is set. For a 3-day-week contract
+/// {Mo/Tu/We} that means: 3 × hours_per_day = expected_hours = legacy_sum,
+/// so `derived_sum == legacy_sum` and `drift = 0`. No gate-phase change is
+/// needed; the existing range-iteration logic reconstructs lump-sum amounts
+/// transparently. (See `service_impl/src/absence.rs::derive_hours_for_range`
+/// for the per-day loop and `compute_gate` above for the per-(sp, cat, year)
+/// summation.)
+///
 /// **Detection rules (all three must hold):**
 /// 1. `row.date_time` falls in some ISO calendar week. Compute Monday + Sunday
 ///    of that week as the candidate `absence_period` range.
