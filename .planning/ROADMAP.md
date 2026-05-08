@@ -118,7 +118,14 @@
 4. Neuer Backend-Resturlaubs-Endpoint (Shape Plan-Phase-Decision) liefert für `(sales_person_id [, year])` einen Wert mit entitled / used / planned / remaining (oder semantisch äquivalent); `hr ∨ self`-Permission analog zu `/absence-period`; OpenAPI-`#[utoipa::path]`-Annotation; `ToSchema` auf der DTO. Frontend-Komponenten `VacationEntitlementCard` (eigener User) und `VacationPerPersonList` (HR-Übersicht) konsumieren diesen Endpoint.
 5. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün (Backend-Erweiterung darf keine Regression verursachen); UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete + Resturlaubs-Anzeige) erfolgreich.
 
-**Plans:** TBD
+**Plans:** 6 plans (3 Backend-Waves + 3 Frontend-Waves)
+
+- [ ] 08-01-PLAN.md — Service-Trait + Domain-Struct (`VacationBalanceService`) + DTO (`VacationBalanceTO`) — Wave 1, BL-Tier interface foundation
+- [ ] 08-02-PLAN.md — Service-Impl (BL-Tier per gen_service_impl!) + ≥6 Unit-Tests + REST-Endpoints (utoipa) + DI-Wiring in main.rs — Wave 2
+- [ ] 08-03-PLAN.md — OpenAPI insta-Snapshot-Refresh (3-run-determinism) + Human-Verify Snapshot-Diff — Wave 3
+- [ ] 08-04-PLAN.md — Frontend Foundation: api.rs (8 fns) + ShiftyError::Validation + state-types + loader + service-coroutines + 60 i18n-Keys (de/en/cs) + Dx-Proxy-Einträge — Wave 4
+- [ ] 08-05-PLAN.md — AbsencesPage + AbsenceModal + WarningList + CategoryBadge + StatusPill + VacationEntitlementCard + VacationPerPersonList + Routing + TopBar + WASM-Build-Gate — Wave 5
+- [ ] 08-06-PLAN.md — UAT-Smoke (HR + Employee) + Final-Regression-Gates (cargo test --workspace + WASM-Build) — Wave 6 closure
 
 **UI hint**: yes
 
@@ -137,7 +144,7 @@
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
-| 8 — Absence-CRUD-Page Foundation | v1.3 | 0/? | Pending | — |
+| 8 — Absence-CRUD-Page Foundation | v1.3 | 0/6 | Pending | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
