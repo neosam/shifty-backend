@@ -320,7 +320,7 @@ async fn cluster_merges_consecutive_workdays_with_exact_match() {
     let run_id = Uuid::new_v4();
     let migrated_at =
         time::PrimitiveDateTime::new(date!(2026 - 05 - 03), time::Time::MIDNIGHT);
-    let (stats, migrated_ids) = service2
+    let (stats, migrated_ids, _quarantine_buckets) = service2
         .migrate_legacy_extra_hours_to_clusters(run_id, migrated_at, MockTransaction)
         .await
         .expect("helper succeeded");
@@ -383,7 +383,7 @@ async fn quarantine_amount_below_contract() {
         .expect_upsert_quarantine()
         .returning(|_, _| Ok(()));
     let service2 = deps2.build_service(build_default_transaction_dao());
-    let (stats, migrated_ids) = service2
+    let (stats, migrated_ids, _quarantine_buckets) = service2
         .migrate_legacy_extra_hours_to_clusters(
             Uuid::new_v4(),
             time::PrimitiveDateTime::new(date!(2026 - 05 - 03), time::Time::MIDNIGHT),
@@ -580,7 +580,7 @@ async fn idempotent_rerun_skips_mapped() {
         .expect_find_legacy_extra_hours_not_yet_migrated()
         .returning(|_| Ok(Arc::from([])));
     let service2 = deps2.build_service(build_default_transaction_dao());
-    let (stats, migrated_ids) = service2
+    let (stats, migrated_ids, _quarantine_buckets) = service2
         .migrate_legacy_extra_hours_to_clusters(
             Uuid::new_v4(),
             time::PrimitiveDateTime::new(date!(2026 - 05 - 03), time::Time::MIDNIGHT),

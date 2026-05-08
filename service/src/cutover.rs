@@ -90,6 +90,23 @@ impl QuarantineReason {
     }
 }
 
+/// Single quarantined `extra_hours` row attached to a `DriftRow` in Plan 08-08.
+///
+/// Holds enough info for the failed-gate REST response to render a
+/// human-readable explanation per entry without a separate file lookup:
+/// the legacy `extra_hours_id` (so an HR user can `DELETE /extra-hours/{id}`),
+/// the booking date (for the front-end weekday code), the booked amount,
+/// and the (typed) reason. The `From<&CutoverQuarantineEntry>` impl on the
+/// REST DTO does the reason → reason_code/reason_text/suggested_action
+/// mapping via `QuarantineReason::{as_persisted_str, human_text, suggested_action}`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CutoverQuarantineEntry {
+    pub extra_hours_id: Uuid,
+    pub date: time::Date,
+    pub amount: f32,
+    pub reason: QuarantineReason,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DriftRow {
     pub sales_person_id: Uuid,
@@ -101,6 +118,26 @@ pub struct DriftRow {
     pub drift: f32,
     pub quarantined_extra_hours_count: u32,
     pub quarantine_reasons: Arc<[Arc<str>]>,
+    /// Plan 08-08: per-entry list of the quarantined `extra_hours` rows that
+    /// fall under this `(sales_person, category, year)` drift bucket. Empty
+    /// is a valid value (drift may exist without any quarantined entries —
+    /// e.g. a derive-vs-legacy formula change in absence of quarantine).
+    pub quarantined_entries: Arc<[CutoverQuarantineEntry]>,
+}
+
+/// Inline-friendly drift report carried in `CutoverRunResult.gate_drift_report`
+/// when the gate fails. Mirrors the on-disk JSON file (under `.planning/
+/// migration-backup/cutover-gate-{ts}.json`) but is also returned over HTTP
+/// so the file-path detour is optional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CutoverGateDriftReport {
+    pub gate_run_id: Uuid,
+    pub run_at: time::PrimitiveDateTime,
+    pub dry_run: bool,
+    pub drift_threshold: f32,
+    pub total_drift_rows: u32,
+    pub drift: Arc<[DriftRow]>,
+    pub passed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -124,6 +161,10 @@ pub struct CutoverRunResult {
     pub quarantined_rows: u32,
     pub gate_drift_rows: u32,
     pub diff_report_path: Option<Arc<str>>,
+    /// Plan 08-08: when `gate_passed = false`, this carries the full inline
+    /// drift report (also persisted on disk at `diff_report_path`). `None`
+    /// when the gate passed — there is nothing to interpret in that case.
+    pub gate_drift_report: Option<CutoverGateDriftReport>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

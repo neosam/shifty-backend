@@ -24,7 +24,7 @@ use uuid::Uuid;
 use crate::{permission::Authentication, ServiceError};
 
 /// Domain-Kategorien einer Absence-Periode (Phase 1: 3 Werte).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AbsenceCategory {
     Vacation,
     SickLeave,

@@ -43,8 +43,9 @@ use dao::TransactionDao;
 use service::absence::{AbsenceCategory, AbsenceService};
 use service::carryover_rebuild::CarryoverRebuildService;
 use service::cutover::{
-    CutoverProfile, CutoverProfileBucket, CutoverRunResult, CutoverService, DriftRow, GateResult,
-    QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
+    CutoverGateDriftReport, CutoverProfile, CutoverProfileBucket, CutoverQuarantineEntry,
+    CutoverRunResult, CutoverService, DriftRow, GateResult, QuarantineReason,
+    CUTOVER_ADMIN_PRIVILEGE,
 };
 use service::employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService};
 use service::extra_hours::ExtraHoursService;
@@ -85,6 +86,13 @@ pub struct MigrationStats {
     pub quarantined: usize,
 }
 
+/// Plan 08-08: bucket-key for grouping quarantined entries per
+/// `(sales_person_id, AbsenceCategory, year)` so `compute_gate` can attach
+/// the matching list to each `DriftRow`. Year is the calendar year of the
+/// row's date_time (gate-bucket convention).
+type QuarantineBucketKey = (Uuid, service::absence::AbsenceCategory, u32);
+type QuarantineBucketMap = HashMap<QuarantineBucketKey, Vec<CutoverQuarantineEntry>>;
+
 /// Internal cluster representation: extends until the (sp, category, day) chain
 /// breaks. Stored only inside `migrate_legacy_extra_hours_to_clusters`.
 struct InProgressCluster<'a> {
@@ -121,21 +129,34 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
         let now = time::OffsetDateTime::now_utc();
         let ran_at = time::PrimitiveDateTime::new(now.date(), now.time());
 
-        // 3. Migration phase. The tuple shape is LOCKED per Plan 04-02 task 2
-        //    acceptance criteria — Wave 2 commit_phase consumes `migrated_ids`
-        //    verbatim in `ExtraHoursService::soft_delete_bulk`.
-        let (migration_stats, migrated_ids) = self
+        // 3. Migration phase. The id-list contract is LOCKED per Plan 04-02
+        //    task 2 acceptance criteria — Wave 2 commit_phase consumes
+        //    `migrated_ids` verbatim in `ExtraHoursService::soft_delete_bulk`.
+        //    Plan 08-08 additionally returns `quarantine_buckets`, which the
+        //    gate uses to attach per-entry diagnostics to each DriftRow.
+        let (migration_stats, migrated_ids, quarantine_buckets) = self
             .migrate_legacy_extra_hours_to_clusters(run_id, ran_at, tx.clone())
             .await?;
 
         // 4. Gate phase (Wave 2 / Plan 04-05). Always runs — even on dry_run —
         //    because it is the single source of truth for `gate_passed` and
         //    produces the diff-report file path returned in CutoverRunResult.
-        let gate = self.compute_gate(run_id, ran_at, dry_run, tx.clone()).await?;
+        let gate = self
+            .compute_gate(run_id, ran_at, dry_run, &quarantine_buckets, tx.clone())
+            .await?;
 
         // 5. Branch on dry_run + gate result (D-Phase4-08 + D-Phase4-14).
         if dry_run || !gate.passed {
             self.transaction_dao.rollback(tx).await?;
+            // Plan 08-08: when the gate fails, ship the inline drift report
+            // alongside the file path so callers (especially the cutover-UI
+            // backlog item) don't need filesystem access to interpret the
+            // failure. None when gate passed — there is nothing to render.
+            let gate_drift_report = if gate.passed {
+                None
+            } else {
+                Some(build_gate_drift_report(run_id, ran_at, dry_run, &gate))
+            };
             return Ok(CutoverRunResult {
                 run_id,
                 ran_at,
@@ -150,6 +171,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
                 quarantined_rows: migration_stats.quarantined as u32,
                 gate_drift_rows: gate.drift_rows.len() as u32,
                 diff_report_path: Some(gate.diff_report_path.clone()),
+                gate_drift_report,
             });
         }
 
@@ -171,6 +193,8 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             quarantined_rows: migration_stats.quarantined as u32,
             gate_drift_rows: 0,
             diff_report_path: Some(gate.diff_report_path),
+            // Gate passed → nothing to interpret inline.
+            gate_drift_report: None,
         })
     }
 
@@ -379,23 +403,28 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
 impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
     /// Heuristik-Cluster-Algorithmus per RESEARCH.md Operation 1 (verbatim).
     ///
-    /// **Locked return contract** (Plan 04-05 commit_phase consumer):
+    /// **Return contract** (Plan 04-05 commit_phase consumer + Plan 08-08
+    /// inline-drift-report consumer):
     ///
-    /// Returns `(MigrationStats, Arc<[Uuid]>)` where the `Arc<[Uuid]>` is the
-    /// deduplicated, in-cluster-merge-order list of `extra_hours.id` values that
-    /// were grouped into one or more `absence_period` rows (= eligible for
-    /// soft-delete in Plan 04-05's commit_phase). Quarantined rows are NOT
-    /// included in this list.
+    /// Returns `(MigrationStats, Arc<[Uuid]>, QuarantineBucketMap)`:
+    /// - `Arc<[Uuid]>` — deduplicated, in-cluster-merge-order list of
+    ///   `extra_hours.id` values that were grouped into one or more
+    ///   `absence_period` rows (= eligible for soft-delete in Plan 04-05's
+    ///   commit_phase). Quarantined rows are NOT included.
+    /// - `QuarantineBucketMap` (Plan 08-08) — quarantined entries grouped by
+    ///   `(sales_person_id, AbsenceCategory, year)` so `compute_gate` can
+    ///   attach the per-entry list to each `DriftRow`. Year is the calendar
+    ///   year of the row's `date_time` (matches the gate's bucketing).
     ///
-    /// Plan 04-05 commit_phase consumes this list verbatim as the `ids` argument
-    /// to `ExtraHoursService::soft_delete_bulk(ids, "phase-4-cutover-migration",
-    /// Authentication::Full, Some(tx.clone())).await`.
+    /// Plan 04-05 commit_phase consumes the `Arc<[Uuid]>` verbatim as the
+    /// `ids` argument to `ExtraHoursService::soft_delete_bulk(ids,
+    /// "phase-4-cutover-migration", Authentication::Full, Some(tx.clone())).await`.
     pub(crate) async fn migrate_legacy_extra_hours_to_clusters(
         &self,
         cutover_run_id: Uuid,
         migrated_at: time::PrimitiveDateTime,
         tx: <Deps as CutoverServiceDeps>::Transaction,
-    ) -> Result<(MigrationStats, Arc<[Uuid]>), ServiceError> {
+    ) -> Result<(MigrationStats, Arc<[Uuid]>, QuarantineBucketMap), ServiceError> {
         // Step 1: Read all not-yet-migrated legacy extra_hours rows.
         let all_legacy = self
             .cutover_dao
@@ -568,12 +597,43 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
                 .await?;
         }
 
+        // Plan 08-08: build per-(sp, AbsenceCategory, year) quarantine bucket
+        // map for the gate to attach to its DriftRows. Year = calendar year of
+        // the legacy row's date_time (matches the gate's bucketing in
+        // `compute_gate`).
+        let mut quarantine_buckets: QuarantineBucketMap = HashMap::new();
+        for q in quarantine.iter() {
+            let svc_cat = match &q.row.category {
+                ExtraHoursCategoryEntity::Vacation => service::absence::AbsenceCategory::Vacation,
+                ExtraHoursCategoryEntity::SickLeave => service::absence::AbsenceCategory::SickLeave,
+                ExtraHoursCategoryEntity::UnpaidLeave => {
+                    service::absence::AbsenceCategory::UnpaidLeave
+                }
+                // Defensive — the cluster algorithm only ever produces legacy
+                // categories. Anything else gets dropped from the map (the
+                // entry is still persisted in `absence_migration_quarantine`).
+                _ => continue,
+            };
+            let date = q.row.date_time.date();
+            let year = date.year() as u32;
+            let entry = CutoverQuarantineEntry {
+                extra_hours_id: q.row.id,
+                date,
+                amount: q.row.amount,
+                reason: q.reason,
+            };
+            quarantine_buckets
+                .entry((q.row.sales_person_id, svc_cat, year))
+                .or_default()
+                .push(entry);
+        }
+
         let stats = MigrationStats {
             clusters: migrations.len(),
             quarantined: quarantine.len(),
         };
         let migrated_ids_arc: Arc<[Uuid]> = Arc::from(migrated_ids.into_boxed_slice());
-        Ok((stats, migrated_ids_arc))
+        Ok((stats, migrated_ids_arc, quarantine_buckets))
     }
 
     /// Cutover gate per D-Phase4-05 + D-Phase4-06.
@@ -599,6 +659,7 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
         cutover_run_id: Uuid,
         ran_at: time::PrimitiveDateTime,
         dry_run: bool,
+        quarantine_buckets: &QuarantineBucketMap,
         tx: <Deps as CutoverServiceDeps>::Transaction,
     ) -> Result<GateResult, ServiceError> {
         const DRIFT_THRESHOLD: f32 = 0.01;
@@ -678,6 +739,23 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
                         derived_sum,
                         drift
                     );
+                    // Plan 08-08: attach the per-entry quarantine bucket so
+                    // the inline drift report can render reason_text +
+                    // suggested_action without a file-lookup. Sort entries by
+                    // date for stable, deterministic JSON output.
+                    let entries: Arc<[CutoverQuarantineEntry]> = quarantine_buckets
+                        .get(&(sp_id, *category_svc, year))
+                        .map(|v| {
+                            let mut copy = v.clone();
+                            copy.sort_by(|a, b| {
+                                a.date.cmp(&b.date).then_with(|| {
+                                    a.extra_hours_id.cmp(&b.extra_hours_id)
+                                })
+                            });
+                            Arc::from(copy.into_boxed_slice())
+                        })
+                        .unwrap_or_else(|| Arc::from(Vec::new().into_boxed_slice()));
+
                     drift_rows.push(DriftRow {
                         sales_person_id: sp_id,
                         sales_person_name: sp_name.clone(),
@@ -688,6 +766,7 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
                         drift,
                         quarantined_extra_hours_count: quarantined_count,
                         quarantine_reasons: reasons,
+                        quarantined_entries: entries,
                     });
                 }
             }
@@ -812,6 +891,32 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
             .await?;
 
         Ok(())
+    }
+}
+
+/// Plan 08-08 — assemble the inline `CutoverGateDriftReport` from the
+/// `GateResult` produced by `compute_gate`. Mirrors the on-disk diff-report
+/// JSON file but returns a typed value over HTTP. The `passed` flag is
+/// derived from `gate.passed` so the report's own field stays consistent
+/// with the outer `CutoverRunResult.gate_passed`.
+fn build_gate_drift_report(
+    cutover_run_id: Uuid,
+    ran_at: time::PrimitiveDateTime,
+    dry_run: bool,
+    gate: &GateResult,
+) -> CutoverGateDriftReport {
+    // DRIFT_THRESHOLD is private to compute_gate; re-state here as a literal
+    // to avoid lifting it to module scope. Tests pin both values together.
+    const DRIFT_THRESHOLD: f32 = 0.01;
+
+    CutoverGateDriftReport {
+        gate_run_id: cutover_run_id,
+        run_at: ran_at,
+        dry_run,
+        drift_threshold: DRIFT_THRESHOLD,
+        total_drift_rows: gate.drift_rows.len() as u32,
+        drift: gate.drift_rows.clone(),
+        passed: gate.passed,
     }
 }
 
