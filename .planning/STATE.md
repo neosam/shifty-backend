@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T19:50:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-08 (Cutover-Response Drift-Details) complete (QuarantineReason::human_text/suggested_action + CutoverGateDriftReport inline DTO + per-entry quarantined_entries + integration test for live drift example; cargo test --workspace + WASM build green)
+last_updated: "2026-05-08T12:47:18.000Z"
+last_activity: 2026-05-08 -- Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete (detect_weekly_lump_sum + Migration-Loop-Pre-Check für extra_hours-Rows mit `amount = Σ contract.hours_per_day in ISO-Woche` → absence_period {Mo, So}; Live-Szenario Max Schmidt 20h@Fr bei 3-Tage-Vertrag migriert sauber; 7 unit + 1 integration test added, Test #19 Plan-08-08 fixture amount auf 25.0 angepasst; cargo test --workspace + WASM build green; 5 jj-commits)
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 8
-  completed_plans: 7
-  percent: 88
+  total_plans: 9
+  completed_plans: 8
+  percent: 89
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 7 of 8 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 + 08-07 + 08-08 complete; 08-06 next — UAT smoke)
-Status: Executing Phase 08 (Plan 08-08 Cutover-Response-Polish shipped: failed-gate liefert inline `gate_drift_report` mit per-Entry-Details + reason_text + suggested_action; User kann den Drift ohne Filesystem-Access interpretieren)
-Last activity: 2026-05-08 -- Plan 08-08 (Cutover-Response Drift-Details) complete (4 atomic jj-commits a0b71fc1/b141a067/c4b0e91a/4b07738e + plan-setup c575b7bf + summary commit pending; QuarantineReason human_text/suggested_action + CutoverQuarantineEntryTO + inline gate_drift_report; 19/19 cutover integration tests + 3/3 openapi_surface tests + 12/12 service_impl cutover tests; WASM-Build grün)
+Plan: 8 of 9 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 + 08-07 + 08-08 + 08-09 complete; 08-06 next — UAT smoke)
+Status: Executing Phase 08 (Plan 08-09 Wochenpauschalen-Heuristik shipped: detect_weekly_lump_sum-Helper + Migration-Loop-Pre-Check; Live-Bug Max Schmidt 20h@Friday bei 3-Tage-Mo/Tu/We-Vertrag migriert jetzt sauber auf absence_period {Mo, So} der ISO-Woche, gate passes, drift=0)
+Last activity: 2026-05-08 -- Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete (5 jj-commits: 6acabd8a plan / 4122a125 feat / 6a7a7f26 fix-doc / a9881cff test / pending docs-summary; 20/20 cutover integration tests + 19/19 service_impl cutover tests + workspace 396+68+others alle grün; WASM-Build grün)
 
 ## Shipped Milestones
 
@@ -62,6 +62,8 @@ Last activity: 2026-05-08 -- Plan 08-08 (Cutover-Response Drift-Details) complet
 
 **v1.3 (Phasen 8+ — Frontend Abwesenheiten + UI-Closure-Restanten):**
 
+- **Heuristik-Pre-Check vor Quarantine-Pfaden** (Plan 08-09): Wenn eine Migration- oder Quarantine-Logik etablierte User-Conventions falsch ablehnt, wird ein additiver Pre-Check VOR den existing Pfaden eingebaut — Match → bypass mit explizitem Output (hier: 1-Row-Cluster mit überschriebenem `{Mo, So}`-Range), Non-Match → fall-through zur unveränderten Logik. Backwards-Compat ohne Code-Duplication; existing Tests bleiben grün ohne Modification. Konkret im Cutover: `detect_weekly_lump_sum(row, all_rows, contract_at)`-Helper + `iso_week_range(day)` + `lookup_active_contract(work_details, day)` als freistehende Funktionen am Modul-Ende. Detection-Order: Lump-Sum-Check VOR Workday-Quarantine + Strict-Match-Quarantine, weil Wochenpauschalen oft auf Nicht-Vertragstagen liegen — sonst wäre die Heuristik nutzlos. Per-Weekday-Contract-Lookup statt 'first contract of the week' kompatibel mit Vertragswechseln mid-week.
+- **ISO-Wochen-Boundary via time-Crate-Roundtrip** (Plan 08-09): Mo-of-week / So-of-week werden NICHT manuell berechnet, sondern via `time::Date::to_iso_week_date(day) → (year, week, _)` + `time::Date::from_iso_week_date(year, week, Weekday::{Monday, Sunday})`. Cross-Year-korrekt (KW 53 / KW 1 spreading über Jahresgrenze) ohne eigene calendar-week-math; nutzt das bewährte time-Crate API.
 - **Service-Enum-Reason-Mapping** (Plan 08-08): Wenn ein typisiertes Service-Enum (`QuarantineReason`) für End-User sichtbar wird, leben die human-readable + remediation-Strings als Methoden direkt am Enum (`human_text()`, `suggested_action()`) — single source of truth. DTOs (`CutoverQuarantineEntryTO`) rufen die Methoden auf und stringifizieren. Reusable für REST + künftige CLI-Tools / Admin-Reports ohne Wire-Tier-Abhängigkeit. Backend-Default ist Englisch; i18n übernimmt das Frontend (separates Backlog-Item).
 - **Inline-Drift-Report-Pattern** (Plan 08-08): Wenn ein Service ein File-System-Audit-Artefakt produziert (z.B. `cutover-gate-{ts}.json`), bekommt die REST-Antwort zusätzlich einen typisierten Inline-Body (`CutoverRunResultTO.gate_drift_report: Option<CutoverGateDriftReportTO>`). File bleibt für Audit-Trail unverändert; Inline-Body ist die UX-Datenquelle für Browser-Konsumenten ohne FS-Access. `#[serde(default)]` auf den neuen Feldern hält Backwards-Compat.
 - **Cross-Phase-Daten-Bucketing via Composite-Key-HashMap** (Plan 08-08): Wenn Service-Phase A (`migrate_legacy_extra_hours_to_clusters`) und Service-Phase B (`compute_gate`) per-Entity-Daten teilen müssen, ohne extra DAO-Roundtrips, transportiert eine `HashMap<(Uuid, EnumKategorie, u32), Vec<Entry>>` die Map zwischen Phasen. Voraussetzung: Enum-Key braucht `Hash`-Derive (purely additive Service-Tier-Erweiterung).
@@ -154,8 +156,8 @@ Last activity: 2026-05-08 -- Plan 08-08 (Cutover-Response Drift-Details) complet
 7. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief
 8. Read `shifty-dioxus/shifty-design/project/absences.jsx` — Mockup (729 Zeilen JSX)
 
-**Next command**: `/gsd-execute-phase 8` für Plan 08-06 (UAT smoke; finale Closure-Phase). Mit Plan 08-08 ist die Cutover-Surface jetzt UI-fertig — der spätere Cutover-UI-Backlog kann direkt gegen `CutoverRunResultTO.gate_drift_report` rendern.
+**Next command**: `/gsd-execute-phase 8` für Plan 08-06 (UAT smoke; finale Closure-Phase). Mit Plan 08-09 ist die Cutover-Migration jetzt für reale Wochenpauschalen-Bookings tolerant — der Live-Bug Max Schmidt 20h@Friday bei 3-Tage-Vertrag migriert sauber.
 
 ---
 
-*State updated: 2026-05-08 — Plan 08-08 (Cutover-Response Drift-Details) abgeschlossen (QuarantineReason::human_text + suggested_action für 5 Varianten + CutoverQuarantineEntryTO neu mit reason_code/reason_text/suggested_action/weekday-Code + CutoverRunResultTO.gate_drift_report inline + Quarantine-Bucket-Map zwischen Migration und Gate; 4 atomic jj-commits + plan-setup + summary; cargo test --workspace grün, 19/19 cutover integration tests + 3/3 openapi_surface + 12/12 service_impl cutover tests; WASM-Build grün). Phase-8-Progress 7/8 (88%). Plan 08-06 als nächstes — UAT smoke.*
+*State updated: 2026-05-08 — Plan 08-09 (Cutover Wochenpauschalen-Heuristik) abgeschlossen (detect_weekly_lump_sum-Helper + iso_week_range + lookup_active_contract; Migration-Loop bekommt Pre-Check (a.5) VOR Workday/Strict-Match Quarantäne; 1× extra_hours-Row mit `amount = Σ contract.hours_per_day für Vertragstage der ISO-Woche` wird auf absence_period {Mo, So} gemappt — auch wenn Eintrag-Tag ein Nicht-Vertragstag ist; Backwards-compat: existing Strict-Match + Cluster-of-N + Quarantine-Reasons unverändert; 7 unit + 1 integration test added (alle grün), Plan-08-08 Test #19 fixture amount auf 25.0 angepasst um Heuristik-Match zu vermeiden; cargo test --workspace grün (396+68+andere), WASM-Build grün; 5 jj-commits). Phase-8-Progress 8/9 (89%). Plan 08-06 als nächstes — UAT smoke.*

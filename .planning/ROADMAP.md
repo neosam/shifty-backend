@@ -118,7 +118,7 @@
 4. Neuer Backend-Resturlaubs-Endpoint (Shape Plan-Phase-Decision) liefert für `(sales_person_id [, year])` einen Wert mit entitled / used / planned / remaining (oder semantisch äquivalent); `hr ∨ self`-Permission analog zu `/absence-period`; OpenAPI-`#[utoipa::path]`-Annotation; `ToSchema` auf der DTO. Frontend-Komponenten `VacationEntitlementCard` (eigener User) und `VacationPerPersonList` (HR-Übersicht) konsumieren diesen Endpoint.
 5. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün (Backend-Erweiterung darf keine Regression verursachen); UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete + Resturlaubs-Anzeige) erfolgreich.
 
-**Plans:** 8 plans (3 Backend-Waves + 3 Frontend-Waves + 1 Gap-Closure-Plan + 1 Cutover-Response-Polish-Plan)
+**Plans:** 9 plans (3 Backend-Waves + 3 Frontend-Waves + 1 Gap-Closure-Plan + 1 Cutover-Response-Polish-Plan + 1 Cutover-Heuristik-Plan)
 
 - [x] 08-01-PLAN.md — Service-Trait + Domain-Struct (`VacationBalanceService`) + DTO (`VacationBalanceTO`) — Wave 1, BL-Tier interface foundation (completed 2026-05-08)
 - [x] 08-02-PLAN.md — Service-Impl (BL-Tier per gen_service_impl!) + 7 Unit-Tests + REST-Endpoints (utoipa) + DI-Wiring in main.rs — Wave 2 (completed 2026-05-08)
@@ -128,6 +128,7 @@
 - [ ] 08-06-PLAN.md — UAT-Smoke (HR + Employee) + Final-Regression-Gates (cargo test --workspace + WASM-Build) — Wave 6 closure
 - [x] 08-07-PLAN.md — Gap-Closure: admin-auto-grant trigger sqlx-Migration + GET /feature-flag/{key} REST-Endpoint + Frontend FeatureFlagsState + TopBar Cutover-Gate + HR-Submenu + Responsive AbsencesPage Layout (completed 2026-05-08)
 - [x] 08-08-PLAN.md — Cutover-Response Drift-Details: QuarantineReason::human_text + suggested_action + CutoverQuarantineEntryTO + CutoverRunResultTO.gate_drift_report inline DTO + per-entry quarantined_entries; failed-Gate liefert interpretierbare Antwort ohne File-Lookup (completed 2026-05-08)
+- [x] 08-09-PLAN.md — Cutover Wochenpauschalen-Heuristik: detect_weekly_lump_sum + iso_week_range + lookup_active_contract; Migration-Loop bekommt Pre-Check (a.5) VOR Workday/Strict-Match-Quarantäne; 1× extra_hours-Row mit `amount ≈ Σ hours_per_day für Vertragstage der ISO-Woche` → absence_period {Mo, So}; Live-Szenario Max-Schmidt 20h@Friday bei 3-Tage-Vertrag migriert sauber (gate passes, drift=0); 7 unit + 1 integration test (completed 2026-05-08)
 
 **UI hint**: yes
 
@@ -146,7 +147,7 @@
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
-| 8 — Absence-CRUD-Page Foundation | v1.3 | 7/8 | In Progress | — |
+| 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
@@ -155,4 +156,4 @@
 
 ---
 
-*Last updated: 2026-05-08 — Plan 08-08 (Cutover-Response Drift-Details) complete: QuarantineReason::human_text + suggested_action + CutoverQuarantineEntryTO + inline gate_drift_report mit per-Entry quarantined_entries; failed-Gate ist UI-fertig. 5 jj-commits; cargo test --workspace + WASM build green. Phase 8 progress 7/8 (Plan 08-06 UAT smoke remains).*
+*Last updated: 2026-05-08 — Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete: detect_weekly_lump_sum + Migration-Loop-Pre-Check (a.5); 1× extra_hours-Row mit `amount = Σ contract.hours_per_day für Vertragstage der ISO-Woche` → absence_period {Mo, So}; Live-Bug Max Schmidt 20h@Friday bei 3-Tage-Vertrag migriert sauber (gate passes, drift=0); Backwards-compat strict-match + cluster-of-N untouched; 7 unit + 1 integration test (alle grün), Plan-08-08 Test #19 fixture amount auf 25.0 angepasst. 5 jj-commits; cargo test --workspace + WASM build green. Phase 8 progress 8/9 (Plan 08-06 UAT smoke remains).*
