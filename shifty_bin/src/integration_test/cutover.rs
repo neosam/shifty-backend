@@ -1338,3 +1338,161 @@ async fn per_sales_person_per_year_per_category_invariant() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// 19. Plan 08-08 — failed gate exposes interpretable inline drift report.
+//     Live drift example: Vacation entry on a Friday for an employee whose
+//     contract has zero contract-hours on Friday (3-day-week Mon/Tue/Wed).
+//     `legacy_sum = 20.0`, `derived_sum = 0.0`, drift = 20.0 → quarantine
+//     reason `contract_hours_zero_for_day`. The inline drift report must
+//     contain the per-entry list with extra_hours_id + date + weekday +
+//     amount + reason_code + reason_text + suggested_action — each
+//     human-readable.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_failed_gate_returns_inline_drift_report_with_per_entry_details() {
+    use service::employee_work_details::EmployeeWorkDetailsService;
+
+    let test_setup = TestSetup::new().await;
+    add_user_with_role(&test_setup, "hr_user", "hr", None).await;
+    let auth = context_for("hr_user");
+
+    let alice = create_sales_person(&test_setup, "Alice").await;
+
+    // 3-day-week contract: Mon/Tue/Wed only, 24h expected → 8h/workday.
+    // Fri/Sat/Sun are NON-workdays → contract_hours = 0. A Vacation entry
+    // on a Friday must quarantine with reason `contract_hours_zero_for_day`.
+    let mut wd = standard_contract(alice.id);
+    wd.created = None;
+    wd.expected_hours = 24.0;
+    wd.workdays_per_week = 3;
+    wd.monday = true;
+    wd.tuesday = true;
+    wd.wednesday = true;
+    wd.thursday = false;
+    wd.friday = false;
+    wd.saturday = false;
+    wd.sunday = false;
+    test_setup
+        .rest_state
+        .working_hours_service()
+        .create(&wd, Authentication::Full, None)
+        .await
+        .unwrap();
+
+    // 2026-05-08 is a Friday → non-workday → contract_hours = 0 → quarantine.
+    let friday = date!(2026 - 05 - 08);
+    let entry = create_extra_hour(
+        &test_setup,
+        alice.id,
+        ExtraHoursCategory::Vacation,
+        friday,
+        20.0,
+    )
+    .await;
+    assert_eq!(
+        friday.weekday(),
+        time::Weekday::Friday,
+        "fixture sanity: 2026-05-08 must be a Friday"
+    );
+
+    // Run dry-run gate via the service-layer entrypoint.
+    let result = test_setup
+        .rest_state
+        .cutover_service()
+        .run(true, auth, None)
+        .await
+        .unwrap();
+
+    assert!(!result.gate_passed, "fixture must produce a failed gate");
+
+    // (a) gate_drift_report is populated when gate fails.
+    let report = result
+        .gate_drift_report
+        .as_ref()
+        .expect("failed gate must populate gate_drift_report inline");
+    assert!(!report.passed);
+    assert!(report.total_drift_rows >= 1);
+    assert!(!report.drift.is_empty());
+
+    // (b) Find the Vacation drift bucket for Alice — must contain the
+    // single quarantined Friday entry.
+    let drift_row = report
+        .drift
+        .iter()
+        .find(|r| r.sales_person_id == alice.id && r.category == AbsenceCategory::Vacation)
+        .expect("Alice/Vacation/2026 drift row must exist");
+    assert!(
+        !drift_row.quarantined_entries.is_empty(),
+        "Plan 08-08: quarantined_entries must be populated for the failed bucket"
+    );
+
+    // (c) The single quarantined entry surfaces every Plan-08-08 field.
+    let qe = drift_row
+        .quarantined_entries
+        .iter()
+        .find(|q| q.extra_hours_id == entry.id)
+        .expect("the inserted Friday entry must surface verbatim");
+    assert_eq!(qe.date, friday);
+    assert_eq!(qe.amount, 20.0);
+    assert_eq!(
+        qe.reason,
+        service::cutover::QuarantineReason::ContractHoursZeroForDay,
+        "Friday on a Mon/Tue/Wed contract must yield contract_hours_zero_for_day"
+    );
+
+    // (d) Reason mapping produces non-empty human_text + suggested_action.
+    assert!(!qe.reason.human_text().trim().is_empty());
+    assert!(!qe.reason.suggested_action().trim().is_empty());
+    assert_eq!(qe.reason.as_persisted_str(), "contract_hours_zero_for_day");
+
+    // (e) Bridge to the wire-tier DTO: the same data must round-trip into
+    // CutoverRunResultTO without loss, and the per-entry weekday code must
+    // come from the `Mon..Sun` set.
+    let to = rest_types::CutoverRunResultTO::from(&result);
+    let report_to = to
+        .gate_drift_report
+        .as_ref()
+        .expect("DTO inherits gate_drift_report when it is Some on the service side");
+    let drift_row_to = report_to
+        .drift
+        .iter()
+        .find(|r| r.sales_person_id == alice.id)
+        .expect("Alice drift row in DTO");
+    assert!(!drift_row_to.quarantined_entries.is_empty());
+    let qe_to = &drift_row_to.quarantined_entries[0];
+    assert_eq!(qe_to.extra_hours_id, entry.id);
+    assert_eq!(qe_to.date, "2026-05-08");
+    assert!(
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            .iter()
+            .any(|w| *w == qe_to.weekday),
+        "weekday must be a 3-letter code, got: {}",
+        qe_to.weekday
+    );
+    assert_eq!(qe_to.weekday, "Fri");
+    assert_eq!(qe_to.amount, 20.0);
+    assert_eq!(qe_to.reason_code, "contract_hours_zero_for_day");
+    assert!(
+        !qe_to.reason_text.trim().is_empty(),
+        "reason_text must be human-readable English, got: {:?}",
+        qe_to.reason_text
+    );
+    assert!(
+        !qe_to.suggested_action.trim().is_empty(),
+        "suggested_action must be non-empty English text, got: {:?}",
+        qe_to.suggested_action
+    );
+
+    // (f) The service-layer SP is HR; ensure the working-hours service was
+    // actually consulted (sanity — would otherwise produce an
+    // ContractNotActiveAtDate quarantine instead).
+    let wd_loaded = test_setup
+        .rest_state
+        .working_hours_service()
+        .find_by_sales_person_id(alice.id, Authentication::Full, None)
+        .await
+        .unwrap();
+    assert!(!wd_loaded.is_empty());
+}

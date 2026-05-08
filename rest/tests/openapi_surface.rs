@@ -122,6 +122,8 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     "ShiftplanTO",
     // Cutover.
     "CutoverProfileTO",
+    // Cutover (Plan 08-08) — per-entry inline drift diagnostics.
+    "CutoverQuarantineEntryTO",
 ];
 
 #[test]
