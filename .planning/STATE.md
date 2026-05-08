@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T08:35:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-01 complete (VacationBalance Trait + DTO Foundation)
+last_updated: "2026-05-08T08:55:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-02 complete (VacationBalance Service-Impl + REST + DI; 7 unit tests; cargo test --workspace green)
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 2 of 6 (08-01 complete; 08-02 next)
+Plan: 3 of 6 (08-01 + 08-02 complete; 08-03 next — OpenAPI insta-Snapshot Refresh)
 Status: Executing Phase 08
-Last activity: 2026-05-08 -- Plan 08-01 complete (VacationBalance Trait + DTO Foundation)
+Last activity: 2026-05-08 -- Plan 08-02 complete (VacationBalance Service-Impl + REST + DI; 7 unit tests green)
 
 ## Shipped Milestones
 
@@ -64,6 +64,9 @@ Last activity: 2026-05-08 -- Plan 08-01 complete (VacationBalance Trait + DTO Fo
 
 - **Read-only Aggregat-DTO ohne `$version`-Field** (Plan 08-01): `VacationBalanceTO` ist ein berechnetes Aggregat — kein Optimistic-Lock-Konflikt möglich, daher entfällt das `$version`-Pattern aus AbsencePeriodTO. Bewusste Abweichung; Plan 08-02-REST-Endpoint liefert immer frische Werte.
 - **Wave-1-Foundation-Plan ohne Test-Code** (Plan 08-01): Trait + Domain + DTO als reine Interface-Foundation; Tests landen in Wave 2 (Plan 08-02), wo die Service-Impl gegen `MockVacationBalanceService` testbar wird. Dieses Pattern ersetzt das Wave-0-Stub-`#[ignore]`-Pattern für reine BL-Tier-Trait-Foundations und ist stiller als ein Stub.
+- **Active-Period-Split-on-today** (Plan 08-02): Wenn eine Vacation-Periode heute aktiv ist (`today ∈ [from, to]`), splittet `VacationBalanceServiceImpl::compute_balance` die Tage auf `clock.date_now()` als Stichtag — Vergangenheits-Anteil zu `used_days`, Zukunfts-Anteil zu `planned_days`. So gibt es keine Diskontinuität, wenn eine Periode genau heute beginnt oder endet, und das Frontend-Aggregat ist heute und morgen gleich aussagekräftig.
+- **compute_balance als private Helper für get_team-Code-Sharing** (Plan 08-02): `get_team` iteriert über `sales_person_service.get_all_paid()` und ruft pro Person `compute_balance` auf, das ohne Permission-Check aggregiert (Outer-Permission ist schon im `get`/`get_team` enforced). Innere Service-Calls nutzen `Authentication::Full` analog `compute_forward_warnings` in `absence.rs`.
+- **Special-Day-Subtraktion verschoben** (Plan 08-02 — A5-Note in 08-RESEARCH.md): Tag-Anzahl pro Vacation-Periode = `(to - from).whole_days() + 1`, beschnitten auf das Kalenderjahr. Wochenenden, Feiertage, Vertragsstunden-Anteile NICHT berücksichtigt. Das macht das Aggregat zur reinen Kalendertage-Sicht; Refinement (Tag-Äquivalent via `EmployeeWorkDetails.has_day_of_week`) ist Out-of-Scope für Plan 02 und wird je nach Frontend-Feedback in eine spätere Phase gefolded.
 
 **v1.2 (Phasen 6–7 — Frontend rest-types Konsolidierung):**
 
