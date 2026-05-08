@@ -482,6 +482,33 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
                 continue;
             };
 
+            // (a.5) Plan 08-09 — Wochenpauschalen-Heuristik. Prüft VOR der
+            // Workday- und Strict-Match-Quarantäne, ob die Row eine
+            // Wochenpauschale ist (single-row pro ISO-Woche, amount = Σ
+            // hours_per_day für jeden Vertragstag der Woche). Match → expliziter
+            // 1-Row-Cluster mit {Mo, So}-Range; bypass die strict-match-Pfade.
+            //
+            // Backwards-compat: wenn die Heuristic NICHT matcht (Standardfall:
+            // 1 Tag = 1 Vertragstag = hours_per_day), läuft der existing
+            // Strict-Match-Pfad unverändert weiter. Cluster-of-N für
+            // aufeinanderfolgende Vertragstage bleibt ebenfalls intakt.
+            if let Some((from, to)) = detect_weekly_lump_sum(row, &all_legacy, |d| {
+                lookup_active_contract(work_details, d)
+            }) {
+                // Nicht mit Vorgänger fusionieren: schließen der laufenden
+                // Cluster zuerst, dann expliziten 1-Row-Cluster pushen.
+                close_current_cluster(&mut current, &mut migrations);
+                migrations.push(MigratedCluster {
+                    absence_period_id: Uuid::new_v4(),
+                    sales_person_id: row.sales_person_id,
+                    category: extra_hours_category_to_absence(&row.category),
+                    from_date: from,
+                    to_date: to,
+                    source_ids: vec![row.id],
+                });
+                continue;
+            }
+
             // (b) workday check (D-Phase4-01)
             if !contract.has_day_of_week(day.weekday()) {
                 close_current_cluster(&mut current, &mut migrations);
@@ -988,6 +1015,135 @@ fn extra_hours_category_to_absence(c: &ExtraHoursCategoryEntity) -> AbsenceCateg
             other
         ),
     }
+}
+
+/// Plan 08-09 — Wochenpauschalen-Heuristik.
+///
+/// Returns `Some((monday, sunday))` if `row` qualifies as a "weekly lump-sum":
+/// a single `extra_hours` entry where `amount` equals the sum of the contract's
+/// `hours_per_day` over each contract-workday in the row's ISO calendar week.
+/// Returns `None` if the row should be processed by the strict-match path
+/// instead.
+///
+/// **Detection rules (all three must hold):**
+/// 1. `row.date_time` falls in some ISO calendar week. Compute Monday + Sunday
+///    of that week as the candidate `absence_period` range.
+/// 2. **Single-row-per-week:** No other row in `all_rows` has the same
+///    `(sales_person_id, category)` and falls into the same ISO-week.
+///    Rationale: if two rows of the same category share a week, the user
+///    obviously did NOT use the lump-sum convention — fall back to strict
+///    match so each row is evaluated individually.
+/// 3. **Amount-Match:** `|row.amount − Σ hours_per_day(d)| < CONTRACT_HOURS_EPSILON`,
+///    where the sum runs over each weekday `d` in `[Mo..=So]` for which
+///    `contract_at(d)` returns an active contract that has `d` as a workday.
+///    The contract is looked up *per weekday* so a contract change mid-week
+///    is handled correctly.
+///
+/// **Weekday agnostic:** `row.date_time` may fall on any weekday (Mo..So) —
+/// including a non-workday. The heuristic does NOT require the entry-day to
+/// be a contract workday; the convention is "user picked any day in the week
+/// to record the weekly vacation".
+///
+/// Returns `None` (→ caller falls back to strict-match) if any condition
+/// fails or if the row has zero contract-coverage in the week (no contract
+/// active on any weekday → cannot derive a target sum, so the row cannot be
+/// a lump-sum).
+fn detect_weekly_lump_sum<'a>(
+    row: &LegacyExtraHoursRow,
+    all_rows: &[LegacyExtraHoursRow],
+    contract_at: impl Fn(time::Date) -> Option<&'a EmployeeWorkDetails>,
+) -> Option<(time::Date, time::Date)> {
+    // Step 1: Compute Mo + So of `row`'s ISO-week.
+    let (monday, sunday) = iso_week_range(row.date_time.date());
+
+    // Step 2: Single-row-per-week check. Iterate all other rows of the same
+    // (sp, cat) and check whether any falls into [monday..=sunday].
+    for other in all_rows.iter() {
+        if other.id == row.id {
+            continue;
+        }
+        if other.sales_person_id != row.sales_person_id || other.category != row.category {
+            continue;
+        }
+        let other_day = other.date_time.date();
+        if other_day >= monday && other_day <= sunday {
+            // Conflict — another (sp, cat) row in the same ISO-week.
+            return None;
+        }
+    }
+
+    // Step 3: Amount-Match. Iterate Mo..=So, ask `contract_at(weekday)` for
+    // each, sum `hours_per_day` for active workdays.
+    let mut target_sum: f32 = 0.0;
+    let mut had_any_active_contract = false;
+    let mut day = monday;
+    while day <= sunday {
+        if let Some(contract) = contract_at(day) {
+            had_any_active_contract = true;
+            if contract.has_day_of_week(day.weekday()) {
+                let hpd = contract.hours_per_day();
+                if hpd > 0.0 {
+                    target_sum += hpd;
+                }
+            }
+        }
+        match day.next_day() {
+            Some(d) => day = d,
+            None => break,
+        }
+    }
+
+    // No active contract anywhere in the week → cannot derive a target. Let
+    // the strict-match path handle it (will produce ContractNotActiveAtDate).
+    if !had_any_active_contract {
+        return None;
+    }
+    // Zero target sum (e.g. all-non-workdays week, or all hours_per_day=0)
+    // also cannot be a lump-sum.
+    if target_sum <= 0.0 {
+        return None;
+    }
+
+    if (row.amount - target_sum).abs() < CONTRACT_HOURS_EPSILON {
+        Some((monday, sunday))
+    } else {
+        None
+    }
+}
+
+/// Look up the active (non-deleted) `EmployeeWorkDetails` covering `day`, or
+/// `None` if no contract is active on that date. Mirrors the per-row lookup
+/// in the migration loop and the gate-phase derive logic.
+fn lookup_active_contract(
+    work_details: &[EmployeeWorkDetails],
+    day: time::Date,
+) -> Option<&EmployeeWorkDetails> {
+    work_details.iter().find(|wh| {
+        if wh.deleted.is_some() {
+            return false;
+        }
+        let from_date = match wh.from_date() {
+            Ok(d) => d.to_date(),
+            Err(_) => return false,
+        };
+        let to_date = match wh.to_date() {
+            Ok(d) => d.to_date(),
+            Err(_) => return false,
+        };
+        from_date <= day && day <= to_date
+    })
+}
+
+/// Returns `(monday, sunday)` of the ISO calendar week containing `day`.
+/// Uses `time::Date::iso_week()` + `from_iso_week_date()` so cross-year weeks
+/// (e.g. ISO-week 1 starting in late December) resolve correctly.
+fn iso_week_range(day: time::Date) -> (time::Date, time::Date) {
+    let (iso_year, iso_week, _) = day.to_iso_week_date();
+    let monday = time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Monday)
+        .expect("ISO-week date must be valid for any input date");
+    let sunday = time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Sunday)
+        .expect("ISO-week date must be valid for any input date");
+    (monday, sunday)
 }
 
 /// Walks forward from `prev_day + 1` until it hits the next contract-workday;
