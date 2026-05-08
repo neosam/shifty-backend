@@ -39,6 +39,7 @@ pub mod text_template;
 pub mod toggle;
 pub mod user_invitation;
 pub mod uuid_service;
+pub mod vacation_balance;
 pub mod week_message;
 
 pub use permission::PermissionServiceImpl;

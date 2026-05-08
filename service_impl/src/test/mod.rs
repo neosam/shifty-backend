@@ -58,3 +58,5 @@ pub mod toggle;
 pub mod employee_work_details;
 #[cfg(test)]
 pub mod extra_hours;
+#[cfg(test)]
+pub mod vacation_balance;
