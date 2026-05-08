@@ -1,3 +1,4 @@
+pub mod absences;
 pub mod billing_period_details;
 pub mod billing_periods;
 pub mod custom_extra_hours_management;
@@ -14,6 +15,7 @@ pub mod user_details;
 pub mod user_management;
 pub mod weekly_overview;
 
+pub use absences::AbsencesPage;
 pub use billing_period_details::BillingPeriodDetails;
 pub use billing_periods::BillingPeriods;
 pub use custom_extra_hours_management::CustomExtraHoursManagement;

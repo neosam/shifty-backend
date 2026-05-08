@@ -1,5 +1,12 @@
 use dioxus::prelude::*;
 
+pub use crate::page::AbsencesPage;
+// `dioxus_router`'s `#[derive(Routable)]` looks up a component by the exact
+// variant name, so the `Absences {}` route below needs an item called
+// `Absences` in scope. We alias the page component (which is named
+// `AbsencesPage` per the Plan-05 component-inventory contract) so both
+// the descriptive name and the route lookup work.
+pub use crate::page::AbsencesPage as Absences;
 pub use crate::page::BillingPeriodDetails;
 pub use crate::page::BillingPeriods;
 pub use crate::page::CustomExtraHoursManagement;
@@ -48,4 +55,6 @@ pub enum Route {
     BillingPeriodDetails { billing_period_id: String },
     #[route("/my-shifts/")]
     MyShifts {},
+    #[route("/absences/")]
+    Absences {},
 }

@@ -23,6 +23,7 @@ pub(crate) struct NavVisibility {
     pub my_shifts: bool,
     pub my_time: bool,
     pub year_overview: bool,
+    pub absences: bool,
     pub employees: bool,
     pub billing_periods: bool,
     pub user_management: bool,
@@ -32,11 +33,15 @@ pub(crate) struct NavVisibility {
 pub(crate) fn nav_visibility(auth_info: Option<&AuthInfo>, is_paid: bool) -> NavVisibility {
     let has = |p: &str| auth_info.map(|a| a.has_privilege(p)).unwrap_or(false);
     let show_reports = has("hr");
+    let logged_in = auth_info.is_some();
     NavVisibility {
         shiftplan: has("sales") || has("shiftplanner"),
         my_shifts: has("sales"),
         my_time: is_paid && !show_reports,
         year_overview: has("shiftplanner") || has("sales"),
+        // D-10: Absence menu entry visible for ALL logged-in users (HR + Employee).
+        // HR-privilege only switches the filter mode inside the page itself.
+        absences: logged_in,
         employees: show_reports,
         billing_periods: show_reports,
         user_management: has("admin"),
@@ -50,6 +55,7 @@ pub(crate) enum NavTarget {
     MyShifts,
     MyTime,
     YearOverview,
+    Absences,
     Employees,
     BillingPeriods,
     UserManagement,
@@ -64,6 +70,7 @@ pub(crate) fn is_active_for(target: NavTarget, route: &Route) -> bool {
         NavTarget::MyShifts => matches!(route, Route::MyShifts {}),
         NavTarget::MyTime => matches!(route, Route::MyEmployeeDetails {}),
         NavTarget::YearOverview => matches!(route, Route::WeeklyOverview {}),
+        NavTarget::Absences => matches!(route, Route::Absences {}),
         NavTarget::Employees => {
             matches!(route, Route::Employees {} | Route::EmployeeDetails { .. })
         }
@@ -337,6 +344,16 @@ fn TopBarRouted() -> Element {
                 NavTarget::YearOverview,
                 Route::WeeklyOverview {},
                 i18n.t(Key::YearOverview).to_string(),
+            ));
+        }
+        // D-10: Absence menu entry sits in the top-level row right after the
+        // year-overview block; it is visible for ALL logged-in users (HR +
+        // Employee). HR-privilege only flips the page-internal filter mode.
+        if visibility.absences {
+            items.push((
+                NavTarget::Absences,
+                Route::Absences {},
+                i18n.t(Key::AbsenceMenuLabel).to_string(),
             ));
         }
         if visibility.employees {
@@ -651,6 +668,8 @@ mod tests {
         assert!(!v.my_shifts);
         assert!(!v.my_time);
         assert!(!v.year_overview);
+        // D-10: absences requires logged_in — without auth it is hidden.
+        assert!(!v.absences);
         assert!(!v.employees);
         assert!(!v.billing_periods);
         assert!(!v.user_management);
@@ -664,6 +683,8 @@ mod tests {
         assert!(v.shiftplan);
         assert!(v.my_shifts);
         assert!(v.year_overview);
+        // D-10: any logged-in user (incl. sales-only) sees the absences entry.
+        assert!(v.absences);
         assert!(!v.my_time);
         assert!(!v.employees);
         assert!(!v.user_management);
@@ -686,6 +707,9 @@ mod tests {
         let v = nav_visibility(Some(&auth), false);
         assert!(v.employees);
         assert!(v.billing_periods);
+        // D-10: HR is logged in → absences is shown for HR too (the page itself
+        // switches to the all-employees variant via `has_privilege("hr")`).
+        assert!(v.absences);
         assert!(!v.shiftplan);
         assert!(!v.my_shifts);
         assert!(!v.year_overview);
@@ -788,6 +812,10 @@ mod tests {
             &Route::WeeklyOverview {}
         ));
         assert!(is_active_for(
+            NavTarget::Absences,
+            &Route::Absences {}
+        ));
+        assert!(is_active_for(
             NavTarget::Templates,
             &Route::TextTemplateManagement {}
         ));
@@ -859,6 +887,8 @@ mod tests {
         assert!(!is_admin_target(NavTarget::MyShifts));
         assert!(!is_admin_target(NavTarget::MyTime));
         assert!(!is_admin_target(NavTarget::YearOverview));
+        // Absences is top-level (per D-10), NOT in the admin dropdown.
+        assert!(!is_admin_target(NavTarget::Absences));
         assert!(is_admin_target(NavTarget::Employees));
         assert!(is_admin_target(NavTarget::BillingPeriods));
         assert!(is_admin_target(NavTarget::UserManagement));
@@ -871,6 +901,7 @@ mod tests {
             NavTarget::MyShifts => Route::MyShifts {},
             NavTarget::MyTime => Route::MyEmployeeDetails {},
             NavTarget::YearOverview => Route::WeeklyOverview {},
+            NavTarget::Absences => Route::Absences {},
             NavTarget::Employees => Route::Employees {},
             NavTarget::BillingPeriods => Route::BillingPeriods {},
             NavTarget::UserManagement => Route::UserManagementPage {},
@@ -886,6 +917,7 @@ mod tests {
             nav_entry(NavTarget::MyShifts, "Meine Schichten"),
             nav_entry(NavTarget::MyTime, "Meine Zeit"),
             nav_entry(NavTarget::YearOverview, "Jahresübersicht"),
+            nav_entry(NavTarget::Absences, "Abwesenheiten"),
             nav_entry(NavTarget::Employees, "Mitarbeiter"),
             nav_entry(NavTarget::BillingPeriods, "Abrechnungszeiträume"),
             nav_entry(NavTarget::UserManagement, "Benutzerverwaltung"),
@@ -901,6 +933,7 @@ mod tests {
                 NavTarget::MyShifts,
                 NavTarget::MyTime,
                 NavTarget::YearOverview,
+                NavTarget::Absences,
             ]
         );
 
@@ -1008,6 +1041,9 @@ mod tests {
         if v.year_overview {
             items.push(nav_entry(NavTarget::YearOverview, "Jahresübersicht"));
         }
+        if v.absences {
+            items.push(nav_entry(NavTarget::Absences, "Abwesenheiten"));
+        }
         if v.employees {
             items.push(nav_entry(NavTarget::Employees, "Mitarbeiter"));
         }
@@ -1031,9 +1067,16 @@ mod tests {
         let (top_level, admin) = partition_nav_items(&items);
         assert!(admin.is_empty(), "sales-only should have no admin items");
         let labels: Vec<&str> = top_level.iter().map(|e| e.2.as_str()).collect();
+        // D-10: Absences sits in the top-level row right after Jahresübersicht
+        // for any logged-in user.
         assert_eq!(
             labels,
-            vec!["Schichtplan", "Meine Schichten", "Jahresübersicht"]
+            vec![
+                "Schichtplan",
+                "Meine Schichten",
+                "Jahresübersicht",
+                "Abwesenheiten",
+            ]
         );
     }
 
@@ -1047,8 +1090,14 @@ mod tests {
         let top_labels: Vec<&str> = top_level.iter().map(|e| e.2.as_str()).collect();
         assert_eq!(
             top_labels,
-            vec!["Schichtplan", "Meine Schichten", "Jahresübersicht"],
-            "hr suppresses my_time, top-level shows the rest in declaration order"
+            vec![
+                "Schichtplan",
+                "Meine Schichten",
+                "Jahresübersicht",
+                "Abwesenheiten",
+            ],
+            "hr suppresses my_time, top-level shows the rest in declaration order \
+             with Absences after YearOverview (D-10)"
         );
 
         let admin_labels: Vec<&str> = admin.iter().map(|e| e.2.as_str()).collect();
