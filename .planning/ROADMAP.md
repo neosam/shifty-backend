@@ -5,20 +5,31 @@
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (shipped 2026-05-04) — siehe [`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
-- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (active, started 2026-05-07)
+- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8 (✓), 8.1, 9–13 (active, started 2026-05-07)
 
 ## Phases
 
 ### v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (active)
 
-- [ ] **Phase 8: Absence-CRUD-Page Foundation** (Frontend)
+- [x] **Phase 8: Absence-CRUD-Page Foundation** (Frontend) — completed 2026-05-08, 9 plans, code-side fertig, int-UAT deferred zu Phase 8.1
   Neue Top-Level-Route `absences` mit CRUD gegen `/absence-period`, HR/Employee-Sicht aus Auth-Context, Form (Range-Picker + Kategorie + Description) und Forward-Warnings-Anzeige.
   Requirements: FUI-A-01, FUI-A-02, FUI-A-03, FUI-A-04
   Success Criteria:
   1. Route `/absences` ist via Menü erreichbar; HR-Privileg-Check schaltet Filter über alle Mitarbeiter frei (Auth-Context, kein User-Toggle)
   2. Form erlaubt CRUD eines `AbsencePeriodTO` mit Datum-Range-Picker (Ganztage), Kategorie-Dropdown (`Vacation`/`SickLeave`/`UnpaidLeave`), Description; Self-Overlap-`422` wird als Validation-Error gerendert
   3. `AbsencePeriodCreateResultTO.warnings[]` aus POST/PUT-Antwort wird als nicht-blockierende Hinweisliste angezeigt
-  4. `cargo build --target wasm32-unknown-unknown` grün; UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete)
+  4. `cargo build --target wasm32-unknown-unknown` grün; UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete) — **deferred, siehe 08-HUMAN-UAT.md + Phase 8.1**
+
+- [ ] **Phase 8.1: Cutover-Migration-UI** (Frontend, Closure-Phase für Phase 8)
+  Admin-UI für die `extra_hours` → `absence_period`-Datenmigration. 3-Stage-Wizard (Profile → Dry-Run → Commit) mit Drift-Resolution-Liste, Per-Eintrag-Aktionen (Delete / Edit / Convert-to-Range / Skip) und Bulk-Aktionen. Schließt den Phase-8-int-UAT-Block, der durch reale Buchungs-Pattern-Diversität entstanden ist (Auto-Heuristik in Plan 08-09 deckt nicht alle Patterns ab — siehe 08-HUMAN-UAT.md gap-1).
+  Requirements: (Closure-Phase, kein neues FUI-Requirement; löst Phase-8-Adoption-Block)
+  Success Criteria:
+  1. Admin-Route mit `cutover_admin`-Privileg-Gate; 3 sichtbare Stages; Profile + Dry-Run liefern strukturiertes Ergebnis-Display (Quarantine-Counts, Carryover-Diff)
+  2. Drift-Resolution-Liste rendert pro `quarantined_entry` Datum/Wochentag/Stunden/Reason-Text/Suggested-Action (alles aus inline `gate_drift_report` aus Plan 08-08); Per-Eintrag-Aktionen für Delete / Edit-extra_hours / Convert-to-AbsencePeriod / Skip
+  3. Bulk-Aktion "Alle Wochenpauschalen für (sales_person, category, year) konvertieren" verfügbar
+  4. Cutover-Commit erst aktiv wenn `quarantined_rows == 0`; Confirmation-Dialog vor destruktivem Commit; Idempotenz-Hinweis nach Abschluss
+  5. Optional: Feiertag-Konsistenz-Fix in `detect_weekly_lump_sum` (Plan 08-09 Inkonsistenz mit `derive_hours_for_range` — Group D Drifts wie Sonja Vac 2026)
+  6. Phase-8-HUMAN-UAT (35 Schritte) wird auf int durchlaufen und gemeinsam mit Phase 8.1 closed; gap-1 in 08-HUMAN-UAT.md auf `resolved` gesetzt
 
 - [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
@@ -125,7 +136,7 @@
 - [x] 08-03-PLAN.md — OpenAPI Surface-Assertion-Test (`rest/tests/openapi_surface.rs`; Option-B-Pivot vom flaky insta-snapshot weg; pinnt Pfad-Liste + Schema-Namen + VacationBalance-Tag; 3-run-determinism) — Wave 3 (completed 2026-05-08)
 - [x] 08-04-PLAN.md — Frontend Foundation: api.rs (8 fns) + ShiftyError::Validation + state-types + loader + service-coroutines + 60 i18n-Keys (de/en/cs) + Dx-Proxy-Einträge — Wave 4 (completed 2026-05-08)
 - [x] 08-05-PLAN.md — AbsencesPage + AbsenceModal + 9 inline components (WarningList + CategoryBadge + StatusPill + VacationEntitlementCard + VacationPerPersonList + AbsenceList + AbsenceFilterBar + StatsGrid + DeleteConfirmDialog) + Route::Absences + TopBar entry + 11 dioxus-ssr snapshot tests + WASM-Build-Gate — Wave 5; closes Wave-0-Item-3 in VALIDATION.md (nyquist_compliant: true) (completed 2026-05-08)
-- [ ] 08-06-PLAN.md — UAT-Smoke (HR + Employee) + Final-Regression-Gates (cargo test --workspace + WASM-Build) — Wave 6 closure
+- [x] 08-06-PLAN.md — UAT-Smoke (HR + Employee) + Final-Regression-Gates (cargo test --workspace + WASM-Build) — Wave 6 closure
 - [x] 08-07-PLAN.md — Gap-Closure: admin-auto-grant trigger sqlx-Migration + GET /feature-flag/{key} REST-Endpoint + Frontend FeatureFlagsState + TopBar Cutover-Gate + HR-Submenu + Responsive AbsencesPage Layout (completed 2026-05-08)
 - [x] 08-08-PLAN.md — Cutover-Response Drift-Details: QuarantineReason::human_text + suggested_action + CutoverQuarantineEntryTO + CutoverRunResultTO.gate_drift_report inline DTO + per-entry quarantined_entries; failed-Gate liefert interpretierbare Antwort ohne File-Lookup (completed 2026-05-08)
 - [x] 08-09-PLAN.md — Cutover Wochenpauschalen-Heuristik: detect_weekly_lump_sum + iso_week_range + lookup_active_contract; Migration-Loop bekommt Pre-Check (a.5) VOR Workday/Strict-Match-Quarantäne; 1× extra_hours-Row mit `amount ≈ Σ hours_per_day für Vertragstage der ISO-Woche` → absence_period {Mo, So}; Live-Szenario Max-Schmidt 20h@Friday bei 3-Tage-Vertrag migriert sauber (gate passes, drift=0); 7 unit + 1 integration test (completed 2026-05-08)

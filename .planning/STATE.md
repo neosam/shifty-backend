@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
-status: executing
+status: milestone_complete
 last_updated: "2026-05-08T12:47:18.000Z"
 last_activity: 2026-05-08 -- Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete (detect_weekly_lump_sum + Migration-Loop-Pre-Check für extra_hours-Rows mit `amount = Σ contract.hours_per_day in ISO-Woche` → absence_period {Mo, So}; Live-Szenario Max Schmidt 20h@Fr bei 3-Tage-Vertrag migriert sauber; 7 unit + 1 integration test added, Test #19 Plan-08-08 fixture amount auf 25.0 angepasst; cargo test --workspace + WASM build green; 5 jj-commits)
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
   completed_plans: 8
-  percent: 89
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 8 of 9 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 + 08-07 + 08-08 + 08-09 complete; 08-06 next — UAT smoke)
-Status: Executing Phase 08 (Plan 08-09 Wochenpauschalen-Heuristik shipped: detect_weekly_lump_sum-Helper + Migration-Loop-Pre-Check; Live-Bug Max Schmidt 20h@Friday bei 3-Tage-Mo/Tu/We-Vertrag migriert jetzt sauber auf absence_period {Mo, So} der ISO-Woche, gate passes, drift=0)
-Last activity: 2026-05-08 -- Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete (5 jj-commits: 6acabd8a plan / 4122a125 feat / 6a7a7f26 fix-doc / a9881cff test / pending docs-summary; 20/20 cutover integration tests + 19/19 service_impl cutover tests + workspace 396+68+others alle grün; WASM-Build grün)
+Phase: 08
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-08
 
 ## Shipped Milestones
 
