@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T17:30:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-07 (Gap-Closure) complete (admin-auto-grant trigger + Feature-Flag REST + FE FeatureFlagsState + TopBar cutover-gate + HR-submenu + responsive AbsencesPage; cargo test --workspace + WASM build green; 509/509 FE tests green)
+last_updated: "2026-05-08T19:50:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-08 (Cutover-Response Drift-Details) complete (QuarantineReason::human_text/suggested_action + CutoverGateDriftReport inline DTO + per-entry quarantined_entries + integration test for live drift example; cargo test --workspace + WASM build green)
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 7
-  completed_plans: 6
-  percent: 86
+  total_plans: 8
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 6 of 7 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 + 08-07 complete; 08-06 next — UAT smoke)
-Status: Executing Phase 08 (Plan 08-07 Gap-Closure shipped: DEVUSER hat Vollzugriff via admin-auto-grant trigger; Feature-Flag REST exposed; FE TopBar cutover-gated; AbsencesPage responsive)
-Last activity: 2026-05-08 -- Plan 08-07 (Gap-Closure) complete (5 atomic jj-commits b02bb160/733a4904/e05603a5/148c628b/55c06e06 + plan-setup 3e5480ee + summary commit pending; admin-auto-grant trigger 4 tests, Feature-Flag REST 6 tests, FE state 3 tests, TopBar 42 tests inkl. 3 neue, AbsencesPage responsive WASM-grün)
+Plan: 7 of 8 (08-01 + 08-02 + 08-03 + 08-04 + 08-05 + 08-07 + 08-08 complete; 08-06 next — UAT smoke)
+Status: Executing Phase 08 (Plan 08-08 Cutover-Response-Polish shipped: failed-gate liefert inline `gate_drift_report` mit per-Entry-Details + reason_text + suggested_action; User kann den Drift ohne Filesystem-Access interpretieren)
+Last activity: 2026-05-08 -- Plan 08-08 (Cutover-Response Drift-Details) complete (4 atomic jj-commits a0b71fc1/b141a067/c4b0e91a/4b07738e + plan-setup c575b7bf + summary commit pending; QuarantineReason human_text/suggested_action + CutoverQuarantineEntryTO + inline gate_drift_report; 19/19 cutover integration tests + 3/3 openapi_surface tests + 12/12 service_impl cutover tests; WASM-Build grün)
 
 ## Shipped Milestones
 
@@ -62,6 +62,9 @@ Last activity: 2026-05-08 -- Plan 08-07 (Gap-Closure) complete (5 atomic jj-comm
 
 **v1.3 (Phasen 8+ — Frontend Abwesenheiten + UI-Closure-Restanten):**
 
+- **Service-Enum-Reason-Mapping** (Plan 08-08): Wenn ein typisiertes Service-Enum (`QuarantineReason`) für End-User sichtbar wird, leben die human-readable + remediation-Strings als Methoden direkt am Enum (`human_text()`, `suggested_action()`) — single source of truth. DTOs (`CutoverQuarantineEntryTO`) rufen die Methoden auf und stringifizieren. Reusable für REST + künftige CLI-Tools / Admin-Reports ohne Wire-Tier-Abhängigkeit. Backend-Default ist Englisch; i18n übernimmt das Frontend (separates Backlog-Item).
+- **Inline-Drift-Report-Pattern** (Plan 08-08): Wenn ein Service ein File-System-Audit-Artefakt produziert (z.B. `cutover-gate-{ts}.json`), bekommt die REST-Antwort zusätzlich einen typisierten Inline-Body (`CutoverRunResultTO.gate_drift_report: Option<CutoverGateDriftReportTO>`). File bleibt für Audit-Trail unverändert; Inline-Body ist die UX-Datenquelle für Browser-Konsumenten ohne FS-Access. `#[serde(default)]` auf den neuen Feldern hält Backwards-Compat.
+- **Cross-Phase-Daten-Bucketing via Composite-Key-HashMap** (Plan 08-08): Wenn Service-Phase A (`migrate_legacy_extra_hours_to_clusters`) und Service-Phase B (`compute_gate`) per-Entity-Daten teilen müssen, ohne extra DAO-Roundtrips, transportiert eine `HashMap<(Uuid, EnumKategorie, u32), Vec<Entry>>` die Map zwischen Phasen. Voraussetzung: Enum-Key braucht `Hash`-Derive (purely additive Service-Tier-Erweiterung).
 - **Admin-Auto-Grant via SQLite-Trigger** (Plan 08-07): Statt jede Privilege-Migration manuell mit einem `INSERT INTO role_privilege ('admin', 'X', ...)` zu duplizieren, läuft eine einmalige Migration `20260508120000_admin-auto-grant-privilege.sql` mit Backfill (alle existierenden Privilegien an admin) + AFTER-INSERT-Trigger (jedes neue Privileg auto-grant an admin). Beide Pfade nutzen `INSERT OR IGNORE` plus das existierende `UNIQUE(role_name, privilege_name)`-Constraint aus `20240426150045_user-roles.sql` als Idempotenz-Garant. DEVUSER hat in DEV automatisch alle Privilegien; Production-Deployment braucht keine manuelle Pflege mehr.
 - **Feature-Flag REST + FE-State** (Plan 08-07): `GET /feature-flag/{key}` als auth-only readable Endpoint mit fail-safe `enabled: false` für unknown keys. Frontend-`FeatureFlagsState` defaultet zu `Option<bool>::None` per Flag (nicht `Some(false)`), damit UI-Logik explizit `Some(true)` matcht — verhindert das "sichtbar/unsichtbar/sichtbar"-Flackern während des ersten Service-Loads.
 - **Static-Classification + Context-Overlay-Pattern für TopBar-Hierarchie** (Plan 08-07): `is_admin_target(target) -> bool` bleibt user-agnostisch und backwards-kompatibel; `is_admin_target_with_context(target, has_hr) -> bool` ist additiv und liftet `NavTarget::Absences` für HR-User in die Admin-Group, ohne die statische API zu brechen. Plan-08-05-Tests bleiben unangetastet (sales-only); Plan-08-07-Tests sind explizit auf das neue HR-Verhalten ausgelegt.
@@ -151,8 +154,8 @@ Last activity: 2026-05-08 -- Plan 08-07 (Gap-Closure) complete (5 atomic jj-comm
 7. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief
 8. Read `shifty-dioxus/shifty-design/project/absences.jsx` — Mockup (729 Zeilen JSX)
 
-**Next command**: `/gsd-execute-phase 8` für Plan 08-06 (UAT smoke; finale Closure-Phase) oder `/gsd-plan-phase 9` falls Phase 9 als nächste v1.3-Phase aufgeht.
+**Next command**: `/gsd-execute-phase 8` für Plan 08-06 (UAT smoke; finale Closure-Phase). Mit Plan 08-08 ist die Cutover-Surface jetzt UI-fertig — der spätere Cutover-UI-Backlog kann direkt gegen `CutoverRunResultTO.gate_drift_report` rendern.
 
 ---
 
-*State updated: 2026-05-08 — Plan 08-07 (Gap-Closure) abgeschlossen (admin-auto-grant trigger + Feature-Flag REST + FE FeatureFlagsState + TopBar cutover-gate + HR-only Verwaltung-Submenu + responsive AbsencesPage layout; 5 atomic jj-commits + plan-setup + summary; cargo test --workspace + WASM build green; 509/509 FE tests). Phase-8-Progress 6/7 (86%). Plan 08-06 als nächstes — UAT smoke.*
+*State updated: 2026-05-08 — Plan 08-08 (Cutover-Response Drift-Details) abgeschlossen (QuarantineReason::human_text + suggested_action für 5 Varianten + CutoverQuarantineEntryTO neu mit reason_code/reason_text/suggested_action/weekday-Code + CutoverRunResultTO.gate_drift_report inline + Quarantine-Bucket-Map zwischen Migration und Gate; 4 atomic jj-commits + plan-setup + summary; cargo test --workspace grün, 19/19 cutover integration tests + 3/3 openapi_surface + 12/12 service_impl cutover tests; WASM-Build grün). Phase-8-Progress 7/8 (88%). Plan 08-06 als nächstes — UAT smoke.*
