@@ -94,3 +94,5 @@ backend = "http://localhost:3000/sales-person-shiftplan"
 backend = "http://localhost:3000/absence-period"
 [[web.proxy]]
 backend = "http://localhost:3000/vacation-balance"
+[[web.proxy]]
+backend = "http://localhost:3000/feature-flag"
