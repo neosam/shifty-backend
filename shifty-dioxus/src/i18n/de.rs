@@ -684,4 +684,202 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::WorkingHoursTableTarget, "Soll");
     i18n.add_text(Locale::De, Key::WorkingHoursTableUtilization, "Auslastung");
     i18n.add_text(Locale::De, Key::WorkingHoursTableTotal, "Summe");
+
+    // Absence management (Phase 8)
+    i18n.add_text(Locale::De, Key::AbsencePageTitle, "Abwesenheiten");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsencePageSubtitle,
+        "Urlaub, Krankheit und unbezahlte Freistellung als Zeiträume. Stunden pro Tag werden aus dem gültigen Arbeitsvertrag abgeleitet.",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceMenuLabel, "Abwesenheiten");
+    i18n.add_text(Locale::De, Key::AbsenceNewBtn, "Neue Abwesenheit");
+    i18n.add_text(Locale::De, Key::AbsenceModalCreateBtn, "Anlegen");
+    i18n.add_text(Locale::De, Key::AbsenceModalSaveBtn, "Speichern");
+    i18n.add_text(Locale::De, Key::AbsenceModalCancelBtn, "Abbrechen");
+    i18n.add_text(Locale::De, Key::AbsenceModalDeleteBtn, "Löschen");
+    i18n.add_text(Locale::De, Key::AbsenceEmptyFilterHeading, "Keine Treffer");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceEmptyFilterBody,
+        "Keine Abwesenheiten passen zum aktuellen Filter. Filter zurücksetzen oder neue Abwesenheit anlegen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceEmptySelfHeading,
+        "Noch keine Abwesenheiten",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceEmptySelfBody,
+        "Lege deine erste Abwesenheit an (Urlaub, Krankheit oder unbezahlte Freistellung).",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceFieldEmployee, "Mitarbeiter");
+    i18n.add_text(Locale::De, Key::AbsenceFieldCategory, "Kategorie");
+    i18n.add_text(Locale::De, Key::AbsenceFieldFrom, "Von");
+    i18n.add_text(Locale::De, Key::AbsenceFieldTo, "Bis (inklusiv)");
+    i18n.add_text(Locale::De, Key::AbsenceFieldDescription, "Beschreibung");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceFieldDescriptionHint,
+        "Optional — z. B. Reiseziel oder Anmerkung.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceModalCreateSubtitle,
+        "Ganztägiger Zeitraum. Stunden werden aus dem Vertrag abgeleitet.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceModalEditSubtitle,
+        "Änderungen werden mit optimistischem Locking gespeichert.",
+    );
+    i18n.add_text(Locale::De, Key::AbsencePreviewHeader, "Vorschau");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsencePreviewFooter,
+        "Feiertage im Bereich werden mit 0 h verrechnet. Stunden pro Tag stammen aus dem am jeweiligen Tag gültigen Arbeitsvertrag.",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceCategoryVacation, "Urlaub");
+    i18n.add_text(Locale::De, Key::AbsenceCategorySickLeave, "Krankheit");
+    i18n.add_text(Locale::De, Key::AbsenceCategoryUnpaidLeave, "Unbezahlt");
+    i18n.add_text(Locale::De, Key::AbsenceFilterCategoryLabel, "Kategorie");
+    i18n.add_text(Locale::De, Key::AbsenceFilterCategoryAll, "Alle");
+    i18n.add_text(Locale::De, Key::AbsenceFilterPersonLabel, "Person");
+    i18n.add_text(Locale::De, Key::AbsenceFilterPersonAll, "Alle Personen");
+    i18n.add_text(Locale::De, Key::AbsenceFilterStatusLabel, "Status");
+    i18n.add_text(Locale::De, Key::AbsenceFilterStatusAll, "Alle");
+    i18n.add_text(Locale::De, Key::AbsenceStatusActive, "Aktiv");
+    i18n.add_text(Locale::De, Key::AbsenceStatusPlanned, "Geplant");
+    i18n.add_text(Locale::De, Key::AbsenceStatusFinished, "Beendet");
+    i18n.add_text(Locale::De, Key::AbsenceColEmployee, "Mitarbeiter");
+    i18n.add_text(Locale::De, Key::AbsenceColRange, "Zeitraum");
+    i18n.add_text(Locale::De, Key::AbsenceColCategory, "Kategorie");
+    i18n.add_text(Locale::De, Key::AbsenceColStatus, "Status");
+    i18n.add_text(Locale::De, Key::AbsenceColWarnings, "Hinweise");
+    i18n.add_text(Locale::De, Key::AbsenceDayUnit, "Tag");
+    i18n.add_text(Locale::De, Key::AbsenceDaysUnit, "Tage");
+    i18n.add_text(
+        Locale::De,
+        Key::VacationEntitlementHero,
+        "Urlaubsanspruch {year}",
+    );
+    i18n.add_text(Locale::De, Key::VacationDaysRemaining, "Tage verbleibend");
+    i18n.add_text(Locale::De, Key::VacationCardSelfTitle, "Dein Urlaubskonto");
+    i18n.add_text(
+        Locale::De,
+        Key::VacationCardSelfSubtitle,
+        "Anspruch aus Vertrag + Übertrag aus dem Vorjahr.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::VacationCardTeamTitle,
+        "Urlaubsanspruch Team · {count} Personen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::VacationCardTeamSubtitle,
+        "Summe über alle bezahlten Mitarbeiter.",
+    );
+    i18n.add_text(Locale::De, Key::VacationStatContract, "Vertrag");
+    i18n.add_text(
+        Locale::De,
+        Key::VacationStatCarryover,
+        "Übertrag '{year-1}'",
+    );
+    i18n.add_text(Locale::De, Key::VacationStatUsed, "Genommen");
+    i18n.add_text(Locale::De, Key::VacationStatPending, "Beantragt");
+    i18n.add_text(Locale::De, Key::VacationStatRemaining, "Verbleibend");
+    i18n.add_text(
+        Locale::De,
+        Key::VacationPerPersonHeader,
+        "Pro Person · sortiert nach verbleibenden Tagen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::VacationPerPersonShowAll,
+        "Alle ({count})",
+    );
+    i18n.add_text(Locale::De, Key::VacationPerPersonShowLess, "Weniger");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceStatSickLeaveDays,
+        "Krankheitstage {year}",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceStatUnpaidDays, "Unbezahlt {year}");
+    i18n.add_text(Locale::De, Key::AbsenceStatActive, "Aktive Abwesenheiten");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorRangeInverted,
+        "Enddatum liegt vor Startdatum",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorSelfOverlapHeader,
+        "Selbst-Überlappung",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorSelfOverlapBody,
+        "{category}-Eintrag von {from} bis {to} überschneidet sich. Bitte Zeitraum oder Kategorie anpassen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorVersionConflictHeader,
+        "Eintrag wurde anderswo geändert",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorVersionConflictBody,
+        "Bitte erneut laden, dann nochmal speichern. Deine Eingabe bleibt erhalten.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorVersionConflictReload,
+        "Erneut laden",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceErrorNetwork,
+        "Netzwerkfehler. Bitte erneut versuchen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceWarningHeaderSingular,
+        "Hinweis · 1 Konflikt (nicht blockierend)",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceWarningHeaderPlural,
+        "Hinweis · {count} Konflikte (nicht blockierend)",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceWarningAcknowledgeBtn, "Verstanden");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceWarningOverlapsBooking,
+        "Bestehende Buchung am {date} überschneidet sich mit dieser Abwesenheit.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceWarningOverlapsManual,
+        "Manuell als unverfügbar markierter Tag überschneidet sich. Nach dem Cutover ist dieser Eintrag redundant.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceDeleteConfirmTitle,
+        "Abwesenheit löschen?",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceDeleteConfirmBody,
+        "Soft-Delete — der Eintrag bleibt für Audit-Logs erhalten, wird aber nicht mehr in Reports und im Shiftplan berücksichtigt.",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceDeleteConfirmBtn, "Löschen");
+    i18n.add_text(Locale::De, Key::AbsenceDeleteCancelBtn, "Abbrechen");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceFilterShowPast,
+        "Vergangene anzeigen",
+    );
+    i18n.add_text(Locale::De, Key::AbsenceFilterCounter, "{n} von {m}");
 }
