@@ -42,6 +42,7 @@ created: 2026-05-08
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 8-01-XX | 01 | 1 | FUI-A-* / Backend | T-8-XX | hr ∨ self Permission, 422 Self-Overlap, 409 Version-Konflikt | unit | `cargo test -p service_impl vacation_balance` | ❌ W0 | ⬜ pending |
 | 8-02-XX | 02 | 2 | FUI-A-01..04 | T-8-XX | Auth-Context-basierte Sicht | integration | `cargo build --target wasm32-unknown-unknown` | ✅ | ⬜ pending |
+| 8-03-01 | 03 | 3 | (Plan-Backend-Surface-Lock) | T-8-SURFACE-DRIFT | OpenAPI surface gepinnt: Pfade + Schema-Namen + VacationBalance-Tag (version-agnostic) | integration | `cargo test -p rest --test openapi_surface` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -54,7 +55,7 @@ created: 2026-05-08
 - [ ] `service_impl/src/test/vacation_balance.rs` — Test-Stubs für VacationBalanceService (Read-Aggregate aus AbsencePeriods + WorkingHours)
 - [ ] `rest/src/vacation_balance.rs` (oder Erweiterung in `absence.rs`) — Integration-Tests für REST-Layer (hr ∨ self, 200/403, OpenAPI-Schema-Match)
 - [ ] `shifty-dioxus/src/page/absences.rs` — dioxus-ssr Snapshot-Test-Stub (Pattern: `dialog.rs:461`)
-- [ ] OpenAPI insta-Snapshot-Refresh (`cargo insta accept` nach DTO-Add)
+- [x] OpenAPI Surface-Assertion-Test (`rest/tests/openapi_surface.rs`) — version-agnostic Pfad-/Schema-Pinning (Plan 08-03 Option-B-Pivot, ersetzt das in commit `fdb70b5` entfernte Insta-Snapshot-Pattern; siehe 08-03-SUMMARY.md)
 
 *Existing infrastructure: `service_impl/src/test/absence.rs` (1052 LOC) ist 1:1-Vorlage; `mockall`-Mocks + in-memory SQLite + `NoneTypeExt` etabliert.*
 
