@@ -1876,6 +1876,58 @@ impl From<&service::absence::AbsencePeriodCreateResult> for AbsencePeriodCreateR
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Phase 8 — Vacation-Balance DTO (Plan 08-01 Foundation)
+//
+// Read-only Aggregat für UI-SPEC `VacationEntitlementCard` und
+// `VacationPerPersonList` (D-03 in `08-CONTEXT.md`). Kein `$version`-
+// Field (kein Optimistic-Lock — Aggregat wird stets neu berechnet).
+// `From`-Impls sind hinter `feature = "service-impl"` gegated, damit der
+// WASM-/Frontend-Build (`rest-types` mit `default-features = false`) den
+// `service`-Crate nicht ziehen muss (Pitfall 1 in `08-RESEARCH.md`).
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct VacationBalanceTO {
+    pub sales_person_id: Uuid,
+    pub year: u32,
+    pub entitled_days: f32,
+    pub carryover_days: i32,
+    pub used_days: f32,
+    pub planned_days: f32,
+    pub remaining_days: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::vacation_balance::VacationBalance> for VacationBalanceTO {
+    fn from(v: &service::vacation_balance::VacationBalance) -> Self {
+        Self {
+            sales_person_id: v.sales_person_id,
+            year: v.year,
+            entitled_days: v.entitled_days,
+            carryover_days: v.carryover_days,
+            used_days: v.used_days,
+            planned_days: v.planned_days,
+            remaining_days: v.remaining_days,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&VacationBalanceTO> for service::vacation_balance::VacationBalance {
+    fn from(v: &VacationBalanceTO) -> Self {
+        Self {
+            sales_person_id: v.sales_person_id,
+            year: v.year,
+            entitled_days: v.entitled_days,
+            carryover_days: v.carryover_days,
+            used_days: v.used_days,
+            planned_days: v.planned_days,
+            remaining_days: v.remaining_days,
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Phase 4 — Cutover DTOs (Plan 04-06)
 //
 // Inline per Phase-3 wrapper-DTO precedent (BookingCreateResultTO above).
