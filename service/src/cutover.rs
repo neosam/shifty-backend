@@ -40,6 +40,54 @@ impl QuarantineReason {
             Self::Iso53WeekGap => "iso_53_week_gap",
         }
     }
+
+    /// Human-readable explanation of the reason in **English**. The backend
+    /// default; the frontend (Plan 08-08 follow-up) may translate via i18n.
+    /// Used by `CutoverQuarantineEntryTO.reason_text` so an HR user can read
+    /// the failed-gate response without having to consult external docs.
+    pub fn human_text(&self) -> &'static str {
+        match self {
+            Self::AmountBelowContractHours => {
+                "Booked hours are below the employee's contract hours for this day"
+            }
+            Self::AmountAboveContractHours => {
+                "Booked hours exceed the employee's contract hours for this day"
+            }
+            Self::ContractHoursZeroForDay => {
+                "Employee has zero contract hours on this weekday \
+                 (e.g. a 4-day-week contract with the booking falling on a non-workday)"
+            }
+            Self::ContractNotActiveAtDate => {
+                "Employee had no active working-hours contract on this date"
+            }
+            Self::Iso53WeekGap => {
+                "Booking falls into ISO calendar week 53, which the new range model does not represent"
+            }
+        }
+    }
+
+    /// Suggested remediation in **English**. Pairs with `human_text` and is
+    /// surfaced verbatim in `CutoverQuarantineEntryTO.suggested_action`.
+    pub fn suggested_action(&self) -> &'static str {
+        match self {
+            Self::AmountBelowContractHours | Self::AmountAboveContractHours => {
+                "Adjust the entry's hours to match the employee's contract for that day, \
+                 or delete the entry if it was a mistake"
+            }
+            Self::ContractHoursZeroForDay => {
+                "Delete the entry, or move it to a workday on which the employee's \
+                 contract specifies > 0 hours"
+            }
+            Self::ContractNotActiveAtDate => {
+                "Verify the employee's working-hours contract covers this date, \
+                 or delete the entry"
+            }
+            Self::Iso53WeekGap => {
+                "Move the entry to a date inside an ISO calendar week 1-52 \
+                 (typically the first or last day of the surrounding week)"
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

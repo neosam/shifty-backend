@@ -865,6 +865,47 @@ async fn gate_tolerance_fail_above_threshold() {
     let _ = std::fs::remove_file(p);
 }
 
+// ----------------------------------------------------------------------------
+// Plan 08-08 — defense-in-depth check that every QuarantineReason variant
+// returns a non-empty human_text() AND non-empty suggested_action(). Catches
+// the "added a new variant but forgot to extend the match in either method"
+// regression.
+// ----------------------------------------------------------------------------
+
+#[test]
+fn quarantine_reason_text_and_action_non_empty_per_variant() {
+    use service::cutover::QuarantineReason;
+
+    let all = [
+        QuarantineReason::AmountBelowContractHours,
+        QuarantineReason::AmountAboveContractHours,
+        QuarantineReason::ContractHoursZeroForDay,
+        QuarantineReason::ContractNotActiveAtDate,
+        QuarantineReason::Iso53WeekGap,
+    ];
+
+    for variant in all {
+        let text = variant.human_text();
+        let action = variant.suggested_action();
+        assert!(
+            !text.trim().is_empty(),
+            "human_text() must be non-empty for variant {:?}",
+            variant
+        );
+        assert!(
+            !action.trim().is_empty(),
+            "suggested_action() must be non-empty for variant {:?}",
+            variant
+        );
+        // Sanity: persisted code stays non-empty too.
+        assert!(
+            !variant.as_persisted_str().trim().is_empty(),
+            "as_persisted_str() must be non-empty for variant {:?}",
+            variant
+        );
+    }
+}
+
 // Suppress unused-import warning for `legacy_row_with_id` if no test uses it
 // directly in this module (kept for future Wave-1 idempotence-with-mapped
 // scenarios that Plan 04-05 may extend).
