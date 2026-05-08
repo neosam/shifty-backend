@@ -188,6 +188,36 @@ fn fixture_8h_mon_fri_contract() -> EmployeeWorkDetails {
     }
 }
 
+/// 3-Tage-Vertrag (Mo/Di/Mi), 20h/Woche → ≈ 6.667h pro Tag. Spans
+/// 2020-01-01..=2026-12-31. Used for the Plan 08-09 weekly-lump-sum tests.
+fn fixture_3day_mo_tu_we_contract() -> EmployeeWorkDetails {
+    EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0020),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 20.0,
+        from_day_of_week: DayOfWeek::Monday,
+        from_calendar_week: 1,
+        from_year: 2020,
+        to_day_of_week: DayOfWeek::Sunday,
+        to_calendar_week: 52,
+        to_year: 2026,
+        workdays_per_week: 3,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: false,
+        friday: false,
+        saturday: false,
+        sunday: false,
+        vacation_days: 18,
+        created: Some(datetime!(2020 - 01 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
 /// 8h/Tag, Mo-Fr contract that starts 2024-01-01. Used for the
 /// `contract_not_active` quarantine test where the row predates the contract.
 fn fixture_8h_mon_fri_contract_starting_2024() -> EmployeeWorkDetails {
@@ -904,6 +934,345 @@ fn quarantine_reason_text_and_action_non_empty_per_variant() {
             variant
         );
     }
+}
+
+// ----------------------------------------------------------------------------
+// Plan 08-09 — Weekly-Lump-Sum Heuristic Tests
+//
+// Live scenario: 3-day contract (Mon/Tue/Wed, 20h/week). User books 20h
+// Vacation as a single extra_hours row on any weekday of the target week.
+// Heuristic must map to absence_period {Monday, Sunday} of that ISO-week
+// without quarantining the row, so the gate passes (drift = 0).
+// ----------------------------------------------------------------------------
+
+/// Helper: stub the migration-phase plumbing for a 3-day-contract test.
+/// Caller provides the legacy rows; the helper wires up:
+/// - cutover_dao.find_legacy_extra_hours_not_yet_migrated → rows
+/// - employee_work_details_service.find_by_sales_person_id → 3-day contract
+/// - install_empty_gate_scope (gate trivially passes — we focus on migration)
+fn arrange_lump_sum_migration(
+    deps: &mut CutoverDependencies,
+    rows: Arc<[LegacyExtraHoursRow]>,
+) {
+    deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(deps);
+
+    let rows_clone = rows.clone();
+    deps.cutover_dao
+        .expect_find_legacy_extra_hours_not_yet_migrated()
+        .returning(move |_| Ok(rows_clone.clone()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+}
+
+#[tokio::test]
+async fn test_weekly_lump_sum_at_workday_succeeds() {
+    // 3-day contract, 20h Vacation booked at Monday (= a contract workday).
+    // ISO-week 23/2024 → 2024-06-03 (Mon) .. 2024-06-09 (Sun).
+    let mut deps = build_dependencies();
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2024 - 06 - 03), 20.0)]);
+    arrange_lump_sum_migration(&mut deps, rows);
+
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            entity.from_date == date!(2024 - 06 - 03)
+                && entity.to_date == date!(2024 - 06 - 09)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service
+        .run(true, ().auth(), None)
+        .await
+        .expect("run succeeded");
+    assert_eq!(result.total_clusters, 1, "1 lump-sum cluster");
+    assert_eq!(result.quarantined_rows, 0, "no quarantine for lump-sum");
+    assert!(result.gate_passed, "empty gate scope → gate passes");
+}
+
+#[tokio::test]
+async fn test_weekly_lump_sum_at_non_workday_succeeds() {
+    // **LIVE-REPRODUCE — Max Schmidt scenario from the User-UAT.**
+    // 3-day contract (Mon/Tue/Wed, 20h/week). 20h Vacation booked at
+    // 2026-05-08 (Friday — a NON-workday). ISO-week 19/2026: Mon=2026-05-04,
+    // Sun=2026-05-10. Heuristic must accept this even though Friday is not a
+    // workday — the convention is "user picked any day of the week".
+    let mut deps = build_dependencies();
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2026 - 05 - 08), 20.0)]);
+    arrange_lump_sum_migration(&mut deps, rows);
+
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            entity.from_date == date!(2026 - 05 - 04)
+                && entity.to_date == date!(2026 - 05 - 10)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service
+        .run(true, ().auth(), None)
+        .await
+        .expect("run succeeded");
+    assert_eq!(result.total_clusters, 1);
+    assert_eq!(
+        result.quarantined_rows, 0,
+        "non-workday lump-sum must NOT quarantine (Plan 08-09 fix)"
+    );
+}
+
+#[tokio::test]
+async fn test_weekly_lump_sum_at_weekend_succeeds() {
+    // 3-day contract, 20h Vacation booked at Sunday 2024-06-09 (KW 23/2024,
+    // Sun=2024-06-09, Mon=2024-06-03). Sunday is the last day of the
+    // ISO-week — must still resolve to {Mo, So} of the same week.
+    let mut deps = build_dependencies();
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2024 - 06 - 09), 20.0)]);
+    arrange_lump_sum_migration(&mut deps, rows);
+
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            entity.from_date == date!(2024 - 06 - 03)
+                && entity.to_date == date!(2024 - 06 - 09)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+    assert_eq!(result.total_clusters, 1);
+    assert_eq!(result.quarantined_rows, 0);
+}
+
+#[tokio::test]
+async fn test_strict_match_per_day_still_works_after_pivot() {
+    // Backwards-compat sanity: a single hours_per_day-match Vacation row at
+    // a contract weekday must still go through the strict-match path (not the
+    // lump-sum path). hours_per_day for the 3-day-20h contract = 20/3 ≈ 6.667.
+    // 20h would trigger lump-sum, but 6.667h is the strict-match amount and
+    // does NOT match the weekly target (= 20h), so the heuristic returns None
+    // and the row goes via strict-match → 1-day cluster (Mo-Mo).
+    let mut deps = build_dependencies();
+    // A hours_per_day-exact Vacation row at Monday — strict-match success.
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2024 - 06 - 03), 20.0 / 3.0)]);
+    arrange_lump_sum_migration(&mut deps, rows);
+
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            // 1-day cluster: from = to = Monday (NOT Sunday — strict-match
+            // path does NOT extend to the full week).
+            entity.from_date == date!(2024 - 06 - 03)
+                && entity.to_date == date!(2024 - 06 - 03)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+    assert_eq!(
+        result.total_clusters, 1,
+        "strict-match still produces a 1-day cluster for the per-day amount"
+    );
+    assert_eq!(result.quarantined_rows, 0);
+}
+
+#[tokio::test]
+async fn test_two_rows_same_week_blocks_lump_sum() {
+    // Single-row-per-week violation: two Vacation rows of the same (sp, cat)
+    // in the same ISO-week → heuristic must NOT fire for either; both go via
+    // strict-match. Row 1 (Mon, 20h) fails strict-match (AmountAbove);
+    // Row 2 (Tue, 6.667h) passes strict-match → 1-day cluster.
+    let mut deps = build_dependencies();
+    let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([
+        legacy_row(date!(2024 - 06 - 03), 20.0),     // Mon
+        legacy_row(date!(2024 - 06 - 04), 20.0 / 3.0), // Tue
+    ]);
+    arrange_lump_sum_migration(&mut deps, rows);
+
+    // Mon-Row hits AmountAbove (20 > 6.667), Tue-Row builds a 1-day cluster.
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            // Tue-only cluster.
+            entity.from_date == date!(2024 - 06 - 04)
+                && entity.to_date == date!(2024 - 06 - 04)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_quarantine()
+        .withf(|row, _| row.reason.as_ref() == "amount_above_contract_hours")
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+    assert_eq!(
+        result.total_clusters, 1,
+        "Tue-row builds 1-day cluster; Mon-row quarantines"
+    );
+    assert_eq!(result.quarantined_rows, 1, "Mon-row quarantines");
+}
+
+#[tokio::test]
+async fn test_partial_week_amount_falls_to_strict_match() {
+    // 13.33h ≈ 2 × hours_per_day = 2 contract-days worth — NOT the weekly
+    // total (20h). Heuristic returns None → strict-match → AmountAbove
+    // quarantine (13.33 > 6.667).
+    let mut deps = build_dependencies();
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2024 - 06 - 03), 40.0 / 3.0)]); // ≈ 13.333
+    arrange_lump_sum_migration(&mut deps, rows);
+
+    deps.absence_dao.expect_create().times(0);
+    deps.cutover_dao.expect_upsert_migration_source().times(0);
+    deps.cutover_dao
+        .expect_upsert_quarantine()
+        .withf(|row, _| row.reason.as_ref() == "amount_above_contract_hours")
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+    assert_eq!(result.total_clusters, 0);
+    assert_eq!(result.quarantined_rows, 1);
+}
+
+#[tokio::test]
+async fn test_weekly_lump_sum_with_dynamic_contract_change_mid_week() {
+    // Contract change mid-week: 3-day contract (Mon/Tue/Wed, 20h/week) until
+    // the end of week 23/2024, then a 4-day contract (Mon/Tue/Wed/Thu,
+    // 32h/week → 8h/day) starting week 24/2024.
+    //
+    // For week 24/2024 (Mon=2024-06-10..Sun=2024-06-16), all 7 days are
+    // covered by the 4-day contract. Target sum = 4 × 8 = 32h. A 32h Vacation
+    // row anywhere in that week matches lump-sum → maps to {Mo, So}.
+    //
+    // This covers the "contract_at(weekday)" semantic: the heuristic must
+    // call the per-weekday lookup, not assume one contract for the whole
+    // week. (Even though the 4-day contract covers all 7 days here, the test
+    // exercises the lookup helper.)
+    let mut deps = build_dependencies();
+    deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
+
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2024 - 06 - 14), 32.0)]); // Friday in week 24
+    let rows_clone = rows.clone();
+    deps.cutover_dao
+        .expect_find_legacy_extra_hours_not_yet_migrated()
+        .returning(move |_| Ok(rows_clone.clone()));
+
+    // Two contracts: 3-day until 2024-06-09, then 4-day from 2024-06-10.
+    let three_day = EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0030),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 20.0,
+        from_day_of_week: DayOfWeek::Monday,
+        from_calendar_week: 1,
+        from_year: 2020,
+        to_day_of_week: DayOfWeek::Sunday,
+        to_calendar_week: 23, // ends Sun 2024-06-09
+        to_year: 2024,
+        workdays_per_week: 3,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: false,
+        friday: false,
+        saturday: false,
+        sunday: false,
+        vacation_days: 18,
+        created: Some(datetime!(2020 - 01 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    let four_day = EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0031),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 32.0,
+        from_day_of_week: DayOfWeek::Monday,
+        from_calendar_week: 24, // starts Mon 2024-06-10
+        from_year: 2024,
+        to_day_of_week: DayOfWeek::Sunday,
+        to_calendar_week: 52,
+        to_year: 2026,
+        workdays_per_week: 4,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: false,
+        saturday: false,
+        sunday: false,
+        vacation_days: 24,
+        created: Some(datetime!(2024 - 06 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([three_day.clone(), four_day.clone()])));
+
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            entity.from_date == date!(2024 - 06 - 10)
+                && entity.to_date == date!(2024 - 06 - 16)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+    assert_eq!(
+        result.total_clusters, 1,
+        "lump-sum maps to {{Mo, So}} of week 24/2024 under the 4-day contract"
+    );
+    assert_eq!(result.quarantined_rows, 0);
 }
 
 // Suppress unused-import warning for `legacy_row_with_id` if no test uses it

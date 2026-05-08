@@ -1343,11 +1343,13 @@ async fn per_sales_person_per_year_per_category_invariant() {
 // 19. Plan 08-08 — failed gate exposes interpretable inline drift report.
 //     Live drift example: Vacation entry on a Friday for an employee whose
 //     contract has zero contract-hours on Friday (3-day-week Mon/Tue/Wed).
-//     `legacy_sum = 20.0`, `derived_sum = 0.0`, drift = 20.0 → quarantine
-//     reason `contract_hours_zero_for_day`. The inline drift report must
-//     contain the per-entry list with extra_hours_id + date + weekday +
-//     amount + reason_code + reason_text + suggested_action — each
-//     human-readable.
+//     The amount is 25.0 — deliberately NOT matching the weekly target
+//     (20h) so Plan 08-09's lump-sum heuristic returns None and the row
+//     falls to the strict-match path → quarantine reason
+//     `contract_hours_zero_for_day`. `legacy_sum = 25.0`, `derived_sum = 0.0`,
+//     drift = 25.0. The inline drift report must contain the per-entry list
+//     with extra_hours_id + date + weekday + amount + reason_code +
+//     reason_text + suggested_action — each human-readable.
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -1381,14 +1383,18 @@ async fn test_failed_gate_returns_inline_drift_report_with_per_entry_details() {
         .await
         .unwrap();
 
-    // 2026-05-08 is a Friday → non-workday → contract_hours = 0 → quarantine.
+    // 2026-05-08 is a Friday → non-workday on a Mon/Tue/Wed contract.
+    // Amount = 25.0 — deliberately mismatches the weekly lump-sum target
+    // (which would be 24.0 for this 3-day-24h contract). Plan 08-09's
+    // lump-sum heuristic returns None for this row, so the strict-match path
+    // produces a `contract_hours_zero_for_day` quarantine and the gate fails.
     let friday = date!(2026 - 05 - 08);
     let entry = create_extra_hour(
         &test_setup,
         alice.id,
         ExtraHoursCategory::Vacation,
         friday,
-        20.0,
+        25.0,
     )
     .await;
     assert_eq!(
@@ -1435,7 +1441,7 @@ async fn test_failed_gate_returns_inline_drift_report_with_per_entry_details() {
         .find(|q| q.extra_hours_id == entry.id)
         .expect("the inserted Friday entry must surface verbatim");
     assert_eq!(qe.date, friday);
-    assert_eq!(qe.amount, 20.0);
+    assert_eq!(qe.amount, 25.0);
     assert_eq!(
         qe.reason,
         service::cutover::QuarantineReason::ContractHoursZeroForDay,
@@ -1472,7 +1478,7 @@ async fn test_failed_gate_returns_inline_drift_report_with_per_entry_details() {
         qe_to.weekday
     );
     assert_eq!(qe_to.weekday, "Fri");
-    assert_eq!(qe_to.amount, 20.0);
+    assert_eq!(qe_to.amount, 25.0);
     assert_eq!(qe_to.reason_code, "contract_hours_zero_for_day");
     assert!(
         !qe_to.reason_text.trim().is_empty(),
@@ -1495,4 +1501,159 @@ async fn test_failed_gate_returns_inline_drift_report_with_per_entry_details() {
         .await
         .unwrap();
     assert!(!wd_loaded.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// 20. Plan 08-09 — weekly lump-sum heuristic end-to-end commit.
+//
+//     Live scenario from the User-UAT: 3-day contract (Mon/Tue/Wed, 20h/week
+//     → ≈6.667h/day). User books the weekly Vacation as a SINGLE 20h
+//     extra_hours row on Friday 2026-05-08 (a non-workday). Pre-08-09 this
+//     produced a `contract_hours_zero_for_day` quarantine + drift = 20h →
+//     gate fail. Post-08-09 the heuristic maps it to `absence_period
+//     {2026-05-04, 2026-05-10}` (Mo+So of ISO-week 19/2026). Gate passes
+//     because derive_hours_for_range reconstructs 3 × 6.667h = 20h ≈
+//     legacy_sum.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_weekly_lump_sum_commit_succeeds_end_to_end() {
+    let test_setup = TestSetup::new().await;
+    add_user_with_role(
+        &test_setup,
+        "cutover_user",
+        "admin",
+        Some(CUTOVER_ADMIN_PRIVILEGE),
+    )
+    .await;
+    let auth = context_for("cutover_user");
+
+    let max = create_sales_person(&test_setup, "Max Schmidt").await;
+
+    // 3-day contract: Mon/Tue/Wed, 20h/week → ≈6.667h/workday.
+    let mut wd = standard_contract(max.id);
+    wd.created = None;
+    wd.expected_hours = 20.0;
+    wd.workdays_per_week = 3;
+    wd.monday = true;
+    wd.tuesday = true;
+    wd.wednesday = true;
+    wd.thursday = false;
+    wd.friday = false;
+    wd.saturday = false;
+    wd.sunday = false;
+    test_setup
+        .rest_state
+        .working_hours_service()
+        .create(&wd, Authentication::Full, None)
+        .await
+        .unwrap();
+
+    // 20h Vacation on Friday 2026-05-08 (KW 19/2026: Mo=2026-05-04..So=2026-05-10).
+    let friday = date!(2026 - 05 - 08);
+    assert_eq!(
+        friday.weekday(),
+        time::Weekday::Friday,
+        "fixture sanity: 2026-05-08 must be a Friday"
+    );
+    let entry = create_extra_hour(
+        &test_setup,
+        max.id,
+        ExtraHoursCategory::Vacation,
+        friday,
+        20.0,
+    )
+    .await;
+
+    // Run cutover (commit, NOT dry-run).
+    let result = test_setup
+        .rest_state
+        .cutover_service()
+        .run(false, auth, None)
+        .await
+        .unwrap();
+
+    // Plan 08-09 success criteria: gate passes, 1 cluster, 0 quarantine.
+    assert!(
+        result.gate_passed,
+        "lump-sum heuristic must pass the gate: {:?}",
+        result
+    );
+    assert_eq!(
+        result.migrated_clusters, 1,
+        "1 absence_period for the lump-sum row"
+    );
+    assert_eq!(
+        result.quarantined_rows, 0,
+        "lump-sum rows do NOT quarantine"
+    );
+    assert_eq!(
+        result.gate_drift_rows, 0,
+        "no drift — derived_sum reconstructs to 20h"
+    );
+
+    // Feature-flag flips (= commit-phase actually ran).
+    assert!(
+        flag_enabled(&test_setup, "absence_range_source_active").await,
+        "post-commit: absence_range_source_active must be true"
+    );
+
+    // The legacy extra_hours row got soft-deleted under the cutover process.
+    let entry_bytes = entry.id.as_bytes().to_vec();
+    let active: i64 = sqlx::query(
+        "SELECT COUNT(*) AS c FROM extra_hours WHERE id = ? AND deleted IS NULL",
+    )
+    .bind(&entry_bytes)
+    .fetch_one(test_setup.pool.as_ref())
+    .await
+    .unwrap()
+    .get("c");
+    assert_eq!(active, 0, "lump-sum row must be soft-deleted post-commit");
+
+    // Verify the absence_period row was inserted with {Mo, So} of week 19/2026.
+    let max_bytes = max.id.as_bytes().to_vec();
+    let monday = date!(2026 - 05 - 04);
+    let sunday = date!(2026 - 05 - 10);
+    let from_iso = monday.to_string();
+    let to_iso = sunday.to_string();
+    let absence_count: i64 = sqlx::query(
+        "SELECT COUNT(*) AS c FROM absence_period \
+         WHERE sales_person_id = ? AND deleted IS NULL \
+         AND from_date = ? AND to_date = ?",
+    )
+    .bind(&max_bytes)
+    .bind(&from_iso)
+    .bind(&to_iso)
+    .fetch_one(test_setup.pool.as_ref())
+    .await
+    .unwrap()
+    .get("c");
+    assert_eq!(
+        absence_count, 1,
+        "exactly one absence_period {{Mon 2026-05-04, Sun 2026-05-10}} must exist"
+    );
+
+    // Sanity: derive_hours_for_range reconstructs 3 × 6.667h ≈ 20h for the week.
+    let derived = test_setup
+        .rest_state
+        .absence_service()
+        .derive_hours_for_range(
+            date!(2026 - 01 - 01),
+            date!(2026 - 12 - 31),
+            max.id,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .unwrap();
+    let total: f32 = derived
+        .values()
+        .filter(|r| r.category == AbsenceCategory::Vacation)
+        .map(|r| r.hours)
+        .sum();
+    assert!(
+        (total - 20.0).abs() < 0.01,
+        "derive_hours_for_range must reconstruct ≈ 20h Vacation, got {}",
+        total
+    );
 }
