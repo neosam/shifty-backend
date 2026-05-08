@@ -1638,24 +1638,217 @@ pub fn AbsencesPage() -> Element {
 
 
 // ──────────────────────────────────────────────────────────────────────────
-// Tests (Plan 05 Task 3 — fills in 11 snapshot/pure-function tests; this
-// file emits a compile-only stub here so Task 2's `cargo test` does not
-// break — Task 3 replaces the stub).
+// Tests (Plan 05 Task 3) — 11 snapshot / pure-function tests covering
+// CategoryBadge (3 categories), StatusPill (3 statuses), compute_status
+// (3 boundary cases), and AbsenceFilterBar (HR + Employee variants).
+//
+// Render pattern is the verified one from `component/dialog.rs:461` —
+// VirtualDom::new + rebuild_in_place + dioxus_ssr::render. The components
+// pull copy from the global `I18N` signal; we set it to `Locale::De` once
+// per test before rendering so reference strings (Urlaub, Krankheit, Aktiv,
+// Person, …) match. The signal is process-global, so `cargo test` is
+// allowed to run these in parallel safely only because each test rebuilds
+// the VirtualDom synchronously from a closure — but to remove any chance
+// of cross-test bleed we set the locale unconditionally inside each render.
 // ──────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::{generate, Locale};
+
+    /// Render a snapshot component. Before rendering we install Locale::De
+    /// into the global I18N signal via `use_hook`. The hook runs inside the
+    /// Dioxus runtime (which `VirtualDom::new` provides), unlike a direct
+    /// `*I18N.write() = …` outside any reactive scope which panics with a
+    /// `RuntimeError`.
+    ///
+    /// Tests embed the locale-setter at the top of their `app` function:
+    /// ```ignore
+    /// fn app() -> Element {
+    ///     pin_de_locale();
+    ///     rsx! { CategoryBadge { … } }
+    /// }
+    /// ```
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    /// Hook-based locale pin — must be invoked from inside a `#[component]`
+    /// or rsx-generating function so it runs in a Dioxus reactive scope.
+    fn pin_de_locale() {
+        use_hook(|| {
+            *I18N.write() = generate(Locale::De);
+        });
+    }
+
+    // ── compute_status — pure function (Pitfall 8) ─────────────────────
 
     #[test]
-    fn task_2_compile_smoke() {
-        // Pure compile-time anchor — the Plan-05 Task 3 commit replaces this
-        // with the full snapshot-test suite.
-        let s = compute_status(
-            date!(2026 - 01 - 01),
-            date!(2026 - 01 - 03),
-            date!(2026 - 01 - 02),
+    fn compute_status_today_before_from_returns_planned() {
+        let today = date!(2026 - 05 - 08);
+        let from = date!(2026 - 05 - 09);
+        let to = date!(2026 - 05 - 13);
+        assert_eq!(compute_status(from, to, today), AbsenceStatus::Planned);
+    }
+
+    #[test]
+    fn compute_status_today_in_range_returns_active() {
+        let today = date!(2026 - 05 - 08);
+        let from = date!(2026 - 05 - 07);
+        let to = date!(2026 - 05 - 09);
+        assert_eq!(compute_status(from, to, today), AbsenceStatus::Active);
+    }
+
+    #[test]
+    fn compute_status_today_after_to_returns_finished() {
+        let today = date!(2026 - 05 - 08);
+        let from = date!(2026 - 05 - 03);
+        let to = date!(2026 - 05 - 07);
+        assert_eq!(compute_status(from, to, today), AbsenceStatus::Finished);
+    }
+
+    // ── CategoryBadge snapshots (Pitfall 5: STATIC Tailwind) ───────────
+
+    #[test]
+    fn category_badge_renders_vacation_label() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! { CategoryBadge { category: AbsenceCategory::Vacation } }
+        }
+        let html = render(app);
+        assert!(html.contains("Urlaub"), "missing label: {html}");
+        assert!(html.contains("text-good"), "missing text-good: {html}");
+        assert!(html.contains("bg-good-soft"), "missing bg-good-soft: {html}");
+    }
+
+    #[test]
+    fn category_badge_renders_sick_leave_label() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! { CategoryBadge { category: AbsenceCategory::SickLeave } }
+        }
+        let html = render(app);
+        assert!(html.contains("Krankheit"), "missing label: {html}");
+        assert!(html.contains("text-warn"), "missing text-warn: {html}");
+        assert!(html.contains("bg-warn-soft"), "missing bg-warn-soft: {html}");
+    }
+
+    #[test]
+    fn category_badge_renders_unpaid_leave_label() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! { CategoryBadge { category: AbsenceCategory::UnpaidLeave } }
+        }
+        let html = render(app);
+        assert!(html.contains("Unbezahlt"), "missing label: {html}");
+        assert!(
+            html.contains("text-ink-muted"),
+            "missing text-ink-muted: {html}"
         );
-        assert_eq!(s, AbsenceStatus::Active);
+        assert!(html.contains("bg-surface-2"), "missing bg-surface-2: {html}");
+    }
+
+    // ── StatusPill snapshots ───────────────────────────────────────────
+
+    #[test]
+    fn status_pill_renders_active() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! { StatusPill { status: AbsenceStatus::Active } }
+        }
+        let html = render(app);
+        assert!(html.contains("Aktiv"), "missing label: {html}");
+        assert!(html.contains("text-accent"), "missing text-accent: {html}");
+    }
+
+    #[test]
+    fn status_pill_renders_planned() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! { StatusPill { status: AbsenceStatus::Planned } }
+        }
+        let html = render(app);
+        assert!(html.contains("Geplant"), "missing label: {html}");
+        assert!(
+            html.contains("text-ink-soft"),
+            "missing text-ink-soft: {html}"
+        );
+    }
+
+    #[test]
+    fn status_pill_renders_finished() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! { StatusPill { status: AbsenceStatus::Finished } }
+        }
+        let html = render(app);
+        assert!(html.contains("Beendet"), "missing label: {html}");
+        assert!(
+            html.contains("text-ink-muted"),
+            "missing text-ink-muted: {html}"
+        );
+    }
+
+    // ── AbsenceFilterBar HR vs Employee variants ───────────────────────
+
+    #[test]
+    fn absence_filter_bar_hr_variant_renders_person_dropdown() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                AbsenceFilterBar {
+                    is_hr: true,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    category_filter: None,
+                    on_category_change: |_| {},
+                    person_filter: None,
+                    on_person_change: |_| {},
+                    status_filter: None,
+                    on_status_change: |_| {},
+                    show_past: true,
+                    on_show_past_change: |_| {},
+                    filtered_count: 0,
+                    total_count: 0,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Person"),
+            "HR filter bar must render the Person dropdown label: {html}"
+        );
+    }
+
+    #[test]
+    fn absence_filter_bar_employee_variant_omits_person_dropdown() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                AbsenceFilterBar {
+                    is_hr: false,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    category_filter: None,
+                    on_category_change: |_| {},
+                    person_filter: None,
+                    on_person_change: |_| {},
+                    status_filter: None,
+                    on_status_change: |_| {},
+                    show_past: true,
+                    on_show_past_change: |_| {},
+                    filtered_count: 0,
+                    total_count: 0,
+                }
+            }
+        }
+        let html = render(app);
+        // Locale::De translates AbsenceFilterPersonLabel to "Person". The
+        // employee variant must NOT render it.
+        assert!(
+            !html.contains(">Person<"),
+            "Employee filter bar must NOT render the Person dropdown label: {html}"
+        );
     }
 }
