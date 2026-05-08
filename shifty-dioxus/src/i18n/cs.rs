@@ -660,4 +660,210 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::WorkingHoursTableTarget, "Cíl");
     i18n.add_text(Locale::Cs, Key::WorkingHoursTableUtilization, "Vytížení");
     i18n.add_text(Locale::Cs, Key::WorkingHoursTableTotal, "Celkem");
+
+    // Absence management (Phase 8)
+    i18n.add_text(Locale::Cs, Key::AbsencePageTitle, "Nepřítomnosti");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsencePageSubtitle,
+        "Dovolená, nemoc a neplacené volno jako období. Hodiny za den vycházejí z platné pracovní smlouvy.",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceMenuLabel, "Nepřítomnosti");
+    i18n.add_text(Locale::Cs, Key::AbsenceNewBtn, "Nová nepřítomnost");
+    i18n.add_text(Locale::Cs, Key::AbsenceModalCreateBtn, "Vytvořit");
+    i18n.add_text(Locale::Cs, Key::AbsenceModalSaveBtn, "Uložit");
+    i18n.add_text(Locale::Cs, Key::AbsenceModalCancelBtn, "Zrušit");
+    i18n.add_text(Locale::Cs, Key::AbsenceModalDeleteBtn, "Smazat");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceEmptyFilterHeading,
+        "Žádné výsledky",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceEmptyFilterBody,
+        "Žádné nepřítomnosti neodpovídají filtru. Resetuj filtr nebo vytvoř novou nepřítomnost.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceEmptySelfHeading,
+        "Zatím žádné nepřítomnosti",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceEmptySelfBody,
+        "Vytvoř svou první nepřítomnost (dovolenou, nemoc nebo neplacené volno).",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceFieldEmployee, "Zaměstnanec");
+    i18n.add_text(Locale::Cs, Key::AbsenceFieldCategory, "Kategorie");
+    i18n.add_text(Locale::Cs, Key::AbsenceFieldFrom, "Od");
+    i18n.add_text(Locale::Cs, Key::AbsenceFieldTo, "Do (včetně)");
+    i18n.add_text(Locale::Cs, Key::AbsenceFieldDescription, "Popis");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceFieldDescriptionHint,
+        "Volitelné — např. místo cesty nebo poznámka.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceModalCreateSubtitle,
+        "Celodenní období. Hodiny vycházejí ze smlouvy.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceModalEditSubtitle,
+        "Změny se ukládají s optimistickým zamykáním.",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsencePreviewHeader, "Náhled");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsencePreviewFooter,
+        "Svátky v období se počítají jako 0 h. Hodiny za den vycházejí ze smlouvy platné v daný den.",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceCategoryVacation, "Dovolená");
+    i18n.add_text(Locale::Cs, Key::AbsenceCategorySickLeave, "Nemoc");
+    i18n.add_text(Locale::Cs, Key::AbsenceCategoryUnpaidLeave, "Neplacené");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterCategoryLabel, "Kategorie");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterCategoryAll, "Všechny");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterPersonLabel, "Osoba");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterPersonAll, "Všichni lidé");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterStatusLabel, "Stav");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterStatusAll, "Všechny");
+    i18n.add_text(Locale::Cs, Key::AbsenceStatusActive, "Aktivní");
+    i18n.add_text(Locale::Cs, Key::AbsenceStatusPlanned, "Plánováno");
+    i18n.add_text(Locale::Cs, Key::AbsenceStatusFinished, "Ukončeno");
+    i18n.add_text(Locale::Cs, Key::AbsenceColEmployee, "Zaměstnanec");
+    i18n.add_text(Locale::Cs, Key::AbsenceColRange, "Období");
+    i18n.add_text(Locale::Cs, Key::AbsenceColCategory, "Kategorie");
+    i18n.add_text(Locale::Cs, Key::AbsenceColStatus, "Stav");
+    i18n.add_text(Locale::Cs, Key::AbsenceColWarnings, "Upozornění");
+    i18n.add_text(Locale::Cs, Key::AbsenceDayUnit, "den");
+    i18n.add_text(Locale::Cs, Key::AbsenceDaysUnit, "dny");
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationEntitlementHero,
+        "Nárok na dovolenou {year}",
+    );
+    i18n.add_text(Locale::Cs, Key::VacationDaysRemaining, "dnů zbývá");
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationCardSelfTitle,
+        "Tvé saldo dovolené",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationCardSelfSubtitle,
+        "Nárok ze smlouvy + převod z předchozího roku.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationCardTeamTitle,
+        "Nárok na dovolenou tým · {count} osob",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationCardTeamSubtitle,
+        "Součet za všechny placené zaměstnance.",
+    );
+    i18n.add_text(Locale::Cs, Key::VacationStatContract, "Smlouva");
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationStatCarryover,
+        "Převod '{year-1}'",
+    );
+    i18n.add_text(Locale::Cs, Key::VacationStatUsed, "Vyčerpáno");
+    i18n.add_text(Locale::Cs, Key::VacationStatPending, "Čeká");
+    i18n.add_text(Locale::Cs, Key::VacationStatRemaining, "Zbývá");
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationPerPersonHeader,
+        "Podle osoby · seřazeno podle zbývajících dnů",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationPerPersonShowAll,
+        "Všechny ({count})",
+    );
+    i18n.add_text(Locale::Cs, Key::VacationPerPersonShowLess, "Méně");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceStatSickLeaveDays,
+        "Dny nemoci {year}",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceStatUnpaidDays, "Neplacené {year}");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceStatActive,
+        "Aktivní nepřítomnosti",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorRangeInverted,
+        "Konec je před začátkem",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorSelfOverlapHeader,
+        "Vlastní překryv",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorSelfOverlapBody,
+        "Položka {category} od {from} do {to} se překrývá. Uprav období nebo kategorii.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorVersionConflictHeader,
+        "Položka byla změněna jinde",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorVersionConflictBody,
+        "Načti znovu a ulož. Tvé zadání zůstane zachováno.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorVersionConflictReload,
+        "Znovu načíst",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceErrorNetwork,
+        "Chyba sítě. Zkus to znovu.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceWarningHeaderSingular,
+        "Upozornění · 1 konflikt (neblokující)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceWarningHeaderPlural,
+        "Upozornění · {count} konfliktů (neblokující)",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceWarningAcknowledgeBtn, "Rozumím");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceWarningOverlapsBooking,
+        "Existující rezervace dne {date} se s touto nepřítomností překrývá.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceWarningOverlapsManual,
+        "Den ručně označený jako nedostupný se překrývá. Po cutoveru je záznam nadbytečný.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceDeleteConfirmTitle,
+        "Smazat nepřítomnost?",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceDeleteConfirmBody,
+        "Měkké smazání — položka zůstane v auditních záznamech, ale nebude se počítat v reportech ani zobrazovat v plánu směn.",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceDeleteConfirmBtn, "Smazat");
+    i18n.add_text(Locale::Cs, Key::AbsenceDeleteCancelBtn, "Zrušit");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterShowPast, "Zobrazit minulé");
+    i18n.add_text(Locale::Cs, Key::AbsenceFilterCounter, "{n} z {m}");
 }
