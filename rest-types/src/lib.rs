@@ -1935,6 +1935,29 @@ impl From<&VacationBalanceTO> for service::vacation_balance::VacationBalance {
 // frontend build doesn't drag the service crate in.
 // ─────────────────────────────────────────────────────────────────────────
 
+/// Plan 08-08 — single quarantined `extra_hours` row attached to a drift
+/// bucket so an HR user can read the failure inline (no diff-report file
+/// lookup needed). All text is **English** by default; the front-end may
+/// translate via i18n in a follow-up plan.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverQuarantineEntryTO {
+    pub extra_hours_id: Uuid,
+    /// ISO-8601 calendar date (e.g. `"2026-05-08"`).
+    pub date: String,
+    /// 3-letter weekday code: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun`.
+    pub weekday: String,
+    pub amount: f32,
+    /// Stable machine code (mirrors `QuarantineReason::as_persisted_str`),
+    /// e.g. `"contract_hours_zero_for_day"`. Backwards-compat with the
+    /// `quarantine_reasons` aggregate in `CutoverGateDriftRowTO`.
+    pub reason_code: String,
+    /// Human-readable explanation in English (default — frontend may
+    /// translate via i18n).
+    pub reason_text: String,
+    /// Suggested remediation in English.
+    pub suggested_action: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct CutoverGateDriftRowTO {
     pub sales_person_id: Uuid,
@@ -1945,7 +1968,15 @@ pub struct CutoverGateDriftRowTO {
     pub derived_sum: f32,
     pub drift: f32,
     pub quarantined_extra_hours_count: u32,
+    /// Distinct reason codes across `quarantined_entries`. Backwards-compat
+    /// with the pre-Plan-08-08 shape — kept so older clients continue to
+    /// see the aggregate.
     pub quarantine_reasons: Vec<String>,
+    /// Plan 08-08: per-entry quarantine list — empty when the drift bucket
+    /// has no associated quarantined `extra_hours` rows (e.g. drift caused
+    /// by a derive-vs-legacy formula change rather than quarantine).
+    #[serde(default)]
+    pub quarantined_entries: Vec<CutoverQuarantineEntryTO>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -1972,6 +2003,12 @@ pub struct CutoverRunResultTO {
     pub quarantined_rows: u32,
     pub gate_drift_rows: u32,
     pub diff_report_path: Option<String>,
+    /// Plan 08-08: inline drift report when the gate failed — `None` when
+    /// `gate_passed = true`. Carries the same content as the on-disk JSON
+    /// at `diff_report_path`, served over HTTP so callers (e.g. the future
+    /// cutover-UI) can interpret the failure without filesystem access.
+    #[serde(default)]
+    pub gate_drift_report: Option<CutoverGateDriftReportTO>,
 }
 
 /// Body shape for the HTTP-403 returned when a deprecated ExtraHoursCategory
@@ -2015,6 +2052,41 @@ pub struct CutoverProfileTO {
     pub output_path: String,
 }
 
+/// Plan 08-08 — 3-letter weekday code used by `CutoverQuarantineEntryTO.weekday`.
+/// Stable Mon..Sun mapping, OpenAPI-portable string. Free-standing function
+/// (not an impl-block on `time::Date`) to keep the `time` orphan rule happy
+/// in downstream crates.
+pub fn weekday_code(date: time::Date) -> &'static str {
+    match date.weekday() {
+        Weekday::Monday => "Mon",
+        Weekday::Tuesday => "Tue",
+        Weekday::Wednesday => "Wed",
+        Weekday::Thursday => "Thu",
+        Weekday::Friday => "Fri",
+        Weekday::Saturday => "Sat",
+        Weekday::Sunday => "Sun",
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::CutoverQuarantineEntry> for CutoverQuarantineEntryTO {
+    fn from(e: &service::cutover::CutoverQuarantineEntry) -> Self {
+        let date_iso = e
+            .date
+            .format(&time::format_description::well_known::Iso8601::DATE)
+            .unwrap_or_default();
+        Self {
+            extra_hours_id: e.extra_hours_id,
+            date: date_iso,
+            weekday: weekday_code(e.date).to_string(),
+            amount: e.amount,
+            reason_code: e.reason.as_persisted_str().to_string(),
+            reason_text: e.reason.human_text().to_string(),
+            suggested_action: e.reason.suggested_action().to_string(),
+        }
+    }
+}
+
 #[cfg(feature = "service-impl")]
 impl From<&service::cutover::DriftRow> for CutoverGateDriftRowTO {
     fn from(r: &service::cutover::DriftRow) -> Self {
@@ -2032,6 +2104,31 @@ impl From<&service::cutover::DriftRow> for CutoverGateDriftRowTO {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
+            quarantined_entries: r
+                .quarantined_entries
+                .iter()
+                .map(CutoverQuarantineEntryTO::from)
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::CutoverGateDriftReport> for CutoverGateDriftReportTO {
+    fn from(r: &service::cutover::CutoverGateDriftReport) -> Self {
+        let run_at = r
+            .run_at
+            .assume_utc()
+            .format(&time::format_description::well_known::Iso8601::DEFAULT)
+            .unwrap_or_default();
+        Self {
+            gate_run_id: r.gate_run_id,
+            run_at,
+            dry_run: r.dry_run,
+            drift_threshold: r.drift_threshold,
+            total_drift_rows: r.total_drift_rows,
+            drift: r.drift.iter().map(CutoverGateDriftRowTO::from).collect(),
+            passed: r.passed,
         }
     }
 }
@@ -2054,6 +2151,10 @@ impl From<&service::cutover::CutoverRunResult> for CutoverRunResultTO {
             quarantined_rows: r.quarantined_rows,
             gate_drift_rows: r.gate_drift_rows,
             diff_report_path: r.diff_report_path.as_ref().map(|s| s.to_string()),
+            gate_drift_report: r
+                .gate_drift_report
+                .as_ref()
+                .map(CutoverGateDriftReportTO::from),
         }
     }
 }

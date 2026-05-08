@@ -19,7 +19,8 @@ use axum::{
 };
 use rest_types::{
     CutoverGateDriftReportTO, CutoverGateDriftRowTO, CutoverProfileBucketTO,
-    CutoverProfileTO, CutoverRunResultTO, ExtraHoursCategoryDeprecatedErrorTO,
+    CutoverProfileTO, CutoverQuarantineEntryTO, CutoverRunResultTO,
+    ExtraHoursCategoryDeprecatedErrorTO,
 };
 use serde::Deserialize;
 use service::cutover::CutoverService;
@@ -160,6 +161,7 @@ pub async fn cutover_profile_handler<RestState: RestStateDef>(
         CutoverRunResultTO,
         CutoverGateDriftRowTO,
         CutoverGateDriftReportTO,
+        CutoverQuarantineEntryTO,
         CutoverProfileTO,
         CutoverProfileBucketTO,
         ExtraHoursCategoryDeprecatedErrorTO,
