@@ -403,6 +403,96 @@ pub enum Key {
     WorkingHoursTableTarget,
     WorkingHoursTableUtilization,
     WorkingHoursTableTotal,
+
+    // Absence management (Phase 8)
+    // Page-Level
+    AbsencePageTitle,
+    AbsencePageSubtitle,
+    AbsenceMenuLabel,
+    // Primary CTA
+    AbsenceNewBtn,
+    AbsenceModalCreateBtn,
+    AbsenceModalSaveBtn,
+    AbsenceModalCancelBtn,
+    AbsenceModalDeleteBtn,
+    // Empty State
+    AbsenceEmptyFilterHeading,
+    AbsenceEmptyFilterBody,
+    AbsenceEmptySelfHeading,
+    AbsenceEmptySelfBody,
+    // Form Labels & Hints
+    AbsenceFieldEmployee,
+    AbsenceFieldCategory,
+    AbsenceFieldFrom,
+    AbsenceFieldTo,
+    AbsenceFieldDescription,
+    AbsenceFieldDescriptionHint,
+    AbsenceModalCreateSubtitle,
+    AbsenceModalEditSubtitle,
+    AbsencePreviewHeader,
+    AbsencePreviewFooter,
+    // Categories
+    AbsenceCategoryVacation,
+    AbsenceCategorySickLeave,
+    AbsenceCategoryUnpaidLeave,
+    AbsenceFilterCategoryLabel,
+    AbsenceFilterCategoryAll,
+    AbsenceFilterPersonLabel,
+    AbsenceFilterPersonAll,
+    AbsenceFilterStatusLabel,
+    AbsenceFilterStatusAll,
+    // Status
+    AbsenceStatusActive,
+    AbsenceStatusPlanned,
+    AbsenceStatusFinished,
+    // Liste-Spaltenheader
+    AbsenceColEmployee,
+    AbsenceColRange,
+    AbsenceColCategory,
+    AbsenceColStatus,
+    AbsenceColWarnings,
+    AbsenceDayUnit,
+    AbsenceDaysUnit,
+    // VacationEntitlementCard
+    VacationEntitlementHero,
+    VacationDaysRemaining,
+    VacationCardSelfTitle,
+    VacationCardSelfSubtitle,
+    VacationCardTeamTitle,
+    VacationCardTeamSubtitle,
+    VacationStatContract,
+    VacationStatCarryover,
+    VacationStatUsed,
+    VacationStatPending,
+    VacationStatRemaining,
+    VacationPerPersonHeader,
+    VacationPerPersonShowAll,
+    VacationPerPersonShowLess,
+    // Statistik-Cards
+    AbsenceStatSickLeaveDays,
+    AbsenceStatUnpaidDays,
+    AbsenceStatActive,
+    // Errors & Warnings
+    AbsenceErrorRangeInverted,
+    AbsenceErrorSelfOverlapHeader,
+    AbsenceErrorSelfOverlapBody,
+    AbsenceErrorVersionConflictHeader,
+    AbsenceErrorVersionConflictBody,
+    AbsenceErrorVersionConflictReload,
+    AbsenceErrorNetwork,
+    AbsenceWarningHeaderSingular,
+    AbsenceWarningHeaderPlural,
+    AbsenceWarningAcknowledgeBtn,
+    AbsenceWarningOverlapsBooking,
+    AbsenceWarningOverlapsManual,
+    // Destructive Confirmation
+    AbsenceDeleteConfirmTitle,
+    AbsenceDeleteConfirmBody,
+    AbsenceDeleteConfirmBtn,
+    AbsenceDeleteCancelBtn,
+    // Filter
+    AbsenceFilterShowPast,
+    AbsenceFilterCounter,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -531,6 +621,84 @@ mod tests {
                 result
             );
         }
+    }
+
+    #[test]
+    fn i18n_absence_keys_present_in_all_locales() {
+        // Locks the contract: every absence-domain key has a translation in
+        // every locale and never falls back to "??". This is the primary
+        // safety net against the historical Locale::En-instead-of-Locale::De
+        // bug (Pitfall 2 / 08-RESEARCH.md).
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::AbsencePageTitle,
+                Key::AbsencePageSubtitle,
+                Key::AbsenceMenuLabel,
+                Key::AbsenceNewBtn,
+                Key::AbsenceCategoryVacation,
+                Key::AbsenceCategorySickLeave,
+                Key::AbsenceCategoryUnpaidLeave,
+                Key::AbsenceStatusActive,
+                Key::AbsenceStatusPlanned,
+                Key::AbsenceStatusFinished,
+                Key::AbsenceErrorRangeInverted,
+                Key::AbsenceErrorSelfOverlapHeader,
+                Key::AbsenceErrorVersionConflictHeader,
+                Key::VacationCardSelfTitle,
+                Key::VacationStatContract,
+                Key::VacationStatCarryover,
+                Key::VacationStatUsed,
+                Key::VacationStatPending,
+                Key::VacationStatRemaining,
+                Key::AbsenceDeleteConfirmTitle,
+                Key::AbsenceWarningAcknowledgeBtn,
+                Key::AbsenceFilterShowPast,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_absence_keys_match_german_reference() {
+        // Pitfall-2 guard: ensures the de.rs block uses Locale::De (and not
+        // accidentally Locale::En, which would still type-check but route
+        // English copy through `generate(Locale::De)`).
+        let i18n = generate(Locale::De);
+        assert_eq!(i18n.t(Key::AbsencePageTitle).as_ref(), "Abwesenheiten");
+        assert_eq!(i18n.t(Key::AbsenceCategoryVacation).as_ref(), "Urlaub");
+        assert_eq!(i18n.t(Key::AbsenceCategorySickLeave).as_ref(), "Krankheit");
+        assert_eq!(
+            i18n.t(Key::AbsenceCategoryUnpaidLeave).as_ref(),
+            "Unbezahlt"
+        );
+        assert_eq!(i18n.t(Key::AbsenceStatusActive).as_ref(), "Aktiv");
+    }
+
+    #[test]
+    fn i18n_absence_keys_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(i18n.t(Key::AbsencePageTitle).as_ref(), "Absences");
+        assert_eq!(i18n.t(Key::AbsenceCategoryVacation).as_ref(), "Vacation");
+        assert_eq!(i18n.t(Key::AbsenceCategorySickLeave).as_ref(), "Sick leave");
+        assert_eq!(i18n.t(Key::AbsenceStatusActive).as_ref(), "Active");
+    }
+
+    #[test]
+    fn i18n_absence_keys_match_czech_reference() {
+        let i18n = generate(Locale::Cs);
+        assert_eq!(i18n.t(Key::AbsencePageTitle).as_ref(), "Nepřítomnosti");
+        assert_eq!(i18n.t(Key::AbsenceCategoryVacation).as_ref(), "Dovolená");
+        assert_eq!(i18n.t(Key::AbsenceCategorySickLeave).as_ref(), "Nemoc");
+        assert_eq!(i18n.t(Key::AbsenceStatusActive).as_ref(), "Aktivní");
     }
 
     #[test]

@@ -90,3 +90,7 @@ backend = "http://localhost:3000/text-templates"
 backend = "http://localhost:3000/user-invitation"
 [[web.proxy]]
 backend = "http://localhost:3000/sales-person-shiftplan"
+[[web.proxy]]
+backend = "http://localhost:3000/absence-period"
+[[web.proxy]]
+backend = "http://localhost:3000/vacation-balance"
