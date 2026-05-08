@@ -123,7 +123,7 @@
 - [x] 08-01-PLAN.md — Service-Trait + Domain-Struct (`VacationBalanceService`) + DTO (`VacationBalanceTO`) — Wave 1, BL-Tier interface foundation (completed 2026-05-08)
 - [x] 08-02-PLAN.md — Service-Impl (BL-Tier per gen_service_impl!) + 7 Unit-Tests + REST-Endpoints (utoipa) + DI-Wiring in main.rs — Wave 2 (completed 2026-05-08)
 - [x] 08-03-PLAN.md — OpenAPI Surface-Assertion-Test (`rest/tests/openapi_surface.rs`; Option-B-Pivot vom flaky insta-snapshot weg; pinnt Pfad-Liste + Schema-Namen + VacationBalance-Tag; 3-run-determinism) — Wave 3 (completed 2026-05-08)
-- [ ] 08-04-PLAN.md — Frontend Foundation: api.rs (8 fns) + ShiftyError::Validation + state-types + loader + service-coroutines + 60 i18n-Keys (de/en/cs) + Dx-Proxy-Einträge — Wave 4
+- [x] 08-04-PLAN.md — Frontend Foundation: api.rs (8 fns) + ShiftyError::Validation + state-types + loader + service-coroutines + 60 i18n-Keys (de/en/cs) + Dx-Proxy-Einträge — Wave 4 (completed 2026-05-08)
 - [ ] 08-05-PLAN.md — AbsencesPage + AbsenceModal + WarningList + CategoryBadge + StatusPill + VacationEntitlementCard + VacationPerPersonList + Routing + TopBar + WASM-Build-Gate — Wave 5
 - [ ] 08-06-PLAN.md — UAT-Smoke (HR + Employee) + Final-Regression-Gates (cargo test --workspace + WASM-Build) — Wave 6 closure
 
@@ -144,7 +144,7 @@
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
-| 8 — Absence-CRUD-Page Foundation | v1.3 | 3/6 | In Progress | — |
+| 8 — Absence-CRUD-Page Foundation | v1.3 | 4/6 | In Progress | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
@@ -153,4 +153,4 @@
 
 ---
 
-*Last updated: 2026-05-08 — Plan 08-03 complete (OpenAPI surface-assertion test; Option-B-Pivot). Phase 8 progress 3/6.*
+*Last updated: 2026-05-08 — Plan 08-04 complete (Frontend Foundation: api/state/loader/coroutine-services/i18n/proxy). Phase 8 progress 4/6.*

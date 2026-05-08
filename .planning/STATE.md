@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T11:05:00.000Z"
-last_activity: 2026-05-08 -- Plan 08-03 complete (OpenAPI surface-assertion test; Option-B-Pivot vom flaky insta-snapshot weg; 3-run-determinism green)
+last_updated: "2026-05-08T13:30:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-04 complete (Frontend Foundation — api / state / loader / service-coroutines / 60 i18n-keys × 3 locales / Dx-Proxy; 6 tasks; WASM-build green)
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State: Shifty Backend
@@ -28,9 +28,9 @@ progress:
 ## Current Position
 
 Phase: 08 (absence-crud-page-foundation) — EXECUTING
-Plan: 4 of 6 (08-01 + 08-02 + 08-03 complete; 08-04 next — Frontend Foundation: api/state/loader/i18n)
+Plan: 5 of 6 (08-01 + 08-02 + 08-03 + 08-04 complete; 08-05 next — AbsencesPage + Modal + Routing + TopBar)
 Status: Executing Phase 08
-Last activity: 2026-05-08 -- Plan 08-03 complete (OpenAPI surface-assertion test, Option-B-Pivot)
+Last activity: 2026-05-08 -- Plan 08-04 complete (Frontend Foundation; api / state / loader / service-coroutines / 60 i18n-keys × 3 locales / Dx-Proxy; 6 atomic jj-commits)
 
 ## Shipped Milestones
 
@@ -69,6 +69,10 @@ Last activity: 2026-05-08 -- Plan 08-03 complete (OpenAPI surface-assertion test
 - **Active-Period-Split-on-today** (Plan 08-02): Wenn eine Vacation-Periode heute aktiv ist (`today ∈ [from, to]`), splittet `VacationBalanceServiceImpl::compute_balance` die Tage auf `clock.date_now()` als Stichtag — Vergangenheits-Anteil zu `used_days`, Zukunfts-Anteil zu `planned_days`. So gibt es keine Diskontinuität, wenn eine Periode genau heute beginnt oder endet, und das Frontend-Aggregat ist heute und morgen gleich aussagekräftig.
 - **compute_balance als private Helper für get_team-Code-Sharing** (Plan 08-02): `get_team` iteriert über `sales_person_service.get_all_paid()` und ruft pro Person `compute_balance` auf, das ohne Permission-Check aggregiert (Outer-Permission ist schon im `get`/`get_team` enforced). Innere Service-Calls nutzen `Authentication::Full` analog `compute_forward_warnings` in `absence.rs`.
 - **Special-Day-Subtraktion verschoben** (Plan 08-02 — A5-Note in 08-RESEARCH.md): Tag-Anzahl pro Vacation-Periode = `(to - from).whole_days() + 1`, beschnitten auf das Kalenderjahr. Wochenenden, Feiertage, Vertragsstunden-Anteile NICHT berücksichtigt. Das macht das Aggregat zur reinen Kalendertage-Sicht; Refinement (Tag-Äquivalent via `EmployeeWorkDetails.has_day_of_week`) ist Out-of-Scope für Plan 02 und wird je nach Frontend-Feedback in eine spätere Phase gefolded.
+- **Modal-Event-Side-Channel-Pattern** (Plan 08-04): Statt `EventHandler<Result<...>>` als Action-Enum-Payload zu führen (was Debug-Trait und Lifetime-Probleme bringt), schreibt der Service modal-lokale Outcomes (Created/Updated/VersionConflict/Validation/Network/Deleted) in einen separaten `GlobalSignal<Option<AbsenceModalEvent>>`. Die Page liest diesen Signal reaktiv und ack-t mit `*store.write() = None`. Hält das Action-Enum cheap-derive-able und ist ergonomischer für die Page als ein durchgereichter EventHandler. PATTERNS.md Z. 522-525 erlaubt explizit beide Varianten — Side-Channel ist die hier gewählte.
+- **Defensive Uuid::nil im API-Create-Body** (Plan 08-04): `api::create_absence_period` setzt im Function-Body als ersten Schritt `body.id = Uuid::nil(); body.version = Uuid::nil();`, unabhängig vom Caller-State. Verhindert, dass ein Edit→Create-Mode-Switch im Modal vergisst, die `id` zu nullen, was sonst Backend-422 (`IdSetOnCreate`) liefert. Funktion ist jetzt selbstkonsistent — Caller-Hygiene ist nicht mehr Korrektheits-Voraussetzung.
+- **Per-Locale-Reference-Matcher-Tests gegen Pitfall 2** (Plan 08-04): Über den standard `i18n_*_present_in_all_locales`-Test hinaus drei zusätzliche Tests `i18n_*_match_{german,english,czech}_reference`, die je 4-5 Stichproben mit dem Original-String matchen. Fängt versehentliche `Locale::En, …`-Kalls in `de.rs` (oder `Locale::De, …` in `en.rs`/`cs.rs`), die sonst still durchgehen würden, weil Tests mit "?? "-Fallback nur fehlende Keys, nicht falsch-getaggte erkennen.
+- **Frontend-State-with-Side-Join-Pattern erweitert** (Plan 08-04): `AbsencePeriod` trägt zwei `Arc<str>`-Felder (`person_name`, `background_color`), die der Loader aus der SalesPerson-Liste füllt — analog zum existierenden `Booking::label`/`background_color`-Pattern in `loader::load_bookings`. From-TO setzt sie initial leer; nur `load_absence_periods_all` (HR-Variante) joinst sie auf, weil die Self-Variante den User bereits kennt.
 
 **v1.2 (Phasen 6–7 — Frontend rest-types Konsolidierung):**
 
@@ -140,4 +144,4 @@ Last activity: 2026-05-08 -- Plan 08-03 complete (OpenAPI surface-assertion test
 
 ---
 
-*State updated: 2026-05-07 — v1.3 gestartet (Frontend Abwesenheiten + UI-Closure-Restanten). Phasen 8+ definiert in ROADMAP.md.*
+*State updated: 2026-05-08 — Plan 08-04 abgeschlossen (Frontend Foundation: api / state / loader / service-coroutines / i18n × 3 / Dx-Proxy). Phase-8-Progress 4/6 (67%). Plan 08-05 als nächstes — AbsencesPage + Modal + Routing + TopBar.*
