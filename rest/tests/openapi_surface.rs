@@ -49,6 +49,8 @@ const EXPECTED_PATHS: &[&str] = &[
     // Phase 8 — VacationBalance (new in Wave 2).
     "/vacation-balance/{sales_person_id}/{year}",
     "/vacation-balance/team/{year}",
+    // Phase 8 Plan 08-07 Gap-Closure — Feature-Flag read endpoint.
+    "/feature-flag/{key}",
     // v1.0 — Absence domain (range-based vacation / sick / unpaid leave).
     "/absence-period",
     "/absence-period/{id}",
@@ -93,6 +95,8 @@ const EXPECTED_PATHS: &[&str] = &[
 const EXPECTED_SCHEMAS: &[&str] = &[
     // Phase 8 — VacationBalance aggregate.
     "VacationBalanceTO",
+    // Phase 8 Plan 08-07 Gap-Closure — Feature-Flag DTO.
+    "FeatureFlagTO",
     // v1.0 — Absence domain.
     "AbsencePeriodTO",
     "AbsenceCategoryTO",

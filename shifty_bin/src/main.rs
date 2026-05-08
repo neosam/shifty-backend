@@ -577,6 +577,11 @@ pub struct RestStateImpl {
     toggle_service: Arc<ToggleService>,
     sales_person_shiftplan_service: Arc<SalesPersonShiftplanService>,
     cutover_service: Arc<CutoverService>,
+    // Phase 8 Plan 08-07 Gap-Closure (Task 2): exposed for REST-Layer
+    // (`GET /feature-flag/{key}`). Bisher nur intern (ReportingService,
+    // ExtraHoursService, CutoverService) genutzt — jetzt auch via
+    // `RestStateDef::feature_flag_service`.
+    feature_flag_service: Arc<FeatureFlagService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -609,6 +614,7 @@ impl rest::RestStateDef for RestStateImpl {
     type ToggleService = ToggleService;
     type SalesPersonShiftplanService = SalesPersonShiftplanService;
     type CutoverService = CutoverService;
+    type FeatureFlagService = FeatureFlagService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -702,6 +708,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn cutover_service(&self) -> Arc<Self::CutoverService> {
         self.cutover_service.clone()
+    }
+    fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService> {
+        self.feature_flag_service.clone()
     }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
@@ -1092,6 +1101,7 @@ impl RestStateImpl {
             toggle_service,
             sales_person_shiftplan_service,
             cutover_service,
+            feature_flag_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }

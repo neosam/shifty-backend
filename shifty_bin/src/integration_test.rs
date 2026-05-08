@@ -1443,4 +1443,6 @@ mod booking_absence_conflict;
 mod cutover;
 #[cfg(test)]
 mod extra_hours_update;
+#[cfg(test)]
+mod feature_flag;
 mod dev_seed;

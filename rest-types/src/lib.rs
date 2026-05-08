@@ -2146,3 +2146,51 @@ impl From<service::user_invitation::InvitationStatus> for InvitationStatus {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 8 Plan 08-07 Gap-Closure (Task 2) — Feature-Flag REST-DTO
+//
+// Read-only DTO für `GET /feature-flag/{key}` (auth-only). Liefert den
+// aktuellen Wert eines Feature-Flags zurück; unbekannte Keys liefern
+// `enabled: false` (fail-safe, kein 404). Das Frontend nutzt das, um den
+// Cutover-Zustand (`absence_range_source_active`) bei App-Start zu kennen.
+//
+// `From`-Impl ist hinter `feature = "service-impl"` gegated, damit der
+// WASM-/Frontend-Build den `service`-Crate nicht ziehen muss (analog
+// `VacationBalanceTO`).
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "service-impl", derive(PartialEq))]
+pub struct FeatureFlagTO {
+    /// Flag-Key (z.B. `"absence_range_source_active"`).
+    pub key: String,
+    /// Aktueller Wert des Flags. `false` bei unbekanntem Key (fail-safe).
+    pub enabled: bool,
+    /// Optionale Beschreibung aus der `feature_flag.description`-Spalte.
+    pub description: Option<String>,
+}
+
+#[cfg(feature = "service-impl")]
+impl FeatureFlagTO {
+    /// Konstruktor für den fail-safe-"unbekannter Key"-Pfad. Liefert
+    /// `enabled: false` und `description: None`.
+    pub fn unknown(key: &str) -> Self {
+        Self {
+            key: key.to_string(),
+            enabled: false,
+            description: None,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::feature_flag::FeatureFlag> for FeatureFlagTO {
+    fn from(flag: &service::feature_flag::FeatureFlag) -> Self {
+        Self {
+            key: flag.key.as_ref().to_string(),
+            enabled: flag.enabled,
+            description: flag.description.as_deref().map(str::to_string),
+        }
+    }
+}

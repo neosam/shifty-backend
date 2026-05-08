@@ -10,6 +10,10 @@ pub mod cutover;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;
+// Plan 08-07 Gap-Closure: pub-export so the shifty_bin integration test can
+// reach `feature_flag::generate_route` via tower::oneshot — same pattern as
+// `pub mod cutover;` which lets `integration_test/cutover.rs` use it.
+pub mod feature_flag;
 mod impersonate;
 mod my_block;
 mod permission;
@@ -359,6 +363,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 8 Plan 08-07 Gap-Closure (Task 2): Feature-Flag REST-Endpoint.
+    // Read-only Lookup (`GET /feature-flag/{key}`); Schreibseite bleibt
+    // outside-REST und nutzt `feature_flag_admin`.
+    type FeatureFlagService: service::feature_flag::FeatureFlagService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type SalesPersonShiftplanService: service::sales_person_shiftplan::SalesPersonShiftplanService<Context = Context>
         + Send
         + Sync
@@ -399,6 +410,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn text_template_service(&self) -> Arc<Self::TextTemplateService>;
     fn user_invitation_service(&self) -> Arc<Self::UserInvitationService>;
     fn toggle_service(&self) -> Arc<Self::ToggleService>;
+    fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService>;
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
     fn cutover_service(&self) -> Arc<Self::CutoverService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
@@ -512,6 +524,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
         (path = "/vacation-balance", api = vacation_balance::VacationBalanceApiDoc),
+        (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
         (path = "/admin/cutover", api = cutover::CutoverApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
@@ -590,7 +603,8 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest(
             "/sales-person-shiftplan",
             sales_person_shiftplan::generate_route(),
-        );
+        )
+        .nest("/feature-flag", feature_flag::generate_route());
 
     #[cfg(feature = "mock_auth")]
     let app = app.nest("/dev", dev::generate_route());
