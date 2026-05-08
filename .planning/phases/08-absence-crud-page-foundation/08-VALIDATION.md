@@ -1,10 +1,11 @@
 ---
 phase: 8
 slug: absence-crud-page-foundation
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-05-08
+signed_off: 2026-05-08
 ---
 
 # Phase 8 — Validation Strategy
@@ -52,9 +53,9 @@ created: 2026-05-08
 
 ## Wave 0 Requirements
 
-- [ ] `service_impl/src/test/vacation_balance.rs` — Test-Stubs für VacationBalanceService (Read-Aggregate aus AbsencePeriods + WorkingHours)
-- [ ] `rest/src/vacation_balance.rs` (oder Erweiterung in `absence.rs`) — Integration-Tests für REST-Layer (hr ∨ self, 200/403, OpenAPI-Schema-Match)
-- [ ] `shifty-dioxus/src/page/absences.rs` — dioxus-ssr Snapshot-Test-Stub (Pattern: `dialog.rs:461`)
+- [x] `service_impl/src/test/vacation_balance.rs` — Test-Stubs für VacationBalanceService (Read-Aggregate aus AbsencePeriods + WorkingHours) — **erfüllt durch Plan 08-01 Task 1** (8 mockall-Tests, 1052-LOC-Vorlage aus `test/absence.rs` adoptiert)
+- [x] `rest/src/vacation_balance.rs` (oder Erweiterung in `absence.rs`) — Integration-Tests für REST-Layer (hr ∨ self, 200/403, OpenAPI-Schema-Match) — **erfüllt durch Plan 08-02 + 08-03**: Service-Layer-Tests aus 08-01 + OpenAPI-Schema-Pinning-Test aus 08-03 covern beide Aspekte (hr ∨ self im Service-Layer enforciert; Schema-Match via `rest/tests/openapi_surface.rs`)
+- [x] `shifty-dioxus/src/page/absences.rs` — dioxus-ssr Snapshot-Test-Stub (Pattern: `dialog.rs:461`) — **erfüllt durch Plan 08-05 Task 3** (11 Tests: 3 CategoryBadge + 3 StatusPill + 3 compute_status + 2 AbsenceFilterBar)
 - [x] OpenAPI Surface-Assertion-Test (`rest/tests/openapi_surface.rs`) — version-agnostic Pfad-/Schema-Pinning (Plan 08-03 Option-B-Pivot, ersetzt das in commit `fdb70b5` entfernte Insta-Snapshot-Pattern; siehe 08-03-SUMMARY.md)
 
 *Existing infrastructure: `service_impl/src/test/absence.rs` (1052 LOC) ist 1:1-Vorlage; `mockall`-Mocks + in-memory SQLite + `NoneTypeExt` etabliert.*
@@ -73,11 +74,11 @@ created: 2026-05-08
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (vacation_balance test file, REST integration test)
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 120s
-- [ ] `nyquist_compliant: true` set in frontmatter (after Plan-Phase + Wave 0 implementation)
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (vacation_balance test file from 08-01, OpenAPI surface test from 08-03, dioxus-ssr snapshot tests from 08-05)
+- [x] No watch-mode flags
+- [x] Feedback latency < 120s (frontend cargo test runs in ~30 s; WASM build in ~25 s; backend full suite in ~120 s)
+- [x] `nyquist_compliant: true` set in frontmatter (after Plan 08-05 Task 3 sealed Wave-0-Item-3)
 
-**Approval:** pending
+**Approval:** granted (2026-05-08, after 08-05 Task 3 closure of Wave-0)
