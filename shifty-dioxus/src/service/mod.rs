@@ -1,3 +1,4 @@
+pub mod absence;
 pub mod auth;
 pub mod billing_period;
 pub mod booking_conflict;
@@ -14,5 +15,6 @@ pub mod theme;
 pub mod tooltip;
 pub mod ui_prefs;
 pub mod user_management;
+pub mod vacation_balance;
 pub mod weekly_summary;
 pub mod working_hours_mini;
