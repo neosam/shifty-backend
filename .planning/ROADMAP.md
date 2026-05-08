@@ -120,7 +120,7 @@
 
 **Plans:** 6 plans (3 Backend-Waves + 3 Frontend-Waves)
 
-- [ ] 08-01-PLAN.md — Service-Trait + Domain-Struct (`VacationBalanceService`) + DTO (`VacationBalanceTO`) — Wave 1, BL-Tier interface foundation
+- [x] 08-01-PLAN.md — Service-Trait + Domain-Struct (`VacationBalanceService`) + DTO (`VacationBalanceTO`) — Wave 1, BL-Tier interface foundation (completed 2026-05-08)
 - [ ] 08-02-PLAN.md — Service-Impl (BL-Tier per gen_service_impl!) + ≥6 Unit-Tests + REST-Endpoints (utoipa) + DI-Wiring in main.rs — Wave 2
 - [ ] 08-03-PLAN.md — OpenAPI insta-Snapshot-Refresh (3-run-determinism) + Human-Verify Snapshot-Diff — Wave 3
 - [ ] 08-04-PLAN.md — Frontend Foundation: api.rs (8 fns) + ShiftyError::Validation + state-types + loader + service-coroutines + 60 i18n-Keys (de/en/cs) + Dx-Proxy-Einträge — Wave 4
@@ -144,7 +144,7 @@
 | 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
-| 8 — Absence-CRUD-Page Foundation | v1.3 | 0/6 | Pending | — |
+| 8 — Absence-CRUD-Page Foundation | v1.3 | 1/6 | In Progress | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |

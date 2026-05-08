@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-08T05:12:50.496Z"
-last_activity: 2026-05-08 -- Phase 8 planning complete
+last_updated: "2026-05-08T08:35:00.000Z"
+last_activity: 2026-05-08 -- Plan 08-01 complete (VacationBalance Trait + DTO Foundation)
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 8 — Absence-CRUD-Page Foundation (context gathered)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-08 -- Phase 8 planning complete
+Phase: 08 (absence-crud-page-foundation) — EXECUTING
+Plan: 2 of 6 (08-01 complete; 08-02 next)
+Status: Executing Phase 08
+Last activity: 2026-05-08 -- Plan 08-01 complete (VacationBalance Trait + DTO Foundation)
 
 ## Shipped Milestones
 
@@ -59,6 +59,11 @@ Last activity: 2026-05-08 -- Phase 8 planning complete
 ## Accumulated Context (carry forward)
 
 ### Architecture Decisions Logged
+
+**v1.3 (Phasen 8+ — Frontend Abwesenheiten + UI-Closure-Restanten):**
+
+- **Read-only Aggregat-DTO ohne `$version`-Field** (Plan 08-01): `VacationBalanceTO` ist ein berechnetes Aggregat — kein Optimistic-Lock-Konflikt möglich, daher entfällt das `$version`-Pattern aus AbsencePeriodTO. Bewusste Abweichung; Plan 08-02-REST-Endpoint liefert immer frische Werte.
+- **Wave-1-Foundation-Plan ohne Test-Code** (Plan 08-01): Trait + Domain + DTO als reine Interface-Foundation; Tests landen in Wave 2 (Plan 08-02), wo die Service-Impl gegen `MockVacationBalanceService` testbar wird. Dieses Pattern ersetzt das Wave-0-Stub-`#[ignore]`-Pattern für reine BL-Tier-Trait-Foundations und ist stiller als ein Stub.
 
 **v1.2 (Phasen 6–7 — Frontend rest-types Konsolidierung):**
 
