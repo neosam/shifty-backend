@@ -25,6 +25,7 @@ mod special_day;
 mod text_template;
 mod toggle;
 mod user_invitation;
+mod vacation_balance;
 mod week_message;
 
 #[cfg(feature = "mock_auth")]
@@ -310,6 +311,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Sync
         + 'static;
     type AbsenceService: service::absence::AbsenceService<Context = Context> + Send + Sync + 'static;
+    // Phase 8 (D-03/D-04): VacationBalanceService liefert das Resturlaubs-
+    // Aggregat (BL-Tier; konsumiert AbsenceService + EmployeeWorkDetails +
+    // CarryoverService).
+    type VacationBalanceService: service::vacation_balance::VacationBalanceService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type ShiftplanEditService: service::shiftplan_edit::ShiftplanEditService<Context = Context>
         + Send
         + Sync
@@ -373,6 +381,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn sales_person_unavailable_service(&self) -> Arc<Self::SalesPersonUnavailableService>;
     fn booking_service(&self) -> Arc<Self::BookingService>;
     fn absence_service(&self) -> Arc<Self::AbsenceService>;
+    fn vacation_balance_service(&self) -> Arc<Self::VacationBalanceService>;
     fn custom_extra_hours_service(&self) -> Arc<Self::CustomExtraHoursService>;
     fn booking_information_service(&self) -> Arc<Self::BookingInformationService>;
     fn booking_log_service(&self) -> Arc<Self::BookingLogService>;
@@ -502,6 +511,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/toggle", api = toggle::ToggleApiDoc),
         (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
+        (path = "/vacation-balance", api = vacation_balance::VacationBalanceApiDoc),
         (path = "/admin/cutover", api = cutover::CutoverApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
@@ -565,6 +575,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             employee_work_details::generate_route(),
         )
         .nest("/absence-period", absence::generate_route())
+        .nest("/vacation-balance", vacation_balance::generate_route())
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())
