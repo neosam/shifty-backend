@@ -11,6 +11,7 @@ use crate::{
     service::{
         auth::AUTH,
         config::CONFIG,
+        feature_flag::FEATURE_FLAGS_STORE,
         i18n::I18N,
         theme::{cycle_theme, ThemeAction, ThemeMode, THEME_MODE},
     },
@@ -30,7 +31,11 @@ pub(crate) struct NavVisibility {
     pub templates: bool,
 }
 
-pub(crate) fn nav_visibility(auth_info: Option<&AuthInfo>, is_paid: bool) -> NavVisibility {
+pub(crate) fn nav_visibility(
+    auth_info: Option<&AuthInfo>,
+    is_paid: bool,
+    cutover_active: bool,
+) -> NavVisibility {
     let has = |p: &str| auth_info.map(|a| a.has_privilege(p)).unwrap_or(false);
     let show_reports = has("hr");
     let logged_in = auth_info.is_some();
@@ -39,9 +44,14 @@ pub(crate) fn nav_visibility(auth_info: Option<&AuthInfo>, is_paid: bool) -> Nav
         my_shifts: has("sales"),
         my_time: is_paid && !show_reports,
         year_overview: has("shiftplanner") || has("sales"),
-        // D-10: Absence menu entry visible for ALL logged-in users (HR + Employee).
-        // HR-privilege only switches the filter mode inside the page itself.
-        absences: logged_in,
+        // Plan 08-07 Gap-Closure (Task 4): Absences-Eintrag erscheint nur,
+        // wenn der `absence_range_source_active`-Flag im Backend an ist
+        // UND der User eingeloggt. Solange der Cutover noch nicht passiert
+        // ist, bleibt der Eintrag im Menü unsichtbar — die Route ist via
+        // direkter URL weiterhin erreichbar (technische Backdoor für
+        // Admins, kein UX-Pfad). HR-Privileg switcht intern den Page-Mode
+        // (Self vs Team) — der Filter-Switch passiert in der Page selbst.
+        absences: logged_in && cutover_active,
         employees: show_reports,
         billing_periods: show_reports,
         user_management: has("admin"),
@@ -120,13 +130,46 @@ pub(crate) fn is_admin_target(target: NavTarget) -> bool {
     )
 }
 
+/// Plan 08-07 Gap-Closure (Task 4): TopBar-Hierarchie hat zwei Modi
+///
+/// - **Non-HR**: `NavTarget::Absences` ist Top-Level (zwischen YearOverview
+///   und der Admin-Gruppe).
+/// - **HR**: `NavTarget::Absences` rutscht in die Verwaltung-Submenu-Gruppe
+///   (zusammen mit Mitarbeiter, Abrechnungszeiträume, etc.). Die TopBar
+///   wird sonst durch die Mitarbeiter+Verwaltung+Absences-Kombination
+///   überfüllt.
+///
+/// Der Helper kombiniert die statische Klassifizierung (`is_admin_target`)
+/// mit dem User-spezifischen `absences_under_admin`-Flag. Für alle anderen
+/// Targets ist die Klassifizierung unabhängig vom User.
+pub(crate) fn is_admin_target_with_context(
+    target: NavTarget,
+    absences_under_admin: bool,
+) -> bool {
+    if absences_under_admin && matches!(target, NavTarget::Absences) {
+        return true;
+    }
+    is_admin_target(target)
+}
+
 pub(crate) fn partition_nav_items<T: Clone>(
     items: &[(NavTarget, T, String)],
+) -> (Vec<(NavTarget, T, String)>, Vec<(NavTarget, T, String)>) {
+    partition_nav_items_with_context(items, false)
+}
+
+/// Variante von [`partition_nav_items`] für den HR-Modus (Plan 08-07
+/// Task 4). Bei `absences_under_admin = true` landet `NavTarget::Absences`
+/// in der admin-Group; sonst bleibt es Top-Level (kompatibel mit dem
+/// bisherigen D-10-Verhalten).
+pub(crate) fn partition_nav_items_with_context<T: Clone>(
+    items: &[(NavTarget, T, String)],
+    absences_under_admin: bool,
 ) -> (Vec<(NavTarget, T, String)>, Vec<(NavTarget, T, String)>) {
     let mut top_level = Vec::new();
     let mut admin = Vec::new();
     for entry in items {
-        if is_admin_target(entry.0) {
+        if is_admin_target_with_context(entry.0, absences_under_admin) {
             admin.push(entry.clone());
         } else {
             top_level.push(entry.clone());
@@ -301,7 +344,19 @@ fn TopBarRouted() -> Element {
         false
     };
 
-    let visibility = nav_visibility(auth_info.as_ref(), is_paid);
+    // Plan 08-07 Gap-Closure: Cutover-Flag aus dem Frontend-Service-Store
+    // lesen (FEATURE_FLAGS_STORE wird beim App-Start einmalig befüllt;
+    // None solange noch ladend → as-if-disabled, d.h. Eintrag ausgeblendet).
+    let cutover_active = FEATURE_FLAGS_STORE
+        .read()
+        .absence_range_source_active();
+    // HR-Privileg entscheidet, ob der Absences-Eintrag in der Verwaltung-
+    // Gruppe (Submenu) oder Top-Level rendert (Plan 08-07 Task 4).
+    let has_hr = auth_info
+        .as_ref()
+        .map(|a| a.has_privilege("hr"))
+        .unwrap_or(false);
+    let visibility = nav_visibility(auth_info.as_ref(), is_paid, cutover_active);
     let route = use_route::<Route>();
 
     let mut visible = use_signal(|| false);
@@ -400,7 +455,11 @@ fn TopBarRouted() -> Element {
         ))])
     };
 
-    let (top_level_items, admin_items) = partition_nav_items(&nav_items);
+    // HR-User sehen Absences im Admin-Dropdown (Plan 08-07 Task 4); alle
+    // anderen Top-Level. Cutover-Gate ist eine Schicht weiter oben in
+    // `nav_visibility`.
+    let (top_level_items, admin_items) =
+        partition_nav_items_with_context(&nav_items, has_hr);
     let admin_visible = !admin_items.is_empty();
     let active_admin_label_owned: Option<String> =
         active_admin_label(&admin_items, &route).map(|s| s.to_string());
@@ -663,12 +722,12 @@ mod tests {
 
     #[test]
     fn nav_visibility_no_auth_hides_everything() {
-        let v = nav_visibility(None, false);
+        let v = nav_visibility(None, false, true);
         assert!(!v.shiftplan);
         assert!(!v.my_shifts);
         assert!(!v.my_time);
         assert!(!v.year_overview);
-        // D-10: absences requires logged_in — without auth it is hidden.
+        // Plan 08-07: absences requires logged_in AND cutover_active.
         assert!(!v.absences);
         assert!(!v.employees);
         assert!(!v.billing_periods);
@@ -679,11 +738,13 @@ mod tests {
     #[test]
     fn nav_visibility_sales_shows_shiftplan_my_shifts_year_overview() {
         let auth = auth_with(&["sales"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         assert!(v.shiftplan);
         assert!(v.my_shifts);
         assert!(v.year_overview);
-        // D-10: any logged-in user (incl. sales-only) sees the absences entry.
+        // Plan 08-07: when cutover is active any logged-in user sees the
+        // absences entry. (Hierarchy — top-level vs admin-submenu — is
+        // resolved by partition_nav_items_with_context, NOT by visibility.)
         assert!(v.absences);
         assert!(!v.my_time);
         assert!(!v.employees);
@@ -692,9 +753,26 @@ mod tests {
     }
 
     #[test]
+    fn nav_visibility_absences_hidden_when_cutover_inactive() {
+        // Plan 08-07 Cutover-Gate: solange `absence_range_source_active`
+        // im Backend false ist, taucht der Eintrag in keiner Rolle auf.
+        let sales = auth_with(&["sales"]);
+        let v = nav_visibility(Some(&sales), false, false);
+        assert!(!v.absences, "sales user must not see absences pre-cutover");
+
+        let hr = auth_with(&["hr"]);
+        let v = nav_visibility(Some(&hr), false, false);
+        assert!(!v.absences, "HR user must not see absences pre-cutover");
+
+        let admin = auth_with(&["admin"]);
+        let v = nav_visibility(Some(&admin), false, false);
+        assert!(!v.absences, "admin user must not see absences pre-cutover");
+    }
+
+    #[test]
     fn nav_visibility_shiftplanner_shows_shiftplan_year_overview() {
         let auth = auth_with(&["shiftplanner"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         assert!(v.shiftplan);
         assert!(!v.my_shifts);
         assert!(v.year_overview);
@@ -704,11 +782,11 @@ mod tests {
     #[test]
     fn nav_visibility_hr_shows_employees_and_billing_periods() {
         let auth = auth_with(&["hr"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         assert!(v.employees);
         assert!(v.billing_periods);
-        // D-10: HR is logged in → absences is shown for HR too (the page itself
-        // switches to the all-employees variant via `has_privilege("hr")`).
+        // Plan 08-07: HR sees absences when cutover_active = true; the HR
+        // hierarchy decision (admin-group vs top-level) is partition-level.
         assert!(v.absences);
         assert!(!v.shiftplan);
         assert!(!v.my_shifts);
@@ -721,7 +799,7 @@ mod tests {
     #[test]
     fn nav_visibility_admin_shows_user_management_and_templates() {
         let auth = auth_with(&["admin"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         assert!(v.user_management);
         assert!(v.templates);
         assert!(!v.shiftplan);
@@ -731,21 +809,21 @@ mod tests {
     #[test]
     fn nav_visibility_my_time_requires_paid_and_not_hr() {
         let no_priv = AuthInfo::default();
-        let v = nav_visibility(Some(&no_priv), true);
+        let v = nav_visibility(Some(&no_priv), true, true);
         assert!(v.my_time, "is_paid && !hr should show my_time");
 
-        let v = nav_visibility(Some(&no_priv), false);
+        let v = nav_visibility(Some(&no_priv), false, true);
         assert!(!v.my_time, "without is_paid, my_time hidden");
 
         let auth_hr_paid = auth_with(&["hr"]);
-        let v = nav_visibility(Some(&auth_hr_paid), true);
+        let v = nav_visibility(Some(&auth_hr_paid), true, true);
         assert!(!v.my_time, "hr suppresses my_time even when paid");
     }
 
     #[test]
     fn nav_visibility_combined_privileges_union() {
         let auth = auth_with(&["sales", "hr", "admin"]);
-        let v = nav_visibility(Some(&auth), true);
+        let v = nav_visibility(Some(&auth), true, true);
         assert!(v.shiftplan);
         assert!(v.my_shifts);
         assert!(!v.my_time, "hr suppresses my_time");
@@ -887,12 +965,27 @@ mod tests {
         assert!(!is_admin_target(NavTarget::MyShifts));
         assert!(!is_admin_target(NavTarget::MyTime));
         assert!(!is_admin_target(NavTarget::YearOverview));
-        // Absences is top-level (per D-10), NOT in the admin dropdown.
+        // Statisch gesehen ist Absences top-level — die HR-Hierarchie wird
+        // nicht in `is_admin_target`, sondern in `is_admin_target_with_context`
+        // entschieden (Plan 08-07 Task 4).
         assert!(!is_admin_target(NavTarget::Absences));
         assert!(is_admin_target(NavTarget::Employees));
         assert!(is_admin_target(NavTarget::BillingPeriods));
         assert!(is_admin_target(NavTarget::UserManagement));
         assert!(is_admin_target(NavTarget::Templates));
+    }
+
+    #[test]
+    fn is_admin_target_with_context_promotes_absences_for_hr() {
+        // Plan 08-07: HR-User sehen Absences im Admin-Dropdown.
+        assert!(is_admin_target_with_context(NavTarget::Absences, true));
+        assert!(!is_admin_target_with_context(NavTarget::Absences, false));
+        // Andere statisch-admin-Targets bleiben admin in beiden Modi.
+        assert!(is_admin_target_with_context(NavTarget::Employees, true));
+        assert!(is_admin_target_with_context(NavTarget::Employees, false));
+        // Statisch-Top-Level-Targets bleiben Top-Level in beiden Modi.
+        assert!(!is_admin_target_with_context(NavTarget::Shiftplan, true));
+        assert!(!is_admin_target_with_context(NavTarget::MyShifts, false));
     }
 
     fn nav_entry(target: NavTarget, label: &str) -> (NavTarget, Route, String) {
@@ -1062,13 +1155,12 @@ mod tests {
     #[test]
     fn sales_only_user_yields_no_admin_group() {
         let auth = auth_with(&["sales"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
-        let (top_level, admin) = partition_nav_items(&items);
+        // Plan 08-07: Sales-User ist kein HR → Absences bleibt top-level.
+        let (top_level, admin) = partition_nav_items_with_context(&items, false);
         assert!(admin.is_empty(), "sales-only should have no admin items");
         let labels: Vec<&str> = top_level.iter().map(|e| e.2.as_str()).collect();
-        // D-10: Absences sits in the top-level row right after Jahresübersicht
-        // for any logged-in user.
         assert_eq!(
             labels,
             vec![
@@ -1083,41 +1175,42 @@ mod tests {
     #[test]
     fn hr_admin_user_partitions_into_top_level_and_full_admin_group() {
         let auth = auth_with(&["sales", "hr", "admin"]);
-        let v = nav_visibility(Some(&auth), true);
+        let v = nav_visibility(Some(&auth), true, true);
         let items = nav_items_for_visibility(v);
-        let (top_level, admin) = partition_nav_items(&items);
+        // Plan 08-07: HR-User → Absences in Admin-Group.
+        let (top_level, admin) = partition_nav_items_with_context(&items, true);
 
         let top_labels: Vec<&str> = top_level.iter().map(|e| e.2.as_str()).collect();
         assert_eq!(
             top_labels,
-            vec![
-                "Schichtplan",
-                "Meine Schichten",
-                "Jahresübersicht",
-                "Abwesenheiten",
-            ],
-            "hr suppresses my_time, top-level shows the rest in declaration order \
-             with Absences after YearOverview (D-10)"
+            vec!["Schichtplan", "Meine Schichten", "Jahresübersicht"],
+            "hr suppresses my_time and lifts Absences into the admin group; \
+             top-level keeps Schichtplan/Meine Schichten/Jahresübersicht in \
+             declaration order"
         );
 
         let admin_labels: Vec<&str> = admin.iter().map(|e| e.2.as_str()).collect();
         assert_eq!(
             admin_labels,
             vec![
+                "Abwesenheiten",
                 "Mitarbeiter",
                 "Abrechnungszeiträume",
                 "Benutzerverwaltung",
-                "Textvorlagen"
+                "Textvorlagen",
             ],
-            "all four admin items grouped, in declaration order"
+            "Plan 08-07 Task 4: HR sees Absences as the FIRST admin-group entry, \
+             followed by the four classic admin items in declaration order"
         );
     }
 
     #[test]
     fn top_level_partition_excludes_admin_items() {
         let auth = auth_with(&["sales", "hr", "admin"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
+        // Statische Form (HR-Promote off): nur die klassischen Admin-Targets
+        // landen in der Admin-Group; Absences bleibt top-level.
         let (top_level, _admin) = partition_nav_items(&items);
         for entry in top_level.iter() {
             assert!(
@@ -1131,9 +1224,9 @@ mod tests {
     #[test]
     fn hr_user_admin_group_active_label_is_employees_label_for_employee_route() {
         let auth = auth_with(&["hr"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
-        let (_top_level, admin) = partition_nav_items(&items);
+        let (_top_level, admin) = partition_nav_items_with_context(&items, true);
         let label = active_admin_label(&admin, &Route::Employees {});
         assert_eq!(label, Some("Mitarbeiter"));
     }
@@ -1141,9 +1234,9 @@ mod tests {
     #[test]
     fn hr_user_admin_group_default_label_when_top_level_route_active() {
         let auth = auth_with(&["sales", "hr"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
-        let (_top_level, admin) = partition_nav_items(&items);
+        let (_top_level, admin) = partition_nav_items_with_context(&items, true);
         let label = active_admin_label(&admin, &Route::ShiftPlan {});
         assert_eq!(label, None);
     }
@@ -1151,9 +1244,9 @@ mod tests {
     #[test]
     fn hr_user_admin_group_active_label_for_employee_details_parameterised_route() {
         let auth = auth_with(&["hr"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
-        let (_top_level, admin) = partition_nav_items(&items);
+        let (_top_level, admin) = partition_nav_items_with_context(&items, true);
         let label = active_admin_label(
             &admin,
             &Route::EmployeeDetails {
@@ -1161,6 +1254,20 @@ mod tests {
             },
         );
         assert_eq!(label, Some("Mitarbeiter"));
+    }
+
+    #[test]
+    fn hr_user_absences_admin_group_active_label_for_absences_route() {
+        // Plan 08-07 Task 4: Wenn der User auf /absences ist und HR-User,
+        // signalisiert das aktive Admin-Trigger-Label "Abwesenheiten" (statt
+        // dem Default-Label "Verwaltung"). Mirror der Logik für Mitarbeiter
+        // im Test darüber.
+        let auth = auth_with(&["hr"]);
+        let v = nav_visibility(Some(&auth), false, true);
+        let items = nav_items_for_visibility(v);
+        let (_top_level, admin) = partition_nav_items_with_context(&items, true);
+        let label = active_admin_label(&admin, &Route::Absences {});
+        assert_eq!(label, Some("Abwesenheiten"));
     }
 
     #[test]
@@ -1191,9 +1298,9 @@ mod tests {
     #[test]
     fn admin_trigger_active_class_when_admin_route_active_full_user() {
         let auth = auth_with(&["sales", "hr", "admin"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
-        let (_top_level, admin) = partition_nav_items(&items);
+        let (_top_level, admin) = partition_nav_items_with_context(&items, true);
         let admin_active = active_admin_label(&admin, &Route::Employees {}).is_some();
         let class = nav_item_class(admin_active);
         assert!(class.contains("bg-accent-soft"));
@@ -1204,9 +1311,9 @@ mod tests {
     #[test]
     fn admin_trigger_inactive_class_when_top_level_route_active() {
         let auth = auth_with(&["sales", "hr", "admin"]);
-        let v = nav_visibility(Some(&auth), false);
+        let v = nav_visibility(Some(&auth), false, true);
         let items = nav_items_for_visibility(v);
-        let (_top_level, admin) = partition_nav_items(&items);
+        let (_top_level, admin) = partition_nav_items_with_context(&items, true);
         let admin_active = active_admin_label(&admin, &Route::ShiftPlan {}).is_some();
         let class = nav_item_class(admin_active);
         assert!(class.contains("text-ink-soft"));
