@@ -43,9 +43,9 @@ use dao::TransactionDao;
 use service::absence::{AbsenceCategory, AbsenceService};
 use service::carryover_rebuild::CarryoverRebuildService;
 use service::cutover::{
-    CutoverGateDriftReport, CutoverProfile, CutoverProfileBucket, CutoverQuarantineEntry,
-    CutoverRunResult, CutoverService, DriftRow, GateResult, QuarantineReason,
-    CUTOVER_ADMIN_PRIVILEGE,
+    ConvertQuarantineEntryOutcome, CutoverGateDriftReport, CutoverProfile, CutoverProfileBucket,
+    CutoverQuarantineEntry, CutoverRunResult, CutoverService, DriftRow, GateResult,
+    QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
 };
 use service::employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService};
 use service::extra_hours::ExtraHoursService;
@@ -398,6 +398,153 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             profile_path: Arc::from(profile_path.as_str()),
         })
     }
+
+    /// Phase 8.1, D-01 — convert a single quarantined `extra_hours` row into
+    /// an `absence_period` in one atomic Tx. Range derived via
+    /// `detect_weekly_lump_sum` (Plan 08-09 heuristic). Privilege:
+    /// `cutover_admin` (commit-class per D-23). On heuristic mismatch the Tx
+    /// rolls back and `ServiceError::ValidationError` is returned (→ HTTP 422).
+    /// Idempotent: a re-invocation for an already-soft-deleted
+    /// `extra_hours_id` returns `EntityNotFoundGeneric` without DAO writes
+    /// (RESEARCH P-02). The response carries an inline `refreshed_drift_report`
+    /// (D-08) so the caller skips a follow-up `gate-dry-run` roundtrip
+    /// (RESEARCH P-03 option a).
+    async fn convert_quarantine_entry(
+        &self,
+        extra_hours_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<ConvertQuarantineEntryOutcome, ServiceError> {
+        // 1. Privilege gate (D-23 — commit-class action requires cutover_admin).
+        self.permission_service
+            .check_permission(CUTOVER_ADMIN_PRIVILEGE, context.clone())
+            .await?;
+
+        // 2. Open Tx (single-Tx atomicity per D-Phase4-14 + D-01).
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let now = time::OffsetDateTime::now_utc();
+        let migrated_at = time::PrimitiveDateTime::new(now.date(), now.time());
+
+        // 3. Look up the legacy row + the full sibling set in the same bucket.
+        //    `find_legacy_extra_hours_not_yet_migrated` returns ALL not-yet-
+        //    migrated rows; the heuristic needs the full set to decide
+        //    single-row-per-week. Already-soft-deleted rows are filtered out
+        //    by the DAO (`WHERE deleted IS NULL`), so a re-invocation for
+        //    an already-converted row falls through to the EntityNotFound
+        //    branch — idempotent per RESEARCH P-02.
+        let all_legacy = self
+            .cutover_dao
+            .find_legacy_extra_hours_not_yet_migrated(tx.clone())
+            .await?;
+        let row = all_legacy
+            .iter()
+            .find(|r| r.id == extra_hours_id)
+            .cloned()
+            .ok_or_else(|| {
+                ServiceError::EntityNotFoundGeneric(Arc::from(
+                    "Quarantined extra_hours row not found or already migrated",
+                ))
+            })?;
+
+        // 4. Resolve `EmployeeWorkDetails` for the sales_person — mirrors the
+        //    pre-fetch loop in `migrate_legacy_extra_hours_to_clusters`. The
+        //    heuristic uses `lookup_active_contract` to query the per-day
+        //    contract; this signature accepts `&[EmployeeWorkDetails]`.
+        let work_details = self
+            .employee_work_details_service
+            .find_by_sales_person_id(row.sales_person_id, Authentication::Full, Some(tx.clone()))
+            .await?;
+
+        // 5. Range-auto-compute via Plan 08-09 heuristic. File-private fns
+        //    are reachable in the same module (RESEARCH P-01).
+        let (from_date, to_date) =
+            detect_weekly_lump_sum(&row, all_legacy.as_ref(), |d| {
+                lookup_active_contract(work_details.as_ref(), d)
+            })
+            .ok_or_else(|| {
+                ServiceError::ValidationError(Arc::from([
+                    service::ValidationFailureItem::InvalidValue(Arc::from(
+                        "Row does not match weekly-lump-sum heuristic; manual edit required",
+                    )),
+                ]))
+            })?;
+
+        // 6. Direct `absence_dao.create` — bypass `AbsenceService::create`'s
+        //    forward-warning loop (cutover is privileged; mirrors
+        //    `commit_phase` Z. 877-908).
+        let absence_period_id = Uuid::new_v4();
+        let entity = AbsencePeriodEntity {
+            id: absence_period_id,
+            logical_id: absence_period_id,
+            sales_person_id: row.sales_person_id,
+            category: extra_hours_category_to_absence(&row.category),
+            from_date,
+            to_date,
+            description: Arc::from(""),
+            created: migrated_at,
+            deleted: None,
+            version: Uuid::new_v4(),
+        };
+        self.absence_dao
+            .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())
+            .await?;
+
+        // 7. Idempotency tag — UPSERT with ON CONFLICT(extra_hours_id) DO
+        //    NOTHING. Synthetic `cutover_run_id` per RESEARCH P-02 — the run
+        //    only exists for audit-trail purposes; ad-hoc Convert is not
+        //    part of any orchestrated cutover-run.
+        let synthetic_run_id = Uuid::new_v4();
+        self.cutover_dao
+            .upsert_migration_source(
+                &MigrationSourceRow {
+                    extra_hours_id,
+                    absence_period_id,
+                    cutover_run_id: synthetic_run_id,
+                    migrated_at,
+                },
+                tx.clone(),
+            )
+            .await?;
+
+        // 8. Soft-delete the legacy extra_hours row via the existing bulk
+        //    helper (mirrors the cluster-commit path so the audit trail
+        //    matches: same `update_process` tag, same `Authentication::Full`).
+        self.extra_hours_service
+            .soft_delete_bulk(
+                Arc::from([extra_hours_id]),
+                CUTOVER_MIGRATION_PROCESS,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+
+        // 9. Inline refreshed drift-report (D-08, RESEARCH P-03 option a).
+        //    Re-build the bucket-map from the now-updated DB state by
+        //    replaying `migrate_legacy_extra_hours_to_clusters`; this is the
+        //    cheapest correct path for fidelity with the regular `run` flow.
+        //    Failures here are non-fatal — the convert itself succeeded; we
+        //    omit the inline report rather than rolling back.
+        let refreshed = match self
+            .migrate_legacy_extra_hours_to_clusters(synthetic_run_id, migrated_at, tx.clone())
+            .await
+        {
+            Ok((_stats, _migrated_ids, bucket_map)) => self
+                .compute_gate_diagnostic(synthetic_run_id, migrated_at, &bucket_map, tx.clone())
+                .await
+                .ok(),
+            Err(_) => None,
+        };
+
+        // 10. Atomic commit.
+        self.transaction_dao.commit(tx).await?;
+
+        Ok(ConvertQuarantineEntryOutcome {
+            absence_period: entity,
+            deleted_extra_hours_id: extra_hours_id,
+            refreshed_drift_report: refreshed,
+        })
+    }
 }
 
 impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
@@ -691,6 +838,41 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
     ) -> Result<GateResult, ServiceError> {
         const DRIFT_THRESHOLD: f32 = 0.01;
 
+        let (drift_rows, scope) = self
+            .compute_gate_inner(cutover_run_id, quarantine_buckets, tx)
+            .await?;
+
+        // Persist the timestamped audit-JSON file (D-Phase4-06). Plan 8.1
+        // refactor: extracted into a free-standing helper so that
+        // `compute_gate_diagnostic` (Plan 8.1, D-08) can build the same
+        // report without persisting on every Convert action.
+        let report_path =
+            persist_gate_diff_report(cutover_run_id, ran_at, dry_run, DRIFT_THRESHOLD, &drift_rows)?;
+
+        let passed = drift_rows.is_empty();
+        Ok(GateResult {
+            passed,
+            drift_rows: Arc::from(drift_rows.into_boxed_slice()),
+            diff_report_path: Arc::from(report_path.to_string_lossy().as_ref()),
+            scope_set: scope,
+        })
+    }
+
+    /// Plan 8.1 — internal helper shared by `compute_gate` (which persists
+    /// the audit JSON file) and `compute_gate_diagnostic` (which does not).
+    /// Performs the drift-row computation only — no IO.
+    ///
+    /// Returns `(drift_rows, scope_set)`. The caller decides what to do with
+    /// each: `compute_gate` wraps both into a full `GateResult` and persists
+    /// the JSON file; `compute_gate_diagnostic` consumes only `drift_rows`.
+    async fn compute_gate_inner(
+        &self,
+        cutover_run_id: Uuid,
+        quarantine_buckets: &QuarantineBucketMap,
+        tx: <Deps as CutoverServiceDeps>::Transaction,
+    ) -> Result<(Vec<DriftRow>, Arc<[(Uuid, u32)]>), ServiceError> {
+        const DRIFT_THRESHOLD: f32 = 0.01;
+
         let scope = self.cutover_dao.find_legacy_scope_set(tx.clone()).await?;
         let mut drift_rows: Vec<DriftRow> = Vec::new();
 
@@ -799,57 +981,36 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
             }
         }
 
-        // Diff-report file. Use the run-timestamp's Unix epoch in nanoseconds
-        // as the filename suffix (Assumption A7 mitigation — colon-free,
-        // monotonic, Linux + Windows filesystem-safe). Nanosecond precision
-        // also prevents collisions for back-to-back runs in tests / rapid
-        // operator retries.
-        std::fs::create_dir_all(".planning/migration-backup")
-            .map_err(|_| ServiceError::InternalError)?;
-        let unix_ts_nanos = ran_at.assume_utc().unix_timestamp_nanos();
-        let report_path = format!(
-            ".planning/migration-backup/cutover-gate-{}.json",
-            unix_ts_nanos
-        );
+        Ok((drift_rows, scope))
+    }
 
-        let run_at_iso = ran_at
-            .assume_utc()
-            .format(&time::format_description::well_known::Iso8601::DEFAULT)
-            .unwrap_or_else(|_| String::new());
+    /// Plan 8.1 — variant of `compute_gate` that performs the same drift
+    /// computation but does NOT persist the timestamped JSON audit file
+    /// (RESEARCH P-03 option a). Used by the ad-hoc Convert endpoints to
+    /// deliver an inline `refreshed_drift_report` (D-08) without inflating
+    /// the `migration-backup` directory on every action.
+    pub(crate) async fn compute_gate_diagnostic(
+        &self,
+        cutover_run_id: Uuid,
+        ran_at: time::PrimitiveDateTime,
+        quarantine_buckets: &QuarantineBucketMap,
+        tx: <Deps as CutoverServiceDeps>::Transaction,
+    ) -> Result<CutoverGateDriftReport, ServiceError> {
+        const DRIFT_THRESHOLD: f32 = 0.01;
 
-        let report_json = serde_json::json!({
-            "gate_run_id": cutover_run_id.to_string(),
-            "run_at": run_at_iso,
-            "dry_run": dry_run,
-            "drift_threshold": DRIFT_THRESHOLD,
-            "total_drift_rows": drift_rows.len(),
-            "drift": drift_rows.iter().map(|r| serde_json::json!({
-                "sales_person_id": r.sales_person_id.to_string(),
-                "sales_person_name": r.sales_person_name.as_ref(),
-                "category": format!("{:?}", r.category),
-                "year": r.year,
-                "legacy_sum": r.legacy_sum,
-                "derived_sum": r.derived_sum,
-                "drift": r.drift,
-                "quarantined_extra_hours_count": r.quarantined_extra_hours_count,
-                "quarantine_reasons": r.quarantine_reasons.iter().map(|s| s.as_ref()).collect::<Vec<&str>>(),
-            })).collect::<Vec<_>>(),
-            "passed": drift_rows.is_empty(),
-        });
-
-        std::fs::write(
-            &report_path,
-            serde_json::to_string_pretty(&report_json)
-                .map_err(|_| ServiceError::InternalError)?,
-        )
-        .map_err(|_| ServiceError::InternalError)?;
-
+        let (drift_rows, _scope) = self
+            .compute_gate_inner(cutover_run_id, quarantine_buckets, tx)
+            .await?;
+        let total = drift_rows.len() as u32;
         let passed = drift_rows.is_empty();
-        Ok(GateResult {
+        Ok(CutoverGateDriftReport {
+            gate_run_id: cutover_run_id,
+            run_at: ran_at,
+            dry_run: true,
+            drift_threshold: DRIFT_THRESHOLD,
+            total_drift_rows: total,
+            drift: Arc::from(drift_rows.into_boxed_slice()),
             passed,
-            drift_rows: Arc::from(drift_rows.into_boxed_slice()),
-            diff_report_path: Arc::from(report_path.as_str()),
-            scope_set: scope,
         })
     }
 
@@ -919,6 +1080,62 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
 
         Ok(())
     }
+}
+
+/// Plan 8.1 refactor: persist the gate-drift report to the audit JSON file.
+/// Extracted from `compute_gate` so that `compute_gate_diagnostic` (used by
+/// the ad-hoc Convert endpoints, D-08) can build the same drift rows
+/// without writing the timestamped file on every action.
+///
+/// Returns the path of the file that was written (consumed by the caller
+/// as `GateResult.diff_report_path`). The path uses the run-timestamp's
+/// Unix epoch in nanoseconds (Assumption A7 — colon-free, monotonic, Linux
+/// + Windows filesystem-safe; nanosecond precision prevents collisions for
+/// back-to-back runs in tests / rapid operator retries).
+pub(crate) fn persist_gate_diff_report(
+    cutover_run_id: Uuid,
+    ran_at: time::PrimitiveDateTime,
+    dry_run: bool,
+    drift_threshold: f32,
+    drift_rows: &[DriftRow],
+) -> Result<std::path::PathBuf, ServiceError> {
+    std::fs::create_dir_all(".planning/migration-backup")
+        .map_err(|_| ServiceError::InternalError)?;
+    let unix_ts_nanos = ran_at.assume_utc().unix_timestamp_nanos();
+    let report_path = format!(
+        ".planning/migration-backup/cutover-gate-{}.json",
+        unix_ts_nanos
+    );
+    let run_at_iso = ran_at
+        .assume_utc()
+        .format(&time::format_description::well_known::Iso8601::DEFAULT)
+        .unwrap_or_else(|_| String::new());
+    let report_json = serde_json::json!({
+        "gate_run_id": cutover_run_id.to_string(),
+        "run_at": run_at_iso,
+        "dry_run": dry_run,
+        "drift_threshold": drift_threshold,
+        "total_drift_rows": drift_rows.len(),
+        "drift": drift_rows.iter().map(|r| serde_json::json!({
+            "sales_person_id": r.sales_person_id.to_string(),
+            "sales_person_name": r.sales_person_name.as_ref(),
+            "category": format!("{:?}", r.category),
+            "year": r.year,
+            "legacy_sum": r.legacy_sum,
+            "derived_sum": r.derived_sum,
+            "drift": r.drift,
+            "quarantined_extra_hours_count": r.quarantined_extra_hours_count,
+            "quarantine_reasons": r.quarantine_reasons.iter().map(|s| s.as_ref()).collect::<Vec<&str>>(),
+        })).collect::<Vec<_>>(),
+        "passed": drift_rows.is_empty(),
+    });
+    std::fs::write(
+        &report_path,
+        serde_json::to_string_pretty(&report_json)
+            .map_err(|_| ServiceError::InternalError)?,
+    )
+    .map_err(|_| ServiceError::InternalError)?;
+    Ok(std::path::PathBuf::from(report_path))
 }
 
 /// Plan 08-08 — assemble the inline `CutoverGateDriftReport` from the
