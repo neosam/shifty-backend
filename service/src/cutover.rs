@@ -9,6 +9,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dao::absence::AbsencePeriodEntity;
 use dao::MockTransaction;
 use mockall::automock;
 use uuid::Uuid;
@@ -188,6 +189,17 @@ pub struct CutoverProfile {
     pub profile_path: Arc<str>,
 }
 
+/// Outcome of `CutoverService::convert_quarantine_entry` (Phase 8.1, D-01).
+/// Carries the freshly inserted `absence_period`, the soft-deleted
+/// `extra_hours_id`, and an inline refreshed gate-drift report so the caller
+/// avoids a follow-up `gate-dry-run` roundtrip (D-08, RESEARCH P-03 option a).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConvertQuarantineEntryOutcome {
+    pub absence_period: AbsencePeriodEntity,
+    pub deleted_extra_hours_id: Uuid,
+    pub refreshed_drift_report: Option<CutoverGateDriftReport>,
+}
+
 #[automock(type Context=(); type Transaction=MockTransaction;)]
 #[async_trait]
 pub trait CutoverService {
@@ -214,4 +226,16 @@ pub trait CutoverService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<CutoverProfile, ServiceError>;
+
+    /// Convert a single quarantined extra_hours row into an `absence_period`
+    /// in one atomic Tx (D-01). Range derived via `detect_weekly_lump_sum`
+    /// heuristic (Plan 08-09); frontend never supplies dates. Privilege:
+    /// `cutover_admin` (commit-class). On heuristic mismatch the Tx rolls
+    /// back and `ServiceError::ValidationError` is returned (→ HTTP 422).
+    async fn convert_quarantine_entry(
+        &self,
+        extra_hours_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<ConvertQuarantineEntryOutcome, ServiceError>;
 }
