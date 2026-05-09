@@ -595,7 +595,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             .filter(|r| extra_hours_category_to_absence(&r.category) == dao_category)
             .filter(|r| (r.date_time.date().year() as u32) == year)
             .filter(|r| match &explicit_ids {
-                Some(ids) => ids.iter().any(|id| *id == r.id),
+                Some(ids) => ids.contains(&r.id),
                 None => true,
             })
             .cloned()
@@ -1260,7 +1260,7 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
 /// as `GateResult.diff_report_path`). The path uses the run-timestamp's
 /// Unix epoch in nanoseconds (Assumption A7 — colon-free, monotonic, Linux
 /// + Windows filesystem-safe; nanosecond precision prevents collisions for
-/// back-to-back runs in tests / rapid operator retries).
+///   back-to-back runs in tests / rapid operator retries).
 pub(crate) fn persist_gate_diff_report(
     cutover_run_id: Uuid,
     ran_at: time::PrimitiveDateTime,

@@ -194,7 +194,7 @@ fn openapi_includes_vacation_balance_tag() {
         .map(|ts| ts.iter().map(|t| t.name.as_str()).collect())
         .unwrap_or_default();
 
-    let has_tag = tag_names.iter().any(|n| *n == "VacationBalance");
+    let has_tag = tag_names.contains(&"VacationBalance");
 
     assert!(
         has_tag,
