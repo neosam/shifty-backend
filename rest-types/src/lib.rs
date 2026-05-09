@@ -2373,6 +2373,29 @@ pub struct CutoverConvertErrorTO {
     pub reason: String,
 }
 
+/// Plan 8.1 Plan 02 — wire-tier `From`-impl for the Single-Convert outcome.
+/// Goes through `service::absence::AbsencePeriod` because the existing
+/// `AbsencePeriodTO`-conversion is rooted there (see Z. 1617). The
+/// `From<&AbsencePeriodEntity> for service::absence::AbsencePeriod` impl in
+/// `service/src/absence.rs:72` makes the `dao::absence::AbsencePeriodEntity`
+/// payload of `ConvertQuarantineEntryOutcome` directly mappable.
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::ConvertQuarantineEntryOutcome>
+    for CutoverConvertQuarantineEntryResponse
+{
+    fn from(o: &service::cutover::ConvertQuarantineEntryOutcome) -> Self {
+        let absence_period_svc: service::absence::AbsencePeriod = (&o.absence_period).into();
+        Self {
+            absence_period: AbsencePeriodTO::from(&absence_period_svc),
+            deleted_extra_hours_id: o.deleted_extra_hours_id,
+            refreshed_drift_report: o
+                .refreshed_drift_report
+                .as_ref()
+                .map(CutoverGateDriftReportTO::from),
+        }
+    }
+}
+
 #[cfg(test)]
 mod cutover_convert_dto_tests {
     use super::*;

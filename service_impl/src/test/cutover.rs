@@ -1275,6 +1275,260 @@ async fn test_weekly_lump_sum_with_dynamic_contract_change_mid_week() {
     assert_eq!(result.quarantined_rows, 0);
 }
 
+// ----------------------------------------------------------------------------
+// Phase 8.1 Plan 02 — convert_quarantine_entry tests.
+//
+// Four mockall unit tests covering the Single-Convert backend method:
+//   1. happy path: 3-day Mo/Tu/We contract + 20h Vacation row → absence_period
+//      {Mo, So} created, soft_delete called, upsert_migration_source called,
+//      refreshed_drift_report Some(_).
+//   2. heuristic mismatch (~13.33h amount) → ValidationError, NO DAO writes.
+//   3. unprivileged caller → Forbidden, NO Tx + NO DAO writes.
+//   4. extra_hours_id absent (already migrated / unknown) → EntityNotFoundGeneric,
+//      NO downstream calls.
+// ----------------------------------------------------------------------------
+
+mod convert_quarantine_entry_tests {
+    use super::*;
+    use mockall::Sequence;
+
+    /// Stable id used for the row under test (so tests can match on it).
+    fn target_extra_hours_id() -> Uuid {
+        Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BEEF_0001)
+    }
+
+    fn target_row(day: time::Date, amount: f32) -> LegacyExtraHoursRow {
+        legacy_row_with_id(target_extra_hours_id(), day, amount)
+    }
+
+    /// Build a permission_service that allows ONLY `cutover_admin` (mirrors
+    /// the production privilege gate for the Single-Convert endpoint).
+    fn permission_service_allow_cutover_admin() -> MockPermissionService {
+        let mut p = MockPermissionService::new();
+        p.expect_check_permission()
+            .with(eq(CUTOVER_ADMIN_PRIVILEGE), always())
+            .returning(|_, _| Ok(()));
+        p
+    }
+
+    #[tokio::test]
+    async fn test_convert_single_quarantine_entry_succeeds() {
+        // Live-reproduce: 3-day contract (Mon/Tue/Wed, 20h/week). 20h Vacation
+        // booked on Friday 2024-06-07 (a NON-workday). Heuristic must accept
+        // and the convert flow must write the absence_period {Mo=2024-06-03,
+        // So=2024-06-09} of week 23/2024.
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let row = target_row(date!(2024 - 06 - 07), 20.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row.clone()]);
+        let row_arc_clone1 = row_arc.clone();
+        // The convert flow calls `find_legacy_extra_hours_not_yet_migrated`
+        // twice in this test path: once for the actual convert (returns the
+        // row), once during the inline replay
+        // (`migrate_legacy_extra_hours_to_clusters`) where in production the
+        // row would be soft-deleted — we model that by returning an empty
+        // slice on the second call.
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(row_arc_clone1.clone()));
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+
+        // The convert path inserts exactly one `absence_period` covering the
+        // full ISO-week (Mo, So). The inline replay sees an empty legacy set
+        // and so makes no further `absence_dao.create` calls.
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, process, _| {
+                entity.from_date == date!(2024 - 06 - 03)
+                    && entity.to_date == date!(2024 - 06 - 09)
+                    && entity.sales_person_id == fixture_sp_id()
+                    && process == "phase-4-cutover-migration"
+            })
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .withf(|src, _| src.extra_hours_id == target_extra_hours_id())
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .withf(|ids, process, _, _| {
+                ids.len() == 1
+                    && ids[0] == target_extra_hours_id()
+                    && process == "phase-4-cutover-migration"
+            })
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        // The replay's bucket-map is empty (no quarantined rows on the second
+        // pass), so no upsert_quarantine call is expected.
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+        // Inline gate-diagnostic: `find_legacy_scope_set` returns empty →
+        // no per-(sp, year) iteration → drift list is empty, gate trivially
+        // passes. `compute_gate_diagnostic` does NOT persist the audit JSON.
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let outcome = service
+            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .await
+            .expect("single-convert succeeds");
+
+        assert_eq!(outcome.deleted_extra_hours_id, target_extra_hours_id());
+        assert_eq!(outcome.absence_period.from_date, date!(2024 - 06 - 03));
+        assert_eq!(outcome.absence_period.to_date, date!(2024 - 06 - 09));
+        assert!(
+            outcome.refreshed_drift_report.is_some(),
+            "inline refreshed_drift_report must be Some(_) (D-08, RESEARCH P-03 option a)"
+        );
+        let report = outcome.refreshed_drift_report.unwrap();
+        assert!(report.passed, "empty scope set → gate trivially passes");
+        assert_eq!(report.total_drift_rows, 0);
+    }
+
+    #[tokio::test]
+    async fn test_convert_single_no_lump_sum_match_returns_validation_error() {
+        // 13.33h on a Monday for the 3-day-20h contract → strictly NOT a
+        // weekly lump-sum (target sum is 20h). Heuristic returns None →
+        // ValidationError; NO DAO writes; Tx implicitly rolls back via Drop.
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let row = target_row(date!(2024 - 06 - 03), 40.0 / 3.0); // ≈ 13.333
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(row_arc.clone()));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+
+        // Hard guard: NO write/upsert/delete may happen on the heuristic-
+        // mismatch path. These `.times(0)` expectations make the test fail
+        // immediately if the implementation ever falls through.
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+        // `find_legacy_scope_set` belongs to the inline gate — also unreachable.
+        deps.cutover_dao.expect_find_legacy_scope_set().times(0);
+
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().returning(|_| Ok(MockTransaction));
+        // The Tx is opened but never committed on this path — implicit Drop
+        // rollback; we accept either rollback or no commit explicitly.
+        tx_dao.expect_commit().times(0);
+        tx_dao.expect_rollback().returning(|_| Ok(()));
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .await;
+        assert!(
+            matches!(result, Err(ServiceError::ValidationError(_))),
+            "heuristic mismatch must return ValidationError; got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_convert_quarantine_entry_requires_cutover_admin() {
+        // Caller does NOT hold `cutover_admin` → permission_service returns
+        // Forbidden. The implementation must short-circuit before opening a
+        // Tx; NO DAO/service call may happen.
+        let mut deps = build_dependencies();
+        let mut p = MockPermissionService::new();
+        p.expect_check_permission()
+            .with(eq(CUTOVER_ADMIN_PRIVILEGE), always())
+            .returning(|_, _| Err(ServiceError::Forbidden));
+        deps.permission_service = p;
+
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(0);
+        deps.cutover_dao.expect_find_legacy_scope_set().times(0);
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .times(0);
+
+        // No Tx may open if permission fails first.
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().times(0);
+        tx_dao.expect_rollback().times(0);
+        tx_dao.expect_commit().times(0);
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .await;
+        assert!(
+            matches!(result, Err(ServiceError::Forbidden)),
+            "non-cutover_admin caller must be rejected with Forbidden; got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_convert_quarantine_entry_not_found_returns_not_found() {
+        // The row is absent from `find_legacy_extra_hours_not_yet_migrated`
+        // (e.g. already soft-deleted by an earlier convert / cutover). The
+        // implementation must return EntityNotFoundGeneric without making
+        // any further DAO calls — this is the idempotent-replay path
+        // (RESEARCH P-02).
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(|_| Ok(Arc::from([])));
+
+        // No work-details lookup should happen if the row isn't found.
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .times(0);
+
+        // No mutating DAO call may happen.
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+        deps.cutover_dao.expect_find_legacy_scope_set().times(0);
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let result = service
+            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .await;
+        assert!(
+            matches!(result, Err(ServiceError::EntityNotFoundGeneric(_))),
+            "missing extra_hours row must return EntityNotFoundGeneric; got {:?}",
+            result
+        );
+    }
+}
+
 // Suppress unused-import warning for `legacy_row_with_id` if no test uses it
 // directly in this module (kept for future Wave-1 idempotence-with-mapped
 // scenarios that Plan 04-05 may extend).
