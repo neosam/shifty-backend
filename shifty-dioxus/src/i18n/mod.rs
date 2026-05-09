@@ -493,6 +493,42 @@ pub enum Key {
     // Filter
     AbsenceFilterShowPast,
     AbsenceFilterCounter,
+
+    // Cutover migration (Phase 8.1 — see 08.1-UI-SPEC.md § Copywriting Contract).
+    CutoverMenuLabel,           // TopBar Verwaltung-Submenu entry
+    CutoverPageTitle,
+    CutoverPageSubtitle,
+    CutoverStage1Label,         // "Profile" / "Übersicht"
+    CutoverStage2Label,         // "Dry-Run" / "Vorschau"
+    CutoverStage3Label,         // "Commit" / "Durchführen"
+    CutoverBtnContinue,         // "Continue" / "Weiter"
+    CutoverBtnBack,             // "Back" / "Zurück"
+    CutoverStatTotalRows,
+    CutoverStatPersons,
+    CutoverStatQuarantine,
+    CutoverStatCarryoverDiff,
+    CutoverBtnBulkConvert,      // "Convert all in group"
+    CutoverRowBtnConvert,
+    CutoverRowBtnEdit,
+    CutoverRowBtnDelete,
+    CutoverRowBtnSkip,
+    CutoverDriftEmptyHeading,
+    CutoverDriftEmptyBody,
+    CutoverCommitSummaryHeading,
+    CutoverCommitTypeLabel,
+    CutoverCommitBtn,
+    CutoverSuccessHeading,
+    CutoverSuccessBody,
+    CutoverAlreadyDoneHeading,
+    CutoverAlreadyDoneBody,
+    CutoverEditModalTitle,
+    CutoverEditAmountLabel,
+    CutoverEditDateLabel,
+    CutoverEditBtnSave,
+    CutoverEditBtnCancel,
+    CutoverErrorApiFailure,
+    CutoverCommitDisabledTooltip,
+    CutoverPrivilegeStage3,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -716,5 +752,93 @@ mod tests {
                 result
             );
         }
+    }
+
+    #[test]
+    fn i18n_cutover_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::CutoverMenuLabel,
+                Key::CutoverPageTitle,
+                Key::CutoverPageSubtitle,
+                Key::CutoverStage1Label,
+                Key::CutoverStage2Label,
+                Key::CutoverStage3Label,
+                Key::CutoverBtnContinue,
+                Key::CutoverBtnBack,
+                Key::CutoverStatTotalRows,
+                Key::CutoverStatPersons,
+                Key::CutoverStatQuarantine,
+                Key::CutoverStatCarryoverDiff,
+                Key::CutoverBtnBulkConvert,
+                Key::CutoverRowBtnConvert,
+                Key::CutoverRowBtnEdit,
+                Key::CutoverRowBtnDelete,
+                Key::CutoverRowBtnSkip,
+                Key::CutoverDriftEmptyHeading,
+                Key::CutoverDriftEmptyBody,
+                Key::CutoverCommitSummaryHeading,
+                Key::CutoverCommitTypeLabel,
+                Key::CutoverCommitBtn,
+                Key::CutoverSuccessHeading,
+                Key::CutoverSuccessBody,
+                Key::CutoverAlreadyDoneHeading,
+                Key::CutoverAlreadyDoneBody,
+                Key::CutoverEditModalTitle,
+                Key::CutoverEditAmountLabel,
+                Key::CutoverEditDateLabel,
+                Key::CutoverEditBtnSave,
+                Key::CutoverEditBtnCancel,
+                Key::CutoverErrorApiFailure,
+                Key::CutoverCommitDisabledTooltip,
+                Key::CutoverPrivilegeStage3,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_cutover_keys_match_german_reference() {
+        // Pitfall-2 guard — defends against historical Locale::En-statt-Locale::De bug.
+        let i18n = generate(Locale::De);
+        assert_eq!(i18n.t(Key::CutoverPageTitle).as_ref(), "Datenmigration");
+        assert_eq!(i18n.t(Key::CutoverStage1Label).as_ref(), "Übersicht");
+        assert_eq!(i18n.t(Key::CutoverStage2Label).as_ref(), "Vorschau");
+        assert_eq!(i18n.t(Key::CutoverStage3Label).as_ref(), "Durchführen");
+        assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Weiter");
+        assert_eq!(i18n.t(Key::CutoverBtnBack).as_ref(), "Zurück");
+        assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Cutover durchführen");
+    }
+
+    #[test]
+    fn i18n_cutover_keys_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(i18n.t(Key::CutoverPageTitle).as_ref(), "Data Migration");
+        assert_eq!(i18n.t(Key::CutoverStage1Label).as_ref(), "Profile");
+        assert_eq!(i18n.t(Key::CutoverStage2Label).as_ref(), "Dry-Run");
+        assert_eq!(i18n.t(Key::CutoverStage3Label).as_ref(), "Commit");
+        assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Continue");
+        assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Commit Cutover");
+    }
+
+    #[test]
+    fn i18n_cutover_keys_match_czech_reference() {
+        // Czech reference strings — cf. cs.rs implementation (Task 4).
+        let i18n = generate(Locale::Cs);
+        // 5 sample keys; full set of 34 covered by the presence test.
+        assert_eq!(i18n.t(Key::CutoverPageTitle).as_ref(), "Migrace dat");
+        assert_eq!(i18n.t(Key::CutoverStage1Label).as_ref(), "Přehled");
+        assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Pokračovat");
+        assert_eq!(i18n.t(Key::CutoverBtnBack).as_ref(), "Zpět");
+        assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Provést cutover");
     }
 }
