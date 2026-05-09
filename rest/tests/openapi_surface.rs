@@ -84,6 +84,9 @@ const EXPECTED_PATHS: &[&str] = &[
     // Cutover admin (legacy → range-based migration).
     "/admin/cutover/profile",
     "/admin/cutover/commit",
+    // Cutover convert (Phase 8.1).
+    "/admin/cutover/convert-quarantine-entry",
+    "/admin/cutover/bulk-convert-quarantine-rows",
 ];
 
 /// Representative subset of named schemas that must exist in
@@ -124,6 +127,12 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     "CutoverProfileTO",
     // Cutover (Plan 08-08) — per-entry inline drift diagnostics.
     "CutoverQuarantineEntryTO",
+    // Cutover convert DTOs (Phase 8.1).
+    "CutoverConvertQuarantineEntryRequest",
+    "CutoverConvertQuarantineEntryResponse",
+    "CutoverBulkConvertQuarantineRowsRequest",
+    "CutoverBulkConvertQuarantineRowsResponse",
+    "CutoverConvertErrorTO",
 ];
 
 #[test]
