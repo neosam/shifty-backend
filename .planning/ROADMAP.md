@@ -169,7 +169,19 @@
 10. Phase-8-HUMAN-UAT (35 Schritte, `08-HUMAN-UAT.md`) wird auf int durchlaufen NACH 8.1-UI-Cutover und gemeinsam mit Phase 8.1 closed; gap-1 in `08-HUMAN-UAT.md` auf `resolved` gesetzt.
 11. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün (Backend-Convert-Endpoints + Frontend dürfen keine Regression verursachen).
 
-**Plans:** Plan-Phase entscheidet Wave-Topologie. Vermutete Sequenz: Backend-Convert-Endpoints (Wave 1) → Frontend Stepper + API/State/Service-Skelett (Wave 2) → Frontend Drift-Resolution + Edit-Modal + Bulk-Action (Wave 3) → Diagnose-Plan gap-1 (a) (Wave 3 oder 4, kann parallel) → 8.1-UAT-Plan (Closure) → Phase-8-HUMAN-UAT-Subsumption-Plan (Closure).
+**Plans:** 12 plans across 6 waves
+- [ ] 08.1-01-PLAN.md — rest-types DTOs (4 Request/Response + CutoverConvertErrorTO) — Wave 1
+- [ ] 08.1-02-PLAN.md — Service convert_quarantine_entry + compute_gate_diagnostic helper + 4 mockall tests + From-Impl — Wave 1
+- [ ] 08.1-03-PLAN.md — Service bulk_convert_quarantine_rows (strict-atomic) + 4 mockall tests + From-Impl — Wave 1
+- [ ] 08.1-04-PLAN.md — REST handlers (2) + ApiDoc + OpenAPI surface entries + 5 integration tests — Wave 1
+- [ ] 08.1-05-PLAN.md — Frontend api.rs (5 cutover_* fns) + Dioxus.toml proxy entry — Wave 2
+- [ ] 08.1-06-PLAN.md — i18n: 33 Cutover* keys × 3 locales + 4 reference-matcher tests — Wave 2
+- [ ] 08.1-07-PLAN.md — Router::AdminCutover + page-stub + TopBar Verwaltung-Submenu entry + 4 nav tests — Wave 2
+- [ ] 08.1-08-PLAN.md — state/cutover_state + service/cutover (CUTOVER_STORE + CUTOVER_DRIFT_REFRESH + Coroutine) + 5 tests — Wave 2
+- [ ] 08.1-09-PLAN.md — page/cutover_admin.rs Single-File-Composition (11 components) + 11 dioxus-ssr snapshot tests + WASM-Build-Gate — Wave 3
+- [ ] 08.1-10-PLAN.md — Diagnose-Plan gap-1 (a): Lila/Anina/Karin contract edge-case tests + optional fix — Wave 4
+- [ ] 08.1-11-PLAN.md — 8.1-eigener UAT (D-21) — Wave 5 (manual checkpoint)
+- [ ] 08.1-12-PLAN.md — Phase-8-HUMAN-UAT-Subsumption (D-20) + final regression gates — Wave 6 (manual checkpoint)
 
 **UI hint**: yes (Frontend-Schwerpunkt + Backend-additiv)
 
@@ -189,6 +201,7 @@
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
+| 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
