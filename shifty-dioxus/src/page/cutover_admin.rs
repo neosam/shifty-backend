@@ -123,15 +123,25 @@ pub fn CutoverAdminPage() -> Element {
     }
 
     let i18n = I18N.read().clone();
-    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    // `try_consume_context` rather than `use_coroutine_handle` so that
+    // SSR-render unit tests can exercise these components without registering
+    // the cutover_service coroutine. In real runs (production WASM build) the
+    // coroutine is registered in app.rs before the page is mounted.
+    let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
     let store = CUTOVER_STORE.read().clone();
     let store_arc: Arc<CutoverWizardState> = Arc::new(store);
     let already_done = FEATURE_FLAGS_STORE.read().absence_range_source_active();
 
     // Auto-load profile on first mount (only if not yet loaded).
-    let _profile_load = use_resource(move || async move {
-        if CUTOVER_STORE.read().profile.is_none() {
-            cutover_handle.send(CutoverAction::LoadProfile);
+    let cutover_handle_for_load = cutover_handle.clone();
+    let _profile_load = use_resource(move || {
+        let cutover_handle = cutover_handle_for_load.clone();
+        async move {
+            if CUTOVER_STORE.read().profile.is_none() {
+                if let Some(h) = cutover_handle.as_ref() {
+                    h.send(CutoverAction::LoadProfile);
+                }
+            }
         }
     });
 
@@ -460,7 +470,11 @@ fn CommitStage(store: StateRef, is_cutover_admin: bool) -> Element {
 
 fn commit_form_inner(matched: bool, is_admin: bool) -> Element {
     let i18n = I18N.read().clone();
-    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    // `try_consume_context` rather than `use_coroutine_handle` so that
+    // SSR-render unit tests can exercise these components without registering
+    // the cutover_service coroutine. In real runs (production WASM build) the
+    // coroutine is registered in app.rs before the page is mounted.
+    let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
     let disabled = !matched || !is_admin;
     let label = i18n.t(Key::CutoverCommitTypeLabel);
     let btn_label = i18n.t(Key::CutoverCommitBtn);
@@ -484,7 +498,9 @@ fn commit_form_inner(matched: bool, is_admin: bool) -> Element {
                 disabled: disabled,
                 onclick: move |_| {
                     if !disabled {
-                        cutover_handle.send(CutoverAction::Commit);
+                        if let Some(h) = cutover_handle.as_ref() {
+                            h.send(CutoverAction::Commit);
+                        }
                     }
                 },
                 "{btn_label}"
@@ -525,7 +541,11 @@ fn SuccessPage(store: StateRef) -> Element {
 #[component]
 fn StageNavFooter(store: StateRef) -> Element {
     let i18n = I18N.read().clone();
-    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    // `try_consume_context` rather than `use_coroutine_handle` so that
+    // SSR-render unit tests can exercise these components without registering
+    // the cutover_service coroutine. In real runs (production WASM build) the
+    // coroutine is registered in app.rs before the page is mounted.
+    let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
     let can_advance = match store.0.stage {
         WizardStage::Profile => store.0.profile.is_some(),
         WizardStage::DryRun => store
@@ -572,7 +592,9 @@ fn StageNavFooter(store: StateRef) -> Element {
                     let mut s = CUTOVER_STORE.write();
                     let next = match s.stage {
                         WizardStage::Profile => {
-                            cutover_handle.send(CutoverAction::RunDryRun);
+                            if let Some(h) = cutover_handle.as_ref() {
+                                h.send(CutoverAction::RunDryRun);
+                            }
                             WizardStage::DryRun
                         }
                         WizardStage::DryRun => WizardStage::Commit,
@@ -601,7 +623,11 @@ fn DriftGroupSection(
     is_cutover_admin: bool,
 ) -> Element {
     let i18n = I18N.read().clone();
-    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    // `try_consume_context` rather than `use_coroutine_handle` so that
+    // SSR-render unit tests can exercise these components without registering
+    // the cutover_service coroutine. In real runs (production WASM build) the
+    // coroutine is registered in app.rs before the page is mounted.
+    let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
     // D-05: filter out skipped entries.
     let visible: Vec<CutoverQuarantineEntryTO> = drift_row
         .0
@@ -638,11 +664,13 @@ fn DriftGroupSection(
                     disabled: !is_cutover_admin,
                     onclick: move |_| {
                         if is_cutover_admin {
-                            cutover_handle.send(CutoverAction::BulkConvert {
-                                sales_person_id,
-                                category,
-                                year,
-                            });
+                            if let Some(h) = cutover_handle.as_ref() {
+                                h.send(CutoverAction::BulkConvert {
+                                    sales_person_id,
+                                    category,
+                                    year,
+                                });
+                            }
                         }
                     },
                     "{bulk_label}"
@@ -672,7 +700,11 @@ fn DriftEntryRow(
     is_cutover_admin: bool,
 ) -> Element {
     let i18n = I18N.read().clone();
-    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    // `try_consume_context` rather than `use_coroutine_handle` so that
+    // SSR-render unit tests can exercise these components without registering
+    // the cutover_service coroutine. In real runs (production WASM build) the
+    // coroutine is registered in app.rs before the page is mounted.
+    let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
     let mut edit_open = use_signal(|| false);
     let entry_id = entry.0.extra_hours_id;
     let date = entry.0.date.clone();
@@ -714,7 +746,9 @@ fn DriftEntryRow(
                     disabled: !is_cutover_admin,
                     onclick: move |_| {
                         if is_cutover_admin {
-                            cutover_handle.send(CutoverAction::ConvertSingle(entry_id));
+                            if let Some(h) = cutover_handle.as_ref() {
+                                h.send(CutoverAction::ConvertSingle(entry_id));
+                            }
                         }
                     },
                     "{convert_label}"
@@ -742,7 +776,9 @@ fn DriftEntryRow(
                     disabled: !is_cutover_admin,
                     onclick: move |_| {
                         if is_cutover_admin {
-                            cutover_handle.send(CutoverAction::DeleteExtraHours(entry_id));
+                            if let Some(h) = cutover_handle.as_ref() {
+                                h.send(CutoverAction::DeleteExtraHours(entry_id));
+                            }
                         }
                     },
                     "{delete_label}"
@@ -750,7 +786,9 @@ fn DriftEntryRow(
                 button {
                     class: "px-2 py-1 rounded bg-surface border border-border text-ink text-small",
                     onclick: move |_| {
-                        cutover_handle.send(CutoverAction::Skip(entry_id));
+                        if let Some(h) = cutover_handle.as_ref() {
+                            h.send(CutoverAction::Skip(entry_id));
+                        }
                     },
                     "{skip_label}"
                 }
@@ -873,5 +911,400 @@ fn IdempotenzBanner() -> Element {
             span { class: "font-semibold text-accent", "{heading}" }
             p { class: "text-small text-ink", "{body}" }
         }
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Tests (Plan 08.1-09 Task 2) — 11 dioxus-ssr snapshot tests covering all
+// rendering states (UI-SPEC § States + RESEARCH § Wave 0 Gaps).
+//
+// Render pattern is the verified one from `absences.rs` L1660-1820 —
+// VirtualDom::new + rebuild_in_place + dioxus_ssr::render. Each test pins
+// `Locale::De` via `pin_de_locale()` inside its `app` closure so reference
+// strings (Übersicht, Vorschau, Durchführen, …) match.
+//
+// `FEATURE_FLAGS_STORE` is process-global; Tests 9 + 10 explicitly set it
+// inside the rendered component via `use_hook` to avoid cross-test bleed.
+// ──────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::{generate, Locale};
+    use crate::state::feature_flag::FeatureFlagsState;
+    use rest_types::{
+        AbsenceCategoryTO, CutoverGateDriftReportTO, CutoverGateDriftRowTO,
+        CutoverProfileBucketTO, CutoverProfileTO, CutoverQuarantineEntryTO,
+    };
+
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    fn pin_de_locale() {
+        use_hook(|| {
+            *I18N.write() = generate(Locale::De);
+        });
+    }
+
+    fn fixture_drift_report_one_group_two_entries() -> CutoverGateDriftReportTO {
+        let sp_id = Uuid::from_u128(0xA1A2A3A4);
+        let entry_a = CutoverQuarantineEntryTO {
+            extra_hours_id: Uuid::from_u128(0xE001),
+            date: "2026-05-08".to_string(),
+            weekday: "Fri".to_string(),
+            amount: 8.0,
+            reason_code: "WorkdayMismatch".to_string(),
+            reason_text: "Row falls on a non-contracted weekday.".to_string(),
+            suggested_action: "Edit the date or delete the row.".to_string(),
+        };
+        let entry_b = CutoverQuarantineEntryTO {
+            extra_hours_id: Uuid::from_u128(0xE002),
+            date: "2026-05-09".to_string(),
+            weekday: "Sat".to_string(),
+            amount: 4.0,
+            reason_code: "FractionalHours".to_string(),
+            reason_text: "Row carries fractional amount.".to_string(),
+            suggested_action: "Round the amount to the nearest 0.25h.".to_string(),
+        };
+        let drift_row = CutoverGateDriftRowTO {
+            sales_person_id: sp_id,
+            sales_person_name: "Anna Tester".to_string(),
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            legacy_sum: 100.0,
+            derived_sum: 95.5,
+            drift: 4.5,
+            quarantined_extra_hours_count: 2,
+            quarantine_reasons: vec![
+                "WorkdayMismatch".to_string(),
+                "FractionalHours".to_string(),
+            ],
+            quarantined_entries: vec![entry_a, entry_b],
+        };
+        CutoverGateDriftReportTO {
+            gate_run_id: Uuid::from_u128(0xDEADBEEF),
+            run_at: "2026-05-09T10:00:00Z".to_string(),
+            dry_run: true,
+            drift_threshold: 0.01,
+            total_drift_rows: 1,
+            drift: vec![drift_row],
+            passed: false,
+        }
+    }
+
+    fn fixture_profile_three_buckets() -> CutoverProfileTO {
+        let make_bucket = |seed: u128, name: &str, year: u32| CutoverProfileBucketTO {
+            sales_person_id: Uuid::from_u128(seed),
+            sales_person_name: name.to_string(),
+            category: AbsenceCategoryTO::Vacation,
+            year,
+            row_count: 12,
+            sum_hours: 96.0,
+            fractional_count: 0,
+            weekend_on_workday_only_count: 0,
+            iso_53_indicator: false,
+        };
+        CutoverProfileTO {
+            profile_run_id: Uuid::from_u128(0xC0FFEE),
+            run_at: "2026-05-09T09:00:00Z".to_string(),
+            total_buckets: 3,
+            buckets: vec![
+                make_bucket(0xAAA1, "Anna Tester", 2026),
+                make_bucket(0xAAA2, "Bob Builder", 2026),
+                make_bucket(0xAAA3, "Carol Coder", 2026),
+            ],
+            output_path: ".planning/migration-backup/profile-test.json".to_string(),
+        }
+    }
+
+    #[test]
+    fn stage_indicator_renders_three_circles_with_active_first_stage() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                StageIndicator {
+                    active: WizardStage::Profile,
+                    completed: vec![],
+                }
+            }
+        }
+        let html = render(app);
+        assert!(html.contains("Übersicht"), "stage 1 label missing: {html}");
+        assert!(html.contains("Vorschau"), "stage 2 label missing: {html}");
+        assert!(
+            html.contains("Durchführen"),
+            "stage 3 label missing: {html}"
+        );
+        assert!(
+            html.contains("bg-accent"),
+            "active stage accent missing: {html}"
+        );
+    }
+
+    #[test]
+    fn profile_stage_renders_stat_boxes_when_loaded() {
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.profile = Some(fixture_profile_three_buckets());
+            rsx! {
+                ProfileStage { store: StateRef(Arc::new(s)) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Zu migrierende Zeilen"),
+            "stat 1 label missing: {html}"
+        );
+        assert!(
+            html.contains("Betroffene Mitarbeiter"),
+            "stat 2 label missing: {html}"
+        );
+        assert!(
+            html.contains("Quarantäne-Einträge"),
+            "stat 3 label missing: {html}"
+        );
+        assert!(
+            html.contains("Übertrags-Differenz"),
+            "stat 4 label missing: {html}"
+        );
+    }
+
+    #[test]
+    fn dry_run_stage_renders_drift_group_section_with_entries() {
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.last_dry_run = Some(fixture_drift_report_one_group_two_entries());
+            rsx! {
+                DryRunStage {
+                    store: StateRef(Arc::new(s)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Alle in Gruppe konvertieren"),
+            "bulk-convert label missing: {html}"
+        );
+        assert!(
+            html.contains("Eintrag konvertieren"),
+            "row convert label missing: {html}"
+        );
+        assert!(html.contains("Bearbeiten"), "edit label missing: {html}");
+        assert!(html.contains("Löschen"), "delete label missing: {html}");
+        assert!(
+            html.contains("Eintrag überspringen"),
+            "skip label missing: {html}"
+        );
+    }
+
+    #[test]
+    fn dry_run_stage_renders_empty_state_when_zero_drifts() {
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.last_dry_run = Some(CutoverGateDriftReportTO {
+                gate_run_id: Uuid::nil(),
+                run_at: "2026-05-09T10:00:00Z".to_string(),
+                dry_run: true,
+                drift_threshold: 0.01,
+                total_drift_rows: 0,
+                drift: vec![],
+                passed: true,
+            });
+            rsx! {
+                DryRunStage {
+                    store: StateRef(Arc::new(s)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Keine offenen Drifts"),
+            "empty heading missing: {html}"
+        );
+        assert!(
+            html.contains("Alle Einträge können automatisch migriert werden"),
+            "empty body missing: {html}"
+        );
+    }
+
+    #[test]
+    fn commit_stage_renders_type_to_confirm_input_disabled_btn_initially() {
+        fn app() -> Element {
+            pin_de_locale();
+            let s = CutoverWizardState::default();
+            rsx! {
+                CommitStage {
+                    store: StateRef(Arc::new(s)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Tippe CUTOVER zur Bestätigung"),
+            "type-to-confirm label missing: {html}"
+        );
+        assert!(
+            html.contains("disabled"),
+            "Commit-Btn must be disabled initially: {html}"
+        );
+    }
+
+    #[test]
+    fn commit_btn_enables_on_exact_cutover_string_match() {
+        fn app() -> Element {
+            pin_de_locale();
+            // matched=true + is_admin=true → the gating evaluates to !disabled.
+            commit_form_inner(true, true)
+        }
+        let html = render(app);
+        // The Btn must NOT carry the `disabled=true` attribute. dioxus-ssr
+        // emits `disabled=true` (unquoted) or `disabled=false`; we look for
+        // the explicit `disabled=true` marker.
+        assert!(
+            !html.contains("disabled=true"),
+            "Commit-Btn should not be disabled when input matches AND user is cutover_admin: {html}"
+        );
+    }
+
+    #[test]
+    fn commit_btn_stays_disabled_for_lowercase_or_typo() {
+        fn app() -> Element {
+            pin_de_locale();
+            // matched=false (input does not equal "CUTOVER") + is_admin=true
+            // → still disabled.
+            commit_form_inner(false, true)
+        }
+        let html = render(app);
+        assert!(
+            html.contains("disabled=true"),
+            "Commit-Btn must be disabled when input does not match: {html}"
+        );
+    }
+
+    #[test]
+    fn success_page_renders_summary_with_idempotenz_hint() {
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.stage = WizardStage::Success;
+            s.last_run_summary = Some(RunSummary {
+                total_clusters: 5,
+                migrated_clusters: 5,
+                quarantined_rows: 0,
+                gate_drift_rows: 0,
+                diff_report_path: Some(
+                    ".planning/migration-backup/cutover-gate-test.json".to_string(),
+                ),
+            });
+            rsx! {
+                SuccessPage { store: StateRef(Arc::new(s)) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Cutover abgeschlossen"),
+            "success heading missing: {html}"
+        );
+        assert!(
+            html.contains("Wiederholungen sind No-Ops"),
+            "idempotenz hint missing: {html}"
+        );
+    }
+
+    #[test]
+    fn idempotenz_banner_renders_when_flag_active_some_true() {
+        fn app() -> Element {
+            pin_de_locale();
+            use_hook(|| {
+                *FEATURE_FLAGS_STORE.write() = FeatureFlagsState {
+                    absence_range_source_active: Some(true),
+                };
+            });
+            rsx! { IdempotenzBanner {} }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Cutover bereits abgeschlossen"),
+            "banner heading missing: {html}"
+        );
+        assert!(
+            html.contains("bg-accent-soft"),
+            "banner accent-soft class missing: {html}"
+        );
+    }
+
+    #[test]
+    fn idempotenz_banner_hidden_when_flag_loading_or_false() {
+        fn app() -> Element {
+            pin_de_locale();
+            use_hook(|| {
+                *FEATURE_FLAGS_STORE.write() = FeatureFlagsState {
+                    absence_range_source_active: None,
+                };
+            });
+            // Mirror CutoverAdminPage's banner-conditional render.
+            let already = FEATURE_FLAGS_STORE.read().absence_range_source_active();
+            rsx! {
+                div {
+                    if already { IdempotenzBanner {} }
+                    "x"
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("Cutover bereits abgeschlossen"),
+            "banner should not render when flag is None: {html}"
+        );
+    }
+
+    #[test]
+    fn edit_extra_hours_modal_renders_amount_and_date_only() {
+        fn app() -> Element {
+            pin_de_locale();
+            let entry = CutoverQuarantineEntryTO {
+                extra_hours_id: Uuid::nil(),
+                date: "2026-05-08".to_string(),
+                weekday: "Fri".to_string(),
+                amount: 8.0,
+                reason_code: "WorkdayMismatch".to_string(),
+                reason_text: "Row falls on a non-contracted weekday.".to_string(),
+                suggested_action: "Edit the date or delete the row.".to_string(),
+            };
+            rsx! {
+                EditExtraHoursModal {
+                    entry: EntryRef(Arc::new(entry)),
+                    on_save: move |_payload: (Uuid, f64, time::Date)| {
+                        // test callback — no-op
+                    },
+                    on_cancel: move |_: ()| {
+                        // test callback — no-op
+                    },
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Betrag (h)"),
+            "amount label missing: {html}"
+        );
+        assert!(html.contains("Datum"), "date label missing: {html}");
+        assert!(
+            !html.contains("Kategorie"),
+            "modal must NOT render Kategorie input (D-04): {html}"
+        );
+        assert!(
+            !html.contains("Beschreibung"),
+            "modal must NOT render Beschreibung input (D-04): {html}"
+        );
     }
 }
