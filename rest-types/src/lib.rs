@@ -2396,6 +2396,42 @@ impl From<&service::cutover::ConvertQuarantineEntryOutcome>
     }
 }
 
+/// Plan 8.1 Plan 03 — wire-tier `From`-impl for the Bulk-Convert outcome.
+/// Mirrors the Single-Convert variant above: each `AbsencePeriodEntity` is
+/// bridged through `service::absence::AbsencePeriod` so `rest-types` does not
+/// need a direct `From<&AbsencePeriodEntity> for AbsencePeriodTO` impl.
+/// `errors` is wire-mapped 1:1 from the service-tier `BulkConvertRowError`.
+#[cfg(feature = "service-impl")]
+impl From<&service::cutover::BulkConvertQuarantineRowsOutcome>
+    for CutoverBulkConvertQuarantineRowsResponse
+{
+    fn from(o: &service::cutover::BulkConvertQuarantineRowsOutcome) -> Self {
+        Self {
+            converted_absence_periods: o
+                .converted_absence_periods
+                .iter()
+                .map(|entity| {
+                    let svc: service::absence::AbsencePeriod = entity.into();
+                    AbsencePeriodTO::from(&svc)
+                })
+                .collect(),
+            deleted_extra_hours_ids: o.deleted_extra_hours_ids.clone(),
+            refreshed_drift_report: o
+                .refreshed_drift_report
+                .as_ref()
+                .map(CutoverGateDriftReportTO::from),
+            errors: o
+                .errors
+                .iter()
+                .map(|e| CutoverConvertErrorTO {
+                    extra_hours_id: e.extra_hours_id,
+                    reason: e.reason.clone(),
+                })
+                .collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod cutover_convert_dto_tests {
     use super::*;

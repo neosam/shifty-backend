@@ -1529,6 +1529,343 @@ mod convert_quarantine_entry_tests {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Plan 8.1 Plan 03 — bulk_convert_quarantine_rows tests
+// ----------------------------------------------------------------------------
+
+mod bulk_convert_quarantine_rows_tests {
+    use super::*;
+    use mockall::Sequence;
+
+    fn permission_service_allow_cutover_admin() -> MockPermissionService {
+        let mut p = MockPermissionService::new();
+        p.expect_check_permission()
+            .with(eq(CUTOVER_ADMIN_PRIVILEGE), always())
+            .returning(|_, _| Ok(()));
+        p
+    }
+
+    /// Stable ids per row, so withf-predicates can match deterministically.
+    fn row_id_for(idx: u32) -> Uuid {
+        Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_DEAD_0000 | (idx as u128))
+    }
+
+    /// Build a 20h-Vacation row in week 23/2024 on `day`.
+    fn lump_row(idx: u32, day: time::Date, amount: f32) -> LegacyExtraHoursRow {
+        legacy_row_with_id(row_id_for(idx), day, amount)
+    }
+
+    #[tokio::test]
+    async fn test_bulk_convert_succeeds_atomic_for_three_matching_rows() {
+        // 3 quarantined Vacation rows for `fixture_sp_id()` in 3 different
+        // ISO-weeks of 2024 (3-day Mo/Tu/We contract, 20h/week). Each is a
+        // valid weekly-lump-sum on its own week. All three must be converted
+        // in a single Tx and share one `cutover_run_id` (RESEARCH Q3).
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        // 3 separate ISO-weeks → no inter-row interference for the heuristic.
+        let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([
+            lump_row(1, date!(2024 - 06 - 07), 20.0), // week 23 (Mo 03 .. So 09)
+            lump_row(2, date!(2024 - 06 - 14), 20.0), // week 24
+            lump_row(3, date!(2024 - 06 - 21), 20.0), // week 25
+        ]);
+        let rows_for_first = rows.clone();
+        // First call (filter / heuristic) — second call (replay inside the
+        // inline drift-report compute) returns empty (rows soft-deleted).
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(rows_for_first.clone()));
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+
+        // 3 absence_period inserts.
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, process, _| {
+                entity.sales_person_id == fixture_sp_id()
+                    && process == "phase-4-cutover-migration"
+                    && entity.from_date.weekday() == time::Weekday::Monday
+                    && entity.to_date.weekday() == time::Weekday::Sunday
+            })
+            .times(3)
+            .returning(|_, _, _| Ok(()));
+
+        // 3 migration-source upserts, all sharing the SAME cutover_run_id
+        // (RESEARCH Q3). Capture the first one's run_id and assert the rest
+        // match it via a Mutex-shared Option.
+        let captured_run_id = std::sync::Arc::new(std::sync::Mutex::new(None::<Uuid>));
+        let captured_for_pred = captured_run_id.clone();
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .withf(move |row, _| {
+                let mut g = captured_for_pred.lock().unwrap();
+                match *g {
+                    None => {
+                        *g = Some(row.cutover_run_id);
+                        true
+                    }
+                    Some(prev) => prev == row.cutover_run_id,
+                }
+            })
+            .times(3)
+            .returning(|_, _| Ok(()));
+
+        // One bulk soft-delete with all 3 ids.
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .withf(|ids, process, _, _| {
+                ids.len() == 3
+                    && process == "phase-4-cutover-migration"
+                    && ids.iter().any(|id| *id == row_id_for(1))
+                    && ids.iter().any(|id| *id == row_id_for(2))
+                    && ids.iter().any(|id| *id == row_id_for(3))
+            })
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        // Inline drift-report replay sees empty rows → no quarantine, no
+        // migration-source upserts during the replay. Empty scope-set → gate
+        // trivially passes.
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let outcome = service
+            .bulk_convert_quarantine_rows(
+                fixture_sp_id(),
+                AbsenceCategory::Vacation,
+                2024,
+                None,
+                ().auth(),
+                None,
+            )
+            .await
+            .expect("bulk-convert succeeds atomically");
+
+        assert_eq!(outcome.converted_absence_periods.len(), 3);
+        assert_eq!(outcome.deleted_extra_hours_ids.len(), 3);
+        assert!(outcome.errors.is_empty(), "strict-atomic: errors must be empty on 200");
+        assert!(
+            outcome.refreshed_drift_report.is_some(),
+            "inline refreshed_drift_report must be Some(_) (D-08)"
+        );
+        // The captured run_id must have been set (= all three calls saw it).
+        let captured = captured_run_id.lock().unwrap();
+        assert!(
+            captured.is_some(),
+            "all three migration-source upserts must share one synthetic_run_id (RESEARCH Q3)"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_bulk_convert_strict_atomic_returns_validation_error_on_heuristic_mismatch() {
+        // 3 rows in 3 different weeks; row #2 is fractional 13.33h (≠ 20h
+        // weekly target) and so the heuristic returns None. Strict-atomic
+        // (RESEARCH P-10) means: NO DAO writes happen, the entire batch
+        // returns ValidationError, and the implicit Tx-Drop rollback leaves
+        // the DB untouched.
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([
+            lump_row(1, date!(2024 - 06 - 07), 20.0),    // week 23 — valid lump
+            lump_row(2, date!(2024 - 06 - 14), 13.33),  // week 24 — fractional, mismatch
+            lump_row(3, date!(2024 - 06 - 21), 20.0),    // week 25 — valid lump
+        ]);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(rows.clone()));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+
+        // Hard guards — strict-atomic must NOT touch any mutating DAO call.
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+        deps.cutover_dao.expect_find_legacy_scope_set().times(0);
+
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().returning(|_| Ok(MockTransaction));
+        // No commit — we error out before the commit point.
+        tx_dao.expect_commit().times(0);
+        tx_dao.expect_rollback().returning(|_| Ok(()));
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .bulk_convert_quarantine_rows(
+                fixture_sp_id(),
+                AbsenceCategory::Vacation,
+                2024,
+                None,
+                ().auth(),
+                None,
+            )
+            .await;
+
+        assert!(
+            matches!(result, Err(ServiceError::ValidationError(_))),
+            "strict-atomic mismatch must return ValidationError; got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_bulk_convert_with_explicit_ids_narrows_target_set() {
+        // 5 rows match the (sp, Vacation, 2024) triple but only #1 + #3 are
+        // listed in `explicit_ids`. The implementation must convert exactly
+        // those 2 rows; rows #2/#4/#5 stay untouched.
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([
+            lump_row(1, date!(2024 - 06 - 07), 20.0), // week 23 — selected
+            lump_row(2, date!(2024 - 06 - 14), 20.0), // week 24 — NOT selected
+            lump_row(3, date!(2024 - 06 - 21), 20.0), // week 25 — selected
+            lump_row(4, date!(2024 - 06 - 28), 20.0), // week 26 — NOT selected
+            lump_row(5, date!(2024 - 07 - 05), 20.0), // week 27 — NOT selected
+        ]);
+        let rows_for_first = rows.clone();
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(rows_for_first.clone()));
+        // Replay (inline drift-report) — model the "all soft-deleted" state
+        // with an empty slice so we can isolate-test the explicit-subset
+        // narrowing of the Bulk-Convert phase itself. Mirrors the convention
+        // established in Plan 02's `test_convert_single_quarantine_entry_succeeds`.
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+
+        // Exactly 2 absence_period inserts for the explicit subset (#1, #3).
+        deps.absence_dao
+            .expect_create()
+            .times(2)
+            .returning(|_, _, _| Ok(()));
+        // Exactly 2 migration-source upserts for explicit ids #1 and #3.
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .withf(|src, _| {
+                src.extra_hours_id == row_id_for(1) || src.extra_hours_id == row_id_for(3)
+            })
+            .times(2)
+            .returning(|_, _| Ok(()));
+
+        // Bulk soft-delete must contain exactly #1 + #3 (and only those).
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .withf(|ids, _, _, _| {
+                ids.len() == 2
+                    && ids.iter().any(|id| *id == row_id_for(1))
+                    && ids.iter().any(|id| *id == row_id_for(3))
+            })
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        // Replay sees empty rows (model: post-bulk-convert state with all
+        // remaining rows considered out-of-scope for this isolation test).
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let explicit: Arc<[Uuid]> = Arc::from([row_id_for(1), row_id_for(3)]);
+        let outcome = service
+            .bulk_convert_quarantine_rows(
+                fixture_sp_id(),
+                AbsenceCategory::Vacation,
+                2024,
+                Some(explicit),
+                ().auth(),
+                None,
+            )
+            .await
+            .expect("subset bulk-convert succeeds");
+
+        assert_eq!(outcome.converted_absence_periods.len(), 2);
+        assert_eq!(outcome.deleted_extra_hours_ids.len(), 2);
+        assert!(outcome.deleted_extra_hours_ids.contains(&row_id_for(1)));
+        assert!(outcome.deleted_extra_hours_ids.contains(&row_id_for(3)));
+    }
+
+    #[tokio::test]
+    async fn test_bulk_convert_empty_match_set_returns_not_found() {
+        // No row matches the requested triple → EntityNotFoundGeneric; no DAO
+        // writes; Tx implicitly rolled back via Drop.
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        // The dao returns one row for a different sales_person — no match.
+        let other_sp = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_00FF);
+        let mut other_row = legacy_row(date!(2024 - 06 - 07), 20.0);
+        other_row.sales_person_id = other_sp;
+        let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([other_row]);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(rows.clone()));
+
+        // No work-details lookup (we error out before that).
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .times(0);
+
+        // No mutating DAO calls allowed.
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+        deps.cutover_dao.expect_find_legacy_scope_set().times(0);
+
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().returning(|_| Ok(MockTransaction));
+        tx_dao.expect_commit().times(0);
+        tx_dao.expect_rollback().returning(|_| Ok(()));
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .bulk_convert_quarantine_rows(
+                fixture_sp_id(),
+                AbsenceCategory::Vacation,
+                2024,
+                None,
+                ().auth(),
+                None,
+            )
+            .await;
+
+        assert!(
+            matches!(result, Err(ServiceError::EntityNotFoundGeneric(_))),
+            "empty match-set must return EntityNotFoundGeneric; got {:?}",
+            result
+        );
+    }
+}
+
 // Suppress unused-import warning for `legacy_row_with_id` if no test uses it
 // directly in this module (kept for future Wave-1 idempotence-with-mapped
 // scenarios that Plan 04-05 may extend).
