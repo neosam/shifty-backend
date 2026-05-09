@@ -25,6 +25,7 @@ pub fn App() -> Element {
     use_coroutine(service::slot_edit::slot_edit_service);
     use_coroutine(service::billing_period::billing_period_service);
     use_coroutine(service::absence::absence_service);
+    use_coroutine(service::cutover::cutover_service);
     use_coroutine(service::vacation_balance::vacation_balance_service);
     // Plan 08-07 Gap-Closure (Task 3): Feature-Flag-Service muss laufen, bevor
     // das TopBar (Task 4) den `absence_range_source_active`-Flag liest.
