@@ -1657,3 +1657,536 @@ async fn test_weekly_lump_sum_commit_succeeds_end_to_end() {
         total
     );
 }
+
+// ---------------------------------------------------------------------------
+// 21. Phase 8.1 Plan 04 — Cutover Convert + Bulk-Convert REST endpoints.
+//
+//     End-to-end coverage for the two new POST endpoints:
+//       - /admin/cutover/convert-quarantine-entry (Single, Plan 02)
+//       - /admin/cutover/bulk-convert-quarantine-rows (Bulk, Plan 03)
+//     Mirrors the routing pattern from `test_profile_generates_json_with_histograms`
+//     (router built per-test via `axum::Router::new().nest(...)` + `tower::oneshot`).
+//
+//     5 tests:
+//       1. Single happy-path (3-day Mo/Tu/We contract + 20h Vac on Friday)
+//       2. Single without cutover_admin → 403
+//       3. Idempotent replay: second convert of same id → 4xx
+//       4. Bulk happy-path: 3 rows in same bucket, shared cutover_run_id
+//       5. Bulk strict-atomic: heuristic mismatch on one row → 422 + rollback
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod convert_quarantine_endpoints_tests {
+    use super::*;
+    use rest_types::{
+        AbsenceCategoryTO, CutoverBulkConvertQuarantineRowsRequest,
+        CutoverBulkConvertQuarantineRowsResponse, CutoverConvertQuarantineEntryRequest,
+        CutoverConvertQuarantineEntryResponse,
+    };
+
+    /// Build a 3-day Mo/Tu/We contract with `expected_hours = 20.0` for the
+    /// given sales person, valid for years 2024..=2026. This is the live UAT
+    /// reproducible fixture for the weekly-lump-sum heuristic (Plan 08-09).
+    async fn create_3day_contract(test_setup: &TestSetup, sp_id: Uuid) {
+        let mut wd = standard_contract(sp_id);
+        wd.created = None;
+        wd.expected_hours = 20.0;
+        wd.workdays_per_week = 3;
+        wd.monday = true;
+        wd.tuesday = true;
+        wd.wednesday = true;
+        wd.thursday = false;
+        wd.friday = false;
+        wd.saturday = false;
+        wd.sunday = false;
+        test_setup
+            .rest_state
+            .working_hours_service()
+            .create(&wd, Authentication::Full, None)
+            .await
+            .unwrap();
+    }
+
+    /// Count active absence_period rows for a given sales person.
+    async fn count_absence_periods_for(test_setup: &TestSetup, sp_id: Uuid) -> i64 {
+        let bytes = sp_id.as_bytes().to_vec();
+        sqlx::query(
+            "SELECT COUNT(*) AS c FROM absence_period \
+             WHERE sales_person_id = ? AND deleted IS NULL",
+        )
+        .bind(&bytes)
+        .fetch_one(test_setup.pool.as_ref())
+        .await
+        .unwrap()
+        .get::<i64, _>("c")
+    }
+
+    /// Fetch all distinct `cutover_run_id` values from the migration-source
+    /// table for the given `extra_hours_id` set. Used by the bulk-convert
+    /// happy-path test to assert audit cohesion (RESEARCH Q3).
+    async fn distinct_run_ids_for_migrated(
+        test_setup: &TestSetup,
+        extra_hours_ids: &[Uuid],
+    ) -> Vec<Uuid> {
+        let mut ids = Vec::new();
+        for ehid in extra_hours_ids {
+            let bytes = ehid.as_bytes().to_vec();
+            let row = sqlx::query(
+                "SELECT cutover_run_id FROM absence_period_migration_source \
+                 WHERE extra_hours_id = ?",
+            )
+            .bind(&bytes)
+            .fetch_optional(test_setup.pool.as_ref())
+            .await
+            .unwrap();
+            if let Some(row) = row {
+                let raw: Vec<u8> = row.get("cutover_run_id");
+                let arr: [u8; 16] = raw
+                    .as_slice()
+                    .try_into()
+                    .expect("cutover_run_id must be 16 bytes");
+                ids.push(Uuid::from_bytes(arr));
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    // -----------------------------------------------------------------
+    // Test 1: Single Convert — happy path.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn test_convert_quarantine_entry_via_rest() {
+        let test_setup = TestSetup::new().await;
+        add_user_with_role(
+            &test_setup,
+            "cutover_user",
+            "admin",
+            Some(CUTOVER_ADMIN_PRIVILEGE),
+        )
+        .await;
+
+        let max = create_sales_person(&test_setup, "Max Schmidt").await;
+        create_3day_contract(&test_setup, max.id).await;
+
+        // 20h Vacation on Friday 2026-05-08 (KW 19/2026: Mo=2026-05-04..So=2026-05-10)
+        // — the live UAT reproduce. Friday is a non-workday for the 3-day
+        // contract; the weekly-lump-sum heuristic still maps it to {Mo, So}.
+        let friday = date!(2026 - 05 - 08);
+        let entry = create_extra_hour(
+            &test_setup,
+            max.id,
+            ExtraHoursCategory::Vacation,
+            friday,
+            20.0,
+        )
+        .await;
+
+        // Build the router — mirror the production mount-path.
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+
+        let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: entry.id,
+        })
+        .unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/convert-quarantine-entry")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "POST /admin/cutover/convert-quarantine-entry must return 200"
+        );
+
+        // (a) Response body deserializes + carries the deleted id + an inline
+        //     refreshed drift report (D-08).
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let parsed: CutoverConvertQuarantineEntryResponse =
+            serde_json::from_slice(&body_bytes).expect("deserialize convert response");
+        assert_eq!(parsed.deleted_extra_hours_id, entry.id);
+        assert!(
+            parsed.refreshed_drift_report.is_some(),
+            "D-08: response must carry inline refreshed_drift_report"
+        );
+
+        // (b) extra_hours row is soft-deleted.
+        let entry_bytes = entry.id.as_bytes().to_vec();
+        let active: i64 = sqlx::query(
+            "SELECT COUNT(*) AS c FROM extra_hours WHERE id = ? AND deleted IS NULL",
+        )
+        .bind(&entry_bytes)
+        .fetch_one(test_setup.pool.as_ref())
+        .await
+        .unwrap()
+        .get("c");
+        assert_eq!(active, 0, "extra_hours row must be soft-deleted");
+
+        // (c) Exactly one absence_period row exists for the sales person with
+        //     the {Mo, So} ISO-week range.
+        assert_eq!(
+            count_absence_periods_for(&test_setup, max.id).await,
+            1,
+            "exactly one absence_period must exist post-convert"
+        );
+        let max_bytes = max.id.as_bytes().to_vec();
+        let monday = date!(2026 - 05 - 04);
+        let sunday = date!(2026 - 05 - 10);
+        let from_iso = monday.to_string();
+        let to_iso = sunday.to_string();
+        let mo_so_count: i64 = sqlx::query(
+            "SELECT COUNT(*) AS c FROM absence_period \
+             WHERE sales_person_id = ? AND deleted IS NULL \
+             AND from_date = ? AND to_date = ?",
+        )
+        .bind(&max_bytes)
+        .bind(&from_iso)
+        .bind(&to_iso)
+        .fetch_one(test_setup.pool.as_ref())
+        .await
+        .unwrap()
+        .get("c");
+        assert_eq!(
+            mo_so_count, 1,
+            "absence_period must span {{Mo 2026-05-04, So 2026-05-10}}"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 2: Single Convert without `cutover_admin` privilege → 403.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn test_convert_quarantine_entry_requires_cutover_admin_returns_403() {
+        let test_setup = TestSetup::new().await;
+        // Sales-only role: no cutover_admin privilege bound.
+        add_user_with_role(&test_setup, "sales_user", "sales", None).await;
+
+        let max = create_sales_person(&test_setup, "Max Schmidt").await;
+        create_3day_contract(&test_setup, max.id).await;
+        let entry = create_extra_hour(
+            &test_setup,
+            max.id,
+            ExtraHoursCategory::Vacation,
+            date!(2026 - 05 - 08),
+            20.0,
+        )
+        .await;
+
+        let pre_active = count_active_extra_hours(&test_setup, max.id).await;
+        let pre_absence = count_absence_periods_for(&test_setup, max.id).await;
+
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("sales_user")) as RestContext
+            ));
+
+        let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: entry.id,
+        })
+        .unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/convert-quarantine-entry")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "non-cutover_admin caller must get 403"
+        );
+
+        // No DB mutation must have happened (privilege gate is the first step).
+        assert_eq!(
+            count_active_extra_hours(&test_setup, max.id).await,
+            pre_active,
+            "no extra_hours soft-delete on 403"
+        );
+        assert_eq!(
+            count_absence_periods_for(&test_setup, max.id).await,
+            pre_absence,
+            "no absence_period inserted on 403"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 3: Idempotent replay — second convert of same id → 4xx.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn test_convert_quarantine_entry_already_migrated_returns_404() {
+        let test_setup = TestSetup::new().await;
+        add_user_with_role(
+            &test_setup,
+            "cutover_user",
+            "admin",
+            Some(CUTOVER_ADMIN_PRIVILEGE),
+        )
+        .await;
+
+        let max = create_sales_person(&test_setup, "Max Schmidt").await;
+        create_3day_contract(&test_setup, max.id).await;
+        let entry = create_extra_hour(
+            &test_setup,
+            max.id,
+            ExtraHoursCategory::Vacation,
+            date!(2026 - 05 - 08),
+            20.0,
+        )
+        .await;
+
+        let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: entry.id,
+        })
+        .unwrap();
+
+        // First call — succeeds with 200 and soft-deletes the legacy row.
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/convert-quarantine-entry")
+            .header("content-type", "application/json")
+            .body(Body::from(body.clone()))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "first call must succeed");
+
+        let after_first_absence = count_absence_periods_for(&test_setup, max.id).await;
+        assert_eq!(after_first_absence, 1, "first call inserts 1 absence_period");
+
+        // Second call with the same id — already-soft-deleted row falls
+        // through to the EntityNotFoundGeneric branch (RESEARCH P-02). The
+        // REST layer maps that to HTTP 404 (rest/src/lib.rs error_handler).
+        let router2 = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+        let req2 = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/convert-quarantine-entry")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp2 = router2.oneshot(req2).await.unwrap();
+        assert_eq!(
+            resp2.status(),
+            StatusCode::NOT_FOUND,
+            "second convert call for already-migrated id must return 404"
+        );
+
+        // First call's effects persist (no double mutation).
+        assert_eq!(
+            count_absence_periods_for(&test_setup, max.id).await,
+            1,
+            "second call must not insert a second absence_period"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 4: Bulk Convert — happy path, 3 rows, shared cutover_run_id.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn test_bulk_convert_quarantine_rows_succeeds_atomic_via_rest() {
+        let test_setup = TestSetup::new().await;
+        add_user_with_role(
+            &test_setup,
+            "cutover_user",
+            "admin",
+            Some(CUTOVER_ADMIN_PRIVILEGE),
+        )
+        .await;
+
+        let max = create_sales_person(&test_setup, "Max Schmidt").await;
+        create_3day_contract(&test_setup, max.id).await;
+
+        // 3 weekly Vacation lump-sum rows on consecutive Fridays in 2026,
+        // each 20h. ISO weeks: 19, 20, 21 of 2026.
+        let f1 = date!(2026 - 05 - 08); // KW 19
+        let f2 = date!(2026 - 05 - 15); // KW 20
+        let f3 = date!(2026 - 05 - 22); // KW 21
+        let e1 = create_extra_hour(&test_setup, max.id, ExtraHoursCategory::Vacation, f1, 20.0)
+            .await;
+        let e2 = create_extra_hour(&test_setup, max.id, ExtraHoursCategory::Vacation, f2, 20.0)
+            .await;
+        let e3 = create_extra_hour(&test_setup, max.id, ExtraHoursCategory::Vacation, f3, 20.0)
+            .await;
+
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+
+        let body = serde_json::to_vec(&CutoverBulkConvertQuarantineRowsRequest {
+            sales_person_id: max.id,
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            extra_hours_ids: None,
+        })
+        .unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/bulk-convert-quarantine-rows")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "bulk-convert happy path must return 200"
+        );
+
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let parsed: CutoverBulkConvertQuarantineRowsResponse =
+            serde_json::from_slice(&body_bytes).expect("deserialize bulk-convert response");
+        assert_eq!(parsed.converted_absence_periods.len(), 3);
+        assert_eq!(parsed.deleted_extra_hours_ids.len(), 3);
+        assert!(parsed.errors.is_empty(), "strict-atomic happy path: 0 errors");
+        assert!(
+            parsed.refreshed_drift_report.is_some(),
+            "D-08: bulk response must carry inline refreshed_drift_report"
+        );
+
+        // 3 absence_periods inserted.
+        assert_eq!(
+            count_absence_periods_for(&test_setup, max.id).await,
+            3,
+            "3 absence_period rows for the bulk-converted set"
+        );
+
+        // 3 extra_hours rows soft-deleted under the cutover process.
+        let pre_deleted = count_cutover_softdeleted_extra_hours(&test_setup).await;
+        assert_eq!(pre_deleted, 3, "3 extra_hours rows soft-deleted");
+
+        // RESEARCH Q3 — all 3 migration-source rows share ONE cutover_run_id.
+        let run_ids = distinct_run_ids_for_migrated(
+            &test_setup,
+            &[e1.id, e2.id, e3.id],
+        )
+        .await;
+        assert_eq!(
+            run_ids.len(),
+            1,
+            "all 3 rows MUST share one synthetic cutover_run_id (got: {:?})",
+            run_ids
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 5: Bulk strict-atomic — heuristic mismatch on row 2 → 422
+    //         + complete rollback (no DB mutations).
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn test_bulk_convert_strict_atomic_returns_422_on_heuristic_mismatch() {
+        let test_setup = TestSetup::new().await;
+        add_user_with_role(
+            &test_setup,
+            "cutover_user",
+            "admin",
+            Some(CUTOVER_ADMIN_PRIVILEGE),
+        )
+        .await;
+
+        let max = create_sales_person(&test_setup, "Max Schmidt").await;
+        create_3day_contract(&test_setup, max.id).await;
+
+        // 3 Vacation rows in 3 separate weeks — row #2 has a fractional 13.33h
+        // amount that does NOT match the 3-day × 6.667h ≈ 20h weekly contract
+        // hours. Strict-atomic: ANY non-match aborts the whole batch.
+        let f1 = date!(2026 - 05 - 08); // KW 19 — valid 20h
+        let f2 = date!(2026 - 05 - 15); // KW 20 — INVALID 13.33h
+        let f3 = date!(2026 - 05 - 22); // KW 21 — valid 20h
+        create_extra_hour(&test_setup, max.id, ExtraHoursCategory::Vacation, f1, 20.0).await;
+        create_extra_hour(&test_setup, max.id, ExtraHoursCategory::Vacation, f2, 13.33).await;
+        create_extra_hour(&test_setup, max.id, ExtraHoursCategory::Vacation, f3, 20.0).await;
+
+        let pre_active = count_active_extra_hours(&test_setup, max.id).await;
+        let pre_absence = count_absence_periods_for(&test_setup, max.id).await;
+        let pre_softdeleted = count_cutover_softdeleted_extra_hours(&test_setup).await;
+        assert_eq!(pre_active, 3, "fixture sanity: 3 active extra_hours");
+        assert_eq!(pre_absence, 0, "fixture sanity: 0 absence_period");
+        assert_eq!(pre_softdeleted, 0, "fixture sanity: 0 cutover-softdeleted");
+
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+
+        let body = serde_json::to_vec(&CutoverBulkConvertQuarantineRowsRequest {
+            sales_person_id: max.id,
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            extra_hours_ids: None,
+        })
+        .unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/bulk-convert-quarantine-rows")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "strict-atomic heuristic mismatch must return 422"
+        );
+
+        // Strict-atomic rollback — NO mutations on any row.
+        assert_eq!(
+            count_active_extra_hours(&test_setup, max.id).await,
+            pre_active,
+            "no extra_hours soft-deleted (Tx rolled back)"
+        );
+        assert_eq!(
+            count_absence_periods_for(&test_setup, max.id).await,
+            pre_absence,
+            "no absence_period inserted (Tx rolled back)"
+        );
+        assert_eq!(
+            count_cutover_softdeleted_extra_hours(&test_setup).await,
+            pre_softdeleted,
+            "no cutover-softdeleted rows (Tx rolled back)"
+        );
+    }
+}
