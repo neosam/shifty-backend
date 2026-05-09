@@ -866,4 +866,41 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::AbsenceDeleteCancelBtn, "Zrušit");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterShowPast, "Zobrazit minulé");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterCounter, "{n} z {m}");
+
+    // Cutover migration (Phase 8.1) — single-line calls; do not reformat across
+    // multiple lines (Plan 08.1-06 verify grep counts call lines).
+    i18n.add_text(Locale::Cs, Key::CutoverMenuLabel, "Migrace dat");
+    i18n.add_text(Locale::Cs, Key::CutoverPageTitle, "Migrace dat");
+    i18n.add_text(Locale::Cs, Key::CutoverPageSubtitle, "Migrace zastaralých záznamů přesčasů do období nepřítomnosti");
+    i18n.add_text(Locale::Cs, Key::CutoverStage1Label, "Přehled");
+    i18n.add_text(Locale::Cs, Key::CutoverStage2Label, "Náhled");
+    i18n.add_text(Locale::Cs, Key::CutoverStage3Label, "Provést");
+    i18n.add_text(Locale::Cs, Key::CutoverBtnContinue, "Pokračovat");
+    i18n.add_text(Locale::Cs, Key::CutoverBtnBack, "Zpět");
+    i18n.add_text(Locale::Cs, Key::CutoverStatTotalRows, "Řádky k migraci");
+    i18n.add_text(Locale::Cs, Key::CutoverStatPersons, "Dotčení zaměstnanci");
+    i18n.add_text(Locale::Cs, Key::CutoverStatQuarantine, "Záznamy v karanténě");
+    i18n.add_text(Locale::Cs, Key::CutoverStatCarryoverDiff, "Rozdíl převodu");
+    i18n.add_text(Locale::Cs, Key::CutoverBtnBulkConvert, "Převést všechny ve skupině");
+    i18n.add_text(Locale::Cs, Key::CutoverRowBtnConvert, "Převést záznam");
+    i18n.add_text(Locale::Cs, Key::CutoverRowBtnEdit, "Upravit");
+    i18n.add_text(Locale::Cs, Key::CutoverRowBtnDelete, "Smazat");
+    i18n.add_text(Locale::Cs, Key::CutoverRowBtnSkip, "Přeskočit záznam");
+    i18n.add_text(Locale::Cs, Key::CutoverDriftEmptyHeading, "Žádné otevřené odchylky");
+    i18n.add_text(Locale::Cs, Key::CutoverDriftEmptyBody, "Všechny záznamy lze migrovat automaticky. Pokračujte ke kroku Provést.");
+    i18n.add_text(Locale::Cs, Key::CutoverCommitSummaryHeading, "Souhrn migrace");
+    i18n.add_text(Locale::Cs, Key::CutoverCommitTypeLabel, "Pro potvrzení napište CUTOVER");
+    i18n.add_text(Locale::Cs, Key::CutoverCommitBtn, "Provést cutover");
+    i18n.add_text(Locale::Cs, Key::CutoverSuccessHeading, "Cutover dokončen");
+    i18n.add_text(Locale::Cs, Key::CutoverSuccessBody, "Opakované spuštění nemá žádný efekt. Cesta zálohy: {path}");
+    i18n.add_text(Locale::Cs, Key::CutoverAlreadyDoneHeading, "Cutover již dokončen");
+    i18n.add_text(Locale::Cs, Key::CutoverAlreadyDoneBody, "Migrace již byla provedena. Náhled zobrazuje 0 řádků.");
+    i18n.add_text(Locale::Cs, Key::CutoverEditModalTitle, "Upravit záznam");
+    i18n.add_text(Locale::Cs, Key::CutoverEditAmountLabel, "Hodnota (h)");
+    i18n.add_text(Locale::Cs, Key::CutoverEditDateLabel, "Datum");
+    i18n.add_text(Locale::Cs, Key::CutoverEditBtnSave, "Uložit změny");
+    i18n.add_text(Locale::Cs, Key::CutoverEditBtnCancel, "Zahodit změny");
+    i18n.add_text(Locale::Cs, Key::CutoverErrorApiFailure, "Požadavek selhal. Zkuste to prosím znovu.");
+    i18n.add_text(Locale::Cs, Key::CutoverCommitDisabledTooltip, "Provedení deaktivováno: zůstaly řádky v karanténě nebo již cutover proběhl");
+    i18n.add_text(Locale::Cs, Key::CutoverPrivilegeStage3, "Pro provedení je nutné oprávnění cutover_admin");
 }
