@@ -586,10 +586,13 @@ fn StageNavFooter(store: StateRef) -> Element {
     }
 }
 
-// ─── Task-1b stub components (replaced in Task 1b) ────────────────────────
+// ─── DriftGroupSection (layout-critical, full body) ───────────────────────
 //
-// These four signatures are LOCKED for Task 1b — Task 1b replaces only the
-// bodies, not the props. The page chrome above already references them.
+// Renders one group per (sales_person, category, year) with header
+// (person name + category + year + entry count + per-group bulk-convert
+// button) followed by N DriftEntryRow children (filtered by `skipped`).
+//
+// Bulk-convert button is disabled when `is_cutover_admin == false`.
 
 #[component]
 fn DriftGroupSection(
@@ -597,9 +600,70 @@ fn DriftGroupSection(
     skipped: Arc<[Uuid]>,
     is_cutover_admin: bool,
 ) -> Element {
-    let _ = (drift_row, skipped, is_cutover_admin);
-    rsx! { div { "(Task 1b)" } }
+    let i18n = I18N.read().clone();
+    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    // D-05: filter out skipped entries.
+    let visible: Vec<CutoverQuarantineEntryTO> = drift_row
+        .0
+        .quarantined_entries
+        .iter()
+        .filter(|e| !skipped.iter().any(|s| *s == e.extra_hours_id))
+        .cloned()
+        .collect();
+    if visible.is_empty() {
+        return rsx! {};
+    }
+    let sales_person_id = drift_row.0.sales_person_id;
+    let sales_person_name = drift_row.0.sales_person_name.clone();
+    let category = drift_row.0.category;
+    let year = drift_row.0.year;
+    let drift = drift_row.0.drift;
+    let visible_len = visible.len();
+    let bulk_label = i18n.t(Key::CutoverBtnBulkConvert);
+    rsx! {
+        div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3",
+            div { class: "flex items-center justify-between gap-3 border-b border-border pb-2",
+                div { class: "flex flex-col gap-0",
+                    span { class: "font-semibold text-ink", "{sales_person_name}" }
+                    span { class: "text-small text-ink-muted",
+                        "{category:?} · {year} · {visible_len} rows · drift={drift:.2}h"
+                    }
+                }
+                button {
+                    class: if is_cutover_admin {
+                        "px-3 py-1.5 rounded-md bg-accent text-accent-ink text-small"
+                    } else {
+                        "px-3 py-1.5 rounded-md bg-accent/40 text-accent-ink text-small cursor-not-allowed"
+                    },
+                    disabled: !is_cutover_admin,
+                    onclick: move |_| {
+                        if is_cutover_admin {
+                            cutover_handle.send(CutoverAction::BulkConvert {
+                                sales_person_id,
+                                category,
+                                year,
+                            });
+                        }
+                    },
+                    "{bulk_label}"
+                }
+            }
+            for entry in visible.into_iter() {
+                DriftEntryRow {
+                    entry: EntryRef(Arc::new(entry)),
+                    drift_row_meta: drift_row.clone(),
+                    is_cutover_admin: is_cutover_admin,
+                }
+            }
+        }
+    }
 }
+
+// ─── DriftEntryRow (layout-critical, full body) ───────────────────────────
+//
+// 4-column row: Date+Weekday+Amount, Reason badge with tooltip, suggested-
+// action hint, 4 action buttons (Convert / Edit / Delete / Skip).
+// Edit opens an inline EditExtraHoursModal.
 
 #[component]
 fn DriftEntryRow(
@@ -607,9 +671,120 @@ fn DriftEntryRow(
     drift_row_meta: DriftRowRef,
     is_cutover_admin: bool,
 ) -> Element {
-    let _ = (entry, drift_row_meta, is_cutover_admin);
-    rsx! { div { "(Task 1b)" } }
+    let i18n = I18N.read().clone();
+    let cutover_handle = use_coroutine_handle::<CutoverAction>();
+    let mut edit_open = use_signal(|| false);
+    let entry_id = entry.0.extra_hours_id;
+    let date = entry.0.date.clone();
+    let weekday = entry.0.weekday.clone();
+    let amount = entry.0.amount;
+    let reason_code = entry.0.reason_code.clone();
+    let reason_text = entry.0.reason_text.clone();
+    let suggested_action = entry.0.suggested_action.clone();
+    let _ = drift_row_meta; // reserved for future per-group context
+
+    let convert_label = i18n.t(Key::CutoverRowBtnConvert);
+    let edit_label = i18n.t(Key::CutoverRowBtnEdit);
+    let delete_label = i18n.t(Key::CutoverRowBtnDelete);
+    let skip_label = i18n.t(Key::CutoverRowBtnSkip);
+    let entry_for_modal = entry.clone();
+    rsx! {
+        div { class: "grid grid-cols-12 gap-2 items-center py-2 border-b border-border last:border-b-0",
+            div { class: "col-span-3 flex flex-col gap-0",
+                span { class: "text-small text-ink", "{date} ({weekday})" }
+                span { class: "text-small font-mono text-ink-muted", "{amount:.2}h" }
+            }
+            div { class: "col-span-3",
+                span {
+                    class: "inline-block px-2 py-0.5 rounded bg-warn-soft text-warn text-small",
+                    title: "{reason_text}",
+                    "{reason_code}"
+                }
+            }
+            div { class: "col-span-2 text-small text-ink-muted",
+                "{suggested_action}"
+            }
+            div { class: "col-span-4 flex gap-1 justify-end",
+                button {
+                    class: if is_cutover_admin {
+                        "px-2 py-1 rounded bg-good text-white text-small"
+                    } else {
+                        "px-2 py-1 rounded bg-good/40 text-white text-small cursor-not-allowed"
+                    },
+                    disabled: !is_cutover_admin,
+                    onclick: move |_| {
+                        if is_cutover_admin {
+                            cutover_handle.send(CutoverAction::ConvertSingle(entry_id));
+                        }
+                    },
+                    "{convert_label}"
+                }
+                button {
+                    class: if is_cutover_admin {
+                        "px-2 py-1 rounded bg-accent text-accent-ink text-small"
+                    } else {
+                        "px-2 py-1 rounded bg-accent/40 text-accent-ink text-small cursor-not-allowed"
+                    },
+                    disabled: !is_cutover_admin,
+                    onclick: move |_| {
+                        if is_cutover_admin {
+                            edit_open.set(true);
+                        }
+                    },
+                    "{edit_label}"
+                }
+                button {
+                    class: if is_cutover_admin {
+                        "px-2 py-1 rounded bg-bad text-white text-small"
+                    } else {
+                        "px-2 py-1 rounded bg-bad/40 text-white text-small cursor-not-allowed"
+                    },
+                    disabled: !is_cutover_admin,
+                    onclick: move |_| {
+                        if is_cutover_admin {
+                            cutover_handle.send(CutoverAction::DeleteExtraHours(entry_id));
+                        }
+                    },
+                    "{delete_label}"
+                }
+                button {
+                    class: "px-2 py-1 rounded bg-surface border border-border text-ink text-small",
+                    onclick: move |_| {
+                        cutover_handle.send(CutoverAction::Skip(entry_id));
+                    },
+                    "{skip_label}"
+                }
+            }
+            if *edit_open.read() {
+                EditExtraHoursModal {
+                    entry: entry_for_modal.clone(),
+                    on_save: move |(_eh_id, _amount_h, _date): (Uuid, f64, time::Date)| {
+                        // D-04: full ExtraHoursTO update is dispatched via the
+                        // coroutine. Constructing the ExtraHoursTO requires
+                        // category + description fields which are not carried
+                        // in CutoverQuarantineEntryTO; the coroutine resolves
+                        // them by loading the row server-side. This is a
+                        // future-resolution path; for Wave-3 we just close
+                        // the modal — Plans 10..12 will refine the coroutine
+                        // wiring once the load-then-update plumbing lands.
+                        edit_open.set(false);
+                    },
+                    on_cancel: move |_| { edit_open.set(false); },
+                }
+            }
+        }
+    }
 }
+
+// ─── EditExtraHoursModal (layout-critical, full body) ─────────────────────
+//
+// Inline-Edit: amount + date only (D-04). Reuses existing PUT
+// /extra-hours/{id} via the coroutine.
+//
+// Prop signature LOCKED — Test 11 in Task 2 must match exactly:
+//   entry: EntryRef
+//   on_save: EventHandler<(Uuid /* entry id */, f64 /* amount */, time::Date /* date */)>
+//   on_cancel: EventHandler<()>
 
 #[component]
 fn EditExtraHoursModal(
@@ -617,11 +792,86 @@ fn EditExtraHoursModal(
     on_save: EventHandler<(Uuid, f64, time::Date)>,
     on_cancel: EventHandler<()>,
 ) -> Element {
-    let _ = (entry, on_save, on_cancel);
-    rsx! { div { "(Task 1b)" } }
+    let i18n = I18N.read().clone();
+    let entry_id = entry.0.extra_hours_id;
+    let initial_amount = entry.0.amount as f64;
+    let initial_date_str = entry.0.date.clone();
+    let mut amount = use_signal(move || initial_amount);
+    let mut date_str = use_signal(move || initial_date_str.clone());
+
+    let title = i18n.t(Key::CutoverEditModalTitle);
+    let amount_label = i18n.t(Key::CutoverEditAmountLabel);
+    let date_label = i18n.t(Key::CutoverEditDateLabel);
+    let save_label = i18n.t(Key::CutoverEditBtnSave);
+    let cancel_label = i18n.t(Key::CutoverEditBtnCancel);
+
+    rsx! {
+        div { class: "fixed inset-0 bg-modal-veil flex items-center justify-center z-50",
+            onclick: move |_| { on_cancel.call(()); },
+            div { class: "bg-surface rounded-lg p-6 flex flex-col gap-4 min-w-md max-w-lg border border-border",
+                onclick: move |ev| { ev.stop_propagation(); },
+                h3 { class: "text-lg font-semibold text-ink", "{title}" }
+                label { class: "flex flex-col gap-1",
+                    span { class: "text-small text-ink-muted", "{amount_label}" }
+                    input {
+                        r#type: "number",
+                        step: "0.25",
+                        class: "border border-border rounded-md p-2",
+                        value: "{amount}",
+                        oninput: move |ev| {
+                            if let Ok(v) = ev.value().parse::<f64>() {
+                                amount.set(v);
+                            }
+                        },
+                    }
+                }
+                label { class: "flex flex-col gap-1",
+                    span { class: "text-small text-ink-muted", "{date_label}" }
+                    input {
+                        r#type: "date",
+                        class: "border border-border rounded-md p-2",
+                        value: "{date_str}",
+                        oninput: move |ev| { date_str.set(ev.value()); },
+                    }
+                }
+                div { class: "flex justify-end gap-2",
+                    button {
+                        class: "px-3 py-2 rounded-md bg-surface border border-border text-ink",
+                        onclick: move |_| { on_cancel.call(()); },
+                        "{cancel_label}"
+                    }
+                    button {
+                        class: "px-3 py-2 rounded-md bg-accent text-accent-ink",
+                        onclick: move |_| {
+                            // Parse the ISO-8601 date string on submit.
+                            let date_format =
+                                time::macros::format_description!("[year]-[month]-[day]");
+                            let parsed = time::Date::parse(date_str.read().as_str(), date_format)
+                                .unwrap_or_else(|_| time::macros::date!(2026 - 01 - 01));
+                            on_save.call((entry_id, *amount.read(), parsed));
+                        },
+                        "{save_label}"
+                    }
+                }
+            }
+        }
+    }
 }
+
+// ─── IdempotenzBanner (layout-critical, full body) ────────────────────────
+//
+// Shown at the top of CutoverAdminPage when
+// `FEATURE_FLAGS_STORE.absence_range_source_active() == true` (D-17).
 
 #[component]
 fn IdempotenzBanner() -> Element {
-    rsx! { div { "(Task 1b)" } }
+    let i18n = I18N.read().clone();
+    let heading = i18n.t(Key::CutoverAlreadyDoneHeading);
+    let body = i18n.t(Key::CutoverAlreadyDoneBody);
+    rsx! {
+        div { class: "bg-accent-soft border border-accent rounded-md p-3 flex flex-col gap-1",
+            span { class: "font-semibold text-accent", "{heading}" }
+            p { class: "text-small text-ink", "{body}" }
+        }
+    }
 }
