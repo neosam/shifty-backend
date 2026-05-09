@@ -200,6 +200,27 @@ pub struct ConvertQuarantineEntryOutcome {
     pub refreshed_drift_report: Option<CutoverGateDriftReport>,
 }
 
+/// Outcome of `CutoverService::bulk_convert_quarantine_rows` (Phase 8.1, D-02).
+/// All `converted_absence_periods` and `deleted_extra_hours_ids` are produced
+/// in a single Tx (strict-atomic — see RESEARCH Q2 / P-10). The `errors` Vec
+/// is reserved for future relaxed semantics; on a successful 200 response it
+/// is empty. `refreshed_drift_report` mirrors Plan 02 (D-08).
+#[derive(Clone, Debug, PartialEq)]
+pub struct BulkConvertQuarantineRowsOutcome {
+    pub converted_absence_periods: Vec<AbsencePeriodEntity>,
+    pub deleted_extra_hours_ids: Vec<Uuid>,
+    pub refreshed_drift_report: Option<CutoverGateDriftReport>,
+    pub errors: Vec<BulkConvertRowError>,
+}
+
+/// Per-row failure detail. Only populated on partial-tolerance modes (none in
+/// 8.1 — strict-atomic returns `Err(ValidationError)` for the whole batch).
+#[derive(Clone, Debug, PartialEq)]
+pub struct BulkConvertRowError {
+    pub extra_hours_id: Uuid,
+    pub reason: String,
+}
+
 #[automock(type Context=(); type Transaction=MockTransaction;)]
 #[async_trait]
 pub trait CutoverService {
@@ -238,4 +259,21 @@ pub trait CutoverService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ConvertQuarantineEntryOutcome, ServiceError>;
+
+    /// Convert all quarantined `extra_hours` rows matching the
+    /// `(sales_person_id, category, year)` triple (optionally narrowed by
+    /// `extra_hours_ids`) in a single atomic Tx (D-02). All rows share one
+    /// `synthetic_run_id` (RESEARCH Q3). Strict-atomic on heuristic
+    /// mismatch (RESEARCH P-10): any row that fails `detect_weekly_lump_sum`
+    /// rolls back the whole Tx with `ValidationError` (HTTP 422). Privilege:
+    /// `cutover_admin`.
+    async fn bulk_convert_quarantine_rows(
+        &self,
+        sales_person_id: Uuid,
+        category: crate::absence::AbsenceCategory,
+        year: u32,
+        explicit_ids: Option<Arc<[Uuid]>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<BulkConvertQuarantineRowsOutcome, ServiceError>;
 }
