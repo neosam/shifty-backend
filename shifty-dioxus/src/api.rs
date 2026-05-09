@@ -1,13 +1,16 @@
 use std::rc::Rc;
 
 use rest_types::{
-    AbsencePeriodCreateResultTO, AbsencePeriodTO, BillingPeriodTO, BlockTO, BookingConflictTO,
-    BookingLogTO, BookingTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
-    CustomExtraHoursTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
-    ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse, RoleTO,
-    SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
-    SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO,
-    VacationBalanceTO, VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
+    AbsenceCategoryTO, AbsencePeriodCreateResultTO, AbsencePeriodTO, BillingPeriodTO, BlockTO,
+    BookingConflictTO, BookingLogTO, BookingTO, CreateBillingPeriodRequestTO,
+    CreateTextTemplateRequestTO, CustomExtraHoursTO,
+    CutoverBulkConvertQuarantineRowsRequest, CutoverBulkConvertQuarantineRowsResponse,
+    CutoverConvertQuarantineEntryRequest, CutoverConvertQuarantineEntryResponse,
+    CutoverProfileTO, CutoverRunResultTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
+    ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest,
+    InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
+    ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO,
+    UserRole, UserTO, VacationBalanceTO, VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -1438,4 +1441,125 @@ pub async fn get_blocks(
     let res = response.json().await?;
     info!("Fetched blocks");
     Ok(res)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Cutover migration wizard endpoints (Phase 8.1).
+//
+// Backend endpoints (all under `/admin/cutover/*`, gated by privilege
+// `cutover_admin` — HR may invoke `profile`/`gate-dry-run` for diagnosis,
+// but only `cutover_admin` may invoke `commit`/`convert-quarantine-entry`/
+// `bulk-convert-quarantine-rows`):
+//
+//   POST /admin/cutover/profile                    → CutoverProfileTO
+//   POST /admin/cutover/gate-dry-run               → CutoverRunResultTO (dry_run=true)
+//   POST /admin/cutover/commit                     → CutoverRunResultTO (destructive)
+//   POST /admin/cutover/convert-quarantine-entry   → 200/422 (single-row Convert)
+//   POST /admin/cutover/bulk-convert-quarantine-rows → 200/422 (per-(sp,cat,year) Convert)
+//
+// 422 → ShiftyError::Validation(text); 403 → flows through
+// `response.error_for_status_ref()?` as ShiftyError::Reqwest.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// POST `/admin/cutover/profile` (existing — Phase 4).
+/// Authenticated POST returning aggregate stats for the wizard's Profile
+/// stage (Phase 8.1 D-10). Empty JSON body.
+pub async fn cutover_profile(config: Config) -> Result<CutoverProfileTO, ShiftyError> {
+    info!("POST /admin/cutover/profile");
+    let url = format!("{}/admin/cutover/profile", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&serde_json::json!({})).send().await?;
+    response.error_for_status_ref()?;
+    let result = response.json().await?;
+    info!("Fetched cutover profile");
+    Ok(result)
+}
+
+/// POST `/admin/cutover/gate-dry-run` (existing — Phase 4).
+/// Returns the latest `CutoverRunResultTO` with `dry_run = true`. Drives the
+/// Dry-Run stage and the Auto-Re-Run flow (D-08) when an inline
+/// `refreshed_drift_report` is unavailable.
+pub async fn cutover_gate_dry_run(config: Config) -> Result<CutoverRunResultTO, ShiftyError> {
+    info!("POST /admin/cutover/gate-dry-run");
+    let url = format!("{}/admin/cutover/gate-dry-run", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&serde_json::json!({})).send().await?;
+    response.error_for_status_ref()?;
+    let result = response.json().await?;
+    info!("Cutover gate dry-run complete");
+    Ok(result)
+}
+
+/// POST `/admin/cutover/commit` (existing — Phase 4).
+/// Destructive; called from Stage 3 after Type-to-confirm. Requires
+/// `cutover_admin` privilege.
+pub async fn cutover_commit(config: Config) -> Result<CutoverRunResultTO, ShiftyError> {
+    info!("POST /admin/cutover/commit");
+    let url = format!("{}/admin/cutover/commit", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&serde_json::json!({})).send().await?;
+    response.error_for_status_ref()?;
+    let result = response.json().await?;
+    info!("Cutover commit complete");
+    Ok(result)
+}
+
+/// POST `/admin/cutover/convert-quarantine-entry` (NEW — Phase 8.1).
+/// Single-row Convert: soft-deletes one quarantined `extra_hours` row and
+/// inserts a matching `absence_period` in one Tx. 422 → ShiftyError::Validation
+/// with the backend reason text (Plan 04 — heuristic mismatch / not migratable).
+pub async fn cutover_convert_quarantine_entry(
+    config: Config,
+    extra_hours_id: Uuid,
+) -> Result<CutoverConvertQuarantineEntryResponse, ShiftyError> {
+    info!("POST /admin/cutover/convert-quarantine-entry id={extra_hours_id}");
+    let url = format!("{}/admin/cutover/convert-quarantine-entry", config.backend);
+    let body = CutoverConvertQuarantineEntryRequest { extra_hours_id };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Convert returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let result = response.json().await?;
+    info!("Converted quarantine entry");
+    Ok(result)
+}
+
+/// POST `/admin/cutover/bulk-convert-quarantine-rows` (NEW — Phase 8.1).
+/// Per-`(sales_person, category, year)`-group Convert. Strict-atomic — if any
+/// row in the batch fails the heuristic, the entire batch rolls back and the
+/// backend responds 422 with the offending detail in the body text.
+/// `extra_hours_ids = None` converts the entire group; `Some(_)` selects an
+/// explicit subset (multi-select extension per Plan 01 D-02).
+pub async fn cutover_bulk_convert_quarantine_rows(
+    config: Config,
+    sales_person_id: Uuid,
+    category: AbsenceCategoryTO,
+    year: u32,
+    extra_hours_ids: Option<Vec<Uuid>>,
+) -> Result<CutoverBulkConvertQuarantineRowsResponse, ShiftyError> {
+    info!(
+        "POST /admin/cutover/bulk-convert-quarantine-rows sp={sales_person_id} year={year}"
+    );
+    let url = format!("{}/admin/cutover/bulk-convert-quarantine-rows", config.backend);
+    let body = CutoverBulkConvertQuarantineRowsRequest {
+        sales_person_id,
+        category,
+        year,
+        extra_hours_ids,
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Bulk-convert returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let result = response.json().await?;
+    info!("Bulk-converted quarantine rows");
+    Ok(result)
 }
