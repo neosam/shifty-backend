@@ -34,6 +34,10 @@ version = "5"
 features = ["time", "rc_schema", "uuid"]
 
 
+[dev-dependencies.serde_json]
+version = "1.0.145"
+
+
 [lints.rust]
 warnings = "deny"
 

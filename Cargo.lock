@@ -2274,6 +2274,7 @@ name = "rest-types"
 version = "1.13.0-dev"
 dependencies = [
  "serde",
+ "serde_json",
  "service",
  "shifty-utils",
  "time",

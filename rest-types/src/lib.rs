@@ -2295,3 +2295,153 @@ impl From<&service::feature_flag::FeatureFlag> for FeatureFlagTO {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 8.1 Plan 08.1-01 — Cutover convert endpoint DTOs
+//
+// Wire-contract for two new admin-only endpoints introduced by Phase 8.1:
+//
+//   POST /admin/cutover/convert-quarantine-entry      (D-01 — single Tx)
+//   POST /admin/cutover/bulk-convert-quarantine-rows  (D-02 — strict-atomic Tx)
+//
+// Both endpoints turn quarantined `extra_hours` rows into `absence_period`
+// rows during the legacy-data cutover. The DTOs below are the foundation for
+// Plan 02 (Service-Single-Convert), Plan 03 (Service-Bulk-Convert) and Plan
+// 04 (REST handlers + OpenAPI surface). The matching `From`-impls live in
+// Plans 02/03 alongside the service Outcome types (`ConvertQuarantineEntryOutcome`
+// etc.) — they are intentionally NOT in this plan.
+//
+// Backwards-compat: every newly added `Option<>` / `Vec<>` field is annotated
+// with `#[serde(default)]`, so old clients can deserialize the success body
+// without supplying the field.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// `POST /admin/cutover/convert-quarantine-entry` — request body. Per D-01:
+/// the backend derives `(from, to)` via `detect_weekly_lump_sum` from the
+/// existing `extra_hours` row; the frontend only supplies the row id.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverConvertQuarantineEntryRequest {
+    pub extra_hours_id: Uuid,
+}
+
+/// `POST /admin/cutover/convert-quarantine-entry` — response body. Per D-08
+/// the `refreshed_drift_report` is delivered inline so the frontend skips a
+/// follow-up `gate-dry-run` roundtrip after each Convert action. Old clients
+/// tolerate the missing field via `#[serde(default)]`.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverConvertQuarantineEntryResponse {
+    pub absence_period: AbsencePeriodTO,
+    pub deleted_extra_hours_id: Uuid,
+    #[serde(default)]
+    pub refreshed_drift_report: Option<CutoverGateDriftReportTO>,
+}
+
+/// `POST /admin/cutover/bulk-convert-quarantine-rows` — request body. Per
+/// D-02: either `(sales_person_id, category, year)` triple alone (= convert
+/// every quarantine row matching the triple) OR triple + explicit
+/// `extra_hours_ids` for an explicit subset selection. `extra_hours_ids =
+/// None` means "all of the triple".
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverBulkConvertQuarantineRowsRequest {
+    pub sales_person_id: Uuid,
+    pub category: AbsenceCategoryTO,
+    pub year: u32,
+    #[serde(default)]
+    pub extra_hours_ids: Option<Vec<Uuid>>,
+}
+
+/// `POST /admin/cutover/bulk-convert-quarantine-rows` — response body.
+/// Strict-atomic Tx (D-02 + RESEARCH P-10): on heuristic mismatch the whole
+/// Tx rolls back and the handler returns 422. `errors` is therefore expected
+/// to be empty on a 200 response and is kept in the wire-contract only for
+/// future relaxations / partial-failure surfacing.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverBulkConvertQuarantineRowsResponse {
+    pub converted_absence_periods: Vec<AbsencePeriodTO>,
+    pub deleted_extra_hours_ids: Vec<Uuid>,
+    #[serde(default)]
+    pub refreshed_drift_report: Option<CutoverGateDriftReportTO>,
+    #[serde(default)]
+    pub errors: Vec<CutoverConvertErrorTO>,
+}
+
+/// Per-row failure detail used by
+/// `CutoverBulkConvertQuarantineRowsResponse.errors`.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CutoverConvertErrorTO {
+    pub extra_hours_id: Uuid,
+    pub reason: String,
+}
+
+#[cfg(test)]
+mod cutover_convert_dto_tests {
+    use super::*;
+
+    #[test]
+    fn convert_request_roundtrips() {
+        let req = CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: Uuid::nil(),
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        let parsed: CutoverConvertQuarantineEntryRequest =
+            serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(parsed.extra_hours_id, Uuid::nil());
+    }
+
+    #[test]
+    fn bulk_response_defaults_optional_fields() {
+        // `refreshed_drift_report` and `errors` must be `#[serde(default)]`
+        // so old clients can deserialize a minimal success body.
+        let json = r#"{"converted_absence_periods":[],"deleted_extra_hours_ids":[]}"#;
+        let parsed: CutoverBulkConvertQuarantineRowsResponse =
+            serde_json::from_str(json).expect("deserialize minimal bulk response");
+        assert!(parsed.converted_absence_periods.is_empty());
+        assert!(parsed.deleted_extra_hours_ids.is_empty());
+        assert!(parsed.refreshed_drift_report.is_none());
+        assert!(parsed.errors.is_empty());
+    }
+
+    #[test]
+    fn convert_error_to_shape() {
+        let e = CutoverConvertErrorTO {
+            extra_hours_id: Uuid::nil(),
+            reason: "x".to_string(),
+        };
+        let json = serde_json::to_string(&e).expect("serialize");
+        assert!(
+            json.contains("\"extra_hours_id\":"),
+            "missing extra_hours_id field in {json}"
+        );
+        assert!(
+            json.contains("\"reason\":\"x\""),
+            "missing reason field in {json}"
+        );
+    }
+
+    #[test]
+    fn bulk_request_roundtrips_with_subset() {
+        let req = CutoverBulkConvertQuarantineRowsRequest {
+            sales_person_id: Uuid::nil(),
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            extra_hours_ids: Some(vec![Uuid::nil()]),
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        let parsed: CutoverBulkConvertQuarantineRowsRequest =
+            serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(parsed.year, 2026);
+        assert_eq!(parsed.extra_hours_ids.as_deref(), Some(&[Uuid::nil()][..]));
+    }
+
+    #[test]
+    fn bulk_request_defaults_extra_hours_ids() {
+        // `extra_hours_ids` is optional (= "all of the triple" semantics).
+        // Note: `AbsenceCategoryTO` serializes with the default serde naming
+        // (PascalCase) — see definition at the top of this file.
+        let json = r#"{"sales_person_id":"00000000-0000-0000-0000-000000000000","category":"Vacation","year":2026}"#;
+        let parsed: CutoverBulkConvertQuarantineRowsRequest =
+            serde_json::from_str(json).expect("deserialize triple-only");
+        assert!(parsed.extra_hours_ids.is_none());
+        assert_eq!(parsed.category, AbsenceCategoryTO::Vacation);
+    }
+}
