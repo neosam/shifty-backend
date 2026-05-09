@@ -803,4 +803,41 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::AbsenceDeleteCancelBtn, "Cancel");
     i18n.add_text(Locale::En, Key::AbsenceFilterShowPast, "Show past");
     i18n.add_text(Locale::En, Key::AbsenceFilterCounter, "{n} of {m}");
+
+    // Cutover migration (Phase 8.1) — single-line calls; do not reformat across
+    // multiple lines (Plan 08.1-06 verify grep counts call lines).
+    i18n.add_text(Locale::En, Key::CutoverMenuLabel, "Data Migration");
+    i18n.add_text(Locale::En, Key::CutoverPageTitle, "Data Migration");
+    i18n.add_text(Locale::En, Key::CutoverPageSubtitle, "Migrate legacy extra hours to absence periods");
+    i18n.add_text(Locale::En, Key::CutoverStage1Label, "Profile");
+    i18n.add_text(Locale::En, Key::CutoverStage2Label, "Dry-Run");
+    i18n.add_text(Locale::En, Key::CutoverStage3Label, "Commit");
+    i18n.add_text(Locale::En, Key::CutoverBtnContinue, "Continue");
+    i18n.add_text(Locale::En, Key::CutoverBtnBack, "Back");
+    i18n.add_text(Locale::En, Key::CutoverStatTotalRows, "Rows to migrate");
+    i18n.add_text(Locale::En, Key::CutoverStatPersons, "Affected persons");
+    i18n.add_text(Locale::En, Key::CutoverStatQuarantine, "Quarantine entries");
+    i18n.add_text(Locale::En, Key::CutoverStatCarryoverDiff, "Carryover diff");
+    i18n.add_text(Locale::En, Key::CutoverBtnBulkConvert, "Convert all in group");
+    i18n.add_text(Locale::En, Key::CutoverRowBtnConvert, "Convert entry");
+    i18n.add_text(Locale::En, Key::CutoverRowBtnEdit, "Edit");
+    i18n.add_text(Locale::En, Key::CutoverRowBtnDelete, "Delete");
+    i18n.add_text(Locale::En, Key::CutoverRowBtnSkip, "Skip entry");
+    i18n.add_text(Locale::En, Key::CutoverDriftEmptyHeading, "No open drifts");
+    i18n.add_text(Locale::En, Key::CutoverDriftEmptyBody, "All entries can be migrated automatically. Continue to the commit step.");
+    i18n.add_text(Locale::En, Key::CutoverCommitSummaryHeading, "Migration Summary");
+    i18n.add_text(Locale::En, Key::CutoverCommitTypeLabel, "Type CUTOVER to confirm");
+    i18n.add_text(Locale::En, Key::CutoverCommitBtn, "Commit Cutover");
+    i18n.add_text(Locale::En, Key::CutoverSuccessHeading, "Cutover complete");
+    i18n.add_text(Locale::En, Key::CutoverSuccessBody, "Re-runs are no-ops. Backup path: {path}");
+    i18n.add_text(Locale::En, Key::CutoverAlreadyDoneHeading, "Cutover already completed");
+    i18n.add_text(Locale::En, Key::CutoverAlreadyDoneBody, "The migration has already been applied. Dry-Run shows 0 rows.");
+    i18n.add_text(Locale::En, Key::CutoverEditModalTitle, "Edit entry");
+    i18n.add_text(Locale::En, Key::CutoverEditAmountLabel, "Amount (h)");
+    i18n.add_text(Locale::En, Key::CutoverEditDateLabel, "Date");
+    i18n.add_text(Locale::En, Key::CutoverEditBtnSave, "Save Changes");
+    i18n.add_text(Locale::En, Key::CutoverEditBtnCancel, "Discard Changes");
+    i18n.add_text(Locale::En, Key::CutoverErrorApiFailure, "Request failed. Please try again.");
+    i18n.add_text(Locale::En, Key::CutoverCommitDisabledTooltip, "Commit is disabled: quarantine rows remain or cutover already done");
+    i18n.add_text(Locale::En, Key::CutoverPrivilegeStage3, "Commit requires the cutover_admin privilege");
 }
