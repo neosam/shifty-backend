@@ -43,9 +43,9 @@ use dao::TransactionDao;
 use service::absence::{AbsenceCategory, AbsenceService};
 use service::carryover_rebuild::CarryoverRebuildService;
 use service::cutover::{
-    ConvertQuarantineEntryOutcome, CutoverGateDriftReport, CutoverProfile, CutoverProfileBucket,
-    CutoverQuarantineEntry, CutoverRunResult, CutoverService, DriftRow, GateResult,
-    QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
+    BulkConvertQuarantineRowsOutcome, ConvertQuarantineEntryOutcome, CutoverGateDriftReport,
+    CutoverProfile, CutoverProfileBucket, CutoverQuarantineEntry, CutoverRunResult, CutoverService,
+    DriftRow, GateResult, QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
 };
 use service::employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService};
 use service::extra_hours::ExtraHoursService;
@@ -543,6 +543,175 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             absence_period: entity,
             deleted_extra_hours_id: extra_hours_id,
             refreshed_drift_report: refreshed,
+        })
+    }
+
+    /// Phase 8.1, D-02 — strict-atomic bulk-convert (RESEARCH Q2 / P-10).
+    ///
+    /// Converts every quarantined `extra_hours` row matching the
+    /// `(sales_person_id, category, year)` triple — optionally narrowed by an
+    /// explicit `extra_hours_ids` subset — into `absence_period` rows in a
+    /// single Tx. All rows share one `synthetic_run_id` (RESEARCH Q3) for
+    /// audit cohesion. On any heuristic mismatch the entire Tx rolls back with
+    /// `ServiceError::ValidationError` (HTTP 422). Empty match-set returns
+    /// `EntityNotFoundGeneric` (HTTP 404). Privilege: `cutover_admin` (D-23).
+    ///
+    /// Reuses `compute_gate_diagnostic` (Plan 02) for the inline
+    /// `refreshed_drift_report` (D-08, RESEARCH P-03 option a).
+    async fn bulk_convert_quarantine_rows(
+        &self,
+        sales_person_id: Uuid,
+        category: AbsenceCategory,
+        year: u32,
+        explicit_ids: Option<Arc<[Uuid]>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<BulkConvertQuarantineRowsOutcome, ServiceError> {
+        // 1. Privilege gate (D-23).
+        self.permission_service
+            .check_permission(CUTOVER_ADMIN_PRIVILEGE, context.clone())
+            .await?;
+
+        // 2. Open Tx (single-Tx atomicity per D-02).
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let now = time::OffsetDateTime::now_utc();
+        let migrated_at = time::PrimitiveDateTime::new(now.date(), now.time());
+
+        // 3. Fetch all not-yet-migrated rows once. The heuristic needs the
+        //    full set as siblings to detect single-row-per-week clusters.
+        let all_legacy = self
+            .cutover_dao
+            .find_legacy_extra_hours_not_yet_migrated(tx.clone())
+            .await?;
+
+        // 4. Filter by `(sales_person_id, category, year)` triple, narrowed
+        //    optionally by `explicit_ids`. Year is the calendar year of the
+        //    row's date_time (matches the gate-bucket convention).
+        let dao_category = absence_category_to_dao(&category);
+        let target_rows: Vec<LegacyExtraHoursRow> = all_legacy
+            .iter()
+            .filter(|r| r.sales_person_id == sales_person_id)
+            .filter(|r| extra_hours_category_to_absence(&r.category) == dao_category)
+            .filter(|r| (r.date_time.date().year() as u32) == year)
+            .filter(|r| match &explicit_ids {
+                Some(ids) => ids.iter().any(|id| *id == r.id),
+                None => true,
+            })
+            .cloned()
+            .collect();
+
+        if target_rows.is_empty() {
+            return Err(ServiceError::EntityNotFoundGeneric(Arc::from(
+                "No quarantined rows matched the (sales_person, category, year) triple",
+            )));
+        }
+
+        // 5. Resolve `EmployeeWorkDetails` once for the sales_person.
+        let work_details = self
+            .employee_work_details_service
+            .find_by_sales_person_id(sales_person_id, Authentication::Full, Some(tx.clone()))
+            .await?;
+
+        // 6. Per-row heuristic + accumulate. Strict-atomic (RESEARCH P-10) —
+        //    any None aborts BEFORE any DAO writes, so the implicit Tx-Drop
+        //    rollback leaves the DB untouched.
+        let synthetic_run_id = Uuid::new_v4();
+        let mut planned: Vec<(LegacyExtraHoursRow, time::Date, time::Date)> =
+            Vec::with_capacity(target_rows.len());
+        for row in target_rows.iter() {
+            match detect_weekly_lump_sum(row, all_legacy.as_ref(), |d| {
+                lookup_active_contract(work_details.as_ref(), d)
+            }) {
+                Some((from_date, to_date)) => {
+                    planned.push((row.clone(), from_date, to_date));
+                }
+                None => {
+                    return Err(ServiceError::ValidationError(Arc::from([
+                        service::ValidationFailureItem::InvalidValue(Arc::from(
+                            format!(
+                                "Row {} does not match weekly-lump-sum heuristic; manual edit required",
+                                row.id
+                            )
+                            .as_str(),
+                        )),
+                    ])));
+                }
+            }
+        }
+
+        // 7. Apply all DAO writes inside the same Tx. Direct `absence_dao.create`
+        //    bypasses `AbsenceService::create`'s forward-warning loop (Migration
+        //    is privileged; mirrors `commit_phase` + `convert_quarantine_entry`).
+        let mut converted: Vec<AbsencePeriodEntity> = Vec::with_capacity(planned.len());
+        let mut deleted_ids: Vec<Uuid> = Vec::with_capacity(planned.len());
+        for (row, from_date, to_date) in planned.iter() {
+            let absence_period_id = Uuid::new_v4();
+            let entity = AbsencePeriodEntity {
+                id: absence_period_id,
+                logical_id: absence_period_id,
+                sales_person_id: row.sales_person_id,
+                category: extra_hours_category_to_absence(&row.category),
+                from_date: *from_date,
+                to_date: *to_date,
+                description: Arc::from(""),
+                created: migrated_at,
+                deleted: None,
+                version: Uuid::new_v4(),
+            };
+            self.absence_dao
+                .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())
+                .await?;
+            self.cutover_dao
+                .upsert_migration_source(
+                    &MigrationSourceRow {
+                        extra_hours_id: row.id,
+                        absence_period_id,
+                        cutover_run_id: synthetic_run_id,
+                        migrated_at,
+                    },
+                    tx.clone(),
+                )
+                .await?;
+            converted.push(entity);
+            deleted_ids.push(row.id);
+        }
+
+        // 8. Bulk soft-delete in one helper call (mirrors the cluster-commit
+        //    audit trail: same `update_process` tag, `Authentication::Full`).
+        self.extra_hours_service
+            .soft_delete_bulk(
+                Arc::from(deleted_ids.clone().into_boxed_slice()),
+                CUTOVER_MIGRATION_PROCESS,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+
+        // 9. Inline refreshed drift-report (D-08, RESEARCH P-03 option a).
+        //    Re-build the bucket-map from the now-updated state by replaying
+        //    `migrate_legacy_extra_hours_to_clusters`. Failures here are
+        //    non-fatal — the convert itself succeeded; we omit the report
+        //    rather than rolling back.
+        let refreshed = match self
+            .migrate_legacy_extra_hours_to_clusters(synthetic_run_id, migrated_at, tx.clone())
+            .await
+        {
+            Ok((_stats, _migrated_ids, bucket_map)) => self
+                .compute_gate_diagnostic(synthetic_run_id, migrated_at, &bucket_map, tx.clone())
+                .await
+                .ok(),
+            Err(_) => None,
+        };
+
+        // 10. Atomic commit.
+        self.transaction_dao.commit(tx).await?;
+
+        Ok(BulkConvertQuarantineRowsOutcome {
+            converted_absence_periods: converted,
+            deleted_extra_hours_ids: deleted_ids,
+            refreshed_drift_report: refreshed,
+            errors: Vec::new(),
         })
     }
 }
@@ -1231,6 +1400,21 @@ fn extra_hours_category_to_absence(c: &ExtraHoursCategoryEntity) -> AbsenceCateg
             "extra_hours_category_to_absence called with non-legacy category: {:?}",
             other
         ),
+    }
+}
+
+/// Plan 8.1 — map service-tier `AbsenceCategory` to dao-tier
+/// `AbsenceCategoryEntity`. Used by `bulk_convert_quarantine_rows` to compare
+/// the requested category triple against the dao-tier category produced by
+/// `extra_hours_category_to_absence`. Mirror-impl of the existing
+/// `extra_hours_category_to_absence` for the inverse direction; no fallback
+/// needed because `AbsenceCategory` is exhaustive over the same three legacy
+/// categories.
+fn absence_category_to_dao(c: &AbsenceCategory) -> AbsenceCategoryEntity {
+    match c {
+        AbsenceCategory::Vacation => AbsenceCategoryEntity::Vacation,
+        AbsenceCategory::SickLeave => AbsenceCategoryEntity::SickLeave,
+        AbsenceCategory::UnpaidLeave => AbsenceCategoryEntity::UnpaidLeave,
     }
 }
 
