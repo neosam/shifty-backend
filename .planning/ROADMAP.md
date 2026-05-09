@@ -215,7 +215,9 @@
 5. OpenAPI-Surface-Test bleibt grün — die Änderung ist additiv (neues optionales Feld); ein neuer Schema-Drift-Eintrag für das DTO bestätigt das `manual_range`-Feld.
 6. WASM-Build (`cd shifty-dioxus && cargo build --target wasm32-unknown-unknown`) + Backend `cargo test --workspace` grün; Snapshot-Schema-Version unverändert (kein neuer `BillingPeriodValueType`).
 
-**Plans:** TBD via `/gsd:plan-phase 8.2`.
+**Plans:** 2 plans across 2 waves (sequenziell — Frontend-Plan wartet auf Backend-DTO)
+- [ ] 08.2-01-PLAN.md — Backend `manual_range`-Branch + DTO + 4 mockall + 1 integration test + OpenAPI-Schema-Update — Wave 1
+- [ ] 08.2-02-PLAN.md — Frontend ManualConvertModal + Coroutine-Action + 8 i18n keys × 3 locales + 4 dioxus-ssr snapshots + WASM-Build-Gate — Wave 2
 
 **UI hint**: yes (Backend additiv + Frontend Modal-Erweiterung).
 
@@ -236,7 +238,7 @@
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
 | 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
-| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 0/? | Pending | — |
+| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 0/2 | Pending | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
