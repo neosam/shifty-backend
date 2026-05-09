@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-09T06:16:23.911Z"
-last_activity: 2026-05-09 -- Phase 08.1 planning complete
+last_updated: "2026-05-09T12:30:00.000Z"
+last_activity: 2026-05-09 -- Phase 08.1 code-side complete (11/12 plans), 08.1-12 UAT pending; Phase 08.2 scoped (manual-range-convert für Karin-gap-1a)
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 1
   total_plans: 21
   completed_plans: 9

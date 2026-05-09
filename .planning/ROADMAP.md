@@ -5,7 +5,7 @@
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (shipped 2026-05-04) — siehe [`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
-- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8 (✓), 8.1, 9–13 (active, started 2026-05-07)
+- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8 (✓), 8.1, 8.2, 9–13 (active, started 2026-05-07)
 
 ## Phases
 
@@ -30,6 +30,15 @@
   4. Cutover-Commit erst aktiv wenn `quarantined_rows == 0`; Confirmation-Dialog vor destruktivem Commit; Idempotenz-Hinweis nach Abschluss
   5. Optional: Feiertag-Konsistenz-Fix in `detect_weekly_lump_sum` (Plan 08-09 Inkonsistenz mit `derive_hours_for_range` — Group D Drifts wie Sonja Vac 2026)
   6. Phase-8-HUMAN-UAT (35 Schritte) wird auf int durchlaufen und gemeinsam mit Phase 8.1 closed; gap-1 in 08-HUMAN-UAT.md auf `resolved` gesetzt
+
+- [ ] **Phase 8.2: Manual-Range-Convert für Quarantäne** (Backend + Frontend, gap-1a-Closure)
+  Erweitert die Cutover-UI um manuelles Konvertieren: Wenn die Heuristik einen Quarantäne-Eintrag nicht auflösen kann (Karin-Pattern, gap-1a — Vertragswechsel mit differing `hours_per_day` mid-week), gibt der Admin/HR den `absence_period`-Zeitraum (start/end) selbst vor. Backend erweitert `convert_quarantine_entry` um optionales `manual_range`, skipt die Heuristik und schreibt direkt. Frontend ersetzt das stub-bleibende `EditExtraHoursModal` durch ein `ManualConvertModal` mit Date-Range-Picker.
+  Requirements: (Closure-Phase, schließt gap-1a aus 08.1-10-SUMMARY)
+  Success Criteria:
+  1. `CutoverConvertQuarantineEntryPayload.manual_range: Option<{ start, end }>` neu; bei `Some` skipt die Heuristik und nutzt den gegebenen Range; gleicher `synthetic_run_id`-Pfad wie heuristischer Convert
+  2. Per-Eintrag-Modal in der Cutover-Page: Date-Range-Picker (von / bis), Category read-only, Submit dispatcht `CutoverAction::ManualConvert` und liefert `refreshed_drift_report` inline (D-08-Pattern aus 8.1)
+  3. Karin-Diagnose-Test (`diagnose_int_drift_pattern_karin_*`) plus 1 neuer Test: manual_range löst die Karin-Quarantäne ohne Backend-Heuristik-Anpassung
+  4. WASM-Build + Backend cargo test workspace grün; Privilege bleibt `cutover_admin OR hr` (D-23 aus 8.1)
 
 - [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
@@ -189,6 +198,31 @@
 
 ---
 
+### Phase 8.2: Manual-Range-Convert für Quarantäne
+
+**Goal:** Closure-Phase für `08.1-10`-gap-1a (Karin-Pattern). Erweitert die in Phase 8.1 etablierte Convert-API um einen manuellen Pfad: Wenn die Heuristik einen Quarantäne-Eintrag nicht auflösen kann (Vertragswechsel mit differing `hours_per_day` mid-week, Hire/End-Date-Edge-Cases ohne weekly-lump-sum-Match), gibt der Admin/HR den Ziel-`absence_period`-Zeitraum direkt vor und das Backend schreibt ohne weitere Mustererkennung. Frontend ersetzt das in 8.1-09 als bekannten Stub belassene `EditExtraHoursModal` durch ein `ManualConvertModal` mit Date-Range-Picker. Audit-Pfad bleibt identisch zum heuristischen Convert (gleicher `synthetic_run_id`-Flow, inline `refreshed_drift_report` per D-08).
+
+**Depends on:** Phase 8.1 (Cutover-Migration-UI — `convert_quarantine_entry`, `compute_gate_diagnostic`, `CutoverAdminPage`-State + Coroutine, `CutoverConvertQuarantineEntryRequest`/`Response`-DTOs).
+
+**Requirements:** Closure-Phase — schließt gap-1a aus `08.1-10-SUMMARY.md` (Karin-Pattern, bleibender gap dokumentiert für Operator-Resolution). Pflicht-Locale-Coverage (FUI-A-09) für neu hinzugefügte i18n-Keys (Date-Range-Picker-Labels, Modal-Titel, Hilfetext).
+
+**Success Criteria:**
+
+1. `CutoverConvertQuarantineEntryRequest` erhält optionales `manual_range: Option<{ start_date, end_date }>`. Bei `Some` skipt `convert_quarantine_entry` die Heuristik (`detect_weekly_lump_sum` + `lookup_active_contract`-Match) und schreibt direkt eine `absence_period` mit dem gegebenen Zeitraum + Soft-Delete der zugehörigen `extra_hours`. Same-Tx, gleicher `synthetic_run_id`, `refreshed_drift_report` inline.
+2. Backend-Validation: `start_date <= end_date`; beide Daten innerhalb des Quarantäne-Eintrag-Jahres; Kategorie unverändert (read-only übernommen aus dem Quarantäne-Eintrag); `cutover_admin OR hr` Privilege-Check (D-23 aus 8.1).
+3. Karin-Diagnose-Test (`diagnose_int_drift_pattern_karin_*` aus 8.1-10) wird durch einen neuen Test ergänzt: `convert_quarantine_entry` mit `manual_range = Some(...)` löst Karin-Quarantäne ohne Heuristik-Anpassung; `derive_hours_for_range` über die manuell gesetzte Range matcht den `legacy_sum`.
+4. Frontend: `EditExtraHoursModal`-Stub aus 8.1-09 wird zum `ManualConvertModal`. Eingabefelder: Datum-von, Datum-bis (`<input type="date">` reicht), Kategorie read-only, Stunden read-only (informativ — die werden vom Backend aus Range + Contract abgeleitet). Submit dispatcht `CutoverAction::ManualConvert { extra_hours_id, manual_range }`. `refreshed_drift_report` aus Response landet im `CUTOVER_STORE` (selbe Mechanik wie 8.1-09 Convert/Bulk-Convert).
+5. OpenAPI-Surface-Test bleibt grün — die Änderung ist additiv (neues optionales Feld); ein neuer Schema-Drift-Eintrag für das DTO bestätigt das `manual_range`-Feld.
+6. WASM-Build (`cd shifty-dioxus && cargo build --target wasm32-unknown-unknown`) + Backend `cargo test --workspace` grün; Snapshot-Schema-Version unverändert (kein neuer `BillingPeriodValueType`).
+
+**Plans:** TBD via `/gsd:plan-phase 8.2`.
+
+**UI hint**: yes (Backend additiv + Frontend Modal-Erweiterung).
+
+**Notes for plan-phase:** Sehr kleine Phase — voraussichtlich 1-2 Plans (Backend-Erweiterung + Frontend-Modal-Replacement, gegebenenfalls in einer Welle parallelisierbar wenn rest-types-Änderung in Plan 1 gemacht wird). Reuse 8.1-Patterns: Service-Tier-Klassifikation (Business-Logic), `compute_gate_diagnostic` für `refreshed_drift_report`, jj-only Commit-Politik. **Out-of-Scope:** Generelles Edit der Stunden eines `extra_hours`-Eintrags (sofern doch gewünscht: separate Phase oder Kombi-Modal mit Tab-Switch). **Karin-Test wird zur Verifikation des Manual-Convert-Pfads**; bleibender gap aus 8.1 wird als `resolved` markiert in 8.2 SUMMARY.
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -202,6 +236,7 @@
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
 | 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
+| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 0/? | Pending | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
