@@ -1873,3 +1873,347 @@ mod bulk_convert_quarantine_rows_tests {
 fn _suppress_unused() -> LegacyExtraHoursRow {
     legacy_row_with_id(Uuid::nil(), date!(2024 - 06 - 03), 8.0)
 }
+
+// ----------------------------------------------------------------------------
+// Phase 8.1 Plan 10 — Diagnose `08-HUMAN-UAT.md` gap-1 (a)
+//
+// Reproduce the contract-data edge cases (Lila / Anina / Karin) where the
+// Plan-08-09 weekly-lump-sum heuristic does NOT match the expected pattern.
+//
+// Walk three hypotheses with synthetic fixtures driving `service.run(true,
+// ...)` end-to-end (the heuristic helpers `detect_weekly_lump_sum`,
+// `iso_week_range`, `lookup_active_contract` are file-private — diagnose via
+// observed migration outcome: `total_clusters` / `quarantined_rows`).
+//
+// The assertion in each test reflects the OBSERVED behaviour, not a wished-for
+// "ideal" behaviour. Each test's doc-comment documents the verdict (fix vs
+// bleibender gap). See `08.1-10-SUMMARY.md` for the per-pattern decision.
+// ----------------------------------------------------------------------------
+
+/// Hypothesis 1 — **Lila pattern**: Vertragsbeginn mid-week.
+///
+/// The legacy `extra_hours` row sits in an ISO week where the contract starts
+/// _during_ the week (e.g. Wednesday). For days Mo+Tu the contract-lookup
+/// returns `None`; for Wed..Sun it returns Some with the workday-mask. The
+/// heuristic walks Mo..So and sums `hours_per_day` only for days where (a)
+/// `contract_at(day) = Some` AND (b) the contract has the weekday active.
+///
+/// **Expected user behaviour ("scheinbar passendes Pattern"):** The user
+/// books a single weekly-lump-sum `extra_hours` row whose amount equals the
+/// SUM-of-active-workdays-of-that-partial-week (here: Wed+Thu+Fri = 3 ×
+/// 8h = 24h for the rest of the contract week).
+///
+/// **Test verdict:** The heuristic DOES match this pattern (target_sum =
+/// 24h, amount = 24h → `Some({Mo, So})`). The resulting absence_period
+/// stretches from Monday (= pre-contract-start) to Sunday — semantically
+/// over-broad but the live `derive_hours_for_range` skips pre-contract days
+/// (returns 0 for those days), so legacy_sum (24h) ≈ derived_sum (24h) and
+/// the gate stays clean.
+///
+/// **=> No bug. Lila pattern is HANDLED by the heuristic.** If int data still
+/// shows mismatch, root cause is NOT this hypothesis — the row likely has a
+/// different amount (e.g. a half-week lump-sum) covered by gap-1 (b).
+#[tokio::test]
+async fn diagnose_int_drift_pattern_lila_contract_starts_mid_week() {
+    // Build fixture: 8h Mo-Fr contract starting at Wed of ISO-W11/2026.
+    // Wed of W11/2026 = 2026-03-11.
+    let mut deps = build_dependencies();
+    deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
+
+    let lila_contract = EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_5111),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 40.0,
+        from_day_of_week: DayOfWeek::Wednesday,
+        from_calendar_week: 11,
+        from_year: 2026,
+        to_day_of_week: DayOfWeek::Sunday,
+        to_calendar_week: 52,
+        to_year: 2026,
+        workdays_per_week: 5,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+        vacation_days: 30,
+        created: Some(datetime!(2026 - 03 - 11 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+
+    // 24h Vacation row at Wed 2026-03-11 (= contract start day, also the first
+    // post-contract-active workday in this partial week).
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2026 - 03 - 11), 24.0)]);
+    let rows_clone = rows.clone();
+    deps.cutover_dao
+        .expect_find_legacy_extra_hours_not_yet_migrated()
+        .returning(move |_| Ok(rows_clone.clone()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([lila_contract.clone()])));
+
+    // Observed behaviour: heuristic maps the row to absence_period
+    // {Mo=2026-03-09, So=2026-03-15}. Verify this in the DAO assertion.
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            entity.from_date == date!(2026 - 03 - 09)
+                && entity.to_date == date!(2026 - 03 - 15)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+
+    // Verdict: heuristic accepts the partial-week lump-sum where the partial
+    // matches the active-contract-day-sum. The observed match rate aligns
+    // with the documented heuristic semantics.
+    assert_eq!(
+        result.total_clusters, 1,
+        "Lila pattern: heuristic SHOULD map partial-week active-contract-sum lump"
+    );
+    assert_eq!(
+        result.quarantined_rows, 0,
+        "Lila pattern: no quarantine for partial-week active-contract match"
+    );
+}
+
+/// Hypothesis 2 — **Anina pattern**: Vertragsende mid-week.
+///
+/// The legacy row sits in an ISO week where the contract ENDS mid-week
+/// (e.g. Thursday). For days Mo..Thu the contract is active; for Fri..Sun
+/// `contract_at(day) = None`. Active workdays Mo..Thu (4 days × 8h = 32h)
+/// is the partial-week target.
+///
+/// **Expected user pattern:** A single 32h Vacation row anywhere in this
+/// partial week.
+///
+/// **Test verdict:** The heuristic correctly matches the partial-week sum
+/// (target_sum = 32h). It maps the row to absence_period {Mo, So} of the
+/// week. The Sunday is post-contract — `derive_hours_for_range` returns 0
+/// for those days (no active contract), so legacy_sum (32h) ≈ derived_sum
+/// (32h). Gate clean.
+///
+/// **=> No bug. Anina pattern is HANDLED.** Bleibender concern: the
+/// resulting `absence_period.to_date` stretches past the contract end,
+/// which is semantically over-broad but harmless for derive computations.
+/// Operator can shorten via Edit-modal in the 8.1-UI if desired (D-04
+/// allows date edit in extra_hours pre-Convert; absence_period itself is
+/// editable via the standard Absences page).
+#[tokio::test]
+async fn diagnose_int_drift_pattern_anina_contract_ends_mid_week() {
+    // 8h Mo-Fr contract ending Thu of ISO-W18/2026 (= 2026-04-30).
+    let mut deps = build_dependencies();
+    deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
+
+    let anina_contract = EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_AAAA),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 40.0,
+        from_day_of_week: DayOfWeek::Monday,
+        from_calendar_week: 1,
+        from_year: 2024,
+        to_day_of_week: DayOfWeek::Thursday,
+        to_calendar_week: 18,
+        to_year: 2026,
+        workdays_per_week: 5,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+        vacation_days: 30,
+        created: Some(datetime!(2024 - 01 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+
+    // 32h Vacation row at Wed 2026-04-29 (mid-partial-week).
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2026 - 04 - 29), 32.0)]);
+    let rows_clone = rows.clone();
+    deps.cutover_dao
+        .expect_find_legacy_extra_hours_not_yet_migrated()
+        .returning(move |_| Ok(rows_clone.clone()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([anina_contract.clone()])));
+
+    // Observed: heuristic maps to {Mo=2026-04-27, So=2026-05-03}.
+    deps.absence_dao
+        .expect_create()
+        .withf(|entity, _, _| {
+            entity.from_date == date!(2026 - 04 - 27)
+                && entity.to_date == date!(2026 - 05 - 03)
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    deps.cutover_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+    deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+
+    assert_eq!(
+        result.total_clusters, 1,
+        "Anina pattern: heuristic maps partial-week active-contract-sum lump"
+    );
+    assert_eq!(
+        result.quarantined_rows, 0,
+        "Anina pattern: no quarantine for contract-end-mid-week match"
+    );
+}
+
+/// Hypothesis 3 — **Karin pattern**: Buchung in einer Woche, in der die
+/// summierten effektiven Workday-Stunden ungleich dem User-erwarteten
+/// Wochenpauschalen-Betrag sind, weil ein Mid-Week-Vertragswechsel die
+/// `hours_per_day`-Erwartung in der Woche ändert.
+///
+/// **Konstruktion:** Vertrag A (Mo-Fr 8h, 40h/Woche) bis ISO-W19/2026-Mi
+/// (= 2026-05-06). Vertrag B (Mo-Fr 6h, 30h/Woche) ab Do 2026-05-07.
+///
+/// In ISO-W19/2026 (Mo=04. .. So=10.):
+/// - Mo/Di/Mi → contract_at = Some(A), `hours_per_day(A) = 8` → +8 each = 24
+/// - Do/Fr → contract_at = Some(B), `hours_per_day(B) = 6` → +6 each = 12
+/// - Sa/So → contract_at = Some(B), but `has_day_of_week(Sat/Sun) = false`
+///   → +0
+/// - target_sum = 36h
+///
+/// **User-Erwartung:** Eine ganze Woche Urlaub. User bucht 40h (was unter
+/// Vertrag A der Wochenpauschale entsprochen hätte) ODER 30h (Vertrag B).
+/// Beide Werte matchen 36h NICHT → Heuristik returns None → Quarantäne via
+/// AmountAbove (40h > 8h hpd_at_workday) oder strict-match-fall-through.
+///
+/// **=> Bleibender gap (gap-1 (a) bestätigt):** Der per-Weekday-Lookup
+/// summiert exakt die Stunden des aktiven Vertrags pro Tag. Wenn der User
+/// jedoch beim Buchen "ich nehme die ganze Woche frei" mental rechnet,
+/// nutzt er für die ganze Woche EINE der Vertragsraten — das passt nicht.
+///
+/// Operator-Resolution via 8.1-UI: Edit-Modal → Amount auf 36h korrigieren
+/// → Convert. Oder Skip-Action und manuelle Anlage einer absence_period im
+/// Absences-UI mit korrekter Range.
+///
+/// Diese Diagnose-Test bleibt mit observation-asserts stehen; die
+/// Behavior-Doku ist die Begründung für gap-1 (a).
+#[tokio::test]
+async fn diagnose_int_drift_pattern_karin_mid_week_contract_change_breaks_lump_sum() {
+    let mut deps = build_dependencies();
+    deps.permission_service = permission_service_allow_all();
+    install_empty_gate_scope(&mut deps);
+
+    // Contract A: 40h/week Mo-Fr ending Wed 2026-05-06 (= ISO-W19 day 3).
+    let contract_a = EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_CA01),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 40.0,
+        from_day_of_week: DayOfWeek::Monday,
+        from_calendar_week: 1,
+        from_year: 2024,
+        to_day_of_week: DayOfWeek::Wednesday,
+        to_calendar_week: 19,
+        to_year: 2026,
+        workdays_per_week: 5,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+        vacation_days: 30,
+        created: Some(datetime!(2024 - 01 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    // Contract B: 30h/week Mo-Fr starting Thu 2026-05-07 (= ISO-W19 day 4).
+    let contract_b = EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_CA02),
+        sales_person_id: fixture_sp_id(),
+        expected_hours: 30.0,
+        from_day_of_week: DayOfWeek::Thursday,
+        from_calendar_week: 19,
+        from_year: 2026,
+        to_day_of_week: DayOfWeek::Sunday,
+        to_calendar_week: 52,
+        to_year: 2026,
+        workdays_per_week: 5,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+        vacation_days: 25,
+        created: Some(datetime!(2026 - 05 - 07 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+
+    // User books 40h (= Vertrag-A weekly total) at Wed 2026-05-06.
+    // target_sum für ISO-W19 = 3×8 + 2×6 = 36 ≠ 40 → heuristic returns None
+    // → strict-match path → AmountAbove quarantine (40 > 8 hpd at Wed).
+    let rows: Arc<[LegacyExtraHoursRow]> =
+        Arc::from([legacy_row(date!(2026 - 05 - 06), 40.0)]);
+    let rows_clone = rows.clone();
+    deps.cutover_dao
+        .expect_find_legacy_extra_hours_not_yet_migrated()
+        .returning(move |_| Ok(rows_clone.clone()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| {
+            Ok(Arc::from([contract_a.clone(), contract_b.clone()]))
+        });
+
+    // Observed: NO absence_period created, ONE quarantine row with
+    // amount_above_contract_hours.
+    deps.absence_dao.expect_create().times(0);
+    deps.cutover_dao.expect_upsert_migration_source().times(0);
+    deps.cutover_dao
+        .expect_upsert_quarantine()
+        .withf(|row, _| row.reason.as_ref() == "amount_above_contract_hours")
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = deps.build_service(build_default_transaction_dao());
+    let result = service.run(true, ().auth(), None).await.unwrap();
+
+    // Verdict: heuristic correctly REJECTS the row because target_sum (36h)
+    // ≠ amount (40h). Gap-1 (a) confirmed: when a mid-week contract change
+    // makes per-day-rates differ across the ISO week, the user's "I took
+    // the whole week off" lump-sum convention does not match the heuristic's
+    // per-day sum. Operator resolves manually via the 8.1-UI.
+    assert_eq!(
+        result.total_clusters, 0,
+        "Karin pattern: mid-week contract change breaks the weekly-lump-sum match"
+    );
+    assert_eq!(
+        result.quarantined_rows, 1,
+        "Karin pattern: row falls to strict-match path → quarantines"
+    );
+}
