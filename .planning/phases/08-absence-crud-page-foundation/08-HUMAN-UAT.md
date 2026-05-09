@@ -179,6 +179,11 @@ blocked: 35
 ## Gaps
 
 ### gap-1
+
+> **Status update (2026-05-XX, Plan 8.1-12):** resolved. Operator-driven
+> resolution via 8.1-Cutover-UI (Plan 09) handled all int drift patterns.
+> See "Phase 8.1-12 Sign-off" section below for full audit trail.
+
 status: failed
 phase: 08
 title: Cutover blockiert int-UAT — Auto-Heuristik deckt nicht alle realen Buchungs-Patterns ab
@@ -196,3 +201,28 @@ detail: |
       brauchen manuelle Korrektur
 resolution: phase-9-cutover-migration-ui
 debug_session: null
+
+## Phase 8.1-12 Sign-off (Subsumption)
+
+**Plan:** 8.1-12 (D-20 Subsumption-Closure)
+**Tester:** _____
+**Date:** _____
+**Pre-conditions met:**
+- [ ] Plan 8.1-09 deployed; Cutover-Migration-UI live on int.
+- [ ] Plan 8.1-11 UAT passed (independent Cutover-UI verification).
+- [ ] Real Cutover commit run via the 8.1-UI on int; `absence_range_source_active = true`.
+- [ ] Migrated data visible in `absence_period` table.
+
+**35-Step UAT Result:** _____ / 35 passed
+
+**Gap-1 Status:** _____ (resolved | partial — see gap-2 below)
+
+**Gap-2 (new patterns for Phase 8.2 / 9.x, if any):**
+_____
+
+**Final Regression Gates:**
+- [ ] `cargo test --workspace` exit 0
+- [ ] `cd shifty-dioxus && nix develop -c cargo test` exit 0
+- [ ] `cd shifty-dioxus && nix-shell -p lld --command "cargo build --target wasm32-unknown-unknown"` exit 0
+
+**Phase 8.1 Closure:** Phase 8 + Phase 8.1 jointly closed. v1.3 milestone progress unblocked.
