@@ -96,3 +96,5 @@ backend = "http://localhost:3000/absence-period"
 backend = "http://localhost:3000/vacation-balance"
 [[web.proxy]]
 backend = "http://localhost:3000/feature-flag"
+[[web.proxy]]
+backend = "http://localhost:3000/admin/cutover"
