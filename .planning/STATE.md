@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
-status: milestone_complete
-last_updated: "2026-05-08T12:47:18.000Z"
-last_activity: 2026-05-08 -- Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete (detect_weekly_lump_sum + Migration-Loop-Pre-Check für extra_hours-Rows mit `amount = Σ contract.hours_per_day in ISO-Woche` → absence_period {Mo, So}; Live-Szenario Max Schmidt 20h@Fr bei 3-Tage-Vertrag migriert sauber; 7 unit + 1 integration test added, Test #19 Plan-08-08 fixture amount auf 25.0 angepasst; cargo test --workspace + WASM build green; 5 jj-commits)
+status: completed
+last_updated: "2026-05-08T21:44:44.834Z"
+last_activity: 2026-05-08
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 100
 ---
 

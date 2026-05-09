@@ -147,6 +147,36 @@
 
 ---
 
+### Phase 8.1: Cutover-Migration-UI
+
+**Goal:** Admin-UI im Monorepo (`shifty-backend/shifty-dioxus/`) für die `extra_hours` → `absence_period`-Datenmigration. 3-Stage-Stepper-Wizard (Profile → Dry-Run → Commit) mit Drift-Resolution-Liste und Per-Eintrag-Aktionen (Delete / Edit / Convert-to-Range / Skip) sowie Bulk-Aktionen pro `(sales_person, category, year)`-Gruppe. Schließt den Phase-8-int-UAT-Block, der durch reale Buchungs-Pattern-Diversität entstanden ist (Auto-Heuristik in Plan 08-09 deckt nicht alle Patterns ab — siehe `08-HUMAN-UAT.md` gap-1). Backend-additiv: zwei neue atomic-tx Endpoints (`POST /admin/cutover/convert-quarantine-entry`, `POST /admin/cutover/bulk-convert-quarantine-rows`) auf `CutoverServiceImpl` (Business-Logic-Tier), die `extra_hours`-Soft-Delete + `absence_period`-Insert unter `cutover_admin`-Privileg zusammenführen. Schließungs-Phase für Phase 8 — nach Cutover läuft der dort deferred 35-Schritt-HUMAN-UAT als Subsumption-Plan.
+
+**Depends on:** v1.0 Phase 4 (Cutover-Surface — `CutoverServiceImpl`, `CutoverRunResultTO`, `CUTOVER_ADMIN_PRIVILEGE`), Phase 8 Plan 08-07 (Feature-Flag-Endpoint `GET /feature-flag/{key}` + `FeatureFlagsState` + "Verwaltung"-Submenu-Pattern), Phase 8 Plan 08-08 (`gate_drift_report`-Inline-Shape, `CutoverQuarantineEntryTO`, `QuarantineReason::{human_text, suggested_action}`), Phase 8 Plan 08-09 (`detect_weekly_lump_sum` + `iso_week_range` + `lookup_active_contract`-Helper), v1.2 Phase 6 (rest-types-Cross-Crate-Konstruktion).
+
+**Requirements:** Closure-Phase — kein neues FUI-Requirement; löst Phase-8-Adoption-Block (`08-HUMAN-UAT.md` gap-1). Pflicht-Locale-Coverage (FUI-A-09) gilt für neu hinzugefügte i18n-Keys.
+
+**Success Criteria** (was muss WAHR sein, nachdem die Phase abgeschlossen ist):
+
+1. Admin-Route `/admin/cutover` mit `cutover_admin`-Privileg-Gate (HR sieht Page + Profile + Dry-Run, nur `cutover_admin` darf Commit); 3 sichtbare Stages; Profile + Dry-Run liefern strukturiertes Ergebnis-Display (Quarantine-Counts, Per-Person-Stats, Carryover-Diff).
+2. Drift-Resolution-Liste rendert pro `quarantined_entry` ISO-Datum + Wochentag-Code + Hours + Reason-Text + Suggested-Action (alles aus inline `gate_drift_report` von Plan 08-08); gegliedert nach `(sales_person, category, year)`; Per-Eintrag-Aktionen Convert / Edit-extra_hours / Delete / Skip in Action-Spalte.
+3. Bulk-Aktion "Alle Wochenpauschalen für (sales_person, category, year) konvertieren" verfügbar je Gruppe; ruft `POST /admin/cutover/bulk-convert-quarantine-rows` (single-Tx, atomar pro Gruppe).
+4. Cutover-Commit erst aktiv wenn `quarantined_rows == 0`; Type-to-confirm-Dialog ("CUTOVER") + Migration-Summary vor destruktivem Commit; Idempotenz-Hinweis nach Abschluss + Permanent-Banner bei Re-Open via `absence_range_source_active`-Flag-Check (Plan 08-07 `FeatureFlagsState`).
+5. Backend: zwei neue Endpoints (`POST /admin/cutover/convert-quarantine-entry`, `POST /admin/cutover/bulk-convert-quarantine-rows`) mit `#[utoipa::path]`, `ToSchema` auf neuen DTOs, `cutover_admin`-Privilege-Check, atomic-tx (`extra_hours`-Soft-Delete + `absence_period`-Insert in einer Tx); `EXPECTED_PATHS`/`EXPECTED_SCHEMAS` in `rest/tests/openapi_surface.rs` ergänzt; Unit-Tests für beide Service-Methoden.
+6. Diagnose-Plan für `08-HUMAN-UAT.md` gap-1 (a) (Vertragsdaten-Edge-Case Lila/Anina/Karin): Reproduce mit Test-Fixtures + Hypothesen (mid-week-Vertragswechsel, Hire-Date-Edge-Cases, Inactive-Contract-Tage in `lookup_active_contract`); Fix wenn klar, sonst dokumentierter bleibender gap.
+7. **Optional:** Feiertag-Konsistenz-Fix in `detect_weekly_lump_sum` (gap-1 (c)) ist explizit OUT OF SCOPE (`derive_hours_for_range` skipt Holidays bewusst, `service_impl/src/absence.rs:483-485`); Operator löst manuell via Edit oder Convert + Edit.
+8. i18n De / En / Cs vollständig für Page-Chrome (Stage-Labels, Stat-Box-Titel, Action-Buttons, Confirm-Dialog-Texte, Banner-Texte, Toast/Error-Texte); `QuarantineReason`-Texte (`reason_text`, `suggested_action`) bleiben Englisch und werden unverändert gerendert (Plan 08-08-Konvention). Per-Locale-Reference-Matcher-Tests gegen `Locale::En`-statt-`Locale::De`-Bug analog Plan 08-04 D-26.
+9. Eigener 8.1-UAT-Plan für die Cutover-UI selbst (Wizard-Stages, Drift-Resolution-Aktionen alle vier je einmal, Bulk-Convert auf Group-Section, Type-to-confirm-Verhalten, Idempotenz-State nach Commit).
+10. Phase-8-HUMAN-UAT (35 Schritte, `08-HUMAN-UAT.md`) wird auf int durchlaufen NACH 8.1-UI-Cutover und gemeinsam mit Phase 8.1 closed; gap-1 in `08-HUMAN-UAT.md` auf `resolved` gesetzt.
+11. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün (Backend-Convert-Endpoints + Frontend dürfen keine Regression verursachen).
+
+**Plans:** Plan-Phase entscheidet Wave-Topologie. Vermutete Sequenz: Backend-Convert-Endpoints (Wave 1) → Frontend Stepper + API/State/Service-Skelett (Wave 2) → Frontend Drift-Resolution + Edit-Modal + Bulk-Action (Wave 3) → Diagnose-Plan gap-1 (a) (Wave 3 oder 4, kann parallel) → 8.1-UAT-Plan (Closure) → Phase-8-HUMAN-UAT-Subsumption-Plan (Closure).
+
+**UI hint**: yes (Frontend-Schwerpunkt + Backend-additiv)
+
+**Notes for plan-phase:** Misch-Phase wie Phase 8 (Backend + Frontend im selben Monorepo). **Vollständige Decision-Liste D-01..D-27 + Phase-Boundary + Out-of-Scope:** `.planning/phases/8.1-cutover-migration-ui/8.1-CONTEXT.md` (CANONICAL — alle Detail-Decisions inkl. Convert-Endpoint-Shapes, Stepper-Topologie D-07/D-08, Drift-Listen-Gliederung D-11..D-14, Type-to-confirm D-15, Idempotenz-Detection D-17, Privilege-Gate D-23, i18n-Pattern D-26/D-27). **Service-Tier:** Convert-Endpoints sind Business-Logic-Tier auf existing `CutoverServiceImpl` (Cross-Aggregat: extra_hours + absence_period + working_hours; reuse `detect_weekly_lump_sum` + `iso_week_range` + `lookup_active_contract`). **Idempotenz-Pattern:** `Option<bool>::None`-Default in `FeatureFlagsState` verhindert Banner-Flackern (Plan 08-07-Pattern). **Auto-Re-Run:** Nach jeder Resolve-Aktion `gate-dry-run` triggern (D-08); Plan-Phase entscheidet ob Backend `refreshed_drift_report` inline mitliefert oder Frontend separat fetched. **OpenAPI-Surface-Test:** `rest/tests/openapi_surface.rs` (`EXPECTED_PATHS` + `EXPECTED_SCHEMAS`) muss um die zwei neuen Pfade + neue DTOs ergänzt werden (Plan 08-03-Pattern). **Snapshot-Schema-Versioning:** 8.1 berührt keine `BillingPeriodValueType`-Erweiterung — `CURRENT_SNAPSHOT_SCHEMA_VERSION` braucht KEINEN Bump. **VCS:** jj-only (siehe `CLAUDE.local.md`); Plans dürfen keine `git commit`-Befehle planen. **Out-of-Scope explizit:** Backend-Heuristik-Fix für Feiertage (D-06), Audit-Log-UI, Cutover-History-Page, Multi-Tenant, Force-Commit-Override (siehe CONTEXT.md `<domain>` "Out of Scope").
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
