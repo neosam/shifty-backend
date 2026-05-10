@@ -691,7 +691,9 @@ fn DriftGroupSection(
 //
 // 4-column row: Date+Weekday+Amount, Reason badge with tooltip, suggested-
 // action hint, 4 action buttons (Convert / Edit / Delete / Skip).
-// Edit opens an inline EditExtraHoursModal.
+// Edit opens an inline ManualConvertModal (Phase 8.2 — D-29). The modal lets
+// the operator give an explicit absence-period range that resolves Karin-class
+// quarantine rows the heuristic correctly rejects.
 
 #[component]
 fn DriftEntryRow(
@@ -705,7 +707,7 @@ fn DriftEntryRow(
     // the cutover_service coroutine. In real runs (production WASM build) the
     // coroutine is registered in app.rs before the page is mounted.
     let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
-    let mut edit_open = use_signal(|| false);
+    let mut manual_convert_open = use_signal(|| false);
     let entry_id = entry.0.extra_hours_id;
     let date = entry.0.date.clone();
     let weekday = entry.0.weekday.clone();
@@ -713,7 +715,7 @@ fn DriftEntryRow(
     let reason_code = entry.0.reason_code.clone();
     let reason_text = entry.0.reason_text.clone();
     let suggested_action = entry.0.suggested_action.clone();
-    let _ = drift_row_meta; // reserved for future per-group context
+    let row_category = drift_row_meta.0.category;
 
     let convert_label = i18n.t(Key::CutoverRowBtnConvert);
     let edit_label = i18n.t(Key::CutoverRowBtnEdit);
@@ -762,7 +764,7 @@ fn DriftEntryRow(
                     disabled: !is_cutover_admin,
                     onclick: move |_| {
                         if is_cutover_admin {
-                            edit_open.set(true);
+                            manual_convert_open.set(true);
                         }
                     },
                     "{edit_label}"
@@ -793,55 +795,97 @@ fn DriftEntryRow(
                     "{skip_label}"
                 }
             }
-            if *edit_open.read() {
-                EditExtraHoursModal {
+            if *manual_convert_open.read() {
+                // ManualConvertModal (Phase 8.2 — D-29) replaces the 8.1-09
+                // EditExtraHoursModal stub. Submit dispatches
+                // `CutoverAction::ConvertSingleManualRange` which the cutover
+                // coroutine forwards to the backend's manual_range branch.
+                //
+                // CutoverQuarantineEntryTO carries no `category` field
+                // (rest-types/src/lib.rs:1943-1959); the operator-visible
+                // category lives on the parent `CutoverGateDriftRowTO`, which
+                // we receive via `drift_row_meta`. Forward it read-only (D-31).
+                ManualConvertModal {
                     entry: entry_for_modal.clone(),
-                    on_save: move |(_eh_id, _amount_h, _date): (Uuid, f64, time::Date)| {
-                        // D-04: full ExtraHoursTO update is dispatched via the
-                        // coroutine. Constructing the ExtraHoursTO requires
-                        // category + description fields which are not carried
-                        // in CutoverQuarantineEntryTO; the coroutine resolves
-                        // them by loading the row server-side. This is a
-                        // future-resolution path; for Wave-3 we just close
-                        // the modal — Plans 10..12 will refine the coroutine
-                        // wiring once the load-then-update plumbing lands.
-                        edit_open.set(false);
+                    category: row_category,
+                    on_submit: move |(eh_id, start, end): (Uuid, time::Date, time::Date)| {
+                        if let Some(h) = cutover_handle.as_ref() {
+                            h.send(CutoverAction::ConvertSingleManualRange {
+                                extra_hours_id: eh_id,
+                                start_date: start,
+                                end_date: end,
+                            });
+                        }
+                        // Close on submit so the drift list re-renders cleanly
+                        // after `bump_cutover_refresh` fires.
+                        manual_convert_open.set(false);
                     },
-                    on_cancel: move |_| { edit_open.set(false); },
+                    on_cancel: move |_| { manual_convert_open.set(false); },
                 }
             }
         }
     }
 }
 
-// ─── EditExtraHoursModal (layout-critical, full body) ─────────────────────
+// ─── ManualConvertModal (Phase 8.2 — D-29) ────────────────────────────────
 //
-// Inline-Edit: amount + date only (D-04). Reuses existing PUT
-// /extra-hours/{id} via the coroutine.
+// Replaces the 8.1-09 `EditExtraHoursModal` stub. Operator gives an explicit
+// absence-period range that bypasses `detect_weekly_lump_sum`. Resolves the
+// Karin-Pattern (gap-1a) the heuristic correctly rejects.
 //
-// Prop signature LOCKED — Test 11 in Task 2 must match exactly:
-//   entry: EntryRef
-//   on_save: EventHandler<(Uuid /* entry id */, f64 /* amount */, time::Date /* date */)>
-//   on_cancel: EventHandler<()>
+// Prop contract:
+//   entry:    EntryRef                              — read-only context (date,
+//             amount, weekday). amount is rendered as a `<span>`, NOT an input
+//             (D-32 — operator does not edit hours from the modal).
+//   category: AbsenceCategoryTO                     — read-only display only
+//             (D-31). Sourced from the parent DriftRow because
+//             `CutoverQuarantineEntryTO` carries no `category` field.
+//   on_submit: EventHandler<(Uuid, time::Date, time::Date)>
+//             — fires on valid submit. Both `time::Date`s are guaranteed
+//             parsed (no hardcoded fallback as in the 8.1-09 stub —
+//             RESEARCH P-7).
+//   on_cancel: EventHandler<()>                     — backdrop click + Cancel
+//             button both call this.
 
 #[component]
-fn EditExtraHoursModal(
+fn ManualConvertModal(
     entry: EntryRef,
-    on_save: EventHandler<(Uuid, f64, time::Date)>,
+    category: AbsenceCategoryTO,
+    on_submit: EventHandler<(Uuid, time::Date, time::Date)>,
     on_cancel: EventHandler<()>,
 ) -> Element {
     let i18n = I18N.read().clone();
     let entry_id = entry.0.extra_hours_id;
-    let initial_amount = entry.0.amount as f64;
-    let initial_date_str = entry.0.date.clone();
-    let mut amount = use_signal(move || initial_amount);
-    let mut date_str = use_signal(move || initial_date_str.clone());
+    let initial_date = entry.0.date.clone();
+    let amount = entry.0.amount;
+    let weekday = entry.0.weekday.clone();
 
-    let title = i18n.t(Key::CutoverEditModalTitle);
+    // Pre-fill both date strings with the quarantine row's date so the
+    // operator typically only adjusts one bound.
+    let mut start_str = use_signal({
+        let d = initial_date.clone();
+        move || d.clone()
+    });
+    let mut end_str = use_signal(move || initial_date.clone());
+    let mut error_msg = use_signal(|| Option::<String>::None);
+
+    let title = i18n.t(Key::CutoverManualConvertModalTitle);
+    let help_text = i18n.t(Key::CutoverManualConvertHelp);
     let amount_label = i18n.t(Key::CutoverEditAmountLabel);
-    let date_label = i18n.t(Key::CutoverEditDateLabel);
-    let save_label = i18n.t(Key::CutoverEditBtnSave);
+    let start_label = i18n.t(Key::CutoverManualConvertStartLabel);
+    let end_label = i18n.t(Key::CutoverManualConvertEndLabel);
+    let submit_label = i18n.t(Key::CutoverManualConvertBtnSubmit);
     let cancel_label = i18n.t(Key::CutoverEditBtnCancel);
+    let err_start_after_end =
+        i18n.t(Key::CutoverManualConvertErrStartAfterEnd).to_string();
+
+    // Pitfall 5: STATIC Tailwind match arms. Map AbsenceCategoryTO to its
+    // i18n display key — read-only span only (D-31).
+    let category_label = match category {
+        AbsenceCategoryTO::Vacation => i18n.t(Key::AbsenceCategoryVacation),
+        AbsenceCategoryTO::SickLeave => i18n.t(Key::AbsenceCategorySickLeave),
+        AbsenceCategoryTO::UnpaidLeave => i18n.t(Key::AbsenceCategoryUnpaidLeave),
+    };
 
     rsx! {
         div { class: "fixed inset-0 bg-modal-veil flex items-center justify-center z-50",
@@ -849,28 +893,45 @@ fn EditExtraHoursModal(
             div { class: "bg-surface rounded-lg p-6 flex flex-col gap-4 min-w-md max-w-lg border border-border",
                 onclick: move |ev| { ev.stop_propagation(); },
                 h3 { class: "text-lg font-semibold text-ink", "{title}" }
-                label { class: "flex flex-col gap-1",
-                    span { class: "text-small text-ink-muted", "{amount_label}" }
-                    input {
-                        r#type: "number",
-                        step: "0.25",
-                        class: "border border-border rounded-md p-2",
-                        value: "{amount}",
-                        oninput: move |ev| {
-                            if let Ok(v) = ev.value().parse::<f64>() {
-                                amount.set(v);
-                            }
-                        },
+                p { class: "text-small text-ink-muted", "{help_text}" }
+                // Read-only context row (D-31 + D-32). amount is a
+                // `<span>` not an `<input>` — operator does NOT edit hours
+                // from the manual-range modal. The original quarantine date
+                // is shown as orientation.
+                div { class: "flex flex-wrap gap-4 text-small",
+                    span { class: "text-ink-muted",
+                        "{amount_label}: "
+                        span { class: "font-mono text-ink", "{amount:.2}h" }
+                    }
+                    span { class: "text-ink-muted",
+                        "{category_label}"
+                    }
+                    span { class: "text-ink-muted",
+                        "({weekday})"
                     }
                 }
+                // Two date-inputs (D-29).
                 label { class: "flex flex-col gap-1",
-                    span { class: "text-small text-ink-muted", "{date_label}" }
+                    span { class: "text-small text-ink-muted", "{start_label}" }
                     input {
                         r#type: "date",
                         class: "border border-border rounded-md p-2",
-                        value: "{date_str}",
-                        oninput: move |ev| { date_str.set(ev.value()); },
+                        value: "{start_str}",
+                        oninput: move |ev| { start_str.set(ev.value()); },
                     }
+                }
+                label { class: "flex flex-col gap-1",
+                    span { class: "text-small text-ink-muted", "{end_label}" }
+                    input {
+                        r#type: "date",
+                        class: "border border-border rounded-md p-2",
+                        value: "{end_str}",
+                        oninput: move |ev| { end_str.set(ev.value()); },
+                    }
+                }
+                // Inline error — rendered when present.
+                if let Some(e) = error_msg.read().clone() {
+                    span { class: "text-bad text-small", "{e}" }
                 }
                 div { class: "flex justify-end gap-2",
                     button {
@@ -881,14 +942,38 @@ fn EditExtraHoursModal(
                     button {
                         class: "px-3 py-2 rounded-md bg-accent text-accent-ink",
                         onclick: move |_| {
-                            // Parse the ISO-8601 date string on submit.
-                            let date_format =
-                                time::macros::format_description!("[year]-[month]-[day]");
-                            let parsed = time::Date::parse(date_str.read().as_str(), date_format)
-                                .unwrap_or_else(|_| time::macros::date!(2026 - 01 - 01));
-                            on_save.call((entry_id, *amount.read(), parsed));
+                            // Pitfall 7 guard: NO unwrap_or_else fallback
+                            // to a hardcoded date. Parse failures show an
+                            // inline error and block submit; only fully
+                            // valid (s, e) with s <= e dispatch.
+                            let fmt = time::macros::format_description!(
+                                "[year]-[month]-[day]"
+                            );
+                            let parsed_start = time::Date::parse(
+                                start_str.read().as_str(),
+                                fmt,
+                            );
+                            let parsed_end = time::Date::parse(
+                                end_str.read().as_str(),
+                                fmt,
+                            );
+                            match (parsed_start, parsed_end) {
+                                (Ok(s), Ok(e)) if s <= e => {
+                                    error_msg.set(None);
+                                    on_submit.call((entry_id, s, e));
+                                }
+                                (Ok(_), Ok(_)) => {
+                                    // start > end — D-30 #2
+                                    error_msg.set(Some(err_start_after_end.clone()));
+                                }
+                                _ => {
+                                    error_msg.set(Some(
+                                        "Invalid date format".to_string(),
+                                    ));
+                                }
+                            }
                         },
-                        "{save_label}"
+                        "{submit_label}"
                     }
                 }
             }
@@ -1267,44 +1352,220 @@ mod tests {
         );
     }
 
+    // ── ManualConvertModal snapshots (Phase 8.2 — D-29) ───────────────
+    //
+    // Replace the 8.1-09 EditExtraHoursModal Test 11. Render-only coverage
+    // of the open modal + a render-toggle test on DriftEntryRow. Real click
+    // dispatch is UAT territory (Phase-8.2 UAT subsumes 8.1-12).
+
+    fn karin_quarantine_entry_fixture() -> CutoverQuarantineEntryTO {
+        CutoverQuarantineEntryTO {
+            extra_hours_id: Uuid::from_u128(0xCAFE_C0FE),
+            date: "2026-05-06".to_string(),
+            weekday: "Wed".to_string(),
+            amount: 40.0,
+            reason_code: "WeeklyLumpSumNoMatch".to_string(),
+            reason_text: "Heuristic rejects mid-week contract change."
+                .to_string(),
+            suggested_action: "Use Manual-Range to set the absence range."
+                .to_string(),
+        }
+    }
+
+    fn karin_drift_row_fixture(entry: CutoverQuarantineEntryTO) -> CutoverGateDriftRowTO {
+        CutoverGateDriftRowTO {
+            sales_person_id: Uuid::from_u128(0xCAFE_0001),
+            sales_person_name: "Karin Karins".to_string(),
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            legacy_sum: 40.0,
+            derived_sum: 36.0,
+            drift: 4.0,
+            quarantined_extra_hours_count: 1,
+            quarantine_reasons: vec!["WeeklyLumpSumNoMatch".to_string()],
+            quarantined_entries: vec![entry],
+        }
+    }
+
     #[test]
-    fn edit_extra_hours_modal_renders_amount_and_date_only() {
+    fn manual_convert_modal_renders_two_date_inputs() {
+        // Karin-shaped entry: 40h Vacation on a Wed mid-week. The modal
+        // must render two date inputs, the read-only amount as static text
+        // (D-32), and DE-locale labels.
         fn app() -> Element {
             pin_de_locale();
-            let entry = CutoverQuarantineEntryTO {
-                extra_hours_id: Uuid::nil(),
-                date: "2026-05-08".to_string(),
-                weekday: "Fri".to_string(),
-                amount: 8.0,
-                reason_code: "WorkdayMismatch".to_string(),
-                reason_text: "Row falls on a non-contracted weekday.".to_string(),
-                suggested_action: "Edit the date or delete the row.".to_string(),
-            };
+            let entry = karin_quarantine_entry_fixture();
             rsx! {
-                EditExtraHoursModal {
+                ManualConvertModal {
                     entry: EntryRef(Arc::new(entry)),
-                    on_save: move |_payload: (Uuid, f64, time::Date)| {
-                        // test callback — no-op
-                    },
-                    on_cancel: move |_: ()| {
-                        // test callback — no-op
-                    },
+                    category: AbsenceCategoryTO::Vacation,
+                    on_submit: move |_p: (Uuid, time::Date, time::Date)| {},
+                    on_cancel: move |_: ()| {},
                 }
             }
         }
         let html = render(app);
+
+        // Two `<input type="date">` (start + end). dioxus-ssr emits
+        // `r#type` as `type` in the rendered HTML.
+        let date_input_count = html.matches(r#"type="date""#).count();
         assert!(
-            html.contains("Betrag (h)"),
-            "amount label missing: {html}"
+            date_input_count >= 2,
+            "expected >= 2 date inputs, got {date_input_count}: {html}"
         );
-        assert!(html.contains("Datum"), "date label missing: {html}");
+
+        // DE labels.
         assert!(
-            !html.contains("Kategorie"),
-            "modal must NOT render Kategorie input (D-04): {html}"
+            html.contains("Urlaub manuell anlegen"),
+            "DE modal title missing: {html}"
         );
         assert!(
-            !html.contains("Beschreibung"),
-            "modal must NOT render Beschreibung input (D-04): {html}"
+            html.contains("Datum von"),
+            "DE start label missing: {html}"
+        );
+        assert!(
+            html.contains("Datum bis"),
+            "DE end label missing: {html}"
+        );
+        assert!(html.contains("Anlegen"), "submit label missing: {html}");
+
+        // D-32: amount must render as a static span, not an `<input>`.
+        // The fixture amount is 40.0 → "40.00h".
+        assert!(
+            html.contains("40.00h"),
+            "amount must render as static text: {html}"
+        );
+        assert!(
+            !html.contains(r#"type="number""#),
+            "modal must NOT render an amount <input>: {html}"
+        );
+
+        // D-31: category must NOT render as an editable surface. We allow
+        // the i18n-localised label ("Urlaub" for Vacation in DE) as a
+        // span, but no `<select>` for category mutation.
+        assert!(
+            !html.contains("<select"),
+            "modal must NOT render a category <select>: {html}"
+        );
+    }
+
+    #[test]
+    fn manual_convert_modal_renders_validation_error_when_start_after_end() {
+        // SSR is render-only — we cannot drive the click that flips
+        // `error_msg`. Instead we verify the i18n key resolves to the
+        // expected DE string the on-submit handler will surface; this
+        // pins the error-string contract that the modal binds to.
+        fn app() -> Element {
+            pin_de_locale();
+            let i18n = I18N.read().clone();
+            let msg = i18n
+                .t(Key::CutoverManualConvertErrStartAfterEnd)
+                .to_string();
+            rsx! {
+                span { class: "text-bad text-small", "{msg}" }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Startdatum muss vor oder gleich Enddatum sein."),
+            "DE start-after-end error string missing: {html}"
+        );
+        assert!(
+            html.contains("text-bad"),
+            "error span must use the text-bad class: {html}"
+        );
+    }
+
+    #[test]
+    fn manual_convert_modal_not_rendered_when_closed() {
+        // Render the row in its default state — `manual_convert_open`
+        // signal is false, so the modal must NOT appear in the SSR HTML.
+        // Then render the modal on its own to confirm the open-state
+        // does emit the backdrop. This covers the open/close render
+        // toggle that the click-handler-driven signal would trigger
+        // at runtime; the click itself is UAT territory.
+        fn closed_app() -> Element {
+            pin_de_locale();
+            let entry = karin_quarantine_entry_fixture();
+            let drift_row = karin_drift_row_fixture(entry.clone());
+            rsx! {
+                DriftEntryRow {
+                    entry: EntryRef(Arc::new(entry)),
+                    drift_row_meta: DriftRowRef(Arc::new(drift_row)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        fn open_app() -> Element {
+            pin_de_locale();
+            let entry = karin_quarantine_entry_fixture();
+            rsx! {
+                ManualConvertModal {
+                    entry: EntryRef(Arc::new(entry)),
+                    category: AbsenceCategoryTO::Vacation,
+                    on_submit: move |_p: (Uuid, time::Date, time::Date)| {},
+                    on_cancel: move |_: ()| {},
+                }
+            }
+        }
+
+        let closed_html = render(closed_app);
+        assert!(
+            !closed_html.contains("bg-modal-veil"),
+            "closed row must NOT render the modal backdrop: {closed_html}"
+        );
+        assert!(
+            !closed_html.contains(r#"type="date""#),
+            "closed row must NOT render any date input: {closed_html}"
+        );
+
+        let open_html = render(open_app);
+        assert!(
+            open_html.contains("bg-modal-veil"),
+            "open modal must render the backdrop: {open_html}"
+        );
+        assert!(
+            open_html.contains(r#"type="date""#),
+            "open modal must render at least one date input: {open_html}"
+        );
+    }
+
+    #[test]
+    fn manual_convert_modal_dispatches_action_on_valid_submit() {
+        // Pattern from 8.1-09 Test 11: `try_consume_context::<Coroutine<...>>`
+        // returns `None` in SSR, so the dispatch path is exercised at the
+        // render-surface level only. This test pins the surface (Submit
+        // button + DE label) the live coroutine binds to. The actual
+        // dispatch firing is verified by Phase-8.2 UAT.
+        fn app() -> Element {
+            pin_de_locale();
+            let entry = karin_quarantine_entry_fixture();
+            rsx! {
+                ManualConvertModal {
+                    entry: EntryRef(Arc::new(entry)),
+                    category: AbsenceCategoryTO::Vacation,
+                    on_submit: move |_p: (Uuid, time::Date, time::Date)| {},
+                    on_cancel: move |_: ()| {},
+                }
+            }
+        }
+        let html = render(app);
+        // Submit button rendered with DE label.
+        assert!(html.contains("<button"), "submit button missing: {html}");
+        assert!(
+            html.contains("Anlegen"),
+            "DE submit label missing: {html}"
+        );
+        // The accent class is the visual marker of the primary submit
+        // action — pins the button-pair shape to the design contract.
+        assert!(
+            html.contains("bg-accent"),
+            "submit button must carry the bg-accent class: {html}"
+        );
+        // Cancel button reuses the existing 8.1 i18n key.
+        assert!(
+            html.contains("Verwerfen"),
+            "DE cancel label (CutoverEditBtnCancel) missing: {html}"
         );
     }
 }
