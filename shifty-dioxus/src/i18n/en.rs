@@ -840,4 +840,34 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CutoverErrorApiFailure, "Request failed. Please try again.");
     i18n.add_text(Locale::En, Key::CutoverCommitDisabledTooltip, "Commit is disabled: quarantine rows remain or cutover already done");
     i18n.add_text(Locale::En, Key::CutoverPrivilegeStage3, "Commit requires the cutover_admin privilege");
+
+    // Cutover Manual Range (Phase 8.2 — D-29).
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverManualConvertModalTitle,
+        "Set absence range manually",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverManualConvertHelp,
+        "You set the date range directly instead of letting the heuristic guess.",
+    );
+    i18n.add_text(Locale::En, Key::CutoverManualConvertStartLabel, "Start date");
+    i18n.add_text(Locale::En, Key::CutoverManualConvertEndLabel, "End date");
+    i18n.add_text(Locale::En, Key::CutoverManualConvertBtnSubmit, "Create");
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverManualConvertErrStartAfterEnd,
+        "Start date must be on or before end date.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverManualConvertErrYearMismatch,
+        "Date must be in the same year as the quarantine entry.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverManualConvertErrOverlap,
+        "An existing absence overlaps with this range.",
+    );
 }

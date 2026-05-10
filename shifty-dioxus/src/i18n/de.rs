@@ -919,4 +919,30 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::CutoverErrorApiFailure, "Anfrage fehlgeschlagen. Bitte erneut versuchen.");
     i18n.add_text(Locale::De, Key::CutoverCommitDisabledTooltip, "Commit deaktiviert: Quarantäne-Zeilen vorhanden oder Cutover bereits durchgeführt");
     i18n.add_text(Locale::De, Key::CutoverPrivilegeStage3, "Commit erfordert das cutover_admin-Privileg");
+
+    // Cutover Manual Range (Phase 8.2 — D-29).
+    i18n.add_text(Locale::De, Key::CutoverManualConvertModalTitle, "Urlaub manuell anlegen");
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverManualConvertHelp,
+        "Du legst den Zeitraum direkt fest, statt die Heuristik raten zu lassen.",
+    );
+    i18n.add_text(Locale::De, Key::CutoverManualConvertStartLabel, "Datum von");
+    i18n.add_text(Locale::De, Key::CutoverManualConvertEndLabel, "Datum bis");
+    i18n.add_text(Locale::De, Key::CutoverManualConvertBtnSubmit, "Anlegen");
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverManualConvertErrStartAfterEnd,
+        "Startdatum muss vor oder gleich Enddatum sein.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverManualConvertErrYearMismatch,
+        "Datum muss im selben Jahr wie der Quarantäne-Eintrag liegen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverManualConvertErrOverlap,
+        "Bestehende Abwesenheit überschneidet sich mit diesem Zeitraum.",
+    );
 }

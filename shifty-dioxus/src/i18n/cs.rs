@@ -903,4 +903,34 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::CutoverErrorApiFailure, "Požadavek selhal. Zkuste to prosím znovu.");
     i18n.add_text(Locale::Cs, Key::CutoverCommitDisabledTooltip, "Provedení deaktivováno: zůstaly řádky v karanténě nebo již cutover proběhl");
     i18n.add_text(Locale::Cs, Key::CutoverPrivilegeStage3, "Pro provedení je nutné oprávnění cutover_admin");
+
+    // Cutover Manual Range (Phase 8.2 — D-29).
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverManualConvertModalTitle,
+        "Ručně nastavit dovolenou",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverManualConvertHelp,
+        "Rozsah dat zadáváš přímo, místo aby ho hádala heuristika.",
+    );
+    i18n.add_text(Locale::Cs, Key::CutoverManualConvertStartLabel, "Od");
+    i18n.add_text(Locale::Cs, Key::CutoverManualConvertEndLabel, "Do");
+    i18n.add_text(Locale::Cs, Key::CutoverManualConvertBtnSubmit, "Vytvořit");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverManualConvertErrStartAfterEnd,
+        "Datum začátku musí být před koncem nebo stejné.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverManualConvertErrYearMismatch,
+        "Datum musí být ve stejném roce jako karanténní záznam.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverManualConvertErrOverlap,
+        "Existující nepřítomnost se překrývá s tímto rozsahem.",
+    );
 }

@@ -529,6 +529,18 @@ pub enum Key {
     CutoverErrorApiFailure,
     CutoverCommitDisabledTooltip,
     CutoverPrivilegeStage3,
+
+    // Cutover Manual Range (Phase 8.2 — D-29) — operator-driven date-range
+    // override for the convert-quarantine-entry endpoint. See
+    // .planning/phases/08.2-manual-range-convert-quarantine/08.2-RESEARCH.md § 6.
+    CutoverManualConvertModalTitle,
+    CutoverManualConvertHelp,
+    CutoverManualConvertStartLabel,
+    CutoverManualConvertEndLabel,
+    CutoverManualConvertBtnSubmit,
+    CutoverManualConvertErrStartAfterEnd,
+    CutoverManualConvertErrYearMismatch,
+    CutoverManualConvertErrOverlap,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -793,6 +805,15 @@ mod tests {
                 Key::CutoverErrorApiFailure,
                 Key::CutoverCommitDisabledTooltip,
                 Key::CutoverPrivilegeStage3,
+                // Phase 8.2 manual range
+                Key::CutoverManualConvertModalTitle,
+                Key::CutoverManualConvertHelp,
+                Key::CutoverManualConvertStartLabel,
+                Key::CutoverManualConvertEndLabel,
+                Key::CutoverManualConvertBtnSubmit,
+                Key::CutoverManualConvertErrStartAfterEnd,
+                Key::CutoverManualConvertErrYearMismatch,
+                Key::CutoverManualConvertErrOverlap,
             ] {
                 let value = i18n.t(key);
                 assert!(
@@ -817,6 +838,19 @@ mod tests {
         assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Weiter");
         assert_eq!(i18n.t(Key::CutoverBtnBack).as_ref(), "Zurück");
         assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Cutover durchführen");
+        // Phase 8.2 (D-29) manual-range keys — sample 3 strings.
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertModalTitle).as_ref(),
+            "Urlaub manuell anlegen"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertStartLabel).as_ref(),
+            "Datum von"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertBtnSubmit).as_ref(),
+            "Anlegen"
+        );
     }
 
     #[test]
@@ -828,6 +862,15 @@ mod tests {
         assert_eq!(i18n.t(Key::CutoverStage3Label).as_ref(), "Commit");
         assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Continue");
         assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Commit Cutover");
+        // Phase 8.2 (D-29) manual-range keys — sample 2 strings.
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertModalTitle).as_ref(),
+            "Set absence range manually"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertStartLabel).as_ref(),
+            "Start date"
+        );
     }
 
     #[test]
@@ -840,5 +883,11 @@ mod tests {
         assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Pokračovat");
         assert_eq!(i18n.t(Key::CutoverBtnBack).as_ref(), "Zpět");
         assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Provést cutover");
+        // Phase 8.2 (D-29) manual-range keys — sample 2 strings.
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertModalTitle).as_ref(),
+            "Ručně nastavit dovolenou"
+        );
+        assert_eq!(i18n.t(Key::CutoverManualConvertEndLabel).as_ref(), "Do");
     }
 }
