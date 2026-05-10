@@ -45,14 +45,15 @@ use service::carryover_rebuild::CarryoverRebuildService;
 use service::cutover::{
     BulkConvertQuarantineRowsOutcome, ConvertQuarantineEntryOutcome, CutoverGateDriftReport,
     CutoverProfile, CutoverProfileBucket, CutoverQuarantineEntry, CutoverRunResult, CutoverService,
-    DriftRow, GateResult, QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
+    DriftRow, GateResult, ManualRange, QuarantineReason, CUTOVER_ADMIN_PRIVILEGE,
 };
 use service::employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService};
 use service::extra_hours::ExtraHoursService;
 use service::feature_flag::FeatureFlagService;
 use service::permission::{Authentication, HR_PRIVILEGE};
 use service::sales_person::SalesPersonService;
-use service::{PermissionService, ServiceError};
+use service::{PermissionService, ServiceError, ValidationFailureItem};
+use shifty_utils::DateRange;
 
 /// Process tag persisted in `extra_hours.update_process` (Wave 2 soft-delete) +
 /// `absence_period.update_process` (Wave 1 migration insert). Wave-1 only uses
@@ -412,6 +413,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
     async fn convert_quarantine_entry(
         &self,
         extra_hours_id: Uuid,
+        manual_range: Option<ManualRange>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ConvertQuarantineEntryOutcome, ServiceError> {
@@ -456,19 +458,70 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             .find_by_sales_person_id(row.sales_person_id, Authentication::Full, Some(tx.clone()))
             .await?;
 
-        // 5. Range-auto-compute via Plan 08-09 heuristic. File-private fns
-        //    are reachable in the same module (RESEARCH P-01).
-        let (from_date, to_date) =
-            detect_weekly_lump_sum(&row, all_legacy.as_ref(), |d| {
-                lookup_active_contract(work_details.as_ref(), d)
-            })
-            .ok_or_else(|| {
-                ServiceError::ValidationError(Arc::from([
-                    service::ValidationFailureItem::InvalidValue(Arc::from(
-                        "Row does not match weekly-lump-sum heuristic; manual edit required",
-                    )),
-                ]))
-            })?;
+        // 5. Range-derive: manual override (Phase 8.2, D-29) ODER 8.1
+        //    Heuristik. Manual-Pfad skipt `detect_weekly_lump_sum` komplett
+        //    und validiert: start <= end (DateRange::new), beide Daten im
+        //    Quarantäne-Eintrag-Jahr (D-30), keine Overlap mit existing
+        //    absence_period derselben (sales_person, category) (D-30 +
+        //    Pattern-Reuse aus AbsenceServiceImpl::create Z. 189-207).
+        //    Heuristik-Pfad bleibt byte-identisch zum 8.1-02-Code.
+        let (from_date, to_date) = match manual_range {
+            Some(r) => {
+                // D-30 #1: beide Daten müssen im Eintrag-Jahr liegen. Check
+                // VOR DateRange::new, damit die Fehlermeldung präzise ist
+                // (year-mismatch ist eine andere Fehlerklasse als
+                // start>end).
+                let row_year = row.date_time.date().year();
+                if r.start_date.year() != row_year || r.end_date.year() != row_year {
+                    return Err(ServiceError::ValidationError(Arc::from([
+                        ValidationFailureItem::InvalidValue(Arc::from(
+                            "manual_range must lie inside the quarantine row's calendar year",
+                        )),
+                    ])));
+                }
+                // D-30 #2: start <= end. `DateRange::new` rejects inverted
+                // → wir mappen auf `DateOrderWrong` (existing 8.1-02 +
+                // AbsenceServiceImpl::create Konvention).
+                let range = DateRange::new(r.start_date, r.end_date)
+                    .map_err(|_| ServiceError::DateOrderWrong(r.start_date, r.end_date))?;
+                // D-30 #3: kein Overlap mit existing absence_period derselben
+                // (sales_person, category). `exclude_logical_id = None` weil
+                // Convert-Path = Create-Path (kein eigenes logical_id zu
+                // exkludieren). Reuse `extra_hours_category_to_absence` aus
+                // 8.1-02 — gleiche category-Quelle für beide Pfade.
+                let dao_category = extra_hours_category_to_absence(&row.category);
+                let conflicts = self
+                    .absence_dao
+                    .find_overlapping(
+                        row.sales_person_id,
+                        dao_category,
+                        range,
+                        None,
+                        tx.clone(),
+                    )
+                    .await?;
+                if !conflicts.is_empty() {
+                    return Err(ServiceError::ValidationError(Arc::from([
+                        ValidationFailureItem::OverlappingPeriod(conflicts[0].logical_id),
+                    ])));
+                }
+                (r.start_date, r.end_date)
+            }
+            None => {
+                // Existing heuristic path — byte-identical to 8.1-02. File-
+                // private fns reachable in the same module (RESEARCH P-01).
+                detect_weekly_lump_sum(&row, all_legacy.as_ref(), |d| {
+                    lookup_active_contract(work_details.as_ref(), d)
+                })
+                .ok_or_else(|| {
+                    ServiceError::ValidationError(Arc::from([
+                        ValidationFailureItem::InvalidValue(Arc::from(
+                            "Row does not match weekly-lump-sum heuristic; manual edit required",
+                        )),
+                    ]))
+                })?
+            }
+        };
 
         // 6. Direct `absence_dao.create` — bypass `AbsenceService::create`'s
         //    forward-warning loop (cutover is privileged; mirrors

@@ -22,10 +22,11 @@ use rest_types::{
     CutoverConvertErrorTO, CutoverConvertQuarantineEntryRequest,
     CutoverConvertQuarantineEntryResponse, CutoverGateDriftReportTO, CutoverGateDriftRowTO,
     CutoverProfileBucketTO, CutoverProfileTO, CutoverQuarantineEntryTO, CutoverRunResultTO,
-    ExtraHoursCategoryDeprecatedErrorTO,
+    ExtraHoursCategoryDeprecatedErrorTO, ManualRangeTO,
 };
 use serde::Deserialize;
 use service::cutover::CutoverService;
+use service::ServiceError;
 use std::sync::Arc;
 use tracing::instrument;
 use utoipa::OpenApi;
@@ -193,9 +194,41 @@ pub async fn cutover_convert_quarantine_entry_handler<RestState: RestStateDef>(
 ) -> Response {
     error_handler(
         (async {
+            // Phase 8.2 (D-29) — TO -> Domain mapping für manual_range. ISO-
+            // 8601-Parse passiert hier am REST-Edge, sodass der Service
+            // pre-parsed `time::Date`s sieht (kein doppeltes Parsen). Parse-
+            // Errors werden als `ValidationError` (HTTP 422) gesurft, KEIN
+            // panic — siehe RESEARCH P-5.
+            let manual_range: Option<service::cutover::ManualRange> = req
+                .manual_range
+                .as_ref()
+                .map(|to_range| {
+                    let fmt = time::macros::format_description!("[year]-[month]-[day]");
+                    let start = time::Date::parse(&to_range.start_date, fmt).map_err(|_| {
+                        ServiceError::ValidationError(Arc::from([
+                            service::ValidationFailureItem::InvalidValue(Arc::from(
+                                "manual_range.start_date is not a valid ISO-8601 date",
+                            )),
+                        ]))
+                    })?;
+                    let end = time::Date::parse(&to_range.end_date, fmt).map_err(|_| {
+                        ServiceError::ValidationError(Arc::from([
+                            service::ValidationFailureItem::InvalidValue(Arc::from(
+                                "manual_range.end_date is not a valid ISO-8601 date",
+                            )),
+                        ]))
+                    })?;
+                    Ok::<service::cutover::ManualRange, ServiceError>(
+                        service::cutover::ManualRange {
+                            start_date: start,
+                            end_date: end,
+                        },
+                    )
+                })
+                .transpose()?;
             let outcome = rest_state
                 .cutover_service()
-                .convert_quarantine_entry(req.extra_hours_id, context.into(), None)
+                .convert_quarantine_entry(req.extra_hours_id, manual_range, context.into(), None)
                 .await?;
             let body = CutoverConvertQuarantineEntryResponse::from(&outcome);
             Ok(Response::builder()
@@ -293,6 +326,8 @@ pub async fn cutover_bulk_convert_quarantine_rows_handler<RestState: RestStateDe
         CutoverBulkConvertQuarantineRowsRequest,
         CutoverBulkConvertQuarantineRowsResponse,
         CutoverConvertErrorTO,
+        // Phase 8.2 — Manual-Range sub-struct (D-29 / D-34).
+        ManualRangeTO,
     )),
     tags(
         (name = "Cutover", description = "Phase-4 migration & cutover orchestration (admin only)."),

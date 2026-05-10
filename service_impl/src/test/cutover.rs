@@ -1388,7 +1388,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(build_default_transaction_dao());
         let outcome = service
-            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
             .await
             .expect("single-convert succeeds");
 
@@ -1441,7 +1441,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::ValidationError(_))),
@@ -1482,7 +1482,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::Forbidden)),
@@ -1519,7 +1519,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(build_default_transaction_dao());
         let result = service
-            .convert_quarantine_entry(target_extra_hours_id(), ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::EntityNotFoundGeneric(_))),
@@ -2216,4 +2216,425 @@ async fn diagnose_int_drift_pattern_karin_mid_week_contract_change_breaks_lump_s
         result.quarantined_rows, 1,
         "Karin pattern: row falls to strict-match path → quarantines"
     );
+}
+
+// ----------------------------------------------------------------------------
+// Phase 8.2 Plan 01 — manual_range branch on convert_quarantine_entry tests.
+//
+// Four mockall unit tests covering the Manual-Range backend branch (D-29):
+//   1. happy path Karin — mid-week contract change, manual_range = ISO-week
+//      Mo..So → absence_period created with given range, soft-delete called,
+//      upsert_migration_source called. Heuristik wird NICHT aufgerufen
+//      (Branch surface-isolated per RESEARCH Open Q 3 / D-35).
+//   2. inverted range (start > end) → DateOrderWrong, NO DAO writes.
+//   3. cross-year range → ValidationError(InvalidValue("year-mismatch")),
+//      NO DAO writes.
+//   4. existing absence_period overlaps → ValidationError(OverlappingPeriod),
+//      NO writes after find_overlapping.
+// ----------------------------------------------------------------------------
+
+mod manual_range_convert_quarantine_tests {
+    use super::*;
+    use dao::absence::AbsenceCategoryEntity;
+    use dao::absence::AbsencePeriodEntity;
+    use mockall::Sequence;
+    use service::cutover::ManualRange;
+    use service::ValidationFailureItem;
+    use shifty_utils::DateRange;
+
+    /// Stable id used for the Karin-Pattern row under test.
+    fn karin_extra_hours_id() -> Uuid {
+        Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_CAFE_0001)
+    }
+
+    fn karin_row(day: time::Date, amount: f32) -> LegacyExtraHoursRow {
+        legacy_row_with_id(karin_extra_hours_id(), day, amount)
+    }
+
+    fn permission_service_allow_cutover_admin() -> MockPermissionService {
+        let mut p = MockPermissionService::new();
+        p.expect_check_permission()
+            .with(eq(CUTOVER_ADMIN_PRIVILEGE), always())
+            .returning(|_, _| Ok(()));
+        p
+    }
+
+    /// Karin-Pattern Contract A: 40h/week Mo-Fr ending Wed 2026-05-06.
+    fn karin_contract_a() -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_CA01),
+            sales_person_id: fixture_sp_id(),
+            expected_hours: 40.0,
+            from_day_of_week: DayOfWeek::Monday,
+            from_calendar_week: 1,
+            from_year: 2024,
+            to_day_of_week: DayOfWeek::Wednesday,
+            to_calendar_week: 19,
+            to_year: 2026,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 30,
+            created: Some(datetime!(2024 - 01 - 01 10:00:00)),
+            deleted: None,
+            version: Uuid::nil(),
+        }
+    }
+
+    /// Karin-Pattern Contract B: 30h/week Mo-Fr starting Thu 2026-05-07.
+    fn karin_contract_b() -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_CA02),
+            sales_person_id: fixture_sp_id(),
+            expected_hours: 30.0,
+            from_day_of_week: DayOfWeek::Thursday,
+            from_calendar_week: 19,
+            from_year: 2026,
+            to_day_of_week: DayOfWeek::Sunday,
+            to_calendar_week: 52,
+            to_year: 2026,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 25,
+            created: Some(datetime!(2026 - 05 - 07 10:00:00)),
+            deleted: None,
+            version: Uuid::nil(),
+        }
+    }
+
+    /// Build an `AbsencePeriodEntity` representing a "conflict" row for the
+    /// overlap-test. Only the `logical_id` field is functionally read by the
+    /// service path; everything else is informational.
+    fn conflicting_absence_period(
+        logical_id: Uuid,
+        from: time::Date,
+        to: time::Date,
+    ) -> AbsencePeriodEntity {
+        AbsencePeriodEntity {
+            id: logical_id,
+            logical_id,
+            sales_person_id: fixture_sp_id(),
+            category: AbsenceCategoryEntity::Vacation,
+            from_date: from,
+            to_date: to,
+            description: Arc::from(""),
+            created: time::PrimitiveDateTime::new(
+                date!(2026 - 01 - 01),
+                time::Time::MIDNIGHT,
+            ),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Test 1: Manual-Range happy-path (Karin) — surface-isolated.
+    //
+    // Karin-Quarantäne: 40h Vacation am Wed 2026-05-06 (mit mid-week
+    // Vertragswechsel: Contract A 40h Mo-Fr ending Wed; Contract B 30h Mo-Fr
+    // starting Thu). Operator gibt manuell die ISO-Woche {Mo 2026-05-04,
+    // So 2026-05-10} an. Backend skipt Heuristik komplett, schreibt
+    // absence_period mit dem gegebenen Range, soft-deleted die Row.
+    //
+    // Per RESEARCH Open Q 3 / D-35 isolieren wir den Test auf die
+    // manual_range-Surface — wir asserten NICHT, dass post-Convert-Drift = 0.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn manual_range_resolves_karin_quarantine() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        // Karin-Row: 40h Vacation am Wed 2026-05-06.
+        let row = karin_row(date!(2026 - 05 - 06), 40.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        let row_arc_first = row_arc.clone();
+        // Replay-Pass (Step 9) findet keine Legacy-Rows mehr (alle soft-
+        // deleted) — empty vector. Mit Sequence garantieren wir die
+        // Reihenfolge.
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(row_arc_first.clone()));
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        // EmployeeWorkDetails: Contract A + Contract B (mid-week Wechsel).
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([karin_contract_a(), karin_contract_b()])));
+
+        // find_overlapping: empty (kein Konflikt) — happy-path.
+        deps.absence_dao
+            .expect_find_overlapping()
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(Arc::from([])));
+
+        // create: exact 1× mit dem gegebenen Range und Vacation category.
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, process, _| {
+                entity.from_date == date!(2026 - 05 - 04)
+                    && entity.to_date == date!(2026 - 05 - 10)
+                    && entity.category == AbsenceCategoryEntity::Vacation
+                    && entity.sales_person_id == fixture_sp_id()
+                    && process == "phase-4-cutover-migration"
+            })
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+
+        // upsert_migration_source: 1× mit der Karin-Row-ID.
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .withf(|src, _| src.extra_hours_id == karin_extra_hours_id())
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        // soft_delete_bulk: 1× mit der Karin-Row-ID.
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .withf(|ids, process, _, _| {
+                ids.len() == 1
+                    && ids[0] == karin_extra_hours_id()
+                    && process == "phase-4-cutover-migration"
+            })
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        // Replay (Step 9): empty bucket-map (kein Quarantine), find_legacy_scope_set
+        // returns empty. Replay ist non-fatal-by-design (8.1-02 Pattern); falls
+        // hier was bricht, würde refreshed_drift_report None sein — der Test
+        // prüft nur die strict assertions auf absence_period.
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let manual = ManualRange {
+            start_date: date!(2026 - 05 - 04),
+            end_date: date!(2026 - 05 - 10),
+        };
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let outcome = service
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .await
+            .expect("manual-range convert succeeds for Karin pattern");
+
+        // STRICT assertions — manual_range surface.
+        assert_eq!(outcome.deleted_extra_hours_id, karin_extra_hours_id());
+        assert_eq!(outcome.absence_period.from_date, date!(2026 - 05 - 04));
+        assert_eq!(outcome.absence_period.to_date, date!(2026 - 05 - 10));
+        assert_eq!(
+            outcome.absence_period.category,
+            AbsenceCategoryEntity::Vacation
+        );
+        assert_eq!(outcome.absence_period.sales_person_id, fixture_sp_id());
+        // Best-effort: refreshed_drift_report can be Some or None — replay
+        // is non-fatal-by-design (RESEARCH Open Q 3 / D-35). Don't assert.
+    }
+
+    // -----------------------------------------------------------------
+    // Test 2: Inverted range (start > end) → DateOrderWrong.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn manual_range_rejects_inverted_range() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let row = karin_row(date!(2026 - 05 - 06), 40.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(row_arc.clone()));
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([karin_contract_a(), karin_contract_b()])));
+
+        // Hard guard: NO DAO writes / overlap-check on the inverted-range path.
+        deps.absence_dao.expect_find_overlapping().times(0);
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+
+        // Tx opened, never committed; rolled back via Drop.
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().returning(|_| Ok(MockTransaction));
+        tx_dao.expect_commit().times(0);
+        tx_dao.expect_rollback().returning(|_| Ok(()));
+
+        let manual = ManualRange {
+            start_date: date!(2026 - 05 - 08),
+            end_date: date!(2026 - 05 - 04),
+        };
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .await;
+        assert!(
+            matches!(result, Err(ServiceError::DateOrderWrong(s, e))
+                if s == date!(2026 - 05 - 08) && e == date!(2026 - 05 - 04)),
+            "inverted manual_range must return DateOrderWrong; got {:?}",
+            result
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 3: Year-boundary crossing → ValidationError("year-mismatch").
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn manual_range_rejects_year_boundary_crossing() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        // Karin-Row im Jahr 2026 (Wed 2026-05-06).
+        let row = karin_row(date!(2026 - 05 - 06), 40.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(row_arc.clone()));
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([karin_contract_a(), karin_contract_b()])));
+
+        // No DAO writes / overlap-check.
+        deps.absence_dao.expect_find_overlapping().times(0);
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().returning(|_| Ok(MockTransaction));
+        tx_dao.expect_commit().times(0);
+        tx_dao.expect_rollback().returning(|_| Ok(()));
+
+        // Range straddles 2025/2026 boundary.
+        let manual = ManualRange {
+            start_date: date!(2025 - 12 - 29),
+            end_date: date!(2026 - 01 - 04),
+        };
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .await;
+        match result {
+            Err(ServiceError::ValidationError(items)) => {
+                assert_eq!(items.len(), 1, "exactly one validation failure expected");
+                match &items[0] {
+                    ValidationFailureItem::InvalidValue(msg) => {
+                        assert!(
+                            msg.contains("calendar year"),
+                            "year-mismatch message expected, got {msg:?}"
+                        );
+                    }
+                    other => panic!("expected InvalidValue, got {other:?}"),
+                }
+            }
+            other => panic!("expected ValidationError, got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Test 4: Existing absence_period overlaps → ValidationError
+    //         (OverlappingPeriod). NO subsequent writes.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn manual_range_rejects_when_existing_absence_period_overlaps() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let row = karin_row(date!(2026 - 05 - 06), 40.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(row_arc.clone()));
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([karin_contract_a(), karin_contract_b()])));
+
+        // Conflict exists: an absence_period covering parts of Mo..So already
+        // exists for the same (sales_person, category).
+        let conflict_logical_id =
+            Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_C0FE);
+        deps.absence_dao
+            .expect_find_overlapping()
+            .withf(move |sp_id, cat, _range, exclude, _tx| {
+                *sp_id == fixture_sp_id()
+                    && *cat == AbsenceCategoryEntity::Vacation
+                    && exclude.is_none()
+            })
+            .times(1)
+            .returning(move |_, _, _, _, _| {
+                Ok(Arc::from([conflicting_absence_period(
+                    conflict_logical_id,
+                    date!(2026 - 05 - 05),
+                    date!(2026 - 05 - 07),
+                )]))
+            });
+
+        // Hard guard: writes MUST NOT happen on the overlap path.
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        deps.extra_hours_service.expect_soft_delete_bulk().times(0);
+
+        let mut tx_dao = MockTransactionDao::new();
+        tx_dao.expect_use_transaction().returning(|_| Ok(MockTransaction));
+        tx_dao.expect_commit().times(0);
+        tx_dao.expect_rollback().returning(|_| Ok(()));
+
+        let manual = ManualRange {
+            start_date: date!(2026 - 05 - 04),
+            end_date: date!(2026 - 05 - 10),
+        };
+
+        let service = deps.build_service(tx_dao);
+        let result = service
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .await;
+        match result {
+            Err(ServiceError::ValidationError(items)) => {
+                assert_eq!(items.len(), 1);
+                match &items[0] {
+                    ValidationFailureItem::OverlappingPeriod(id) => {
+                        assert_eq!(
+                            *id, conflict_logical_id,
+                            "OverlappingPeriod must surface the conflict's logical_id"
+                        );
+                    }
+                    other => panic!("expected OverlappingPeriod, got {other:?}"),
+                }
+            }
+            other => panic!("expected ValidationError, got {other:?}"),
+        }
+    }
+
+    // Suppress dead-code warnings for the `DateRange` import used only for
+    // documentation-style purposes — `DateRange::new` is actually exercised
+    // inside the production code under test, but if the compiler decides
+    // the import is unused after expansion we keep it explicit.
+    #[allow(dead_code)]
+    fn _suppress_unused_imports() -> Option<DateRange> {
+        DateRange::new(date!(2026 - 01 - 01), date!(2026 - 01 - 02)).ok()
+    }
 }
