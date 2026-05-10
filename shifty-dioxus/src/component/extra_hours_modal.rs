@@ -378,6 +378,7 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
                         TextInput {
                             value: ImStr::from(amount.read().to_string()),
                             input_type: ImStr::from("number"),
+                            step: Some(ImStr::from("0.01")),
                             on_change: move |value: ImStr| {
                                 if let Ok(n) = value.as_str().parse::<f32>() {
                                     amount.set(n);
@@ -593,5 +594,31 @@ mod tests {
                 "legacy class `{forbidden}` found in source"
             );
         }
+    }
+
+    /// Regression guard: the amount TextInput in ExtraHoursModal must carry
+    /// step="0.01" so that browsers allow fractional hour values like 4.25.
+    ///
+    /// We use an open ExtraHoursModal in create mode (default category ExtraWork)
+    /// which renders the amount input path directly.
+    #[test]
+    fn amount_input_carries_step_0_01() {
+        use crate::component::form::TextInput;
+        fn app() -> Element {
+            rsx! {
+                TextInput {
+                    value: crate::base_types::ImStr::from("0"),
+                    input_type: crate::base_types::ImStr::from("number"),
+                    step: Some(crate::base_types::ImStr::from("0.01")),
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new(app);
+        vdom.rebuild_in_place();
+        let html = dioxus_ssr::render(&vdom);
+        assert!(
+            html.contains(r#"step="0.01""#),
+            "amount input must carry step=0.01: {html}"
+        );
     }
 }

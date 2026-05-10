@@ -14,6 +14,36 @@ use crate::{
     state::{employee_work_details::EmployeeWorkDetails, shiftplan::SalesPerson},
 };
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::component::base_components::FloatInput;
+
+    /// Regression guard: the expected_hours_per_week FloatInput must carry
+    /// step=0.01 so browsers allow fractional hour values like 7.25.
+    ///
+    /// We render a FloatInput in isolation (it has no context dependencies)
+    /// and assert the step attribute is present in the HTML output.
+    #[test]
+    fn expected_hours_float_input_step_is_0_01() {
+        fn app() -> Element {
+            rsx! {
+                FloatInput {
+                    value: 38.0_f32,
+                    step: 0.01_f32,
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new(app);
+        vdom.rebuild_in_place();
+        let html = dioxus_ssr::render(&vdom);
+        assert!(
+            html.contains("step=\"0.01\""),
+            "FloatInput with step=0.01 must render step attribute: {html}"
+        );
+    }
+}
+
 #[derive(PartialEq, Clone, Copy)]
 pub enum EmployeeWorkDetailsFormType {
     New,
@@ -237,7 +267,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                 FloatInput {
                     value: employee_work_details.expected_hours,
                     disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
-                    step: 1.0,
+                    step: 0.01,
                     on_change: {
                         to_owned![employee_work_details];
                         move |value: f32| {

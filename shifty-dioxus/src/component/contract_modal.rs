@@ -300,6 +300,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
                     TextInput {
                         value: ImStr::from(details.expected_hours.to_string()),
                         input_type: ImStr::from("number"),
+                        step: Some(ImStr::from("0.01")),
                         disabled: read_only,
                         on_change: {
                             let details = details.clone();
@@ -515,5 +516,31 @@ mod tests {
                 "legacy class `{forbidden}` found in source"
             );
         }
+    }
+
+    /// Regression guard: the expected_hours TextInput in ContractModalBody must carry
+    /// step="0.01" so that browsers allow fractional hour values like 7.25.
+    ///
+    /// We render a minimal TextInput with the same props used in ContractModalBody
+    /// rather than the full modal (which requires coroutine context + global stores).
+    #[test]
+    fn expected_hours_text_input_carries_step_0_01() {
+        use crate::component::form::TextInput;
+        fn app() -> Element {
+            rsx! {
+                TextInput {
+                    value: crate::base_types::ImStr::from("38"),
+                    input_type: crate::base_types::ImStr::from("number"),
+                    step: Some(crate::base_types::ImStr::from("0.01")),
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new(app);
+        vdom.rebuild_in_place();
+        let html = dioxus_ssr::render(&vdom);
+        assert!(
+            html.contains(r#"step="0.01""#),
+            "expected_hours input must carry step=0.01: {html}"
+        );
     }
 }

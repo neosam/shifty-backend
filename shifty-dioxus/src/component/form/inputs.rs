@@ -27,11 +27,18 @@ pub struct TextInputProps {
     /// Native input `type` attribute. Defaults to `"text"`.
     #[props(default = ImStr::from("text"))]
     pub input_type: ImStr,
+
+    /// Optional `step` attribute for `type="number"` inputs.
+    /// When `None` (the default), the attribute is omitted and the browser
+    /// uses its default (`1` for `type="number"`).
+    #[props(!optional, default = None)]
+    pub step: Option<ImStr>,
 }
 
 #[component]
 pub fn TextInput(props: TextInputProps) -> Element {
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
+    let step_attr = props.step.as_ref().map(|s| s.to_string());
     let input_type = props.input_type.clone();
     let on_change = props.on_change.clone();
     let disabled = props.disabled;
@@ -43,6 +50,7 @@ pub fn TextInput(props: TextInputProps) -> Element {
             value: "{props.value}",
             disabled,
             placeholder: placeholder_attr,
+            step: step_attr,
             oninput: move |event| {
                 if let Some(handler) = &on_change {
                     handler.call(ImStr::from(event.data.value()));
@@ -246,6 +254,33 @@ mod tests {
         }
         let html = render(app);
         assert!(html.contains(r#"type="date""#), "missing type=date: {html}");
+    }
+
+    #[test]
+    fn text_input_step_propagates_when_provided() {
+        fn app() -> Element {
+            rsx! {
+                TextInput {
+                    value: ImStr::from(""),
+                    input_type: ImStr::from("number"),
+                    step: Some(ImStr::from("0.01")),
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains(r#"step="0.01""#),
+            "missing step attribute: {html}"
+        );
+    }
+
+    #[test]
+    fn text_input_step_absent_when_none() {
+        fn app() -> Element {
+            rsx! { TextInput { value: ImStr::from("") } }
+        }
+        let html = render(app);
+        assert!(!html.contains("step="), "step should not appear without prop: {html}");
     }
 
     // ─── SelectInput ────────────────────────────────────────────────

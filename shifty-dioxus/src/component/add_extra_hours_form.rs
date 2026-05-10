@@ -263,7 +263,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                             *amount.write() = value;
                         },
                         "type": "number",
-                        "step": "0.001",
+                        "step": "0.01",
                     }
                 }
 
@@ -305,3 +305,46 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dioxus::prelude::*;
+
+    /// Regression guard: the amount `<input type="number">` in AddExtraHoursForm
+    /// must carry `step="0.01"` so browsers allow fractional hour values like 7.25.
+    ///
+    /// Source-level assertion: guarantees the attribute is present in the RSX
+    /// even though AddExtraHoursForm is too JS-heavy to SSR in isolation.
+    #[test]
+    fn amount_input_source_has_step_0_01() {
+        let src = include_str!("add_extra_hours_form.rs");
+        assert!(
+            src.contains(r#""step": "0.01""#),
+            "amount input in AddExtraHoursForm must carry step=0.01"
+        );
+    }
+
+    /// SSR regression guard at the atomic level: a raw Dioxus `<input>` element with
+    /// `"step": "0.01"` renders the attribute into HTML.  This verifies the Dioxus
+    /// attribute pass-through that AddExtraHoursForm relies on.
+    #[test]
+    fn raw_input_step_attribute_renders_in_html() {
+        fn app() -> Element {
+            rsx! {
+                input {
+                    "type": "number",
+                    "step": "0.01",
+                    value: "0",
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new(app);
+        vdom.rebuild_in_place();
+        let html = dioxus_ssr::render(&vdom);
+        assert!(
+            html.contains(r#"step="0.01""#),
+            "raw input with step=0.01 must render that attribute: {html}"
+        );
+    }
+}
+
