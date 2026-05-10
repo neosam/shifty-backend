@@ -133,6 +133,8 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     "CutoverBulkConvertQuarantineRowsRequest",
     "CutoverBulkConvertQuarantineRowsResponse",
     "CutoverConvertErrorTO",
+    // Cutover manual-range sub-struct (Phase 8.2 / D-34).
+    "ManualRangeTO",
 ];
 
 #[test]

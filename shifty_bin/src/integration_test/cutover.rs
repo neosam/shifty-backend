@@ -1681,7 +1681,7 @@ mod convert_quarantine_endpoints_tests {
     use rest_types::{
         AbsenceCategoryTO, CutoverBulkConvertQuarantineRowsRequest,
         CutoverBulkConvertQuarantineRowsResponse, CutoverConvertQuarantineEntryRequest,
-        CutoverConvertQuarantineEntryResponse,
+        CutoverConvertQuarantineEntryResponse, ManualRangeTO,
     };
 
     /// Build a 3-day Mo/Tu/We contract with `expected_hours = 20.0` for the
@@ -1796,6 +1796,7 @@ mod convert_quarantine_endpoints_tests {
 
         let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
             extra_hours_id: entry.id,
+            manual_range: None,
         })
         .unwrap();
         let req = Request::builder()
@@ -1899,6 +1900,7 @@ mod convert_quarantine_endpoints_tests {
 
         let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
             extra_hours_id: entry.id,
+            manual_range: None,
         })
         .unwrap();
         let req = Request::builder()
@@ -1954,6 +1956,7 @@ mod convert_quarantine_endpoints_tests {
 
         let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
             extra_hours_id: entry.id,
+            manual_range: None,
         })
         .unwrap();
 
@@ -2187,6 +2190,199 @@ mod convert_quarantine_endpoints_tests {
             count_cutover_softdeleted_extra_hours(&test_setup).await,
             pre_softdeleted,
             "no cutover-softdeleted rows (Tx rolled back)"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 8.2 (D-29) — Manual-Range REST roundtrip.
+    //
+    // Karin-Pattern: 40h Vacation am Wed 2026-05-06 mit mid-week
+    // Vertragswechsel (Contract A 40h Mo-Fr ending Wed; Contract B 30h
+    // Mo-Fr starting Thu). Heuristik würde target_sum = 36h berechnen
+    // → Mismatch → Quarantine. Mit manual_range = {Mo, So} der ISO-W19
+    // schreibt Backend direkt das absence_period und soft-deletet die Row.
+    //
+    // Surface-isolated per RESEARCH Open Q 3 / D-35: Test asserted die
+    // manual_range-Surface (HTTP 200, absence_period mit gegebenem Range,
+    // soft-delete der extra_hours-Row). Post-Convert-Drift wird NICHT
+    // assertiert — das ist Operator-Verantwortung über mehrere UI-Aktionen.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn convert_with_manual_range_via_rest() {
+        let test_setup = TestSetup::new().await;
+        add_user_with_role(
+            &test_setup,
+            "cutover_user",
+            "admin",
+            Some(CUTOVER_ADMIN_PRIVILEGE),
+        )
+        .await;
+
+        let karin = create_sales_person(&test_setup, "Karin Quarantine").await;
+
+        // Contract A: 40h/week Mo-Fr ending Wed 2026-05-06 (= ISO-W19/2026
+        // day 3). Per `EmployeeWorkDetails`, the `to_*` fields define the
+        // contract end inclusive of that day.
+        let contract_a = EmployeeWorkDetails {
+            id: Uuid::nil(),
+            sales_person_id: karin.id,
+            expected_hours: 40.0,
+            from_year: 2024,
+            from_calendar_week: 1,
+            from_day_of_week: DayOfWeek::Monday,
+            to_year: 2026,
+            to_calendar_week: 19,
+            to_day_of_week: DayOfWeek::Wednesday,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            workdays_per_week: 5,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 30,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+        // Contract B: 30h/week Mo-Fr starting Thu 2026-05-07 (= ISO-W19/2026
+        // day 4).
+        let contract_b = EmployeeWorkDetails {
+            id: Uuid::nil(),
+            sales_person_id: karin.id,
+            expected_hours: 30.0,
+            from_year: 2026,
+            from_calendar_week: 19,
+            from_day_of_week: DayOfWeek::Thursday,
+            to_year: 2026,
+            to_calendar_week: 52,
+            to_day_of_week: DayOfWeek::Sunday,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            workdays_per_week: 5,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 25,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+        test_setup
+            .rest_state
+            .working_hours_service()
+            .create(&contract_a, Authentication::Full, None)
+            .await
+            .unwrap();
+        test_setup
+            .rest_state
+            .working_hours_service()
+            .create(&contract_b, Authentication::Full, None)
+            .await
+            .unwrap();
+
+        // 40h Vacation am Wed 2026-05-06 — Karin pattern (target_sum = 36h
+        // ≠ 40h, heuristic returns None).
+        let entry = create_extra_hour(
+            &test_setup,
+            karin.id,
+            ExtraHoursCategory::Vacation,
+            date!(2026 - 05 - 06),
+            40.0,
+        )
+        .await;
+
+        let pre_active = count_active_extra_hours(&test_setup, karin.id).await;
+        assert_eq!(pre_active, 1, "fixture sanity: 1 active extra_hours row");
+
+        // POST with manual_range = {2026-05-04, 2026-05-08}. Operator gibt
+        // den Vacation-Range vor; Backend schreibt das absence_period mit
+        // genau diesen Daten.
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+
+        let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: entry.id,
+            manual_range: Some(ManualRangeTO {
+                start_date: "2026-05-04".into(),
+                end_date: "2026-05-08".into(),
+            }),
+        })
+        .unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/convert-quarantine-entry")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "manual_range convert must return 200"
+        );
+
+        // (a) Response body deserializes; refreshed_drift_report field
+        //     present (may be None or Some — replay is non-fatal-by-design).
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let parsed: CutoverConvertQuarantineEntryResponse =
+            serde_json::from_slice(&body_bytes)
+                .expect("deserialize manual-range convert response");
+        assert_eq!(parsed.deleted_extra_hours_id, entry.id);
+
+        // (b) extra_hours row is soft-deleted.
+        let entry_bytes = entry.id.as_bytes().to_vec();
+        let active: i64 = sqlx::query(
+            "SELECT COUNT(*) AS c FROM extra_hours WHERE id = ? AND deleted IS NULL",
+        )
+        .bind(&entry_bytes)
+        .fetch_one(test_setup.pool.as_ref())
+        .await
+        .unwrap()
+        .get("c");
+        assert_eq!(active, 0, "extra_hours row must be soft-deleted");
+
+        // (c) Exactly one absence_period row exists with the operator-given
+        //     range (2026-05-04 .. 2026-05-08), NOT the heuristik {Mo, So}
+        //     range — proves manual_range bypassed detect_weekly_lump_sum.
+        assert_eq!(
+            count_absence_periods_for(&test_setup, karin.id).await,
+            1,
+            "exactly one absence_period must exist post-convert"
+        );
+        let karin_bytes = karin.id.as_bytes().to_vec();
+        let from_iso = "2026-05-04";
+        let to_iso = "2026-05-08";
+        let manual_count: i64 = sqlx::query(
+            "SELECT COUNT(*) AS c FROM absence_period \
+             WHERE sales_person_id = ? AND deleted IS NULL \
+             AND from_date = ? AND to_date = ?",
+        )
+        .bind(&karin_bytes)
+        .bind(from_iso)
+        .bind(to_iso)
+        .fetch_one(test_setup.pool.as_ref())
+        .await
+        .unwrap()
+        .get("c");
+        assert_eq!(
+            manual_count, 1,
+            "absence_period must span the operator-given manual_range \
+             {{2026-05-04, 2026-05-08}} (NOT the ISO-week {{Mo, So}})"
         );
     }
 }
