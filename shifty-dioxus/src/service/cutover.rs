@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
-use rest_types::{AbsenceCategoryTO, ExtraHoursTO};
+use rest_types::{AbsenceCategoryTO, ExtraHoursTO, ManualRangeTO};
 use tracing::info;
 use uuid::Uuid;
 
@@ -61,6 +61,14 @@ pub enum CutoverAction {
     RunDryRun,
     Commit,
     ConvertSingle(Uuid),
+    /// Phase 8.2 (D-29): operator-supplied date range. Backend skips the
+    /// heuristic and uses `start_date..=end_date` directly. Resolves the
+    /// Karin-Pattern (gap-1a) that `detect_weekly_lump_sum` rejects by design.
+    ConvertSingleManualRange {
+        extra_hours_id: Uuid,
+        start_date: time::Date,
+        end_date: time::Date,
+    },
     BulkConvert {
         sales_person_id: Uuid,
         category: AbsenceCategoryTO,
@@ -113,9 +121,44 @@ async fn process_action(
             store.stage = WizardStage::Success;
         }
         CutoverAction::ConvertSingle(extra_hours_id) => {
-            let resp = api::cutover_convert_quarantine_entry(config, extra_hours_id).await?;
+            // Heuristic path (8.1): manual_range = None preserves original behaviour.
+            let resp = api::cutover_convert_quarantine_entry(config, extra_hours_id, None).await?;
             // D-08 inline pattern: write refreshed gate-drift-report directly.
             CUTOVER_STORE.write().last_dry_run = resp.refreshed_drift_report;
+            bump_cutover_refresh();
+        }
+        CutoverAction::ConvertSingleManualRange {
+            extra_hours_id,
+            start_date,
+            end_date,
+        } => {
+            // Phase 8.2 (D-29): operator-supplied range bypasses the heuristic.
+            // Submit-time validation in the modal (Task 3) ensures both dates
+            // are valid `time::Date`s before dispatch — `unwrap_or_default()`
+            // here is a defence-in-depth belt; backend will reject empty
+            // strings with ValidationError on parse-fail (Plan 01 P-5).
+            let fmt = time::macros::format_description!("[year]-[month]-[day]");
+            let manual_range = ManualRangeTO {
+                start_date: start_date.format(&fmt).unwrap_or_default(),
+                end_date: end_date.format(&fmt).unwrap_or_default(),
+            };
+            let resp = api::cutover_convert_quarantine_entry(
+                config.clone(),
+                extra_hours_id,
+                Some(manual_range),
+            )
+            .await?;
+            // P-6 fallback: if the backend's inline replay failed, do a
+            // separate gate-dry-run so the drift list still refreshes
+            // (mirrors the UpdateExtraHours / DeleteExtraHours branches).
+            let drift = match resp.refreshed_drift_report {
+                Some(r) => Some(r),
+                None => api::cutover_gate_dry_run(config)
+                    .await
+                    .ok()
+                    .and_then(|r| r.gate_drift_report),
+            };
+            CUTOVER_STORE.write().last_dry_run = drift;
             bump_cutover_refresh();
         }
         CutoverAction::BulkConvert {

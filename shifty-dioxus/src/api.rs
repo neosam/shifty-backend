@@ -8,9 +8,10 @@ use rest_types::{
     CutoverConvertQuarantineEntryRequest, CutoverConvertQuarantineEntryResponse,
     CutoverProfileTO, CutoverRunResultTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest,
-    InvitationResponse, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
-    ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO,
-    UserRole, UserTO, VacationBalanceTO, VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
+    InvitationResponse, ManualRangeTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
+    ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
+    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO, VacationPayloadTO,
+    WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -1504,17 +1505,25 @@ pub async fn cutover_commit(config: Config) -> Result<CutoverRunResultTO, Shifty
     Ok(result)
 }
 
-/// POST `/admin/cutover/convert-quarantine-entry` (NEW — Phase 8.1).
+/// POST `/admin/cutover/convert-quarantine-entry` (NEW — Phase 8.1; extended in Phase 8.2).
 /// Single-row Convert: soft-deletes one quarantined `extra_hours` row and
 /// inserts a matching `absence_period` in one Tx. 422 → ShiftyError::Validation
 /// with the backend reason text (Plan 04 — heuristic mismatch / not migratable).
+///
+/// Phase 8.2 (D-29): when `manual_range` is `Some`, the backend skips the
+/// weekly-lump-sum heuristic completely and uses the supplied date range.
+/// `None` preserves the 8.1 heuristic-only flow (backwards-compat).
 pub async fn cutover_convert_quarantine_entry(
     config: Config,
     extra_hours_id: Uuid,
+    manual_range: Option<ManualRangeTO>,
 ) -> Result<CutoverConvertQuarantineEntryResponse, ShiftyError> {
     info!("POST /admin/cutover/convert-quarantine-entry id={extra_hours_id}");
     let url = format!("{}/admin/cutover/convert-quarantine-entry", config.backend);
-    let body = CutoverConvertQuarantineEntryRequest { extra_hours_id };
+    let body = CutoverConvertQuarantineEntryRequest {
+        extra_hours_id,
+        manual_range,
+    };
     let client = reqwest::Client::new();
     let response = client.post(url).json(&body).send().await?;
     if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
