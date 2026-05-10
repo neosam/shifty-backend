@@ -2316,12 +2316,31 @@ impl From<&service::feature_flag::FeatureFlag> for FeatureFlagTO {
 // without supplying the field.
 // ─────────────────────────────────────────────────────────────────────────
 
+/// Phase 8.2 (D-29) — manual range override für convert_quarantine_entry.
+/// ISO-8601 (`YYYY-MM-DD`) konsistent zu `CutoverQuarantineEntryTO.date`.
+/// Sub-struct (nicht flach) verhindert via Type-System die "nur eines der
+/// Felder gesetzt"-Edge-Klasse.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ManualRangeTO {
+    pub start_date: String,
+    pub end_date: String,
+}
+
 /// `POST /admin/cutover/convert-quarantine-entry` — request body. Per D-01:
 /// the backend derives `(from, to)` via `detect_weekly_lump_sum` from the
 /// existing `extra_hours` row; the frontend only supplies the row id.
+///
+/// Phase 8.2 (D-29): wenn `manual_range = Some(...)`, skipt das Backend die
+/// Heuristik komplett und schreibt direkt eine `absence_period` mit dem
+/// gegebenen Range. Validation: `start_date <= end_date`; beide im
+/// Quarantäne-Eintrag-Jahr; kein Overlap mit existing `absence_period`-
+/// Rows derselben Person/Kategorie. Old clients ohne das Feld funktionieren
+/// dank `#[serde(default)]` weiter (Backwards-Compat).
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct CutoverConvertQuarantineEntryRequest {
     pub extra_hours_id: Uuid,
+    #[serde(default)]
+    pub manual_range: Option<ManualRangeTO>,
 }
 
 /// `POST /admin/cutover/convert-quarantine-entry` — response body. Per D-08
@@ -2440,11 +2459,13 @@ mod cutover_convert_dto_tests {
     fn convert_request_roundtrips() {
         let req = CutoverConvertQuarantineEntryRequest {
             extra_hours_id: Uuid::nil(),
+            manual_range: None,
         };
         let json = serde_json::to_string(&req).expect("serialize");
         let parsed: CutoverConvertQuarantineEntryRequest =
             serde_json::from_str(&json).expect("deserialize");
         assert_eq!(parsed.extra_hours_id, Uuid::nil());
+        assert!(parsed.manual_range.is_none());
     }
 
     #[test]
@@ -2502,5 +2523,38 @@ mod cutover_convert_dto_tests {
             serde_json::from_str(json).expect("deserialize triple-only");
         assert!(parsed.extra_hours_ids.is_none());
         assert_eq!(parsed.category, AbsenceCategoryTO::Vacation);
+    }
+
+    // Phase 8.2 (D-29) — Backwards-Compat + Roundtrip für `manual_range`.
+
+    #[test]
+    fn convert_request_omits_manual_range_for_backwards_compat() {
+        // Old client serialisiert ohne manual_range — neuer Server
+        // deserialisiert sauber via `#[serde(default)]`.
+        let json = r#"{"extra_hours_id":"00000000-0000-0000-0000-000000000000"}"#;
+        let req: CutoverConvertQuarantineEntryRequest =
+            serde_json::from_str(json).expect("deserialize legacy body without manual_range");
+        assert_eq!(req.extra_hours_id, Uuid::nil());
+        assert!(req.manual_range.is_none());
+    }
+
+    #[test]
+    fn convert_request_with_manual_range_roundtrips() {
+        let req = CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: Uuid::nil(),
+            manual_range: Some(ManualRangeTO {
+                start_date: "2026-05-04".into(),
+                end_date: "2026-05-08".into(),
+            }),
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        let parsed: CutoverConvertQuarantineEntryRequest =
+            serde_json::from_str(&json).expect("deserialize");
+        let mr = parsed
+            .manual_range
+            .as_ref()
+            .expect("manual_range must roundtrip as Some");
+        assert_eq!(mr.start_date, "2026-05-04");
+        assert_eq!(mr.end_date, "2026-05-08");
     }
 }

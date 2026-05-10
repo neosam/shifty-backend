@@ -200,6 +200,16 @@ pub struct ConvertQuarantineEntryOutcome {
     pub refreshed_drift_report: Option<CutoverGateDriftReport>,
 }
 
+/// Phase 8.2 (D-29) — domain-tier Manual-Range. REST-Layer parsed
+/// `ManualRangeTO` (String-ISO-8601) und mapped auf diese Domain-Struct.
+/// Backend-Service akzeptiert pre-parsed `time::Date`s — kein doppeltes
+/// Parsing in REST + Service.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ManualRange {
+    pub start_date: time::Date,
+    pub end_date: time::Date,
+}
+
 /// Outcome of `CutoverService::bulk_convert_quarantine_rows` (Phase 8.1, D-02).
 /// All `converted_absence_periods` and `deleted_extra_hours_ids` are produced
 /// in a single Tx (strict-atomic — see RESEARCH Q2 / P-10). The `errors` Vec
@@ -253,9 +263,16 @@ pub trait CutoverService {
     /// heuristic (Plan 08-09); frontend never supplies dates. Privilege:
     /// `cutover_admin` (commit-class). On heuristic mismatch the Tx rolls
     /// back and `ServiceError::ValidationError` is returned (→ HTTP 422).
+    ///
+    /// Phase 8.2 (D-29): optional `manual_range` skipt die Heuristik und
+    /// schreibt direkt eine `absence_period` mit dem gegebenen Range.
+    /// Validation: `start <= end`, beide im Quarantäne-Eintrag-Jahr, kein
+    /// Overlap mit existing `absence_period`-Rows derselben Person/Kategorie.
+    /// `None` (Default) → 8.1-Heuristik-Verhalten unverändert.
     async fn convert_quarantine_entry(
         &self,
         extra_hours_id: Uuid,
+        manual_range: Option<ManualRange>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ConvertQuarantineEntryOutcome, ServiceError>;
