@@ -216,7 +216,7 @@
 6. WASM-Build (`cd shifty-dioxus && cargo build --target wasm32-unknown-unknown`) + Backend `cargo test --workspace` grün; Snapshot-Schema-Version unverändert (kein neuer `BillingPeriodValueType`).
 
 **Plans:** 2 plans across 2 waves (sequenziell — Frontend-Plan wartet auf Backend-DTO)
-- [ ] 08.2-01-PLAN.md — Backend `manual_range`-Branch + DTO + 4 mockall + 1 integration test + OpenAPI-Schema-Update — Wave 1
+- [x] 08.2-01-PLAN.md — Backend `manual_range`-Branch + DTO + 4 mockall + 1 integration test + OpenAPI-Schema-Update — Wave 1 (completed 2026-05-10, see 08.2-01-SUMMARY.md)
 - [ ] 08.2-02-PLAN.md — Frontend ManualConvertModal + Coroutine-Action + 8 i18n keys × 3 locales + 4 dioxus-ssr snapshots + WASM-Build-Gate — Wave 2
 
 **UI hint**: yes (Backend additiv + Frontend Modal-Erweiterung).
@@ -238,7 +238,7 @@
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
 | 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
-| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 0/2 | Pending | — |
+| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 1/2 | In Progress | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
@@ -247,4 +247,4 @@
 
 ---
 
-*Last updated: 2026-05-08 — Plan 08-09 (Cutover Wochenpauschalen-Heuristik) complete: detect_weekly_lump_sum + Migration-Loop-Pre-Check (a.5); 1× extra_hours-Row mit `amount = Σ contract.hours_per_day für Vertragstage der ISO-Woche` → absence_period {Mo, So}; Live-Bug Max Schmidt 20h@Friday bei 3-Tage-Vertrag migriert sauber (gate passes, drift=0); Backwards-compat strict-match + cluster-of-N untouched; 7 unit + 1 integration test (alle grün), Plan-08-08 Test #19 fixture amount auf 25.0 angepasst. 5 jj-commits; cargo test --workspace + WASM build green. Phase 8 progress 8/9 (Plan 08-06 UAT smoke remains).*
+*Last updated: 2026-05-10 — Plan 08.2-01 (Manual-Range-Convert Backend) complete: rest-types DTO `ManualRangeTO` (sub-struct, ISO-8601, `#[serde(default)]`-Backwards-Compat), service::cutover::ManualRange domain-type, `convert_quarantine_entry` trait-sig erweitert um `manual_range: Option<ManualRange>`, Service-Impl Step 5 als `match`-Branch (year-match + DateRange::new + find_overlapping → DateOrderWrong / InvalidValue / OverlappingPeriod); Steps 6-10 byte-identisch zum 8.1-02-Code (D-28 Audit-Cohesion); REST-Handler ISO-8601-Parse am Edge mit `ServiceError::ValidationError` on parse-fail (HTTP 422); 4 mockall unit tests (manual_range_convert_quarantine_tests: Karin happy-path, inverted, year-mismatch, overlap) + 1 REST integration test (convert_with_manual_range_via_rest mit Karin-Pattern Vertragswechsel) + 2 rest-types roundtrip tests (omit + with manual_range); OpenAPI-Surface erweitert um `ManualRangeTO`. cargo test --workspace grün (411 service_impl + 74 shifty_bin + alle anderen, 0 failures); cargo check --workspace grün; OpenAPI 3-run-deterministisch. 8.1-02 None-Pfad backwards-compat + Karin-Diagnose-Test bleiben grün (keine Regression). 3 jj-commits (`feat`/`feat`/`test`). Phase 8.2 progress 1/2 (Frontend Plan 08.2-02 als nächstes).*

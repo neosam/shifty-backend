@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-09T12:30:00.000Z"
-last_activity: 2026-05-09 -- Phase 08.1 code-side complete (11/12 plans), 08.1-12 UAT pending; Phase 08.2 scoped (manual-range-convert für Karin-gap-1a)
+last_updated: "2026-05-10T08:30:00.000Z"
+last_activity: 2026-05-10 -- Plan 08.2-01 (Manual-Range-Convert Backend) complete
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 21
-  completed_plans: 9
-  percent: 43
+  total_plans: 23
+  completed_plans: 21
+  percent: 91
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-09 -- Phase 08.1 planning complete
+Phase: 08.2 (manual-range-convert-quarantine) — EXECUTING
+Plan: 1 of 2 (Backend complete; Frontend Plan 08.2-02 as next)
+Status: Executing Phase 08.2
+Last activity: 2026-05-10 -- Plan 08.2-01 (Manual-Range-Convert Backend) complete
 
 ## Shipped Milestones
 
@@ -62,6 +62,7 @@ Last activity: 2026-05-09 -- Phase 08.1 planning complete
 
 **v1.3 (Phasen 8+ — Frontend Abwesenheiten + UI-Closure-Restanten):**
 
+- **Manual-Range als additive Branch ohne Endpoint-Duplikation** (Plan 08.2-01): D-28 wählt explizit gegen einen zweiten `/admin/cutover/convert-quarantine-entry-manual`-Endpoint und stattdessen für ein optionales `manual_range`-Feld auf dem existing `CutoverConvertQuarantineEntryRequest`. Begründung: identische Tx-Semantik (extra_hours-Soft-Delete + absence_period-Insert), identischer `synthetic_run_id`-Pfad, identischer `refreshed_drift_report`-Mechanismus. Steps 6-10 sind byte-identisch zum 8.1-02-Heuristik-Code; nur Step 5 (Range-Derive) ist als `match`-Branch geforkt. ManualRange-Domain-Type (`time::Date` Felder) wird im REST-Handler aus dem ISO-8601-String-DTO geparsed → kein doppeltes Parsing in Service. Validation-Reihenfolge: year-match VOR DateRange::new VOR find_overlapping (year-match-Fehler ist präziser als irreführender DateOrderWrong bei Cross-Year-Range). DAO-Reuse: `absence_dao.find_overlapping(_, _, _, exclude_logical_id=None, _)` — gleicher Pattern wie `AbsenceServiceImpl::create` Z. 189-207, keine neue DAO-Methode. Test-Strategy per D-35 surface-isolated: Karin-happy-path-Test asserted nur die manual_range-Surface (absence_period.from/to/category), NICHT post-Convert-Drift = 0 — Drift-Cleanup ist Operator-Verantwortung über mehrere UI-Aktionen.
 - **Heuristik-Pre-Check vor Quarantine-Pfaden** (Plan 08-09): Wenn eine Migration- oder Quarantine-Logik etablierte User-Conventions falsch ablehnt, wird ein additiver Pre-Check VOR den existing Pfaden eingebaut — Match → bypass mit explizitem Output (hier: 1-Row-Cluster mit überschriebenem `{Mo, So}`-Range), Non-Match → fall-through zur unveränderten Logik. Backwards-Compat ohne Code-Duplication; existing Tests bleiben grün ohne Modification. Konkret im Cutover: `detect_weekly_lump_sum(row, all_rows, contract_at)`-Helper + `iso_week_range(day)` + `lookup_active_contract(work_details, day)` als freistehende Funktionen am Modul-Ende. Detection-Order: Lump-Sum-Check VOR Workday-Quarantine + Strict-Match-Quarantine, weil Wochenpauschalen oft auf Nicht-Vertragstagen liegen — sonst wäre die Heuristik nutzlos. Per-Weekday-Contract-Lookup statt 'first contract of the week' kompatibel mit Vertragswechseln mid-week.
 - **ISO-Wochen-Boundary via time-Crate-Roundtrip** (Plan 08-09): Mo-of-week / So-of-week werden NICHT manuell berechnet, sondern via `time::Date::to_iso_week_date(day) → (year, week, _)` + `time::Date::from_iso_week_date(year, week, Weekday::{Monday, Sunday})`. Cross-Year-korrekt (KW 53 / KW 1 spreading über Jahresgrenze) ohne eigene calendar-week-math; nutzt das bewährte time-Crate API.
 - **Service-Enum-Reason-Mapping** (Plan 08-08): Wenn ein typisiertes Service-Enum (`QuarantineReason`) für End-User sichtbar wird, leben die human-readable + remediation-Strings als Methoden direkt am Enum (`human_text()`, `suggested_action()`) — single source of truth. DTOs (`CutoverQuarantineEntryTO`) rufen die Methoden auf und stringifizieren. Reusable für REST + künftige CLI-Tools / Admin-Reports ohne Wire-Tier-Abhängigkeit. Backend-Default ist Englisch; i18n übernimmt das Frontend (separates Backlog-Item).
@@ -156,8 +157,8 @@ Last activity: 2026-05-09 -- Phase 08.1 planning complete
 7. Read `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md` — Backend-Integrations-Brief
 8. Read `shifty-dioxus/shifty-design/project/absences.jsx` — Mockup (729 Zeilen JSX)
 
-**Next command**: `/gsd-execute-phase 8` für Plan 08-06 (UAT smoke; finale Closure-Phase). Mit Plan 08-09 ist die Cutover-Migration jetzt für reale Wochenpauschalen-Bookings tolerant — der Live-Bug Max Schmidt 20h@Friday bei 3-Tage-Vertrag migriert sauber.
+**Next command**: `/gsd-execute-phase 8.2` für Plan 08.2-02 (Frontend ManualConvertModal + Coroutine-Action + 8 i18n keys × 3 locales + 4 dioxus-ssr snapshots + WASM-Build-Gate). Backend-Surface ist stabil: `CutoverConvertQuarantineEntryRequest.manual_range: Option<ManualRangeTO>` mit `#[serde(default)]`-Backwards-Compat. ISO-8601-Strings im DTO; Backend liefert pro-Feld `ServiceError::ValidationError(InvalidValue("manual_range.start_date is not a valid ISO-8601 date"))` etc. → Frontend rendert sie inline im Modal.
 
 ---
 
-*State updated: 2026-05-08 — Plan 08-09 (Cutover Wochenpauschalen-Heuristik) abgeschlossen (detect_weekly_lump_sum-Helper + iso_week_range + lookup_active_contract; Migration-Loop bekommt Pre-Check (a.5) VOR Workday/Strict-Match Quarantäne; 1× extra_hours-Row mit `amount = Σ contract.hours_per_day für Vertragstage der ISO-Woche` wird auf absence_period {Mo, So} gemappt — auch wenn Eintrag-Tag ein Nicht-Vertragstag ist; Backwards-compat: existing Strict-Match + Cluster-of-N + Quarantine-Reasons unverändert; 7 unit + 1 integration test added (alle grün), Plan-08-08 Test #19 fixture amount auf 25.0 angepasst um Heuristik-Match zu vermeiden; cargo test --workspace grün (396+68+andere), WASM-Build grün; 5 jj-commits). Phase-8-Progress 8/9 (89%). Plan 08-06 als nächstes — UAT smoke.*
+*State updated: 2026-05-10 — Plan 08.2-01 (Manual-Range-Convert Backend) abgeschlossen. rest-types `ManualRangeTO`-Sub-Struct + `CutoverConvertQuarantineEntryRequest.manual_range: Option<ManualRangeTO>` mit `#[serde(default)]`; service::cutover::ManualRange Domain-Type; `convert_quarantine_entry`-Trait erweitert um `manual_range: Option<ManualRange>` zwischen `extra_hours_id` und `context`; Service-Impl Step 5 als `match`-Branch (year-match → InvalidValue, DateRange::new → DateOrderWrong, find_overlapping → OverlappingPeriod); Steps 6-10 byte-identisch zum 8.1-02-Code. REST-Handler ISO-8601-Parse am Edge mit ValidationError on parse-fail (HTTP 422). 4 mockall unit tests (manual_range_convert_quarantine_tests: Karin happy-path surface-isolated per D-35, inverted, year-mismatch, overlap) + 1 REST integration test (convert_with_manual_range_via_rest mit Karin-Pattern Vertragswechsel) + 2 rest-types roundtrip tests. OpenAPI-Surface erweitert um `ManualRangeTO`. cargo test --workspace grün (411 service_impl + 74 shifty_bin + alle anderen Suites, 0 failures); cargo check --workspace grün; OpenAPI 3-run-deterministisch. 8.1-02 None-Pfad backwards-compat + Karin-Diagnose-Test bleiben grün (keine Regression). 3 jj-commits (`feat(08.2-01): add ManualRangeTO DTO + ManualRange domain-type + service trait extension` / `feat(08.2-01): implement manual_range branch in convert_quarantine_entry + 4 mockall tests` / `test(08.2-01): rest integration test + openapi surface update for ManualRangeTO`). Phase 8.2 Progress 1/2 (50%). Plan 08.2-02 (Frontend) als nächstes.*
