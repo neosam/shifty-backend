@@ -29,7 +29,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::api;
-use crate::error::ShiftyError;
+use crate::error::{ShiftyError, log_shifty_error};
 use crate::state::Config;
 use crate::state::cutover_state::{CutoverWizardState, RunSummary, WizardStage};
 
@@ -93,6 +93,7 @@ pub async fn cutover_service(mut rx: UnboundedReceiver<CutoverAction>) {
         let result = process_action(action, config).await;
 
         if let Err(err) = result {
+            log_shifty_error(&err);
             *ERROR_STORE.write() = ErrorStore { error: Some(err) };
         }
         CUTOVER_STORE.write().busy = false;
