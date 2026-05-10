@@ -31,7 +31,7 @@
   5. Optional: Feiertag-Konsistenz-Fix in `detect_weekly_lump_sum` (Plan 08-09 Inkonsistenz mit `derive_hours_for_range` — Group D Drifts wie Sonja Vac 2026)
   6. Phase-8-HUMAN-UAT (35 Schritte) wird auf int durchlaufen und gemeinsam mit Phase 8.1 closed; gap-1 in 08-HUMAN-UAT.md auf `resolved` gesetzt
 
-- [ ] **Phase 8.2: Manual-Range-Convert für Quarantäne** (Backend + Frontend, gap-1a-Closure)
+- [x] **Phase 8.2: Manual-Range-Convert für Quarantäne** (Backend + Frontend, gap-1a-Closure) — completed 2026-05-10
   Erweitert die Cutover-UI um manuelles Konvertieren: Wenn die Heuristik einen Quarantäne-Eintrag nicht auflösen kann (Karin-Pattern, gap-1a — Vertragswechsel mit differing `hours_per_day` mid-week), gibt der Admin/HR den `absence_period`-Zeitraum (start/end) selbst vor. Backend erweitert `convert_quarantine_entry` um optionales `manual_range`, skipt die Heuristik und schreibt direkt. Frontend ersetzt das stub-bleibende `EditExtraHoursModal` durch ein `ManualConvertModal` mit Date-Range-Picker.
   Requirements: (Closure-Phase, schließt gap-1a aus 08.1-10-SUMMARY)
   Success Criteria:
@@ -217,7 +217,7 @@
 
 **Plans:** 2 plans across 2 waves (sequenziell — Frontend-Plan wartet auf Backend-DTO)
 - [x] 08.2-01-PLAN.md — Backend `manual_range`-Branch + DTO + 4 mockall + 1 integration test + OpenAPI-Schema-Update — Wave 1 (completed 2026-05-10, see 08.2-01-SUMMARY.md)
-- [ ] 08.2-02-PLAN.md — Frontend ManualConvertModal + Coroutine-Action + 8 i18n keys × 3 locales + 4 dioxus-ssr snapshots + WASM-Build-Gate — Wave 2
+- [x] 08.2-02-PLAN.md — Frontend ManualConvertModal + Coroutine-Action + 8 i18n keys × 3 locales + 4 dioxus-ssr snapshots + WASM-Build-Gate — Wave 2 (completed 2026-05-10, see 08.2-02-SUMMARY.md)
 
 **UI hint**: yes (Backend additiv + Frontend Modal-Erweiterung).
 
@@ -238,7 +238,7 @@
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
 | 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
-| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 1/2 | In Progress | — |
+| 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 2/2 | Complete | 2026-05-10 |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
@@ -247,4 +247,4 @@
 
 ---
 
-*Last updated: 2026-05-10 — Plan 08.2-01 (Manual-Range-Convert Backend) complete: rest-types DTO `ManualRangeTO` (sub-struct, ISO-8601, `#[serde(default)]`-Backwards-Compat), service::cutover::ManualRange domain-type, `convert_quarantine_entry` trait-sig erweitert um `manual_range: Option<ManualRange>`, Service-Impl Step 5 als `match`-Branch (year-match + DateRange::new + find_overlapping → DateOrderWrong / InvalidValue / OverlappingPeriod); Steps 6-10 byte-identisch zum 8.1-02-Code (D-28 Audit-Cohesion); REST-Handler ISO-8601-Parse am Edge mit `ServiceError::ValidationError` on parse-fail (HTTP 422); 4 mockall unit tests (manual_range_convert_quarantine_tests: Karin happy-path, inverted, year-mismatch, overlap) + 1 REST integration test (convert_with_manual_range_via_rest mit Karin-Pattern Vertragswechsel) + 2 rest-types roundtrip tests (omit + with manual_range); OpenAPI-Surface erweitert um `ManualRangeTO`. cargo test --workspace grün (411 service_impl + 74 shifty_bin + alle anderen, 0 failures); cargo check --workspace grün; OpenAPI 3-run-deterministisch. 8.1-02 None-Pfad backwards-compat + Karin-Diagnose-Test bleiben grün (keine Regression). 3 jj-commits (`feat`/`feat`/`test`). Phase 8.2 progress 1/2 (Frontend Plan 08.2-02 als nächstes).*
+*Last updated: 2026-05-10 — Phase 8.2 verified passed (6/6 must-haves, gsd-verifier 08.2-VERIFICATION.md). Plan 08.2-02 (Frontend ManualConvertModal) complete: shifty-dioxus api::cutover_convert_quarantine_entry um `manual_range: Option<ManualRangeTO>` erweitert (existing ConvertSingle call-site auf `None` migriert); neue `CutoverAction::ConvertSingleManualRange { extra_hours_id, start_date, end_date }`-Variante mit Coroutine-Branch (formatiert dates via time::macros::format_description, baut ManualRangeTO, ruft Backend, P-6 fallback auf separate gate-dry-run wenn refreshed_drift_report.is_none(), schreibt CUTOVER_STORE.last_dry_run + bump_cutover_refresh); ManualConvertModal-Component ersetzt EditExtraHoursModal-Stub (Custom-Backdrop, 2× `<input type="date">`, read-only amount + category als spans D-31/D-32, inline error-rendering, P-7 defense — kein unwrap_or_else hardcoded fallback); DriftEntryRow Edit-Button öffnet ManualConvertModal mit `category: drift_row_meta.0.category` als read-only Quelle (CutoverQuarantineEntryTO hat kein category-Feld); on_submit dispatcht ConvertSingleManualRange + close-on-submit. 8 neue i18n-Keys × 3 Locales (DE/EN/CS — `CutoverManualConvert{ModalTitle,Help,StartLabel,EndLabel,BtnSubmit,ErrStartAfterEnd,ErrYearMismatch,ErrOverlap}`) + Per-Locale-Reference-Matcher-Tests erweitert (Pitfall-2-Guard). 4 neue dioxus-ssr Snapshot-Tests (`manual_convert_modal_renders_two_date_inputs` / `manual_convert_modal_renders_validation_error_when_start_after_end` / `manual_convert_modal_not_rendered_when_closed` / `manual_convert_modal_dispatches_action_on_valid_submit`) ersetzen Test 11 aus 8.1-09 (`edit_extra_hours_modal_renders_amount_and_date_only`); 536/536 shifty-dioxus binary tests grün; cargo check --workspace grün; WASM-Build-Gate (`nix-shell -p openssl pkg-config lld --command "cargo build --target wasm32-unknown-unknown"`) exit 0. 3 jj-commits (`feat`/`feat`/`feat`). Phase 8.2 Plans complete (2/2). Karin-Pattern (gap-1a) jetzt operativ end-to-end auflösbar — UAT-bereit.*
