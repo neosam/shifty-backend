@@ -79,6 +79,7 @@ pub enum EmployeeAction {
     DeleteExtraHours(Uuid),
     UpdateExtraHours(ExtraHoursTO),
     DeleteCustomExtraHour(Uuid),
+    DeleteEmployeeWorkDetails(Uuid),
     FullYear,
     UntilNow,
     NextYear,
@@ -222,6 +223,9 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
             }
             EmployeeAction::DeleteCustomExtraHour(extra_hours_id) => {
                 delete_custom_extra_hours(extra_hours_id).await
+            }
+            EmployeeAction::DeleteEmployeeWorkDetails(id) => {
+                super::employee_work_details::delete_employee_work_details(id).await
             }
             EmployeeAction::FullYear => {
                 let sales_person_id: Uuid = EMPLOYEE_STORE.read().employee.sales_person.id;

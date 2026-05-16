@@ -801,6 +801,10 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::AbsenceDeleteConfirmBtn, "Delete");
     i18n.add_text(Locale::En, Key::AbsenceDeleteCancelBtn, "Cancel");
+    i18n.add_text(Locale::En, Key::EmployeeWorkDetailsDeleteBtn, "Delete contract");
+    i18n.add_text(Locale::En, Key::EmployeeWorkDetailsDeleteConfirmTitle, "Delete contract?");
+    i18n.add_text(Locale::En, Key::EmployeeWorkDetailsDeleteConfirmBody, "Really delete this contract? The entry stays in audit logs but will no longer be counted in reports.");
+    i18n.add_text(Locale::En, Key::EmployeeWorkDetailsDeleteConfirmBtn, "Delete");
     i18n.add_text(Locale::En, Key::AbsenceFilterShowPast, "Show past");
     i18n.add_text(Locale::En, Key::AbsenceFilterCounter, "{n} of {m}");
 

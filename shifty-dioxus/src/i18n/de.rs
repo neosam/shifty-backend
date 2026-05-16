@@ -876,6 +876,10 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::De, Key::AbsenceDeleteConfirmBtn, "Löschen");
     i18n.add_text(Locale::De, Key::AbsenceDeleteCancelBtn, "Abbrechen");
+    i18n.add_text(Locale::De, Key::EmployeeWorkDetailsDeleteBtn, "Arbeitsvertrag löschen");
+    i18n.add_text(Locale::De, Key::EmployeeWorkDetailsDeleteConfirmTitle, "Arbeitsvertrag löschen?");
+    i18n.add_text(Locale::De, Key::EmployeeWorkDetailsDeleteConfirmBody, "Diesen Arbeitsvertrag wirklich löschen? Der Eintrag bleibt für Audit-Logs erhalten.");
+    i18n.add_text(Locale::De, Key::EmployeeWorkDetailsDeleteConfirmBtn, "Löschen");
     i18n.add_text(
         Locale::De,
         Key::AbsenceFilterShowPast,

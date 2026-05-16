@@ -71,7 +71,7 @@ async fn new_employee_work_details_for_sales_person(
     Ok(())
 }
 
-async fn delete_employee_work_details(employee_work_details_id: Uuid) -> Result<(), ShiftyError> {
+pub async fn delete_employee_work_details(employee_work_details_id: Uuid) -> Result<(), ShiftyError> {
     api::delete_employee_work_details(CONFIG.read().clone(), employee_work_details_id).await?;
     reload_employee_work_details().await?;
     Ok(())

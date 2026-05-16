@@ -864,6 +864,10 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::Cs, Key::AbsenceDeleteConfirmBtn, "Smazat");
     i18n.add_text(Locale::Cs, Key::AbsenceDeleteCancelBtn, "Zrušit");
+    i18n.add_text(Locale::Cs, Key::EmployeeWorkDetailsDeleteBtn, "Smazat smlouvu");
+    i18n.add_text(Locale::Cs, Key::EmployeeWorkDetailsDeleteConfirmTitle, "Smazat smlouvu?");
+    i18n.add_text(Locale::Cs, Key::EmployeeWorkDetailsDeleteConfirmBody, "Opravdu smazat tuto smlouvu? Položka zůstane v auditních záznamech, ale nebude se počítat v reportech.");
+    i18n.add_text(Locale::Cs, Key::EmployeeWorkDetailsDeleteConfirmBtn, "Smazat");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterShowPast, "Zobrazit minulé");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterCounter, "{n} z {m}");
 

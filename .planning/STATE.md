@@ -30,7 +30,7 @@ progress:
 Phase: 08.2 (manual-range-convert-quarantine) — PLANS COMPLETE (UAT pending for phase closure)
 Plan: 2 of 2 (Backend + Frontend done — Karin-Pattern operatively resolvable)
 Status: Phase 8.2 plans shipped; UAT subsumption (analogous to 8.1-12) is the next phase-closure step.
-Last activity: 2026-05-16 -- Quick task 260516-g63: Hour-Inputs step=0.01 (4 frontend touchpoints + TextInput.step Prop + 5 Tests; uncommitted, user committet manuell)
+Last activity: 2026-05-16 -- Quick task 260516-gv8: Delete-Button für Arbeitsverträge (Action + i18n 3 locales + EmployeeView Button + Confirm-Modal + 3 SSR-Tests; uncommitted)
 
 ## Shipped Milestones
 
@@ -146,7 +146,8 @@ Last activity: 2026-05-16 -- Quick task 260516-g63: Hour-Inputs step=0.01 (4 fro
 
 | # | Description | Date | Status | Directory |
 |---|-------------|------|--------|-----------|
-| 260516-g63 | Hour-Inputs step=0.01 (frontend) | 2026-05-16 | uncommitted (user commits via jj) | [260516-g63-stunden-eingaben-m-ssen-auf-zwei-nachkom](./quick/260516-g63-stunden-eingaben-m-ssen-auf-zwei-nachkom/) |
+| 260516-g63 | Hour-Inputs step=0.01 (frontend) | 2026-05-16 | committed via jj (zrqsmoun) | [260516-g63-stunden-eingaben-m-ssen-auf-zwei-nachkom](./quick/260516-g63-stunden-eingaben-m-ssen-auf-zwei-nachkom/) |
+| 260516-gv8 | Delete-Button für Arbeitsverträge (frontend) | 2026-05-16 | uncommitted (user commits via jj) | [260516-gv8-delete-button-f-r-arbeitsvertr-ge-employ](./quick/260516-gv8-delete-button-f-r-arbeitsvertr-ge-employ/) |
 
 ### Phase-Verzeichnis-Cleanup (optional)
 

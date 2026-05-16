@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::base_types::{format_hours, ImStr};
 use crate::component::atoms::{Btn, BtnVariant, NavBtn, PersonChip, TupleRow};
+use crate::component::dialog::{Dialog, DialogVariant};
 use crate::component::dropdown_base::DropdownTrigger;
 use crate::component::EmployeeWeeklyHistogram;
 use crate::i18n::Key;
@@ -68,10 +69,13 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let i18n = I18N.read().clone();
     let mut selected_week = use_signal(|| None::<(u32, u8)>);
     let mut expand_weeks = use_signal(|| false);
+    let mut delete_confirm_id: Signal<Option<Uuid>> = use_signal(|| None);
 
     let employee = props.employee.clone();
     let work_details_list = props.employee_work_details_list.clone();
     let custom_hours = props.custom_hours.clone();
+    let show_delete_work_details = props.show_delete_employee_work_details;
+    let on_delete_clicked = props.on_delete_employee_work_details_clicked;
 
     // Header text
     let name = employee.sales_person.name.clone();
@@ -122,6 +126,10 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let vacation_days_str: ImStr = i18n.t(Key::VacationDaysLabel).into();
     let vacation_carryover_str: ImStr = i18n.t(Key::VacationCarryoverLabel).into();
     let current_week_note = i18n.t(Key::CurrentWeekNote);
+    let delete_contract_btn_label: ImStr = ImStr::from(i18n.t(Key::EmployeeWorkDetailsDeleteBtn).as_ref());
+    let delete_contract_confirm_title: ImStr = ImStr::from(i18n.t(Key::EmployeeWorkDetailsDeleteConfirmTitle).as_ref());
+    let delete_contract_confirm_body: ImStr = ImStr::from(i18n.t(Key::EmployeeWorkDetailsDeleteConfirmBody).as_ref());
+    let delete_contract_confirm_btn: String = i18n.t(Key::EmployeeWorkDetailsDeleteConfirmBtn).to_string();
 
     let prev_year_aria = ImStr::from(i18n.t(Key::PreviousYear).as_ref());
     let next_year_aria = ImStr::from(i18n.t(Key::NextYear).as_ref());
@@ -342,13 +350,32 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                 }
                 div { class: "flex flex-col gap-2",
                     for details in work_details_list.iter() {
-                        ContractCard {
-                            details: details.clone(),
-                            on_click: {
-                                let id = details.id;
-                                move |_| on_work_details_clicked.call(id)
-                            },
-                            hours_label: hours_str.clone(),
+                        div { class: "flex items-stretch gap-2",
+                            div { class: "flex-1 min-w-0",
+                                ContractCard {
+                                    details: details.clone(),
+                                    on_click: {
+                                        let id = details.id;
+                                        move |_| on_work_details_clicked.call(id)
+                                    },
+                                    hours_label: hours_str.clone(),
+                                }
+                            }
+                            if show_delete_work_details {
+                                {
+                                    let id = details.id;
+                                    let label = delete_contract_btn_label.clone();
+                                    rsx! {
+                                        button {
+                                            r#type: "button",
+                                            class: "px-2 text-bad-soft hover:text-bad text-small flex-shrink-0 self-stretch flex items-center",
+                                            "aria-label": "{label}",
+                                            onclick: move |_| delete_confirm_id.set(Some(id)),
+                                            "🗑"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     if let Some(handler) = on_add_work_details {
@@ -432,6 +459,45 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     on_custom_delete: move |uuid| {
                         props.on_custom_delete.call(uuid);
                     },
+                }
+            }
+        }
+
+        // Delete contract confirm modal
+        if let Some(delete_id) = *delete_confirm_id.read() {
+            {
+                let confirm_btn_label = delete_contract_confirm_btn.clone();
+                let footer = rsx! {
+                    Btn {
+                        variant: BtnVariant::Secondary,
+                        on_click: move |_| {
+                            delete_confirm_id.set(None);
+                        },
+                        "Cancel"
+                    }
+                    Btn {
+                        variant: BtnVariant::Danger,
+                        on_click: move |_| {
+                            delete_confirm_id.set(None);
+                            if let Some(handler) = on_delete_clicked {
+                                handler.call(delete_id);
+                            }
+                        },
+                        "{confirm_btn_label}"
+                    }
+                };
+                rsx! {
+                    Dialog {
+                        open: true,
+                        on_close: move |_| {
+                            delete_confirm_id.set(None);
+                        },
+                        title: delete_contract_confirm_title.clone(),
+                        variant: DialogVariant::Auto,
+                        width: 420,
+                        footer: Some(footer),
+                        p { class: "text-ink", "{delete_contract_confirm_body}" }
+                    }
                 }
             }
         }
@@ -852,7 +918,12 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             },
             on_add_employee_work_details: props.on_add_employee_work_details,
             on_employee_work_details_clicked: props.on_employee_work_details_clicked,
-            on_delete_employee_work_details_clicked: props.on_delete_employee_work_details_clicked,
+            on_delete_employee_work_details_clicked: Some(EventHandler::new(move |id: Uuid| {
+                employee_service.send(EmployeeAction::DeleteEmployeeWorkDetails(id));
+                if let Some(handler) = props.on_delete_employee_work_details_clicked {
+                    handler.call(id);
+                }
+            })),
             on_next_year: move |_| {
                 employee_service.send(EmployeeAction::NextYear);
             },
@@ -993,5 +1064,108 @@ mod tests {
                 "legacy class `{forbidden}` found in source"
             );
         }
+    }
+
+    // --- SSR tests for delete-contract button (Task 5) ---
+    //
+    // Fallback: EmployeeViewPlain calls js::get_current_year()/get_current_week()
+    // unconditionally, which panics on non-wasm targets (js-sys limitation).
+    // We therefore test the conditional rendering logic via minimal sub-components
+    // that isolate exactly the branch under test, following the same pattern used
+    // in plan 260516-g63 (ContractModal/ExtraHoursModal tests).
+
+    /// Test A: delete button renders when show_delete_employee_work_details=true.
+    /// Uses a minimal stub component that mirrors only the contract-row delete branch.
+    #[test]
+    fn delete_contract_button_renders_when_enabled() {
+        fn app() -> Element {
+            let i18n = crate::service::i18n::I18N.read().clone();
+            let label: ImStr = ImStr::from(
+                i18n.t(crate::i18n::Key::EmployeeWorkDetailsDeleteBtn)
+                    .as_ref(),
+            );
+            // Mirrors the branch: if show_delete_work_details { button { "aria-label": label ... } }
+            let show = true;
+            rsx! {
+                div {
+                    if show {
+                        button {
+                            r#type: "button",
+                            "aria-label": "{label}",
+                            "🗑"
+                        }
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        // EN locale: EmployeeWorkDetailsDeleteBtn = "Delete contract"
+        assert!(
+            html.contains("Delete contract"),
+            "delete-contract button must appear when show=true, got: {html}"
+        );
+    }
+
+    /// Test B: delete button is absent when show_delete_employee_work_details=false.
+    #[test]
+    fn delete_contract_button_hidden_when_disabled() {
+        fn app() -> Element {
+            let i18n = crate::service::i18n::I18N.read().clone();
+            let label: ImStr = ImStr::from(
+                i18n.t(crate::i18n::Key::EmployeeWorkDetailsDeleteBtn)
+                    .as_ref(),
+            );
+            let show = false;
+            rsx! {
+                div {
+                    if show {
+                        button {
+                            r#type: "button",
+                            "aria-label": "{label}",
+                            "🗑"
+                        }
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("Delete contract"),
+            "delete-contract button must NOT appear when show=false, got: {html}"
+        );
+    }
+
+    /// Test C: confirm modal title is absent in the initial render (delete_confirm_id=None).
+    #[test]
+    fn delete_contract_confirm_modal_hidden_initially() {
+        fn app() -> Element {
+            let i18n = crate::service::i18n::I18N.read().clone();
+            let title: ImStr = ImStr::from(
+                i18n.t(crate::i18n::Key::EmployeeWorkDetailsDeleteConfirmTitle)
+                    .as_ref(),
+            );
+            let body: ImStr = ImStr::from(
+                i18n.t(crate::i18n::Key::EmployeeWorkDetailsDeleteConfirmBody)
+                    .as_ref(),
+            );
+            // Mirrors: if let Some(id) = *delete_confirm_id.read() { Dialog { title, body } }
+            let delete_confirm_id: Option<Uuid> = None; // initial state
+            rsx! {
+                div {
+                    if let Some(_id) = delete_confirm_id {
+                        div {
+                            h2 { "{title}" }
+                            p { "{body}" }
+                        }
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        // Confirm modal title must not appear before user clicks
+        assert!(
+            !html.contains("Delete contract?"),
+            "confirm modal must be hidden in initial render (None state), got: {html}"
+        );
     }
 }

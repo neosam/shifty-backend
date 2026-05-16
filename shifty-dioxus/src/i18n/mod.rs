@@ -490,6 +490,11 @@ pub enum Key {
     AbsenceDeleteConfirmBody,
     AbsenceDeleteConfirmBtn,
     AbsenceDeleteCancelBtn,
+    // Employee Work Details Destructive Confirmation
+    EmployeeWorkDetailsDeleteBtn,
+    EmployeeWorkDetailsDeleteConfirmTitle,
+    EmployeeWorkDetailsDeleteConfirmBody,
+    EmployeeWorkDetailsDeleteConfirmBtn,
     // Filter
     AbsenceFilterShowPast,
     AbsenceFilterCounter,
