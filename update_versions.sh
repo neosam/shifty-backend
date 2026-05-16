@@ -19,6 +19,19 @@ for cargo_file in */Cargo.toml; do
     fi
 done
 
-sed -i "0,/version = \".*\"/{s/version = \".*\"/version = \"$NEW_VERSION\"/}" "default.nix"
+# Update the package `version = "..."` line in every nix file that carries one.
+# First-match-only so we never touch unrelated `version`-flag occurrences (e.g.
+# `dx --version` in flake devshell scripts).
+for nix_file in \
+    default.nix \
+    flake.nix \
+    shifty-dioxus/default.nix \
+    shifty-dioxus/flake.nix
+do
+    if [ -f "$nix_file" ]; then
+        echo "Updating version in $nix_file"
+        sed -i "0,/version = \".*\"/{s/version = \".*\"/version = \"$NEW_VERSION\"/}" "$nix_file"
+    fi
+done
 
 echo "Version update complete"
