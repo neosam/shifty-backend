@@ -1843,7 +1843,7 @@ dependencies = [
 
 [[package]]
 name = "rest-types"
-version = "2026.136.3"
+version = "2026.136.4-dev"
 dependencies = [
  "serde",
  "time",
@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "shifty-dioxus"
-version = "2026.136.3"
+version = "2026.136.4-dev"
 dependencies = [
  "async-recursion",
  "dioxus",
