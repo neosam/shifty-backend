@@ -5,7 +5,7 @@ let
   rustPlatform = pkgs.rust-bin.stable."1.90.0";
 in pkgs.rustPlatform.buildRustPackage rec {
   pname = "shifty-dioxus";
-  version = "2026.136.3-dev";
+  version = "2026.136.3";
   
   src = ./.;
   
