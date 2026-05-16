@@ -1442,6 +1442,8 @@ mod booking_absence_conflict;
 #[cfg(test)]
 mod cutover;
 #[cfg(test)]
+mod employee_work_details_update;
+#[cfg(test)]
 mod extra_hours_update;
 #[cfg(test)]
 mod feature_flag;

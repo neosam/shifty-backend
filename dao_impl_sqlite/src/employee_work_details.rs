@@ -413,7 +413,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let to_year = entity.to_year as i64;
         let to_calendar_week = entity.to_calendar_week as i64;
         let to_day_of_week = entity.to_day_of_week.to_number() as i64;
-        let expected_hours = entity.expected_hours as i64;
+        let expected_hours = entity.expected_hours as f64;
         let vacation_days = entity.vacation_days as i64;
         let workdays_per_week = entity.workdays_per_week as i64;
         let is_dynamic = entity.is_dynamic as i64;
