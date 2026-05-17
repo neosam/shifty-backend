@@ -344,3 +344,175 @@ async fn test_derive_hours_contract_change() {
     assert!(!result.contains_key(&date!(2024 - 06 - 07)));
     assert_eq!(result.len(), 8, "3 days @ 8h + 5 days @ 4h = 8 entries");
 }
+
+// ---------- Phase 8.3 (Plan 04) — Halbtag-Tests ----------
+//
+// Verifizieren die D-08.3-04-Entscheidung (CONTEXT.md OQ-4): wenn die
+// dominante Absence `day_fraction = Half` traegt, halbiert
+// `derive_hours_for_range` die effektive Soll-Stundenzahl uniform fuer ALLE
+// Tage der Range. Halbierung ist kategorie-unabhaengig (Vacation/SickLeave/
+// UnpaidLeave). Aufruferseite (reporting.rs) bleibt unveraendert; die
+// halbierten Stunden propagieren automatisch in vacation_hours / vacation_days
+// / BillingPeriod-Aggregation, was den Snapshot-Bump 3 -> 4 begruendet.
+
+#[tokio::test]
+async fn test_derive_hours_half_day_single_full_day_contract() {
+    // Vacation 1 Tag (Mo 2024-06-03) + day_fraction = Half + 8h-Vertrag
+    // → 4h erwartet (D-08.3-04).
+    let mut deps = build_dependencies();
+
+    let mut vac_entity = period_to_entity(&fixture_vacation_period());
+    vac_entity.from_date = date!(2024 - 06 - 03);
+    vac_entity.to_date = date!(2024 - 06 - 03);
+    vac_entity.day_fraction = DayFractionEntity::Half;
+    let absence_entities: Arc<[AbsencePeriodEntity]> = Arc::from(vec![vac_entity]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    let work_details = fixture_work_details_8h_mon_fri();
+    let work_details_arc: Arc<[_]> = Arc::from(vec![work_details]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(work_details_arc.clone()));
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 03),
+            date!(2024 - 06 - 03),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 03)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 4.0,
+        }),
+        "Half-day vacation must produce hours = contract_hours * 0.5"
+    );
+    assert_eq!(result.len(), 1, "exactly 1 resolved day expected");
+}
+
+#[tokio::test]
+async fn test_derive_hours_half_day_two_day_range_uniform_halving() {
+    // Vacation Mo+Di + day_fraction = Half + 8h-Vertrag.
+    // Erwartung: jeder Tag 4h, Gesamtsumme 8h (D-08.3-04 uniform halving).
+    let mut deps = build_dependencies();
+
+    let mut vac_entity = period_to_entity(&fixture_vacation_period());
+    vac_entity.from_date = date!(2024 - 06 - 03); // Monday
+    vac_entity.to_date = date!(2024 - 06 - 04); // Tuesday
+    vac_entity.day_fraction = DayFractionEntity::Half;
+    let absence_entities: Arc<[AbsencePeriodEntity]> = Arc::from(vec![vac_entity]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    let work_details = fixture_work_details_8h_mon_fri();
+    let work_details_arc: Arc<[_]> = Arc::from(vec![work_details]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(work_details_arc.clone()));
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 03),
+            date!(2024 - 06 - 04),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 03)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 4.0,
+        }),
+        "Monday must be halved to 4h"
+    );
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 04)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 4.0,
+        }),
+        "Tuesday must also be halved to 4h (uniform per-day halving)"
+    );
+
+    let total_hours: f32 = result.values().map(|a| a.hours).sum();
+    assert!(
+        (total_hours - 8.0).abs() < 1e-6,
+        "Sum across 2-day half-range must be 8h, got {}",
+        total_hours
+    );
+}
+
+#[tokio::test]
+async fn test_derive_hours_half_day_sick_leave_also_halved() {
+    // Verifiziert dass die Halbierung kategorie-unabhaengig in
+    // derive_hours_for_range greift — nicht hardcoded auf Vacation.
+    // SickLeave + Half + 8h-Vertrag → 4h.
+    let mut deps = build_dependencies();
+
+    let mut sick_entity = period_to_entity(&fixture_sick_period());
+    sick_entity.from_date = date!(2024 - 06 - 05); // Wednesday
+    sick_entity.to_date = date!(2024 - 06 - 05);
+    sick_entity.day_fraction = DayFractionEntity::Half;
+    let absence_entities: Arc<[AbsencePeriodEntity]> = Arc::from(vec![sick_entity]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    let work_details = fixture_work_details_8h_mon_fri();
+    let work_details_arc: Arc<[_]> = Arc::from(vec![work_details]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(work_details_arc.clone()));
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 05),
+            date!(2024 - 06 - 05),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 05)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::SickLeave,
+            hours: 4.0,
+        }),
+        "Half-day SickLeave must produce hours = contract_hours * 0.5 \
+         (category-agnostic halving)"
+    );
+}
