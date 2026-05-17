@@ -40,6 +40,15 @@
   3. Karin-Diagnose-Test (`diagnose_int_drift_pattern_karin_*`) plus 1 neuer Test: manual_range löst die Karin-Quarantäne ohne Backend-Heuristik-Anpassung
   4. WASM-Build + Backend cargo test workspace grün; Privilege bleibt `cutover_admin OR hr` (D-23 aus 8.1)
 
+- [ ] **Phase 8.3: Halbtag-Support für Absences** (Backend + Frontend + Cutover-UI-Erweiterung, Scope-Revision)
+  Erweitert `AbsencePeriod` um `day_fraction: Full | Half`, damit halbe Urlaubstage (klassisch: Heiligabend + Silvester) abgebildet werden können. Vorlauf-Phase **vor** dem finalen Cutover-Switch (Plan 08.1-12), damit bestehende Halbtag-Buchungen im Cutover korrekt überführt werden. Datenkorrektur auf bereits gecutoverten Live-Daten wäre nachträglich schmerzhaft. Granularität bewusst zweiwertig — kein AM/PM, keine Stundenebene; Stundenebene bleibt out-of-scope. Revidiert die alte Out-of-Scope-Notiz "Halbtage / Stundenebene für Abwesenheiten" aus REQUIREMENTS.md.
+  Requirements: FUI-A-10
+  Success Criteria:
+  1. `absence_period`-Tabelle + DTO + Service + REST + DAO erweitert um `day_fraction`; bestehende Einträge bleiben `Full` (no-drift-Garantie)
+  2. Reporting (`derive_hours_for_range`, Vacation-Aggregation) berücksichtigt Halbtage; `CURRENT_SNAPSHOT_SCHEMA_VERSION` wird gebumpt
+  3. Frontend `AbsenceModal` + `CutoverAdminPage`-Drift-Resolution + `ManualConvertModal` bekommen Halb/Ganz-Eingabe pro Eintrag
+  4. i18n De / En / Cs für neue Labels; OpenAPI-Surface-Test grün; WASM-Build + `cargo test --workspace` grün; keine Regression in bestehenden Billing-Period-Snapshots
+
 - [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
   Requirements: FUI-A-05, FUI-A-06
@@ -225,6 +234,35 @@
 
 ---
 
+### Phase 8.3: Halbtag-Support für Absences
+
+**Goal:** Backend-Datenmodell + Service + REST + Frontend-CRUD + Cutover-Migration-UI um halbe Urlaubstage erweitern (`day_fraction: Full | Half` auf `AbsencePeriod`). Vorlauf-Phase **vor** dem finalen Cutover-Switch (Plan 08.1-12, Phase-8-HUMAN-UAT-Subsumption), damit bestehende halbe Urlaubstage (Heiligabend 24.12., Silvester 31.12.) im Cutover korrekt nach `absence_period` überführt werden können — Datenkorrektur auf bereits gecutoverten Live-Daten ist deutlich schmerzhafter als ein verzögerter Switch. Revidiert die v1.3-Out-of-Scope-Entscheidung "Halbtage / Stundenebene für Abwesenheiten" aus `REQUIREMENTS.md`. Granularität ist bewusst zweiwertig (ganz oder halb), kein AM/PM-Modell, keine Stundenebene — Stundenebene bleibt out-of-scope.
+
+**Depends on:** Phase 8 (Absence-CRUD-Page Foundation — `AbsenceModal`, `AbsenceService`, `absence_period`-Tabelle, `AbsencePeriodTO`-DTO), Phase 8.1 Plans 01-11 (Cutover-Migration-UI bereits gebaut; 8.3 erweitert die existierende Drift-Resolution-Liste + `convert_quarantine_entry`/`bulk_convert_quarantine_rows`-Endpoints), Phase 8.2 (`ManualConvertModal` bekommt Halb/Ganz-Auswahl).
+
+**Blocks:** Phase 8.1 Plan 08.1-12 (Phase-8-HUMAN-UAT-Subsumption / finaler Switch) — läuft erst, wenn 8.3 durch ist.
+
+**Requirements:** **FUI-A-10** (Halbtag-Abwesenheiten — Backend-Modell + Frontend-Eingabe + Cutover-Mapping). Pflicht-Locale-Coverage (FUI-A-09) für neue i18n-Keys.
+
+**Success Criteria** (was muss WAHR sein, nachdem die Phase abgeschlossen ist):
+
+1. `absence_period`-Tabelle erweitert um `day_fraction`-Spalte (Migration additiv: `NOT NULL DEFAULT 'full'`). DAO + Entity-Mapping unterstützt das Feld. Plan-Phase entscheidet zwischen `TEXT`-Enum (`'full'|'half'`) und `INTEGER` (0/1).
+2. `AbsencePeriodTO` (`rest-types/src/lib.rs:1565..2040`) bekommt `day_fraction: DayFractionTO`-Feld (Enum-DTO mit `ToSchema`); `AbsencePeriodCreateResultTO` unverändert. `AbsenceService::create_absence_period` + `update_absence_period` propagieren das Feld unverändert nach DAO.
+3. `derive_hours_for_range` (`service_impl/src/absence.rs:483-…`) und Reporting-Aggregation berücksichtigen `day_fraction` — bei `Half` werden halbe Soll-Stunden pro Tag angerechnet. **Snapshot-Schema-Version-Bump:** `CURRENT_SNAPSHOT_SCHEMA_VERSION` in `service_impl::billing_period_report` wird um eins erhöht (Begründung: Vacation-Computation-Logik ändert sich, alte Snapshots würden bei Re-Computation drift erzeugen — siehe `shifty-backend/CLAUDE.md` § "Billing Period Snapshot Schema Versioning").
+4. Frontend `AbsenceModal` (`shifty-backend/shifty-dioxus/`) bekommt Halb/Ganz-Eingabe pro Buchung (UI-Form Plan-Phase-Decision: Checkbox vs. Dropdown). Bei Range > 1 Tag gilt `day_fraction` einheitlich für alle Tage der Range (klassischer Anwendungsfall: Range = 1 Tag).
+5. Cutover-Migration-UI (`/admin/cutover`, Phase 8.1) bekommt pro Drift-Resolution-Eintrag Halb/Ganz-Auswahl. Per-Eintrag-Convert (`POST /admin/cutover/convert-quarantine-entry`) + Bulk-Convert (`POST /admin/cutover/bulk-convert-quarantine-rows`) + Manual-Convert (`POST /admin/cutover/convert-quarantine-entry` mit `manual_range`, Phase 8.2) akzeptieren `day_fraction`. Plan-Phase entscheidet zwischen Auto-Vorschlag aus Alt-Daten-Stunden (≈ 4 h → Halbtag) und rein manueller Toggle.
+6. Konflikt-Logik: Halbtag-Absence + Booking am selben Tag wird **nicht** als Konflikt gewarnt (Booking gilt für die andere Tageshälfte). Plan-Phase entscheidet, ob `WarningTO` einen informativen Hinweis liefert oder schweigt.
+7. OpenAPI-Surface-Test (`rest/tests/openapi_surface.rs` — `EXPECTED_SCHEMAS`) ergänzt um `DayFractionTO` + `day_fraction`-Feld auf `AbsencePeriodTO`. Schema-Drift-Test grün.
+8. i18n De / En / Cs für Halb/Ganz-Labels in `AbsenceModal` + `CutoverAdminPage`-Drift-Resolution + `ManualConvertModal`. Per-Locale-Reference-Matcher-Tests analog Plan 08-04 D-26.
+9. Backfill-Daten-Test: Bestehende `absence_period`-Einträge (vor Migration) bleiben unverändert (`Full`); ein Integration-Test verifiziert, dass `derive_hours_for_range` mit `day_fraction = Full` identische Resultate liefert wie vor der Schema-Erweiterung (no-drift-Garantie für bestehende Daten).
+10. `cargo build --target wasm32-unknown-unknown` im `shifty-backend/shifty-dioxus/`-Subordner liefert Exit-Code 0 ohne Errors; `cargo check --workspace` + `cargo test --workspace` im Backend-Root grün. Keine Regression in Billing-Period-Snapshots existierender Phasen (alte Snapshots haben alte `snapshot_schema_version` und werden vom Validator korrekt als "older schema" markiert).
+
+**UI hint**: yes (Backend-Erweiterung + Frontend-CRUD-Modal + Cutover-UI-Erweiterung).
+
+**Notes for plan-phase:** Misch-Phase Backend + Frontend wie 8 / 8.1. Open Questions aus `.planning/notes/halftime-absence-decision.md` (Datenmodell-Form Enum vs. f32, Cutover-Auto-Vorschlag vs. manuelle Toggle, Frontend-UI-Pattern Checkbox vs. Dropdown, Konflikt-Warning-Verhalten, i18n-Keys) sind in der Plan-Phase zu entscheiden. **Service-Tier:** Erweiterung des bestehenden `AbsenceService` (Business-Logic-Tier, schon klassifiziert in Phase 8). `CutoverServiceImpl`-Erweiterung bleibt Business-Logic-Tier. **Snapshot-Schema-Versioning:** **Pflicht-Bump** der `CURRENT_SNAPSHOT_SCHEMA_VERSION` — Vacation-Aggregation ändert sich. **Reuse-Patterns:** 8.1-Drift-Resolution-Liste (`page/cutover_admin.rs`, Plan 08.1-09), `compute_gate_diagnostic` für `refreshed_drift_report`, 8.2-`ManualConvertModal` als Vorlage für Form-Erweiterung. **Out-of-Scope explizit:** AM/PM-Disambiguierung (separater Halbtag-Vormittag vs. Halbtag-Nachmittag), Stundenebene generell, Konflikt-Warning-Logik für Halbtag-Booking-Overlap (toleriert ohne Warning), Edit-Pfad für `day_fraction` auf bereits gecutoverten `absence_period`-Einträgen vor Phase-8.3-Schema (alle bestehenden Einträge sind `Full`; explizite Korrektur erfolgt über normalen Edit-Pfad). **VCS:** jj-only (siehe `CLAUDE.local.md`); Plans dürfen keine `git commit`-Befehle planen. **Cutover-Reihenfolge:** Plan-Phase muss klären, ob 8.3 vor Plan 08.1-12 als separate Phase abgeschlossen wird oder ob 08.1-12 in 8.3 subsumiert wird (vermutlich separat, weil 8.3 das Schema voraussetzt für die HUMAN-UAT-Re-Run).
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -239,6 +277,7 @@
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
 | 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
 | 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 2/2 | Complete | 2026-05-10 |
+| 8.3 — Halbtag-Support für Absences | v1.3 | 0/? | Pending | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |

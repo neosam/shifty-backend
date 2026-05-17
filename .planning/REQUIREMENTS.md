@@ -73,6 +73,21 @@ direkt, deshalb keine Neunummerierung).
   erweitert, kein Locale::En-statt-Locale::De-Bug wie historisch in
   `de.rs`
 
+### Halbtag-Abwesenheiten
+
+- [ ] **FUI-A-10**: `AbsencePeriod` unterstützt halbe Urlaubstage über ein
+  `day_fraction: Full | Half`-Feld auf der Buchung (nicht auf dem Tag).
+  Backend-Datenmodell (DB-Spalte + DTO + Service + REST) wird erweitert;
+  Reporting (`derive_hours_for_range` + Vacation-Aggregation in
+  `BillingPeriod`) berücksichtigt `Half` als 0,5 Tag bzw. halbe Soll-Stunden;
+  `CURRENT_SNAPSHOT_SCHEMA_VERSION` wird gebumpt. Frontend-CRUD (Absence-
+  Modal in Phase 8) und Cutover-Migration-UI (Phase 8.1) bekommen Halb/Ganz-
+  Eingabe pro Eintrag. Auflösung Vormittag/Nachmittag ist explizit
+  ausgeschlossen — `Half` ohne Tageszeit-Disambiguierung. Stundenebene
+  bleibt out-of-scope. Konkrete Anwendung: Heiligabend + Silvester. Revidiert
+  die alte Out-of-Scope-Entscheidung "Halbtage / Stundenebene für
+  Abwesenheiten" — siehe `.planning/notes/halftime-absence-decision.md`.
+
 ### UI-Closure aus v1.1/v1.2 (FUI)
 
 - [ ] **FUI-01**: `current_paid_count` als sichtbare Anzeige im
@@ -126,14 +141,16 @@ Explizit ausgeschlossen für v1.3. Begründung jeweils.
 | FUI-03      | Phase 12 | Pending |
 | FUI-04      | Phase 12 | Pending |
 | FUI-A-09    | Phase 13 | Pending |
+| FUI-A-10    | Phase 8.3 | Pending |
 
 **Coverage:**
-- v1.3 requirements: 13 total
-- Mapped to phases: 13 ✓
+- v1.3 requirements: 14 total
+- Mapped to phases: 14 ✓
 - Unmapped: 0
 
 **Phase distribution:**
 - Phase 8 (Absence-CRUD-Page Foundation): FUI-A-01..04 (4 reqs — Kern)
+- Phase 8.3 (Halbtag-Support für Absences): FUI-A-10 (1 req — scope-revision aus Out-of-Scope)
 - Phase 9 (Booking-Flow Reverse-Warnings + Copy-Week): FUI-A-05, FUI-A-06 (2 reqs)
 - Phase 10 (Shiftplan-View Unavailability-Marker): FUI-A-07 (1 req)
 - Phase 11 (Migrations-Hinweis-UX + Deprecation-Handling): FUI-A-08 (1 req)
@@ -142,4 +159,4 @@ Explizit ausgeschlossen für v1.3. Begründung jeweils.
 
 ---
 *Requirements defined: 2026-05-07*
-*Last updated: 2026-05-07 — Traceability mit Phase-8..13 Mapping (13/13 coverage)*
+*Last updated: 2026-05-17 — FUI-A-10 (Halbtag-Abwesenheiten) ergänzt, Phase-8.3-Mapping (14/14 coverage)*
