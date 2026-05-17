@@ -22,6 +22,7 @@ struct AbsencePeriodDb {
     created: String,
     deleted: Option<String>,
     update_version: Vec<u8>,
+    day_fraction: String,
 }
 
 impl TryFrom<&AbsencePeriodDb> for AbsencePeriodEntity {
@@ -53,11 +54,15 @@ impl TryFrom<&AbsencePeriodDb> for AbsencePeriodEntity {
                 .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
                 .transpose()?,
             version: Uuid::from_slice(&row.update_version)?,
-            // Phase 8.3 (Plan 01 bridge): Migration legt die Spalte mit
-            // DEFAULT 'full' an, aber der SELECT-Query liest sie noch nicht.
-            // Plan 02 erweitert `AbsencePeriodDb` + alle SELECT-Queries und
-            // ersetzt diesen Stub durch den echten Spalten-Match.
-            day_fraction: DayFractionEntity::Full,
+            // Phase 8.3 (Plan 02): Migration enforces NOT NULL + CHECK ('full'|'half')
+            // — legacy rows default to 'full' at the DB level (no-drift). The match
+            // mirrors the AbsenceCategory pattern above: unknown values become a
+            // typed DAO-Error rather than a panic.
+            day_fraction: match row.day_fraction.as_str() {
+                "full" => DayFractionEntity::Full,
+                "half" => DayFractionEntity::Half,
+                value => return Err(DaoError::EnumValueNotFound(value.into())),
+            },
         })
     }
 }
@@ -67,6 +72,17 @@ fn category_to_str(c: &AbsenceCategoryEntity) -> &'static str {
         AbsenceCategoryEntity::Vacation => "Vacation",
         AbsenceCategoryEntity::SickLeave => "SickLeave",
         AbsenceCategoryEntity::UnpaidLeave => "UnpaidLeave",
+    }
+}
+
+/// Phase 8.3 — serialize the domain enum into the lowercase DB representation
+/// (matches the CHECK constraint in migration `20260517120000`). PascalCase
+/// is reserved for the wire (`DayFractionTO`) — DB storage uses lowercase to
+/// avoid accidental case-sensitive comparisons.
+fn day_fraction_to_str(f: &DayFractionEntity) -> &'static str {
+    match f {
+        DayFractionEntity::Full => "full",
+        DayFractionEntity::Half => "half",
     }
 }
 
@@ -92,7 +108,7 @@ impl AbsenceDao for AbsenceDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             AbsencePeriodDb,
-            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE id = ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE id = ? AND deleted IS NULL",
             id_vec,
         )
         .fetch_optional(tx.tx.lock().await.as_mut())
@@ -111,7 +127,7 @@ impl AbsenceDao for AbsenceDaoImpl {
         let logical_id_vec = logical_id.as_bytes().to_vec();
         Ok(query_as!(
             AbsencePeriodDb,
-            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE logical_id = ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE logical_id = ? AND deleted IS NULL",
             logical_id_vec,
         )
         .fetch_optional(tx.tx.lock().await.as_mut())
@@ -130,7 +146,7 @@ impl AbsenceDao for AbsenceDaoImpl {
         let sp_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             AbsencePeriodDb,
-            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE sales_person_id = ? AND deleted IS NULL ORDER BY from_date",
+            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE sales_person_id = ? AND deleted IS NULL ORDER BY from_date",
             sp_vec,
         )
         .fetch_all(tx.tx.lock().await.as_mut())
@@ -147,7 +163,7 @@ impl AbsenceDao for AbsenceDaoImpl {
     ) -> Result<Arc<[AbsencePeriodEntity]>, DaoError> {
         Ok(query_as!(
             AbsencePeriodDb,
-            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE deleted IS NULL ORDER BY sales_person_id, from_date",
+            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE deleted IS NULL ORDER BY sales_person_id, from_date",
         )
         .fetch_all(tx.tx.lock().await.as_mut())
         .await
@@ -176,7 +192,7 @@ impl AbsenceDao for AbsenceDaoImpl {
                 let exclude_vec = exclude.as_bytes().to_vec();
                 query_as!(
                     AbsencePeriodDb,
-                    "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE sales_person_id = ? AND category = ? AND from_date <= ? AND to_date >= ? AND logical_id != ? AND deleted IS NULL",
+                    "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE sales_person_id = ? AND category = ? AND from_date <= ? AND to_date >= ? AND logical_id != ? AND deleted IS NULL",
                     sp_vec,
                     category_str,
                     to_str,
@@ -190,7 +206,7 @@ impl AbsenceDao for AbsenceDaoImpl {
             None => {
                 query_as!(
                     AbsencePeriodDb,
-                    "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE sales_person_id = ? AND category = ? AND from_date <= ? AND to_date >= ? AND deleted IS NULL",
+                    "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE sales_person_id = ? AND category = ? AND from_date <= ? AND to_date >= ? AND deleted IS NULL",
                     sp_vec,
                     category_str,
                     to_str,
@@ -221,7 +237,7 @@ impl AbsenceDao for AbsenceDaoImpl {
 
         Ok(query_as!(
             AbsencePeriodDb,
-            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version \
+            "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction \
              FROM absence_period \
              WHERE sales_person_id = ? \
                AND from_date <= ? \
@@ -259,8 +275,9 @@ impl AbsenceDao for AbsenceDaoImpl {
             .map(|dt| dt.format(&Iso8601::DATE_TIME))
             .transpose()?;
         let version_vec = entity.version.as_bytes().to_vec();
+        let day_fraction_str = day_fraction_to_str(&entity.day_fraction);
         query!(
-            "INSERT INTO absence_period (id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO absence_period (id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_process, update_version, day_fraction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             logical_id_vec,
             sp_vec,
@@ -272,6 +289,7 @@ impl AbsenceDao for AbsenceDaoImpl {
             deleted,
             process,
             version_vec,
+            day_fraction_str,
         )
         .execute(tx.tx.lock().await.as_mut())
         .await
