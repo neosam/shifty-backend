@@ -1076,3 +1076,53 @@ async fn test_book_persists_even_when_warning_fires() {
     );
 }
 
+// ---------- Phase 8.3 (Plan 04) — Booking-Conflict-Suppression bei Half ----------
+//
+// ROADMAP SC #6 / D-08.3-05: Halbtag-Absence + Booking am selben Tag ist ein
+// legitimer Workflow (Mitarbeiter arbeitet die andere Tageshaelfte). Der
+// `Warning::BookingOnAbsenceDay`-Emitter in `shiftplan_edit.rs` filtert
+// AbsencePeriods mit `day_fraction = Half` schweigend aus.
+
+/// "Karin-aehnliches Heiligabend-Pattern": ein Booking am 2026-12-24 und
+/// gleichzeitig eine Halbtag-Absence fuer denselben Tag DARF KEINE
+/// `BookingOnAbsenceDay`-Warning erzeugen. Erfuellt ROADMAP Phase 8.3 SC #6.
+#[tokio::test]
+async fn booking_conflict_half_day_does_not_warn() {
+    let mut deps = build_dependencies(true, false);
+
+    // AbsenceService liefert genau eine Halbtag-Absence ueber den Booking-Tag.
+    // Alle anderen Felder analog `default_absence_period()` — wir setzen nur
+    // `day_fraction = Half`.
+    deps.absence_service.checkpoint();
+    deps.absence_service
+        .expect_find_overlapping_for_booking()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![AbsencePeriod {
+                day_fraction: DayFraction::Half,
+                ..default_absence_period()
+            }]))
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&default_booking(), ().auth(), None)
+        .await
+        .expect("book_slot_with_conflict_check should succeed");
+
+    // Persistenz lief durch — Booking ist da.
+    assert_eq!(result.booking, persisted_booking());
+
+    // SC #6: KEIN BookingOnAbsenceDay-Warning, weil die Absence Half ist.
+    let absence_warnings: Vec<&Warning> = result
+        .warnings
+        .iter()
+        .filter(|w| matches!(w, Warning::BookingOnAbsenceDay { .. }))
+        .collect();
+    assert!(
+        absence_warnings.is_empty(),
+        "Phase 8.3 SC #6: Half-day absence + booking on same day MUST NOT \
+         emit BookingOnAbsenceDay warning; got: {:?}",
+        result.warnings
+    );
+}
+
