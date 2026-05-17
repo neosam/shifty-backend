@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-05-10T09:30:00.000Z"
-last_activity: 2026-05-10 -- Plan 08.2-02 (Manual-Range-Convert Frontend ManualConvertModal) complete
+last_updated: "2026-05-17T10:12:20.843Z"
+last_activity: 2026-05-17 -- Phase 08.3 execution started
 progress:
-  total_phases: 3
-  completed_phases: 1
-  total_plans: 23
+  total_phases: 4
+  completed_phases: 2
+  total_plans: 29
   completed_plans: 22
-  percent: 96
+  percent: 76
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 08.2 (manual-range-convert-quarantine) — PLANS COMPLETE (UAT pending for phase closure)
-Plan: 2 of 2 (Backend + Frontend done — Karin-Pattern operatively resolvable)
-Status: Phase 8.2 plans shipped; UAT subsumption (analogous to 8.1-12) is the next phase-closure step.
-Last activity: 2026-05-16 -- Quick task 260516-gv8: Delete-Button für Arbeitsverträge (Action + i18n 3 locales + EmployeeView Button + Confirm-Modal + 3 SSR-Tests; uncommitted)
+Phase: 08.3 (halbtag-support-f-r-absences) — EXECUTING
+Plan: 1 of 6
+Status: Executing Phase 08.3
+Last activity: 2026-05-17 -- Phase 08.3 execution started
 
 ## Shipped Milestones
 
