@@ -108,7 +108,7 @@ Explizit ausgeschlossen für v1.3. Begründung jeweils.
 
 | Feature | Reason |
 |---------|--------|
-| Halbtage / Stundenebene für Abwesenheiten | Backend modelliert nur Ganztage; Halbtag-Modell wäre Backend-Änderung, kein Frontend-Scope |
+| Stundenebene für Abwesenheiten (z. B. 3 h Arzttermin als Vacation) | Maximalflexibles Modell wäre kompletter Service-Schicht-Umbau + Reporting-Arithmetik in Stunden; konkreter Bedarf bislang nicht aufgetreten. Halbtag-Teilrevision: siehe FUI-A-10 / Phase 8.3, Halbtage werden über `day_fraction: Full \| Half` umgesetzt (Decision Log: `.planning/notes/halftime-absence-decision.md`) |
 | Genehmigungs-Workflow für Abwesenheiten | Backend kennt keinen Approval-Schritt; Anlage ist atomar mit `hr ∨ self`-Permission |
 | Admin-Cutover-UI (`/admin/cutover/*`) | Getrenntes Admin-Surface; CLI-Flow reicht weiter (Phase E im Seed bewusst optional) |
 | Min-Paid-Capacity / Skill-Matching (SC-01, SC-02) | Backend-Themen für künftiges Backend-Milestone, nicht Frontend |

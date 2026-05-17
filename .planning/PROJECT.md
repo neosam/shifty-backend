@@ -163,7 +163,10 @@ spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
 **Bewusst nicht in v1.3:**
 
-- Halbtage / Stundenebene für Abwesenheiten (Backend modelliert nur Ganztage)
+- Stundenebene für Abwesenheiten (z. B. 3 h Arzttermin als Vacation) — bleibt
+  out-of-scope. Halbtage (Heiligabend / Silvester) werden in Phase 8.3 über
+  `day_fraction: Full \| Half` umgesetzt (FUI-A-10; Decision Log:
+  `.planning/notes/halftime-absence-decision.md`).
 - Genehmigungs-Workflow (Backend kennt keinen Approval-Schritt)
 - Min-Paid-Capacity / Skill-Matching (SC-01, SC-02 — Backend-Themen für später)
 - Admin-Cutover-UI (`/admin/cutover/*` ist getrenntes Admin-Surface; CLI-Flow

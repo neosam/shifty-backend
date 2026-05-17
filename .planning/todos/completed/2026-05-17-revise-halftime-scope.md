@@ -55,3 +55,13 @@ Out-of-Scope-Aussage finden.
 - Decision Log: `.planning/notes/halftime-absence-decision.md`
 - Requirement: REQUIREMENTS.md FUI-A-10
 - Phase: ROADMAP.md Phase 8.3
+
+## Resolution
+
+- 2026-05-17 — Erledigt:
+  - `REQUIREMENTS.md` Out-of-Scope-Tabelle: Halbtag-Teil entfernt, Stundenebene
+    als eigenständiger Out-of-Scope-Eintrag mit Verweis auf FUI-A-10 / Phase 8.3
+    und Decision Log neu formuliert.
+  - `PROJECT.md` Bullet "Bewusst nicht in v1.3": analog umformuliert, Halbtag
+    raus, Stundenebene drin als out-of-scope mit Verweis auf FUI-A-10 / Phase 8.3
+    und Decision Log.
