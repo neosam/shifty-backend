@@ -949,4 +949,49 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::CutoverManualConvertErrOverlap,
         "Bestehende Abwesenheit überschneidet sich mit diesem Zeitraum.",
     );
+
+    // Phase 8.3 — Halbtag-Support (Absence).
+    i18n.add_text(Locale::De, Key::AbsenceFieldDayFraction, "Tageshälfte");
+    i18n.add_text(Locale::De, Key::AbsenceDayFractionFull, "Ganztag");
+    i18n.add_text(Locale::De, Key::AbsenceDayFractionHalf, "Halber Tag");
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceFieldDayFractionFullHint,
+        "Verbraucht den vollen Vertrags-Stundensatz pro Tag.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceFieldDayFractionHalfHint,
+        "Verbraucht 0,5 Urlaubstage pro Tag im Bereich.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AbsencePreviewFooterHalfDay,
+        "Bei Halbtag: angezeigte Stunden sind bereits halbiert.",
+    );
+
+    // Phase 8.3 — Halbtag-Support (Cutover).
+    i18n.add_text(Locale::De, Key::CutoverDriftColDayFraction, "Tageshälfte");
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverDriftDayFractionAria,
+        "Tageshälfte für diesen Eintrag wählen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverBulkDayFractionLabel,
+        "Halb/Ganz für ganze Gruppe",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverDriftHalfDaySuggestion,
+        "Stunden deuten auf Halbtag hin ({amount:.2}h ≈ ½ × Vertragstag).",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CutoverManualConvertDayFractionLabel,
+        "Tageshälfte",
+    );
+    i18n.add_text(Locale::De, Key::CutoverDayFractionFull, "Ganztag");
+    i18n.add_text(Locale::De, Key::CutoverDayFractionHalf, "Halber Tag");
 }

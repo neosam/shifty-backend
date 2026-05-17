@@ -874,4 +874,49 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::CutoverManualConvertErrOverlap,
         "An existing absence overlaps with this range.",
     );
+
+    // Phase 8.3 — Halbtag-Support (Absence).
+    i18n.add_text(Locale::En, Key::AbsenceFieldDayFraction, "Day fraction");
+    i18n.add_text(Locale::En, Key::AbsenceDayFractionFull, "Full day");
+    i18n.add_text(Locale::En, Key::AbsenceDayFractionHalf, "Half day");
+    i18n.add_text(
+        Locale::En,
+        Key::AbsenceFieldDayFractionFullHint,
+        "Uses the full contract-hours rate per day.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::AbsenceFieldDayFractionHalfHint,
+        "Uses 0.5 vacation days per day in the range.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::AbsencePreviewFooterHalfDay,
+        "Half-day: shown hours are already halved.",
+    );
+
+    // Phase 8.3 — Halbtag-Support (Cutover).
+    i18n.add_text(Locale::En, Key::CutoverDriftColDayFraction, "Day fraction");
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverDriftDayFractionAria,
+        "Pick day fraction for this entry",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverBulkDayFractionLabel,
+        "Half/Full for whole group",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverDriftHalfDaySuggestion,
+        "Hours suggest half-day ({amount:.2}h ≈ ½ × contract day).",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CutoverManualConvertDayFractionLabel,
+        "Day fraction",
+    );
+    i18n.add_text(Locale::En, Key::CutoverDayFractionFull, "Full day");
+    i18n.add_text(Locale::En, Key::CutoverDayFractionHalf, "Half day");
 }

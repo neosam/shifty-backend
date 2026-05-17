@@ -937,4 +937,49 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::CutoverManualConvertErrOverlap,
         "Existující nepřítomnost se překrývá s tímto rozsahem.",
     );
+
+    // Phase 8.3 — Halbtag-Support (Absence).
+    i18n.add_text(Locale::Cs, Key::AbsenceFieldDayFraction, "Část dne");
+    i18n.add_text(Locale::Cs, Key::AbsenceDayFractionFull, "Celý den");
+    i18n.add_text(Locale::Cs, Key::AbsenceDayFractionHalf, "Půl dne");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceFieldDayFractionFullHint,
+        "Spotřebovává plnou smluvní sazbu za každý den.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceFieldDayFractionHalfHint,
+        "Spotřebovává 0,5 dne dovolené za každý den v období.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsencePreviewFooterHalfDay,
+        "Půldenní: zobrazené hodiny jsou již vydělené dvěma.",
+    );
+
+    // Phase 8.3 — Halbtag-Support (Cutover).
+    i18n.add_text(Locale::Cs, Key::CutoverDriftColDayFraction, "Část dne");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverDriftDayFractionAria,
+        "Zvol část dne pro tuto položku",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverBulkDayFractionLabel,
+        "Půl/Celý pro celou skupinu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverDriftHalfDaySuggestion,
+        "Hodiny naznačují půldenní ({amount:.2}h ≈ ½ × smluvní den).",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CutoverManualConvertDayFractionLabel,
+        "Část dne",
+    );
+    i18n.add_text(Locale::Cs, Key::CutoverDayFractionFull, "Celý den");
+    i18n.add_text(Locale::Cs, Key::CutoverDayFractionHalf, "Půl dne");
 }
