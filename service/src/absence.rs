@@ -50,6 +50,39 @@ impl From<&AbsenceCategory> for dao::absence::AbsenceCategoryEntity {
     }
 }
 
+/// Domain-Repräsentation einer Tageshälfte (Phase 8.3, D-02 zweiwertig).
+///
+/// `Full` ist Default und der Normalfall (CONTEXT.md "No-Drift-Garantie").
+/// `Half` halbiert die effektive Soll-Stundenzahl pro Tag in
+/// `service_impl::absence::AbsenceServiceImpl::derive_hours_for_range`
+/// (Plan 08.3-04). Range-Verhalten: einheitlich für alle Tage einer Periode
+/// (CONTEXT.md D-04-default, klassischer Anwendungsfall = Range 1 Tag für
+/// Heiligabend/Silvester).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum DayFraction {
+    #[default]
+    Full,
+    Half,
+}
+
+impl From<&dao::absence::DayFractionEntity> for DayFraction {
+    fn from(f: &dao::absence::DayFractionEntity) -> Self {
+        match f {
+            dao::absence::DayFractionEntity::Full => Self::Full,
+            dao::absence::DayFractionEntity::Half => Self::Half,
+        }
+    }
+}
+
+impl From<&DayFraction> for dao::absence::DayFractionEntity {
+    fn from(f: &DayFraction) -> Self {
+        match f {
+            DayFraction::Full => Self::Full,
+            DayFraction::Half => Self::Half,
+        }
+    }
+}
+
 /// Domain-Repräsentation einer Absence-Periode.
 ///
 /// `id` entspricht der DAO-`logical_id` (D-07). Der `update`-Pfad rotiert die
@@ -67,6 +100,7 @@ pub struct AbsencePeriod {
     pub created: Option<time::PrimitiveDateTime>,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
+    pub day_fraction: DayFraction,
 }
 
 impl From<&dao::absence::AbsencePeriodEntity> for AbsencePeriod {
@@ -81,6 +115,7 @@ impl From<&dao::absence::AbsencePeriodEntity> for AbsencePeriod {
             created: Some(e.created),
             deleted: e.deleted,
             version: e.version,
+            day_fraction: (&e.day_fraction).into(),
         }
     }
 }
@@ -98,6 +133,7 @@ impl TryFrom<&AbsencePeriod> for dao::absence::AbsencePeriodEntity {
             created: a.created.ok_or(ServiceError::InternalError)?,
             deleted: a.deleted,
             version: a.version,
+            day_fraction: (&a.day_fraction).into(),
         })
     }
 }
@@ -236,6 +272,7 @@ mod tests {
             created: datetime!(2026 - 04 - 01 12:00:00),
             deleted: None,
             version: Uuid::nil(),
+            day_fraction: dao::absence::DayFractionEntity::Full,
         }
     }
 
@@ -271,6 +308,7 @@ mod tests {
             created: None,
             deleted: None,
             version: Uuid::nil(),
+            day_fraction: DayFraction::Full,
         };
         let result = dao::absence::AbsencePeriodEntity::try_from(&domain);
         assert!(matches!(result, Err(ServiceError::InternalError)));
@@ -288,6 +326,7 @@ mod tests {
             created: None,
             deleted: None,
             version: Uuid::nil(),
+            day_fraction: DayFraction::Full,
         };
         let r = p.date_range();
         assert!(matches!(r, Err(ServiceError::DateOrderWrong(_, _))));
