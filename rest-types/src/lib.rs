@@ -1592,6 +1592,36 @@ impl From<&AbsenceCategoryTO> for service::absence::AbsenceCategory {
     }
 }
 
+/// Tageshälfte einer Absence-Periode (Phase 8.3, D-02 zweiwertig).
+/// Wire-Default `Full` für Backwards-Compat mit Clients, die das Feld
+/// noch nicht setzen (CONTEXT.md "No-Drift-Garantie für Bestandsdaten").
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, ToSchema, Default)]
+pub enum DayFractionTO {
+    #[default]
+    Full,
+    Half,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::absence::DayFraction> for DayFractionTO {
+    fn from(f: &service::absence::DayFraction) -> Self {
+        match f {
+            service::absence::DayFraction::Full => Self::Full,
+            service::absence::DayFraction::Half => Self::Half,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&DayFractionTO> for service::absence::DayFraction {
+    fn from(f: &DayFractionTO) -> Self {
+        match f {
+            DayFractionTO::Full => Self::Full,
+            DayFractionTO::Half => Self::Half,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct AbsencePeriodTO {
     #[serde(default)]
@@ -1611,6 +1641,8 @@ pub struct AbsencePeriodTO {
     #[serde(rename = "$version")]
     #[serde(default)]
     pub version: Uuid,
+    #[serde(default)]
+    pub day_fraction: DayFractionTO,
 }
 
 #[cfg(feature = "service-impl")]
@@ -1626,6 +1658,7 @@ impl From<&service::absence::AbsencePeriod> for AbsencePeriodTO {
             created: a.created,
             deleted: a.deleted,
             version: a.version,
+            day_fraction: (&a.day_fraction).into(),
         }
     }
 }
@@ -1642,6 +1675,7 @@ impl From<&AbsencePeriodTO> for service::absence::AbsencePeriod {
             created: a.created,
             deleted: a.deleted,
             version: a.version,
+            day_fraction: (&a.day_fraction).into(),
         }
     }
 }
@@ -2556,5 +2590,30 @@ mod cutover_convert_dto_tests {
             .expect("manual_range must roundtrip as Some");
         assert_eq!(mr.start_date, "2026-05-04");
         assert_eq!(mr.end_date, "2026-05-08");
+    }
+}
+
+#[cfg(test)]
+mod day_fraction_dto_tests {
+    //! Phase 8.3 — Halbtag-Support.
+    //!
+    //! Sichert die Wire-Form von `DayFractionTO`:
+    //! - `Default = Full` (Backwards-Compat-Garantie für `#[serde(default)]`
+    //!   auf `AbsencePeriodTO.day_fraction`).
+    //! - PascalCase-Serde-Roundtrip (`"Full"` / `"Half"`) analog zum
+    //!   `AbsenceCategoryTO`-Pattern.
+    use super::*;
+
+    #[test]
+    fn day_fraction_to_default_is_full() {
+        assert_eq!(DayFractionTO::default(), DayFractionTO::Full);
+    }
+
+    #[test]
+    fn day_fraction_to_serde_roundtrip_pascalcase() {
+        let json = serde_json::to_string(&DayFractionTO::Half).expect("serialize Half");
+        assert_eq!(json, "\"Half\"");
+        let parsed: DayFractionTO = serde_json::from_str("\"Full\"").expect("deserialize Full");
+        assert_eq!(parsed, DayFractionTO::Full);
     }
 }

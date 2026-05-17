@@ -17,7 +17,7 @@ use std::sync::Arc;
 use dao::{MockTransaction, MockTransactionDao};
 use mockall::predicate::{always, eq};
 use service::{
-    absence::{AbsenceCategory, AbsencePeriod, MockAbsenceService},
+    absence::{AbsenceCategory, AbsencePeriod, DayFraction, MockAbsenceService},
     booking::{Booking, MockBookingService},
     carryover::MockCarryoverService,
     employee_work_details::MockEmployeeWorkDetailsService,
@@ -121,6 +121,7 @@ fn default_absence_period() -> AbsencePeriod {
         created: Some(datetime!(2026 - 04 - 01 12:00:00)),
         deleted: None,
         version: uuid!("CC000000-0000-0000-0000-000000000099"),
+        day_fraction: DayFraction::Full,
     }
 }
 

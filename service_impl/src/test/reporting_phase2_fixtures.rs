@@ -16,7 +16,7 @@ use shifty_utils::DayOfWeek;
 use time::macros::{date, datetime};
 use uuid::Uuid;
 
-use service::absence::{AbsenceCategory, AbsencePeriod};
+use service::absence::{AbsenceCategory, AbsencePeriod, DayFraction};
 use service::employee_work_details::EmployeeWorkDetails;
 use service::extra_hours::{ExtraHours, ExtraHoursCategory};
 use service::sales_person::SalesPerson;
@@ -84,6 +84,7 @@ pub fn fixture_vacation_period() -> AbsencePeriod {
         created: Some(datetime!(2024 - 06 - 01 09:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     }
 }
 
@@ -100,6 +101,7 @@ pub fn fixture_sick_period() -> AbsencePeriod {
         created: Some(datetime!(2024 - 06 - 04 08:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     }
 }
 

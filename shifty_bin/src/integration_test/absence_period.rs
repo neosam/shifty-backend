@@ -7,7 +7,7 @@
 //! d.h. der Service-Pfad ist nicht durch die Permission-Middleware gegated.
 
 use rest::RestStateDef;
-use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService};
+use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService, DayFraction};
 use service::permission::Authentication;
 use service::sales_person::{SalesPerson, SalesPersonService};
 use sqlx::Row;
@@ -52,6 +52,7 @@ async fn create_absence_period(test_setup: &TestSetup, sales_person_id: Uuid) ->
                 created: None,
                 deleted: None,
                 version: Uuid::nil(),
+                day_fraction: DayFraction::Full,
             },
             Authentication::Full,
             None,
@@ -241,6 +242,7 @@ async fn test_create_overlapping_same_category_returns_validation_error() {
         created: None,
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     };
     let result = test_setup
         .rest_state
@@ -272,6 +274,7 @@ async fn test_create_overlapping_different_category_succeeds() {
         created: None,
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     };
     let result = test_setup
         .rest_state
@@ -303,6 +306,7 @@ async fn test_update_can_extend_range_without_self_collision() {
         created: initial.created,
         deleted: None,
         version: initial.version,
+        day_fraction: DayFraction::Full,
     };
     let result = test_setup
         .rest_state

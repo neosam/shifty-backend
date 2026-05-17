@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use dao::MockTransaction;
 use dao::MockTransactionDao;
-use service::absence::{AbsenceCategory, AbsencePeriod, MockAbsenceService};
+use service::absence::{AbsenceCategory, AbsencePeriod, DayFraction, MockAbsenceService};
 use service::carryover::{Carryover, MockCarryoverService};
 use service::clock::MockClockService;
 use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetailsService};
@@ -49,6 +49,7 @@ fn vacation_period(from: time::Date, to: time::Date, sp_id: Uuid) -> AbsencePeri
         created: Some(datetime!(2026 - 01 - 01 12:00:00)),
         deleted: None,
         version: uuid!("CC000000-0000-0000-0000-0000000000A1"),
+        day_fraction: DayFraction::Full,
     }
 }
 

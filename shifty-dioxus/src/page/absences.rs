@@ -931,6 +931,8 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
             created: None,
             deleted: None,
             version,
+            // Phase 8.3 — Halbtag-Support. Plan 06 verdrahtet das Form-Signal.
+            day_fraction: rest_types::DayFractionTO::default(),
         };
         let action = match &mode_for_submit {
             AbsenceModalMode::Create => AbsenceAction::Create(body),

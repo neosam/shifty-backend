@@ -621,6 +621,7 @@ fn test_shiftplan_week_paid_in_absence_still_counts() {
         created: Some(datetime!(2024 - 01 - 01 12:00:00)),
         deleted: None,
         version: uuid!("AB000000-0000-0000-0000-000000000098"),
+        day_fraction: DayFraction::Full,
     };
 
     let result = build_shiftplan_day(
@@ -727,7 +728,7 @@ async fn test_get_shiftplan_day_invalid_week() {
 
 // ---- Phase-3 per-sales-person-Tests (Plan 03-04 Wave 3) ----
 
-use service::absence::AbsenceCategory;
+use service::absence::{AbsenceCategory, DayFraction};
 use service::shiftplan::UnavailabilityMarker;
 use time::macros::{date, datetime};
 
@@ -744,6 +745,7 @@ fn absence_period_w3_monday() -> AbsencePeriod {
         created: Some(datetime!(2024 - 01 - 01 12:00:00)),
         deleted: None,
         version: uuid!("CC000000-0000-0000-0000-000000000099"),
+        day_fraction: DayFraction::Full,
     }
 }
 

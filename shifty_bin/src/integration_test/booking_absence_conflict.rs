@@ -11,7 +11,7 @@
 
 use rest::RestStateDef;
 use service::{
-    absence::{AbsenceCategory, AbsencePeriod, AbsenceService},
+    absence::{AbsenceCategory, AbsencePeriod, AbsenceService, DayFraction},
     booking::{Booking, BookingService},
     permission::Authentication,
     sales_person::{SalesPerson, SalesPersonService},
@@ -121,6 +121,7 @@ async fn create_absence_period_at(
                 created: None,
                 deleted: None,
                 version: Uuid::nil(),
+                day_fraction: DayFraction::Full,
             },
             Authentication::Full,
             None,

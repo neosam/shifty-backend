@@ -135,6 +135,8 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     "CutoverConvertErrorTO",
     // Cutover manual-range sub-struct (Phase 8.2 / D-34).
     "ManualRangeTO",
+    // Phase 8.3 — Halbtag-Support.
+    "DayFractionTO",
 ];
 
 #[test]

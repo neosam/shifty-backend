@@ -2237,6 +2237,7 @@ mod manual_range_convert_quarantine_tests {
     use super::*;
     use dao::absence::AbsenceCategoryEntity;
     use dao::absence::AbsencePeriodEntity;
+    use dao::absence::DayFractionEntity;
     use mockall::Sequence;
     use service::cutover::ManualRange;
     use service::ValidationFailureItem;
@@ -2339,6 +2340,7 @@ mod manual_range_convert_quarantine_tests {
             ),
             deleted: None,
             version: Uuid::new_v4(),
+            day_fraction: DayFractionEntity::Full,
         }
     }
 

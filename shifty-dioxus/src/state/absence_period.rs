@@ -39,6 +39,36 @@ impl From<&AbsenceCategory> for AbsenceCategoryTO {
     }
 }
 
+/// Tageshälfte einer Absence (Phase 8.3, D-02 zweiwertig).
+///
+/// `Full` ist Default; `Half` halbiert die Soll-Stundenzahl pro Tag in der
+/// Reporting-Aggregation (Backend Plan 08.3-04). Frontend-Mirror des
+/// Backend-`service::absence::DayFraction`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum DayFraction {
+    #[default]
+    Full,
+    Half,
+}
+
+impl From<&rest_types::DayFractionTO> for DayFraction {
+    fn from(f: &rest_types::DayFractionTO) -> Self {
+        match f {
+            rest_types::DayFractionTO::Full => Self::Full,
+            rest_types::DayFractionTO::Half => Self::Half,
+        }
+    }
+}
+
+impl From<&DayFraction> for rest_types::DayFractionTO {
+    fn from(f: &DayFraction) -> Self {
+        match f {
+            DayFraction::Full => Self::Full,
+            DayFraction::Half => Self::Half,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AbsencePeriod {
     pub id: Uuid,
@@ -48,6 +78,7 @@ pub struct AbsencePeriod {
     pub to_date: time::Date,
     pub description: Arc<str>,
     pub version: Uuid,
+    pub day_fraction: DayFraction,
     /// Side-join field — populated by the loader from the SalesPerson list.
     /// Empty by default; rendering code should treat empty as "unknown".
     pub person_name: Arc<str>,
@@ -65,6 +96,7 @@ impl From<&AbsencePeriodTO> for AbsencePeriod {
             to_date: t.to_date,
             description: t.description.clone(),
             version: t.version,
+            day_fraction: (&t.day_fraction).into(),
             person_name: Arc::<str>::from(""),
             background_color: Arc::<str>::from(""),
         }
@@ -104,6 +136,7 @@ mod tests {
             created: None,
             deleted: None,
             version: v,
+            day_fraction: rest_types::DayFractionTO::Full,
         };
         let state: AbsencePeriod = (&to).into();
         assert_eq!(state.id, id);
@@ -113,8 +146,27 @@ mod tests {
         assert_eq!(state.from_date, date!(2026 - 06 - 01));
         assert_eq!(state.to_date, date!(2026 - 06 - 14));
         assert_eq!(state.description.as_ref(), "Italy");
+        assert_eq!(state.day_fraction, DayFraction::Full);
         // Side-join fields default empty — loader fills these.
         assert_eq!(state.person_name.as_ref(), "");
         assert_eq!(state.background_color.as_ref(), "");
+    }
+
+    #[test]
+    fn absence_period_from_to_carries_half_day_fraction() {
+        let to = AbsencePeriodTO {
+            id: Uuid::from_u128(10),
+            sales_person_id: Uuid::from_u128(20),
+            category: AbsenceCategoryTO::Vacation,
+            from_date: date!(2026 - 12 - 24),
+            to_date: date!(2026 - 12 - 24),
+            description: Arc::<str>::from("Heiligabend"),
+            created: None,
+            deleted: None,
+            version: Uuid::from_u128(30),
+            day_fraction: rest_types::DayFractionTO::Half,
+        };
+        let state: AbsencePeriod = (&to).into();
+        assert_eq!(state.day_fraction, DayFraction::Half);
     }
 }

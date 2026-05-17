@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{ResultDbErrorExt, TransactionImpl};
 use async_trait::async_trait;
 use dao::{
-    absence::{AbsenceCategoryEntity, AbsenceDao, AbsencePeriodEntity},
+    absence::{AbsenceCategoryEntity, AbsenceDao, AbsencePeriodEntity, DayFractionEntity},
     DaoError,
 };
 use shifty_utils::DateRange;
@@ -53,6 +53,11 @@ impl TryFrom<&AbsencePeriodDb> for AbsencePeriodEntity {
                 .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
                 .transpose()?,
             version: Uuid::from_slice(&row.update_version)?,
+            // Phase 8.3 (Plan 01 bridge): Migration legt die Spalte mit
+            // DEFAULT 'full' an, aber der SELECT-Query liest sie noch nicht.
+            // Plan 02 erweitert `AbsencePeriodDb` + alle SELECT-Queries und
+            // ersetzt diesen Stub durch den echten Spalten-Match.
+            day_fraction: DayFractionEntity::Full,
         })
     }
 }

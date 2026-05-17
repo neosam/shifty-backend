@@ -538,6 +538,9 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             created: migrated_at,
             deleted: None,
             version: Uuid::new_v4(),
+            // Phase 8.3 (Plan 01 bridge): Plan 05 erweitert Cutover-Convert
+            // um eine `day_fraction`-Eingabe (Request-Feld). Bis dahin Full.
+            day_fraction: dao::absence::DayFractionEntity::Full,
         };
         self.absence_dao
             .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())
@@ -711,6 +714,9 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
                 created: migrated_at,
                 deleted: None,
                 version: Uuid::new_v4(),
+                // Phase 8.3 (Plan 01 bridge): Plan 05 erweitert Bulk-Cutover
+                // um eine `day_fraction`-Eingabe (Request-Feld). Bis dahin Full.
+                day_fraction: dao::absence::DayFractionEntity::Full,
             };
             self.absence_dao
                 .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())
@@ -954,6 +960,9 @@ impl<Deps: CutoverServiceDeps> CutoverServiceImpl<Deps> {
                 created: migrated_at,
                 deleted: None,
                 version: Uuid::new_v4(),
+                // Phase 8.3 (Plan 01 bridge): Cluster-Cutover-Pfad bekommt
+                // `day_fraction` in Plan 05 (legacy-Migration nur Full).
+                day_fraction: dao::absence::DayFractionEntity::Full,
             };
             self.absence_dao
                 .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())

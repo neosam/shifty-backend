@@ -14,8 +14,8 @@
 
 use std::sync::Arc;
 
-use dao::absence::{AbsenceCategoryEntity, AbsencePeriodEntity};
-use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService, ResolvedAbsence};
+use dao::absence::{AbsenceCategoryEntity, AbsencePeriodEntity, DayFractionEntity};
+use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService, DayFraction, ResolvedAbsence};
 use service::permission::Authentication;
 use service::special_days::{SpecialDay, SpecialDayType};
 use shifty_utils::DayOfWeek;
@@ -49,6 +49,10 @@ fn period_to_entity(period: &AbsencePeriod) -> AbsencePeriodEntity {
             .unwrap_or(datetime!(2024 - 06 - 01 09:00:00)),
         deleted: period.deleted,
         version: period.version,
+        day_fraction: match period.day_fraction {
+            DayFraction::Full => DayFractionEntity::Full,
+            DayFraction::Half => DayFractionEntity::Half,
+        },
     }
 }
 
@@ -237,6 +241,7 @@ async fn test_derive_hours_contract_change() {
         created: Some(datetime!(2024 - 06 - 01 09:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     };
     let v2 = AbsencePeriod {
         id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_AAAA_0002),
@@ -248,6 +253,7 @@ async fn test_derive_hours_contract_change() {
         created: Some(datetime!(2024 - 06 - 01 09:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     };
     let entities: Arc<[AbsencePeriodEntity]> =
         Arc::from(vec![period_to_entity(&v1), period_to_entity(&v2)]);

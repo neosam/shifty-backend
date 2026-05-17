@@ -499,6 +499,14 @@ pub enum Key {
     AbsenceFilterShowPast,
     AbsenceFilterCounter,
 
+    // Phase 8.3 — Halbtag-Support (Absence).
+    AbsenceFieldDayFraction,
+    AbsenceDayFractionFull,
+    AbsenceDayFractionHalf,
+    AbsenceFieldDayFractionFullHint,
+    AbsenceFieldDayFractionHalfHint,
+    AbsencePreviewFooterHalfDay,
+
     // Cutover migration (Phase 8.1 — see 08.1-UI-SPEC.md § Copywriting Contract).
     CutoverMenuLabel,           // TopBar Verwaltung-Submenu entry
     CutoverPageTitle,
@@ -546,6 +554,15 @@ pub enum Key {
     CutoverManualConvertErrStartAfterEnd,
     CutoverManualConvertErrYearMismatch,
     CutoverManualConvertErrOverlap,
+
+    // Phase 8.3 — Halbtag-Support (Cutover).
+    CutoverDriftColDayFraction,
+    CutoverDriftDayFractionAria,
+    CutoverBulkDayFractionLabel,
+    CutoverDriftHalfDaySuggestion,
+    CutoverManualConvertDayFractionLabel,
+    CutoverDayFractionFull,
+    CutoverDayFractionHalf,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

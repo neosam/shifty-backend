@@ -12,11 +12,11 @@
 
 use std::sync::Arc;
 
-use dao::absence::{AbsenceCategoryEntity, AbsencePeriodEntity, MockAbsenceDao};
+use dao::absence::{AbsenceCategoryEntity, AbsencePeriodEntity, DayFractionEntity, MockAbsenceDao};
 use dao::MockTransaction;
 use dao::MockTransactionDao;
 use mockall::predicate::{always, eq};
-use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService};
+use service::absence::{AbsenceCategory, AbsencePeriod, AbsenceService, DayFraction};
 use service::booking::MockBookingService;
 use service::clock::MockClockService;
 use service::employee_work_details::MockEmployeeWorkDetailsService;
@@ -77,6 +77,7 @@ fn default_active_entity() -> AbsencePeriodEntity {
         created: datetime!(2026 - 04 - 01 12:00:00),
         deleted: None,
         version: default_version(),
+        day_fraction: DayFractionEntity::Full,
     }
 }
 
@@ -92,6 +93,7 @@ fn other_logical_active_entity() -> AbsencePeriodEntity {
         created: datetime!(2026 - 03 - 01 12:00:00),
         deleted: None,
         version: uuid!("CC000000-0000-0000-0000-000000000099"),
+        day_fraction: DayFractionEntity::Full,
     }
 }
 
@@ -106,6 +108,7 @@ fn default_create_request() -> AbsencePeriod {
         created: None,
         deleted: None,
         version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
     }
 }
 
@@ -120,6 +123,7 @@ fn default_update_request() -> AbsencePeriod {
         created: Some(datetime!(2026 - 04 - 01 12:00:00)),
         deleted: None,
         version: default_version(),
+        day_fraction: DayFraction::Full,
     }
 }
 
