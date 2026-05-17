@@ -20,6 +20,18 @@ pub enum AbsenceCategoryEntity {
     UnpaidLeave,
 }
 
+/// Persistierte Tageshälfte einer Absence-Periode (Phase 8.3, D-02 zweiwertig).
+///
+/// `Full` ist Default für Bestandsdaten (Migration `NOT NULL DEFAULT 'full'`).
+/// `Half` halbiert die effektive Soll-Stundenzahl pro Tag in
+/// `derive_hours_for_range` (siehe Plan 08.3-04). Range-Verhalten ist
+/// einheitlich für alle Tage einer Periode (CONTEXT.md D-04-default).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DayFractionEntity {
+    Full,
+    Half,
+}
+
 /// DAO-Repräsentation eines Absence-Period-Eintrags.
 ///
 /// Felder spiegeln die `absence_period`-Tabelle (Migration `20260501162017`).
@@ -38,6 +50,7 @@ pub struct AbsencePeriodEntity {
     pub created: time::PrimitiveDateTime,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
+    pub day_fraction: DayFractionEntity,
 }
 
 #[automock(type Transaction = crate::MockTransaction;)]
@@ -150,6 +163,7 @@ mod tests {
             created: time::PrimitiveDateTime::new(from, time::Time::MIDNIGHT),
             deleted: None,
             version: id,
+            day_fraction: DayFractionEntity::Full,
         };
         let cloned = entity.clone();
         assert_eq!(entity, cloned);
@@ -169,5 +183,10 @@ mod tests {
             AbsenceCategoryEntity::Vacation,
             AbsenceCategoryEntity::UnpaidLeave
         );
+    }
+
+    #[test]
+    fn day_fraction_variants_are_distinct() {
+        assert_ne!(DayFractionEntity::Full, DayFractionEntity::Half);
     }
 }
