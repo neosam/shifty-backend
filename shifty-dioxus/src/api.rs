@@ -6,12 +6,12 @@ use rest_types::{
     CreateTextTemplateRequestTO, CustomExtraHoursTO,
     CutoverBulkConvertQuarantineRowsRequest, CutoverBulkConvertQuarantineRowsResponse,
     CutoverConvertQuarantineEntryRequest, CutoverConvertQuarantineEntryResponse,
-    CutoverProfileTO, CutoverRunResultTO, DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO,
-    ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest,
-    InvitationResponse, ManualRangeTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO,
-    ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO,
-    UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO, VacationPayloadTO,
-    WeekMessageTO, WeeklySummaryTO,
+    CutoverProfileTO, CutoverRunResultTO, DayFractionTO, DayOfWeekTO, EmployeeReportTO,
+    EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO,
+    GenerateInvitationRequest, InvitationResponse, ManualRangeTO, RoleTO, SalesPersonTO,
+    SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO,
+    TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
+    VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -1513,16 +1513,23 @@ pub async fn cutover_commit(config: Config) -> Result<CutoverRunResultTO, Shifty
 /// Phase 8.2 (D-29): when `manual_range` is `Some`, the backend skips the
 /// weekly-lump-sum heuristic completely and uses the supplied date range.
 /// `None` preserves the 8.1 heuristic-only flow (backwards-compat).
+///
+/// Phase 8.3 (D-08.3-FE-02): `day_fraction` is threaded into the request
+/// body. `None` keeps backend-default (`Full`) for backwards-compat with
+/// pre-8.3 clients; `Some(Half)` halves the resulting `absence_period`'s
+/// contribution to the vacation aggregation.
 pub async fn cutover_convert_quarantine_entry(
     config: Config,
     extra_hours_id: Uuid,
     manual_range: Option<ManualRangeTO>,
+    day_fraction: Option<DayFractionTO>,
 ) -> Result<CutoverConvertQuarantineEntryResponse, ShiftyError> {
     info!("POST /admin/cutover/convert-quarantine-entry id={extra_hours_id}");
     let url = format!("{}/admin/cutover/convert-quarantine-entry", config.backend);
     let body = CutoverConvertQuarantineEntryRequest {
         extra_hours_id,
         manual_range,
+        day_fraction,
     };
     let client = reqwest::Client::new();
     let response = client.post(url).json(&body).send().await?;
@@ -1549,6 +1556,7 @@ pub async fn cutover_bulk_convert_quarantine_rows(
     category: AbsenceCategoryTO,
     year: u32,
     extra_hours_ids: Option<Vec<Uuid>>,
+    day_fraction: Option<DayFractionTO>,
 ) -> Result<CutoverBulkConvertQuarantineRowsResponse, ShiftyError> {
     info!(
         "POST /admin/cutover/bulk-convert-quarantine-rows sp={sales_person_id} year={year}"
@@ -1559,6 +1567,7 @@ pub async fn cutover_bulk_convert_quarantine_rows(
         category,
         year,
         extra_hours_ids,
+        day_fraction,
     };
     let client = reqwest::Client::new();
     let response = client.post(url).json(&body).send().await?;

@@ -665,10 +665,15 @@ fn DriftGroupSection(
                     onclick: move |_| {
                         if is_cutover_admin {
                             if let Some(h) = cutover_handle.as_ref() {
+                                // Phase 8.3 (D-08.3-FE-03): no group-wide
+                                // half/full toggle. Bulk-Convert defaults to
+                                // `Full`; operator uses per-row Convert for
+                                // half-day entries.
                                 h.send(CutoverAction::BulkConvert {
                                     sales_person_id,
                                     category,
                                     year,
+                                    day_fraction: rest_types::DayFractionTO::Full,
                                 });
                             }
                         }
@@ -708,6 +713,9 @@ fn DriftEntryRow(
     // coroutine is registered in app.rs before the page is mounted.
     let cutover_handle = try_consume_context::<Coroutine<CutoverAction>>();
     let mut manual_convert_open = use_signal(|| false);
+    // Phase 8.3: per-row Tageshälfte signal. Default `Full`; operator may
+    // flip to `Half` via the per-row <select> before clicking Convert.
+    let day_fraction = use_signal(|| rest_types::DayFractionTO::Full);
     let entry_id = entry.0.extra_hours_id;
     let date = entry.0.date.clone();
     let weekday = entry.0.weekday.clone();
@@ -749,7 +757,14 @@ fn DriftEntryRow(
                     onclick: move |_| {
                         if is_cutover_admin {
                             if let Some(h) = cutover_handle.as_ref() {
-                                h.send(CutoverAction::ConvertSingle(entry_id));
+                                // Phase 8.3 (D-08.3-FE-02): day_fraction
+                                // value is supplied by the per-row select in
+                                // Task 2 — for now we pass the operator-
+                                // picked Tageshälfte from the local signal.
+                                h.send(CutoverAction::ConvertSingle {
+                                    extra_hours_id: entry_id,
+                                    day_fraction: *day_fraction.read(),
+                                });
                             }
                         }
                     },
@@ -808,12 +823,18 @@ fn DriftEntryRow(
                 ManualConvertModal {
                     entry: entry_for_modal.clone(),
                     category: row_category,
-                    on_submit: move |(eh_id, start, end): (Uuid, time::Date, time::Date)| {
+                    on_submit: move |(eh_id, start, end, df): (
+                        Uuid,
+                        time::Date,
+                        time::Date,
+                        rest_types::DayFractionTO,
+                    )| {
                         if let Some(h) = cutover_handle.as_ref() {
                             h.send(CutoverAction::ConvertSingleManualRange {
                                 extra_hours_id: eh_id,
                                 start_date: start,
                                 end_date: end,
+                                day_fraction: df,
                             });
                         }
                         // Close on submit so the drift list re-renders cleanly
@@ -851,7 +872,9 @@ fn DriftEntryRow(
 fn ManualConvertModal(
     entry: EntryRef,
     category: AbsenceCategoryTO,
-    on_submit: EventHandler<(Uuid, time::Date, time::Date)>,
+    /// Phase 8.3 (D-08.3-FE-02): tuple extended with the operator-picked
+    /// `DayFractionTO`. Plan 06 wires the per-modal <select> to this value.
+    on_submit: EventHandler<(Uuid, time::Date, time::Date, rest_types::DayFractionTO)>,
     on_cancel: EventHandler<()>,
 ) -> Element {
     let i18n = I18N.read().clone();
@@ -868,6 +891,10 @@ fn ManualConvertModal(
     });
     let mut end_str = use_signal(move || initial_date.clone());
     let mut error_msg = use_signal(|| Option::<String>::None);
+    // Phase 8.3 (D-08.3-FE-02): operator-picked Tageshälfte for the new
+    // absence-period. Default `Full`; submit threads the current value as
+    // the 4th tuple element to `on_submit`.
+    let mut day_fraction = use_signal(|| rest_types::DayFractionTO::Full);
 
     let title = i18n.t(Key::CutoverManualConvertModalTitle);
     let help_text = i18n.t(Key::CutoverManualConvertHelp);
@@ -960,7 +987,7 @@ fn ManualConvertModal(
                             match (parsed_start, parsed_end) {
                                 (Ok(s), Ok(e)) if s <= e => {
                                     error_msg.set(None);
-                                    on_submit.call((entry_id, s, e));
+                                    on_submit.call((entry_id, s, e, *day_fraction.read()));
                                 }
                                 (Ok(_), Ok(_)) => {
                                     // start > end — D-30 #2
@@ -1399,7 +1426,7 @@ mod tests {
                 ManualConvertModal {
                     entry: EntryRef(Arc::new(entry)),
                     category: AbsenceCategoryTO::Vacation,
-                    on_submit: move |_p: (Uuid, time::Date, time::Date)| {},
+                    on_submit: move |_p: (Uuid, time::Date, time::Date, rest_types::DayFractionTO)| {},
                     on_cancel: move |_: ()| {},
                 }
             }
@@ -1503,7 +1530,7 @@ mod tests {
                 ManualConvertModal {
                     entry: EntryRef(Arc::new(entry)),
                     category: AbsenceCategoryTO::Vacation,
-                    on_submit: move |_p: (Uuid, time::Date, time::Date)| {},
+                    on_submit: move |_p: (Uuid, time::Date, time::Date, rest_types::DayFractionTO)| {},
                     on_cancel: move |_: ()| {},
                 }
             }
@@ -1544,7 +1571,7 @@ mod tests {
                 ManualConvertModal {
                     entry: EntryRef(Arc::new(entry)),
                     category: AbsenceCategoryTO::Vacation,
-                    on_submit: move |_p: (Uuid, time::Date, time::Date)| {},
+                    on_submit: move |_p: (Uuid, time::Date, time::Date, rest_types::DayFractionTO)| {},
                     on_cancel: move |_: ()| {},
                 }
             }

@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
-use rest_types::{AbsenceCategoryTO, ExtraHoursTO, ManualRangeTO};
+use rest_types::{AbsenceCategoryTO, DayFractionTO, ExtraHoursTO, ManualRangeTO};
 use tracing::info;
 use uuid::Uuid;
 
@@ -60,19 +60,33 @@ pub enum CutoverAction {
     LoadProfile,
     RunDryRun,
     Commit,
-    ConvertSingle(Uuid),
+    /// Phase 8.3 (D-08.3-FE-02): migrated from tuple variant `ConvertSingle(Uuid)`
+    /// to struct variant carrying `day_fraction` so the operator-picked
+    /// Tageshälfte threads into the backend request body.
+    ConvertSingle {
+        extra_hours_id: Uuid,
+        day_fraction: DayFractionTO,
+    },
     /// Phase 8.2 (D-29): operator-supplied date range. Backend skips the
     /// heuristic and uses `start_date..=end_date` directly. Resolves the
     /// Karin-Pattern (gap-1a) that `detect_weekly_lump_sum` rejects by design.
+    ///
+    /// Phase 8.3 (D-08.3-FE-02): also carries `day_fraction`.
     ConvertSingleManualRange {
         extra_hours_id: Uuid,
         start_date: time::Date,
         end_date: time::Date,
+        day_fraction: DayFractionTO,
     },
+    /// Phase 8.3 (D-08.3-FE-03): `day_fraction` applies uniformly to ALL rows
+    /// of the bulk operation. Plan-Phase default in the UI is `Full`
+    /// (DriftGroupSection has no group-wide toggle; operator uses per-row
+    /// Convert for half-day entries).
     BulkConvert {
         sales_person_id: Uuid,
         category: AbsenceCategoryTO,
         year: u32,
+        day_fraction: DayFractionTO,
     },
     UpdateExtraHours(ExtraHoursTO),
     DeleteExtraHours(Uuid),
@@ -121,9 +135,19 @@ async fn process_action(
             store.last_run_summary = Some(RunSummary::from(&result));
             store.stage = WizardStage::Success;
         }
-        CutoverAction::ConvertSingle(extra_hours_id) => {
+        CutoverAction::ConvertSingle {
+            extra_hours_id,
+            day_fraction,
+        } => {
             // Heuristic path (8.1): manual_range = None preserves original behaviour.
-            let resp = api::cutover_convert_quarantine_entry(config, extra_hours_id, None).await?;
+            // Phase 8.3: thread day_fraction through.
+            let resp = api::cutover_convert_quarantine_entry(
+                config,
+                extra_hours_id,
+                None,
+                Some(day_fraction),
+            )
+            .await?;
             // D-08 inline pattern: write refreshed gate-drift-report directly.
             CUTOVER_STORE.write().last_dry_run = resp.refreshed_drift_report;
             bump_cutover_refresh();
@@ -132,6 +156,7 @@ async fn process_action(
             extra_hours_id,
             start_date,
             end_date,
+            day_fraction,
         } => {
             // Phase 8.2 (D-29): operator-supplied range bypasses the heuristic.
             // Submit-time validation in the modal (Task 3) ensures both dates
@@ -147,6 +172,7 @@ async fn process_action(
                 config.clone(),
                 extra_hours_id,
                 Some(manual_range),
+                Some(day_fraction),
             )
             .await?;
             // P-6 fallback: if the backend's inline replay failed, do a
@@ -166,6 +192,7 @@ async fn process_action(
             sales_person_id,
             category,
             year,
+            day_fraction,
         } => {
             let resp = api::cutover_bulk_convert_quarantine_rows(
                 config,
@@ -173,6 +200,7 @@ async fn process_action(
                 category,
                 year,
                 /* explicit ids */ None,
+                Some(day_fraction),
             )
             .await?;
             CUTOVER_STORE.write().last_dry_run = resp.refreshed_drift_report;
