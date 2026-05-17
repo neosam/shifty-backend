@@ -269,10 +269,18 @@ pub trait CutoverService {
     /// Validation: `start <= end`, beide im Quarantäne-Eintrag-Jahr, kein
     /// Overlap mit existing `absence_period`-Rows derselben Person/Kategorie.
     /// `None` (Default) → 8.1-Heuristik-Verhalten unverändert.
+    ///
+    /// Phase 8.3 (D-08.3-06): optional `day_fraction` setzt die Tageshälfte
+    /// auf der resultierenden `absence_period`. `None` / Default → `Full`
+    /// (no-drift, CONTEXT.md). Gilt orthogonal zu `manual_range`: sowohl
+    /// Heuristic- als auch Manual-Pfad akzeptieren das Feld. Heuristik
+    /// (`detect_weekly_lump_sum`) bleibt unverändert — Backend ist passiv,
+    /// Operator entscheidet im Frontend.
     async fn convert_quarantine_entry(
         &self,
         extra_hours_id: Uuid,
         manual_range: Option<ManualRange>,
+        day_fraction: Option<crate::absence::DayFraction>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ConvertQuarantineEntryOutcome, ServiceError>;
@@ -284,12 +292,17 @@ pub trait CutoverService {
     /// mismatch (RESEARCH P-10): any row that fails `detect_weekly_lump_sum`
     /// rolls back the whole Tx with `ValidationError` (HTTP 422). Privilege:
     /// `cutover_admin`.
+    ///
+    /// Phase 8.3 (D-08.3-07): optional `day_fraction` gilt einheitlich für
+    /// ALLE Rows der Bulk-Operation. `None` / Default → `Full` für jede
+    /// konvertierte Zeile (Backwards-Compat).
     async fn bulk_convert_quarantine_rows(
         &self,
         sales_person_id: Uuid,
         category: crate::absence::AbsenceCategory,
         year: u32,
         explicit_ids: Option<Arc<[Uuid]>>,
+        day_fraction: Option<crate::absence::DayFraction>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<BulkConvertQuarantineRowsOutcome, ServiceError>;

@@ -2375,6 +2375,13 @@ pub struct CutoverConvertQuarantineEntryRequest {
     pub extra_hours_id: Uuid,
     #[serde(default)]
     pub manual_range: Option<ManualRangeTO>,
+    /// Phase 8.3 — optionale Tageshälfte für die zu schreibende
+    /// `absence_period`. `None` / Default-Deserialization → das Backend
+    /// schreibt `DayFraction::Full` (no-drift / Backwards-Compat mit
+    /// pre-8.3-Clients). Gilt orthogonal zu `manual_range`: sowohl der
+    /// Heuristic-Pfad als auch der Manual-Range-Pfad respektieren das Feld.
+    #[serde(default)]
+    pub day_fraction: Option<DayFractionTO>,
 }
 
 /// `POST /admin/cutover/convert-quarantine-entry` — response body. Per D-08
@@ -2401,6 +2408,12 @@ pub struct CutoverBulkConvertQuarantineRowsRequest {
     pub year: u32,
     #[serde(default)]
     pub extra_hours_ids: Option<Vec<Uuid>>,
+    /// Phase 8.3 — gilt einheitlich für ALLE Rows der Bulk-Operation
+    /// (D-08.3-07). `None` / Default → Backend schreibt `DayFraction::Full`
+    /// für jede konvertierte Zeile (Backwards-Compat). Operator-UI in
+    /// Plan 06 zeigt explizit "Half/Full for whole group"-Label.
+    #[serde(default)]
+    pub day_fraction: Option<DayFractionTO>,
 }
 
 /// `POST /admin/cutover/bulk-convert-quarantine-rows` — response body.
@@ -2494,12 +2507,14 @@ mod cutover_convert_dto_tests {
         let req = CutoverConvertQuarantineEntryRequest {
             extra_hours_id: Uuid::nil(),
             manual_range: None,
+            day_fraction: None,
         };
         let json = serde_json::to_string(&req).expect("serialize");
         let parsed: CutoverConvertQuarantineEntryRequest =
             serde_json::from_str(&json).expect("deserialize");
         assert_eq!(parsed.extra_hours_id, Uuid::nil());
         assert!(parsed.manual_range.is_none());
+        assert!(parsed.day_fraction.is_none());
     }
 
     #[test]
@@ -2539,6 +2554,7 @@ mod cutover_convert_dto_tests {
             category: AbsenceCategoryTO::Vacation,
             year: 2026,
             extra_hours_ids: Some(vec![Uuid::nil()]),
+            day_fraction: None,
         };
         let json = serde_json::to_string(&req).expect("serialize");
         let parsed: CutoverBulkConvertQuarantineRowsRequest =
@@ -2580,6 +2596,7 @@ mod cutover_convert_dto_tests {
                 start_date: "2026-05-04".into(),
                 end_date: "2026-05-08".into(),
             }),
+            day_fraction: None,
         };
         let json = serde_json::to_string(&req).expect("serialize");
         let parsed: CutoverConvertQuarantineEntryRequest =
@@ -2591,6 +2608,65 @@ mod cutover_convert_dto_tests {
         assert_eq!(mr.start_date, "2026-05-04");
         assert_eq!(mr.end_date, "2026-05-08");
     }
+
+    // Phase 8.3 — day_fraction-Threading auf Cutover-Request-DTOs.
+
+    #[test]
+    fn cutover_convert_quarantine_entry_request_roundtrip_with_day_fraction_half() {
+        let req = CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: Uuid::nil(),
+            manual_range: None,
+            day_fraction: Some(DayFractionTO::Half),
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        assert!(
+            json.contains("\"day_fraction\":\"Half\""),
+            "json was: {json}"
+        );
+        let parsed: CutoverConvertQuarantineEntryRequest =
+            serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(parsed.day_fraction, Some(DayFractionTO::Half));
+    }
+
+    #[test]
+    fn cutover_convert_quarantine_entry_request_omits_day_fraction_backwards_compat() {
+        // Pre-8.3-Client ohne `day_fraction`-Feld → Option<None>;
+        // Service-Layer defaultet auf `DayFraction::Full` (CONTEXT.md
+        // no-drift).
+        let json = r#"{"extra_hours_id":"00000000-0000-0000-0000-000000000000"}"#;
+        let parsed: CutoverConvertQuarantineEntryRequest = serde_json::from_str(json)
+            .expect("deserialize legacy body without day_fraction");
+        assert_eq!(parsed.day_fraction, None);
+        assert!(parsed.manual_range.is_none());
+    }
+
+    #[test]
+    fn cutover_bulk_convert_quarantine_rows_request_roundtrip_with_day_fraction_half() {
+        let req = CutoverBulkConvertQuarantineRowsRequest {
+            sales_person_id: Uuid::nil(),
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            extra_hours_ids: None,
+            day_fraction: Some(DayFractionTO::Half),
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        assert!(
+            json.contains("\"day_fraction\":\"Half\""),
+            "json was: {json}"
+        );
+        let parsed: CutoverBulkConvertQuarantineRowsRequest =
+            serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(parsed.day_fraction, Some(DayFractionTO::Half));
+    }
+
+    #[test]
+    fn cutover_bulk_convert_quarantine_rows_request_omits_day_fraction_backwards_compat() {
+        let json = r#"{"sales_person_id":"00000000-0000-0000-0000-000000000000","category":"Vacation","year":2026}"#;
+        let parsed: CutoverBulkConvertQuarantineRowsRequest = serde_json::from_str(json)
+            .expect("deserialize legacy bulk body without day_fraction");
+        assert_eq!(parsed.day_fraction, None);
+    }
+
 }
 
 #[cfg(test)]

@@ -226,9 +226,22 @@ pub async fn cutover_convert_quarantine_entry_handler<RestState: RestStateDef>(
                     )
                 })
                 .transpose()?;
+            // Phase 8.3 — optionales `day_fraction` aus dem Wire-DTO in die
+            // Domain-Repräsentation überführen. `None` → Service defaultet
+            // auf `DayFraction::Full` (no-drift, CONTEXT.md).
+            let day_fraction: Option<service::absence::DayFraction> = req
+                .day_fraction
+                .as_ref()
+                .map(service::absence::DayFraction::from);
             let outcome = rest_state
                 .cutover_service()
-                .convert_quarantine_entry(req.extra_hours_id, manual_range, context.into(), None)
+                .convert_quarantine_entry(
+                    req.extra_hours_id,
+                    manual_range,
+                    day_fraction,
+                    context.into(),
+                    None,
+                )
                 .await?;
             let body = CutoverConvertQuarantineEntryResponse::from(&outcome);
             Ok(Response::builder()
@@ -277,6 +290,12 @@ pub async fn cutover_bulk_convert_quarantine_rows_handler<RestState: RestStateDe
                 .extra_hours_ids
                 .as_ref()
                 .map(|ids| Arc::from(ids.clone().into_boxed_slice()));
+            // Phase 8.3 — `day_fraction` gilt einheitlich für ALLE
+            // konvertierten Rows derselben Bulk-Operation (D-08.3-07).
+            let day_fraction: Option<service::absence::DayFraction> = req
+                .day_fraction
+                .as_ref()
+                .map(service::absence::DayFraction::from);
             let outcome = rest_state
                 .cutover_service()
                 .bulk_convert_quarantine_rows(
@@ -284,6 +303,7 @@ pub async fn cutover_bulk_convert_quarantine_rows_handler<RestState: RestStateDe
                     category,
                     req.year,
                     explicit_ids,
+                    day_fraction,
                     context.into(),
                     None,
                 )
