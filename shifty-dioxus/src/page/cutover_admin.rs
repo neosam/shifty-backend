@@ -715,7 +715,7 @@ fn DriftEntryRow(
     let mut manual_convert_open = use_signal(|| false);
     // Phase 8.3: per-row Tageshälfte signal. Default `Full`; operator may
     // flip to `Half` via the per-row <select> before clicking Convert.
-    let day_fraction = use_signal(|| rest_types::DayFractionTO::Full);
+    let mut day_fraction = use_signal(|| rest_types::DayFractionTO::Full);
     let entry_id = entry.0.extra_hours_id;
     let date = entry.0.date.clone();
     let weekday = entry.0.weekday.clone();
@@ -729,6 +729,24 @@ fn DriftEntryRow(
     let edit_label = i18n.t(Key::CutoverRowBtnEdit);
     let delete_label = i18n.t(Key::CutoverRowBtnDelete);
     let skip_label = i18n.t(Key::CutoverRowBtnSkip);
+    // Phase 8.3 (D-08.3-FE-02): per-row half/full <select> labels + a11y
+    // aria-label + the half-day suggestion hint when amount ≈ ½ contract day.
+    let day_fraction_aria = i18n.t(Key::CutoverDriftDayFractionAria);
+    let day_fraction_full_label = i18n.t(Key::CutoverDayFractionFull);
+    let day_fraction_half_label = i18n.t(Key::CutoverDayFractionHalf);
+    // Heuristic per D-08.3-FE-02: contract_hours_per_day not on DriftRow/
+    // Entry payload — fall back to 8.0 (typical contract day in the user
+    // base). If |amount − contract*0.5| < 0.5 the hint surfaces.
+    let contract_hours_per_day: f32 = 8.0;
+    let is_half_day_suggestion =
+        (amount - contract_hours_per_day * 0.5).abs() < 0.5;
+    let half_day_suggestion_hint: String = if is_half_day_suggestion {
+        i18n.t(Key::CutoverDriftHalfDaySuggestion)
+            .to_string()
+            .replace("{amount:.2}", &format!("{:.2}", amount))
+    } else {
+        String::new()
+    };
     let entry_for_modal = entry.clone();
     rsx! {
         div { class: "grid grid-cols-12 gap-2 items-center py-2 border-b border-border last:border-b-0",
@@ -746,7 +764,33 @@ fn DriftEntryRow(
             div { class: "col-span-2 text-small text-ink-muted",
                 "{suggested_action}"
             }
-            div { class: "col-span-4 flex gap-1 justify-end",
+            div { class: "col-span-4 flex gap-1 justify-end items-center",
+                // Phase 8.3 (D-08.3-FE-02): compact per-row Halb/Ganz <select>
+                // placed BEFORE the Convert button. Default `Full`. Native
+                // <select> + <option>s give built-in keyboard/screen-reader
+                // support; aria-label carries the human-readable label since
+                // the column header for Tageshälfte is omitted (D-08.3-UI-05).
+                select {
+                    class: "text-small px-2 py-1 rounded border border-border bg-surface text-ink",
+                    aria_label: "{day_fraction_aria}",
+                    onchange: move |ev| {
+                        let next = match ev.value().as_str() {
+                            "Half" => rest_types::DayFractionTO::Half,
+                            _ => rest_types::DayFractionTO::Full,
+                        };
+                        day_fraction.set(next);
+                    },
+                    option {
+                        value: "Full",
+                        selected: *day_fraction.read() == rest_types::DayFractionTO::Full,
+                        "{day_fraction_full_label}"
+                    }
+                    option {
+                        value: "Half",
+                        selected: *day_fraction.read() == rest_types::DayFractionTO::Half,
+                        "{day_fraction_half_label}"
+                    }
+                }
                 button {
                     class: if is_cutover_admin {
                         "px-2 py-1 rounded bg-good text-white text-small"
@@ -757,10 +801,8 @@ fn DriftEntryRow(
                     onclick: move |_| {
                         if is_cutover_admin {
                             if let Some(h) = cutover_handle.as_ref() {
-                                // Phase 8.3 (D-08.3-FE-02): day_fraction
-                                // value is supplied by the per-row select in
-                                // Task 2 — for now we pass the operator-
-                                // picked Tageshälfte from the local signal.
+                                // Phase 8.3 (D-08.3-FE-02): operator-picked
+                                // Tageshälfte threaded through to the action.
                                 h.send(CutoverAction::ConvertSingle {
                                     extra_hours_id: entry_id,
                                     day_fraction: *day_fraction.read(),
@@ -808,6 +850,16 @@ fn DriftEntryRow(
                         }
                     },
                     "{skip_label}"
+                }
+            }
+            // Phase 8.3 (D-08.3-FE-02): half-day suggestion hint — visible
+            // when the row's amount ≈ ½ × contract day (8h fallback). The
+            // operator still picks Full/Half manually (default stays Full);
+            // the hint makes the heuristic transparent so the choice is
+            // informed instead of hidden.
+            if is_half_day_suggestion {
+                div { class: "col-span-12 text-small text-ink-muted mt-1",
+                    "{half_day_suggestion_hint}"
                 }
             }
             if *manual_convert_open.read() {
@@ -905,6 +957,10 @@ fn ManualConvertModal(
     let cancel_label = i18n.t(Key::CutoverEditBtnCancel);
     let err_start_after_end =
         i18n.t(Key::CutoverManualConvertErrStartAfterEnd).to_string();
+    // Phase 8.3 (D-08.3-FE-02) labels for the new <select>.
+    let day_fraction_label = i18n.t(Key::CutoverManualConvertDayFractionLabel);
+    let day_fraction_full_label = i18n.t(Key::CutoverDayFractionFull);
+    let day_fraction_half_label = i18n.t(Key::CutoverDayFractionHalf);
 
     // Pitfall 5: STATIC Tailwind match arms. Map AbsenceCategoryTO to its
     // i18n display key — read-only span only (D-31).
@@ -954,6 +1010,32 @@ fn ManualConvertModal(
                         class: "border border-border rounded-md p-2",
                         value: "{end_str}",
                         oninput: move |ev| { end_str.set(ev.value()); },
+                    }
+                }
+                // Phase 8.3 (D-08.3-FE-02): Tageshälfte <select>. Same
+                // flex-col-gap-1 pattern as the two date-labels above so the
+                // visual rhythm of the modal stays homogeneous.
+                label { class: "flex flex-col gap-1",
+                    span { class: "text-small text-ink-muted", "{day_fraction_label}" }
+                    select {
+                        class: "border border-border rounded-md p-2",
+                        onchange: move |ev| {
+                            let next = match ev.value().as_str() {
+                                "Half" => rest_types::DayFractionTO::Half,
+                                _ => rest_types::DayFractionTO::Full,
+                            };
+                            day_fraction.set(next);
+                        },
+                        option {
+                            value: "Full",
+                            selected: *day_fraction.read() == rest_types::DayFractionTO::Full,
+                            "{day_fraction_full_label}"
+                        }
+                        option {
+                            value: "Half",
+                            selected: *day_fraction.read() == rest_types::DayFractionTO::Half,
+                            "{day_fraction_half_label}"
+                        }
                     }
                 }
                 // Inline error — rendered when present.
@@ -1469,10 +1551,17 @@ mod tests {
 
         // D-31: category must NOT render as an editable surface. We allow
         // the i18n-localised label ("Urlaub" for Vacation in DE) as a
-        // span, but no `<select>` for category mutation.
+        // span, but no `<select>` whose options include the category
+        // strings ("Urlaub", "Krankheit", "Unbezahlt"). Phase 8.3 added a
+        // separate day_fraction <select> with Ganztag/Halber Tag options —
+        // those are allowed.
         assert!(
-            !html.contains("<select"),
-            "modal must NOT render a category <select>: {html}"
+            !html.contains(r#"value="vacation""#),
+            "modal must NOT render a category <select> option: {html}"
+        );
+        assert!(
+            !html.contains(r#"value="sick_leave""#),
+            "modal must NOT render a category <select> option: {html}"
         );
     }
 
