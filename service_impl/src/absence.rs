@@ -503,11 +503,28 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             let Some(dominant) = dominant else {
                 continue;
             };
+            // Phase 8.3 (D-08.3-04) — Halbtag-Multiplikation: wenn die dominante
+            // Absence day_fraction = Half hat, wird die effektive Soll-Stundenzahl
+            // pro Tag halbiert. Range-Verhalten: uniform für alle Tage der Range
+            // (klassischer Anwendungsfall ist Range = 1 Tag fuer Heiligabend/
+            // Silvester; Range > 1 Tag mit Halbtag ist legitimer Sonderfall mit
+            // einheitlichem Halbierungs-Faktor).
+            //
+            // Aufrufer (reporting.rs::absence_derived_vacation_hours) bleibt
+            // unveraendert — die halbierten Stunden propagieren automatisch in
+            // vacation_hours, vacation_days = vacation_hours / hours_per_day,
+            // und die BillingPeriod-Aggregation. Snapshot-Schema-Version-Bump
+            // (3 -> 4) in billing_period_report.rs signalisiert die geaenderte
+            // Computation.
+            let effective_hours = match dominant.day_fraction {
+                dao::absence::DayFractionEntity::Half => hours * 0.5,
+                dao::absence::DayFractionEntity::Full => hours,
+            };
             result.insert(
                 day,
                 ResolvedAbsence {
                     category: (&dominant.category).into(),
-                    hours,
+                    hours: effective_hours,
                 },
             );
         }
