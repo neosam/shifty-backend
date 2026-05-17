@@ -912,4 +912,203 @@ mod tests {
         );
         assert_eq!(i18n.t(Key::CutoverManualConvertEndLabel).as_ref(), "Do");
     }
+
+    // ===== Phase 8.3 — Halbtag-Support i18n Tests =====
+
+    #[test]
+    fn i18n_absence_day_fraction_keys_present_in_all_locales() {
+        // FUI-A-09 — alle 3 Locales (De / En / Cs) müssen alle 6 Absence-
+        // Halbtag-Keys decken (non-empty + ≠ "??").
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::AbsenceFieldDayFraction,
+                Key::AbsenceDayFractionFull,
+                Key::AbsenceDayFractionHalf,
+                Key::AbsenceFieldDayFractionFullHint,
+                Key::AbsenceFieldDayFractionHalfHint,
+                Key::AbsencePreviewFooterHalfDay,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_cutover_day_fraction_keys_present_in_all_locales() {
+        // FUI-A-09 — alle 3 Locales × alle 7 Cutover-Halbtag-Keys.
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::CutoverDriftColDayFraction,
+                Key::CutoverDriftDayFractionAria,
+                Key::CutoverBulkDayFractionLabel,
+                Key::CutoverDriftHalfDaySuggestion,
+                Key::CutoverManualConvertDayFractionLabel,
+                Key::CutoverDayFractionFull,
+                Key::CutoverDayFractionHalf,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_absence_day_fraction_match_german_reference() {
+        // Pitfall-2 guard: ensures the de.rs block uses Locale::De
+        // (not accidentally Locale::En, which would still type-check but
+        // route English copy through generate(Locale::De)). Pattern aus
+        // Plan 08-04 D-26.
+        let i18n = generate(Locale::De);
+        assert_eq!(i18n.t(Key::AbsenceFieldDayFraction).as_ref(), "Tageshälfte");
+        assert_eq!(i18n.t(Key::AbsenceDayFractionFull).as_ref(), "Ganztag");
+        assert_eq!(i18n.t(Key::AbsenceDayFractionHalf).as_ref(), "Halber Tag");
+        assert_eq!(
+            i18n.t(Key::AbsenceFieldDayFractionFullHint).as_ref(),
+            "Verbraucht den vollen Vertrags-Stundensatz pro Tag."
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceFieldDayFractionHalfHint).as_ref(),
+            "Verbraucht 0,5 Urlaubstage pro Tag im Bereich."
+        );
+        assert_eq!(
+            i18n.t(Key::AbsencePreviewFooterHalfDay).as_ref(),
+            "Bei Halbtag: angezeigte Stunden sind bereits halbiert."
+        );
+    }
+
+    #[test]
+    fn i18n_absence_day_fraction_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(i18n.t(Key::AbsenceFieldDayFraction).as_ref(), "Day fraction");
+        assert_eq!(i18n.t(Key::AbsenceDayFractionFull).as_ref(), "Full day");
+        assert_eq!(i18n.t(Key::AbsenceDayFractionHalf).as_ref(), "Half day");
+        assert_eq!(
+            i18n.t(Key::AbsenceFieldDayFractionFullHint).as_ref(),
+            "Uses the full contract-hours rate per day."
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceFieldDayFractionHalfHint).as_ref(),
+            "Uses 0.5 vacation days per day in the range."
+        );
+        assert_eq!(
+            i18n.t(Key::AbsencePreviewFooterHalfDay).as_ref(),
+            "Half-day: shown hours are already halved."
+        );
+    }
+
+    #[test]
+    fn i18n_absence_day_fraction_match_czech_reference() {
+        let i18n = generate(Locale::Cs);
+        assert_eq!(i18n.t(Key::AbsenceFieldDayFraction).as_ref(), "Část dne");
+        assert_eq!(i18n.t(Key::AbsenceDayFractionFull).as_ref(), "Celý den");
+        assert_eq!(i18n.t(Key::AbsenceDayFractionHalf).as_ref(), "Půl dne");
+        assert_eq!(
+            i18n.t(Key::AbsenceFieldDayFractionFullHint).as_ref(),
+            "Spotřebovává plnou smluvní sazbu za každý den."
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceFieldDayFractionHalfHint).as_ref(),
+            "Spotřebovává 0,5 dne dovolené za každý den v období."
+        );
+        assert_eq!(
+            i18n.t(Key::AbsencePreviewFooterHalfDay).as_ref(),
+            "Půldenní: zobrazené hodiny jsou již vydělené dvěma."
+        );
+    }
+
+    #[test]
+    fn i18n_cutover_day_fraction_match_german_reference() {
+        let i18n = generate(Locale::De);
+        assert_eq!(
+            i18n.t(Key::CutoverDriftColDayFraction).as_ref(),
+            "Tageshälfte"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverDriftDayFractionAria).as_ref(),
+            "Tageshälfte für diesen Eintrag wählen"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverBulkDayFractionLabel).as_ref(),
+            "Halb/Ganz für ganze Gruppe"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverDriftHalfDaySuggestion).as_ref(),
+            "Stunden deuten auf Halbtag hin ({amount:.2}h ≈ ½ × Vertragstag)."
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertDayFractionLabel).as_ref(),
+            "Tageshälfte"
+        );
+        assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Ganztag");
+        assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Halber Tag");
+    }
+
+    #[test]
+    fn i18n_cutover_day_fraction_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(
+            i18n.t(Key::CutoverDriftColDayFraction).as_ref(),
+            "Day fraction"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverDriftDayFractionAria).as_ref(),
+            "Pick day fraction for this entry"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverBulkDayFractionLabel).as_ref(),
+            "Half/Full for whole group"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverDriftHalfDaySuggestion).as_ref(),
+            "Hours suggest half-day ({amount:.2}h ≈ ½ × contract day)."
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertDayFractionLabel).as_ref(),
+            "Day fraction"
+        );
+        assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Full day");
+        assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Half day");
+    }
+
+    #[test]
+    fn i18n_cutover_day_fraction_match_czech_reference() {
+        let i18n = generate(Locale::Cs);
+        assert_eq!(
+            i18n.t(Key::CutoverDriftColDayFraction).as_ref(),
+            "Část dne"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverDriftDayFractionAria).as_ref(),
+            "Zvol část dne pro tuto položku"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverBulkDayFractionLabel).as_ref(),
+            "Půl/Celý pro celou skupinu"
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverDriftHalfDaySuggestion).as_ref(),
+            "Hodiny naznačují půldenní ({amount:.2}h ≈ ½ × smluvní den)."
+        );
+        assert_eq!(
+            i18n.t(Key::CutoverManualConvertDayFractionLabel).as_ref(),
+            "Část dne"
+        );
+        assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Celý den");
+        assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Půl dne");
+    }
 }
