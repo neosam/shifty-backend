@@ -480,6 +480,16 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         // Quellen (D-Phase3-15) — pro Quelle ein eigener Warning-Eintrag.
         let mut warnings: Vec<Warning> = Vec::new();
         for ap in absence_periods.iter() {
+            // Phase 8.3 (D-08.3-05 / ROADMAP SC #6) — Halbtag-Absences werden
+            // schweigend toleriert: ein Booking am selben Tag wie eine
+            // day_fraction=Half-Absence ist ein legitimer Workflow (Mitarbeiter
+            // arbeitet die andere Tageshaelfte). Wir filtern Half-Absences vor
+            // der Warning-Emission AUS — kein neuer WarningTO-Variant (CONTEXT.md
+            // <domain> "Liefert NICHT" + <deferred> "Konflikt-Warning fuer
+            // Halbtag-Booking-Overlap: schweigend toleriert").
+            if ap.day_fraction == service::absence::DayFraction::Half {
+                continue;
+            }
             warnings.push(Warning::BookingOnAbsenceDay {
                 booking_id: persisted_booking.id,
                 date: booking_date,
