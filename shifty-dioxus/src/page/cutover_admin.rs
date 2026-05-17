@@ -1684,4 +1684,196 @@ mod tests {
             "DE cancel label (CutoverEditBtnCancel) missing: {html}"
         );
     }
+
+    // ── Phase 8.3 Plan 06: Halbtag-Frontend SSR snapshots ──────────────
+    //
+    // 4 tests covering:
+    //   3. DriftEntryRow renders <select> with aria-label BEFORE Convert btn
+    //   4. ManualConvertModal places Tageshälfte label AFTER end-date
+    //   5. D-08.3-FE-02 POSITIVE — 4h amount → suggestion hint visible
+    //   6. D-08.3-FE-02 NEGATIVE — 8h amount → no suggestion hint
+
+    fn fixture_quarantine_entry_with_amount(amount: f32) -> CutoverQuarantineEntryTO {
+        CutoverQuarantineEntryTO {
+            extra_hours_id: Uuid::from_u128(0xE_8_3_06),
+            date: "2026-12-24".to_string(),
+            weekday: "Thu".to_string(),
+            amount,
+            reason_code: "FractionalHours".to_string(),
+            reason_text: "Row carries fractional amount.".to_string(),
+            suggested_action: "Convert with day-fraction Half.".to_string(),
+        }
+    }
+
+    fn fixture_drift_report_one_entry_amount(amount: f32) -> CutoverGateDriftReportTO {
+        let sp_id = Uuid::from_u128(0xA1A2A3A4);
+        let entry = fixture_quarantine_entry_with_amount(amount);
+        let drift_row = CutoverGateDriftRowTO {
+            sales_person_id: sp_id,
+            sales_person_name: "Anna Tester".to_string(),
+            category: AbsenceCategoryTO::Vacation,
+            year: 2026,
+            legacy_sum: amount,
+            derived_sum: 0.0,
+            drift: amount,
+            quarantined_extra_hours_count: 1,
+            quarantine_reasons: vec!["FractionalHours".to_string()],
+            quarantined_entries: vec![entry],
+        };
+        CutoverGateDriftReportTO {
+            gate_run_id: Uuid::from_u128(0xDEADBEEF),
+            run_at: "2026-05-09T10:00:00Z".to_string(),
+            dry_run: true,
+            drift_threshold: 0.01,
+            total_drift_rows: 1,
+            drift: vec![drift_row],
+            passed: false,
+        }
+    }
+
+    #[test]
+    fn drift_entry_row_renders_day_fraction_select_before_action_buttons() {
+        // 8h amount → heuristic does NOT fire → row renders the <select>
+        // + the 4 action buttons but no half-day suggestion hint.
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.last_dry_run = Some(fixture_drift_report_one_entry_amount(8.0));
+            rsx! {
+                DryRunStage {
+                    store: StateRef(Arc::new(s)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        let html = render(app);
+        // Both options must be present.
+        assert!(
+            html.contains(r#"value="Full""#),
+            "Expected Full option in: {html}"
+        );
+        assert!(
+            html.contains(r#"value="Half""#),
+            "Expected Half option in: {html}"
+        );
+        // aria-label DE: "Tageshälfte für diesen Eintrag wählen".
+        assert!(
+            html.contains("Tageshälfte für diesen Eintrag"),
+            "Expected aria-label day-fraction string in: {html}"
+        );
+        // <select> must come BEFORE Convert button in DOM order.
+        let select_pos = html
+            .find("<select")
+            .expect("expected <select> in DriftEntryRow");
+        let convert_pos = html
+            .find("Eintrag konvertieren")
+            .expect("expected Convert button text");
+        assert!(
+            select_pos < convert_pos,
+            "<select> must come BEFORE Convert button (select_pos={select_pos}, \
+             convert_pos={convert_pos}): {html}"
+        );
+    }
+
+    #[test]
+    fn manual_convert_modal_renders_day_fraction_label_between_end_date_and_error() {
+        // Render the modal standalone. Tageshälfte label must come AFTER
+        // the end-date input.
+        fn app() -> Element {
+            pin_de_locale();
+            let entry = fixture_quarantine_entry_with_amount(4.0);
+            rsx! {
+                ManualConvertModal {
+                    entry: EntryRef(Arc::new(entry)),
+                    category: AbsenceCategoryTO::Vacation,
+                    on_submit: move |_p: (Uuid, time::Date, time::Date, rest_types::DayFractionTO)| {},
+                    on_cancel: move |_: ()| {},
+                }
+            }
+        }
+        let html = render(app);
+        // Label DE = "Tageshälfte" (CutoverManualConvertDayFractionLabel).
+        assert!(
+            html.contains("Tageshälfte"),
+            "Expected Tageshälfte label in: {html}"
+        );
+        // Both options.
+        assert!(
+            html.contains(r#"value="Full""#),
+            "Expected Full option in: {html}"
+        );
+        assert!(
+            html.contains(r#"value="Half""#),
+            "Expected Half option in: {html}"
+        );
+        // The Tageshälfte <select> must come AFTER the end-date input.
+        // The modal has two type="date" inputs (start + end); we want the
+        // LAST one (end-date).
+        let end_date_pos = html
+            .rfind(r#"type="date""#)
+            .expect("expected end-date input");
+        let select_pos = html
+            .find("<select")
+            .expect("expected <select> for day_fraction");
+        assert!(
+            end_date_pos < select_pos,
+            "day_fraction <select> must come AFTER end-date input \
+             (end_date_pos={end_date_pos}, select_pos={select_pos}): {html}"
+        );
+    }
+
+    #[test]
+    fn drift_entry_row_renders_half_day_suggestion_hint_on_4h_amount() {
+        // 4h amount at 8h fallback contract day:
+        //   (4.0 - 8.0 * 0.5).abs() = 0.0 < 0.5 → hint MUST render.
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.last_dry_run = Some(fixture_drift_report_one_entry_amount(4.0));
+            rsx! {
+                DryRunStage {
+                    store: StateRef(Arc::new(s)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        let html = render(app);
+        // DE hint string: "Stunden deuten auf Halbtag hin ({amount:.2}h ≈ ½ × Vertragstag)."
+        // After format/replace: "Stunden deuten auf Halbtag hin (4.00h ≈ ½ × Vertragstag)."
+        // We pin the invariant tokens "Halbtag" + "½":
+        assert!(
+            html.contains("Halbtag") && html.contains("½"),
+            "Expected half-day suggestion hint (D-08.3-FE-02) on 4h amount: {html}"
+        );
+        // And the formatted amount.
+        assert!(
+            html.contains("4.00h"),
+            "Expected formatted amount in suggestion hint: {html}"
+        );
+    }
+
+    #[test]
+    fn drift_entry_row_omits_half_day_suggestion_hint_for_full_day_amount() {
+        // 8h amount at 8h fallback contract day:
+        //   (8.0 - 8.0 * 0.5).abs() = 4.0 >= 0.5 → hint MUST be absent.
+        fn app() -> Element {
+            pin_de_locale();
+            let mut s = CutoverWizardState::default();
+            s.last_dry_run = Some(fixture_drift_report_one_entry_amount(8.0));
+            rsx! {
+                DryRunStage {
+                    store: StateRef(Arc::new(s)),
+                    is_cutover_admin: true,
+                }
+            }
+        }
+        let html = render(app);
+        // The hint text "Halbtag hin" (from "Stunden deuten auf Halbtag hin")
+        // must NOT appear in the rendered DOM.
+        assert!(
+            !html.contains("Halbtag hin"),
+            "Expected NO half-day suggestion hint for 8h amount \
+             (D-08.3-FE-02 negative case): {html}"
+        );
+    }
 }
