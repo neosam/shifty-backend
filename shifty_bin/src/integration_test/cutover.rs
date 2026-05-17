@@ -1681,7 +1681,7 @@ mod convert_quarantine_endpoints_tests {
     use rest_types::{
         AbsenceCategoryTO, CutoverBulkConvertQuarantineRowsRequest,
         CutoverBulkConvertQuarantineRowsResponse, CutoverConvertQuarantineEntryRequest,
-        CutoverConvertQuarantineEntryResponse, ManualRangeTO,
+        CutoverConvertQuarantineEntryResponse, DayFractionTO, ManualRangeTO,
     };
 
     /// Build a 3-day Mo/Tu/We contract with `expected_hours = 20.0` for the
@@ -2389,6 +2389,97 @@ mod convert_quarantine_endpoints_tests {
             manual_count, 1,
             "absence_period must span the operator-given manual_range \
              {{2026-05-04, 2026-05-08}} (NOT the ISO-week {{Mo, So}})"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 8.3 — REST round-trip for day_fraction=Half on convert.
+    //
+    // Heiligabend-Pattern: 4h Vacation am Donnerstag 2026-12-24 mit
+    // 8h/Tag-Vertrag (Mo-Fr). manual_range = single day (2026-12-24,
+    // 2026-12-24) damit die Heuristik gebypassed wird (4h ≠ 8h-strict-match).
+    // day_fraction = Half signalisiert: 0.5 Tag Vacation aus dem Kontingent.
+    //
+    // Verifiziert dass das Wire-Feld `day_fraction` über den REST-Handler →
+    // Service → DAO → SQLite-Spalte 'half' durchgereicht wird.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn convert_with_day_fraction_via_rest() {
+        let test_setup = TestSetup::new().await;
+        add_user_with_role(
+            &test_setup,
+            "cutover_user",
+            "admin",
+            Some(CUTOVER_ADMIN_PRIVILEGE),
+        )
+        .await;
+
+        let heili = create_sales_person(&test_setup, "Heiligabend HalbTag").await;
+        // 8h/Tag, Mo-Fr-Vertrag (standard_contract).
+        create_contract(&test_setup, heili.id).await;
+
+        // 4h Vacation am Heiligabend 2026-12-24 (Donnerstag) — halbtägiger
+        // Eintrag im Legacy-Schema.
+        let entry = create_extra_hour(
+            &test_setup,
+            heili.id,
+            ExtraHoursCategory::Vacation,
+            date!(2026 - 12 - 24),
+            4.0,
+        )
+        .await;
+
+        let router = axum::Router::new()
+            .nest(
+                "/admin/cutover",
+                generate_route::<crate::RestStateImpl>(),
+            )
+            .with_state(test_setup.rest_state.clone())
+            .layer(Extension(
+                Some(Arc::<str>::from("cutover_user")) as RestContext
+            ));
+
+        let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
+            extra_hours_id: entry.id,
+            manual_range: Some(ManualRangeTO {
+                start_date: "2026-12-24".into(),
+                end_date: "2026-12-24".into(),
+            }),
+            day_fraction: Some(DayFractionTO::Half),
+        })
+        .unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/cutover/convert-quarantine-entry")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "day_fraction=Half convert must return 200"
+        );
+
+        // Validate: lese geschriebenes absence_period aus DB; day_fraction-
+        // Spalte muss 'half' sein (lowercase DB-Storage, vs. "Half" Wire-
+        // PascalCase). Phase 8.3 Plan 02 + D-08.3-06: backend persists
+        // Operator-supplied value, no auto-suggest.
+        let heili_bytes = heili.id.as_bytes().to_vec();
+        let day_fraction_str: String = sqlx::query(
+            "SELECT day_fraction FROM absence_period \
+             WHERE sales_person_id = ? AND from_date = ? AND deleted IS NULL",
+        )
+        .bind(&heili_bytes)
+        .bind("2026-12-24")
+        .fetch_one(test_setup.pool.as_ref())
+        .await
+        .expect("should find absence_period row")
+        .get("day_fraction");
+        assert_eq!(
+            day_fraction_str, "half",
+            "day_fraction column must store 'half' \
+             (D-08.3-06: backend persists Operator-supplied value)"
         );
     }
 }

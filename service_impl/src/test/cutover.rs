@@ -2644,3 +2644,309 @@ mod manual_range_convert_quarantine_tests {
         DateRange::new(date!(2026 - 01 - 01), date!(2026 - 01 - 02)).ok()
     }
 }
+
+// ----------------------------------------------------------------------------
+// Phase 8.3 Plan 05 — day_fraction threading on convert + bulk-convert.
+//
+// Three mockall unit tests covering the new `day_fraction` parameter:
+//   1. convert_quarantine_entry_with_half_day_persists_day_fraction —
+//      Heiligabend-Pattern (Mo 8h-Vertrag, 4h Vacation row, manual_range =
+//      single day, day_fraction=Some(Half)) → AbsencePeriodEntity mit
+//      DayFractionEntity::Half wird persistiert.
+//   2. convert_quarantine_entry_without_day_fraction_defaults_to_full —
+//      Backwards-Compat: day_fraction = None defaultet zu Full.
+//   3. bulk_convert_quarantine_rows_with_half_applies_to_all_rows —
+//      D-08.3-07: alle Rows derselben Bulk-Operation teilen denselben
+//      Half-Wert.
+//
+// `withf`-Predicate auf `entity.day_fraction == DayFractionEntity::Half`
+// statt Full-Payload-Equality, weil die anderen Felder bereits durch die
+// existing 8.1/8.2-Tests abgedeckt sind und die new Tests sich strikt auf
+// die day_fraction-Threading-Surface fokussieren sollen.
+// ----------------------------------------------------------------------------
+
+mod day_fraction_convert_tests {
+    use super::*;
+    use dao::absence::AbsenceCategoryEntity;
+    use dao::absence::DayFractionEntity;
+    use mockall::Sequence;
+    use service::absence::DayFraction;
+    use service::cutover::ManualRange;
+
+    fn permission_service_allow_cutover_admin() -> MockPermissionService {
+        let mut p = MockPermissionService::new();
+        p.expect_check_permission()
+            .with(eq(CUTOVER_ADMIN_PRIVILEGE), always())
+            .returning(|_, _| Ok(()));
+        p
+    }
+
+    /// Stable extra_hours_id used für den Heiligabend-Halbtag-Test.
+    fn half_day_extra_hours_id() -> Uuid {
+        Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BAFF_0001)
+    }
+
+    fn half_day_row(day: time::Date, amount: f32) -> LegacyExtraHoursRow {
+        legacy_row_with_id(half_day_extra_hours_id(), day, amount)
+    }
+
+    // -----------------------------------------------------------------
+    // Test 1: convert_quarantine_entry with day_fraction=Some(Half) →
+    //         AbsencePeriodEntity.day_fraction == Half persistiert.
+    //
+    // Heiligabend-Pattern: 4h Vacation am Donnerstag 2026-12-24, 8h-Vertrag
+    // (Mo-Fr). manual_range = {2026-12-24, 2026-12-24} (single day, operator
+    // gibt das Datum explizit vor, weil die Heuristik bei amount=4 nicht
+    // matched). day_fraction=Some(Half) signalisiert: 0.5 Tag Vacation.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn convert_quarantine_entry_with_half_day_persists_day_fraction() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let row = half_day_row(date!(2026 - 12 - 24), 4.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        let row_arc_first = row_arc.clone();
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(row_arc_first.clone()));
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_8h_mon_fri_contract()])));
+
+        deps.absence_dao
+            .expect_find_overlapping()
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(Arc::from([])));
+
+        // STRICT assert: entity.day_fraction MUST be Half.
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, _, _| {
+                entity.from_date == date!(2026 - 12 - 24)
+                    && entity.to_date == date!(2026 - 12 - 24)
+                    && entity.category == AbsenceCategoryEntity::Vacation
+                    && entity.day_fraction == DayFractionEntity::Half
+            })
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .times(1)
+            .returning(|_, _| Ok(()));
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        // Replay (Step 9): empty bucket-map. Replay non-fatal-by-design.
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let manual = ManualRange {
+            start_date: date!(2026 - 12 - 24),
+            end_date: date!(2026 - 12 - 24),
+        };
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let outcome = service
+            .convert_quarantine_entry(
+                half_day_extra_hours_id(),
+                Some(manual),
+                Some(DayFraction::Half),
+                ().auth(),
+                None,
+            )
+            .await
+            .expect("half-day convert succeeds");
+
+        assert_eq!(outcome.deleted_extra_hours_id, half_day_extra_hours_id());
+        // absence_period.day_fraction reflects Operator-supplied Half.
+        assert_eq!(
+            outcome.absence_period.day_fraction,
+            DayFractionEntity::Half,
+            "outcome.absence_period.day_fraction must reflect the operator-supplied Half"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 2: convert_quarantine_entry with day_fraction = None →
+    //         AbsencePeriodEntity.day_fraction == Full (Backwards-Compat).
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn convert_quarantine_entry_without_day_fraction_defaults_to_full() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let row = half_day_row(date!(2026 - 12 - 24), 4.0);
+        let row_arc: Arc<[LegacyExtraHoursRow]> = Arc::from([row]);
+        let row_arc_first = row_arc.clone();
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(row_arc_first.clone()));
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_8h_mon_fri_contract()])));
+
+        deps.absence_dao
+            .expect_find_overlapping()
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(Arc::from([])));
+
+        // STRICT assert: entity.day_fraction MUST be Full (Default).
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, _, _| entity.day_fraction == DayFractionEntity::Full)
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .times(1)
+            .returning(|_, _| Ok(()));
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let manual = ManualRange {
+            start_date: date!(2026 - 12 - 24),
+            end_date: date!(2026 - 12 - 24),
+        };
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let outcome = service
+            .convert_quarantine_entry(
+                half_day_extra_hours_id(),
+                Some(manual),
+                None, // <-- backwards-compat: kein day_fraction
+                ().auth(),
+                None,
+            )
+            .await
+            .expect("convert succeeds with None day_fraction");
+
+        assert_eq!(
+            outcome.absence_period.day_fraction,
+            DayFractionEntity::Full,
+            "None day_fraction must default to Full (no-drift / Backwards-Compat)"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 3: bulk_convert_quarantine_rows with day_fraction = Some(Half) →
+    //         ALLE konvertierten Entities haben Half (D-08.3-07).
+    //
+    // 3 weekly-lump-sum-Rows (Mo-Mi 3-day-Vertrag, 20h/Woche, valid lumps in
+    // KW 23/24/25 von 2024) — alle bekommen denselben Half-Wert.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn bulk_convert_quarantine_rows_with_half_applies_to_all_rows() {
+        let mut deps = build_dependencies();
+        deps.permission_service = permission_service_allow_cutover_admin();
+
+        let rows: Arc<[LegacyExtraHoursRow]> = Arc::from([
+            legacy_row_with_id(
+                Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BABE_0001),
+                date!(2024 - 06 - 07),
+                20.0,
+            ),
+            legacy_row_with_id(
+                Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BABE_0002),
+                date!(2024 - 06 - 14),
+                20.0,
+            ),
+            legacy_row_with_id(
+                Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BABE_0003),
+                date!(2024 - 06 - 21),
+                20.0,
+            ),
+        ]);
+        let rows_for_first = rows.clone();
+        let mut seq = Sequence::new();
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(rows_for_first.clone()));
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Arc::from([])));
+
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_3day_mo_tu_we_contract()])));
+
+        // STRICT assert: ALLE 3 absence_period-Inserts müssen day_fraction = Half haben.
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, _, _| entity.day_fraction == DayFractionEntity::Half)
+            .times(3)
+            .returning(|_, _, _| Ok(()));
+
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .times(3)
+            .returning(|_, _| Ok(()));
+        deps.extra_hours_service
+            .expect_soft_delete_bulk()
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+        deps.cutover_dao
+            .expect_find_legacy_scope_set()
+            .returning(|_| Ok(Arc::from([])));
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let outcome = service
+            .bulk_convert_quarantine_rows(
+                fixture_sp_id(),
+                AbsenceCategory::Vacation,
+                2024,
+                None,
+                Some(DayFraction::Half),
+                ().auth(),
+                None,
+            )
+            .await
+            .expect("bulk-convert-with-Half succeeds");
+
+        assert_eq!(outcome.converted_absence_periods.len(), 3);
+        for ap in &outcome.converted_absence_periods {
+            assert_eq!(
+                ap.day_fraction,
+                DayFractionEntity::Half,
+                "all bulk-converted entities must share the Half day_fraction (D-08.3-07)"
+            );
+        }
+    }
+}
