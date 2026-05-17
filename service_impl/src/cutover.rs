@@ -414,6 +414,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
         &self,
         extra_hours_id: Uuid,
         manual_range: Option<ManualRange>,
+        day_fraction: Option<service::absence::DayFraction>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<ConvertQuarantineEntryOutcome, ServiceError> {
@@ -538,9 +539,14 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
             created: migrated_at,
             deleted: None,
             version: Uuid::new_v4(),
-            // Phase 8.3 (Plan 01 bridge): Plan 05 erweitert Cutover-Convert
-            // um eine `day_fraction`-Eingabe (Request-Feld). Bis dahin Full.
-            day_fraction: dao::absence::DayFractionEntity::Full,
+            // Phase 8.3 (Plan 05, D-08.3-06): Operator-supplied
+            // `day_fraction` aus dem Request. `None` defaultet auf `Full`
+            // (no-drift, CONTEXT.md). Backend bleibt passiv — kein Auto-
+            // Vorschlag aus der `detect_weekly_lump_sum`-Heuristik.
+            day_fraction: day_fraction
+                .as_ref()
+                .map(dao::absence::DayFractionEntity::from)
+                .unwrap_or(dao::absence::DayFractionEntity::Full),
         };
         self.absence_dao
             .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())
@@ -620,6 +626,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
         category: AbsenceCategory,
         year: u32,
         explicit_ids: Option<Arc<[Uuid]>>,
+        day_fraction: Option<service::absence::DayFraction>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<BulkConvertQuarantineRowsOutcome, ServiceError> {
@@ -699,6 +706,14 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
         // 7. Apply all DAO writes inside the same Tx. Direct `absence_dao.create`
         //    bypasses `AbsenceService::create`'s forward-warning loop (Migration
         //    is privileged; mirrors `commit_phase` + `convert_quarantine_entry`).
+        //
+        // Phase 8.3 (Plan 05, D-08.3-07): `day_fraction` gilt einheitlich für
+        // ALLE Rows derselben Bulk-Operation. Einmal vor der Schleife
+        // resolven; `None` → `Full` (Backwards-Compat / no-drift).
+        let bulk_day_fraction: dao::absence::DayFractionEntity = day_fraction
+            .as_ref()
+            .map(dao::absence::DayFractionEntity::from)
+            .unwrap_or(dao::absence::DayFractionEntity::Full);
         let mut converted: Vec<AbsencePeriodEntity> = Vec::with_capacity(planned.len());
         let mut deleted_ids: Vec<Uuid> = Vec::with_capacity(planned.len());
         for (row, from_date, to_date) in planned.iter() {
@@ -714,9 +729,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
                 created: migrated_at,
                 deleted: None,
                 version: Uuid::new_v4(),
-                // Phase 8.3 (Plan 01 bridge): Plan 05 erweitert Bulk-Cutover
-                // um eine `day_fraction`-Eingabe (Request-Feld). Bis dahin Full.
-                day_fraction: dao::absence::DayFractionEntity::Full,
+                day_fraction: bulk_day_fraction,
             };
             self.absence_dao
                 .create(&entity, CUTOVER_MIGRATION_PROCESS, tx.clone())

@@ -1797,6 +1797,7 @@ mod convert_quarantine_endpoints_tests {
         let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
             extra_hours_id: entry.id,
             manual_range: None,
+            day_fraction: None,
         })
         .unwrap();
         let req = Request::builder()
@@ -1901,6 +1902,7 @@ mod convert_quarantine_endpoints_tests {
         let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
             extra_hours_id: entry.id,
             manual_range: None,
+            day_fraction: None,
         })
         .unwrap();
         let req = Request::builder()
@@ -1957,6 +1959,7 @@ mod convert_quarantine_endpoints_tests {
         let body = serde_json::to_vec(&CutoverConvertQuarantineEntryRequest {
             extra_hours_id: entry.id,
             manual_range: None,
+            day_fraction: None,
         })
         .unwrap();
 
@@ -2059,6 +2062,7 @@ mod convert_quarantine_endpoints_tests {
             category: AbsenceCategoryTO::Vacation,
             year: 2026,
             extra_hours_ids: None,
+            day_fraction: None,
         })
         .unwrap();
         let req = Request::builder()
@@ -2160,6 +2164,7 @@ mod convert_quarantine_endpoints_tests {
             category: AbsenceCategoryTO::Vacation,
             year: 2026,
             extra_hours_ids: None,
+            day_fraction: None,
         })
         .unwrap();
         let req = Request::builder()
@@ -2321,6 +2326,7 @@ mod convert_quarantine_endpoints_tests {
                 start_date: "2026-05-04".into(),
                 end_date: "2026-05-08".into(),
             }),
+            day_fraction: None,
         })
         .unwrap();
         let req = Request::builder()

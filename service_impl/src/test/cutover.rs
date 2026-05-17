@@ -1388,7 +1388,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(build_default_transaction_dao());
         let outcome = service
-            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, None, ().auth(), None)
             .await
             .expect("single-convert succeeds");
 
@@ -1441,7 +1441,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::ValidationError(_))),
@@ -1482,7 +1482,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::Forbidden)),
@@ -1519,7 +1519,7 @@ mod convert_quarantine_entry_tests {
 
         let service = deps.build_service(build_default_transaction_dao());
         let result = service
-            .convert_quarantine_entry(target_extra_hours_id(), None, ().auth(), None)
+            .convert_quarantine_entry(target_extra_hours_id(), None, None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::EntityNotFoundGeneric(_))),
@@ -1649,6 +1649,7 @@ mod bulk_convert_quarantine_rows_tests {
                 AbsenceCategory::Vacation,
                 2024,
                 None,
+                None,
                 ().auth(),
                 None,
             )
@@ -1712,6 +1713,7 @@ mod bulk_convert_quarantine_rows_tests {
                 fixture_sp_id(),
                 AbsenceCategory::Vacation,
                 2024,
+                None,
                 None,
                 ().auth(),
                 None,
@@ -1801,6 +1803,7 @@ mod bulk_convert_quarantine_rows_tests {
                 AbsenceCategory::Vacation,
                 2024,
                 Some(explicit),
+                None,
                 ().auth(),
                 None,
             )
@@ -1852,6 +1855,7 @@ mod bulk_convert_quarantine_rows_tests {
                 fixture_sp_id(),
                 AbsenceCategory::Vacation,
                 2024,
+                None,
                 None,
                 ().auth(),
                 None,
@@ -2438,7 +2442,7 @@ mod manual_range_convert_quarantine_tests {
 
         let service = deps.build_service(build_default_transaction_dao());
         let outcome = service
-            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), None, ().auth(), None)
             .await
             .expect("manual-range convert succeeds for Karin pattern");
 
@@ -2491,7 +2495,7 @@ mod manual_range_convert_quarantine_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), None, ().auth(), None)
             .await;
         assert!(
             matches!(result, Err(ServiceError::DateOrderWrong(s, e))
@@ -2538,7 +2542,7 @@ mod manual_range_convert_quarantine_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), None, ().auth(), None)
             .await;
         match result {
             Err(ServiceError::ValidationError(items)) => {
@@ -2612,7 +2616,7 @@ mod manual_range_convert_quarantine_tests {
 
         let service = deps.build_service(tx_dao);
         let result = service
-            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), ().auth(), None)
+            .convert_quarantine_entry(karin_extra_hours_id(), Some(manual), None, ().auth(), None)
             .await;
         match result {
             Err(ServiceError::ValidationError(items)) => {
