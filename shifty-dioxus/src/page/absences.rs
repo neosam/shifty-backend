@@ -40,7 +40,7 @@ use crate::service::i18n::I18N;
 use crate::service::vacation_balance::{
     VacationBalanceAction, VACATION_BALANCE_STORE, VACATION_TEAM_STORE,
 };
-use crate::state::absence_period::{AbsenceCategory, AbsencePeriod};
+use crate::state::absence_period::{AbsenceCategory, AbsencePeriod, DayFraction};
 use crate::state::shiftplan::SalesPerson;
 use crate::state::vacation_balance::VacationBalance;
 
@@ -749,6 +749,13 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
         Some(a) => a.category,
         None => AbsenceCategory::Vacation,
     };
+    // Phase 8.3: Tageshälfte — Create defaults to Full; Edit reads from the
+    // editing AbsencePeriod's day_fraction state mirror (Plan 01 wired this
+    // through `AbsencePeriod::from(&AbsencePeriodTO)`).
+    let initial_day_fraction: DayFraction = match &editing_period {
+        Some(a) => a.day_fraction,
+        None => DayFraction::Full,
+    };
     let today = current_date_for_init();
     let initial_from = match &editing_period {
         Some(a) => a.from_date.format(&date_format).unwrap_or_default(),
@@ -768,6 +775,8 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
     let mut from_date = use_signal(|| initial_from.clone());
     let mut to_date = use_signal(|| initial_to.clone());
     let mut description = use_signal(|| initial_description.clone());
+    // Phase 8.3: Tageshälfte form signal.
+    let mut day_fraction = use_signal(|| initial_day_fraction);
 
     // Re-seed when the props change between Create/Edit or between
     // different Edit-targets without unmounting (analog
@@ -781,6 +790,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
         from_date.set(initial_from.clone());
         to_date.set(initial_to.clone());
         description.set(initial_description.clone());
+        day_fraction.set(initial_day_fraction);
     }
 
     // Modal-local outcome state — reset on every open.
@@ -879,6 +889,14 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
     let to_label = ImStr::from(i18n.t(Key::AbsenceFieldTo).as_ref());
     let description_label = ImStr::from(i18n.t(Key::AbsenceFieldDescription).as_ref());
     let description_hint = ImStr::from(i18n.t(Key::AbsenceFieldDescriptionHint).as_ref());
+    // Phase 8.3: Tageshälfte field + reactive hint.
+    let day_fraction_label = ImStr::from(i18n.t(Key::AbsenceFieldDayFraction).as_ref());
+    let day_fraction_hint: ImStr = match *day_fraction.read() {
+        DayFraction::Full => ImStr::from(i18n.t(Key::AbsenceFieldDayFractionFullHint).as_ref()),
+        DayFraction::Half => ImStr::from(i18n.t(Key::AbsenceFieldDayFractionHalfHint).as_ref()),
+    };
+    let day_fraction_full_label = i18n.t(Key::AbsenceDayFractionFull);
+    let day_fraction_half_label = i18n.t(Key::AbsenceDayFractionHalf);
     let range_error: Option<ImStr> = if range_invalid {
         Some(ImStr::from(i18n.t(Key::AbsenceErrorRangeInverted).as_ref()))
     } else {
@@ -931,8 +949,8 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
             created: None,
             deleted: None,
             version,
-            // Phase 8.3 — Halbtag-Support. Plan 06 verdrahtet das Form-Signal.
-            day_fraction: rest_types::DayFractionTO::default(),
+            // Phase 8.3 — Halbtag-Support. Form-Signal wird hier durchgereicht.
+            day_fraction: (&*day_fraction.read()).into(),
         };
         let action = match &mode_for_submit {
             AbsenceModalMode::Create => AbsenceAction::Create(body),
@@ -1058,6 +1076,33 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                             value: "unpaid_leave",
                             selected: *category.read() == AbsenceCategory::UnpaidLeave,
                             "{i18n.t(Key::AbsenceCategoryUnpaidLeave)}"
+                        }
+                    }
+                }
+                // Phase 8.3: Tageshälfte (Full / Half). Full-width Field —
+                // semantically a data property like Kategorie, not a CTA.
+                Field {
+                    label: day_fraction_label,
+                    span: Some(2u8),
+                    hint: Some(day_fraction_hint.clone()),
+                    SelectInput {
+                        disabled: form_disabled,
+                        on_change: move |value: ImStr| {
+                            let next = match value.as_str() {
+                                "Half" => DayFraction::Half,
+                                _ => DayFraction::Full,
+                            };
+                            day_fraction.set(next);
+                        },
+                        option {
+                            value: "Full",
+                            selected: *day_fraction.read() == DayFraction::Full,
+                            "{day_fraction_full_label}"
+                        }
+                        option {
+                            value: "Half",
+                            selected: *day_fraction.read() == DayFraction::Half,
+                            "{day_fraction_half_label}"
                         }
                     }
                 }
@@ -1679,6 +1724,7 @@ pub fn AbsencesPage() -> Element {
 mod tests {
     use super::*;
     use crate::i18n::{generate, Locale};
+    use std::sync::Arc;
 
     /// Render a snapshot component. Before rendering we install Locale::De
     /// into the global I18N signal via `use_hook`. The hook runs inside the
@@ -1872,6 +1918,94 @@ mod tests {
         assert!(
             !html.contains(">Person<"),
             "Employee filter bar must NOT render the Person dropdown label: {html}"
+        );
+    }
+
+    // ── AbsenceModal Halbtag-Field snapshots (Phase 8.3 — Plan 06) ─────
+    //
+    // Verify the new `day_fraction` Field renders the Full/Half options
+    // and the reactive hint text, plus that Edit-Mode pre-selects the
+    // editing AbsencePeriod's day_fraction state.
+
+    #[test]
+    fn absence_modal_renders_day_fraction_select_with_full_option_active_by_default() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                AbsenceModal {
+                    open: true,
+                    mode: AbsenceModalMode::Create,
+                    is_hr: true,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    current_sp_id: None,
+                    on_close: |_| {},
+                    on_delete_request: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        // Both Tageshälfte i18n De-labels are rendered as <option>-text.
+        assert!(html.contains("Ganztag"), "Expected Ganztag label in: {html}");
+        assert!(html.contains("Halber Tag"), "Expected Halber Tag label in: {html}");
+        // value="Full" must be present and `selected` in the default Create-Mode.
+        let full_option_idx = html
+            .find("value=\"Full\"")
+            .expect("Full option missing in rendered HTML");
+        let full_window =
+            &html[full_option_idx..(full_option_idx + 80).min(html.len())];
+        assert!(
+            full_window.contains("selected"),
+            "Expected Full option to be selected by default: window={full_window}"
+        );
+        // Reactive hint — Full variant.
+        assert!(
+            html.contains("vollen Vertrags-Stundensatz"),
+            "Expected Full hint text in: {html}"
+        );
+    }
+
+    #[test]
+    fn absence_modal_in_edit_mode_with_half_period_preselects_half() {
+        fn app() -> Element {
+            pin_de_locale();
+            let editing = AbsencePeriod {
+                id: Uuid::nil(),
+                sales_person_id: Uuid::nil(),
+                category: AbsenceCategory::Vacation,
+                from_date: date!(2026 - 12 - 24),
+                to_date: date!(2026 - 12 - 24),
+                description: Arc::<str>::from("Heiligabend"),
+                version: Uuid::nil(),
+                day_fraction: DayFraction::Half,
+                person_name: Arc::<str>::from(""),
+                background_color: Arc::<str>::from(""),
+            };
+            rsx! {
+                AbsenceModal {
+                    open: true,
+                    mode: AbsenceModalMode::Edit(editing),
+                    is_hr: true,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    current_sp_id: None,
+                    on_close: |_| {},
+                    on_delete_request: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        let half_option_idx = html
+            .find("value=\"Half\"")
+            .expect("Half option missing in rendered HTML");
+        let half_window =
+            &html[half_option_idx..(half_option_idx + 80).min(html.len())];
+        assert!(
+            half_window.contains("selected"),
+            "Expected Half option to be selected in Edit-Mode: window={half_window}"
+        );
+        // Reactive hint — Half variant.
+        assert!(
+            html.contains("0,5 Urlaubstage"),
+            "Expected Half hint text in: {html}"
         );
     }
 }
