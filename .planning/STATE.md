@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
-status: executing
+status: milestone_complete
 last_updated: "2026-05-17T10:12:20.843Z"
 last_activity: 2026-05-17 -- Phase 08.3 execution started
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 29
   completed_plans: 22
-  percent: 76
+  percent: 75
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 08.3 (halbtag-support-f-r-absences) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 08.3
-Last activity: 2026-05-17 -- Phase 08.3 execution started
+Phase: 08.3
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-17
 
 ## Shipped Milestones
 

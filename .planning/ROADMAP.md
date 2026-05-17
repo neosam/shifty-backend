@@ -262,12 +262,12 @@
 **Notes for plan-phase:** Misch-Phase Backend + Frontend wie 8 / 8.1. Open Questions aus `.planning/notes/halftime-absence-decision.md` (Datenmodell-Form Enum vs. f32, Cutover-Auto-Vorschlag vs. manuelle Toggle, Frontend-UI-Pattern Checkbox vs. Dropdown, Konflikt-Warning-Verhalten, i18n-Keys) sind in der Plan-Phase zu entscheiden. **Service-Tier:** Erweiterung des bestehenden `AbsenceService` (Business-Logic-Tier, schon klassifiziert in Phase 8). `CutoverServiceImpl`-Erweiterung bleibt Business-Logic-Tier. **Snapshot-Schema-Versioning:** **Pflicht-Bump** der `CURRENT_SNAPSHOT_SCHEMA_VERSION` — Vacation-Aggregation ändert sich. **Reuse-Patterns:** 8.1-Drift-Resolution-Liste (`page/cutover_admin.rs`, Plan 08.1-09), `compute_gate_diagnostic` für `refreshed_drift_report`, 8.2-`ManualConvertModal` als Vorlage für Form-Erweiterung. **Out-of-Scope explizit:** AM/PM-Disambiguierung (separater Halbtag-Vormittag vs. Halbtag-Nachmittag), Stundenebene generell, Konflikt-Warning-Logik für Halbtag-Booking-Overlap (toleriert ohne Warning), Edit-Pfad für `day_fraction` auf bereits gecutoverten `absence_period`-Einträgen vor Phase-8.3-Schema (alle bestehenden Einträge sind `Full`; explizite Korrektur erfolgt über normalen Edit-Pfad). **VCS:** jj-only (siehe `CLAUDE.local.md`); Plans dürfen keine `git commit`-Befehle planen. **Cutover-Reihenfolge:** Plan-Phase muss klären, ob 8.3 vor Plan 08.1-12 als separate Phase abgeschlossen wird oder ob 08.1-12 in 8.3 subsumiert wird (vermutlich separat, weil 8.3 das Schema voraussetzt für die HUMAN-UAT-Re-Run).
 
 **Plans (6 plans):**
-- [ ] 08.3-01-PLAN.md — Foundation: Migration + DAO/Service/DTO-Enums + OpenAPI-Surface + i18n-Key-Enum-Slots
-- [ ] 08.3-02-PLAN.md — DAO-SQLite threading: 6 SELECTs + INSERT + TryFrom + Service-CRUD + 2 In-Memory-Tests (no-drift + half-round-trip)
-- [ ] 08.3-03-PLAN.md — i18n: 13 add_text Bodies × 3 Locales (De/En/Cs) + 2 Presence-Tests + 6 Reference-Matcher-Tests (Pitfall-2-Guard)
-- [ ] 08.3-04-PLAN.md — Reporting Hot-Path: derive_hours_for_range Halbtag-Multiplikation + CURRENT_SNAPSHOT_SCHEMA_VERSION 3→4 + 3 Mockall-Tests
-- [ ] 08.3-05-PLAN.md — Cutover Backend: Request-DTOs + Service-Traits + Impls + REST-Handler + 3 Mockall-Tests + 1 REST-Integration-Test
-- [ ] 08.3-06-PLAN.md — Frontend: AbsenceModal + DriftEntryRow + ManualConvertModal + CutoverAction-Migration + 4 SSR-Snapshot-Tests + WASM-Build-Gate
+- [x] 08.3-01-PLAN.md — Foundation: Migration + DAO/Service/DTO-Enums + OpenAPI-Surface + i18n-Key-Enum-Slots
+- [x] 08.3-02-PLAN.md — DAO-SQLite threading: 6 SELECTs + INSERT + TryFrom + Service-CRUD + 2 In-Memory-Tests (no-drift + half-round-trip)
+- [x] 08.3-03-PLAN.md — i18n: 13 add_text Bodies × 3 Locales (De/En/Cs) + 2 Presence-Tests + 6 Reference-Matcher-Tests (Pitfall-2-Guard)
+- [x] 08.3-04-PLAN.md — Reporting Hot-Path: derive_hours_for_range Halbtag-Multiplikation + CURRENT_SNAPSHOT_SCHEMA_VERSION 3→4 + 3 Mockall-Tests
+- [x] 08.3-05-PLAN.md — Cutover Backend: Request-DTOs + Service-Traits + Impls + REST-Handler + 3 Mockall-Tests + 1 REST-Integration-Test
+- [x] 08.3-06-PLAN.md — Frontend: AbsenceModal + DriftEntryRow + ManualConvertModal + CutoverAction-Migration + 4 SSR-Snapshot-Tests + WASM-Build-Gate
 
 **Wave-Struktur:**
 - Wave 1 (parallel-eligible standalone): 08.3-01 (Foundation)
