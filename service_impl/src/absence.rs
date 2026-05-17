@@ -321,9 +321,10 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             created: now,
             deleted: None,
             version: new_version,
-            // Phase 8.3 (Plan 01 bridge): Plan 02 verdrahtet
-            // `request.day_fraction` durch die CRUD-Pfade. Hier Default.
-            day_fraction: dao::absence::DayFractionEntity::Full,
+            // Phase 8.3 (Plan 02): take day_fraction from the REQUEST, not
+            // from `active` — otherwise the user could never change the
+            // value via update. PATTERNS.md Pattern 6 covers this.
+            day_fraction: (&request.day_fraction).into(),
         };
         self.absence_dao
             .create(&new_entity, "absence_service::update::insert", tx.clone())
