@@ -34,7 +34,20 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 /// any persisted `value_type` on `billing_period_sales_person`. See
 /// `CLAUDE.md` → "Billing Period Snapshot Schema Versioning" for the rationale
 /// and the full list of trigger conditions.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 3;
+///
+/// History:
+/// - v1/v2: pre-Phase-2 baseline (initial snapshot model + intermediate bump).
+/// - v3: Phase 2 — neuer `value_type` UnpaidLeave + AbsencePeriod-derived
+///   Vacation/Sick/UnpaidLeave (changed the computation that produces these
+///   value_types vs. the Phase-1 extra_hours-derived computation).
+/// - v4: Phase 8.3 — `AbsencePeriod.day_fraction == Half` halbiert die effektive
+///   Soll-Stundenzahl pro Tag in `derive_hours_for_range`; betrifft die
+///   Vacation/SickLeave/UnpaidLeave-derived value_types (hours + days). Alte
+///   Snapshots (v3) haben kein `day_fraction`-Feld in den Quell-Rows (Default
+///   `'full'` nach Migration), aber die Computation würde bei Re-Validation
+///   andere Werte liefern, sobald ein Half-Eintrag existiert. Validator MUSS
+///   daher v3-Snapshots als "older schema" markieren.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 4;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
