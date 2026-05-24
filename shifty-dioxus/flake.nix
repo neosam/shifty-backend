@@ -45,7 +45,6 @@
             wasm-pack
             wasm-bindgen-cli_0_2_104
             nodejs
-            nodePackages.npm
             tailwindcss
             pkg-config
             dioxus-cli
@@ -188,7 +187,6 @@ EOF
             wasmtime
             dioxus-cli
             nodejs
-            nodePackages.npm
             tailwindcss
             pkg-config
             openssl
