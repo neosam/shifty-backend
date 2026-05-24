@@ -38,14 +38,6 @@
         }, 1000 * 60 * 5);
     </script>
     <div id="main"></div>
-    <script type="module">
-        import init from "/{base_path}/wasm/{app_name}.js";
-        init("/{base_path}/wasm/{app_name}_bg.wasm").then(wasm => {
-            if (wasm.__wbindgen_start == undefined) {
-                wasm.main();
-            }
-        });
-    </script>
 </body>
 
 </html>
