@@ -143,12 +143,17 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let mut selected_shiftplan_id: Signal<Option<Uuid>> = use_signal(|| None);
 
-    // Auto-select first shiftplan when catalog loads
-    if let Some(Ok(catalog)) = &*shiftplan_catalog.read_unchecked() {
-        if selected_shiftplan_id.read().is_none() && !catalog.is_empty() {
-            selected_shiftplan_id.set(Some(catalog[0].id));
+    // Auto-select first shiftplan once the catalog finishes loading.
+    // Wrapped in use_effect + peek() on the written signal so the write does not
+    // re-trigger the surrounding render scope (which previously caused an
+    // infinite rerender loop → WASM heap corruption).
+    use_effect(move || {
+        if let Some(Ok(catalog)) = &*shiftplan_catalog.read() {
+            if selected_shiftplan_id.peek().is_none() && !catalog.is_empty() {
+                selected_shiftplan_id.set(Some(catalog[0].id));
+            }
         }
-    }
+    });
 
     let mut shift_plan_context = {
         let config = config.clone();
