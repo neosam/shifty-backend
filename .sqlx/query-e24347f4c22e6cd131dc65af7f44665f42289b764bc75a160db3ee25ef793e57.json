@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version FROM absence_period WHERE sales_person_id = ? AND deleted IS NULL ORDER BY from_date",
+  "query": "SELECT id, logical_id, sales_person_id, category, from_date, to_date, description, created, deleted, update_version, day_fraction FROM absence_period WHERE sales_person_id = ? AND from_date <= ? AND to_date >= ? AND deleted IS NULL ORDER BY from_date",
   "describe": {
     "columns": [
       {
@@ -52,10 +52,15 @@
         "name": "update_version",
         "ordinal": 9,
         "type_info": "Blob"
+      },
+      {
+        "name": "day_fraction",
+        "ordinal": 10,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 3
     },
     "nullable": [
       false,
@@ -67,8 +72,9 @@
       true,
       false,
       true,
+      false,
       false
     ]
   },
-  "hash": "aaafeb5989f810c4478da81e6330af7984ce1e50fb8d524e87a642450115a1b4"
+  "hash": "e24347f4c22e6cd131dc65af7f44665f42289b764bc75a160db3ee25ef793e57"
 }
