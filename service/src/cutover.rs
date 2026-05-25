@@ -296,6 +296,7 @@ pub trait CutoverService {
     /// Phase 8.3 (D-08.3-07): optional `day_fraction` gilt einheitlich für
     /// ALLE Rows der Bulk-Operation. `None` / Default → `Full` für jede
     /// konvertierte Zeile (Backwards-Compat).
+    #[allow(clippy::too_many_arguments)]
     async fn bulk_convert_quarantine_rows(
         &self,
         sales_person_id: Uuid,

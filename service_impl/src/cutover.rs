@@ -620,6 +620,7 @@ impl<Deps: CutoverServiceDeps> CutoverService for CutoverServiceImpl<Deps> {
     ///
     /// Reuses `compute_gate_diagnostic` (Plan 02) for the inline
     /// `refreshed_drift_report` (D-08, RESEARCH P-03 option a).
+    #[allow(clippy::too_many_arguments)]
     async fn bulk_convert_quarantine_rows(
         &self,
         sales_person_id: Uuid,
