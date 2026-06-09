@@ -551,6 +551,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             &shiftplan_report,
             &extra_hours,
             &working_hours,
+            &derived,
             from_date,
             to_date,
         )?;
@@ -907,6 +908,7 @@ fn hours_per_week(
     shiftplan_hours_list: &Arc<[ShiftplanReportDay]>,
     extra_hours_list: &Arc<[ExtraHours]>,
     working_hours: &[EmployeeWorkDetails],
+    derived_absence: &std::collections::BTreeMap<time::Date, service::absence::ResolvedAbsence>,
     from_date: ShiftyDate,
     to_date: ShiftyDate,
 ) -> Result<Arc<[GroupedReportHours]>, ServiceError> {
@@ -980,6 +982,19 @@ fn hours_per_week(
                 .map(|eh| eh.amount)
                 .sum::<f32>()
         };
+        // Gap 2 (Phase 8.4 / WR-01): absence_period-derived Stunden dieser Woche summieren.
+        // Alle drei derived-Kategorien (V/S/U) sind AbsenceHours -> reduzieren expected symmetrisch.
+        // Nur wenn working_hours_for_week > 0 (gleiche Bedingung wie absence_hours oben).
+        let derived_absence_hours = if working_hours_for_week <= 0.0 {
+            0.0f32
+        } else {
+            derived_absence
+                .iter()
+                .filter(|(d, _)| ShiftyDate::from(**d).as_shifty_week() == week)
+                .map(|(_, r)| r.hours)
+                .sum::<f32>()
+        };
+        let absence_hours = absence_hours + derived_absence_hours;
 
         let mut day_list = filtered_extra_hours_list
             .iter()
@@ -1161,7 +1176,7 @@ mod test_dynamic_vacation_days {
 
         let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         assert_eq!(result.len(), 1);
 
         let week = &result[0];
@@ -1197,7 +1212,7 @@ mod test_dynamic_vacation_days {
             create_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         assert_eq!(result.len(), 1);
 
         let week = &result[0];
@@ -1224,7 +1239,7 @@ mod test_dynamic_vacation_days {
             create_shiftplan_day(2024, 10, DayOfWeek::Wednesday, 8.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         assert_eq!(result.len(), 1);
 
         let week = &result[0];
@@ -1256,7 +1271,7 @@ mod test_dynamic_vacation_days {
             create_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         assert_eq!(result.len(), 1);
 
         let week = &result[0];
@@ -1295,7 +1310,7 @@ mod test_dynamic_vacation_days {
 
         let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert_eq!(week.vacation_hours, 8.0);
         assert_eq!(week.unpaid_leave_hours, 8.0);
@@ -1314,7 +1329,7 @@ mod test_dynamic_vacation_days {
 
         let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         // Vacation days should only consider vacation hours (24h / 8h per day = 3 days)
         assert!(
@@ -1337,7 +1352,7 @@ mod test_dynamic_vacation_days {
 
         let shiftplan: Arc<[ShiftplanReportDay]> = Arc::new([]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         // absence_days = (vacation 8 + sick 0 + holiday 0 + unpaid_leave 8) / 8 hours_per_day = 2
         assert!(
@@ -1364,7 +1379,7 @@ mod test_dynamic_vacation_days {
             create_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra_hours, &[work_details], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         // Expected hours: 40 (contract) - 8 (unpaid leave absence) = 32
         assert!(
@@ -1490,7 +1505,7 @@ mod test_weekly_planned_hours_cap {
             make_shiftplan_day(2024, 10, DayOfWeek::Friday, 8.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra, &[wd], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert!((week.balance - 0.0).abs() < 0.01, "balance was {}", week.balance);
         assert!((week.overall_hours - 40.0).abs() < 0.01, "overall was {}", week.overall_hours);
@@ -1513,7 +1528,7 @@ mod test_weekly_planned_hours_cap {
             make_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 5.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra, &[wd], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert!((week.shiftplan_hours - 5.0).abs() < 0.01, "shiftplan was {}", week.shiftplan_hours);
         assert!((week.volunteer_hours - 5.0).abs() < 0.01, "volunteer was {}", week.volunteer_hours);
@@ -1537,7 +1552,7 @@ mod test_weekly_planned_hours_cap {
             make_shiftplan_day(2024, 10, DayOfWeek::Tuesday, 5.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra, &[wd], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert!((week.volunteer_hours - 7.0).abs() < 0.01, "volunteer was {}", week.volunteer_hours);
         assert!((week.balance - 0.0).abs() < 0.01, "balance was {}", week.balance);
@@ -1554,7 +1569,7 @@ mod test_weekly_planned_hours_cap {
         let shiftplan: Arc<[ShiftplanReportDay]> =
             Arc::new([make_shiftplan_day(2024, 10, DayOfWeek::Monday, 3.0)]);
 
-        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra, &[wd], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert!((week.shiftplan_hours - 3.0).abs() < 0.01, "shiftplan was {}", week.shiftplan_hours);
         assert!(week.volunteer_hours.abs() < 0.01, "volunteer was {}", week.volunteer_hours);
@@ -1576,7 +1591,7 @@ mod test_weekly_planned_hours_cap {
         let shiftplan: Arc<[ShiftplanReportDay]> =
             Arc::new([make_shiftplan_day(2024, 10, DayOfWeek::Monday, 5.0)]);
 
-        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra, &[wd], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert!((week.overall_hours - 8.0).abs() < 0.01, "overall was {}", week.overall_hours);
         assert!((week.balance - 3.0).abs() < 0.01, "balance was {}", week.balance);
@@ -1599,7 +1614,7 @@ mod test_weekly_planned_hours_cap {
             make_shiftplan_day(2024, 10, DayOfWeek::Friday, 5.0),
         ]);
 
-        let result = hours_per_week(&shiftplan, &extra, &[wd], from, to).unwrap();
+        let result = hours_per_week(&shiftplan, &extra, &[wd], &std::collections::BTreeMap::new(), from, to).unwrap();
         let week = &result[0];
         assert!((week.shiftplan_hours - 25.0).abs() < 0.01, "shiftplan was {}", week.shiftplan_hours);
         assert!((week.balance - 5.0).abs() < 0.01, "balance was {}", week.balance);
