@@ -10,7 +10,7 @@ use service::{
     clock::ClockService,
     cutover::CUTOVER_ADMIN_PRIVILEGE,
     custom_extra_hours::CustomExtraHoursService,
-    extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursService},
+    extra_hours::{ExtraHours, ExtraHoursService},
     feature_flag::FeatureFlagService,
     permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE},
     sales_person::SalesPersonService,
@@ -194,35 +194,13 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         );
         hr_permission.or(sales_person_permission)?;
 
-        // Phase-4 D-Phase4-09 service-layer flag-gate: once
-        // `absence_range_source_active` is true (post-cutover), creating new
-        // Vacation/SickLeave/UnpaidLeave entries via this surface is
-        // deprecated — clients must use POST /absence-period instead.
-        // ExtraWork/Holiday/Unavailable/VolunteerWork/Custom remain
-        // unaffected by the gate. The check happens AFTER the permission gate
-        // (so unauthorized callers still get Forbidden, not Deprecated) and
-        // BEFORE the DAO insert (so a deprecated request makes no state
-        // change; the Tx rolls back via Drop on the early Err).
-        if matches!(
-            extra_hours.category,
-            ExtraHoursCategory::Vacation
-                | ExtraHoursCategory::SickLeave
-                | ExtraHoursCategory::UnpaidLeave
-        ) {
-            let flag_active = self
-                .feature_flag_service
-                .is_enabled(
-                    "absence_range_source_active",
-                    Authentication::Full,
-                    Some(tx.clone()),
-                )
-                .await?;
-            if flag_active {
-                return Err(ServiceError::ExtraHoursCategoryDeprecated(Box::new(
-                    extra_hours.category.clone(),
-                )));
-            }
-        }
+        // Phase 8.4 (D-03): Die Vacation/SickLeave/UnpaidLeave-Schreibsperre
+        // (das frühere Deprecation/Flag-Gate) wurde entfernt. Im Koexistenz-
+        // Modell (M-01) sind extra_hours-Urlaub und absence_period zwei
+        // dauerhaft legitime Ebenen — neue Eintraege dieser Kategorien sind
+        // wieder ohne Einschraenkung anlegbar. Der normale Permission-Gate
+        // oberhalb (HR_PRIVILEGE / verify_user_is_sales_person) bleibt als
+        // separate, weiterhin aktive Pruefung bestehen.
 
         let mut extra_hours = extra_hours.to_owned();
         if !extra_hours.id.is_nil() {
