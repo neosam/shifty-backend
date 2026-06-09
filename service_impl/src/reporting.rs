@@ -365,10 +365,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         acc
                     },
                 );
-            let expected_hours = weekly_hours.planned_hours - weekly_hours.absense_hours;
-            let dynamic_hours = weekly_hours.dynamic_hours - weekly_hours.absense_hours;
-            let overall_hours = weekly_hours.shiftplan_hours + weekly_hours.extra_working_hours;
-            let balance_hours = overall_hours - expected_hours + previous_year_carryover;
             let custom_absence_hours: Arc<[CustomExtraHours]> = weekly_hours.custom_absence_hours
                 .into_iter()
                 .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
@@ -401,6 +397,15 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
                 }
             }
+            // Gap 2 (Phase 8.4 / WR-01): symmetrische Balance-Reduktion.
+            // Alle drei derived-Kategorien sind AbsenceHours (wie extra_hours Vacation/SickLeave/
+            // UnpaidLeave) und reduzieren expected_hours symmetrisch zu extra_hours-Absence.
+            let absence_derived_total =
+                absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours;
+            let expected_hours = weekly_hours.planned_hours - weekly_hours.absense_hours - absence_derived_total;
+            let dynamic_hours = weekly_hours.dynamic_hours - weekly_hours.absense_hours - absence_derived_total;
+            let overall_hours = weekly_hours.shiftplan_hours + weekly_hours.extra_working_hours;
+            let balance_hours = overall_hours - expected_hours + previous_year_carryover;
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
@@ -782,14 +787,9 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
             let cap_active = find_working_hours_for_calendar_week(&working_hours, year, week)
                 .any(|wh| wh.cap_planned_hours_to_expected);
-            let expected_hours = planned_hours - abense_hours;
-            let (shiftplan_hours, auto_volunteer_hours) =
-                apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
-            let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours;
-            let dynamic_hours = dynamic_hours - abense_hours;
-            let overall_hours = shiftplan_hours + extra_working_hours;
-            let balance_hours = overall_hours - expected_hours;
             // Gap 1 (Phase 8.4 / CR-01): additiver absence_period-Merge fuer die Woche.
+            // Gap 2 (Phase 8.4 / WR-01): derived wird VOR apply_weekly_cap berechnet, damit
+            // die symmetrische Balance-Reduktion die Cap-Logik korrekt einbezieht.
             let derived = self
                 .absence_service
                 .derive_hours_for_range(
@@ -810,6 +810,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
                 }
             }
+            // Gap 2 (Phase 8.4 / WR-01): symmetrische Balance-Reduktion.
+            // absence_derived_total umfasst alle drei derived-Kategorien (alle sind AbsenceHours).
+            let absence_derived_total =
+                absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours;
+            let expected_hours = planned_hours - abense_hours - absence_derived_total;
+            let (shiftplan_hours, auto_volunteer_hours) =
+                apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
+            let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours;
+            let dynamic_hours = dynamic_hours - abense_hours - absence_derived_total;
+            let overall_hours = shiftplan_hours + extra_working_hours;
+            let balance_hours = overall_hours - expected_hours;
             result.push(ShortEmployeeReport {
                 sales_person: Arc::new(
                     self.sales_person_service
