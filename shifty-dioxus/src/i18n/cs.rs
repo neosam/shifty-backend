@@ -982,4 +982,14 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::Cs, Key::CutoverDayFractionFull, "Celý den");
     i18n.add_text(Locale::Cs, Key::CutoverDayFractionHalf, "Půl dne");
+
+    // Phase 8.5 Plan 06 — Stundenbasierte Marker inline in Absence-Liste.
+    i18n.add_text(Locale::Cs, Key::AbsenceHourlyBadge, "hodinové záznamy");
+    i18n.add_text(Locale::Cs, Key::AbsenceEditHoursAction, "Upravit hodiny");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceConvertToRangeAction,
+        "Převést na rozsah",
+    );
+    i18n.add_text(Locale::Cs, Key::AbsenceHourlyAmountLabel, "hod.");
 }

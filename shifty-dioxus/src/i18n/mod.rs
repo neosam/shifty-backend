@@ -563,6 +563,16 @@ pub enum Key {
     CutoverManualConvertDayFractionLabel,
     CutoverDayFractionFull,
     CutoverDayFractionHalf,
+
+    // Phase 8.5 Plan 06 — Stundenbasierte Marker inline in Absence-Liste.
+    /// Badge-Text auf der HourlyMarkerRow ("stundenbasiert" / "hours-based" / …).
+    AbsenceHourlyBadge,
+    /// Button-Label „Stunden bearbeiten" (self+hr, D-08).
+    AbsenceEditHoursAction,
+    /// Button-Label „In Zeitraum umwandeln" (HR-only, D-09).
+    AbsenceConvertToRangeAction,
+    /// Suffix für die Stundenanzahl in der Marker-Row (De: „Std.", En: „hrs").
+    AbsenceHourlyAmountLabel,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -1110,5 +1120,80 @@ mod tests {
         );
         assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Celý den");
         assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Půl dne");
+    }
+
+    // ===== Phase 8.5 Plan 06 — Stundenbasierte Marker i18n Tests =====
+
+    #[test]
+    fn i18n_absence_hourly_marker_keys_present_in_all_locales() {
+        // Locks the contract: every hourly-marker key has a translation in all
+        // three locales and never falls back to "??".
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::AbsenceHourlyBadge,
+                Key::AbsenceEditHoursAction,
+                Key::AbsenceConvertToRangeAction,
+                Key::AbsenceHourlyAmountLabel,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_absence_hourly_marker_match_german_reference() {
+        // Pitfall-2 guard: ensures de.rs uses Locale::De (not Locale::En).
+        let i18n = generate(Locale::De);
+        assert_eq!(i18n.t(Key::AbsenceHourlyBadge).as_ref(), "stundenbasiert");
+        assert_eq!(
+            i18n.t(Key::AbsenceEditHoursAction).as_ref(),
+            "Stunden bearbeiten"
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceConvertToRangeAction).as_ref(),
+            "In Zeitraum umwandeln"
+        );
+        assert_eq!(i18n.t(Key::AbsenceHourlyAmountLabel).as_ref(), "Std.");
+    }
+
+    #[test]
+    fn i18n_absence_hourly_marker_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(i18n.t(Key::AbsenceHourlyBadge).as_ref(), "hours-based");
+        assert_eq!(
+            i18n.t(Key::AbsenceEditHoursAction).as_ref(),
+            "Edit hours"
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceConvertToRangeAction).as_ref(),
+            "Convert to range"
+        );
+        assert_eq!(i18n.t(Key::AbsenceHourlyAmountLabel).as_ref(), "hrs");
+    }
+
+    #[test]
+    fn i18n_absence_hourly_marker_match_czech_reference() {
+        let i18n = generate(Locale::Cs);
+        assert_eq!(
+            i18n.t(Key::AbsenceHourlyBadge).as_ref(),
+            "hodinové záznamy"
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceEditHoursAction).as_ref(),
+            "Upravit hodiny"
+        );
+        assert_eq!(
+            i18n.t(Key::AbsenceConvertToRangeAction).as_ref(),
+            "Převést na rozsah"
+        );
+        assert_eq!(i18n.t(Key::AbsenceHourlyAmountLabel).as_ref(), "hod.");
     }
 }

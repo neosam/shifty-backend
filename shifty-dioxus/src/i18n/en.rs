@@ -919,4 +919,14 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::CutoverDayFractionFull, "Full day");
     i18n.add_text(Locale::En, Key::CutoverDayFractionHalf, "Half day");
+
+    // Phase 8.5 Plan 06 — Stundenbasierte Marker inline in Absence-Liste.
+    i18n.add_text(Locale::En, Key::AbsenceHourlyBadge, "hours-based");
+    i18n.add_text(Locale::En, Key::AbsenceEditHoursAction, "Edit hours");
+    i18n.add_text(
+        Locale::En,
+        Key::AbsenceConvertToRangeAction,
+        "Convert to range",
+    );
+    i18n.add_text(Locale::En, Key::AbsenceHourlyAmountLabel, "hrs");
 }
