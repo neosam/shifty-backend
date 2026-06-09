@@ -1800,6 +1800,74 @@ pub fn AbsencesPage() -> Element {
         }
     };
 
+    // D-09: AbsenceConvertModal — vorbereitet vor rsx! (rsx! erlaubt keine
+    // let-Bindungen in if-let-Blöcken).
+    let convert_modal_element: Element = if let Some(m) = convert_target.read().clone() {
+        // ExtraHoursCategoryTO → AbsenceCategoryTO Mapping für die 3 relevanten
+        // Kategorien. Nur Vacation/SickLeave/UnpaidLeave können als Marker
+        // auftreten; sonstige Kategorien fallen auf Vacation zurück (Backend
+        // enforced dasselbe Gate).
+        let modal_category = match &m.category {
+            rest_types::ExtraHoursCategoryTO::SickLeave => rest_types::AbsenceCategoryTO::SickLeave,
+            rest_types::ExtraHoursCategoryTO::UnpaidLeave => rest_types::AbsenceCategoryTO::UnpaidLeave,
+            _ => rest_types::AbsenceCategoryTO::Vacation,
+        };
+        rsx! {
+            AbsenceConvertModal {
+                extra_hours_id: m.extra_hours_id,
+                initial_date: m.when,
+                amount: m.amount,
+                category: modal_category,
+                on_submit: move |(id, start, end, day_fraction)| {
+                    absence_service.send(AbsenceAction::ConvertExtraHours {
+                        extra_hours_id: id,
+                        start,
+                        end,
+                        day_fraction,
+                    });
+                    convert_target.set(None);
+                },
+                on_cancel: move |_| convert_target.set(None),
+            }
+        }
+    } else {
+        rsx! {}
+    };
+
+    // D-08: Inline-Stunden-Edit — ExtraHoursModal in Edit-Mode.
+    // Reuse des bestehenden extra_hours-Update-Pfads (PUT /extra-hours/{id}),
+    // kein neuer API-Pfad (T-8.5-06c Mitigation).
+    let edit_hours_modal_element: Element = if let Some(m) = edit_hours_target.read().clone() {
+        // ExtraHoursCategoryTO → WorkingHoursCategory für ExtraHoursModal.
+        let edit_category: WorkingHoursCategory = (&m.category).into();
+        // Minimalen ExtraHours-Record für Edit-Mode konstruieren.
+        // date_time: Marker hat nur `when: time::Date`; Midnight als Placeholder.
+        let edit_entry = ExtraHours {
+            id: m.extra_hours_id,
+            sales_person_id: m.sales_person_id,
+            amount: m.amount,
+            category: edit_category,
+            description: Rc::from(m.description.as_ref()),
+            date_time: time::PrimitiveDateTime::new(m.when, time::Time::MIDNIGHT),
+            version: Uuid::nil(),
+        };
+        rsx! {
+            ExtraHoursModal {
+                open: true,
+                sales_person_id: m.sales_person_id,
+                editing: Some(edit_entry),
+                on_saved: move |_| {
+                    // D-15 analog: ABSENCE_REFRESH bumpen damit die Liste neu lädt.
+                    crate::service::absence::bump_absence_refresh();
+                    edit_hours_target.set(None);
+                },
+                on_cancel: move |_| edit_hours_target.set(None),
+            }
+        }
+    } else {
+        rsx! {}
+    };
+
     rsx! {
         TopBar {}
         ErrorView {}
@@ -1873,6 +1941,13 @@ pub fn AbsencesPage() -> Element {
                 on_confirm: on_delete_confirm.clone(),
             }
         }
+        // D-09: AbsenceConvertModal — HR-only, öffnet wenn convert_target Some ist.
+        // Die Kategorie-Konvertierung und der ExtraHours-Record werden VOR dem
+        // rsx!-Makro im konventionellen Rust-Code berechnet (rsx! unterstützt
+        // keine let-Bindungen in if-let-Blöcken).
+        {convert_modal_element}
+        // D-08: Inline-Stunden-Edit — öffnet ExtraHoursModal wenn edit_hours_target Some ist.
+        {edit_hours_modal_element}
     }
 }
 
