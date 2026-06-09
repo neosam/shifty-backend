@@ -1,3 +1,4 @@
+pub mod absence_convert_modal;
 pub mod add_extra_days_form;
 pub mod add_extra_hours_choice;
 pub mod add_extra_hours_form;
@@ -29,6 +30,7 @@ pub mod weekly_overview_chart;
 pub mod working_hours_mini_overview;
 pub mod working_hours_overview_layout_toggle;
 
+pub use absence_convert_modal::AbsenceConvertModal;
 pub use add_extra_hours_form::AddExtraHoursForm;
 pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip, TupleRow};
 pub use contract_modal::ContractModal;
