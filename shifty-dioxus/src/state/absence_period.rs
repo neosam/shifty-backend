@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use rest_types::{AbsenceCategoryTO, AbsencePeriodTO};
+use rest_types::{AbsenceCategoryTO, AbsencePeriodTO, ExtraHoursCategoryTO, ExtraHoursMarkerTO};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -99,6 +99,39 @@ impl From<&AbsencePeriodTO> for AbsencePeriod {
             day_fraction: (&t.day_fraction).into(),
             person_name: Arc::<str>::from(""),
             background_color: Arc::<str>::from(""),
+        }
+    }
+}
+
+/// Frontend state-Typ für einen noch nicht konvertierten `extra_hours`-Eintrag
+/// (Vacation/SickLeave/UnpaidLeave), der als HR-Projektion inline neben den
+/// `AbsencePeriod`-Ranges angezeigt wird.
+///
+/// Analogon zu `AbsencePeriod` — der loader befüllt `person_name` aus dem
+/// SalesPerson-Join (bei `LoadAll`) bzw. trägt das Backend-Feld direkt über
+/// (bei `LoadForSalesPerson`, wo `ExtraHoursMarkerTO.person_name` schon gesetzt ist).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExtraHoursMarker {
+    pub extra_hours_id: Uuid,
+    pub sales_person_id: Uuid,
+    pub when: time::Date,
+    pub amount: f32,
+    /// Kategorie direkt vom Backend — `ExtraHoursCategoryTO` hat `PartialEq + Clone`.
+    pub category: ExtraHoursCategoryTO,
+    pub description: Arc<str>,
+    pub person_name: Arc<str>,
+}
+
+impl From<&ExtraHoursMarkerTO> for ExtraHoursMarker {
+    fn from(t: &ExtraHoursMarkerTO) -> Self {
+        Self {
+            extra_hours_id: t.extra_hours_id,
+            sales_person_id: t.sales_person_id,
+            when: t.when,
+            amount: t.amount,
+            category: t.category.clone(),
+            description: t.description.clone(),
+            person_name: t.person_name.clone(),
         }
     }
 }

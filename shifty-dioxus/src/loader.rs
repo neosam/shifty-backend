@@ -12,7 +12,7 @@ use crate::{
     base_types::ImStr,
     error::ShiftyError,
     state::{
-        absence_period::AbsencePeriod,
+        absence_period::{AbsencePeriod, ExtraHoursMarker},
         booking_log::BookingLog,
         employee::{Employee, ExtraHours},
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
@@ -884,9 +884,10 @@ pub async fn load_blocks(
 pub async fn load_absence_periods_all(
     config: Config,
     sales_persons: Rc<[SalesPerson]>,
-) -> Result<Rc<[AbsencePeriod]>, ShiftyError> {
-    let absence_tos = api::list_absence_periods(config).await?;
-    let absences: Rc<[AbsencePeriod]> = absence_tos
+) -> Result<(Rc<[AbsencePeriod]>, Rc<[ExtraHoursMarker]>), ShiftyError> {
+    let wrapper = api::list_absence_periods(config).await?;
+    let absences: Rc<[AbsencePeriod]> = wrapper
+        .absence_periods
         .iter()
         .map(|to| to.into())
         .map(|absence: AbsencePeriod| {
@@ -904,15 +905,42 @@ pub async fn load_absence_periods_all(
             }
         })
         .collect();
-    Ok(absences)
+    // Marker tragen person_name bereits vom Backend — hier nur konvertieren.
+    // Falls der Name leer ist, versuchen wir einen SalesPerson-Join als Fallback.
+    let markers: Rc<[ExtraHoursMarker]> = wrapper
+        .hourly_markers
+        .iter()
+        .map(|t| {
+            let mut marker = ExtraHoursMarker::from(t);
+            if marker.person_name.is_empty() {
+                if let Some(sp) = sales_persons
+                    .iter()
+                    .find(|sp| sp.id == marker.sales_person_id)
+                {
+                    marker.person_name = sp.name.as_ref().into();
+                }
+            }
+            marker
+        })
+        .collect();
+    Ok((absences, markers))
 }
 
 pub async fn load_absence_periods_by_sales_person(
     config: Config,
     sales_person_id: Uuid,
-) -> Result<Rc<[AbsencePeriod]>, ShiftyError> {
-    let absence_tos = api::list_absence_periods_by_sales_person(config, sales_person_id).await?;
-    Ok(absence_tos.iter().map(AbsencePeriod::from).collect())
+) -> Result<(Rc<[AbsencePeriod]>, Rc<[ExtraHoursMarker]>), ShiftyError> {
+    let wrapper =
+        api::list_absence_periods_by_sales_person(config, sales_person_id).await?;
+    // Self-view: kein person_name-Join nötig — Marker tragen person_name vom Backend.
+    let absences: Rc<[AbsencePeriod]> = wrapper
+        .absence_periods
+        .iter()
+        .map(AbsencePeriod::from)
+        .collect();
+    let markers: Rc<[ExtraHoursMarker]> =
+        wrapper.hourly_markers.iter().map(ExtraHoursMarker::from).collect();
+    Ok((absences, markers))
 }
 
 pub async fn load_vacation_balance(

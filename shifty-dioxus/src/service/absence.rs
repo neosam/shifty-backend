@@ -16,13 +16,16 @@ use futures_util::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
-use rest_types::{AbsencePeriodCreateResultTO, AbsencePeriodTO};
+use rest_types::{AbsencePeriodCreateResultTO, AbsencePeriodTO, ConvertExtraHoursRequestTO};
 
 use crate::{
     api,
     error::ShiftyError,
     loader,
-    state::{absence_period::AbsencePeriod, shiftplan::SalesPerson},
+    state::{
+        absence_period::{AbsencePeriod, ExtraHoursMarker},
+        shiftplan::SalesPerson,
+    },
 };
 
 use super::{
@@ -31,6 +34,12 @@ use super::{
 };
 
 pub static ABSENCE_STORE: GlobalSignal<Rc<[AbsencePeriod]>> = Signal::global(|| Rc::new([]));
+
+/// Stunden-Marker (noch nicht konvertierte Vacation/SickLeave/UnpaidLeave extra_hours-Rows)
+/// für die HR-Übersicht. Wird zusammen mit `ABSENCE_STORE` beim LoadAll/LoadForSalesPerson
+/// befüllt.
+pub static ABSENCE_HOURLY_STORE: GlobalSignal<Rc<[ExtraHoursMarker]>> =
+    Signal::global(|| Rc::new([]));
 
 /// Bump-token. Every successful create / update / delete increments this.
 /// Pages that render derived data (e.g. `VacationBalance`) read this signal
@@ -78,6 +87,16 @@ pub enum AbsenceAction {
     Update(AbsencePeriodTO),
     /// DELETE.
     Delete(Uuid),
+    /// HR-only: Konvertiert eine lebende hourly extra_hours-Row (Vacation/SickLeave/UnpaidLeave)
+    /// in eine absence_period. Backend-Endpoint: POST /extra-hours/{id}/convert-to-absence.
+    /// Bei Ok: bump_absence_refresh() (D-15 — Liste neu laden; Marker verschwindet, Range erscheint).
+    /// Bei Err: Outcome via ABSENCE_MODAL_EVENT.
+    ConvertExtraHours {
+        extra_hours_id: Uuid,
+        start: time::Date,
+        end: time::Date,
+        day_fraction: rest_types::DayFractionTO,
+    },
     /// Bump the refresh token without an API call.
     Refresh,
 }
@@ -89,8 +108,9 @@ pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
         match action {
             AbsenceAction::LoadAll(sales_persons) => {
                 match loader::load_absence_periods_all(config, sales_persons).await {
-                    Ok(list) => {
-                        *ABSENCE_STORE.write() = list;
+                    Ok((ranges, markers)) => {
+                        *ABSENCE_STORE.write() = ranges;
+                        *ABSENCE_HOURLY_STORE.write() = markers;
                     }
                     Err(err) => {
                         *ERROR_STORE.write() = ErrorStore { error: Some(err) };
@@ -99,8 +119,9 @@ pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
             }
             AbsenceAction::LoadForSalesPerson(sp_id) => {
                 match loader::load_absence_periods_by_sales_person(config, sp_id).await {
-                    Ok(list) => {
-                        *ABSENCE_STORE.write() = list;
+                    Ok((ranges, markers)) => {
+                        *ABSENCE_STORE.write() = ranges;
+                        *ABSENCE_HOURLY_STORE.write() = markers;
                     }
                     Err(err) => {
                         *ERROR_STORE.write() = ErrorStore { error: Some(err) };
@@ -159,6 +180,32 @@ pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
                     };
                 }
             },
+            AbsenceAction::ConvertExtraHours {
+                extra_hours_id,
+                start,
+                end,
+                day_fraction,
+            } => {
+                let body = ConvertExtraHoursRequestTO {
+                    start,
+                    end,
+                    day_fraction: Some(day_fraction),
+                };
+                match api::convert_extra_hours_to_absence(config, extra_hours_id, body).await {
+                    Ok(_result) => {
+                        // D-15: Liste neu laden — Marker verschwindet, native Range erscheint.
+                        bump_absence_refresh();
+                    }
+                    Err(ShiftyError::Validation(text)) => {
+                        *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Validation(text));
+                    }
+                    Err(other) => {
+                        let msg = format!("{}", &other);
+                        *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network(msg));
+                        *ERROR_STORE.write() = ErrorStore { error: Some(other) };
+                    }
+                }
+            }
             AbsenceAction::Refresh => {
                 bump_absence_refresh();
             }
