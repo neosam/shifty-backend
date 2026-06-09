@@ -352,9 +352,9 @@ impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependenc
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type UuidService = UuidService;
-    // Phase-2 Plan-04: ReportingService erhaelt Feature-Flag-Switch +
-    // AbsenceService-derived hours fuer Vacation/Sick/UnpaidLeave.
-    type FeatureFlagService = FeatureFlagService;
+    // Phase 8.4: ReportingService summiert beide Quellen additiv
+    // (AbsenceService-derived hours + lebende extra_hours). Kein
+    // Feature-Flag-Switch mehr — FeatureFlagService-Dep entfernt (M-03).
     type AbsenceService = AbsenceService;
     type TransactionDao = TransactionDao;
 }
@@ -908,7 +908,6 @@ impl RestStateImpl {
             permission_service: permission_service.clone(),
             clock_service: clock_service.clone(),
             uuid_service: uuid_service.clone(),
-            feature_flag_service: feature_flag_service.clone(),
             absence_service: absence_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });

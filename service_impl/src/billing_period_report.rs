@@ -47,7 +47,13 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   `'full'` nach Migration), aber die Computation würde bei Re-Validation
 ///   andere Werte liefern, sobald ein Half-Eintrag existiert. Validator MUSS
 ///   daher v3-Snapshots als "older schema" markieren.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 4;
+/// - v5: Phase 8.4 — Additiver Merge: Vacation/SickLeave/UnpaidLeave werden
+///   nun aus BEIDEN Quellen (lebende `extra_hours` + `absence_period` via
+///   `derive_hours_for_range`) summiert statt quellen-exklusiv per Flag.
+///   Ältere Snapshots (v4) haben die `extra_hours`-Seite nicht mitgezählt
+///   (Flag war on → nur absence_period) oder umgekehrt (Flag off → nur
+///   extra_hours). Ein Validator kann v4-Snapshots nicht sicher re-validieren.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 5;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {

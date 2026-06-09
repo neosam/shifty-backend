@@ -10,7 +10,8 @@
 //! `derive_hours_for_range` unbedingt aufgerufen, beide Quellen addiert).
 //!
 //! Kritische Mock-Erwartungen pro Szenario:
-//! - `feature_flag_service.expect_is_enabled().times(0)` — kein Flag-Read mehr.
+//! - Kein `feature_flag_service` mehr — die FeatureFlagService-Dep wurde aus
+//!   `ReportingServiceImpl` entfernt (Phase 8.4, M-03).
 //! - `absence_service.expect_derive_hours_for_range()` IMMER (auch bei leeren
 //!   extra_hours) — kein `times(0)`-Trap.
 //! - `extra_hours_service.expect_find_by_sales_person_id_and_year_range()`
@@ -27,7 +28,6 @@ use service::carryover::MockCarryoverService;
 use service::clock::MockClockService;
 use service::employee_work_details::MockEmployeeWorkDetailsService;
 use service::extra_hours::{ExtraHours, ExtraHoursCategory, MockExtraHoursService};
-use service::feature_flag::MockFeatureFlagService;
 use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
@@ -48,7 +48,6 @@ struct ReportingMocks {
     permission_service: MockPermissionService,
     clock_service: MockClockService,
     uuid_service: MockUuidService,
-    feature_flag_service: MockFeatureFlagService,
     absence_service: MockAbsenceService,
     transaction_dao: dao::MockTransactionDao,
 }
@@ -65,7 +64,6 @@ impl ReportingServiceDeps for TestDeps {
     type PermissionService = MockPermissionService;
     type ClockService = MockClockService;
     type UuidService = MockUuidService;
-    type FeatureFlagService = MockFeatureFlagService;
     type AbsenceService = MockAbsenceService;
     type TransactionDao = dao::MockTransactionDao;
 }
@@ -81,7 +79,6 @@ impl ReportingMocks {
             permission_service: MockPermissionService::new(),
             clock_service: MockClockService::new(),
             uuid_service: MockUuidService::new(),
-            feature_flag_service: MockFeatureFlagService::new(),
             absence_service: MockAbsenceService::new(),
             transaction_dao: dao::MockTransactionDao::new(),
         }
@@ -97,7 +94,6 @@ impl ReportingMocks {
             permission_service: Arc::new(self.permission_service),
             clock_service: Arc::new(self.clock_service),
             uuid_service: Arc::new(self.uuid_service),
-            feature_flag_service: Arc::new(self.feature_flag_service),
             absence_service: Arc::new(self.absence_service),
             transaction_dao: Arc::new(self.transaction_dao),
         }
@@ -158,8 +154,8 @@ fn setup_common_mocks(mocks: &mut ReportingMocks) {
         .expect_use_transaction()
         .returning(|_| Ok(dao::MockTransaction));
 
-    // Phase 8.4: KEIN Flag-Read mehr im Reporting-Pfad (M-03).
-    mocks.feature_flag_service.expect_is_enabled().times(0);
+    // Phase 8.4: KEIN Flag-Read mehr im Reporting-Pfad (M-03) — die
+    // FeatureFlagService-Dep wurde aus ReportingServiceImpl entfernt.
 }
 
 async fn run_report(service: ReportingServiceImpl<TestDeps>) -> service::reporting::EmployeeReport {

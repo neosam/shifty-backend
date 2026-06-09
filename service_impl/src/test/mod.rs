@@ -25,8 +25,6 @@ mod permission_test;
 #[cfg(test)]
 pub mod reporting_additive_merge;
 #[cfg(test)]
-pub mod reporting_flag_on_integration;
-#[cfg(test)]
 pub mod reporting_phase2_fixtures;
 #[cfg(test)]
 pub mod sales_person;
