@@ -65,6 +65,8 @@ const EXPECTED_PATHS: &[&str] = &[
     "/extra-hours",
     "/extra-hours/{id}",
     "/extra-hours/by-sales-person/{id}",
+    // Phase 8.5 (Plan 03) — per-Row-Convert extra_hours -> absence_period.
+    "/extra-hours/{id}/convert-to-absence",
     // Custom extra hours (admin catalog).
     "/custom-extra-hours",
     // Reporting (employee balance / week-report).
@@ -137,6 +139,8 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     "ManualRangeTO",
     // Phase 8.3 — Halbtag-Support.
     "DayFractionTO",
+    // Phase 8.5 (Plan 03) — Convert-Request-DTO.
+    "ConvertExtraHoursRequestTO",
 ];
 
 #[test]

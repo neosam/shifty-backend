@@ -1434,6 +1434,8 @@ mod absence_no_drift;
 #[cfg(test)]
 mod absence_period;
 #[cfg(test)]
+mod convert_to_absence;
+#[cfg(test)]
 mod admin_auto_grant;
 #[cfg(test)]
 mod billing_period_custom_reports;
