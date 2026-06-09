@@ -50,7 +50,7 @@
   3. Frontend `AbsenceModal` + `CutoverAdminPage`-Drift-Resolution + `ManualConvertModal` bekommen Halb/Ganz-Eingabe pro Eintrag
   4. i18n De / En / Cs für neue Labels; OpenAPI-Surface-Test grün; WASM-Build + `cargo test --workspace` grün; keine Regression in bestehenden Billing-Period-Snapshots
 
-- [ ] **Phase 8.4: Reporting-Additiv-Merge + Deprecation-Rückbau** (Backend) — *neues Koexistenz-Modell, ersetzt 8.1-Cutover-Prämisse* — **Plans:** 4 plans (4 waves) — *Gap-Closure 03/04 nach VERIFICATION gaps_found (SC-1 partial + WR-01)*
+- [x] **Phase 8.4: Reporting-Additiv-Merge + Deprecation-Rückbau** (Backend) — completed 2026-06-09 — *neues Koexistenz-Modell, ersetzt 8.1-Cutover-Prämisse* — **Plans:** 4 plans (4 waves)
   `extra_hours` (Vacation/SickLeave/UnpaidLeave) bleibt ein **dauerhaft erlaubter** manueller Eingabeweg neben `absence_period`. Reporting summiert beide Quellen **additiv** (Modell A: keine globale Quellen-Umschaltung, keine Doppelzähl-Sperre per Flag — konvertierte/soft-deleted Rows tragen die per-row Quelle selbst). Der globale Flag `absence_range_source_active` und die Schreibsperre (D-Phase4-09) werden zurückgebaut.
   Requirements: (Modell-Revision; hebt Cutover-Prämisse aus v1.0 Phase 4 / 08.1 auf)
   Success Criteria:
@@ -62,7 +62,7 @@
   - [x] 08.4-01-PLAN.md — Wave 0: destruktive Test-Bereinigung (Flag/Gate-Tests löschen) + neue additive Test-Datei + Snapshot-Locking-Pin auf 5
   - [x] 08.4-02-PLAN.md — Wave 2: additiver Reporting-Merge + Snapshot-Bump 4→5 (ein jj-Commit) + extra_hours-Schreibsperre-Rückbau + Full-Suite-Gate
   - [x] 08.4-03-PLAN.md — Gap-Closure Wave 1 (Gap 1/CR-01+IN-03): additiver Display-Merge in get_reports_for_all_employees + get_week (Year-Bounds-Scoping) + WR-02 Gleichtags-Overlap-Test
-  - [ ] 08.4-04-PLAN.md — Gap-Closure Wave 2 (Gap 2/WR-01): absence-derived Stunden bewegen balance/expected symmetrisch in allen 3 Methoden + Snapshot-Bump 5→6 + Balance-Parity-Test + optional WR-03/IN-01/IN-02 Cleanup + Full-Suite-Gate
+  - [x] 08.4-04-PLAN.md — Gap-Closure Wave 2 (Gap 2/WR-01): absence-derived Stunden bewegen balance/expected symmetrisch in allen 3 Methoden + Snapshot-Bump 5→6 + Balance-Parity-Test + WR-03/IN-01/IN-02 Cleanup + Full-Suite-Gate
 
 - [ ] **Phase 8.5: Read-Projektion + HR-Inline-Convert auf der Absence-Seite** (Backend + Frontend) — *Sichtbarkeit + reversibler manueller Convert*
   Die Absence-Liste blendet lebende `extra_hours`-Urlaub/Krank/Unpaid **read-only** mit „stundenbasiert"-Label ein (Read-Projektion — zeigt den Roh-Eintrag, **rekonstruiert keine Range**, daher driftfrei). HR kann einen stundenbasierten Eintrag per Inline-Aktion mit **selbst eingegebenem Zeitraum** in ein `absence_period` umwandeln. Wiederverwendet die in **Phase 8.2** gebaute atomare Convert-Tx (`manual_range` + `absence_period_migration_source`-Backlink + Soft-Delete) — nur aus dem Cutover-Namespace herausgelöst. Enthält den Working-Hours-Dialog-Umbau.
