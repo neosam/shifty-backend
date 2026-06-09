@@ -600,3 +600,116 @@ async fn test_all_employees_year_bounds_no_leak() {
         "Year-Bounds-Test: vacation_hours = 0.0 (beide Quellen leer)"
     );
 }
+
+// ─── Balance-Parity-Test (Plan 08.4-04) ─────────────────────────────────────
+
+/// Baut ein Mock-Setup fuer get_report_for_employee_range mit echter Work-Details-
+/// Fixture (8h Mo-Fr KW22-25/2024) und ohne Shiftplan-Stunden.
+/// extra_hours_list: was find_by_sales_person_id_and_year_range liefert.
+/// derived_map: was derive_hours_for_range liefert.
+fn build_parity_service(
+    extra_hours_list: Vec<ExtraHours>,
+    derived_map: BTreeMap<time::Date, ResolvedAbsence>,
+) -> ReportingServiceImpl<TestDeps> {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+
+    // Work-Details mit echten Vertragsstunden (8h Mo-Fr KW22-25/2024).
+    mocks
+        .employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![fixture_work_details_8h_mon_fri()])));
+
+    // Kein Shiftplan -> overall_hours aus extra_work = 0.
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+
+    // Kein Carryover.
+    mocks
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+
+    // Transaction passthrough.
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    // extra_hours-Mock.
+    let extras_arc: Arc<[ExtraHours]> = Arc::from(extra_hours_list);
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year_range()
+        .returning(move |_, _, _, _, _| Ok(extras_arc.clone()));
+
+    // derive_hours_for_range-Mock.
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived_map.clone()));
+
+    mocks.build()
+}
+
+/// Balance-Parity-Test: eine reine absence_period-Vacation-Buchung (8h an 2024-06-03)
+/// muss balance_hours + expected_hours IDENTISCH bewegen wie das aequivalente
+/// extra_hours-Vacation-Eintraeg (Gap 2 / WR-01).
+///
+/// Sanity-Check: expected_hours MUSS unter die vollen 40h gedrueckt werden (8h reduziert).
+#[tokio::test]
+async fn test_balance_parity_absence_period_vs_extra_hours() {
+    let vacation_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    // Lauf 1: extra_hours-Vacation 8h, kein derived.
+    let extra_vacation = make_extra_hours(ExtraHoursCategory::Vacation, 8.0, vacation_day);
+    let service_extra = build_parity_service(vec![extra_vacation], BTreeMap::new());
+    let report_extra = run_report(service_extra).await;
+
+    // Lauf 2: kein extra_hours, derived Vacation 8h.
+    let mut derived_map = BTreeMap::new();
+    derived_map.insert(
+        vacation_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+        },
+    );
+    let service_absence = build_parity_service(vec![], derived_map);
+    let report_absence = run_report(service_absence).await;
+
+    // Balance-Parity: expected_hours muss quellen-unabhaengig identisch sein.
+    assert!(
+        (report_extra.expected_hours - report_absence.expected_hours).abs() < 0.01,
+        "expected_hours muss quellen-unabhaengig identisch sein: extra={} absence={}",
+        report_extra.expected_hours,
+        report_absence.expected_hours
+    );
+    assert!(
+        (report_extra.balance_hours - report_absence.balance_hours).abs() < 0.01,
+        "balance_hours muss quellen-unabhaengig identisch sein: extra={} absence={}",
+        report_extra.balance_hours,
+        report_absence.balance_hours
+    );
+    // Sanity: absence_period-Vacation MUSS expected_hours unter die vollen 40h druecken.
+    assert!(
+        report_absence.expected_hours < 40.0,
+        "absence_period-Vacation MUSS expected_hours unter die vollen 40h druecken (8h reduziert), got {}",
+        report_absence.expected_hours
+    );
+}
