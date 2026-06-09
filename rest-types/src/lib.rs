@@ -1681,6 +1681,56 @@ impl From<&AbsencePeriodTO> for service::absence::AbsencePeriod {
 }
 
 // ──────────────────────────────────────────────────────────────────────
+// Phase 8.5 (Plan 03) — Convert-Endpoint + Read-Projektion DTOs
+// ──────────────────────────────────────────────────────────────────────
+//
+// Drei neue DTOs:
+// * `ConvertExtraHoursRequestTO` — Body für POST /extra-hours/{id}/convert-to-absence
+// * `ExtraHoursMarkerTO`          — Plan 04 Read-Projektion: lebende extra_hours mit Inline-Daten
+// * `AbsenceListWithProjectionTO` — Plan 04 Read-Projektion: absence_periods + hourly_markers
+//
+// KEIN `#[cfg(feature = "service-impl")]`-Mapping: Diese TOs werden im REST-Handler
+// direkt gemappt. Das hält den WASM-Build des Frontends sauber (kein service-Crate Pull-in).
+
+/// Request-Body für `POST /extra-hours/{id}/convert-to-absence`.
+/// HR konvertiert eine einzelne extra_hours-Row (Vacation/SickLeave/UnpaidLeave)
+/// in eine absence_period mit HR-definiertem Datumsbereich.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ConvertExtraHoursRequestTO {
+    #[schema(value_type = String, format = "date")]
+    pub start: time::Date,
+    #[schema(value_type = String, format = "date")]
+    pub end: time::Date,
+    #[serde(default)]
+    pub day_fraction: Option<DayFractionTO>,
+}
+
+/// Plan 04 Read-Projektion: Repräsentiert eine lebende (nicht soft-deletete)
+/// `extra_hours`-Row als leichtgewichtigen Marker für die HR-Übersicht.
+/// Enthält alle für die Inline-Konvertierung benötigten Felder.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ExtraHoursMarkerTO {
+    pub extra_hours_id: Uuid,
+    pub sales_person_id: Uuid,
+    #[schema(value_type = String, format = "date")]
+    pub when: time::Date,
+    pub amount: f32,
+    pub category: ExtraHoursCategoryTO,
+    #[serde(default)]
+    pub description: Arc<str>,
+    #[serde(default)]
+    pub person_name: Arc<str>,
+}
+
+/// Plan 04 Read-Projektion: Kombinierte HR-Übersicht mit absence_periods
+/// und noch nicht konvertierten `extra_hours`-Markern nebeneinander.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct AbsenceListWithProjectionTO {
+    pub absence_periods: Vec<AbsencePeriodTO>,
+    pub hourly_markers: Vec<ExtraHoursMarkerTO>,
+}
+
+// ──────────────────────────────────────────────────────────────────────
 // Phase 3 — Cross-Source-Warning + Wrapper-Result-DTOs
 // ──────────────────────────────────────────────────────────────────────
 //
