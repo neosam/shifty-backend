@@ -39,6 +39,7 @@ use shifty_utils::ShiftyDate;
 use crate::reporting::{ReportingServiceDeps, ReportingServiceImpl};
 use crate::test::reporting_phase2_fixtures::{
     fixture_sales_person, fixture_sales_person_id, fixture_work_details_8h_mon_fri,
+    fixture_work_details_dynamic_mon_fri,
 };
 
 struct ReportingMocks {
@@ -711,5 +712,362 @@ async fn test_balance_parity_absence_period_vs_extra_hours() {
         report_absence.expected_hours < 40.0,
         "absence_period-Vacation MUSS expected_hours unter die vollen 40h druecken (8h reduziert), got {}",
         report_absence.expected_hours
+    );
+}
+
+// ─── Dynamische Balance-Parity-Tests (Plan 08.4-05) ─────────────────────────
+
+/// Baut ein Mock-Setup fuer get_report_for_employee_range mit dynamischer Work-Details-
+/// Fixture (is_dynamic=true, 8h Mo-Fr KW22-25/2024) und ohne Shiftplan-Stunden.
+fn build_parity_service_dynamic(
+    extra_hours_list: Vec<ExtraHours>,
+    derived_map: BTreeMap<time::Date, ResolvedAbsence>,
+) -> ReportingServiceImpl<TestDeps> {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+
+    // Dynamische Work-Details (is_dynamic=true).
+    mocks
+        .employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![fixture_work_details_dynamic_mon_fri()])));
+
+    // Kein Shiftplan -> overall_hours = 0.
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+
+    // Kein Carryover.
+    mocks
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+
+    // Transaction passthrough.
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    // extra_hours-Mock.
+    let extras_arc: Arc<[ExtraHours]> = Arc::from(extra_hours_list);
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year_range()
+        .returning(move |_, _, _, _, _| Ok(extras_arc.clone()));
+
+    // derive_hours_for_range-Mock.
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived_map.clone()));
+
+    mocks.build()
+}
+
+/// Balance-Parity-Test fuer DYNAMISCHE Vertraege via get_report_for_employee_range.
+/// Eine reine absence_period-Vacation-Buchung (8h an 2024-06-03) muss balance_hours ~0 liefern
+/// (quellen-unabhaengig wie extra_hours-Vacation) — get_report_for_employee_range war bereits
+/// korrekt (Referenz via hours_per_week Guard). Bleibt gruen pre+post-Fix.
+#[tokio::test]
+async fn test_balance_parity_dynamic_employee_range() {
+    let vacation_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    // Lauf 1: extra_hours-Vacation 8h, kein derived.
+    let extra_vacation = make_extra_hours(ExtraHoursCategory::Vacation, 8.0, vacation_day);
+    let service_extra = build_parity_service_dynamic(vec![extra_vacation], BTreeMap::new());
+    let report_extra = run_report(service_extra).await;
+
+    // Lauf 2: kein extra_hours, derived Vacation 8h.
+    let mut derived_map = BTreeMap::new();
+    derived_map.insert(
+        vacation_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+        },
+    );
+    let service_absence = build_parity_service_dynamic(vec![], derived_map);
+    let report_absence = run_report(service_absence).await;
+
+    // Parity: expected_hours und balance_hours muessen quellen-unabhaengig identisch sein.
+    assert!(
+        (report_extra.expected_hours - report_absence.expected_hours).abs() < 0.01,
+        "dynamic range: expected_hours quellen-unabhaengig: extra={} absence={}",
+        report_extra.expected_hours,
+        report_absence.expected_hours
+    );
+    assert!(
+        (report_extra.balance_hours - report_absence.balance_hours).abs() < 0.01,
+        "dynamic range: balance_hours quellen-unabhaengig: extra={} absence={}",
+        report_extra.balance_hours,
+        report_absence.balance_hours
+    );
+    // Zusaetzlich: bei dynamischem Vertrag soll Vacation balance ~0 lassen.
+    assert!(
+        report_extra.balance_hours.abs() < 0.01,
+        "dynamic range: extra_hours-Vacation darf balance nicht bewegen, got {}",
+        report_extra.balance_hours
+    );
+    assert!(
+        report_absence.balance_hours.abs() < 0.01,
+        "dynamic range: absence_period-Vacation darf balance nicht bewegen, got {}",
+        report_absence.balance_hours
+    );
+}
+
+/// Balance-Parity-Test fuer DYNAMISCHE Vertraege via get_reports_for_all_employees.
+/// Eine reine absence_period-Vacation-Buchung (8h an 2024-06-03) muss balance_hours ~0 liefern
+/// (quellen-unabhaengig wie extra_hours-Vacation) — war pre-Fix DEFEKT (balance=8, nicht 0).
+/// RED vor Task 1, GREEN nach Task 1.
+#[tokio::test]
+async fn test_balance_parity_dynamic_all_employees() {
+    let vacation_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    // Lauf A: extra_hours-Vacation 8h, kein derived.
+    let mut mocks_a = ReportingMocks::new();
+    mocks_a
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    mocks_a
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
+    mocks_a
+        .employee_work_details_service
+        .expect_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_work_details_dynamic_mon_fri()])));
+    let extra_vacation_a = make_extra_hours(ExtraHoursCategory::Vacation, 8.0, vacation_day);
+    let extras_a: Arc<[ExtraHours]> = Arc::from(vec![extra_vacation_a]);
+    mocks_a
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year()
+        .returning(move |_, _, _, _, _| Ok(extras_a.clone()));
+    mocks_a
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+    mocks_a
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    mocks_a
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    mocks_a
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    let service_a = mocks_a.build();
+    let reports_a = service_a
+        .get_reports_for_all_employees(2024, 23, service::permission::Authentication::Full, None)
+        .await
+        .expect("get_reports_for_all_employees Lauf A");
+    let report_a = &reports_a[0];
+
+    // Lauf B: kein extra_hours, derived Vacation 8h.
+    let mut mocks_b = ReportingMocks::new();
+    mocks_b
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    mocks_b
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
+    mocks_b
+        .employee_work_details_service
+        .expect_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_work_details_dynamic_mon_fri()])));
+    mocks_b
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<ExtraHours>::new())));
+    mocks_b
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+    mocks_b
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    mocks_b
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    let mut derived_b = BTreeMap::new();
+    derived_b.insert(
+        vacation_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+        },
+    );
+    mocks_b
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived_b.clone()));
+
+    let service_b = mocks_b.build();
+    let reports_b = service_b
+        .get_reports_for_all_employees(2024, 23, service::permission::Authentication::Full, None)
+        .await
+        .expect("get_reports_for_all_employees Lauf B");
+    let report_b = &reports_b[0];
+
+    // Parity: quellen-unabhaengig.
+    assert!(
+        (report_a.expected_hours - report_b.expected_hours).abs() < 0.01,
+        "dynamic all_employees: expected quellen-unabhaengig: extra={} absence={}",
+        report_a.expected_hours,
+        report_b.expected_hours
+    );
+    assert!(
+        (report_a.balance_hours - report_b.balance_hours).abs() < 0.01,
+        "dynamic all_employees: balance quellen-unabhaengig: extra={} absence={}",
+        report_a.balance_hours,
+        report_b.balance_hours
+    );
+    assert!(
+        report_a.balance_hours.abs() < 0.01,
+        "dynamic all_employees extra: balance ~0, got {}",
+        report_a.balance_hours
+    );
+    assert!(
+        report_b.balance_hours.abs() < 0.01,
+        "dynamic all_employees absence: balance ~0, got {}",
+        report_b.balance_hours
+    );
+}
+
+/// Balance-Parity-Test fuer DYNAMISCHE Vertraege via get_week.
+/// Eine reine absence_period-Vacation-Buchung (8h an 2024-06-03) muss balance_hours ~0 liefern
+/// (quellen-unabhaengig wie extra_hours-Vacation) — war pre-Fix DEFEKT (balance aufgeblasen).
+/// RED vor Task 2, GREEN nach Task 2.
+#[tokio::test]
+async fn test_balance_parity_dynamic_get_week() {
+    let vacation_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    // Lauf A: extra_hours-Vacation 8h, kein derived.
+    let mut mocks_a = ReportingMocks::new();
+    mocks_a
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![fixture_work_details_dynamic_mon_fri()])));
+    mocks_a
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    let extra_vacation_a = make_extra_hours(ExtraHoursCategory::Vacation, 8.0, vacation_day);
+    let extras_a: Arc<[ExtraHours]> = Arc::from(vec![extra_vacation_a]);
+    mocks_a
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(move |_, _, _, _| Ok(extras_a.clone()));
+    mocks_a
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks_a
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    mocks_a
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    let service_a = mocks_a.build();
+    let reports_a = service_a
+        .get_week(2024, 23, service::permission::Authentication::Full, None)
+        .await
+        .expect("get_week Lauf A");
+    let report_a = &reports_a[0];
+
+    // Lauf B: kein extra_hours, derived Vacation 8h.
+    let mut mocks_b = ReportingMocks::new();
+    mocks_b
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![fixture_work_details_dynamic_mon_fri()])));
+    mocks_b
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    mocks_b
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(|_, _, _, _| Ok(Arc::from(Vec::<ExtraHours>::new())));
+    mocks_b
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks_b
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    let mut derived_b = BTreeMap::new();
+    derived_b.insert(
+        vacation_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+        },
+    );
+    mocks_b
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived_b.clone()));
+
+    let service_b = mocks_b.build();
+    let reports_b = service_b
+        .get_week(2024, 23, service::permission::Authentication::Full, None)
+        .await
+        .expect("get_week Lauf B");
+    let report_b = &reports_b[0];
+
+    // Parity: quellen-unabhaengig.
+    assert!(
+        (report_a.expected_hours - report_b.expected_hours).abs() < 0.01,
+        "dynamic get_week: expected quellen-unabhaengig: extra={} absence={}",
+        report_a.expected_hours,
+        report_b.expected_hours
+    );
+    assert!(
+        (report_a.balance_hours - report_b.balance_hours).abs() < 0.01,
+        "dynamic get_week: balance quellen-unabhaengig: extra={} absence={}",
+        report_a.balance_hours,
+        report_b.balance_hours
+    );
+    assert!(
+        report_a.balance_hours.abs() < 0.01,
+        "dynamic get_week extra: balance ~0, got {}",
+        report_a.balance_hours
+    );
+    assert!(
+        report_b.balance_hours.abs() < 0.01,
+        "dynamic get_week absence: balance ~0, got {}",
+        report_b.balance_hours
     );
 }

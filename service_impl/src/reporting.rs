@@ -197,7 +197,27 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 unpaid_leave_hours: f32,
                 volunteer_hours: f32,
                 custom_absence_hours: HashMap<(Uuid, Arc<str>), f32>,
+                /// Per-Woche gegatete derived Balance-Reduktion (0.0 bei dynamischen Wochen).
+                /// Gap (Phase 8.4 / CR-01): symmetrisch zu absense_hours (Z.263) und zur
+                /// Referenz hours_per_week (Z.988). Verhindert dynamic-contract Balance-Asymmetrie (M-02).
+                absence_derived_balance_hours: f32,
             }
+
+            // Gap (Phase 8.4 / CR-01): derived-Map VOR dem per-Woche-Fold berechnen, damit
+            // jede Woche ihren gegateten Beitrag zur Balance-Reduktion bestimmen kann.
+            // Range exakt auf das Report-Jahr begrenzt: [first_day_in_year(year) .. until_week-Sonntag].
+            let derived = self
+                .absence_service
+                .derive_hours_for_range(
+                    ShiftyDate::first_day_in_year(year).to_date(),
+                    ShiftyWeek::new(year, until_week)
+                        .as_date(DayOfWeek::Sunday)
+                        .to_date(),
+                    paid_employee.id,
+                    context.clone(),
+                    tx.clone(),
+                )
+                .await?;
 
             let weekly_hours = (0..=until_week + additional_weeks)
                 .map(|week| {
@@ -245,6 +265,21 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         .any(|wh| wh.cap_planned_hours_to_expected);
                     let (shiftplan_hours, auto_volunteer_hours) =
                         apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
+                    // Per-Woche gegatete derived Balance-Reduktion (Referenz: hours_per_week Z.988-996).
+                    // Bei dynamischen Wochen (expected_hours <= 0.0) ist der Beitrag 0.0 —
+                    // symmetrisch zu absense_hours (Z.263 weiter unten).
+                    let absence_derived_balance_hours = if expected_hours <= 0.0 {
+                        0.0f32
+                    } else {
+                        derived
+                            .iter()
+                            .filter(|(d, _)| {
+                                let w = ShiftyDate::from(**d).as_shifty_week();
+                                w.year == year && w.week == week
+                            })
+                            .map(|(_, r)| r.hours)
+                            .sum::<f32>()
+                    };
                     if expected_hours <= 0.0 {
                         let extra_work: f32 = extra_hours_array
                             .iter()
@@ -270,6 +305,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             unpaid_leave_hours: 0.0,
                             volunteer_hours: auto_volunteer_hours,
                             custom_absence_hours: HashMap::new(),
+                            absence_derived_balance_hours: 0.0,
                         }
                     } else {
                         let week_extra_hours: Vec<_> = extra_hours_array
@@ -342,6 +378,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             unpaid_leave_hours,
                             volunteer_hours,
                             custom_absence_hours,
+                            absence_derived_balance_hours,
                         }
                     }
                 })
@@ -359,6 +396,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         acc.unavailable_hours += week.unavailable_hours;
                         acc.unpaid_leave_hours += week.unpaid_leave_hours;
                         acc.volunteer_hours += week.volunteer_hours;
+                        acc.absence_derived_balance_hours += week.absence_derived_balance_hours;
                         for ((id, name), hours) in week.custom_absence_hours {
                             *acc.custom_absence_hours.entry((id, name)).or_insert(0.0) += hours;
                         }
@@ -370,23 +408,9 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
                 .collect::<Vec<_>>()
                 .into();
-            // Gap 1 (Phase 8.4 / CR-01 + IN-03): additiver absence_period-Merge.
-            // Range exakt auf das Report-Jahr begrenzt: [first_day_in_year(year) .. until_week-Sonntag].
-            // Das `until_week` ist bereits oben (Z.123) auf weeks_in_year(year) geclamped, daher
-            // erzeugt ShiftyWeek::new(year, until_week).as_date(Sunday) keinen Overflow ins Folgejahr;
-            // first_day_in_year(year) schliesst die Carryover-Woche-0 (Vorjahr) aus.
-            let derived = self
-                .absence_service
-                .derive_hours_for_range(
-                    ShiftyDate::first_day_in_year(year).to_date(),
-                    ShiftyWeek::new(year, until_week)
-                        .as_date(DayOfWeek::Sunday)
-                        .to_date(),
-                    paid_employee.id,
-                    context.clone(),
-                    tx.clone(),
-                )
-                .await?;
+            // Ungegate Display-Jahreslumpen (fuer vacation_hours/sick_leave_hours/unpaid_leave_hours).
+            // DISPLAY bleibt additiv und UNGEGATED — die derived Stunden erscheinen in den Display-Spalten
+            // unabhaengig vom Vertragstyp (Truth 3 & 4, test_all_employees_additive_merge=12h).
             let mut absence_derived_vacation_hours = 0.0_f32;
             let mut absence_derived_sick_leave_hours = 0.0_f32;
             let mut absence_derived_unpaid_leave_hours = 0.0_f32;
@@ -397,13 +421,13 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
                 }
             }
-            // Gap 2 (Phase 8.4 / WR-01): symmetrische Balance-Reduktion.
-            // Alle drei derived-Kategorien sind AbsenceHours (wie extra_hours Vacation/SickLeave/
-            // UnpaidLeave) und reduzieren expected_hours symmetrisch zu extra_hours-Absence.
-            let absence_derived_total =
-                absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours;
-            let expected_hours = weekly_hours.planned_hours - weekly_hours.absense_hours - absence_derived_total;
-            let dynamic_hours = weekly_hours.dynamic_hours - weekly_hours.absense_hours - absence_derived_total;
+            // Gap (Phase 8.4 / CR-01): per-Woche-gegatete Balance-Reduktion. Display bleibt ungegate
+            // (Jahreslumpen absence_derived_vacation/sick/unpaid), aber die expected/balance-Reduktion
+            // zaehlt nur die derived Stunden der Wochen MIT Vertragsarbeitszeit — symmetrisch zu
+            // absense_hours (dynamic-Zweig Z.263) und zur Referenz hours_per_week (Z.988).
+            // Verhindert dynamic-contract Balance-Asymmetrie (M-02).
+            let expected_hours = weekly_hours.planned_hours - weekly_hours.absense_hours - weekly_hours.absence_derived_balance_hours;
+            let dynamic_hours = weekly_hours.dynamic_hours - weekly_hours.absense_hours - weekly_hours.absence_derived_balance_hours;
             let overall_hours = weekly_hours.shiftplan_hours + weekly_hours.extra_working_hours;
             let balance_hours = overall_hours - expected_hours + previous_year_carryover;
             short_employee_report.push(ShortEmployeeReport {
@@ -811,15 +835,24 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
                 }
             }
-            // Gap 2 (Phase 8.4 / WR-01): symmetrische Balance-Reduktion.
-            // absence_derived_total umfasst alle drei derived-Kategorien (alle sind AbsenceHours).
-            let absence_derived_total =
-                absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours;
-            let expected_hours = planned_hours - abense_hours - absence_derived_total;
+            // Gap (Phase 8.4 / WR-01): dynamic-Guard auf BEIDEN Absence-Beitraegen fuer die Balance.
+            // Bei dynamischen Wochen liefert weight_for_week planned_hours = 0.0 — weder abense_hours
+            // noch absence_derived duerfen expected_hours reduzieren (sonst negatives expected,
+            // aufgeblasene balance). Symmetrisch zu get_reports_for_all_employees (Z.263: absense_hours
+            // 0.0 im dynamic-Zweig) und zur Referenz hours_per_week (Z.988: absence_hours + derived
+            // beide mit `if working_hours_for_week <= 0.0 { 0.0 }`-Guard).
+            // Display-Merge (vacation/sick/unpaid_leave Zeilen unten) bleibt ungegate additiv.
+            let abense_hours_for_balance = if planned_hours <= 0.0 { 0.0f32 } else { abense_hours };
+            let absence_derived_balance_total = if planned_hours <= 0.0 {
+                0.0f32
+            } else {
+                absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours
+            };
+            let expected_hours = planned_hours - abense_hours_for_balance - absence_derived_balance_total;
             let (shiftplan_hours, auto_volunteer_hours) =
                 apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
             let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours;
-            let dynamic_hours = dynamic_hours - abense_hours - absence_derived_total;
+            let dynamic_hours = dynamic_hours - abense_hours_for_balance - absence_derived_balance_total;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
             result.push(ShortEmployeeReport {

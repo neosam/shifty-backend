@@ -50,7 +50,7 @@
   3. Frontend `AbsenceModal` + `CutoverAdminPage`-Drift-Resolution + `ManualConvertModal` bekommen Halb/Ganz-Eingabe pro Eintrag
   4. i18n De / En / Cs für neue Labels; OpenAPI-Surface-Test grün; WASM-Build + `cargo test --workspace` grün; keine Regression in bestehenden Billing-Period-Snapshots
 
-- [x] **Phase 8.4: Reporting-Additiv-Merge + Deprecation-Rückbau** (Backend) — completed 2026-06-09 — *neues Koexistenz-Modell, ersetzt 8.1-Cutover-Prämisse* — **Plans:** 4 plans (4 waves)
+- [x] **Phase 8.4: Reporting-Additiv-Merge + Deprecation-Rückbau** (Backend) — ✓ verified passed 2026-06-09 (9/9 must-haves; Truth 9 dynamic-contract Balance-Parity geschlossen via Gap-Closure 05) — *neues Koexistenz-Modell, ersetzt 8.1-Cutover-Prämisse* — **Plans:** 5/5 complete
   `extra_hours` (Vacation/SickLeave/UnpaidLeave) bleibt ein **dauerhaft erlaubter** manueller Eingabeweg neben `absence_period`. Reporting summiert beide Quellen **additiv** (Modell A: keine globale Quellen-Umschaltung, keine Doppelzähl-Sperre per Flag — konvertierte/soft-deleted Rows tragen die per-row Quelle selbst). Der globale Flag `absence_range_source_active` und die Schreibsperre (D-Phase4-09) werden zurückgebaut.
   Requirements: (Modell-Revision; hebt Cutover-Prämisse aus v1.0 Phase 4 / 08.1 auf)
   Success Criteria:
@@ -63,6 +63,7 @@
   - [x] 08.4-02-PLAN.md — Wave 2: additiver Reporting-Merge + Snapshot-Bump 4→5 (ein jj-Commit) + extra_hours-Schreibsperre-Rückbau + Full-Suite-Gate
   - [x] 08.4-03-PLAN.md — Gap-Closure Wave 1 (Gap 1/CR-01+IN-03): additiver Display-Merge in get_reports_for_all_employees + get_week (Year-Bounds-Scoping) + WR-02 Gleichtags-Overlap-Test
   - [x] 08.4-04-PLAN.md — Gap-Closure Wave 2 (Gap 2/WR-01): absence-derived Stunden bewegen balance/expected symmetrisch in allen 3 Methoden + Snapshot-Bump 5→6 + Balance-Parity-Test + WR-03/IN-01/IN-02 Cleanup + Full-Suite-Gate
+  - [x] 08.4-05-PLAN.md — Gap-Closure (Truth 9 / CR-01+WR-01): per-Woche-gegatete absence-Balance-Reduktion in get_reports_for_all_employees + get_week (dynamic-contract Parity), is_dynamic=true Fixture + 3 dynamische Balance-Parity-Tests, Snapshot bleibt 6 (kein Bump), Full-Suite-Gate
 
 - [ ] **Phase 8.5: Read-Projektion + HR-Inline-Convert auf der Absence-Seite** (Backend + Frontend) — *Sichtbarkeit + reversibler manueller Convert*
   Die Absence-Liste blendet lebende `extra_hours`-Urlaub/Krank/Unpaid **read-only** mit „stundenbasiert"-Label ein (Read-Projektion — zeigt den Roh-Eintrag, **rekonstruiert keine Range**, daher driftfrei). HR kann einen stundenbasierten Eintrag per Inline-Aktion mit **selbst eingegebenem Zeitraum** in ein `absence_period` umwandeln. Wiederverwendet die in **Phase 8.2** gebaute atomare Convert-Tx (`manual_range` + `absence_period_migration_source`-Backlink + Soft-Delete) — nur aus dem Cutover-Namespace herausgelöst. Enthält den Working-Hours-Dialog-Umbau.
@@ -74,6 +75,15 @@
   4. **Dialog-Umbau** `add_extra_hours_form.rs`: Von/Bis-Range-Felder + `VacationDays`-Branch + `add_vacation`-Range-Call entfernt (nur noch Stunden-Eintrag); bei Vacation/SickLeave **Warnung + Empfehlung**, ganze Zeiträume auf der Absence-Seite zu erfassen (kein Block — Modell A)
   5. i18n De/En/Cs für neue Labels/Warnungen; `cargo build --target wasm32-unknown-unknown` grün; `cargo test --workspace` grün
   6. OpenAPI-`#[utoipa::path]` + `ToSchema` + Surface-Test für den neuen Convert-Endpoint
+  **Plans:** 7 plans across 7 waves (sequenziell — Compile-Dependency-Kette Backend→Frontend)
+  Plans:
+  - [ ] 08.5-01-PLAN.md — MigrationSourceDao (Trait+SQLite-Impl) + DB-Migration (cutover_run_id raus)
+  - [ ] 08.5-02-PLAN.md — AbsenceConversionService (BL-Tier, lean 3-write Convert-Tx) + Tests
+  - [ ] 08.5-03-PLAN.md — Convert-Endpoint + 3 rest-types-DTOs + DI-Wiring + Surface-Test
+  - [ ] 08.5-04-PLAN.md — Read-Projektion (beide GET-Handler augmentiert) + Integration-Tests
+  - [ ] 08.5-05-PLAN.md — Frontend-Daten-Schicht (api/state/loader/service) + AbsenceConvertModal-Extraktion
+  - [ ] 08.5-06-PLAN.md — absences.rs HourlyMarkerRow inline + Convert/Edit-Verdrahtung + i18n + SSR-Tests
+  - [ ] 08.5-07-PLAN.md — Working-Hours-Dialog-Umbau + Soft-Migration-Hinweis + i18n + Full-Suite/WASM-Gate
 
 - [ ] **Phase 8.6: Cutover-Abriss** (Backend + Frontend) — *Entfernung der Batch-Maschinerie*
   Die Batch-Cutover-Maschinerie wird **ersatzlos entfernt**. Erhalten bleibt nur das per-row Convert-Plumbing (jetzt in 8.5: `absence_period_migration_source` + Soft-Delete-on-Convert).

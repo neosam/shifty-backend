@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-06-09T11:05:00.000Z"
-last_activity: 2026-06-09 -- Phase 08.4 Plan 04 completed (Balance-Parity + Snapshot-Bump 5->6 + WR-03/IN-01/IN-02 cleanup)
+last_updated: "2026-06-09T18:31:38.814Z"
+last_activity: 2026-06-09 -- Phase 08.5 execution started
 progress:
   total_phases: 4
-  completed_phases: 4
+  completed_phases: 3
   total_plans: 29
-  completed_plans: 29
-  percent: 100
+  completed_plans: 28
+  percent: 97
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 08.4 (reporting-additiv-merge) — COMPLETE (4/4 Plans)
-Plan: 4 of 4 (Plan 04 abgeschlossen)
-Status: Phase 08.4 vollstaendig abgeschlossen
-Last activity: 2026-06-09 -- Plan 04: Balance-Parity (Gap 2 / WR-01), Snapshot-Bump 5->6, WR-03/IN-01/IN-02 cleanup; 428+79 Tests gruen
+Phase: 08.5 (read-projektion-hr-inline-convert) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 08.5
+Last activity: 2026-06-09 -- Phase 08.5 execution started
 
 ## Shipped Milestones
 

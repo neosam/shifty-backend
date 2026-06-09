@@ -71,6 +71,18 @@ pub fn fixture_work_details_8h_mon_fri() -> EmployeeWorkDetails {
     }
 }
 
+/// 8h/Tag Mo-Fr, gueltig KW22-25/2024, aber DYNAMISCHER Vertrag (is_dynamic=true).
+/// weight_for_week liefert dann planned_hours = 0.0 fuer alle Wochen -> Balance soll quellen-
+/// unabhaengig neutral bleiben (M-02/M-03 dynamic). Spiegel von fixture_work_details_8h_mon_fri.
+#[allow(dead_code)]
+pub fn fixture_work_details_dynamic_mon_fri() -> EmployeeWorkDetails {
+    EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0011),
+        is_dynamic: true,
+        ..fixture_work_details_8h_mon_fri()
+    }
+}
+
 /// Vacation Mo-Mi (3 Werktage) -- 2024-06-03..05.
 #[allow(dead_code)]
 pub fn fixture_vacation_period() -> AbsencePeriod {
