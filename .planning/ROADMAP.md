@@ -81,7 +81,7 @@
   - [x] 08.5-02-PLAN.md — AbsenceConversionService (BL-Tier, lean 3-write Convert-Tx) + Tests
   - [x] 08.5-03-PLAN.md — Convert-Endpoint + 3 rest-types-DTOs + DI-Wiring + Surface-Test
   - [x] 08.5-04-PLAN.md — Read-Projektion (beide GET-Handler augmentiert) + Integration-Tests
-  - [ ] 08.5-05-PLAN.md — Frontend-Daten-Schicht (api/state/loader/service) + AbsenceConvertModal-Extraktion
+  - [x] 08.5-05-PLAN.md — Frontend-Daten-Schicht (api/state/loader/service) + AbsenceConvertModal-Extraktion
   - [ ] 08.5-06-PLAN.md — absences.rs HourlyMarkerRow inline + Convert/Edit-Verdrahtung + i18n + SSR-Tests
   - [ ] 08.5-07-PLAN.md — Working-Hours-Dialog-Umbau + Soft-Migration-Hinweis + i18n + Full-Suite/WASM-Gate
 
