@@ -32,7 +32,6 @@ use service::cutover::CUTOVER_ADMIN_PRIVILEGE;
 use service::extra_hours::ExtraHours;
 use service::extra_hours::ExtraHoursCategory;
 use service::extra_hours::ExtraHoursService;
-use service::feature_flag::MockFeatureFlagService;
 use service::permission::Authentication;
 use service::permission::HR_PRIVILEGE;
 use service::sales_person::MockSalesPersonService;
@@ -121,7 +120,6 @@ pub struct ExtraHoursDependencies {
     pub permission_service: MockPermissionService,
     pub sales_person_service: MockSalesPersonService,
     pub custom_extra_hours_service: MockCustomExtraHoursService,
-    pub feature_flag_service: MockFeatureFlagService,
     pub clock_service: MockClockService,
     pub uuid_service: MockUuidService,
     pub transaction_dao: MockTransactionDao,
@@ -134,7 +132,6 @@ impl ExtraHoursServiceDeps for ExtraHoursDependencies {
     type PermissionService = MockPermissionService;
     type SalesPersonService = MockSalesPersonService;
     type CustomExtraHoursService = MockCustomExtraHoursService;
-    type FeatureFlagService = MockFeatureFlagService;
     type ClockService = MockClockService;
     type UuidService = MockUuidService;
     type TransactionDao = MockTransactionDao;
@@ -147,7 +144,6 @@ impl ExtraHoursDependencies {
             permission_service: self.permission_service.into(),
             sales_person_service: self.sales_person_service.into(),
             custom_extra_hours_service: self.custom_extra_hours_service.into(),
-            feature_flag_service: self.feature_flag_service.into(),
             clock_service: self.clock_service.into(),
             uuid_service: self.uuid_service.into(),
             transaction_dao: self.transaction_dao.into(),
@@ -173,7 +169,6 @@ fn build_dependencies() -> ExtraHoursDependencies {
     let mut permission_service = MockPermissionService::new();
     let mut sales_person_service = MockSalesPersonService::new();
     let custom_extra_hours_service = MockCustomExtraHoursService::new();
-    let feature_flag_service = MockFeatureFlagService::new();
     let mut clock_service = MockClockService::new();
     let uuid_service = MockUuidService::new();
     let mut transaction_dao = MockTransactionDao::new();
@@ -197,7 +192,6 @@ fn build_dependencies() -> ExtraHoursDependencies {
         permission_service,
         sales_person_service,
         custom_extra_hours_service,
-        feature_flag_service,
         clock_service,
         uuid_service,
         transaction_dao,
@@ -281,7 +275,6 @@ fn build_dependencies_for_create() -> ExtraHoursDependencies {
         permission_service,
         sales_person_service,
         custom_extra_hours_service: MockCustomExtraHoursService::new(),
-        feature_flag_service: MockFeatureFlagService::new(),
         clock_service,
         uuid_service,
         transaction_dao: build_default_transaction_dao(),
@@ -616,13 +609,10 @@ async fn test_update_persists_editable_fields_to_new_row() {
 // ============================================================================
 
 // Test 1 (Phase 8.4 — Gate-Rückbau): Vacation create succeeds unconditionally.
-// Nach Rückbau des `ExtraHoursCategoryDeprecated`-Gates wird der Flag
-// `absence_range_source_active` für Vacation/SickLeave/UnpaidLeave gar nicht
-// mehr gelesen — `times(0)` macht das explizit.
+// Das `ExtraHoursCategoryDeprecated`-Gate ist entfernt — kein Flag-Check mehr.
 #[tokio::test]
 async fn create_vacation_always_succeeds() {
     let mut deps = build_dependencies_for_create();
-    deps.feature_flag_service.expect_is_enabled().times(0);
     deps.extra_hours_dao
         .expect_create()
         .times(1)
@@ -637,13 +627,11 @@ async fn create_vacation_always_succeeds() {
     assert_eq!(created.version, fixture_new_version());
 }
 
-// Test 3 (Phase 8.4 — Gate-Rückbau): ExtraWork triggert keinen Flag-Check.
-// `times(0)` auf is_enabled bleibt korrekt — ExtraWork war nie im gated Set,
-// und nach dem Gate-Rückbau wird der Flag für keine Kategorie mehr gelesen.
+// Test 3 (Phase 8.4 — Gate-Rückbau): ExtraWork create succeeds ohne Flag-Check.
+// Kein `feature_flag_service` mehr in ExtraHoursServiceImpl (WR-03).
 #[tokio::test]
 async fn create_extra_work_does_not_trigger_flag_check() {
     let mut deps = build_dependencies_for_create();
-    deps.feature_flag_service.expect_is_enabled().times(0);
     deps.extra_hours_dao
         .expect_create()
         .times(1)
@@ -697,7 +685,6 @@ async fn soft_delete_bulk_calls_dao_with_provided_ids_and_update_process() {
         permission_service,
         sales_person_service: MockSalesPersonService::new(),
         custom_extra_hours_service: MockCustomExtraHoursService::new(),
-        feature_flag_service: MockFeatureFlagService::new(),
         clock_service,
         uuid_service,
         transaction_dao: build_default_transaction_dao(),
@@ -742,7 +729,6 @@ async fn soft_delete_bulk_forbidden_for_unprivileged_user() {
         permission_service,
         sales_person_service: MockSalesPersonService::new(),
         custom_extra_hours_service: MockCustomExtraHoursService::new(),
-        feature_flag_service: MockFeatureFlagService::new(),
         clock_service: MockClockService::new(),
         uuid_service: MockUuidService::new(),
         transaction_dao,

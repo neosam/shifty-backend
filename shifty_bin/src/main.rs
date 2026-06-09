@@ -285,11 +285,6 @@ impl service_impl::extra_hours::ExtraHoursServiceDeps for ExtraHoursServiceDepen
     type PermissionService = PermissionService;
     type SalesPersonService = SalesPersonService;
     type CustomExtraHoursService = CustomExtraHoursService;
-    // Phase-4 Plan-04-04 (D-Phase4-09): service-layer flag-gate on
-    // POST `/extra-hours` for the deprecated Vacation/SickLeave/UnpaidLeave
-    // categories. ExtraHoursServiceImpl now reads `absence_range_source_active`
-    // before each `create()` call.
-    type FeatureFlagService = FeatureFlagService;
     type ClockService = ClockService;
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
@@ -850,12 +845,6 @@ impl RestStateImpl {
             sales_person_unavailable_service: sales_person_unavailable_service.clone(),
             slot_service: slot_service.clone(),
         });
-        // Phase-4 Plan-04-04 (D-Phase4-09): FeatureFlagService MUST be
-        // constructed BEFORE ExtraHoursService so the new
-        // ExtraHoursServiceImpl can hold it as a dep for the service-layer
-        // flag-gate on POST `/extra-hours`. Previously feature_flag_service
-        // was built after extra_hours_service (Phase-2 Plan-04 ordering for
-        // ReportingService); the constraint is now strictly tighter.
         let feature_flag_dao = Arc::new(FeatureFlagDao::new(pool.clone()));
         let feature_flag_service: Arc<FeatureFlagService> =
             Arc::new(service_impl::feature_flag::FeatureFlagServiceImpl {
@@ -868,7 +857,6 @@ impl RestStateImpl {
             permission_service: permission_service.clone(),
             sales_person_service: sales_person_service.clone(),
             custom_extra_hours_service: custom_extra_hours_service.clone(),
-            feature_flag_service: feature_flag_service.clone(),
             clock_service: clock_service.clone(),
             uuid_service: uuid_service.clone(),
             transaction_dao: transaction_dao.clone(),

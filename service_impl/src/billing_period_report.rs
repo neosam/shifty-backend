@@ -186,9 +186,9 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportServiceImpl<Deps> 
                 value_full_year: report_end_of_year.sick_leave_hours,
             },
         );
-        // Phase-2 D-Phase2-04: UnpaidLeave wird ab Snapshot-Schema-Version 3
-        // persistiert. Bei Flag=off kommt der Wert aus der ExtraHours-Kategorie
-        // `UnpaidLeave`; bei Flag=on aus `AbsenceService::derive_hours_for_range`.
+        // Ab Phase 8.4 additiv: lebende extra_hours(UnpaidLeave) PLUS
+        // derive_hours_for_range-abgeleitete UnpaidLeave-Stunden, summiert.
+        // Kein Flag-Branch mehr.
         billing_period_values.insert(
             BillingPeriodValueType::UnpaidLeave,
             BillingPeriodValue {
