@@ -516,3 +516,150 @@ async fn test_derive_hours_half_day_sick_leave_also_halved() {
          (category-agnostic halving)"
     );
 }
+
+// ----------------------------------------------------------------------------
+// REPRODUCER: Cutover-Drift bug class — `derive_hours_for_range` vs.
+// `detect_weekly_lump_sum` divergence on holidays.
+//
+// User-Convention: "Feiertage kommen oben drauf" — 20h Vacation-Eintrag bei
+// 20h-Vertrag bleibt 20h, auch wenn ein Workday in der Woche Feiertag ist.
+//
+// Code-Realität (this test pins the current behavior):
+//   - `detect_weekly_lump_sum` (in cutover.rs) iteriert Mo-So, summiert
+//     `contract.hours_per_day()` für jeden Workday → 4 × 5h = 20h Target.
+//     Holidays werden NICHT abgezogen. → Heuristik akzeptiert 20h, migriert
+//     als `absence_period(Mo, So)`.
+//   - `derive_hours_for_range` (this function) skipt Holidays → 3 × 5h = 15h.
+//
+// Result in `compute_gate`:
+//   legacy_sum = 20h (from extra_hours row)
+//   derived_sum = 15h (from absence_period via derive)
+//   drift = 5h → erscheint im Drift-Report
+//
+// Dieser Test fixt das aktuelle Verhalten von `derive_hours_for_range` und
+// dient als executable specification: solange dieser Test mit `derived = 15h`
+// passt UND die Heuristik in cutover.rs Holidays ignoriert, entsteht ein
+// systematischer Drift bei Wochenpauschalen mit Feiertag.
+// ----------------------------------------------------------------------------
+#[tokio::test]
+async fn test_lump_sum_vacation_period_with_holiday_emits_short_derived_sum() {
+    // Setup matching the live INT scenario:
+    //   - 20h/Woche-Vertrag, Workdays Di-Fr → hours_per_day = 20 / 4 = 5h
+    //   - 1× extra_hours-Row mit 20h auf Mo 2024-06-03 (→ Heuristik-Match)
+    //   - Migration würde absence_period(Mo 06-03, So 06-09) schreiben
+    //   - Holiday auf Mi 2024-06-05 (Fronleichnam-ähnlich, Workday)
+    let mut deps = build_dependencies();
+
+    // Vacation-Period Mo-So der KW 23/2024 (so wie die Heuristik sie schreiben
+    // würde, wenn die Quelle ein 20h-Eintrag auf Mo gewesen wäre).
+    let vacation = AbsencePeriod {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_DDDD_0001),
+        sales_person_id: fixture_sales_person_id(),
+        category: AbsenceCategory::Vacation,
+        from_date: date!(2024 - 06 - 03),
+        to_date: date!(2024 - 06 - 09),
+        description: Arc::from("lump-sum migrated vacation"),
+        created: Some(datetime!(2024 - 06 - 01 09:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
+    };
+    let absence_entities: Arc<[AbsencePeriodEntity]> =
+        Arc::from(vec![period_to_entity(&vacation)]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    // 20h-Vertrag, Workdays Di-Fr (Mo + Sa + So = non-workday).
+    let mut wd = fixture_work_details_8h_mon_fri();
+    wd.expected_hours = 20.0;
+    wd.workdays_per_week = 4;
+    wd.monday = false;
+    wd.tuesday = true;
+    wd.wednesday = true;
+    wd.thursday = true;
+    wd.friday = true;
+    wd.saturday = false;
+    wd.sunday = false;
+    let wd_arc: Arc<[_]> = Arc::from(vec![wd]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(wd_arc.clone()));
+
+    // Holiday auf Mi 2024-06-05.
+    let holiday = SpecialDay {
+        id: Uuid::from_u128(0xFEEE_0000_0000_0000_0000_0000_DDDD_0001),
+        year: 2024,
+        calendar_week: 23,
+        day_of_week: DayOfWeek::Wednesday,
+        day_type: SpecialDayType::Holiday,
+        time_of_day: None,
+        created: Some(datetime!(2024 - 01 - 01 00:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+    let holidays: Arc<[SpecialDay]> = Arc::from(vec![holiday]);
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(move |_, _, _| Ok(holidays.clone()));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 03),
+            date!(2024 - 06 - 09),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    // Mo non-workday → kein Eintrag.
+    assert!(!result.contains_key(&date!(2024 - 06 - 03)));
+    // Di workday, kein Holiday → Vacation 5h.
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 04)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 5.0,
+        })
+    );
+    // Mi workday, ABER Holiday → kein Eintrag.
+    assert!(
+        !result.contains_key(&date!(2024 - 06 - 05)),
+        "Mi ist Holiday — derive_hours_for_range skipt den Tag, obwohl die \
+         Vacation-Period ihn umfasst (Mismatch zur lump-sum-Heuristik)"
+    );
+    // Do/Fr workdays, kein Holiday → Vacation 5h.
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 06)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 5.0,
+        })
+    );
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 07)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 5.0,
+        })
+    );
+
+    // Aggregierte Drift-Diagnose: derived_sum sollte 15h sein, während die
+    // Heuristik im Cutover-Pfad die row mit target_sum = 4 × 5 = 20h
+    // akzeptieren würde. Daraus folgt drift = 5h in compute_gate.
+    let derived_sum: f32 = result
+        .values()
+        .filter(|r| r.category == AbsenceCategory::Vacation)
+        .map(|r| r.hours)
+        .sum();
+    assert!(
+        (derived_sum - 15.0).abs() < 0.01,
+        "derived_sum für Mo-So-Vacation mit Holiday auf Mi muss 15h sein \
+         (aktuelles Verhalten); Heuristik hätte 20h erwartet → drift = 5h \
+         im compute_gate. Beobachtet: {derived_sum}"
+    );
+}

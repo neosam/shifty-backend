@@ -2950,3 +2950,243 @@ mod day_fraction_convert_tests {
         }
     }
 }
+
+// ============================================================================
+// REPRODUCERS für Drift-Symptome auf INT (Mai 2026)
+// ============================================================================
+//
+// Diese Tests dokumentieren bekannte Lücken in der Cutover-Heuristik /
+// `compute_gate`-Asymmetrie, die im aktuellen Test-Setup nicht aufgedeckt
+// werden, weil `arrange_lump_sum_migration` `install_empty_gate_scope`
+// aufruft (gate scope = leer → keine Drift-Berechnung).
+//
+// User-Symptom: 20h-Vertrag (Di-Fr) + 20h Vacation-Eintrag → Drift im
+// Cutover-Gate-Dry-Run. „Sämtliche Tage matchen nicht" und „Vorjahre
+// machen Probleme."
+// ============================================================================
+
+mod drift_reproducers_int_may_2026 {
+    use super::*;
+
+    /// Fixture: 20h/Woche-Vertrag, Workdays Di-Fr (4 Tage → hours_per_day=5).
+    /// Spannt 2020..=2026. Stellt die User-INT-Konstellation dar.
+    fn fixture_20h_tue_fri_contract() -> EmployeeWorkDetails {
+        let mut wd = fixture_3day_mo_tu_we_contract();
+        wd.id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0030);
+        wd.expected_hours = 20.0;
+        wd.workdays_per_week = 4;
+        wd.monday = false;
+        wd.tuesday = true;
+        wd.wednesday = true;
+        wd.thursday = true;
+        wd.friday = true;
+        wd
+    }
+
+    // ------------------------------------------------------------------------
+    // T2: Cross-Year ISO-Woche — Mo 2024-12-30 gehört nach ISO 8601 zu KW 1 /
+    // 2025. Die Heuristik schreibt eine `absence_period(2024-12-30,
+    // 2025-01-05)` — also über die Jahresgrenze. `compute_gate` aggregiert
+    // legacy vs derived per `(sales_person, year)`. legacy_sum ist auf
+    // year=2024 gebucht (date_time year aus extra_hours), derived_sum splittet
+    // sich zwischen 2024 und 2025 → drift > 0 in mindestens einem Jahr.
+    //
+    // Dieser Test pinnt das aktuelle Heuristik-Verhalten: Mo 2024-12-30 →
+    // absence_period(2024-12-30, 2025-01-05). Der daraus folgende Gate-Drift
+    // ist ein separater Bug, der über `derive_hours_for_range`-Filter und
+    // die Per-Year-Aggregation in `compute_gate_inner` entsteht.
+    // ------------------------------------------------------------------------
+    #[tokio::test]
+    async fn t2_cross_year_iso_week_lump_sum_writes_cross_year_absence_period() {
+        let mut deps = build_dependencies();
+        let rows: Arc<[LegacyExtraHoursRow]> =
+            Arc::from([legacy_row(date!(2024 - 12 - 30), 20.0)]);
+        let rows_clone = rows.clone();
+
+        deps.permission_service = permission_service_allow_all();
+        install_empty_gate_scope(&mut deps);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(rows_clone.clone()));
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_20h_tue_fri_contract()])));
+
+        // Heuristik muss die Cross-Year-Range Mo 2024-12-30 .. So 2025-01-05
+        // produzieren. Das ist die KW 1 / 2025 nach ISO 8601 (Do dieser Woche
+        // ist 2025-01-02, gehört zu 2025).
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, _, _| {
+                entity.from_date == date!(2024 - 12 - 30)
+                    && entity.to_date == date!(2025 - 01 - 05)
+            })
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .times(1)
+            .returning(|_, _| Ok(()));
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let result = service
+            .run(true, ().auth(), None)
+            .await
+            .expect("run succeeded");
+        assert_eq!(result.total_clusters, 1, "Cross-Year-Lump-Sum migriert");
+        assert_eq!(
+            result.quarantined_rows, 0,
+            "Heuristik akzeptiert die Row trotz Cross-Year-Range"
+        );
+
+        // Drift-Diagnose-Hinweis (test-internal): die migrierte Period
+        // erstreckt sich über zwei Jahre. `derive_hours_for_range` wird in
+        // `compute_gate_inner` per (sp, year) aufgerufen mit year_start =
+        // Jan 1 year, year_end = Dec 31 year — der year=2024-Aufruf sieht
+        // nur Mo 12-30 (non-workday → skip) + Di 12-31 (workday → 5h),
+        // also derived_sum=5h vs legacy_sum=20h → drift=15h. Symmetrisch
+        // entsteht ein Phantom-Drift in 2025 (legacy=0, derived=15h aus
+        // Mi/Do/Fr 2025-01-01..03), falls (sp, 2025) im scope ist.
+        //
+        // Dieser Test pinnt nur die Range; der eigentliche Drift-Bug
+        // entsteht downstream in `compute_gate_inner` und braucht einen
+        // eigenen End-to-End-Test mit gefülltem scope-set.
+    }
+
+    // ------------------------------------------------------------------------
+    // T3: Soft-deleted historischer Vertrag. `lookup_active_contract` filtert
+    // `deleted.is_some()`. Wenn ein Mitarbeiter inzwischen einen neuen
+    // Vertrag bekommen hat und der alte (historische) soft-deleted ist,
+    // findet die Heuristik für alle Tage im Vorjahres-Range KEINEN aktiven
+    // Vertrag → Quarantine als `ContractNotActiveAtDate`.
+    //
+    // User-Symptom-Beitrag: ALLE Vorjahres-Vacation-Einträge dieser Person
+    // erscheinen als Drift, sobald `compute_gate` läuft (Quarantine-Rows
+    // werden als drift_rows aggregiert mit reason `contract_not_active_at_date`).
+    // ------------------------------------------------------------------------
+    #[tokio::test]
+    async fn t3_soft_deleted_historical_contract_quarantines_past_year_row() {
+        let mut deps = build_dependencies();
+
+        // Alter 20h/4-Tage-Vertrag, gültig 2023..2024, soft-deleted Ende 2024.
+        let mut old_contract = fixture_20h_tue_fri_contract();
+        old_contract.id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_DEAD_0001);
+        old_contract.from_year = 2023;
+        old_contract.from_calendar_week = 1;
+        old_contract.from_day_of_week = DayOfWeek::Monday;
+        old_contract.to_year = 2024;
+        old_contract.to_calendar_week = 52;
+        old_contract.to_day_of_week = DayOfWeek::Sunday;
+        old_contract.deleted = Some(datetime!(2024 - 12 - 31 23:00:00));
+
+        // Neuer Vertrag ab 2025 (40h, Mo-Fr — egal, deckt nur 2025+).
+        let mut new_contract = fixture_8h_mon_fri_contract();
+        new_contract.id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BEEF_0001);
+        new_contract.from_year = 2025;
+        new_contract.from_calendar_week = 1;
+        new_contract.from_day_of_week = DayOfWeek::Monday;
+        new_contract.to_year = 2026;
+        new_contract.to_calendar_week = 52;
+        new_contract.to_day_of_week = DayOfWeek::Sunday;
+
+        // 1× Vacation-Eintrag in 2024 (im Bereich des soft-deleted alten
+        // Vertrags). Mo 2024-06-03, 20h.
+        let rows: Arc<[LegacyExtraHoursRow]> =
+            Arc::from([legacy_row(date!(2024 - 06 - 03), 20.0)]);
+        let rows_clone = rows.clone();
+
+        deps.permission_service = permission_service_allow_all();
+        install_empty_gate_scope(&mut deps);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(rows_clone.clone()));
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(move |_, _, _| {
+                Ok(Arc::from([old_contract.clone(), new_contract.clone()]))
+            });
+
+        // Erwartung: KEIN absence_period (alle Quellen verworfen).
+        deps.absence_dao.expect_create().times(0);
+        deps.cutover_dao.expect_upsert_migration_source().times(0);
+        // Erwartung: 1× Quarantine mit reason `contract_not_active_at_date`.
+        deps.cutover_dao
+            .expect_upsert_quarantine()
+            .withf(|row, _| row.reason.as_ref() == "contract_not_active_at_date")
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let result = service
+            .run(true, ().auth(), None)
+            .await
+            .expect("run succeeded");
+        assert_eq!(result.total_clusters, 0);
+        assert_eq!(
+            result.quarantined_rows, 1,
+            "Vorjahres-Row mit nur soft-deleted Vertrag → Quarantine"
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // T1 (Companion): zeigt das LIVE-Ende der Drift-Asymmetrie an — wenn die
+    // Heuristik in cutover.rs eine Mo-So-Lump-Sum-Range schreibt, würde
+    // `derive_hours_for_range` mit Holiday auf einem Workday einen
+    // verkürzten derived_sum produzieren. Der eigentliche Verhaltens-Pin
+    // dafür sitzt in
+    // `crate::test::absence_derive_hours_range::test_lump_sum_vacation_period_with_holiday_emits_short_derived_sum`
+    // — dieser Test hier pinnt nur, dass die Heuristik die Holiday-Woche
+    // OHNE Holiday-Bewusstsein als Lump-Sum akzeptiert.
+    // ------------------------------------------------------------------------
+    #[tokio::test]
+    async fn t1_heuristik_akzeptiert_lump_sum_ohne_holiday_korrektur() {
+        let mut deps = build_dependencies();
+        // 20h Vacation-Eintrag auf Mo 2024-06-03 — KW 23/2024.
+        // Bemerkung: die Heuristik fragt KEINEN SpecialDayService an, also
+        // hat das Vorhandensein eines Holiday in der Woche keinen Einfluss
+        // auf das Migrations-Ergebnis. Das ist die Asymmetrie zu
+        // `derive_hours_for_range`, die im Gate downstream Drift erzeugt.
+        let rows: Arc<[LegacyExtraHoursRow]> =
+            Arc::from([legacy_row(date!(2024 - 06 - 03), 20.0)]);
+        let rows_clone = rows.clone();
+
+        deps.permission_service = permission_service_allow_all();
+        install_empty_gate_scope(&mut deps);
+        deps.cutover_dao
+            .expect_find_legacy_extra_hours_not_yet_migrated()
+            .returning(move |_| Ok(rows_clone.clone()));
+        deps.employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(|_, _, _| Ok(Arc::from([fixture_20h_tue_fri_contract()])));
+
+        // Heuristik schreibt Mo-So der KW 23.
+        deps.absence_dao
+            .expect_create()
+            .withf(|entity, _, _| {
+                entity.from_date == date!(2024 - 06 - 03)
+                    && entity.to_date == date!(2024 - 06 - 09)
+            })
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+        deps.cutover_dao
+            .expect_upsert_migration_source()
+            .times(1)
+            .returning(|_, _| Ok(()));
+        deps.cutover_dao.expect_upsert_quarantine().times(0);
+
+        let service = deps.build_service(build_default_transaction_dao());
+        let result = service
+            .run(true, ().auth(), None)
+            .await
+            .expect("run succeeded");
+        assert_eq!(result.total_clusters, 1);
+        assert_eq!(
+            result.quarantined_rows, 0,
+            "Heuristik kennt keinen Holiday — schreibt ungestört Mo-So-Range. \
+             Die spätere derived_sum-Verkürzung in derive_hours_for_range \
+             erzeugt den Gate-Drift (siehe Companion-Test in \
+             test::absence_derive_hours_range)."
+        );
+    }
+}
