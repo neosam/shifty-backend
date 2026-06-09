@@ -789,6 +789,27 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             let dynamic_hours = dynamic_hours - abense_hours;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
+            // Gap 1 (Phase 8.4 / CR-01): additiver absence_period-Merge fuer die Woche.
+            let derived = self
+                .absence_service
+                .derive_hours_for_range(
+                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday).to_date(),
+                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday).to_date(),
+                    sales_person_id,
+                    context.clone(),
+                    tx.clone(),
+                )
+                .await?;
+            let mut absence_derived_vacation_hours = 0.0_f32;
+            let mut absence_derived_sick_leave_hours = 0.0_f32;
+            let mut absence_derived_unpaid_leave_hours = 0.0_f32;
+            for resolved in derived.values() {
+                match resolved.category {
+                    AbsenceCategory::Vacation => absence_derived_vacation_hours += resolved.hours,
+                    AbsenceCategory::SickLeave => absence_derived_sick_leave_hours += resolved.hours,
+                    AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
+                }
+            }
             result.push(ShortEmployeeReport {
                 sales_person: Arc::new(
                     self.sales_person_service
@@ -799,11 +820,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 dynamic_hours,
                 expected_hours,
                 overall_hours,
-                vacation_hours,
-                sick_leave_hours,
+                vacation_hours: vacation_hours + absence_derived_vacation_hours,
+                sick_leave_hours: sick_leave_hours + absence_derived_sick_leave_hours,
                 holiday_hours,
                 unavailable_hours,
-                unpaid_leave_hours,
+                unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                 volunteer_hours,
                 custom_absence_hours,
             });
