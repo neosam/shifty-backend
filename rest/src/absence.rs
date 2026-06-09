@@ -11,6 +11,10 @@
 //! ein duenner Wrapper mit DTO-Conversion und Error-Mapping via
 //! `error_handler`. Alle Handler dispatchen ueber `rest_state.absence_service()`
 //! gemaess `RestStateDef`-Trait.
+//!
+//! Phase 8.5 (Plan 04): GET / + GET /by-sales-person/{id} geben jetzt
+//! `AbsenceListWithProjectionTO` zurueck — Ranges + lebende Stunden-Marker
+//! (Vacation/SickLeave/UnpaidLeave) ehrlich am when-Datum (D-07, kein Range-Raten).
 
 use axum::{
     body::Body,
@@ -19,13 +23,60 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
-use rest_types::{AbsenceCategoryTO, AbsencePeriodCreateResultTO, AbsencePeriodTO, WarningTO};
+use rest_types::{
+    AbsenceCategoryTO, AbsencePeriodCreateResultTO, AbsencePeriodTO, AbsenceListWithProjectionTO,
+    ExtraHoursMarkerTO, WarningTO,
+};
 use service::absence::AbsenceService;
+use service::extra_hours::{ExtraHoursCategory, ExtraHoursService};
+use service::sales_person::SalesPersonService;
+use shifty_utils::ShiftyDate;
 use tracing::instrument;
 use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{error_handler, Context, RestStateDef};
+
+/// Konvertiert eine lebende ExtraHours-Row zu einem ExtraHoursMarkerTO.
+/// Kein Range-Raten (D-07) — `when` traegt raw `date_time.date()`.
+fn map_to_marker(
+    eh: &service::extra_hours::ExtraHours,
+    person_name: std::sync::Arc<str>,
+) -> ExtraHoursMarkerTO {
+    ExtraHoursMarkerTO {
+        extra_hours_id: eh.id,
+        sales_person_id: eh.sales_person_id,
+        when: eh.date_time.date(),
+        amount: eh.amount,
+        category: (&eh.category).into(),
+        description: eh.description.clone(),
+        person_name,
+    }
+}
+
+/// Prueft ob eine ExtraHoursCategory zur Read-Projektion gehoert.
+/// Nur {Vacation, SickLeave, UnpaidLeave} werden als Marker angezeigt.
+fn is_absence_category(category: &ExtraHoursCategory) -> bool {
+    matches!(
+        category,
+        ExtraHoursCategory::Vacation | ExtraHoursCategory::SickLeave | ExtraHoursCategory::UnpaidLeave
+    )
+}
+
+/// Berechnet das Zwei-Jahres-Fenster [current_year-1, current_year+1] fuer Marker-Loads.
+/// Quelle: Pitfall 7 / RESEARCH Open Question 2.
+fn two_year_window() -> (ShiftyDate, ShiftyDate) {
+    let current_year = time::OffsetDateTime::now_utc().year();
+    let from = ShiftyDate::from(
+        time::Date::from_calendar_date(current_year - 1, time::Month::January, 1)
+            .expect("valid from_date"),
+    );
+    let to = ShiftyDate::from(
+        time::Date::from_calendar_date(current_year + 1, time::Month::December, 31)
+            .expect("valid to_date"),
+    );
+    (from, to)
+}
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
@@ -82,7 +133,7 @@ pub async fn create_absence_period<RestState: RestStateDef>(
     path = "",
     tags = ["Absence"],
     responses(
-        (status = 200, description = "All absence periods", body = [AbsencePeriodTO]),
+        (status = 200, description = "All absence periods with living hourly markers (Vacation/SickLeave/UnpaidLeave)", body = AbsenceListWithProjectionTO),
         (status = 403, description = "Forbidden"),
     ),
 )]
@@ -93,12 +144,47 @@ pub async fn get_all_absence_periods<RestState: RestStateDef>(
     error_handler(
         (async {
             let svc = rest_state.absence_service();
-            let entities = svc.find_all(context.into(), None).await?;
-            let tos: Vec<AbsencePeriodTO> = entities.iter().map(AbsencePeriodTO::from).collect();
+            let entities = svc.find_all(context.clone().into(), None).await?;
+            let absence_periods: Vec<AbsencePeriodTO> =
+                entities.iter().map(AbsencePeriodTO::from).collect();
+
+            // Lade alle Personen (HR-View — find_all enforced bereits hr-Gate).
+            let persons = rest_state
+                .sales_person_service()
+                .get_all(context.clone().into(), None)
+                .await?;
+
+            // Zwei-Jahres-Fenster fuer Marker-Loads (Pitfall 7).
+            let (from_bound, to_bound) = two_year_window();
+
+            // Fuer jede Person: lebende extra_hours laden, auf Absence-Kategorien filtern.
+            let mut hourly_markers: Vec<ExtraHoursMarkerTO> = Vec::new();
+            for person in persons.iter() {
+                let raw = rest_state
+                    .extra_hours_service()
+                    .find_by_sales_person_id_and_year_range(
+                        person.id,
+                        from_bound,
+                        to_bound,
+                        context.clone().into(),
+                        None,
+                    )
+                    .await?;
+                for eh in raw.iter() {
+                    if is_absence_category(&eh.category) {
+                        hourly_markers.push(map_to_marker(eh, person.name.clone()));
+                    }
+                }
+            }
+
+            let result = AbsenceListWithProjectionTO {
+                absence_periods,
+                hourly_markers,
+            };
             Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
-                .body(Body::new(serde_json::to_string(&tos).unwrap()))
+                .body(Body::new(serde_json::to_string(&result).unwrap()))
                 .unwrap())
         })
         .await,
@@ -211,7 +297,7 @@ pub async fn delete_absence_period<RestState: RestStateDef>(
     tags = ["Absence"],
     params(("sales_person_id", description = "Sales person id")),
     responses(
-        (status = 200, description = "Absence periods for sales person", body = [AbsencePeriodTO]),
+        (status = 200, description = "Absence periods + living hourly markers for sales person", body = AbsenceListWithProjectionTO),
         (status = 403, description = "Forbidden"),
     ),
 )]
@@ -224,13 +310,46 @@ pub async fn get_absence_periods_for_sales_person<RestState: RestStateDef>(
         (async {
             let svc = rest_state.absence_service();
             let entities = svc
-                .find_by_sales_person(sales_person_id, context.into(), None)
+                .find_by_sales_person(sales_person_id, context.clone().into(), None)
                 .await?;
-            let tos: Vec<AbsencePeriodTO> = entities.iter().map(AbsencePeriodTO::from).collect();
+            let absence_periods: Vec<AbsencePeriodTO> =
+                entities.iter().map(AbsencePeriodTO::from).collect();
+
+            // Lade die eine Person fuer person_name im Marker.
+            let person = rest_state
+                .sales_person_service()
+                .get(sales_person_id, context.clone().into(), None)
+                .await?;
+
+            // Zwei-Jahres-Fenster (Pitfall 7).
+            let (from_bound, to_bound) = two_year_window();
+
+            // Marker nur fuer diese Person (hr ∨ self erbt von /absences + extra_hours-Scoping).
+            // KEIN Authentication::Full-Bypass — Context unveraendert durchreichen (D-06, T-8.5-04a).
+            let raw = rest_state
+                .extra_hours_service()
+                .find_by_sales_person_id_and_year_range(
+                    sales_person_id,
+                    from_bound,
+                    to_bound,
+                    context.clone().into(),
+                    None,
+                )
+                .await?;
+            let hourly_markers: Vec<ExtraHoursMarkerTO> = raw
+                .iter()
+                .filter(|eh| is_absence_category(&eh.category))
+                .map(|eh| map_to_marker(eh, person.name.clone()))
+                .collect();
+
+            let result = AbsenceListWithProjectionTO {
+                absence_periods,
+                hourly_markers,
+            };
             Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
-                .body(Body::new(serde_json::to_string(&tos).unwrap()))
+                .body(Body::new(serde_json::to_string(&result).unwrap()))
                 .unwrap())
         })
         .await,
@@ -252,6 +371,9 @@ pub async fn get_absence_periods_for_sales_person<RestState: RestStateDef>(
         AbsenceCategoryTO,
         AbsencePeriodCreateResultTO,
         WarningTO,
+        // Phase 8.5 (Plan 04): Read-Projektion Schemas.
+        ExtraHoursMarkerTO,
+        AbsenceListWithProjectionTO,
     )),
     tags(
         (name = "Absence", description = "Absence period management (range-based)"),
