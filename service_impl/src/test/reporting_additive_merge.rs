@@ -37,7 +37,9 @@ use service::MockPermissionService;
 use shifty_utils::ShiftyDate;
 
 use crate::reporting::{ReportingServiceDeps, ReportingServiceImpl};
-use crate::test::reporting_phase2_fixtures::{fixture_sales_person, fixture_sales_person_id};
+use crate::test::reporting_phase2_fixtures::{
+    fixture_sales_person, fixture_sales_person_id, fixture_work_details_8h_mon_fri,
+};
 
 struct ReportingMocks {
     extra_hours_service: MockExtraHoursService,
@@ -347,5 +349,254 @@ async fn test_additive_converted_rows_not_double_counted() {
     assert_eq!(
         report.vacation_hours, 8.0,
         "konvertierte Rows zählen nicht doppelt: vacation = 8h (nur aus absence_period)"
+    );
+}
+
+// ─── Tests fuer Schwester-Methoden (Plan 08.4-03) ────────────────────────────
+
+/// Test A — get_reports_for_all_employees: beide Quellen, additive Summe.
+/// extra_hours -> [Vacation 4h am 2024-06-05].
+/// derive_hours_for_range -> {2024-06-03: Vacation 8h}.
+/// Erwartung: vacation = 12.0 (4h extra_hours + 8h absence_period).
+#[tokio::test]
+async fn test_all_employees_additive_merge() {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
+    // fixture_work_details_8h_mon_fri gibt expected_hours > 0 fuer KW23/2024 zurueck,
+    // damit der else-Zweig in get_reports_for_all_employees greift und vacation_hours
+    // aus extra_hours_array gelesen wird.
+    mocks
+        .employee_work_details_service
+        .expect_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_work_details_8h_mon_fri()])));
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year()
+        .returning(|_, _, _, _, _| {
+            Ok(Arc::from(vec![make_extra_hours(
+                ExtraHoursCategory::Vacation,
+                4.0,
+                date!(2024 - 06 - 05),
+            )]))
+        });
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+    mocks
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    let mut derived = BTreeMap::new();
+    derived.insert(
+        date!(2024 - 06 - 03),
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+        },
+    );
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived.clone()));
+
+    let service = mocks.build();
+    let reports = service
+        .get_reports_for_all_employees(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_reports_for_all_employees muss erfolgreich sein");
+
+    assert_eq!(reports.len(), 1);
+    assert_eq!(
+        reports[0].vacation_hours, 12.0,
+        "get_reports_for_all_employees: 4h extra_hours + 8h absence_period = 12h additiv"
+    );
+}
+
+/// Test B — get_week: beide Quellen, additive Summe.
+/// extra_hours -> [SickLeave 3h am 2024-06-04].
+/// derive_hours_for_range -> {2024-06-05: SickLeave 8h}.
+/// Erwartung: sick_leave = 11.0 (3h extra_hours + 8h absence_period).
+#[tokio::test]
+async fn test_get_week_additive_merge() {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![fixture_work_details_8h_mon_fri()])));
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+
+    let sick_entry = make_extra_hours(
+        ExtraHoursCategory::SickLeave,
+        3.0,
+        date!(2024 - 06 - 04),
+    );
+    let extras: Arc<[ExtraHours]> = Arc::from(vec![sick_entry]);
+    mocks
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(move |_, _, _, _| Ok(extras.clone()));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    let mut derived = BTreeMap::new();
+    derived.insert(
+        date!(2024 - 06 - 05),
+        ResolvedAbsence {
+            category: AbsenceCategory::SickLeave,
+            hours: 8.0,
+        },
+    );
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived.clone()));
+
+    let service = mocks.build();
+    let reports = service
+        .get_week(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_week muss erfolgreich sein");
+
+    assert_eq!(reports.len(), 1);
+    assert_eq!(
+        reports[0].sick_leave_hours, 11.0,
+        "get_week: 3h extra_hours + 8h absence_period = 11h SickLeave additiv"
+    );
+}
+
+/// Test C — WR-02 Gleichtags-Overlap: lebende extra_hours + absence_period am selben Tag
+/// summieren additiv zu 16h (kein Dedup, M-02).
+/// extra_hours -> [Vacation 8h am 2024-06-03 (lebt — nicht soft-deleted)].
+/// derive_hours_for_range -> {2024-06-03: Vacation 8h (gleicher Tag)}.
+/// Erwartung: vacation = 16.0.
+#[tokio::test]
+async fn test_same_day_overlap_additive_no_dedup() {
+    let mut mocks = ReportingMocks::new();
+    setup_common_mocks(&mut mocks);
+
+    let mut derived = BTreeMap::new();
+    derived.insert(
+        date!(2024 - 06 - 03),
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+        },
+    );
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(move |_, _, _, _, _| Ok(derived.clone()));
+
+    // Gleicher Tag 2024-06-03 wie die derived Vacation — lebende (nicht soft-deleted) Zeile.
+    let extras: Arc<[ExtraHours]> = Arc::from(vec![make_extra_hours(
+        ExtraHoursCategory::Vacation,
+        8.0,
+        date!(2024 - 06 - 03),
+    )]);
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year_range()
+        .returning(move |_, _, _, _, _| Ok(extras.clone()));
+
+    let report = run_report(mocks.build()).await;
+
+    assert_eq!(
+        report.vacation_hours, 16.0,
+        "Gleichtags-Koexistenz: 8h extra_hours + 8h absence_period = 16h additiv (kein Dedup, M-02)"
+    );
+}
+
+/// Test D — IN-03 Year-Bounds: get_reports_for_all_employees uebergibt exakt
+/// [first_day_in_year(2024)..until_week-Sonntag] an derive_hours_for_range.
+/// Woche-0 (Vorjahr) und Jahresend-Overflow leaken keine Absence-Stunden.
+#[tokio::test]
+async fn test_all_employees_year_bounds_no_leak() {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
+    mocks
+        .employee_work_details_service
+        .expect_all()
+        .returning(|_, _| Ok(Arc::from(vec![])));
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+    mocks
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    // Assertiert die uebergebenen Bounds direkt im Mock (IN-03).
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .times(1)
+        .returning(|from, to, _, _, _| {
+            assert_eq!(
+                from,
+                time::macros::date!(2024 - 01 - 01),
+                "from MUSS first_day_in_year(2024) sein, nicht Vorjahres-Woche-0"
+            );
+            assert!(
+                to <= time::macros::date!(2024 - 12 - 31),
+                "to darf nicht ins Folgejahr leaken, war: {:?}",
+                to
+            );
+            Ok(BTreeMap::new())
+        });
+
+    let service = mocks.build();
+    let reports = service
+        .get_reports_for_all_employees(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_reports_for_all_employees muss erfolgreich sein");
+
+    assert_eq!(reports.len(), 1);
+    assert_eq!(
+        reports[0].vacation_hours, 0.0,
+        "Year-Bounds-Test: vacation_hours = 0.0 (beide Quellen leer)"
     );
 }
