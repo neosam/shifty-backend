@@ -2180,4 +2180,118 @@ mod tests {
             "Expected Half hint text in: {html}"
         );
     }
+
+    // ── HourlyMarkerRow SSR-Tests (Phase 8.5 Plan 06) ─────────────────
+    //
+    // Render `HourlyMarkerRow` direkt mit Beispiel-Props (is_hr=true / false).
+    // Deckt D-07 (Badge), D-08 (Edit-Button für alle), D-09 (Convert nur HR).
+
+    fn sample_marker() -> ExtraHoursMarker {
+        use rest_types::ExtraHoursCategoryTO;
+        use std::sync::Arc;
+        ExtraHoursMarker {
+            extra_hours_id: Uuid::nil(),
+            sales_person_id: Uuid::nil(),
+            when: date!(2026 - 06 - 15),
+            amount: 8.0_f32,
+            category: ExtraHoursCategoryTO::Vacation,
+            description: Arc::<str>::from("Jahresurlaub"),
+            person_name: Arc::<str>::from("Max Mustermann"),
+        }
+    }
+
+    /// D-07: HourlyMarkerRow rendert „stundenbasiert"-Badge + Stundenanzahl.
+    #[test]
+    fn hourly_marker_row_renders_badge() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                HourlyMarkerRow {
+                    marker: sample_marker(),
+                    is_hr: false,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("stundenbasiert"),
+            "HourlyMarkerRow muss 'stundenbasiert'-Badge rendern: {html}"
+        );
+        assert!(
+            html.contains("8.00"),
+            "HourlyMarkerRow muss die Stundenanzahl rendern: {html}"
+        );
+        assert!(
+            html.contains("Std."),
+            "HourlyMarkerRow muss den Stunden-Suffix rendern: {html}"
+        );
+    }
+
+    /// D-08: „Stunden bearbeiten"-Button ist auch bei is_hr=false sichtbar.
+    #[test]
+    fn hourly_marker_row_renders_edit_action() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                HourlyMarkerRow {
+                    marker: sample_marker(),
+                    is_hr: false,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Stunden bearbeiten"),
+            "Stunden-bearbeiten-Button muss auch bei is_hr=false sichtbar sein: {html}"
+        );
+        // Convert-Button darf NICHT vorhanden sein (non-HR)
+        assert!(
+            !html.contains("In Zeitraum umwandeln"),
+            "Convert-Button darf bei is_hr=false NICHT vorhanden sein: {html}"
+        );
+    }
+
+    /// D-09: „In Zeitraum umwandeln"-Button nur bei is_hr=true.
+    #[test]
+    fn convert_action_visible_to_hr_only() {
+        // HR: Button vorhanden.
+        fn app_hr() -> Element {
+            pin_de_locale();
+            rsx! {
+                HourlyMarkerRow {
+                    marker: sample_marker(),
+                    is_hr: true,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html_hr = render(app_hr);
+        assert!(
+            html_hr.contains("In Zeitraum umwandeln"),
+            "Convert-Button muss bei is_hr=true vorhanden sein: {html_hr}"
+        );
+
+        // Non-HR: Button nicht vorhanden.
+        fn app_non_hr() -> Element {
+            pin_de_locale();
+            rsx! {
+                HourlyMarkerRow {
+                    marker: sample_marker(),
+                    is_hr: false,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html_non_hr = render(app_non_hr);
+        assert!(
+            !html_non_hr.contains("In Zeitraum umwandeln"),
+            "Convert-Button darf bei is_hr=false NICHT vorhanden sein: {html_non_hr}"
+        );
+    }
 }
