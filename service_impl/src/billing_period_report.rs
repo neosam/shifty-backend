@@ -53,7 +53,13 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   Ältere Snapshots (v4) haben die `extra_hours`-Seite nicht mitgezählt
 ///   (Flag war on → nur absence_period) oder umgekehrt (Flag off → nur
 ///   extra_hours). Ein Validator kann v4-Snapshots nicht sicher re-validieren.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 5;
+/// - v6: Phase 8.4 (Gap 2 / WR-01) — absence_period-derived Vacation/SickLeave/
+///   UnpaidLeave reduzieren jetzt SYMMETRISCH zu extra_hours-Absence die
+///   `expected_hours`/`balance_hours` (und damit die persistierten value_types
+///   Balance + ExpectedHours). v5-Snapshots haben die absence_period-Seite nur
+///   in den Display-Stunden, nicht in der Balance gezaehlt — ein Validator kann
+///   v5-Balance/ExpectedHours nicht gegen die neue Computation re-validieren.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 6;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {

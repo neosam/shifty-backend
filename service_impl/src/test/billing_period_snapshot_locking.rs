@@ -4,9 +4,8 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 5 (Phase-8.4-Bump —
-//!   additiver Merge beider Quellen für Vacation/SickLeave/UnpaidLeave ändert
-//!   die Input-Menge der Aggregations-Computation).
+//! - `test_snapshot_schema_version_pinned`: erwartet 6 (Phase-8.4-Gap2-Bump —
+//!   absence_period-derived Stunden reduzieren jetzt Balance/ExpectedHours symmetrisch).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -25,11 +24,10 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 5,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 5 sein nach Phase-8.4-Bump \
-         (Trigger: Additiver Merge — Vacation/SickLeave/UnpaidLeave werden \
-         aus BEIDEN Quellen summiert: lebende extra_hours + derive_hours_for_range. \
-         Aeltere Snapshots koennen nicht sicher re-validiert werden). \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 6,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 6 sein nach Phase-8.4-Gap2-Bump \
+         (absence-derived Stunden bewegen jetzt balance/expected symmetrisch — \
+         persistierte value_types Balance + ExpectedHours geaendert). \
          Siehe CLAUDE.md § Snapshot Schema Versioning."
     );
 }
