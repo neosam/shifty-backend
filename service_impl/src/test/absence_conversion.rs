@@ -194,6 +194,65 @@ async fn convert_extra_hours_happy_path() {
     assert_eq!(period.to_date, date!(2026 - 04 - 12));
 }
 
+/// CR-01 Regression: Der Soft-Delete MUSS ueber die physische `entity.id` laufen,
+/// nicht ueber die als Input uebergebene logical_id. Wir simulieren einen zuvor
+/// editierten Eintrag (versioniertes Schreibmodell -> aktive Row hat `id != logical_id`):
+/// `find_by_logical_id` liefert eine Entity, deren `id` von der logical_id abweicht.
+/// `soft_delete_bulk` MUSS mit genau dieser physischen id aufgerufen werden — `withf`
+/// schlaegt fehl, wenn (wie im Bug) die logical_id durchgereicht wuerde.
+#[tokio::test]
+async fn convert_soft_deletes_by_physical_id_not_logical_id() {
+    let mut deps = build_dependencies();
+
+    // Aktive Row nach einem Edit: id = physische id != logical_id.
+    let physical_id = uuid!("EE000000-0000-0000-0000-0000000000FF");
+    assert_ne!(physical_id, extra_hours_logical_id());
+
+    deps.extra_hours_dao
+        .expect_find_by_logical_id()
+        .times(1)
+        .returning(move |_, _| {
+            let mut entity = make_vacation_extra_hours_entity();
+            entity.id = physical_id; // versioniertes Schreibmodell: id != logical_id
+            Ok(Some(entity))
+        });
+
+    deps.absence_dao
+        .expect_find_overlapping()
+        .times(1)
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+
+    deps.absence_dao
+        .expect_create()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    deps.migration_source_dao
+        .expect_upsert_migration_source()
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    deps.extra_hours_service
+        .expect_soft_delete_bulk()
+        .times(1)
+        .withf(move |ids, _process, _context, _tx| ids.len() == 1 && ids[0] == physical_id)
+        .returning(|_, _, _, _| Ok(()));
+
+    let svc = deps.build_service();
+    let result = svc
+        .convert_extra_hours_to_absence(
+            extra_hours_logical_id(), // Input: logical_id != physische id
+            date!(2026 - 04 - 10),
+            date!(2026 - 04 - 12),
+            None,
+            Authentication::Context(()),
+            None,
+        )
+        .await;
+
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+}
+
 /// Fehlerpfad: start > end -> Err(DateOrderWrong); absence_dao.create darf NICHT aufgerufen werden.
 #[tokio::test]
 async fn convert_extra_hours_date_order_wrong() {

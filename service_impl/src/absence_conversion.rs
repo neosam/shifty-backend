@@ -161,9 +161,17 @@ impl<Deps: AbsenceConversionServiceDeps> AbsenceConversionService
 
         // Write 3 — soft-delete (aus cutover.rs:575-582; Pitfall 5: intern Authentication::Full
         // nach dem hr-Gate — der echte Guard ist das hr-Gate am Anfang dieser Methode)
+        //
+        // CR-01: Soft-Delete MUSS ueber die PHYSISCHE `entity.id` laufen, nicht ueber die
+        // logical_id (`extra_hours_id`). `extra_hours_service::update` ist versioniert
+        // (tombstone alte Row + INSERT neue Row mit neuer `id`, gleicher `logical_id`),
+        // und `ExtraHoursDao::soft_delete_bulk` filtert `WHERE id IN (...)` ueber die
+        // physische id. Bei jemals editierten Eintraegen gilt `entity.id != logical_id`;
+        // ein Soft-Delete ueber die logical_id traefe dann keine Zeile -> lebende
+        // Stunden-Row ueberlebt -> Doppelzaehlung (Marker + Range).
         self.extra_hours_service
             .soft_delete_bulk(
-                Arc::from([extra_hours_id]),
+                Arc::from([entity.id]),
                 "absence_conversion::convert",
                 Authentication::Full,
                 Some(tx.clone()),
