@@ -141,6 +141,9 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     "DayFractionTO",
     // Phase 8.5 (Plan 03) — Convert-Request-DTO.
     "ConvertExtraHoursRequestTO",
+    // Phase 8.5 (Plan 04) — Read-Projektion: lebende Stunden-Marker + Wrapper-Shape.
+    "ExtraHoursMarkerTO",
+    "AbsenceListWithProjectionTO",
 ];
 
 #[test]

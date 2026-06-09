@@ -1434,6 +1434,8 @@ mod absence_no_drift;
 #[cfg(test)]
 mod absence_period;
 #[cfg(test)]
+mod absence_projection;
+#[cfg(test)]
 mod convert_to_absence;
 #[cfg(test)]
 mod admin_auto_grant;
