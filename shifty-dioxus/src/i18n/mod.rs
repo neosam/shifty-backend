@@ -573,6 +573,12 @@ pub enum Key {
     AbsenceConvertToRangeAction,
     /// Suffix für die Stundenanzahl in der Marker-Row (De: „Std.", En: „hrs").
     AbsenceHourlyAmountLabel,
+
+    // Phase 8.5 Plan 07 — Soft-Migration-Hinweis im Working-Hours-Dialog (D-10/D-11).
+    /// Empfehlungs-Satz unter dem Kategorie-Select wenn Vacation/SickLeave/UnpaidLeave gewählt.
+    ExtraHoursAbsenceHint,
+    /// Link-Text im Hinweis (De: „Zu Abwesenheiten", En: „Go to absences").
+    ExtraHoursAbsenceHintLink,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -1195,5 +1201,66 @@ mod tests {
             "Převést na rozsah"
         );
         assert_eq!(i18n.t(Key::AbsenceHourlyAmountLabel).as_ref(), "hod.");
+    }
+
+    // ===== Phase 8.5 Plan 07 — Soft-Migration-Hinweis i18n Tests =====
+
+    #[test]
+    fn i18n_extra_hours_absence_hint_keys_present_in_all_locales() {
+        // Locks the contract: both hint keys have a translation in all three
+        // locales and never fall back to "??". Primary guard against Pitfall 2.
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [Key::ExtraHoursAbsenceHint, Key::ExtraHoursAbsenceHintLink] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_extra_hours_absence_hint_match_german_reference() {
+        // Pitfall-2 guard: ensures de.rs uses Locale::De (not accidentally Locale::En).
+        let i18n = generate(Locale::De);
+        assert_eq!(
+            i18n.t(Key::ExtraHoursAbsenceHint).as_ref(),
+            "Für ganze Urlaubs-/Abwesenheits-Zeiträume nutze bitte die Abwesenheits-Maske."
+        );
+        assert_eq!(
+            i18n.t(Key::ExtraHoursAbsenceHintLink).as_ref(),
+            "Zu Abwesenheiten"
+        );
+    }
+
+    #[test]
+    fn i18n_extra_hours_absence_hint_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(
+            i18n.t(Key::ExtraHoursAbsenceHint).as_ref(),
+            "For full vacation or absence periods, please use the absences form."
+        );
+        assert_eq!(
+            i18n.t(Key::ExtraHoursAbsenceHintLink).as_ref(),
+            "Go to absences"
+        );
+    }
+
+    #[test]
+    fn i18n_extra_hours_absence_hint_match_czech_reference() {
+        let i18n = generate(Locale::Cs);
+        assert_eq!(
+            i18n.t(Key::ExtraHoursAbsenceHint).as_ref(),
+            "Pro celé dovolené nebo nepřítomnosti prosím použij masku nepřítomností."
+        );
+        assert_eq!(
+            i18n.t(Key::ExtraHoursAbsenceHintLink).as_ref(),
+            "Na nepřítomnosti"
+        );
     }
 }

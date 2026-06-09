@@ -929,4 +929,12 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Convert to range",
     );
     i18n.add_text(Locale::En, Key::AbsenceHourlyAmountLabel, "hrs");
+
+    // Phase 8.5 Plan 07 — Soft-migration hint in Working-Hours dialog (D-10/D-11).
+    i18n.add_text(
+        Locale::En,
+        Key::ExtraHoursAbsenceHint,
+        "For full vacation or absence periods, please use the absences form.",
+    );
+    i18n.add_text(Locale::En, Key::ExtraHoursAbsenceHintLink, "Go to absences");
 }

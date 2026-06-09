@@ -992,4 +992,12 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Převést na rozsah",
     );
     i18n.add_text(Locale::Cs, Key::AbsenceHourlyAmountLabel, "hod.");
+
+    // Phase 8.5 Plan 07 — Jemný migrační hint v dialogu Pracovní hodiny (D-10/D-11).
+    i18n.add_text(
+        Locale::Cs,
+        Key::ExtraHoursAbsenceHint,
+        "Pro celé dovolené nebo nepřítomnosti prosím použij masku nepřítomností.",
+    );
+    i18n.add_text(Locale::Cs, Key::ExtraHoursAbsenceHintLink, "Na nepřítomnosti");
 }
