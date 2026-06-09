@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-06-09T07:10:51.948Z"
+last_updated: "2026-06-09T08:36:46.469Z"
 last_activity: 2026-06-09 -- Phase 08.4 execution started
 progress:
   total_phases: 4
@@ -28,7 +28,7 @@ progress:
 ## Current Position
 
 Phase: 08.4 (reporting-additiv-merge) — EXECUTING
-Plan: 1 of 2
+Plan: 1 of 4
 Status: Executing Phase 08.4
 Last activity: 2026-06-09 -- Phase 08.4 execution started
 
