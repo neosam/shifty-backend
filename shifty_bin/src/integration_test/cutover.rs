@@ -1665,36 +1665,29 @@ mod convert_quarantine_endpoints_tests {
         .get::<i64, _>("c")
     }
 
-    /// Fetch all distinct `cutover_run_id` values from the migration-source
-    /// table for the given `extra_hours_id` set. Used by the bulk-convert
-    /// happy-path test to assert audit cohesion (RESEARCH Q3).
-    async fn distinct_run_ids_for_migrated(
+    /// Count how many of the given `extra_hours_id`s are present in the
+    /// migration-source table. Phase 8.5 (D-04): cutover_run_id removed;
+    /// we only assert backlink presence, not run-cohesion.
+    async fn count_migrated_backlinks(
         test_setup: &TestSetup,
         extra_hours_ids: &[Uuid],
-    ) -> Vec<Uuid> {
-        let mut ids = Vec::new();
+    ) -> usize {
+        let mut count = 0;
         for ehid in extra_hours_ids {
             let bytes = ehid.as_bytes().to_vec();
-            let row = sqlx::query(
-                "SELECT cutover_run_id FROM absence_period_migration_source \
+            let found = sqlx::query(
+                "SELECT 1 FROM absence_period_migration_source \
                  WHERE extra_hours_id = ?",
             )
             .bind(&bytes)
             .fetch_optional(test_setup.pool.as_ref())
             .await
             .unwrap();
-            if let Some(row) = row {
-                let raw: Vec<u8> = row.get("cutover_run_id");
-                let arr: [u8; 16] = raw
-                    .as_slice()
-                    .try_into()
-                    .expect("cutover_run_id must be 16 bytes");
-                ids.push(Uuid::from_bytes(arr));
+            if found.is_some() {
+                count += 1;
             }
         }
-        ids.sort();
-        ids.dedup();
-        ids
+        count
     }
 
     // -----------------------------------------------------------------
@@ -2044,17 +2037,17 @@ mod convert_quarantine_endpoints_tests {
         let pre_deleted = count_cutover_softdeleted_extra_hours(&test_setup).await;
         assert_eq!(pre_deleted, 3, "3 extra_hours rows soft-deleted");
 
-        // RESEARCH Q3 — all 3 migration-source rows share ONE cutover_run_id.
-        let run_ids = distinct_run_ids_for_migrated(
+        // Phase 8.5 (D-04): cutover_run_id entfernt — wir pruefen nur noch,
+        // dass alle 3 Backlinks in absence_period_migration_source vorhanden sind.
+        let backlink_count = count_migrated_backlinks(
             &test_setup,
             &[e1.id, e2.id, e3.id],
         )
         .await;
         assert_eq!(
-            run_ids.len(),
-            1,
-            "all 3 rows MUST share one synthetic cutover_run_id (got: {:?})",
-            run_ids
+            backlink_count,
+            3,
+            "all 3 extra_hours rows MUST have a backlink in absence_period_migration_source"
         );
     }
 
