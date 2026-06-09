@@ -8,7 +8,7 @@
 //!   5. test_soft_delete_migrated_rows_only
 //!   6. test_feature_flag_set_to_true_on_commit
 //!   7. test_extra_hours_post_flag_gated_before_after
-//!   8. test_403_body_format_for_deprecated_category
+//!   8. (entfernt in Phase 8.4 — 403-deprecated-category-Pfad nach Gate-Rückbau inaktiv)
 //!   9. test_gate_dry_run_endpoint_success
 //!  10. test_gate_dry_run_forbidden_for_unprivileged
 //!  11. test_gate_dry_run_returns_failure_with_quarantine
@@ -665,7 +665,9 @@ async fn test_extra_hours_post_flag_gated_before_after() {
         .unwrap();
     assert!(flag_enabled(&test_setup, "absence_range_source_active").await);
 
-    // AFTER: Vacation create rejected with ExtraHoursCategoryDeprecated.
+    // AFTER (Phase 8.4 — Koexistenz-Modell M-01): Vacation create succeeds even
+    // after cutover. Das `ExtraHoursCategoryDeprecated`-Gate wurde zurückgebaut;
+    // extra_hours und absence_period koexistieren dauerhaft.
     let after = test_setup
         .rest_state
         .extra_hours_service()
@@ -689,17 +691,12 @@ async fn test_extra_hours_post_flag_gated_before_after() {
         )
         .await;
     assert!(
-        matches!(
-            &after,
-            Err(ServiceError::ExtraHoursCategoryDeprecated(c))
-                if **c == ExtraHoursCategory::Vacation
-        ),
-        "post-cutover Vacation create MUST be rejected, got: {:?}",
+        after.is_ok(),
+        "post-cutover Vacation create MUST succeed (M-01 Koexistenz), got: {:?}",
         after
     );
 
-    // ExtraWork remains unaffected by the gate (D-Phase4-09 specifies only
-    // Vacation/SickLeave/UnpaidLeave are gated).
+    // ExtraWork was never gated and remains unaffected.
     let extra_work = test_setup
         .rest_state
         .extra_hours_service()
@@ -729,64 +726,11 @@ async fn test_extra_hours_post_flag_gated_before_after() {
 }
 
 // ---------------------------------------------------------------------------
-// 8. ExtraHoursCategoryDeprecated → 403 body shape.
+// 8. (Phase 8.4) Der 403-Body-Format-Test wurde entfernt — der
+//    deprecated-category-Pfad wurde mit dem Gate-Rückbau deaktiviert
+//    (M-01 Koexistenz). Der ServiceError-Variant bleibt als toter Code bis 8.6
+//    stehen, wird aber nie mehr aus create() geworfen.
 // ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn test_403_body_format_for_deprecated_category() {
-    // The mapping `ServiceError::ExtraHoursCategoryDeprecated → 403 + JSON
-    // body { error, category, message }` is set up in `rest::error_handler`
-    // (Plan 04-04). We assert the error variant carries the right category
-    // so the REST mapping's `format!("{:?}", category).to_lowercase()` step
-    // produces the right snake-case category string.
-    let test_setup = TestSetup::new().await;
-
-    // Flip the flag manually to skip a full commit cycle.
-    sqlx::query("UPDATE feature_flag SET enabled = 1 WHERE key = 'absence_range_source_active'")
-        .execute(test_setup.pool.as_ref())
-        .await
-        .unwrap();
-
-    let alice = create_sales_person(&test_setup, "Alice").await;
-    create_contract(&test_setup, alice.id).await;
-
-    let err = test_setup
-        .rest_state
-        .extra_hours_service()
-        .create(
-            &ExtraHours {
-                id: Uuid::nil(),
-                sales_person_id: alice.id,
-                amount: 8.0,
-                description: "deprecated".into(),
-                category: ExtraHoursCategory::Vacation,
-                date_time: time::PrimitiveDateTime::new(
-                    date!(2025 - 06 - 02),
-                    time::Time::MIDNIGHT,
-                ),
-                created: None,
-                deleted: None,
-                version: Uuid::nil(),
-            },
-            Authentication::Full,
-            None,
-        )
-        .await
-        .unwrap_err();
-
-    match err {
-        ServiceError::ExtraHoursCategoryDeprecated(category) => {
-            // The REST-layer mapping (rest/src/lib.rs:255) builds the JSON body
-            // from this category by lowercasing its Debug repr.
-            let body_category = format!("{:?}", category).to_lowercase();
-            assert_eq!(
-                body_category, "vacation",
-                "REST 403 body's `category` field must be 'vacation'"
-            );
-        }
-        other => panic!("expected ExtraHoursCategoryDeprecated, got: {:?}", other),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // 9. gate-dry-run succeeds (HR).

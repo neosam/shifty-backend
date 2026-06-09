@@ -23,8 +23,6 @@ pub mod feature_flag;
 #[cfg(test)]
 mod permission_test;
 #[cfg(test)]
-pub mod reporting_flag_off_bit_identity;
-#[cfg(test)]
 pub mod reporting_flag_on_integration;
 #[cfg(test)]
 pub mod reporting_phase2_fixtures;

@@ -615,14 +615,14 @@ async fn test_update_persists_editable_fields_to_new_row() {
 // Tests — Phase 4 / Plan 04-04 (flag-gate + soft_delete_bulk)
 // ============================================================================
 
-// Test 1 (D-Phase4-09): flag=off + Vacation -> Ok (legacy path remains active)
+// Test 1 (Phase 8.4 — Gate-Rückbau): Vacation create succeeds unconditionally.
+// Nach Rückbau des `ExtraHoursCategoryDeprecated`-Gates wird der Flag
+// `absence_range_source_active` für Vacation/SickLeave/UnpaidLeave gar nicht
+// mehr gelesen — `times(0)` macht das explizit.
 #[tokio::test]
-async fn create_vacation_succeeds_when_flag_off() {
+async fn create_vacation_always_succeeds() {
     let mut deps = build_dependencies_for_create();
-    deps.feature_flag_service
-        .expect_is_enabled()
-        .with(eq("absence_range_source_active"), always(), always())
-        .returning(|_, _, _| Ok(false));
+    deps.feature_flag_service.expect_is_enabled().times(0);
     deps.extra_hours_dao
         .expect_create()
         .times(1)
@@ -637,38 +637,12 @@ async fn create_vacation_succeeds_when_flag_off() {
     assert_eq!(created.version, fixture_new_version());
 }
 
-// Test 2 (D-Phase4-09): flag=on + Vacation -> Err(ExtraHoursCategoryDeprecated)
+// Test 3 (Phase 8.4 — Gate-Rückbau): ExtraWork triggert keinen Flag-Check.
+// `times(0)` auf is_enabled bleibt korrekt — ExtraWork war nie im gated Set,
+// und nach dem Gate-Rückbau wird der Flag für keine Kategorie mehr gelesen.
 #[tokio::test]
-async fn create_vacation_returns_403_error_variant_when_flag_on() {
+async fn create_extra_work_does_not_trigger_flag_check() {
     let mut deps = build_dependencies_for_create();
-    deps.feature_flag_service
-        .expect_is_enabled()
-        .with(eq("absence_range_source_active"), always(), always())
-        .returning(|_, _, _| Ok(true));
-    // CRITICAL: DAO must NOT be called when the flag-gate denies.
-    deps.extra_hours_dao.expect_create().times(0);
-
-    let service = deps.build_service();
-    let entity = fixture_extra_hours(ExtraHoursCategory::Vacation);
-    let result = service.create(&entity, ().auth(), None).await;
-    assert!(
-        matches!(
-            &result,
-            Err(ServiceError::ExtraHoursCategoryDeprecated(c)) if **c == ExtraHoursCategory::Vacation
-        ),
-        "expected ExtraHoursCategoryDeprecated(Vacation), got: {:?}",
-        result
-    );
-}
-
-// Test 3 (D-Phase4-09): flag=on + ExtraWork -> Ok (ExtraWork not in gated set)
-#[tokio::test]
-async fn create_extra_work_succeeds_when_flag_on() {
-    let mut deps = build_dependencies_for_create();
-    // Flag-check must be SKIPPED for non-deprecated categories — ExtraWork
-    // is not in the {Vacation, SickLeave, UnpaidLeave} set, so the impl must
-    // bypass `is_enabled`. Setting `times(0)` ensures we don't issue a
-    // pointless flag-read on every ExtraWork POST.
     deps.feature_flag_service.expect_is_enabled().times(0);
     deps.extra_hours_dao
         .expect_create()
