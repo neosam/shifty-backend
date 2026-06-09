@@ -4,10 +4,9 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 4 (Phase-8.3-Bump —
-//!   day_fraction=Half halbiert die effektive Soll-Stundenzahl in
-//!   `derive_hours_for_range`, was die Vacation/SickLeave/UnpaidLeave-
-//!   value_type-Computation aendert).
+//! - `test_snapshot_schema_version_pinned`: erwartet 5 (Phase-8.4-Bump —
+//!   additiver Merge beider Quellen für Vacation/SickLeave/UnpaidLeave ändert
+//!   die Input-Menge der Aggregations-Computation).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -26,11 +25,11 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 4,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 4 sein nach Phase-8.3-Bump \
-         (Trigger: AbsencePeriod.day_fraction = Half halbiert die effektive \
-         Soll-Stundenzahl pro Tag in derive_hours_for_range; betrifft die \
-         Vacation/SickLeave/UnpaidLeave-derived value_types hours + days). \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 5,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 5 sein nach Phase-8.4-Bump \
+         (Trigger: Additiver Merge — Vacation/SickLeave/UnpaidLeave werden \
+         aus BEIDEN Quellen summiert: lebende extra_hours + derive_hours_for_range. \
+         Aeltere Snapshots koennen nicht sicher re-validiert werden). \
          Siehe CLAUDE.md § Snapshot Schema Versioning."
     );
 }

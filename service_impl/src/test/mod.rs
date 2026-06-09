@@ -23,6 +23,8 @@ pub mod feature_flag;
 #[cfg(test)]
 mod permission_test;
 #[cfg(test)]
+pub mod reporting_additive_merge;
+#[cfg(test)]
 pub mod reporting_flag_on_integration;
 #[cfg(test)]
 pub mod reporting_phase2_fixtures;
