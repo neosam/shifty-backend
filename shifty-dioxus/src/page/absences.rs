@@ -31,8 +31,11 @@ use crate::component::form::{Field, SelectInput, TextInput, TextareaInput};
 use crate::component::{Dialog, DialogVariant, TopBar};
 use crate::i18n::Key;
 use crate::loader;
+use crate::component::absence_convert_modal::AbsenceConvertModal;
+use crate::component::extra_hours_modal::ExtraHoursModal;
 use crate::service::absence::{
-    AbsenceAction, AbsenceModalEvent, ABSENCE_MODAL_EVENT, ABSENCE_REFRESH, ABSENCE_STORE,
+    AbsenceAction, AbsenceModalEvent, ABSENCE_HOURLY_STORE, ABSENCE_MODAL_EVENT, ABSENCE_REFRESH,
+    ABSENCE_STORE,
 };
 use crate::service::auth::AUTH;
 use crate::service::config::CONFIG;
@@ -40,7 +43,8 @@ use crate::service::i18n::I18N;
 use crate::service::vacation_balance::{
     VacationBalanceAction, VACATION_BALANCE_STORE, VACATION_TEAM_STORE,
 };
-use crate::state::absence_period::{AbsenceCategory, AbsencePeriod, DayFraction};
+use crate::state::absence_period::{AbsenceCategory, AbsencePeriod, DayFraction, ExtraHoursMarker};
+use crate::state::employee::{ExtraHours, WorkingHoursCategory};
 use crate::state::shiftplan::SalesPerson;
 use crate::state::vacation_balance::VacationBalance;
 
@@ -1368,20 +1372,44 @@ pub fn StatsGrid(props: StatsGridProps) -> Element {
 
 // ─── AbsenceList ───────────────────────────────────────────────────────────
 
+/// Gemischtes List-Item: Range-basierte Abwesenheitsperiode oder
+/// stundenbasierter Marker (noch nicht konvertiert).
+enum AbsenceListItem {
+    Range(AbsencePeriod),
+    Marker(ExtraHoursMarker),
+}
+
+impl AbsenceListItem {
+    /// Datum für die chronologische Sortierung.
+    fn sort_date(&self) -> time::Date {
+        match self {
+            AbsenceListItem::Range(a) => a.from_date,
+            AbsenceListItem::Marker(m) => m.when,
+        }
+    }
+}
+
 #[derive(Props, Clone, PartialEq)]
 pub struct AbsenceListProps {
     pub rows: Rc<[AbsencePeriod]>,
+    /// Stundenbasierte Marker (aus `ABSENCE_HOURLY_STORE`).
+    pub hourly_markers: Rc<[ExtraHoursMarker]>,
     pub is_hr: bool,
     pub today: time::Date,
     pub filter_active: bool,
     pub on_row_click: EventHandler<AbsencePeriod>,
+    /// „Stunden bearbeiten" (self+hr) — öffnet ExtraHoursModal.
+    pub on_edit_hours: EventHandler<ExtraHoursMarker>,
+    /// „In Zeitraum umwandeln" (HR-only) — öffnet AbsenceConvertModal.
+    pub on_convert: EventHandler<ExtraHoursMarker>,
 }
 
 #[component]
 pub fn AbsenceList(props: AbsenceListProps) -> Element {
     let i18n = I18N.read().clone();
-    if props.rows.is_empty() {
-        // Empty-state variants per UI-SPEC.
+
+    // Empty-state: nur wenn BEIDE Quellen leer sind.
+    if props.rows.is_empty() && props.hourly_markers.is_empty() {
         let (heading_key, body_key) = if props.filter_active {
             (Key::AbsenceEmptyFilterHeading, Key::AbsenceEmptyFilterBody)
         } else if props.is_hr {
@@ -1400,6 +1428,17 @@ pub fn AbsenceList(props: AbsenceListProps) -> Element {
             }
         };
     }
+
+    // Chronologischer Merge beider Quellen.
+    let mut items: Vec<AbsenceListItem> = Vec::new();
+    for row in props.rows.iter() {
+        items.push(AbsenceListItem::Range(row.clone()));
+    }
+    for marker in props.hourly_markers.iter() {
+        items.push(AbsenceListItem::Marker(marker.clone()));
+    }
+    items.sort_by_key(|item| item.sort_date());
+
     rsx! {
         div { class: "bg-surface border border-border rounded-lg overflow-hidden",
             // Plan 08-07 Task 5: Header bleibt nur ab `md` sichtbar — auf
@@ -1412,11 +1451,136 @@ pub fn AbsenceList(props: AbsenceListProps) -> Element {
                 div { "{i18n.t(Key::AbsenceColStatus)}" }
                 div { "{i18n.t(Key::AbsenceColWarnings)}" }
             }
-            for row in props.rows.iter() {
-                AbsenceListRow {
-                    absence: row.clone(),
-                    today: props.today,
-                    on_click: props.on_row_click,
+            for item in items.iter() {
+                match item {
+                    AbsenceListItem::Range(row) => rsx! {
+                        AbsenceListRow {
+                            absence: row.clone(),
+                            today: props.today,
+                            on_click: props.on_row_click,
+                        }
+                    },
+                    AbsenceListItem::Marker(marker) => rsx! {
+                        HourlyMarkerRow {
+                            marker: marker.clone(),
+                            is_hr: props.is_hr,
+                            on_edit: props.on_edit_hours,
+                            on_convert: props.on_convert,
+                        }
+                    },
+                }
+            }
+        }
+    }
+}
+
+// ─── HourlyMarkerRow ───────────────────────────────────────────────────────
+//
+// Read-only Row für noch nicht konvertierte stundenbasierte extra_hours-Rows
+// (Vacation/SickLeave/UnpaidLeave), die inline in der Absence-Liste erscheinen.
+// Zeigt Datum, Stunden, Kategorie-Badge + „stundenbasiert"-Badge.
+// Zwei Affordances:
+//   - „Stunden bearbeiten" (self+hr, immer sichtbar) → on_edit
+//   - „In Zeitraum umwandeln" (HR-only) → on_convert
+
+#[derive(Props, Clone, PartialEq)]
+pub struct HourlyMarkerRowProps {
+    pub marker: ExtraHoursMarker,
+    pub is_hr: bool,
+    pub on_edit: EventHandler<ExtraHoursMarker>,
+    pub on_convert: EventHandler<ExtraHoursMarker>,
+}
+
+#[component]
+pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
+    use rest_types::ExtraHoursCategoryTO;
+
+    let i18n = I18N.read().clone();
+    let marker = props.marker.clone();
+    let marker_for_edit = marker.clone();
+    let marker_for_convert = marker.clone();
+
+    // Pitfall 5: STATIC Tailwind match arms — KEIN format!() für text-/bg-Klassen.
+    let (text_class, bg_class) = match &marker.category {
+        ExtraHoursCategoryTO::Vacation => ("text-good", "bg-good-soft"),
+        ExtraHoursCategoryTO::SickLeave => ("text-warn", "bg-warn-soft"),
+        ExtraHoursCategoryTO::UnpaidLeave => ("text-ink-muted", "bg-surface-2"),
+        // Sonstige Kategorien (ExtraWork, Holiday etc.) — neutrale Farbe.
+        _ => ("text-ink-muted", "bg-surface-2"),
+    };
+    let category_label = match &marker.category {
+        ExtraHoursCategoryTO::Vacation => i18n.t(Key::AbsenceCategoryVacation),
+        ExtraHoursCategoryTO::SickLeave => i18n.t(Key::AbsenceCategorySickLeave),
+        ExtraHoursCategoryTO::UnpaidLeave => i18n.t(Key::AbsenceCategoryUnpaidLeave),
+        _ => i18n.t(Key::CategoryExtraWork),
+    };
+
+    let badge_label = i18n.t(Key::AbsenceHourlyBadge);
+    let amount_label = i18n.t(Key::AbsenceHourlyAmountLabel);
+    let edit_label = i18n.t(Key::AbsenceEditHoursAction);
+    let convert_label = i18n.t(Key::AbsenceConvertToRangeAction);
+    let when_str = marker.when.to_string();
+    let amount_str = format!("{:.2}", marker.amount);
+    let person_name = marker.person_name.as_ref();
+    let description = marker.description.as_ref();
+
+    rsx! {
+        // Gleiche Grid-Struktur wie AbsenceListRow: md:grid-cols-[1.5fr_170px_140px_90px_70px]
+        div {
+            class: "w-full flex flex-col gap-2 md:grid md:grid-cols-[1.5fr_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border bg-surface-alt/30",
+            // Spalte 1: Person + Description (T-8-XSS-01: via RSX auto-escape)
+            div { class: "flex flex-col gap-0.5 min-w-0",
+                span { class: "text-body font-semibold text-ink truncate",
+                    if person_name.is_empty() {
+                        "—"
+                    } else {
+                        "{person_name}"
+                    }
+                }
+                if !description.is_empty() {
+                    span { class: "text-small text-ink-muted truncate",
+                        "{description}"
+                    }
+                }
+            }
+            // Spalte 2: Datum + Stunden
+            div { class: "text-body text-ink font-mono flex flex-col gap-0.5",
+                span { "{when_str}" }
+                span { class: "text-small text-ink-muted",
+                    "{amount_str} {amount_label}"
+                }
+            }
+            // Spalte 3: Kategorie-Badge + „stundenbasiert"-Badge
+            div { class: "flex flex-col gap-1",
+                span {
+                    class: "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-small font-semibold {text_class} {bg_class}",
+                    span { class: "w-1.5 h-1.5 rounded-full bg-current" }
+                    "{category_label}"
+                }
+                span {
+                    class: "inline-flex items-center rounded-full px-2 py-0.5 text-micro font-semibold text-ink-muted bg-surface-2",
+                    "{badge_label}"
+                }
+            }
+            // Spalte 4: leer (kein Status für Marker)
+            div {}
+            // Spalte 5: Aktions-Buttons
+            div { class: "flex flex-col gap-1 items-end",
+                // „Stunden bearbeiten" (self+hr, D-08) — immer sichtbar
+                button {
+                    r#type: "button",
+                    class: "text-small text-accent hover:underline whitespace-nowrap",
+                    onclick: move |_| props.on_edit.call(marker_for_edit.clone()),
+                    "{edit_label}"
+                }
+                // „In Zeitraum umwandeln" (HR-only, D-09)
+                if props.is_hr {
+                    button {
+                        r#type: "button",
+                        class: "text-small text-accent hover:underline whitespace-nowrap",
+                        onclick: move |_| props.on_convert.call(marker_for_convert.clone()),
+                        "{convert_label}"
+                    }
                 }
             }
         }
@@ -1558,8 +1722,13 @@ pub fn AbsencesPage() -> Element {
     let mut show_past = use_signal(|| true);
 
     let absences = ABSENCE_STORE.read().clone();
+    let hourly_markers = ABSENCE_HOURLY_STORE.read().clone();
     let vacation_self = VACATION_BALANCE_STORE.read().clone();
     let vacation_team = VACATION_TEAM_STORE.read().clone();
+
+    // Signale für die Marker-Modals (Task 3 verdrahtet die vollständige Logik).
+    let mut convert_target = use_signal(|| None::<ExtraHoursMarker>);
+    let mut edit_hours_target = use_signal(|| None::<ExtraHoursMarker>);
 
     let category_filter_val = *category_filter.read();
     let person_filter_val = *person_filter.read();
@@ -1674,10 +1843,13 @@ pub fn AbsencesPage() -> Element {
             }
             AbsenceList {
                 rows: filtered_rc.clone(),
+                hourly_markers: hourly_markers.clone(),
                 is_hr: is_hr,
                 today: today,
                 filter_active: filter_active,
                 on_row_click: on_row_click.clone(),
+                on_edit_hours: move |m: ExtraHoursMarker| edit_hours_target.set(Some(m)),
+                on_convert: move |m: ExtraHoursMarker| convert_target.set(Some(m)),
             }
         }
         if *modal_open.read() {
