@@ -379,6 +379,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 8.5 (Plan 03) — AbsenceConversionService: HR-gated per-Row-Convert
+    // von extra_hours (Vacation/SickLeave/UnpaidLeave) nach absence_period.
+    // BL-Tier (D-03). Endpoint: POST /extra-hours/{id}/convert-to-absence.
+    type AbsenceConversionService: service::absence_conversion::AbsenceConversionService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -413,6 +420,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService>;
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
     fn cutover_service(&self) -> Arc<Self::CutoverService>;
+    fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 

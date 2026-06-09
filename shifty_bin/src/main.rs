@@ -41,6 +41,7 @@ type AbsenceDao = AbsenceDaoImpl;
 type ExtraHoursDao = ExtraHoursDaoImpl;
 type FeatureFlagDao = FeatureFlagDaoImpl;
 type CutoverDao = dao_impl_sqlite::cutover::CutoverDaoImpl;
+type MigrationSourceDao = dao_impl_sqlite::migration_source::MigrationSourceDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
@@ -529,6 +530,27 @@ impl service_impl::cutover::CutoverServiceDeps for CutoverServiceDependencies {
 }
 type CutoverService = service_impl::cutover::CutoverServiceImpl<CutoverServiceDependencies>;
 
+// Phase 8.5 (Plan 03) — AbsenceConversionService DI.
+// BL-Tier (D-03): 6 Deps (extra_hours_dao + absence_dao + migration_source_dao
+// + extra_hours_service + permission_service + transaction_dao).
+// MUSS nach Basic-Services + MigrationSourceDao konstruiert werden (Service-Tier-Konvention).
+pub struct AbsenceConversionServiceDependencies;
+impl service_impl::absence_conversion::AbsenceConversionServiceDeps
+    for AbsenceConversionServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type ExtraHoursDao = ExtraHoursDao;
+    type AbsenceDao = AbsenceDao;
+    type MigrationSourceDao = MigrationSourceDao;
+    type ExtraHoursService = ExtraHoursService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type AbsenceConversionService = service_impl::absence_conversion::AbsenceConversionServiceImpl<
+    AbsenceConversionServiceDependencies,
+>;
+
 pub struct ShiftplanCatalogServiceDependencies;
 impl ShiftplanServiceDeps for ShiftplanCatalogServiceDependencies {
     type Context = Context;
@@ -577,6 +599,8 @@ pub struct RestStateImpl {
     // ExtraHoursService, CutoverService) genutzt — jetzt auch via
     // `RestStateDef::feature_flag_service`.
     feature_flag_service: Arc<FeatureFlagService>,
+    // Phase 8.5 (Plan 03): HR-gated per-Row-Convert extra_hours -> absence_period.
+    absence_conversion_service: Arc<AbsenceConversionService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -610,6 +634,7 @@ impl rest::RestStateDef for RestStateImpl {
     type SalesPersonShiftplanService = SalesPersonShiftplanService;
     type CutoverService = CutoverService;
     type FeatureFlagService = FeatureFlagService;
+    type AbsenceConversionService = AbsenceConversionService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -706,6 +731,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService> {
         self.feature_flag_service.clone()
+    }
+    fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService> {
+        self.absence_conversion_service.clone()
     }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
@@ -853,7 +881,7 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             });
         let extra_hours_service = Arc::new(service_impl::extra_hours::ExtraHoursServiceImpl {
-            extra_hours_dao,
+            extra_hours_dao: extra_hours_dao.clone(),
             permission_service: permission_service.clone(),
             sales_person_service: sales_person_service.clone(),
             custom_extra_hours_service: custom_extra_hours_service.clone(),
@@ -1037,6 +1065,7 @@ impl RestStateImpl {
         // carryover) → cutover_dao → cutover_service (needs ALL the above).
         // All upstream services (absence, extra_hours, feature_flag, working_hours,
         // sales_person, permission, transaction_dao) are already constructed.
+        let migration_source_dao = Arc::new(MigrationSourceDao::new(pool.clone()));
         let cutover_dao = Arc::new(CutoverDao::new(pool.clone()));
         let carryover_rebuild_service =
             Arc::new(service_impl::carryover_rebuild::CarryoverRebuildServiceImpl {
@@ -1057,6 +1086,24 @@ impl RestStateImpl {
             permission_service: permission_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
+
+        // Phase 8.5 (Plan 03) — AbsenceConversionService (BL-Tier nach Basic-Services).
+        // Konsumiert: extra_hours_dao (Basic-DAO), absence_dao (Basic-DAO),
+        // migration_source_dao (Basic-DAO), extra_hours_service (Basic),
+        // permission_service (Basic), transaction_dao.
+        // Kein OnceLock / Forward-Decl — alle Deps sind bereits konstruiert.
+        let absence_conversion_service = Arc::new(
+            service_impl::absence_conversion::AbsenceConversionServiceImpl::<
+                AbsenceConversionServiceDependencies,
+            > {
+                extra_hours_dao: extra_hours_dao.clone(),
+                absence_dao: absence_dao.clone(),
+                migration_source_dao: migration_source_dao.clone(),
+                extra_hours_service: extra_hours_service.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
 
         Self {
             user_service,
@@ -1089,6 +1136,7 @@ impl RestStateImpl {
             sales_person_shiftplan_service,
             cutover_service,
             feature_flag_service,
+            absence_conversion_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }

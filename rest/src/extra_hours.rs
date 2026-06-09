@@ -7,10 +7,12 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
-use rest_types::ExtraHoursTO;
+use rest_types::{AbsencePeriodTO, ConvertExtraHoursRequestTO, ExtraHoursTO};
 
 use serde::Deserialize;
-use service::extra_hours::ExtraHoursService;
+use service::{
+    absence_conversion::AbsenceConversionService, extra_hours::ExtraHoursService,
+};
 use tracing::instrument;
 use utoipa::{IntoParams, OpenApi};
 use uuid::Uuid;
@@ -25,6 +27,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route(
             "/by-sales-person/{id}",
             get(get_extra_hours_for_sales_person::<RestState>),
+        )
+        .route(
+            "/{id}/convert-to-absence",
+            post(convert_extra_hours_to_absence::<RestState>),
         )
 }
 
@@ -191,15 +197,67 @@ pub async fn delete_extra_hours<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    post,
+    path = "/{id}/convert-to-absence",
+    tags = ["Extra Hours"],
+    params(
+        ("id", description = "Extra hours logical id"),
+    ),
+    request_body = ConvertExtraHoursRequestTO,
+    responses(
+        (status = 200, description = "Converted absence period", body = AbsencePeriodTO),
+        (status = 403, description = "Forbidden — requires hr privilege"),
+        (status = 404, description = "Extra hours not found or already soft-deleted"),
+        (status = 422, description = "Validation error (DateOrderWrong or OverlappingPeriod)"),
+    ),
+)]
+pub async fn convert_extra_hours_to_absence<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(extra_hours_id): Path<Uuid>,
+    Json(body): Json<ConvertExtraHoursRequestTO>,
+) -> Response {
+    error_handler(
+        (async {
+            // DayFractionTO → service::absence::DayFraction via cfg(feature = "service-impl") From impl
+            let day_fraction = body
+                .day_fraction
+                .as_ref()
+                .map(|f| service::absence::DayFraction::from(f));
+            let result = rest_state
+                .absence_conversion_service()
+                .convert_extra_hours_to_absence(
+                    extra_hours_id,
+                    body.start,
+                    body.end,
+                    day_fraction,
+                    context.into(),
+                    None,
+                )
+                .await?;
+            let to = AbsencePeriodTO::from(&result);
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::new(serde_json::to_string(&to).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     paths(
         get_extra_hours_for_sales_person,
         create_extra_hours,
         update_extra_hours,
-        delete_extra_hours
+        delete_extra_hours,
+        convert_extra_hours_to_absence
     ),
-    components(schemas(ExtraHoursTO)),
+    components(schemas(ExtraHoursTO, ConvertExtraHoursRequestTO)),
     tags(
         (name = "Extra Hours", description = "Extra hours management"),
     ),
