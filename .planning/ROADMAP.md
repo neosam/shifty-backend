@@ -77,7 +77,7 @@
   6. OpenAPI-`#[utoipa::path]` + `ToSchema` + Surface-Test für den neuen Convert-Endpoint
   **Plans:** 7 plans across 7 waves (sequenziell — Compile-Dependency-Kette Backend→Frontend)
   Plans:
-  - [ ] 08.5-01-PLAN.md — MigrationSourceDao (Trait+SQLite-Impl) + DB-Migration (cutover_run_id raus)
+  - [x] 08.5-01-PLAN.md — MigrationSourceDao (Trait+SQLite-Impl) + DB-Migration (cutover_run_id raus)
   - [ ] 08.5-02-PLAN.md — AbsenceConversionService (BL-Tier, lean 3-write Convert-Tx) + Tests
   - [ ] 08.5-03-PLAN.md — Convert-Endpoint + 3 rest-types-DTOs + DI-Wiring + Surface-Test
   - [ ] 08.5-04-PLAN.md — Read-Projektion (beide GET-Handler augmentiert) + Integration-Tests
