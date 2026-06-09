@@ -5,7 +5,7 @@
 - ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (shipped 2026-05-04) — siehe [`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
-- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8 (✓), 8.1, 8.2, 9–13 (active, started 2026-05-07)
+- ◆ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8 (✓), 8.1 (⊘ superseded), 8.2–8.3 (✓), 8.4–8.6 (neues Koexistenz-Modell), 9–13 (active, started 2026-05-07)
 
 ## Phases
 
@@ -20,7 +20,8 @@
   3. `AbsencePeriodCreateResultTO.warnings[]` aus POST/PUT-Antwort wird als nicht-blockierende Hinweisliste angezeigt
   4. `cargo build --target wasm32-unknown-unknown` grün; UAT-Smoke gegen Integrationsumgebung (HR + Employee Login je einmal Anlage + Edit + Delete) — **deferred, siehe 08-HUMAN-UAT.md + Phase 8.1**
 
-- [ ] **Phase 8.1: Cutover-Migration-UI** (Frontend, Closure-Phase für Phase 8)
+- [~] **Phase 8.1: Cutover-Migration-UI** (Frontend) — ⊘ **SUPERSEDED 2026-06-09**
+  > **⊘ Abgelöst durch Phasen 8.4–8.6 (per-row Koexistenz-Modell).** Der Batch-Cutover-Wizard wird nicht fertiggestellt und nicht ausgeliefert. Statt einer Big-Bang-Migration mit ratender Heuristik + Quarantäne-Gate setzt v1.3 auf **dauerhafte additive Koexistenz** von `extra_hours` (manuelle Stunden-Ebene) und `absence_period` (strukturierte Ranges): Read-Projektion der `extra_hours` auf der Absence-Seite + manueller **HR-Einzel-Convert** (Range vom Menschen, kein Heuristik-Raten). Plan 08.1-12 (Phase-8-HUMAN-UAT-Subsumption / finaler Flag-Switch) ist damit gegenstandslos. Begründung-Stack siehe 08.4-CONTEXT.md (entstanden aus Design-Diskussion 2026-06-09). Historischer Inhalt bleibt unten zu Referenzzwecken erhalten.
   Admin-UI für die `extra_hours` → `absence_period`-Datenmigration. 3-Stage-Wizard (Profile → Dry-Run → Commit) mit Drift-Resolution-Liste, Per-Eintrag-Aktionen (Delete / Edit / Convert-to-Range / Skip) und Bulk-Aktionen. Schließt den Phase-8-int-UAT-Block, der durch reale Buchungs-Pattern-Diversität entstanden ist (Auto-Heuristik in Plan 08-09 deckt nicht alle Patterns ab — siehe 08-HUMAN-UAT.md gap-1).
   Requirements: (Closure-Phase, kein neues FUI-Requirement; löst Phase-8-Adoption-Block)
   Success Criteria:
@@ -49,6 +50,36 @@
   3. Frontend `AbsenceModal` + `CutoverAdminPage`-Drift-Resolution + `ManualConvertModal` bekommen Halb/Ganz-Eingabe pro Eintrag
   4. i18n De / En / Cs für neue Labels; OpenAPI-Surface-Test grün; WASM-Build + `cargo test --workspace` grün; keine Regression in bestehenden Billing-Period-Snapshots
 
+- [ ] **Phase 8.4: Reporting-Additiv-Merge + Deprecation-Rückbau** (Backend) — *neues Koexistenz-Modell, ersetzt 8.1-Cutover-Prämisse*
+  `extra_hours` (Vacation/SickLeave/UnpaidLeave) bleibt ein **dauerhaft erlaubter** manueller Eingabeweg neben `absence_period`. Reporting summiert beide Quellen **additiv** (Modell A: keine globale Quellen-Umschaltung, keine Doppelzähl-Sperre per Flag — konvertierte/soft-deleted Rows tragen die per-row Quelle selbst). Der globale Flag `absence_range_source_active` und die Schreibsperre (D-Phase4-09) werden zurückgebaut.
+  Requirements: (Modell-Revision; hebt Cutover-Prämisse aus v1.0 Phase 4 / 08.1 auf)
+  Success Criteria:
+  1. `reporting.rs` summiert `absence_period`-derived (`derive_hours_for_range`) **plus** lebende `extra_hours` (Vacation/Sick/Unpaid) additiv; der globale Flag-Filter (`reporting.rs:489`) entfällt; konvertierte (soft-deleted, `deleted IS NOT NULL`) `extra_hours` zählen nicht doppelt (per-row Quelle via `deleted IS NULL`)
+  2. Schreibsperre in `extra_hours.rs` (`absence_range_source_active`-Gate, ~Z. 206) entfernt — neue Urlaubs-/Krank-/Unpaid-`extra_hours` wieder anlegbar
+  3. **Snapshot-Schema-Version-Bump:** `CURRENT_SNAPSHOT_SCHEMA_VERSION` +1 (Input-Menge der Vacation/Sick/Unpaid-Computation ändert sich — siehe `CLAUDE.md` § Snapshot Versioning)
+  4. `cargo test --workspace` grün; Billing-Period-Snapshot-Regression sauber (alte Snapshots als „older schema" markiert)
+
+- [ ] **Phase 8.5: Read-Projektion + HR-Inline-Convert auf der Absence-Seite** (Backend + Frontend) — *Sichtbarkeit + reversibler manueller Convert*
+  Die Absence-Liste blendet lebende `extra_hours`-Urlaub/Krank/Unpaid **read-only** mit „stundenbasiert"-Label ein (Read-Projektion — zeigt den Roh-Eintrag, **rekonstruiert keine Range**, daher driftfrei). HR kann einen stundenbasierten Eintrag per Inline-Aktion mit **selbst eingegebenem Zeitraum** in ein `absence_period` umwandeln. Wiederverwendet die in **Phase 8.2** gebaute atomare Convert-Tx (`manual_range` + `absence_period_migration_source`-Backlink + Soft-Delete) — nur aus dem Cutover-Namespace herausgelöst. Enthält den Working-Hours-Dialog-Umbau.
+  Requirements: FUI-A-08 (revidiert — Soft-Migration statt Deprecation)
+  Success Criteria:
+  1. Absence-Read-Endpoint(s) (`GET /absence-period*`) liefern zusätzlich eine read-only Projektion lebender `extra_hours` (Vacation/Sick/Unpaid) als Tages-/Stunden-Marker; Frontend rendert sie mit sichtbarem **„stundenbasiert"**-Label + Edit-Deep-Link zur Working-Hours-Seite
+  2. Neuer Convert-Endpoint außerhalb des `cutover`-Namespace (z.B. `POST /extra-hours/{id}/convert-to-absence`, Body `{ start, end, day_fraction }`) nutzt die 8.2-Tx-Logik (absence_period anlegen + extra_hours soft-delete + migration_source schreiben); **Heuristik nicht beteiligt**; Privileg **`hr`** (reversibel via Backlink)
+  3. Inline-Aktion „In Zeitraum umwandeln" auf stundenbasierten Absence-Einträgen (HR-sichtbar) öffnet Range-Modal (von/bis + Halb/Ganz, reuse `ManualConvertModal` aus 8.2); Liste aktualisiert nach Convert
+  4. **Dialog-Umbau** `add_extra_hours_form.rs`: Von/Bis-Range-Felder + `VacationDays`-Branch + `add_vacation`-Range-Call entfernt (nur noch Stunden-Eintrag); bei Vacation/SickLeave **Warnung + Empfehlung**, ganze Zeiträume auf der Absence-Seite zu erfassen (kein Block — Modell A)
+  5. i18n De/En/Cs für neue Labels/Warnungen; `cargo build --target wasm32-unknown-unknown` grün; `cargo test --workspace` grün
+  6. OpenAPI-`#[utoipa::path]` + `ToSchema` + Surface-Test für den neuen Convert-Endpoint
+
+- [ ] **Phase 8.6: Cutover-Abriss** (Backend + Frontend) — *Entfernung der Batch-Maschinerie*
+  Die Batch-Cutover-Maschinerie wird **ersatzlos entfernt**. Erhalten bleibt nur das per-row Convert-Plumbing (jetzt in 8.5: `absence_period_migration_source` + Soft-Delete-on-Convert).
+  Requirements: (Aufräum-Phase)
+  Success Criteria:
+  1. Frontend: `page/cutover_admin.rs`, die `/admin/cutover`-Route (`app.rs`), der Menü-Eintrag und die Cutover-i18n-Keys entfernt
+  2. Backend: `rest/src/cutover.rs` (alle 5 Handler: gate-dry-run / commit / profile / convert-quarantine-entry / bulk-convert-quarantine-rows) entfernt; `CutoverServiceImpl` Gate-/Quarantäne-/Profile-/Commit-/Bulk-Logik + Heuristik (`detect_weekly_lump_sum` / `iso_week_range` / `lookup_active_contract`) entfernt; obsolete Diagnose-Tests (Karin/Lila/Anina) entfernt
+  3. Drop-Migration für die Tabelle `absence_migration_quarantine` (alte Migration unverändert lassen); `absence_period_migration_source` **bleibt**
+  4. Feature-Flag `absence_range_source_active` vollständig entfernt (kein Reader mehr in `reporting.rs` / `extra_hours.rs` / `carryover_rebuild.rs`)
+  5. OpenAPI-Surface-Test angepasst (Cutover-Schemas raus); `cargo test --workspace` + WASM-Build grün; kein toter Code (`cargo check --workspace` ohne Warnungen auf entfernte Symbole)
+
 - [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
   Requirements: FUI-A-05, FUI-A-06
@@ -65,7 +96,8 @@
   2. `UnavailabilityMarkerTO::AbsencePeriod` mit Kategorie-Farbe gerendert (Vacation = grün, SickLeave = orange, UnpaidLeave = grau — Final-Farben in UI-SPEC)
   3. `UnavailabilityMarkerTO::ManualUnavailable` neutral gerendert; `UnavailabilityMarkerTO::Both` mit eigener Visual-Indication (signalisiert redundanten manuellen Eintrag nach Cutover, optional Aufräum-Button)
 
-- [ ] **Phase 11: Migrations-Hinweis-UX + Deprecation-Handling** (Frontend)
+- [~] **Phase 11: Migrations-Hinweis-UX + Deprecation-Handling** (Frontend) — ⊘ **SUPERSEDED 2026-06-09**
+  > **⊘ Abgelöst durch das Koexistenz-Modell (8.4–8.6).** `extra_hours`-Urlaub/Krank wird **nicht** mehr deprecated → SC 2 (`403 ExtraHoursCategoryDeprecated` abfangen) und SC 3 (Flag-Defensive) sind gegenstandslos. Der einzige überlebende Scope (SC 1: Soft-Hinweis/Empfehlung auf der Stunden-Maske) ist vollständig in **Phase 8.5 SC 4** (Dialog-Umbau + Warnung) gefaltet. Kein Rest-Scope verbleibt. Historischer Inhalt bleibt unten als Referenz erhalten.
   Alte `extra_hours`-basierten "Urlaub eintragen"-Eingangswege werden auf neue Maske umgelenkt; nach Cutover wird `403 ExtraHoursCategoryDeprecatedErrorTO` mit User-Hinweis abgefangen.
   Requirements: FUI-A-08
   Success Criteria:
@@ -290,15 +322,18 @@
 | 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
 | 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
 | 8 — Absence-CRUD-Page Foundation | v1.3 | 8/9 | In Progress | — |
-| 8.1 — Cutover-Migration-UI | v1.3 | 0/12 | In Progress | — |
+| 8.1 — Cutover-Migration-UI | v1.3 | 11/12 | ⊘ Superseded | 2026-06-09 |
 | 8.2 — Manual-Range-Convert für Quarantäne | v1.3 | 2/2 | Complete | 2026-05-10 |
-| 8.3 — Halbtag-Support für Absences | v1.3 | 0/? | Pending | — |
+| 8.3 — Halbtag-Support für Absences | v1.3 | 6/6 | Complete | — |
+| 8.4 — Reporting-Additiv-Merge + Deprecation-Rückbau | v1.3 | 0/? | Pending | — |
+| 8.5 — Read-Projektion + HR-Inline-Convert | v1.3 | 0/? | Pending | — |
+| 8.6 — Cutover-Abriss | v1.3 | 0/? | Pending | — |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
-| 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | Pending | — |
+| 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | ⊘ Superseded | 2026-06-09 |
 | 12 — UI-Closure v1.1/v1.2-Restanten | v1.3 | 0/? | Pending | — |
 | 13 — i18n-Vollständigkeits-Audit + v1.3 Smoke-Closure | v1.3 | 0/? | Pending | — |
 
 ---
 
-*Last updated: 2026-05-10 — Phase 8.2 verified passed (6/6 must-haves, gsd-verifier 08.2-VERIFICATION.md). Plan 08.2-02 (Frontend ManualConvertModal) complete: shifty-dioxus api::cutover_convert_quarantine_entry um `manual_range: Option<ManualRangeTO>` erweitert (existing ConvertSingle call-site auf `None` migriert); neue `CutoverAction::ConvertSingleManualRange { extra_hours_id, start_date, end_date }`-Variante mit Coroutine-Branch (formatiert dates via time::macros::format_description, baut ManualRangeTO, ruft Backend, P-6 fallback auf separate gate-dry-run wenn refreshed_drift_report.is_none(), schreibt CUTOVER_STORE.last_dry_run + bump_cutover_refresh); ManualConvertModal-Component ersetzt EditExtraHoursModal-Stub (Custom-Backdrop, 2× `<input type="date">`, read-only amount + category als spans D-31/D-32, inline error-rendering, P-7 defense — kein unwrap_or_else hardcoded fallback); DriftEntryRow Edit-Button öffnet ManualConvertModal mit `category: drift_row_meta.0.category` als read-only Quelle (CutoverQuarantineEntryTO hat kein category-Feld); on_submit dispatcht ConvertSingleManualRange + close-on-submit. 8 neue i18n-Keys × 3 Locales (DE/EN/CS — `CutoverManualConvert{ModalTitle,Help,StartLabel,EndLabel,BtnSubmit,ErrStartAfterEnd,ErrYearMismatch,ErrOverlap}`) + Per-Locale-Reference-Matcher-Tests erweitert (Pitfall-2-Guard). 4 neue dioxus-ssr Snapshot-Tests (`manual_convert_modal_renders_two_date_inputs` / `manual_convert_modal_renders_validation_error_when_start_after_end` / `manual_convert_modal_not_rendered_when_closed` / `manual_convert_modal_dispatches_action_on_valid_submit`) ersetzen Test 11 aus 8.1-09 (`edit_extra_hours_modal_renders_amount_and_date_only`); 536/536 shifty-dioxus binary tests grün; cargo check --workspace grün; WASM-Build-Gate (`nix-shell -p openssl pkg-config lld --command "cargo build --target wasm32-unknown-unknown"`) exit 0. 3 jj-commits (`feat`/`feat`/`feat`). Phase 8.2 Plans complete (2/2). Karin-Pattern (gap-1a) jetzt operativ end-to-end auflösbar — UAT-bereit.*
+*Last updated: 2026-06-09 — **Modell-Re-Scope:** Phase 8.1 (Batch-Cutover-Wizard) als ⊘ SUPERSEDED markiert; neue Phasen 8.4 (Reporting-Additiv-Merge + Deprecation-Rückbau), 8.5 (Read-Projektion + HR-Inline-Convert), 8.6 (Cutover-Abriss) eingesetzt. Grund: dauerhafte additive Koexistenz von `extra_hours` (manuelle Stunden-Ebene) + `absence_period` (Ranges) statt Big-Bang-Migration mit ratender Heuristik — eliminiert die Cutover-Unzuverlässigkeit (Karin-Pattern) an der Wurzel. Phase 11 (Deprecation-Handling) ebenfalls ⊘ SUPERSEDED (Rest vollständig in 8.5 SC 4 gefaltet). Decision-Stack → 08.4-CONTEXT.md (`/gsd:discuss-phase 8.4`). Phasen 10/12 referenzieren das alte Modell punktuell — bei Plan-Phase prüfen. — Vorheriger Stand: Phase 8.2 verified passed (6/6 must-haves, gsd-verifier 08.2-VERIFICATION.md). Plan 08.2-02 (Frontend ManualConvertModal) complete: shifty-dioxus api::cutover_convert_quarantine_entry um `manual_range: Option<ManualRangeTO>` erweitert (existing ConvertSingle call-site auf `None` migriert); neue `CutoverAction::ConvertSingleManualRange { extra_hours_id, start_date, end_date }`-Variante mit Coroutine-Branch (formatiert dates via time::macros::format_description, baut ManualRangeTO, ruft Backend, P-6 fallback auf separate gate-dry-run wenn refreshed_drift_report.is_none(), schreibt CUTOVER_STORE.last_dry_run + bump_cutover_refresh); ManualConvertModal-Component ersetzt EditExtraHoursModal-Stub (Custom-Backdrop, 2× `<input type="date">`, read-only amount + category als spans D-31/D-32, inline error-rendering, P-7 defense — kein unwrap_or_else hardcoded fallback); DriftEntryRow Edit-Button öffnet ManualConvertModal mit `category: drift_row_meta.0.category` als read-only Quelle (CutoverQuarantineEntryTO hat kein category-Feld); on_submit dispatcht ConvertSingleManualRange + close-on-submit. 8 neue i18n-Keys × 3 Locales (DE/EN/CS — `CutoverManualConvert{ModalTitle,Help,StartLabel,EndLabel,BtnSubmit,ErrStartAfterEnd,ErrYearMismatch,ErrOverlap}`) + Per-Locale-Reference-Matcher-Tests erweitert (Pitfall-2-Guard). 4 neue dioxus-ssr Snapshot-Tests (`manual_convert_modal_renders_two_date_inputs` / `manual_convert_modal_renders_validation_error_when_start_after_end` / `manual_convert_modal_not_rendered_when_closed` / `manual_convert_modal_dispatches_action_on_valid_submit`) ersetzen Test 11 aus 8.1-09 (`edit_extra_hours_modal_renders_amount_and_date_only`); 536/536 shifty-dioxus binary tests grün; cargo check --workspace grün; WASM-Build-Gate (`nix-shell -p openssl pkg-config lld --command "cargo build --target wasm32-unknown-unknown"`) exit 0. 3 jj-commits (`feat`/`feat`/`feat`). Phase 8.2 Plans complete (2/2). Karin-Pattern (gap-1a) jetzt operativ end-to-end auflösbar — UAT-bereit.*
