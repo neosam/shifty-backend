@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
 use rest_types::{
-    AbsenceCategoryTO, AbsencePeriodCreateResultTO, AbsencePeriodTO, BillingPeriodTO, BlockTO,
-    BookingConflictTO, BookingLogTO, BookingTO, CreateBillingPeriodRequestTO,
-    CreateTextTemplateRequestTO, CustomExtraHoursTO,
-    CutoverBulkConvertQuarantineRowsRequest, CutoverBulkConvertQuarantineRowsResponse,
-    CutoverConvertQuarantineEntryRequest, CutoverConvertQuarantineEntryResponse,
-    CutoverProfileTO, CutoverRunResultTO, DayFractionTO, DayOfWeekTO, EmployeeReportTO,
-    EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursTO, FeatureFlagTO,
-    GenerateInvitationRequest, InvitationResponse, ManualRangeTO, RoleTO, SalesPersonTO,
-    SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO, SpecialDayTO,
-    TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
+    AbsenceCategoryTO, AbsenceListWithProjectionTO, AbsencePeriodCreateResultTO, AbsencePeriodTO,
+    BillingPeriodTO, BlockTO, BookingConflictTO, BookingLogTO, BookingTO,
+    ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
+    CustomExtraHoursTO, CutoverBulkConvertQuarantineRowsRequest,
+    CutoverBulkConvertQuarantineRowsResponse, CutoverConvertQuarantineEntryRequest,
+    CutoverConvertQuarantineEntryResponse, CutoverProfileTO, CutoverRunResultTO, DayFractionTO,
+    DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursMarkerTO,
+    ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse, ManualRangeTO,
+    RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
+    SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
     VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
@@ -489,12 +489,12 @@ pub async fn update_extra_hour(
 
 pub async fn list_absence_periods(
     config: Config,
-) -> Result<Rc<[AbsencePeriodTO]>, reqwest::Error> {
+) -> Result<AbsenceListWithProjectionTO, reqwest::Error> {
     info!("Fetching absence periods (all)");
     let url = format!("{}/absence-period", config.backend);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
-    let res = response.json().await?;
+    let res = response.json::<AbsenceListWithProjectionTO>().await?;
     info!("Fetched");
     Ok(res)
 }
@@ -502,7 +502,7 @@ pub async fn list_absence_periods(
 pub async fn list_absence_periods_by_sales_person(
     config: Config,
     sales_person_id: Uuid,
-) -> Result<Rc<[AbsencePeriodTO]>, reqwest::Error> {
+) -> Result<AbsenceListWithProjectionTO, reqwest::Error> {
     info!("Fetching absence periods for sales person {sales_person_id}");
     let url = format!(
         "{}/absence-period/by-sales-person/{}",
@@ -510,9 +510,32 @@ pub async fn list_absence_periods_by_sales_person(
     );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
-    let res = response.json().await?;
+    let res = response.json::<AbsenceListWithProjectionTO>().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn convert_extra_hours_to_absence(
+    config: Config,
+    extra_hours_id: Uuid,
+    body: ConvertExtraHoursRequestTO,
+) -> Result<AbsencePeriodTO, ShiftyError> {
+    info!("Converting extra hours {extra_hours_id} to absence");
+    let url = format!(
+        "{}/extra-hours/{}/convert-to-absence",
+        config.backend, extra_hours_id
+    );
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Convert returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let result: AbsencePeriodTO = response.json().await?;
+    info!("Converted");
+    Ok(result)
 }
 
 pub async fn get_absence_period(
