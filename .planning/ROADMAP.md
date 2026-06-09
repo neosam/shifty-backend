@@ -83,7 +83,7 @@
   - [x] 08.5-04-PLAN.md — Read-Projektion (beide GET-Handler augmentiert) + Integration-Tests
   - [x] 08.5-05-PLAN.md — Frontend-Daten-Schicht (api/state/loader/service) + AbsenceConvertModal-Extraktion
   - [x] 08.5-06-PLAN.md — absences.rs HourlyMarkerRow inline + Convert/Edit-Verdrahtung + i18n + SSR-Tests
-  - [ ] 08.5-07-PLAN.md — Working-Hours-Dialog-Umbau + Soft-Migration-Hinweis + i18n + Full-Suite/WASM-Gate
+  - [x] 08.5-07-PLAN.md — Working-Hours-Dialog-Umbau + Soft-Migration-Hinweis + i18n + Full-Suite/WASM-Gate
 
 - [ ] **Phase 8.6: Cutover-Abriss** (Backend + Frontend) — *Entfernung der Batch-Maschinerie*
   Die Batch-Cutover-Maschinerie wird **ersatzlos entfernt**. Erhalten bleibt nur das per-row Convert-Plumbing (jetzt in 8.5: `absence_period_migration_source` + Soft-Delete-on-Convert).
