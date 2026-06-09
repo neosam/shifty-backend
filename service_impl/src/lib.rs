@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 pub mod absence;
+pub mod absence_conversion;
 pub mod billing_period;
 pub mod billing_period_report;
 pub mod block;

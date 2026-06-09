@@ -35,6 +35,13 @@ features = ["v4"]
 version = "1.44"
 features = ["full"]
 
+[dev-dependencies.dao_impl_sqlite]
+path = "../dao_impl_sqlite"
+
+[dev-dependencies.sqlx]
+version = "0.8.2"
+features = ["runtime-tokio", "sqlite"]
+
 [dependencies.time-tz]
 version = "2"
 features = ["db"]

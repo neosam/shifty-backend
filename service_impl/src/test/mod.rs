@@ -1,6 +1,8 @@
 #[cfg(test)]
 pub mod absence;
 #[cfg(test)]
+pub mod absence_conversion;
+#[cfg(test)]
 pub mod absence_derive_hours_range;
 #[cfg(test)]
 pub mod block;
