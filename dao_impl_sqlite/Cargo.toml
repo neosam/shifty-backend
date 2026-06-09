@@ -27,6 +27,14 @@ version = "0.3.36"
 features = ["parsing"]
 
 
+[dev-dependencies.tokio]
+version = "1.44"
+features = ["full"]
+
+[dev-dependencies.time]
+version = "0.3.36"
+features = ["macros"]
+
 [lints.rust]
 warnings = "deny"
 

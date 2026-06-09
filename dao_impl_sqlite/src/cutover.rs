@@ -137,18 +137,19 @@ impl CutoverDao for CutoverDaoImpl {
         row: &MigrationSourceRow,
         tx: Self::Transaction,
     ) -> Result<(), DaoError> {
+        // Phase 8.5 (D-04): cutover_run_id wurde aus absence_period_migration_source entfernt
+        // (Migration 20260609120000). CutoverDao::upsert_migration_source wird in Phase 8.6
+        // subtraktiv entfernt; bis dahin leitet die Impl den Backlink ohne cutover_run_id weiter.
         let extra_hours_id = row.extra_hours_id.as_bytes().to_vec();
         let absence_period_id = row.absence_period_id.as_bytes().to_vec();
-        let cutover_run_id = row.cutover_run_id.as_bytes().to_vec();
         let migrated_at = row.migrated_at.format(&Iso8601::DATE_TIME)?;
         sqlx::query!(
             r#"INSERT INTO absence_period_migration_source
-               (extra_hours_id, absence_period_id, cutover_run_id, migrated_at)
-               VALUES (?, ?, ?, ?)
+               (extra_hours_id, absence_period_id, migrated_at)
+               VALUES (?, ?, ?)
                ON CONFLICT(extra_hours_id) DO NOTHING"#,
             extra_hours_id,
             absence_period_id,
-            cutover_run_id,
             migrated_at,
         )
         .execute(tx.tx.lock().await.as_mut())
