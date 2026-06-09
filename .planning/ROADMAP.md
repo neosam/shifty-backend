@@ -61,7 +61,7 @@
   Plans:
   - [x] 08.4-01-PLAN.md — Wave 0: destruktive Test-Bereinigung (Flag/Gate-Tests löschen) + neue additive Test-Datei + Snapshot-Locking-Pin auf 5
   - [x] 08.4-02-PLAN.md — Wave 2: additiver Reporting-Merge + Snapshot-Bump 4→5 (ein jj-Commit) + extra_hours-Schreibsperre-Rückbau + Full-Suite-Gate
-  - [ ] 08.4-03-PLAN.md — Gap-Closure Wave 1 (Gap 1/CR-01+IN-03): additiver Display-Merge in get_reports_for_all_employees + get_week (Year-Bounds-Scoping) + WR-02 Gleichtags-Overlap-Test
+  - [x] 08.4-03-PLAN.md — Gap-Closure Wave 1 (Gap 1/CR-01+IN-03): additiver Display-Merge in get_reports_for_all_employees + get_week (Year-Bounds-Scoping) + WR-02 Gleichtags-Overlap-Test
   - [ ] 08.4-04-PLAN.md — Gap-Closure Wave 2 (Gap 2/WR-01): absence-derived Stunden bewegen balance/expected symmetrisch in allen 3 Methoden + Snapshot-Bump 5→6 + Balance-Parity-Test + optional WR-03/IN-01/IN-02 Cleanup + Full-Suite-Gate
 
 - [ ] **Phase 8.5: Read-Projektion + HR-Inline-Convert auf der Absence-Seite** (Backend + Frontend) — *Sichtbarkeit + reversibler manueller Convert*
