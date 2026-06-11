@@ -100,7 +100,7 @@
   - [x] 08.6-02-PLAN.md — Frontend-Abriss: Cutover-Page/Route/i18n/api raus, top_bar absences-Gate auf logged_in (D-03), FeatureFlagsState Shell-Trim (D-02)
   - [x] 08.6-03-PLAN.md — Forward-only Drop-Migrations (quarantine + carryover-backup) + Seed-DELETE + .sqlx-Regeneration
   - [x] 08.6-04-PLAN.md — OpenAPI-Surface-Test: Cutover-Pfade/-Schemas raus, /feature-flag/{key} bleibt (D-08)
-  - [ ] 08.6-05-PLAN.md — Verifikations-Gate: cargo test/check --workspace + WASM-Build + Negative-Space/Survivor-Asserts (D-09)
+  - [x] 08.6-05-PLAN.md — Verifikations-Gate: cargo test/check --workspace + WASM-Build + Negative-Space/Survivor-Asserts (D-09)
 
 - [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
