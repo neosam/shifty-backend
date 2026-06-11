@@ -533,6 +533,22 @@ pub enum Key {
     ExtraHoursAbsenceHint,
     /// Link-Text im Hinweis (De: „Zu Abwesenheiten", En: „Go to absences").
     ExtraHoursAbsenceHintLink,
+
+    // Phase 9 — Booking-Flow Reverse-Warnings (FUI-A-05).
+    /// Dialog-Titel wenn genau 1 Buchungs-Konflikt vorliegt.
+    BookingWarningDialogHeaderSingular,
+    /// Dialog-Titel wenn N > 1 Buchungs-Konflikte vorliegen (Platzhalter `{count}`).
+    BookingWarningDialogHeaderPlural,
+    /// Primär-Button: Buchung trotz Warnung behalten.
+    BookingWarningDialogConfirm,
+    /// Sekundär-Button: Buchung per Rollback stornieren.
+    BookingWarningDialogCancel,
+    /// Pro-Item-Text wenn Mitarbeiter am gebuchten Tag abwesend ist (Platzhalter `{person}`, `{date}`, `{category}`).
+    BookingWarningOnAbsenceDay,
+    /// Pro-Item-Text wenn Mitarbeiter in der gebuchten KW als nicht verfügbar markiert ist (Platzhalter `{person}`, `{week}`, `{year}`, `{day}`).
+    BookingWarningOnUnavailableDay,
+    /// Pro-Item-Text wenn das Bezahlt-Limit überschritten ist (Platzhalter `{current}`, `{max}`).
+    BookingWarningPaidLimitExceeded,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -983,6 +999,63 @@ mod tests {
         assert_eq!(
             i18n.t(Key::ExtraHoursAbsenceHintLink).as_ref(),
             "Na nepřítomnosti"
+        );
+    }
+
+    // ===== Phase 9 — Booking-Warning i18n Tests =====
+
+    #[test]
+    fn i18n_booking_warning_keys_present_in_all_locales() {
+        // Locks the contract: every booking-warning key has a translation in
+        // every locale and never falls back to "??". Primary guard against
+        // Pitfall 1 (Locale::En-instead-of-Locale::De in de.rs).
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::BookingWarningDialogHeaderSingular,
+                Key::BookingWarningDialogHeaderPlural,
+                Key::BookingWarningDialogConfirm,
+                Key::BookingWarningDialogCancel,
+                Key::BookingWarningOnAbsenceDay,
+                Key::BookingWarningOnUnavailableDay,
+                Key::BookingWarningPaidLimitExceeded,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_booking_warning_keys_match_german_reference() {
+        // Pitfall-1 guard: de.rs must use Locale::De, not Locale::En.
+        // Also guards against dropping the {person} placeholder back to a
+        // hardcoded "Mitarbeiter".
+        let i18n = generate(Locale::De);
+        assert_eq!(
+            i18n.t(Key::BookingWarningDialogConfirm).as_ref(),
+            "Trotzdem buchen"
+        );
+        assert_eq!(
+            i18n.t(Key::BookingWarningDialogCancel).as_ref(),
+            "Abbrechen"
+        );
+        assert_eq!(
+            i18n.t(Key::BookingWarningDialogHeaderSingular).as_ref(),
+            "Hinweis · 1 Konflikt"
+        );
+        // Guard: {person} placeholder must be present in BookingWarningOnAbsenceDay
+        let on_absence_day = i18n.t(Key::BookingWarningOnAbsenceDay);
+        assert!(
+            on_absence_day.as_ref().contains("{person}"),
+            "BookingWarningOnAbsenceDay de.rs must contain {{person}} placeholder, got: `{}`",
+            on_absence_day
         );
     }
 }

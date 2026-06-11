@@ -43,9 +43,13 @@ direkt, deshalb keine Neunummerierung).
   nicht-blockierender Confirm-Dialog vor finaler Buchung gerendert
   (Dioxus-Dialog statt `window.confirm`). `POST /booking` bleibt parallel
   für Bestands-Calls
-- [ ] **FUI-A-06**: Wochen-Kopie nutzt `POST /shiftplan-edit/copy-week`;
-  aggregierte `CopyWeekResultTO.warnings[]` werden zusammengefasst
-  angezeigt
+- [~] **FUI-A-06**: ⊘ **DROPPED 2026-06-11** — Wochen-Kopie-UI wurde vom User
+  bewusst entfernt (Commit `294566f` "feat: Remove copy last week feature").
+  Kein Frontend-Konsument für `POST /shiftplan-edit/copy-week` mehr; der
+  Backend-Endpoint + `CopyWeekResultTO` bleiben funktionsfähig. Descope-
+  Entscheidung dokumentiert in `phases/09-booking-flow-reverse-warnings-copy-week/09-CONTEXT.md`.
+  ~~Wochen-Kopie nutzt `POST /shiftplan-edit/copy-week`; aggregierte
+  `CopyWeekResultTO.warnings[]` werden zusammengefasst angezeigt~~
 
 ### Shiftplan-View mit Unavailability-Marker
 
@@ -133,7 +137,7 @@ Explizit ausgeschlossen für v1.3. Begründung jeweils.
 | FUI-A-03    | Phase 8  | Pending |
 | FUI-A-04    | Phase 8  | Pending |
 | FUI-A-05    | Phase 9  | Pending |
-| FUI-A-06    | Phase 9  | Pending |
+| FUI-A-06    | Phase 9  | ⊘ Dropped |
 | FUI-A-07    | Phase 10 | Pending |
 | FUI-A-08    | Phase 11 | Pending |
 | FUI-01      | Phase 12 | Pending |
@@ -144,14 +148,14 @@ Explizit ausgeschlossen für v1.3. Begründung jeweils.
 | FUI-A-10    | Phase 8.3 | Pending |
 
 **Coverage:**
-- v1.3 requirements: 14 total
+- v1.3 requirements: 14 total (13 aktiv, FUI-A-06 ⊘ dropped 2026-06-11)
 - Mapped to phases: 14 ✓
 - Unmapped: 0
 
 **Phase distribution:**
 - Phase 8 (Absence-CRUD-Page Foundation): FUI-A-01..04 (4 reqs — Kern)
 - Phase 8.3 (Halbtag-Support für Absences): FUI-A-10 (1 req — scope-revision aus Out-of-Scope)
-- Phase 9 (Booking-Flow Reverse-Warnings + Copy-Week): FUI-A-05, FUI-A-06 (2 reqs)
+- Phase 9 (Booking-Flow Reverse-Warnings): FUI-A-05 (1 req aktiv; FUI-A-06 ⊘ dropped — Copy-Week descoped)
 - Phase 10 (Shiftplan-View Unavailability-Marker): FUI-A-07 (1 req)
 - Phase 11 (Migrations-Hinweis-UX + Deprecation-Handling): FUI-A-08 (1 req)
 - Phase 12 (UI-Closure v1.1/v1.2-Restanten): FUI-01..04 (4 reqs)

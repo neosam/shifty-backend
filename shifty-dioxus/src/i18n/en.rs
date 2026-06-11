@@ -863,4 +863,33 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "For full vacation or absence periods, please use the absences form.",
     );
     i18n.add_text(Locale::En, Key::ExtraHoursAbsenceHintLink, "Go to absences");
+
+    // Phase 9 — Booking-Flow Reverse-Warnings (FUI-A-05).
+    i18n.add_text(
+        Locale::En,
+        Key::BookingWarningDialogHeaderSingular,
+        "Notice · 1 Conflict",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::BookingWarningDialogHeaderPlural,
+        "Notice · {count} Conflicts",
+    );
+    i18n.add_text(Locale::En, Key::BookingWarningDialogConfirm, "Book anyway");
+    i18n.add_text(Locale::En, Key::BookingWarningDialogCancel, "Cancel");
+    i18n.add_text(
+        Locale::En,
+        Key::BookingWarningOnAbsenceDay,
+        "{person} is absent on {date} as {category}.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::BookingWarningOnUnavailableDay,
+        "{person} is marked as unavailable in week {week}/{year} ({day}).",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::BookingWarningPaidLimitExceeded,
+        "Paid employee limit exceeded ({current}/{max}).",
+    );
 }

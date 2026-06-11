@@ -555,20 +555,20 @@ This phase has minimal security surface: it is a purely frontend change that add
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Name for the shared component file**
    - What we know: D-09 says move to `component/`; Claude's Discretion for exact name.
    - What's unclear: Whether to reuse `WarningList` (already used in absences.rs as the component name) or rename for clarity.
-   - Recommendation: Name the file `component/warning_list.rs`, keep the component `WarningList`, keep `WarningsList` newtype. This minimizes changes to `absences.rs` — it just changes its import path.
+   - RESOLVED: Name the file `component/warning_list.rs`, keep the component `WarningList`, keep `WarningsList` newtype. This minimizes changes to `absences.rs` — it just changes its import path.
 
 2. **Whether `api::add_booking` is extended or a new function is created**
    - What we know: Claude's Discretion (D-14 item). Current `add_booking` returns `Result<(), reqwest::Error>`.
-   - Recommendation: Create a separate function `api::book_slot_with_conflict_check` returning `Result<BookingCreateResultTO, reqwest::Error>`. Keep the old `add_booking` but it becomes unused — remove it or keep for future use. Adding a clear deprecation comment is sufficient if not removing immediately.
+   - RESOLVED: Create a separate function `api::book_slot_with_conflict_check` returning `Result<BookingCreateResultTO, reqwest::Error>`. Keep the old `add_booking` but it becomes unused — remove it or keep for future use. Adding a clear deprecation comment is sufficient if not removing immediately.
 
 3. **Person name in `BookingOnUnavailableDay` warnings**
    - What we know: The warning carries `year/week/day_of_week` but no person name or `sales_person_id`. The booked person is known from the Action context.
-   - Recommendation: Pass `person_name: Option<ImStr>` as a prop to `WarningList` for use in booking-path warnings. Absence-path callers (which don't have a single person context) pass `None`.
+   - RESOLVED: Pass `person_name: Option<ImStr>` as a prop to `WarningList` for use in booking-path warnings. Absence-path callers (which don't have a single person context) pass `None`.
 
 ---
 

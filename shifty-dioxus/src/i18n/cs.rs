@@ -926,4 +926,37 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Pro celé dovolené nebo nepřítomnosti prosím použij masku nepřítomností.",
     );
     i18n.add_text(Locale::Cs, Key::ExtraHoursAbsenceHintLink, "Na nepřítomnosti");
+
+    // Phase 9 — Booking-Flow Reverse-Warnings (FUI-A-05).
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingWarningDialogHeaderSingular,
+        "Upozornění · 1 konflikt",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingWarningDialogHeaderPlural,
+        "Upozornění · {count} konflikty",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingWarningDialogConfirm,
+        "Zarezervovat stejně",
+    );
+    i18n.add_text(Locale::Cs, Key::BookingWarningDialogCancel, "Zrušit");
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingWarningOnAbsenceDay,
+        "{person} je dne {date} nepřítomen jako {category}.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingWarningOnUnavailableDay,
+        "{person} je v týdnu {week}/{year} ({day}) označen jako nedostupný.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingWarningPaidLimitExceeded,
+        "Překročen limit placených zaměstnanců ({current}/{max}).",
+    );
 }

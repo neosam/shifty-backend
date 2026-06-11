@@ -942,4 +942,33 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Für ganze Urlaubs-/Abwesenheits-Zeiträume nutze bitte die Abwesenheits-Maske.",
     );
     i18n.add_text(Locale::De, Key::ExtraHoursAbsenceHintLink, "Zu Abwesenheiten");
+
+    // Phase 9 — Booking-Flow Reverse-Warnings (FUI-A-05).
+    i18n.add_text(
+        Locale::De,
+        Key::BookingWarningDialogHeaderSingular,
+        "Hinweis · 1 Konflikt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingWarningDialogHeaderPlural,
+        "Hinweis · {count} Konflikte",
+    );
+    i18n.add_text(Locale::De, Key::BookingWarningDialogConfirm, "Trotzdem buchen");
+    i18n.add_text(Locale::De, Key::BookingWarningDialogCancel, "Abbrechen");
+    i18n.add_text(
+        Locale::De,
+        Key::BookingWarningOnAbsenceDay,
+        "{person} ist am {date} als {category} abwesend.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingWarningOnUnavailableDay,
+        "{person} ist in KW {week}/{year} ({day}) als nicht verfügbar markiert.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingWarningPaidLimitExceeded,
+        "Bezahlt-Limit überschritten ({current}/{max}).",
+    );
 }
