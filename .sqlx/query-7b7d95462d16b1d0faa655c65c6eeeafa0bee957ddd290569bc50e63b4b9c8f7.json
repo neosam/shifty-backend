@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO absence_period_migration_source\n               (extra_hours_id, absence_period_id, migrated_at)\n               VALUES (?, ?, ?)\n               ON CONFLICT(extra_hours_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "7b7d95462d16b1d0faa655c65c6eeeafa0bee957ddd290569bc50e63b4b9c8f7"
+}

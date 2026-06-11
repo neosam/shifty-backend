@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                extra_hours_id    AS \"extra_hours_id!: Vec<u8>\",\n                absence_period_id AS \"absence_period_id!: Vec<u8>\",\n                migrated_at       AS \"migrated_at!: String\"\n               FROM absence_period_migration_source\n               WHERE extra_hours_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "extra_hours_id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "absence_period_id!: Vec<u8>",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "migrated_at!: String",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f8d51f6c6eeb74b10512150b973330c94798dfbc836d4f23270645bb72a69827"
+}
