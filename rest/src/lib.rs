@@ -6,7 +6,6 @@ mod block_report;
 mod booking;
 mod booking_information;
 mod booking_log;
-pub mod cutover;
 mod custom_extra_hours;
 mod employee_work_details;
 mod extra_hours;
@@ -374,11 +373,6 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
-    // Phase 4 (Plan 04-06) — Cutover orchestration. Business-Logic-Tier service.
-    type CutoverService: service::cutover::CutoverService<Context = Context>
-        + Send
-        + Sync
-        + 'static;
     // Phase 8.5 (Plan 03) — AbsenceConversionService: HR-gated per-Row-Convert
     // von extra_hours (Vacation/SickLeave/UnpaidLeave) nach absence_period.
     // BL-Tier (D-03). Endpoint: POST /extra-hours/{id}/convert-to-absence.
@@ -419,7 +413,6 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn toggle_service(&self) -> Arc<Self::ToggleService>;
     fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService>;
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
-    fn cutover_service(&self) -> Arc<Self::CutoverService>;
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
@@ -533,7 +526,6 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
         (path = "/vacation-balance", api = vacation_balance::VacationBalanceApiDoc),
         (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
-        (path = "/admin/cutover", api = cutover::CutoverApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
 )]
@@ -618,7 +610,6 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     let app = app.nest("/dev", dev::generate_route());
 
     let app = app
-        .nest("/admin/cutover", cutover::generate_route())
         .nest("/admin/impersonate", impersonate::generate_route());
 
     let app = app
