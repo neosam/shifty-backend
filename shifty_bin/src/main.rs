@@ -40,7 +40,6 @@ type ShiftplanReportDao = ShiftplanReportDaoImpl;
 type AbsenceDao = AbsenceDaoImpl;
 type ExtraHoursDao = ExtraHoursDaoImpl;
 type FeatureFlagDao = FeatureFlagDaoImpl;
-type CutoverDao = dao_impl_sqlite::cutover::CutoverDaoImpl;
 type MigrationSourceDao = dao_impl_sqlite::migration_source::MigrationSourceDaoImpl;
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
@@ -495,41 +494,6 @@ impl service_impl::feature_flag::FeatureFlagServiceDeps for FeatureFlagServiceDe
 type FeatureFlagService =
     service_impl::feature_flag::FeatureFlagServiceImpl<FeatureFlagServiceDependencies>;
 
-// Phase 4 / Plan 04-03 — Cycle-breaking carryover rebuild service.
-// Business-Logic-Tier: consumes ReportingService + CarryoverService.
-pub struct CarryoverRebuildServiceDependencies;
-impl service_impl::carryover_rebuild::CarryoverRebuildServiceDeps
-    for CarryoverRebuildServiceDependencies
-{
-    type Context = Context;
-    type Transaction = Transaction;
-    type ReportingService = ReportingService;
-    type CarryoverService = CarryoverService;
-    type PermissionService = PermissionService;
-    type TransactionDao = TransactionDao;
-}
-type CarryoverRebuildService =
-    service_impl::carryover_rebuild::CarryoverRebuildServiceImpl<CarryoverRebuildServiceDependencies>;
-
-// Phase 4 / Plan 04-02+04-05 — Cutover orchestration.
-// Business-Logic-Tier: 10 deps (CutoverDao + AbsenceDao + 7 sub-services + TransactionDao).
-pub struct CutoverServiceDependencies;
-impl service_impl::cutover::CutoverServiceDeps for CutoverServiceDependencies {
-    type Context = Context;
-    type Transaction = Transaction;
-    type CutoverDao = CutoverDao;
-    type AbsenceDao = AbsenceDao;
-    type AbsenceService = AbsenceService;
-    type ExtraHoursService = ExtraHoursService;
-    type CarryoverRebuildService = CarryoverRebuildService;
-    type FeatureFlagService = FeatureFlagService;
-    type EmployeeWorkDetailsService = WorkingHoursService;
-    type SalesPersonService = SalesPersonService;
-    type PermissionService = PermissionService;
-    type TransactionDao = TransactionDao;
-}
-type CutoverService = service_impl::cutover::CutoverServiceImpl<CutoverServiceDependencies>;
-
 // Phase 8.5 (Plan 03) — AbsenceConversionService DI.
 // BL-Tier (D-03): 6 Deps (extra_hours_dao + absence_dao + migration_source_dao
 // + extra_hours_service + permission_service + transaction_dao).
@@ -593,11 +557,9 @@ pub struct RestStateImpl {
     user_invitation_service: Arc<UserInvitationService>,
     toggle_service: Arc<ToggleService>,
     sales_person_shiftplan_service: Arc<SalesPersonShiftplanService>,
-    cutover_service: Arc<CutoverService>,
     // Phase 8 Plan 08-07 Gap-Closure (Task 2): exposed for REST-Layer
-    // (`GET /feature-flag/{key}`). Bisher nur intern (ReportingService,
-    // ExtraHoursService, CutoverService) genutzt — jetzt auch via
-    // `RestStateDef::feature_flag_service`.
+    // (`GET /feature-flag/{key}`). Intern genutzt von ReportingService +
+    // ExtraHoursService; jetzt auch via `RestStateDef::feature_flag_service`.
     feature_flag_service: Arc<FeatureFlagService>,
     // Phase 8.5 (Plan 03): HR-gated per-Row-Convert extra_hours -> absence_period.
     absence_conversion_service: Arc<AbsenceConversionService>,
@@ -632,7 +594,6 @@ impl rest::RestStateDef for RestStateImpl {
     type UserInvitationService = UserInvitationService;
     type ToggleService = ToggleService;
     type SalesPersonShiftplanService = SalesPersonShiftplanService;
-    type CutoverService = CutoverService;
     type FeatureFlagService = FeatureFlagService;
     type AbsenceConversionService = AbsenceConversionService;
     type BasicDao = BasicDaoImpl;
@@ -725,9 +686,6 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService> {
         self.sales_person_shiftplan_service.clone()
-    }
-    fn cutover_service(&self) -> Arc<Self::CutoverService> {
-        self.cutover_service.clone()
     }
     fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService> {
         self.feature_flag_service.clone()
@@ -1060,32 +1018,8 @@ impl RestStateImpl {
         // konstruiert und in den ReportingService eingespeist. Die Plan-03-DI
         // ist damit vollstaendig live (kein #[allow(unused_variables)] mehr).
 
-        // Phase 4 (Plan 04-06) — Cutover orchestration DI.
-        // Construction order: carryover_rebuild_service (needs reporting +
-        // carryover) → cutover_dao → cutover_service (needs ALL the above).
-        // All upstream services (absence, extra_hours, feature_flag, working_hours,
-        // sales_person, permission, transaction_dao) are already constructed.
+        // Phase 8.5 (Plan 03) — migration_source_dao wird von AbsenceConversionService benötigt.
         let migration_source_dao = Arc::new(MigrationSourceDao::new(pool.clone()));
-        let cutover_dao = Arc::new(CutoverDao::new(pool.clone()));
-        let carryover_rebuild_service =
-            Arc::new(service_impl::carryover_rebuild::CarryoverRebuildServiceImpl {
-                reporting_service: reporting_service.clone(),
-                carryover_service: carryover_service.clone(),
-                permission_service: permission_service.clone(),
-                transaction_dao: transaction_dao.clone(),
-            });
-        let cutover_service = Arc::new(service_impl::cutover::CutoverServiceImpl {
-            cutover_dao: cutover_dao.clone(),
-            absence_dao: absence_dao.clone(),
-            absence_service: absence_service.clone(),
-            extra_hours_service: extra_hours_service.clone(),
-            carryover_rebuild_service: carryover_rebuild_service.clone(),
-            feature_flag_service: feature_flag_service.clone(),
-            employee_work_details_service: working_hours_service.clone(),
-            sales_person_service: sales_person_service.clone(),
-            permission_service: permission_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
 
         // Phase 8.5 (Plan 03) — AbsenceConversionService (BL-Tier nach Basic-Services).
         // Konsumiert: extra_hours_dao (Basic-DAO), absence_dao (Basic-DAO),
@@ -1134,7 +1068,6 @@ impl RestStateImpl {
             user_invitation_service,
             toggle_service,
             sales_person_shiftplan_service,
-            cutover_service,
             feature_flag_service,
             absence_conversion_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),

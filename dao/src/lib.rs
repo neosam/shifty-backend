@@ -89,8 +89,7 @@ pub trait TransactionDao {
     ) -> Result<Self::Transaction, DaoError>;
     async fn commit(&self, transaction: Self::Transaction) -> Result<(), DaoError>;
 
-    /// Explicitly roll the transaction back. Required by `CutoverService::run` so
-    /// the dry-run path consumes the `Arc<Mutex<sqlx::Transaction>>` and forces
+    /// Explicitly roll the transaction back. Consumes the transaction and forces
     /// the underlying SQLite transaction to be discarded immediately rather than
     /// dropped lazily by the runtime. If only one strong reference remains, the
     /// underlying SQLx transaction is rolled back via `Transaction::rollback()`;

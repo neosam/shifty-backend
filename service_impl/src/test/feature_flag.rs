@@ -130,7 +130,7 @@ async fn test_is_enabled_unauthenticated_rejected() {
 
     let service = deps.build_service();
     let result = service
-        .is_enabled("absence_range_source_active", ().auth(), None)
+        .is_enabled("test_flag", ().auth(), None)
         .await;
     assert!(matches!(result, Err(ServiceError::Unauthorized)));
 }
@@ -148,12 +148,12 @@ async fn test_is_enabled_authentication_full_bypasses_user_check() {
         .times(0);
     deps.feature_flag_dao
         .expect_is_enabled()
-        .with(eq("absence_range_source_active"), always())
+        .with(eq("test_flag"), always())
         .returning(|_, _| Ok(true));
 
     let service = deps.build_service();
     let result = service
-        .is_enabled("absence_range_source_active", Authentication::Full, None)
+        .is_enabled("test_flag", Authentication::Full, None)
         .await;
     assert!(result.is_ok());
     assert!(result.unwrap(), "Authentication::Full muss DAO-Wert durchreichen");
@@ -168,7 +168,7 @@ async fn test_set_requires_admin_permission() {
     deps.feature_flag_dao
         .expect_set()
         .withf(|key, value, process, _| {
-            key == "absence_range_source_active"
+            key == "test_flag"
                 && *value
                 && process == "feature-flag-service"
         })
@@ -176,7 +176,7 @@ async fn test_set_requires_admin_permission() {
 
     let service = deps.build_service();
     let result = service
-        .set("absence_range_source_active", true, ().auth(), None)
+        .set("test_flag", true, ().auth(), None)
         .await;
     assert!(result.is_ok());
 }
@@ -190,7 +190,7 @@ async fn test_set_forbidden_for_non_admin() {
 
     let service = deps.build_service();
     let result = service
-        .set("absence_range_source_active", true, ().auth(), None)
+        .set("test_flag", true, ().auth(), None)
         .await;
     assert!(matches!(result, Err(ServiceError::Forbidden)));
 }

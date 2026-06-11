@@ -1,9 +1,13 @@
 //! Phase 8 Plan 08-07 Gap-Closure (Task 2) — Feature-Flag REST-Endpoint
 //! End-to-End-Tests.
 //!
+//! Phase 8.6 re-key (D-06): Tests that previously used "absence_range_source_active"
+//! (which was removed in Phase 8.6) now use "totally_unknown_flag_xyz" to test the
+//! generic fail-safe-false mechanism.
+//!
 //! Coverage:
 //! 1. `is_enabled` über Service-Layer mit `Authentication::Full` —
-//!    bekannte/unbekannte Keys, fail-safe `false` für unknown.
+//!    unbekannte Keys → fail-safe `false`.
 //! 2. `is_enabled` mit `Authentication::Context(None)` → `Unauthorized`.
 //! 3. REST-Layer (`GET /feature-flag/{key}`) via tower::ServiceExt::oneshot,
 //!    damit der HTTP-Pfad (URL + Handler + DTO + JSON-Serialisierung)
@@ -26,18 +30,6 @@ use tower::ServiceExt;
 use crate::integration_test::TestSetup;
 
 #[tokio::test]
-async fn service_layer_known_flag_returns_seeded_value() {
-    let test_setup = TestSetup::new().await;
-    let svc = test_setup.rest_state.feature_flag_service();
-    let value = svc
-        .is_enabled("absence_range_source_active", Authentication::Full, None)
-        .await
-        .unwrap();
-    // Seeded as 0 in 20260501000000_add-feature-flag-table.sql.
-    assert!(!value, "absence_range_source_active is seeded disabled");
-}
-
-#[tokio::test]
 async fn service_layer_unknown_flag_returns_false_failsafe() {
     let test_setup = TestSetup::new().await;
     let svc = test_setup.rest_state.feature_flag_service();
@@ -54,7 +46,7 @@ async fn service_layer_unauthenticated_context_is_rejected() {
     let svc = test_setup.rest_state.feature_flag_service();
     let res = svc
         .is_enabled(
-            "absence_range_source_active",
+            "totally_unknown_flag_xyz",
             Authentication::Context(None),
             None,
         )
@@ -66,7 +58,7 @@ async fn service_layer_unauthenticated_context_is_rejected() {
     );
 }
 
-/// REST-Pfad: bekannter Key, authentifizierter User → 200 mit JSON-Body.
+/// REST-Pfad: unbekannter Key, authentifizierter User → 200 mit `enabled: false` (fail-safe).
 #[tokio::test]
 async fn rest_get_known_flag_returns_200_with_body() {
     let test_setup = TestSetup::new().await;
@@ -81,7 +73,7 @@ async fn rest_get_known_flag_returns_200_with_body() {
 
     let req = Request::builder()
         .method("GET")
-        .uri("/feature-flag/absence_range_source_active")
+        .uri("/feature-flag/totally_unknown_flag_xyz")
         .body(Body::empty())
         .unwrap();
     let resp = router.oneshot(req).await.unwrap();
@@ -89,8 +81,8 @@ async fn rest_get_known_flag_returns_200_with_body() {
 
     let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
     let to: FeatureFlagTO = serde_json::from_slice(&body_bytes).unwrap();
-    assert_eq!(to.key, "absence_range_source_active");
-    assert!(!to.enabled, "seeded disabled");
+    assert_eq!(to.key, "totally_unknown_flag_xyz");
+    assert!(!to.enabled, "unknown flag fail-safe to disabled");
 }
 
 /// REST-Pfad: unbekannter Key, authentifizierter User → 200 mit `enabled: false`.
@@ -137,7 +129,7 @@ async fn rest_get_without_user_returns_401() {
 
     let req = Request::builder()
         .method("GET")
-        .uri("/feature-flag/absence_range_source_active")
+        .uri("/feature-flag/totally_unknown_flag_xyz")
         .body(Body::empty())
         .unwrap();
     let resp = router.oneshot(req).await.unwrap();
