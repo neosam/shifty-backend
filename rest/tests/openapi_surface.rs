@@ -83,12 +83,6 @@ const EXPECTED_PATHS: &[&str] = &[
     // Permission catalog (RBAC management).
     "/permission/user",
     "/permission/role",
-    // Cutover admin (legacy → range-based migration).
-    "/admin/cutover/profile",
-    "/admin/cutover/commit",
-    // Cutover convert (Phase 8.1).
-    "/admin/cutover/convert-quarantine-entry",
-    "/admin/cutover/bulk-convert-quarantine-rows",
 ];
 
 /// Representative subset of named schemas that must exist in
@@ -117,7 +111,6 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     // Extra-hours.
     "ExtraHoursTO",
     "ExtraHoursCategoryTO",
-    "ExtraHoursCategoryDeprecatedErrorTO",
     // Reporting / billing.
     "EmployeeReportTO",
     "WorkingHoursReportTO",
@@ -125,18 +118,6 @@ const EXPECTED_SCHEMAS: &[&str] = &[
     // Shiftplan / slot.
     "SlotTO",
     "ShiftplanTO",
-    // Cutover.
-    "CutoverProfileTO",
-    // Cutover (Plan 08-08) — per-entry inline drift diagnostics.
-    "CutoverQuarantineEntryTO",
-    // Cutover convert DTOs (Phase 8.1).
-    "CutoverConvertQuarantineEntryRequest",
-    "CutoverConvertQuarantineEntryResponse",
-    "CutoverBulkConvertQuarantineRowsRequest",
-    "CutoverBulkConvertQuarantineRowsResponse",
-    "CutoverConvertErrorTO",
-    // Cutover manual-range sub-struct (Phase 8.2 / D-34).
-    "ManualRangeTO",
     // Phase 8.3 — Halbtag-Support.
     "DayFractionTO",
     // Phase 8.5 (Plan 03) — Convert-Request-DTO.
