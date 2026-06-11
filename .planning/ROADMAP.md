@@ -96,8 +96,8 @@
   5. OpenAPI-Surface-Test angepasst (Cutover-Schemas raus); `cargo test --workspace` + WASM-Build grün; kein toter Code (`cargo check --workspace` ohne Warnungen auf entfernte Symbole)
   Plans: 5 plans
   Plans:
-  - [ ] 08.6-01-PLAN.md — Backend-Abriss: CUTOVER_ADMIN_PRIVILEGE inlinen, Cutover+CarryoverRebuild-Crates loeschen, main.rs-DI entkoppeln, feature_flag-Tests re-keyen
-  - [ ] 08.6-02-PLAN.md — Frontend-Abriss: Cutover-Page/Route/i18n/api raus, top_bar absences-Gate auf logged_in (D-03), FeatureFlagsState Shell-Trim (D-02)
+  - [x] 08.6-01-PLAN.md — Backend-Abriss: CUTOVER_ADMIN_PRIVILEGE inlinen, Cutover+CarryoverRebuild-Crates loeschen, main.rs-DI entkoppeln, feature_flag-Tests re-keyen
+  - [x] 08.6-02-PLAN.md — Frontend-Abriss: Cutover-Page/Route/i18n/api raus, top_bar absences-Gate auf logged_in (D-03), FeatureFlagsState Shell-Trim (D-02)
   - [ ] 08.6-03-PLAN.md — Forward-only Drop-Migrations (quarantine + carryover-backup) + Seed-DELETE + .sqlx-Regeneration
   - [ ] 08.6-04-PLAN.md — OpenAPI-Surface-Test: Cutover-Pfade/-Schemas raus, /feature-flag/{key} bleibt (D-08)
   - [ ] 08.6-05-PLAN.md — Verifikations-Gate: cargo test/check --workspace + WASM-Build + Negative-Space/Survivor-Asserts (D-09)
