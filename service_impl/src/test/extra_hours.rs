@@ -28,7 +28,6 @@ use mockall::predicate::always;
 use mockall::predicate::eq;
 use service::clock::MockClockService;
 use service::custom_extra_hours::MockCustomExtraHoursService;
-use service::cutover::CUTOVER_ADMIN_PRIVILEGE;
 use service::extra_hours::ExtraHours;
 use service::extra_hours::ExtraHoursCategory;
 use service::extra_hours::ExtraHoursService;
@@ -51,6 +50,8 @@ use crate::test::error_test::test_forbidden;
 use crate::test::error_test::test_not_found;
 use crate::test::error_test::test_validation_error;
 use crate::test::error_test::NoneTypeExt;
+
+const CUTOVER_ADMIN_PRIVILEGE: &str = "cutover_admin";
 
 // ----------------------------------------------------------------------------
 // Shared fixtures (used by both sets of tests)

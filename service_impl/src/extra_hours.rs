@@ -8,7 +8,6 @@ use dao::{
 };
 use service::{
     clock::ClockService,
-    cutover::CUTOVER_ADMIN_PRIVILEGE,
     custom_extra_hours::CustomExtraHoursService,
     extra_hours::{ExtraHours, ExtraHoursService},
     permission::{Authentication, HR_PRIVILEGE, SALES_PRIVILEGE},
@@ -16,6 +15,10 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError, ValidationFailureItem,
 };
+
+/// Privileg-Gate für `soft_delete_bulk`. Konstante aus `service::cutover`
+/// hierher umgezogen (Phase 8.6, D-01). String-Wert identisch — kein DB-Schema-Change.
+const CUTOVER_ADMIN_PRIVILEGE: &str = "cutover_admin";
 use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 use tokio::join;
 use uuid::Uuid;
