@@ -94,6 +94,13 @@
   3. Drop-Migration für die Tabelle `absence_migration_quarantine` (alte Migration unverändert lassen); `absence_period_migration_source` **bleibt**
   4. Feature-Flag `absence_range_source_active` vollständig entfernt (kein Reader mehr in `reporting.rs` / `extra_hours.rs` / `carryover_rebuild.rs`)
   5. OpenAPI-Surface-Test angepasst (Cutover-Schemas raus); `cargo test --workspace` + WASM-Build grün; kein toter Code (`cargo check --workspace` ohne Warnungen auf entfernte Symbole)
+  Plans: 5 plans
+  Plans:
+  - [ ] 08.6-01-PLAN.md — Backend-Abriss: CUTOVER_ADMIN_PRIVILEGE inlinen, Cutover+CarryoverRebuild-Crates loeschen, main.rs-DI entkoppeln, feature_flag-Tests re-keyen
+  - [ ] 08.6-02-PLAN.md — Frontend-Abriss: Cutover-Page/Route/i18n/api raus, top_bar absences-Gate auf logged_in (D-03), FeatureFlagsState Shell-Trim (D-02)
+  - [ ] 08.6-03-PLAN.md — Forward-only Drop-Migrations (quarantine + carryover-backup) + Seed-DELETE + .sqlx-Regeneration
+  - [ ] 08.6-04-PLAN.md — OpenAPI-Surface-Test: Cutover-Pfade/-Schemas raus, /feature-flag/{key} bleibt (D-08)
+  - [ ] 08.6-05-PLAN.md — Verifikations-Gate: cargo test/check --workspace + WASM-Build + Negative-Space/Survivor-Asserts (D-09)
 
 - [ ] **Phase 9: Booking-Flow Reverse-Warnings + Copy-Week** (Frontend)
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog; Wochen-Kopie über `POST /shiftplan-edit/copy-week` mit aggregierten Warnings.
