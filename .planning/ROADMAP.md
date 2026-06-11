@@ -85,7 +85,7 @@
   - [x] 08.5-06-PLAN.md — absences.rs HourlyMarkerRow inline + Convert/Edit-Verdrahtung + i18n + SSR-Tests
   - [x] 08.5-07-PLAN.md — Working-Hours-Dialog-Umbau + Soft-Migration-Hinweis + i18n + Full-Suite/WASM-Gate
 
-- [ ] **Phase 8.6: Cutover-Abriss** (Backend + Frontend) — *Entfernung der Batch-Maschinerie*
+- [x] **Phase 8.6: Cutover-Abriss** (Backend + Frontend) — *Entfernung der Batch-Maschinerie* — ✓ Complete 2026-06-11
   Die Batch-Cutover-Maschinerie wird **ersatzlos entfernt**. Erhalten bleibt nur das per-row Convert-Plumbing (jetzt in 8.5: `absence_period_migration_source` + Soft-Delete-on-Convert).
   Requirements: (Aufräum-Phase)
   Success Criteria:
@@ -349,7 +349,7 @@
 | 8.3 — Halbtag-Support für Absences | v1.3 | 6/6 | Complete | — |
 | 8.4 — Reporting-Additiv-Merge + Deprecation-Rückbau | v1.3 | 0/? | Pending | — |
 | 8.5 — Read-Projektion + HR-Inline-Convert | v1.3 | 0/? | Pending | — |
-| 8.6 — Cutover-Abriss | v1.3 | 0/? | Pending | — |
+| 8.6 — Cutover-Abriss | v1.3 | 5/5 | Complete | 2026-06-11 |
 | 9 — Booking-Flow Reverse-Warnings + Copy-Week | v1.3 | 0/? | Pending | — |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | ⊘ Superseded | 2026-06-09 |
