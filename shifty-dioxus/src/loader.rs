@@ -969,6 +969,9 @@ pub async fn load_team_vacation(
 // hängt die `enabled`-Werte für bekannte Keys in `FEATURE_FLAGS_STORE` rein.
 // ─────────────────────────────────────────────────────────────────────────
 
+// Phase 8.6 D-02: konservierte Loader-Funktion des generischen Flag-
+// Mechanismus; nach dem Cutover-Abriss aktuell ohne Aufrufer.
+#[allow(dead_code)]
 pub async fn load_feature_flag(
     config: Config,
     key: &str,

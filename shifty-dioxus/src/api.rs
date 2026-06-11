@@ -651,6 +651,10 @@ pub async fn get_team_vacation_balance(
 /// Backend liefert für unbekannte Keys `200 OK` mit `enabled: false`
 /// (fail-safe). Das ruft der `feature_flag_service`-Coroutine genau einmal
 /// pro App-Start für `absence_range_source_active`.
+///
+/// Phase 8.6 D-02: konservierte Fetch-Funktion des generischen Flag-
+/// Mechanismus; nach dem Cutover-Abriss aktuell ohne Aufrufer.
+#[allow(dead_code)]
 pub async fn get_feature_flag(
     config: Config,
     key: &str,

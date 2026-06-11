@@ -7,6 +7,12 @@
 //!
 //! `FEATURE_FLAGS_STORE` bleibt als GlobalSignal, damit allfällige
 //! Downstream-Reads (falls noch vorhanden) nicht brechen.
+//!
+//! Phase 8.6 D-02 (Option A): Das gesamte konservierte Flag-Modul ist mit
+//! `#![allow(dead_code)]` markiert — der generische Mechanismus bleibt für
+//! künftige Flags erhalten und kompiliert warnungsfrei, obwohl er nach dem
+//! Cutover-Abriss aktuell keinen Konsumenten mehr hat.
+#![allow(dead_code)]
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;

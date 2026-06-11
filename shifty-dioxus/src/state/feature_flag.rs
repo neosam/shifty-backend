@@ -4,6 +4,10 @@
 //! Phase 8.6 Cutover-Abriss (D-02): `absence_range_source_active` Field und
 //! Convenience-Lookup wurden entfernt. Das Struct bleibt als leere Shell
 //! bestehen, damit `service::feature_flag` und Downstream-Code kompilieren.
+//!
+//! Phase 8.6 D-02 (Option A): Konserviertes Modul mit `#![allow(dead_code)]` —
+//! der generische Flag-Mirror bleibt für künftige Flags warnungsfrei erhalten.
+#![allow(dead_code)]
 
 use rest_types::FeatureFlagTO;
 
