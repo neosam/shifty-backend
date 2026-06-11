@@ -58,17 +58,17 @@ pub fn AbsenceConvertModal(
     // Tageshälfte-Select: Default Full
     let mut day_fraction = use_signal(|| rest_types::DayFractionTO::Full);
 
-    let title = i18n.t(Key::CutoverManualConvertModalTitle);
-    let help_text = i18n.t(Key::CutoverManualConvertHelp);
-    let amount_label = i18n.t(Key::CutoverEditAmountLabel);
-    let start_label = i18n.t(Key::CutoverManualConvertStartLabel);
-    let end_label = i18n.t(Key::CutoverManualConvertEndLabel);
-    let submit_label = i18n.t(Key::CutoverManualConvertBtnSubmit);
-    let cancel_label = i18n.t(Key::CutoverEditBtnCancel);
-    let err_start_after_end = i18n.t(Key::CutoverManualConvertErrStartAfterEnd).to_string();
-    let day_fraction_label = i18n.t(Key::CutoverManualConvertDayFractionLabel);
-    let day_fraction_full_label = i18n.t(Key::CutoverDayFractionFull);
-    let day_fraction_half_label = i18n.t(Key::CutoverDayFractionHalf);
+    let title = i18n.t(Key::AbsenceConvertModalTitle);
+    let help_text = i18n.t(Key::AbsenceConvertModalHelp);
+    let amount_label = i18n.t(Key::AbsenceConvertAmountLabel);
+    let start_label = i18n.t(Key::AbsenceConvertStartLabel);
+    let end_label = i18n.t(Key::AbsenceConvertEndLabel);
+    let submit_label = i18n.t(Key::AbsenceConvertBtnSubmit);
+    let cancel_label = i18n.t(Key::AbsenceConvertBtnCancel);
+    let err_start_after_end = i18n.t(Key::AbsenceConvertErrStartAfterEnd).to_string();
+    let day_fraction_label = i18n.t(Key::AbsenceFieldDayFraction);
+    let day_fraction_full_label = i18n.t(Key::AbsenceDayFractionFull);
+    let day_fraction_half_label = i18n.t(Key::AbsenceDayFractionHalf);
 
     // Read-only Kategorie-Label (Pitfall 5 — statische Tailwind-Arms).
     let category_label = match category {

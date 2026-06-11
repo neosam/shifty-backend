@@ -8,11 +8,6 @@ pub use crate::page::AbsencesPage;
 // the descriptive name and the route lookup work.
 pub use crate::page::AbsencesPage as Absences;
 pub use crate::page::BillingPeriodDetails;
-pub use crate::page::CutoverAdminPage;
-// Same variant-alias trick as `Absences` above (Plan 08-05 pattern):
-// `#[derive(Routable)]` resolves the page component by the exact variant
-// name, so `AdminCutover {}` needs an item `AdminCutover` in scope.
-pub use crate::page::CutoverAdminPage as AdminCutover;
 pub use crate::page::BillingPeriods;
 pub use crate::page::CustomExtraHoursManagement;
 pub use crate::page::EmployeeDetails;
@@ -62,6 +57,4 @@ pub enum Route {
     MyShifts {},
     #[route("/absences/")]
     Absences {},
-    #[route("/admin/cutover/")]
-    AdminCutover {},
 }

@@ -507,62 +507,16 @@ pub enum Key {
     AbsenceFieldDayFractionHalfHint,
     AbsencePreviewFooterHalfDay,
 
-    // Cutover migration (Phase 8.1 — see 08.1-UI-SPEC.md § Copywriting Contract).
-    CutoverMenuLabel,           // TopBar Verwaltung-Submenu entry
-    CutoverPageTitle,
-    CutoverPageSubtitle,
-    CutoverStage1Label,         // "Profile" / "Übersicht"
-    CutoverStage2Label,         // "Dry-Run" / "Vorschau"
-    CutoverStage3Label,         // "Commit" / "Durchführen"
-    CutoverBtnContinue,         // "Continue" / "Weiter"
-    CutoverBtnBack,             // "Back" / "Zurück"
-    CutoverStatTotalRows,
-    CutoverStatPersons,
-    CutoverStatQuarantine,
-    CutoverStatCarryoverDiff,
-    CutoverBtnBulkConvert,      // "Convert all in group"
-    CutoverRowBtnConvert,
-    CutoverRowBtnEdit,
-    CutoverRowBtnDelete,
-    CutoverRowBtnSkip,
-    CutoverDriftEmptyHeading,
-    CutoverDriftEmptyBody,
-    CutoverCommitSummaryHeading,
-    CutoverCommitTypeLabel,
-    CutoverCommitBtn,
-    CutoverSuccessHeading,
-    CutoverSuccessBody,
-    CutoverAlreadyDoneHeading,
-    CutoverAlreadyDoneBody,
-    CutoverEditModalTitle,
-    CutoverEditAmountLabel,
-    CutoverEditDateLabel,
-    CutoverEditBtnSave,
-    CutoverEditBtnCancel,
-    CutoverErrorApiFailure,
-    CutoverCommitDisabledTooltip,
-    CutoverPrivilegeStage3,
-
-    // Cutover Manual Range (Phase 8.2 — D-29) — operator-driven date-range
-    // override for the convert-quarantine-entry endpoint. See
-    // .planning/phases/08.2-manual-range-convert-quarantine/08.2-RESEARCH.md § 6.
-    CutoverManualConvertModalTitle,
-    CutoverManualConvertHelp,
-    CutoverManualConvertStartLabel,
-    CutoverManualConvertEndLabel,
-    CutoverManualConvertBtnSubmit,
-    CutoverManualConvertErrStartAfterEnd,
-    CutoverManualConvertErrYearMismatch,
-    CutoverManualConvertErrOverlap,
-
-    // Phase 8.3 — Halbtag-Support (Cutover).
-    CutoverDriftColDayFraction,
-    CutoverDriftDayFractionAria,
-    CutoverBulkDayFractionLabel,
-    CutoverDriftHalfDaySuggestion,
-    CutoverManualConvertDayFractionLabel,
-    CutoverDayFractionFull,
-    CutoverDayFractionHalf,
+    // AbsenceConvertModal i18n keys (Phase 8.6: renamed from CutoverManualConvert* /
+    // CutoverEdit* namespace; used by `component/absence_convert_modal.rs`).
+    AbsenceConvertModalTitle,
+    AbsenceConvertModalHelp,
+    AbsenceConvertAmountLabel,
+    AbsenceConvertStartLabel,
+    AbsenceConvertEndLabel,
+    AbsenceConvertBtnSubmit,
+    AbsenceConvertBtnCancel,
+    AbsenceConvertErrStartAfterEnd,
 
     // Phase 8.5 Plan 06 — Stundenbasierte Marker inline in Absence-Liste.
     /// Badge-Text auf der HourlyMarkerRow ("stundenbasiert" / "hours-based" / …).
@@ -804,131 +758,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn i18n_cutover_keys_present_in_all_locales() {
-        for locale in [Locale::En, Locale::De, Locale::Cs] {
-            let i18n = generate(locale);
-            for key in [
-                Key::CutoverMenuLabel,
-                Key::CutoverPageTitle,
-                Key::CutoverPageSubtitle,
-                Key::CutoverStage1Label,
-                Key::CutoverStage2Label,
-                Key::CutoverStage3Label,
-                Key::CutoverBtnContinue,
-                Key::CutoverBtnBack,
-                Key::CutoverStatTotalRows,
-                Key::CutoverStatPersons,
-                Key::CutoverStatQuarantine,
-                Key::CutoverStatCarryoverDiff,
-                Key::CutoverBtnBulkConvert,
-                Key::CutoverRowBtnConvert,
-                Key::CutoverRowBtnEdit,
-                Key::CutoverRowBtnDelete,
-                Key::CutoverRowBtnSkip,
-                Key::CutoverDriftEmptyHeading,
-                Key::CutoverDriftEmptyBody,
-                Key::CutoverCommitSummaryHeading,
-                Key::CutoverCommitTypeLabel,
-                Key::CutoverCommitBtn,
-                Key::CutoverSuccessHeading,
-                Key::CutoverSuccessBody,
-                Key::CutoverAlreadyDoneHeading,
-                Key::CutoverAlreadyDoneBody,
-                Key::CutoverEditModalTitle,
-                Key::CutoverEditAmountLabel,
-                Key::CutoverEditDateLabel,
-                Key::CutoverEditBtnSave,
-                Key::CutoverEditBtnCancel,
-                Key::CutoverErrorApiFailure,
-                Key::CutoverCommitDisabledTooltip,
-                Key::CutoverPrivilegeStage3,
-                // Phase 8.2 manual range
-                Key::CutoverManualConvertModalTitle,
-                Key::CutoverManualConvertHelp,
-                Key::CutoverManualConvertStartLabel,
-                Key::CutoverManualConvertEndLabel,
-                Key::CutoverManualConvertBtnSubmit,
-                Key::CutoverManualConvertErrStartAfterEnd,
-                Key::CutoverManualConvertErrYearMismatch,
-                Key::CutoverManualConvertErrOverlap,
-            ] {
-                let value = i18n.t(key);
-                assert!(
-                    !value.is_empty() && value.as_ref() != "??",
-                    "missing translation for {:?} in {:?}: got `{}`",
-                    key,
-                    locale,
-                    value
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn i18n_cutover_keys_match_german_reference() {
-        // Pitfall-2 guard — defends against historical Locale::En-statt-Locale::De bug.
-        let i18n = generate(Locale::De);
-        assert_eq!(i18n.t(Key::CutoverPageTitle).as_ref(), "Datenmigration");
-        assert_eq!(i18n.t(Key::CutoverStage1Label).as_ref(), "Übersicht");
-        assert_eq!(i18n.t(Key::CutoverStage2Label).as_ref(), "Vorschau");
-        assert_eq!(i18n.t(Key::CutoverStage3Label).as_ref(), "Durchführen");
-        assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Weiter");
-        assert_eq!(i18n.t(Key::CutoverBtnBack).as_ref(), "Zurück");
-        assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Cutover durchführen");
-        // Phase 8.2 (D-29) manual-range keys — sample 3 strings.
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertModalTitle).as_ref(),
-            "Urlaub manuell anlegen"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertStartLabel).as_ref(),
-            "Datum von"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertBtnSubmit).as_ref(),
-            "Anlegen"
-        );
-    }
-
-    #[test]
-    fn i18n_cutover_keys_match_english_reference() {
-        let i18n = generate(Locale::En);
-        assert_eq!(i18n.t(Key::CutoverPageTitle).as_ref(), "Data Migration");
-        assert_eq!(i18n.t(Key::CutoverStage1Label).as_ref(), "Profile");
-        assert_eq!(i18n.t(Key::CutoverStage2Label).as_ref(), "Dry-Run");
-        assert_eq!(i18n.t(Key::CutoverStage3Label).as_ref(), "Commit");
-        assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Continue");
-        assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Commit Cutover");
-        // Phase 8.2 (D-29) manual-range keys — sample 2 strings.
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertModalTitle).as_ref(),
-            "Set absence range manually"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertStartLabel).as_ref(),
-            "Start date"
-        );
-    }
-
-    #[test]
-    fn i18n_cutover_keys_match_czech_reference() {
-        // Czech reference strings — cf. cs.rs implementation (Task 4).
-        let i18n = generate(Locale::Cs);
-        // 5 sample keys; full set of 34 covered by the presence test.
-        assert_eq!(i18n.t(Key::CutoverPageTitle).as_ref(), "Migrace dat");
-        assert_eq!(i18n.t(Key::CutoverStage1Label).as_ref(), "Přehled");
-        assert_eq!(i18n.t(Key::CutoverBtnContinue).as_ref(), "Pokračovat");
-        assert_eq!(i18n.t(Key::CutoverBtnBack).as_ref(), "Zpět");
-        assert_eq!(i18n.t(Key::CutoverCommitBtn).as_ref(), "Provést cutover");
-        // Phase 8.2 (D-29) manual-range keys — sample 2 strings.
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertModalTitle).as_ref(),
-            "Ručně nastavit dovolenou"
-        );
-        assert_eq!(i18n.t(Key::CutoverManualConvertEndLabel).as_ref(), "Do");
-    }
-
     // ===== Phase 8.3 — Halbtag-Support i18n Tests =====
 
     #[test]
@@ -944,32 +773,6 @@ mod tests {
                 Key::AbsenceFieldDayFractionFullHint,
                 Key::AbsenceFieldDayFractionHalfHint,
                 Key::AbsencePreviewFooterHalfDay,
-            ] {
-                let value = i18n.t(key);
-                assert!(
-                    !value.is_empty() && value.as_ref() != "??",
-                    "missing translation for {:?} in {:?}: got `{}`",
-                    key,
-                    locale,
-                    value
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn i18n_cutover_day_fraction_keys_present_in_all_locales() {
-        // FUI-A-09 — alle 3 Locales × alle 7 Cutover-Halbtag-Keys.
-        for locale in [Locale::En, Locale::De, Locale::Cs] {
-            let i18n = generate(locale);
-            for key in [
-                Key::CutoverDriftColDayFraction,
-                Key::CutoverDriftDayFractionAria,
-                Key::CutoverBulkDayFractionLabel,
-                Key::CutoverDriftHalfDaySuggestion,
-                Key::CutoverManualConvertDayFractionLabel,
-                Key::CutoverDayFractionFull,
-                Key::CutoverDayFractionHalf,
             ] {
                 let value = i18n.t(key);
                 assert!(
@@ -1045,87 +848,6 @@ mod tests {
             i18n.t(Key::AbsencePreviewFooterHalfDay).as_ref(),
             "Půldenní: zobrazené hodiny jsou již vydělené dvěma."
         );
-    }
-
-    #[test]
-    fn i18n_cutover_day_fraction_match_german_reference() {
-        let i18n = generate(Locale::De);
-        assert_eq!(
-            i18n.t(Key::CutoverDriftColDayFraction).as_ref(),
-            "Tageshälfte"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverDriftDayFractionAria).as_ref(),
-            "Tageshälfte für diesen Eintrag wählen"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverBulkDayFractionLabel).as_ref(),
-            "Halb/Ganz für ganze Gruppe"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverDriftHalfDaySuggestion).as_ref(),
-            "Stunden deuten auf Halbtag hin ({amount:.2}h ≈ ½ × Vertragstag)."
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertDayFractionLabel).as_ref(),
-            "Tageshälfte"
-        );
-        assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Ganztag");
-        assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Halber Tag");
-    }
-
-    #[test]
-    fn i18n_cutover_day_fraction_match_english_reference() {
-        let i18n = generate(Locale::En);
-        assert_eq!(
-            i18n.t(Key::CutoverDriftColDayFraction).as_ref(),
-            "Day fraction"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverDriftDayFractionAria).as_ref(),
-            "Pick day fraction for this entry"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverBulkDayFractionLabel).as_ref(),
-            "Half/Full for whole group"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverDriftHalfDaySuggestion).as_ref(),
-            "Hours suggest half-day ({amount:.2}h ≈ ½ × contract day)."
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertDayFractionLabel).as_ref(),
-            "Day fraction"
-        );
-        assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Full day");
-        assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Half day");
-    }
-
-    #[test]
-    fn i18n_cutover_day_fraction_match_czech_reference() {
-        let i18n = generate(Locale::Cs);
-        assert_eq!(
-            i18n.t(Key::CutoverDriftColDayFraction).as_ref(),
-            "Část dne"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverDriftDayFractionAria).as_ref(),
-            "Zvol část dne pro tuto položku"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverBulkDayFractionLabel).as_ref(),
-            "Půl/Celý pro celou skupinu"
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverDriftHalfDaySuggestion).as_ref(),
-            "Hodiny naznačují půldenní ({amount:.2}h ≈ ½ × smluvní den)."
-        );
-        assert_eq!(
-            i18n.t(Key::CutoverManualConvertDayFractionLabel).as_ref(),
-            "Část dne"
-        );
-        assert_eq!(i18n.t(Key::CutoverDayFractionFull).as_ref(), "Celý den");
-        assert_eq!(i18n.t(Key::CutoverDayFractionHalf).as_ref(), "Půl dne");
     }
 
     // ===== Phase 8.5 Plan 06 — Stundenbasierte Marker i18n Tests =====

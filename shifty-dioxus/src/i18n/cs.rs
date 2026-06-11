@@ -871,71 +871,22 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::AbsenceFilterShowPast, "Zobrazit minulé");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterCounter, "{n} z {m}");
 
-    // Cutover migration (Phase 8.1) — single-line calls; do not reformat across
-    // multiple lines (Plan 08.1-06 verify grep counts call lines).
-    i18n.add_text(Locale::Cs, Key::CutoverMenuLabel, "Migrace dat");
-    i18n.add_text(Locale::Cs, Key::CutoverPageTitle, "Migrace dat");
-    i18n.add_text(Locale::Cs, Key::CutoverPageSubtitle, "Migrace zastaralých záznamů přesčasů do období nepřítomnosti");
-    i18n.add_text(Locale::Cs, Key::CutoverStage1Label, "Přehled");
-    i18n.add_text(Locale::Cs, Key::CutoverStage2Label, "Náhled");
-    i18n.add_text(Locale::Cs, Key::CutoverStage3Label, "Provést");
-    i18n.add_text(Locale::Cs, Key::CutoverBtnContinue, "Pokračovat");
-    i18n.add_text(Locale::Cs, Key::CutoverBtnBack, "Zpět");
-    i18n.add_text(Locale::Cs, Key::CutoverStatTotalRows, "Řádky k migraci");
-    i18n.add_text(Locale::Cs, Key::CutoverStatPersons, "Dotčení zaměstnanci");
-    i18n.add_text(Locale::Cs, Key::CutoverStatQuarantine, "Záznamy v karanténě");
-    i18n.add_text(Locale::Cs, Key::CutoverStatCarryoverDiff, "Rozdíl převodu");
-    i18n.add_text(Locale::Cs, Key::CutoverBtnBulkConvert, "Převést všechny ve skupině");
-    i18n.add_text(Locale::Cs, Key::CutoverRowBtnConvert, "Převést záznam");
-    i18n.add_text(Locale::Cs, Key::CutoverRowBtnEdit, "Upravit");
-    i18n.add_text(Locale::Cs, Key::CutoverRowBtnDelete, "Smazat");
-    i18n.add_text(Locale::Cs, Key::CutoverRowBtnSkip, "Přeskočit záznam");
-    i18n.add_text(Locale::Cs, Key::CutoverDriftEmptyHeading, "Žádné otevřené odchylky");
-    i18n.add_text(Locale::Cs, Key::CutoverDriftEmptyBody, "Všechny záznamy lze migrovat automaticky. Pokračujte ke kroku Provést.");
-    i18n.add_text(Locale::Cs, Key::CutoverCommitSummaryHeading, "Souhrn migrace");
-    i18n.add_text(Locale::Cs, Key::CutoverCommitTypeLabel, "Pro potvrzení napište CUTOVER");
-    i18n.add_text(Locale::Cs, Key::CutoverCommitBtn, "Provést cutover");
-    i18n.add_text(Locale::Cs, Key::CutoverSuccessHeading, "Cutover dokončen");
-    i18n.add_text(Locale::Cs, Key::CutoverSuccessBody, "Opakované spuštění nemá žádný efekt. Cesta zálohy: {path}");
-    i18n.add_text(Locale::Cs, Key::CutoverAlreadyDoneHeading, "Cutover již dokončen");
-    i18n.add_text(Locale::Cs, Key::CutoverAlreadyDoneBody, "Migrace již byla provedena. Náhled zobrazuje 0 řádků.");
-    i18n.add_text(Locale::Cs, Key::CutoverEditModalTitle, "Upravit záznam");
-    i18n.add_text(Locale::Cs, Key::CutoverEditAmountLabel, "Hodnota (h)");
-    i18n.add_text(Locale::Cs, Key::CutoverEditDateLabel, "Datum");
-    i18n.add_text(Locale::Cs, Key::CutoverEditBtnSave, "Uložit změny");
-    i18n.add_text(Locale::Cs, Key::CutoverEditBtnCancel, "Zahodit změny");
-    i18n.add_text(Locale::Cs, Key::CutoverErrorApiFailure, "Požadavek selhal. Zkuste to prosím znovu.");
-    i18n.add_text(Locale::Cs, Key::CutoverCommitDisabledTooltip, "Provedení deaktivováno: zůstaly řádky v karanténě nebo již cutover proběhl");
-    i18n.add_text(Locale::Cs, Key::CutoverPrivilegeStage3, "Pro provedení je nutné oprávnění cutover_admin");
-
-    // Cutover Manual Range (Phase 8.2 — D-29).
+    // AbsenceConvertModal (Phase 8.6: přejmenováno z CutoverManualConvert*/CutoverEdit*).
+    i18n.add_text(Locale::Cs, Key::AbsenceConvertModalTitle, "Ručně nastavit dovolenou");
     i18n.add_text(
         Locale::Cs,
-        Key::CutoverManualConvertModalTitle,
-        "Ručně nastavit dovolenou",
-    );
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverManualConvertHelp,
+        Key::AbsenceConvertModalHelp,
         "Rozsah dat zadáváš přímo, místo aby ho hádala heuristika.",
     );
-    i18n.add_text(Locale::Cs, Key::CutoverManualConvertStartLabel, "Od");
-    i18n.add_text(Locale::Cs, Key::CutoverManualConvertEndLabel, "Do");
-    i18n.add_text(Locale::Cs, Key::CutoverManualConvertBtnSubmit, "Vytvořit");
+    i18n.add_text(Locale::Cs, Key::AbsenceConvertAmountLabel, "Hodnota (h)");
+    i18n.add_text(Locale::Cs, Key::AbsenceConvertStartLabel, "Od");
+    i18n.add_text(Locale::Cs, Key::AbsenceConvertEndLabel, "Do");
+    i18n.add_text(Locale::Cs, Key::AbsenceConvertBtnSubmit, "Vytvořit");
+    i18n.add_text(Locale::Cs, Key::AbsenceConvertBtnCancel, "Zahodit změny");
     i18n.add_text(
         Locale::Cs,
-        Key::CutoverManualConvertErrStartAfterEnd,
+        Key::AbsenceConvertErrStartAfterEnd,
         "Datum začátku musí být před koncem nebo stejné.",
-    );
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverManualConvertErrYearMismatch,
-        "Datum musí být ve stejném roce jako karanténní záznam.",
-    );
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverManualConvertErrOverlap,
-        "Existující nepřítomnost se překrývá s tímto rozsahem.",
     );
 
     // Phase 8.3 — Halbtag-Support (Absence).
@@ -957,31 +908,6 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::AbsencePreviewFooterHalfDay,
         "Půldenní: zobrazené hodiny jsou již vydělené dvěma.",
     );
-
-    // Phase 8.3 — Halbtag-Support (Cutover).
-    i18n.add_text(Locale::Cs, Key::CutoverDriftColDayFraction, "Část dne");
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverDriftDayFractionAria,
-        "Zvol část dne pro tuto položku",
-    );
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverBulkDayFractionLabel,
-        "Půl/Celý pro celou skupinu",
-    );
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverDriftHalfDaySuggestion,
-        "Hodiny naznačují půldenní ({amount:.2}h ≈ ½ × smluvní den).",
-    );
-    i18n.add_text(
-        Locale::Cs,
-        Key::CutoverManualConvertDayFractionLabel,
-        "Část dne",
-    );
-    i18n.add_text(Locale::Cs, Key::CutoverDayFractionFull, "Celý den");
-    i18n.add_text(Locale::Cs, Key::CutoverDayFractionHalf, "Půl dne");
 
     // Phase 8.5 Plan 06 — Stundenbasierte Marker inline in Absence-Liste.
     i18n.add_text(Locale::Cs, Key::AbsenceHourlyBadge, "hodinové záznamy");

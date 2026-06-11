@@ -4,7 +4,6 @@ pub mod billing_period;
 pub mod booking_conflict;
 pub mod booking_log;
 pub mod config;
-pub mod cutover;
 pub mod dropdown;
 pub mod employee;
 pub mod employee_work_details;

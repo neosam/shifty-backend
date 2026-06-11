@@ -887,67 +887,22 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::De, Key::AbsenceFilterCounter, "{n} von {m}");
 
-    // Cutover migration (Phase 8.1) — single-line calls; do not reformat across
-    // multiple lines (Plan 08.1-06 verify grep counts call lines).
-    i18n.add_text(Locale::De, Key::CutoverMenuLabel, "Datenmigration");
-    i18n.add_text(Locale::De, Key::CutoverPageTitle, "Datenmigration");
-    i18n.add_text(Locale::De, Key::CutoverPageSubtitle, "Veraltete Überstunden-Einträge in Abwesenheiten migrieren");
-    i18n.add_text(Locale::De, Key::CutoverStage1Label, "Übersicht");
-    i18n.add_text(Locale::De, Key::CutoverStage2Label, "Vorschau");
-    i18n.add_text(Locale::De, Key::CutoverStage3Label, "Durchführen");
-    i18n.add_text(Locale::De, Key::CutoverBtnContinue, "Weiter");
-    i18n.add_text(Locale::De, Key::CutoverBtnBack, "Zurück");
-    i18n.add_text(Locale::De, Key::CutoverStatTotalRows, "Zu migrierende Zeilen");
-    i18n.add_text(Locale::De, Key::CutoverStatPersons, "Betroffene Mitarbeiter");
-    i18n.add_text(Locale::De, Key::CutoverStatQuarantine, "Quarantäne-Einträge");
-    i18n.add_text(Locale::De, Key::CutoverStatCarryoverDiff, "Übertrags-Differenz");
-    i18n.add_text(Locale::De, Key::CutoverBtnBulkConvert, "Alle in Gruppe konvertieren");
-    i18n.add_text(Locale::De, Key::CutoverRowBtnConvert, "Eintrag konvertieren");
-    i18n.add_text(Locale::De, Key::CutoverRowBtnEdit, "Bearbeiten");
-    i18n.add_text(Locale::De, Key::CutoverRowBtnDelete, "Löschen");
-    i18n.add_text(Locale::De, Key::CutoverRowBtnSkip, "Eintrag überspringen");
-    i18n.add_text(Locale::De, Key::CutoverDriftEmptyHeading, "Keine offenen Drifts");
-    i18n.add_text(Locale::De, Key::CutoverDriftEmptyBody, "Alle Einträge können automatisch migriert werden. Weiter zum Commit-Schritt.");
-    i18n.add_text(Locale::De, Key::CutoverCommitSummaryHeading, "Migrations-Zusammenfassung");
-    i18n.add_text(Locale::De, Key::CutoverCommitTypeLabel, "Tippe CUTOVER zur Bestätigung");
-    i18n.add_text(Locale::De, Key::CutoverCommitBtn, "Cutover durchführen");
-    i18n.add_text(Locale::De, Key::CutoverSuccessHeading, "Cutover abgeschlossen");
-    i18n.add_text(Locale::De, Key::CutoverSuccessBody, "Wiederholungen sind No-Ops. Backup-Pfad: {path}");
-    i18n.add_text(Locale::De, Key::CutoverAlreadyDoneHeading, "Cutover bereits abgeschlossen");
-    i18n.add_text(Locale::De, Key::CutoverAlreadyDoneBody, "Die Migration wurde bereits durchgeführt. Dry-Run zeigt 0 Zeilen.");
-    i18n.add_text(Locale::De, Key::CutoverEditModalTitle, "Eintrag bearbeiten");
-    i18n.add_text(Locale::De, Key::CutoverEditAmountLabel, "Betrag (h)");
-    i18n.add_text(Locale::De, Key::CutoverEditDateLabel, "Datum");
-    i18n.add_text(Locale::De, Key::CutoverEditBtnSave, "Änderungen speichern");
-    i18n.add_text(Locale::De, Key::CutoverEditBtnCancel, "Verwerfen");
-    i18n.add_text(Locale::De, Key::CutoverErrorApiFailure, "Anfrage fehlgeschlagen. Bitte erneut versuchen.");
-    i18n.add_text(Locale::De, Key::CutoverCommitDisabledTooltip, "Commit deaktiviert: Quarantäne-Zeilen vorhanden oder Cutover bereits durchgeführt");
-    i18n.add_text(Locale::De, Key::CutoverPrivilegeStage3, "Commit erfordert das cutover_admin-Privileg");
-
-    // Cutover Manual Range (Phase 8.2 — D-29).
-    i18n.add_text(Locale::De, Key::CutoverManualConvertModalTitle, "Urlaub manuell anlegen");
+    // AbsenceConvertModal (Phase 8.6: umbenannt aus CutoverManualConvert*/CutoverEdit*).
+    i18n.add_text(Locale::De, Key::AbsenceConvertModalTitle, "Urlaub manuell anlegen");
     i18n.add_text(
         Locale::De,
-        Key::CutoverManualConvertHelp,
+        Key::AbsenceConvertModalHelp,
         "Du legst den Zeitraum direkt fest, statt die Heuristik raten zu lassen.",
     );
-    i18n.add_text(Locale::De, Key::CutoverManualConvertStartLabel, "Datum von");
-    i18n.add_text(Locale::De, Key::CutoverManualConvertEndLabel, "Datum bis");
-    i18n.add_text(Locale::De, Key::CutoverManualConvertBtnSubmit, "Anlegen");
+    i18n.add_text(Locale::De, Key::AbsenceConvertAmountLabel, "Betrag (h)");
+    i18n.add_text(Locale::De, Key::AbsenceConvertStartLabel, "Datum von");
+    i18n.add_text(Locale::De, Key::AbsenceConvertEndLabel, "Datum bis");
+    i18n.add_text(Locale::De, Key::AbsenceConvertBtnSubmit, "Anlegen");
+    i18n.add_text(Locale::De, Key::AbsenceConvertBtnCancel, "Verwerfen");
     i18n.add_text(
         Locale::De,
-        Key::CutoverManualConvertErrStartAfterEnd,
+        Key::AbsenceConvertErrStartAfterEnd,
         "Startdatum muss vor oder gleich Enddatum sein.",
-    );
-    i18n.add_text(
-        Locale::De,
-        Key::CutoverManualConvertErrYearMismatch,
-        "Datum muss im selben Jahr wie der Quarantäne-Eintrag liegen.",
-    );
-    i18n.add_text(
-        Locale::De,
-        Key::CutoverManualConvertErrOverlap,
-        "Bestehende Abwesenheit überschneidet sich mit diesem Zeitraum.",
     );
 
     // Phase 8.3 — Halbtag-Support (Absence).
@@ -969,31 +924,6 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::AbsencePreviewFooterHalfDay,
         "Bei Halbtag: angezeigte Stunden sind bereits halbiert.",
     );
-
-    // Phase 8.3 — Halbtag-Support (Cutover).
-    i18n.add_text(Locale::De, Key::CutoverDriftColDayFraction, "Tageshälfte");
-    i18n.add_text(
-        Locale::De,
-        Key::CutoverDriftDayFractionAria,
-        "Tageshälfte für diesen Eintrag wählen",
-    );
-    i18n.add_text(
-        Locale::De,
-        Key::CutoverBulkDayFractionLabel,
-        "Halb/Ganz für ganze Gruppe",
-    );
-    i18n.add_text(
-        Locale::De,
-        Key::CutoverDriftHalfDaySuggestion,
-        "Stunden deuten auf Halbtag hin ({amount:.2}h ≈ ½ × Vertragstag).",
-    );
-    i18n.add_text(
-        Locale::De,
-        Key::CutoverManualConvertDayFractionLabel,
-        "Tageshälfte",
-    );
-    i18n.add_text(Locale::De, Key::CutoverDayFractionFull, "Ganztag");
-    i18n.add_text(Locale::De, Key::CutoverDayFractionHalf, "Halber Tag");
 
     // Phase 8.5 Plan 06 — Stundenbasierte Marker inline in Absence-Liste.
     i18n.add_text(Locale::De, Key::AbsenceHourlyBadge, "stundenbasiert");
