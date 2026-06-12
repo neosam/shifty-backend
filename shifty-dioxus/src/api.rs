@@ -49,9 +49,23 @@ pub async fn load_config() -> Result<Config, reqwest::Error> {
     info!("URL: {url}");
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
-    let res: Config = response.json().await?;
+    let mut res: Config = response.json().await?;
+    // Normalize the backend base URL: a trailing slash in config.json
+    // (e.g. "https://host/api/") combined with the `format!("{}/<path>", backend)`
+    // join used throughout this module produces a double-slash path
+    // ("/api//<path>"). axum 0.8 treats the empty segment as unmatched and returns
+    // 404 for every such request. Strip a single trailing slash here, at the one
+    // place the deployed value enters the app, so all callers build clean paths.
+    res.backend = normalize_backend(&res.backend);
     info!("Loaded");
     Ok(res)
+}
+
+/// Trim exactly one trailing `/` from the backend base URL so that
+/// `format!("{}/<path>", backend)` never yields a double-slash. Idempotent for
+/// values without a trailing slash.
+fn normalize_backend(backend: &str) -> Rc<str> {
+    Rc::from(backend.strip_suffix('/').unwrap_or(backend))
 }
 
 pub async fn get_slots(
@@ -1487,5 +1501,56 @@ pub async fn get_blocks(
     let res = response.json().await?;
     info!("Fetched blocks");
     Ok(res)
+}
+
+#[cfg(test)]
+mod normalize_backend_tests {
+    use super::normalize_backend;
+
+    /// Regression for convert-to-absence-404: deployed config.json carried a
+    /// trailing slash ("https://host/api/"), and `format!("{}/<path>", backend)`
+    /// produced "/api//<path>", which axum 0.8 rejects with 404 (empty path
+    /// segment). The normalized base must never re-introduce a double-slash.
+    #[test]
+    fn strips_single_trailing_slash() {
+        assert_eq!(
+            normalize_backend("https://host/api/").as_ref(),
+            "https://host/api"
+        );
+    }
+
+    #[test]
+    fn leaves_url_without_trailing_slash_untouched() {
+        assert_eq!(
+            normalize_backend("https://host/api").as_ref(),
+            "https://host/api"
+        );
+    }
+
+    #[test]
+    fn joined_path_has_no_double_slash() {
+        let backend = normalize_backend("https://shifty-int.example.de/api/");
+        let url = format!(
+            "{}/extra-hours/{}/convert-to-absence",
+            backend, "cfaba0dd-42a2-4e19-89d7-e8c126340a36"
+        );
+        // No "//" except the one in the scheme ("https://").
+        let after_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(&url);
+        assert!(
+            !after_scheme.contains("//"),
+            "url unexpectedly contains a double-slash: {url}"
+        );
+        assert_eq!(
+            url,
+            "https://shifty-int.example.de/api/extra-hours/cfaba0dd-42a2-4e19-89d7-e8c126340a36/convert-to-absence"
+        );
+    }
+
+    #[test]
+    fn empty_backend_stays_empty() {
+        // An empty backend is the "still loading" sentinel (app.rs gates on
+        // `!config.backend.is_empty()`); normalization must not change it.
+        assert_eq!(normalize_backend("").as_ref(), "");
+    }
 }
 

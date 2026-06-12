@@ -8,7 +8,10 @@ mod booking_information;
 mod booking_log;
 mod custom_extra_hours;
 mod employee_work_details;
-mod extra_hours;
+// Debug-Session convert-to-absence-404: pub-export so the shifty_bin integration
+// test can reach `extra_hours::generate_route` via tower::oneshot to probe
+// double-slash routing behavior — same pattern as `pub mod feature_flag;`.
+pub mod extra_hours;
 // Plan 08-07 Gap-Closure: pub-export so the shifty_bin integration test can
 // reach `feature_flag::generate_route` via tower::oneshot — same pattern as
 // `pub mod cutover;` which lets `integration_test/cutover.rs` use it.

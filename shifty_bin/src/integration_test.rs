@@ -1438,6 +1438,8 @@ mod absence_projection;
 #[cfg(test)]
 mod convert_to_absence;
 #[cfg(test)]
+mod convert_route_slash;
+#[cfg(test)]
 mod admin_auto_grant;
 #[cfg(test)]
 mod billing_period_custom_reports;
