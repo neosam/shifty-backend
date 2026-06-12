@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
 status: executing
-last_updated: "2026-06-12T04:56:29.768Z"
-last_activity: 2026-06-12 -- Phase 09 execution started
+last_updated: "2026-06-12T09:00:00Z"
+last_activity: 2026-06-12 -- Phase 09 Plan 02 abgeschlossen (Shiftplan-Wiring + Copy-Week-Cleanup; UAT-Checkpoint ausstehend)
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 29
-  completed_plans: 28
-  percent: 97
+  completed_plans: 29
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 09 (booking-flow-reverse-warnings-copy-week) — EXECUTING
+Phase: 09 (booking-flow-reverse-warnings-copy-week) — COMPLETE (UAT-Checkpoint ausstehend)
 Plan: 2 of 2
-Status: Executing Phase 09 — Plan 01 complete
-Last activity: 2026-06-12 -- Phase 09 Plan 01 abgeschlossen (Warning-Foundation: WarningList-Component + api/loader + 7 i18n Keys × 3 Locales)
+Status: Phase 09 Plans 01 + 02 abgeschlossen; UAT-Checkpoint für Live-Dialog-Verifikation ausstehend
+Last activity: 2026-06-12 -- Phase 09 Plan 02 abgeschlossen (Shiftplan-Wiring + Copy-Week-Cleanup; 553 Tests grün; WASM + workspace clean)
 
 ## Shipped Milestones
 
