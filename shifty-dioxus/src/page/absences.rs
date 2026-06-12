@@ -98,6 +98,60 @@ pub fn compute_status(from: time::Date, to: time::Date, today: time::Date) -> Ab
     }
 }
 
+/// Map an `ExtraHoursCategoryTO` to an `AbsenceCategory` where possible.
+///
+/// Only Vacation, SickLeave, and UnpaidLeave have direct counterparts.
+/// All other variants (ExtraWork, Holiday, Unavailable, VolunteerWork, Custom)
+/// are not representable as an `AbsenceCategory` and return `None`.
+fn map_marker_category(c: &rest_types::ExtraHoursCategoryTO) -> Option<AbsenceCategory> {
+    match c {
+        rest_types::ExtraHoursCategoryTO::Vacation => Some(AbsenceCategory::Vacation),
+        rest_types::ExtraHoursCategoryTO::SickLeave => Some(AbsenceCategory::SickLeave),
+        rest_types::ExtraHoursCategoryTO::UnpaidLeave => Some(AbsenceCategory::UnpaidLeave),
+        _ => None,
+    }
+}
+
+/// Pure filter predicate for `ExtraHoursMarker` entries.
+///
+/// Analogous to the inline `Range-Absence` filter closure in `AbsencesPage`,
+/// but operates on a single-day marker. `today` is injected so unit tests can
+/// pin it without calling into JS.
+fn marker_matches_filters(
+    marker: &ExtraHoursMarker,
+    category_filter: Option<AbsenceCategory>,
+    person_filter: Option<Uuid>,
+    status_filter: Option<AbsenceStatus>,
+    show_past: bool,
+    today: time::Date,
+) -> bool {
+    if let Some(cat) = category_filter {
+        match map_marker_category(&marker.category) {
+            Some(marker_cat) => {
+                if marker_cat != cat {
+                    return false;
+                }
+            }
+            None => return false, // unmappable category never matches a concrete filter
+        }
+    }
+    if let Some(person) = person_filter {
+        if marker.sales_person_id != person {
+            return false;
+        }
+    }
+    let status = compute_status(marker.when, marker.when, today);
+    if let Some(s) = status_filter {
+        if status != s {
+            return false;
+        }
+    }
+    if !show_past && status == AbsenceStatus::Finished {
+        return false;
+    }
+    true
+}
+
 // ─── Modal mode ────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2285,6 +2339,131 @@ mod tests {
         assert!(
             !html_non_hr.contains("In Zeitraum umwandeln"),
             "Convert-Button darf bei is_hr=false NICHT vorhanden sein: {html_non_hr}"
+        );
+    }
+
+    // ── marker_matches_filters — pure function tests (260612-nlv) ─────────
+
+    fn test_marker(
+        category: rest_types::ExtraHoursCategoryTO,
+        sp: Uuid,
+        when: time::Date,
+    ) -> ExtraHoursMarker {
+        ExtraHoursMarker {
+            extra_hours_id: Uuid::nil(),
+            sales_person_id: sp,
+            when,
+            amount: 8.0_f32,
+            category,
+            description: std::sync::Arc::<str>::from(""),
+            person_name: std::sync::Arc::<str>::from(""),
+        }
+    }
+
+    #[test]
+    fn marker_category_match() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::nil();
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
+        assert!(
+            marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, today),
+            "Vacation marker must pass Vacation filter"
+        );
+    }
+
+    #[test]
+    fn marker_category_mismatch() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::nil();
+        let m = test_marker(ExtraHoursCategoryTO::SickLeave, sp, today);
+        assert!(
+            !marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, today),
+            "SickLeave marker must NOT pass Vacation filter"
+        );
+    }
+
+    #[test]
+    fn marker_unmappable_category_with_active_filter() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::nil();
+        let m = test_marker(ExtraHoursCategoryTO::ExtraWork, sp, today);
+        assert!(
+            !marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, today),
+            "ExtraWork (unmappable) must NOT pass Vacation filter"
+        );
+    }
+
+    #[test]
+    fn marker_no_category_filter_passes() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::nil();
+        let m = test_marker(ExtraHoursCategoryTO::ExtraWork, sp, today);
+        assert!(
+            marker_matches_filters(&m, None, None, None, true, today),
+            "ExtraWork marker must pass when no category filter is active"
+        );
+    }
+
+    #[test]
+    fn marker_person_match() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::from_u128(1);
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
+        assert!(
+            marker_matches_filters(&m, None, Some(sp), None, true, today),
+            "Marker must pass person filter with matching sales_person_id"
+        );
+    }
+
+    #[test]
+    fn marker_person_mismatch() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::from_u128(1);
+        let other_sp = Uuid::from_u128(2);
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
+        assert!(
+            !marker_matches_filters(&m, None, Some(other_sp), None, true, today),
+            "Marker must NOT pass person filter with different sales_person_id"
+        );
+    }
+
+    #[test]
+    fn marker_status_filter_single_day_active() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::nil();
+        // when == today → Active
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
+        assert!(
+            marker_matches_filters(&m, None, None, Some(AbsenceStatus::Active), true, today),
+            "Marker on today must match Active status filter"
+        );
+        assert!(
+            !marker_matches_filters(&m, None, None, Some(AbsenceStatus::Planned), true, today),
+            "Marker on today must NOT match Planned status filter"
+        );
+    }
+
+    #[test]
+    fn marker_show_past_hides_finished() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let past = date!(2026 - 06 - 01); // before today → Finished
+        let sp = Uuid::nil();
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, past);
+        assert!(
+            !marker_matches_filters(&m, None, None, None, false, today),
+            "Finished marker must be hidden when show_past=false"
+        );
+        assert!(
+            marker_matches_filters(&m, None, None, None, true, today),
+            "Finished marker must be visible when show_past=true"
         );
     }
 }
