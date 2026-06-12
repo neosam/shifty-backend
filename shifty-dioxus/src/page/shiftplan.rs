@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::atoms::{Btn, BtnVariant, PersonChip};
-use crate::component::{Dialog, DialogVariant, WarningList, WarningsList};
+use crate::component::{WarningList, WarningsList};
 use crate::component::booking_log_table::BookingLogTable;
 use crate::component::day_aggregate_view::{DayAggregateView, DayButtonBar};
 use crate::component::dropdown_base::DropdownTrigger;
@@ -64,7 +64,6 @@ pub enum ShiftPlanAction {
     NextWeek,
     PreviousWeek,
     UpdateSalesPerson(Uuid),
-    RollbackBooking(Uuid),
     ToggleAvailability(Weekday),
     ToggleChangeStructureMode,
     LoadWeekMessage,
@@ -200,9 +199,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let unavailable_days: Signal<Rc<[SalesPersonUnavailable]>> = use_signal(|| [].into());
     let mut change_structure_mode: Signal<bool> = use_signal(|| false);
 
-    // Booking warning dialog state (optimistic-create + rollback)
-    let mut pending_warnings: Signal<WarningsList> = use_signal(WarningsList::empty);
-    let mut pending_rollback_id: Signal<Option<Uuid>> = use_signal(|| None);
+    // Booking warning banner state (non-blocking, dismissible)
+    let mut booking_warnings: Signal<WarningsList> = use_signal(WarningsList::empty);
     let week_message = use_signal(|| String::new());
     let mut week_message_draft = use_signal(|| String::new());
 
@@ -287,8 +285,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 selected_day,
                 day_aggregate,
                 show_sunday,
-                pending_warnings,
-                pending_rollback_id
+                booking_warnings
             ];
             async move {
                 let mut update_shiftplan = {
@@ -421,14 +418,15 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             )
                             .await
                             {
-                                Ok((booking_id, warnings)) if !warnings.is_empty() => {
-                                    pending_rollback_id.set(Some(booking_id));
-                                    pending_warnings
-                                        .set(WarningsList(Rc::from(warnings.as_slice())));
-                                    // Dialog opens reactively; do NOT call update_shiftplan() yet
-                                }
-                                Ok(_) => {
+                                Ok((_booking_id, warnings)) => {
+                                    // Booking always kept — no rollback path
                                     update_shiftplan();
+                                    if warnings.is_empty() {
+                                        booking_warnings.set(WarningsList::empty());
+                                    } else {
+                                        booking_warnings
+                                            .set(WarningsList(Rc::from(warnings.as_slice())));
+                                    }
                                 }
                                 Err(crate::error::ShiftyError::Reqwest(ref e))
                                     if e.status() == Some(reqwest::StatusCode::FORBIDDEN) =>
@@ -441,19 +439,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     update_shiftplan(); // D-13: 422 surfaced
                                 }
                             }
-                        }
-                        ShiftPlanAction::RollbackBooking(booking_id) => {
-                            // D-04: surface error AND reload even on failure
-                            if let Err(e) =
-                                crate::api::remove_booking(config.to_owned(), booking_id).await
-                            {
-                                crate::error::error_handler(
-                                    crate::error::ShiftyError::Reqwest(e),
-                                );
-                            }
-                            pending_rollback_id.set(None);
-                            pending_warnings.set(WarningsList::empty());
-                            update_shiftplan();
                         }
                         ShiftPlanAction::RemoveUserFromSlot {
                             slot_id,
@@ -486,6 +471,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             let next_weeks_week = next_thursday.iso_week();
                             year.set(next_weeks_year);
                             week.set(next_weeks_week);
+                            booking_warnings.set(WarningsList::empty());
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
 
@@ -517,6 +503,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             let previous_weeks_week = previous_thursday.iso_week();
                             year.set(previous_weeks_year);
                             week.set(previous_weeks_week);
+                            booking_warnings.set(WarningsList::empty());
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
 
@@ -896,6 +883,37 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     class: "cursor-pointer hover:underline",
                                     "{unique_booking_conflict.0} - {unique_booking_conflict.1}"
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Booking-warning dismissible banner (non-blocking) — rendered below conflict list, above content
+        if !booking_warnings.read().is_empty() {
+            {
+                let warnings_snap = booking_warnings.read().clone();
+                let person_name: Option<ImStr> = current_sales_person
+                    .read()
+                    .as_ref()
+                    .map(|sp| ImStr::from(sp.name.as_ref()));
+                let dismiss_label = i18n.t(Key::BookingWarningDismiss).to_string();
+                rsx! {
+                    div { class: "mx-4 mt-3 print:hidden",
+                        div { class: "relative border border-warn bg-warn-soft rounded-md px-4 py-3",
+                            WarningList {
+                                warnings: warnings_snap,
+                                person_name,
+                                suppress_header: false,
+                            }
+                            button {
+                                class: "absolute top-2 right-2 w-6 h-6 inline-flex items-center justify-center rounded text-warn hover:bg-warn hover:text-ink font-mono",
+                                "aria-label": "{dismiss_label}",
+                                onclick: move |_| {
+                                    booking_warnings.set(WarningsList::empty());
+                                },
+                                "×"
                             }
                         }
                     }
@@ -1338,65 +1356,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             }
         }
 
-        // Booking-warning confirm dialog (optimistic-create + rollback)
-        if !pending_warnings.read().is_empty() {
-            {
-                let warnings_snap = pending_warnings.read().clone();
-                let count = warnings_snap.len();
-                let header_text = if count == 1 {
-                    i18n.t(Key::BookingWarningDialogHeaderSingular).to_string()
-                } else {
-                    i18n.t(Key::BookingWarningDialogHeaderPlural)
-                        .as_ref()
-                        .replace("{count}", &count.to_string())
-                };
-                let rollback_id = pending_rollback_id
-                    .read()
-                    .expect("rollback id must be set when warnings are non-empty");
-                let cancel_label = i18n.t(Key::BookingWarningDialogCancel).to_string();
-                let confirm_label = i18n.t(Key::BookingWarningDialogConfirm).to_string();
-                let person_name: Option<ImStr> = current_sales_person
-                    .read()
-                    .as_ref()
-                    .map(|sp| ImStr::from(sp.name.as_ref()));
-                let footer = rsx! {
-                    Btn {
-                        variant: BtnVariant::Secondary,
-                        on_click: move |_| {
-                            cr.send(ShiftPlanAction::RollbackBooking(rollback_id));
-                        },
-                        "{cancel_label}"
-                    }
-                    Btn {
-                        variant: BtnVariant::Primary,
-                        on_click: move |_| {
-                            pending_rollback_id.set(None);
-                            pending_warnings.set(WarningsList::empty());
-                            *SHIFTPLAN_REFRESH.write() += 1;
-                        },
-                        "{confirm_label}"
-                    }
-                };
-                rsx! {
-                    Dialog {
-                        open: true,
-                        on_close: move |_| {
-                            // All close paths (X, ESC, backdrop) → rollback (Pitfall 2 guard)
-                            cr.send(ShiftPlanAction::RollbackBooking(rollback_id));
-                        },
-                        title: ImStr::from(header_text.as_str()),
-                        footer: Some(footer),
-                        variant: DialogVariant::Auto,
-                        // suppress_header: Dialog.title already renders the header — avoid double-header
-                        WarningList {
-                            warnings: warnings_snap,
-                            person_name,
-                            suppress_header: true,
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1423,11 +1382,10 @@ mod tests {
         });
     }
 
-    /// Guard: WarningList rendered with suppress_header: true must NOT render
-    /// the internal "text-micro text-warn font-semibold uppercase" header row.
-    /// This ensures the booking dialog has exactly ONE header (the Dialog.title bar).
+    /// Banner is rendered when booking_warnings is non-empty.
+    /// The WarningList header MUST be visible (suppress_header: false in banner).
     #[test]
-    fn booking_dialog_warning_list_suppresses_internal_header() {
+    fn booking_banner_present_when_warnings_non_empty() {
         fn app() -> Element {
             pin_de_locale();
             let warnings = WarningsList(Rc::from(
@@ -1443,20 +1401,86 @@ mod tests {
                 WarningList {
                     warnings,
                     person_name: Some(crate::base_types::ImStr::from("Testperson")),
-                    suppress_header: true,
+                    suppress_header: false,
                 }
             }
         }
         let html = render(app);
-        // With suppress_header: true, the internal header class must NOT appear
+        // With suppress_header: false (banner mode), the internal header MUST appear
         assert!(
-            !html.contains("text-micro text-warn font-semibold uppercase"),
-            "WarningList with suppress_header:true must not render internal header, got: {html}"
+            html.contains("text-micro text-warn font-semibold uppercase"),
+            "WarningList with suppress_header:false must render internal header in banner, got: {html}"
         );
-        // But the warning content itself should still be rendered
+        // Warning content (person name and date) must be present
         assert!(
-            !html.is_empty(),
-            "WarningList should render warning content even with suppressed header"
+            html.contains("Testperson"),
+            "banner must render person name, got: {html}"
+        );
+        assert!(
+            html.contains("2026-01-01"),
+            "banner must render booking date, got: {html}"
+        );
+    }
+
+    /// Banner is absent when booking_warnings is empty.
+    #[test]
+    fn booking_banner_absent_when_warnings_empty() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                WarningList { warnings: WarningsList::empty() }
+            }
+        }
+        let html = render(app);
+        // Empty warnings must produce no banner output
+        assert!(
+            !html.contains("border-l-[3px]"),
+            "empty warnings must not render a warning box, got: {html}"
+        );
+        assert!(
+            !html.contains("text-micro text-warn"),
+            "empty warnings must not render header, got: {html}"
+        );
+    }
+
+    /// Guard: Banner source must use booking_warnings signal (not the old pending_warnings).
+    /// Also verifies the dismiss control exists and uses the BookingWarningDismiss i18n key.
+    #[test]
+    fn booking_banner_source_contract() {
+        let source = include_str!("shiftplan.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+
+        // New signal name must be present, old ones must be gone
+        assert!(
+            production.contains("booking_warnings"),
+            "page must use booking_warnings signal"
+        );
+        assert!(
+            !production.contains("pending_warnings"),
+            "old pending_warnings signal must be removed"
+        );
+        assert!(
+            !production.contains("pending_rollback_id"),
+            "old pending_rollback_id signal must be removed"
+        );
+        assert!(
+            !production.contains("RollbackBooking"),
+            "RollbackBooking action must be removed"
+        );
+        // Dismiss control must be wired
+        assert!(
+            production.contains("BookingWarningDismiss"),
+            "dismiss button must use BookingWarningDismiss i18n key"
+        );
+        // Banner must use suppress_header: false so WarningList shows its own header
+        assert!(
+            production.contains("suppress_header: false"),
+            "banner must use suppress_header: false"
+        );
+        // Dialog import must be gone
+        assert!(
+            !production.contains("DialogVariant"),
+            "DialogVariant must not appear in banner-based code"
         );
     }
 

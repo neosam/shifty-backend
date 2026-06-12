@@ -874,8 +874,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::BookingWarningDialogHeaderPlural,
         "Notice · {count} Conflicts",
     );
-    i18n.add_text(Locale::En, Key::BookingWarningDialogConfirm, "Book anyway");
-    i18n.add_text(Locale::En, Key::BookingWarningDialogCancel, "Cancel");
+    i18n.add_text(Locale::En, Key::BookingWarningDismiss, "Dismiss warning");
     i18n.add_text(
         Locale::En,
         Key::BookingWarningOnAbsenceDay,

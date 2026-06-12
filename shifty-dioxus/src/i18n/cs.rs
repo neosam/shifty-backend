@@ -933,12 +933,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::BookingWarningDialogHeaderPlural,
         "Upozornění · {count} konflikty",
     );
-    i18n.add_text(
-        Locale::Cs,
-        Key::BookingWarningDialogConfirm,
-        "Zarezervovat stejně",
-    );
-    i18n.add_text(Locale::Cs, Key::BookingWarningDialogCancel, "Zrušit");
+    i18n.add_text(Locale::Cs, Key::BookingWarningDismiss, "Zavřít upozornění");
     i18n.add_text(
         Locale::Cs,
         Key::BookingWarningOnAbsenceDay,

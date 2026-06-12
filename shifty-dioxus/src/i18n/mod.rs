@@ -534,14 +534,12 @@ pub enum Key {
     ExtraHoursAbsenceHintLink,
 
     // Phase 9 — Booking-Flow Reverse-Warnings (FUI-A-05).
-    /// Dialog-Titel wenn genau 1 Buchungs-Konflikt vorliegt.
+    /// Banner-Titel wenn genau 1 Buchungs-Konflikt vorliegt.
     BookingWarningDialogHeaderSingular,
-    /// Dialog-Titel wenn N > 1 Buchungs-Konflikte vorliegen (Platzhalter `{count}`).
+    /// Banner-Titel wenn N > 1 Buchungs-Konflikte vorliegen (Platzhalter `{count}`).
     BookingWarningDialogHeaderPlural,
-    /// Primär-Button: Buchung trotz Warnung behalten.
-    BookingWarningDialogConfirm,
-    /// Sekundär-Button: Buchung per Rollback stornieren.
-    BookingWarningDialogCancel,
+    /// Schließen-Button im Warnungs-Banner (aria-label).
+    BookingWarningDismiss,
     /// Pro-Item-Text wenn Mitarbeiter am gebuchten Tag abwesend ist (Platzhalter `{person}`, `{date}`, `{category}`).
     BookingWarningOnAbsenceDay,
     /// Pro-Item-Text wenn Mitarbeiter in der gebuchten KW als nicht verfügbar markiert ist (Platzhalter `{person}`, `{week}`, `{year}`, `{day}`).
@@ -1013,8 +1011,7 @@ mod tests {
             for key in [
                 Key::BookingWarningDialogHeaderSingular,
                 Key::BookingWarningDialogHeaderPlural,
-                Key::BookingWarningDialogConfirm,
-                Key::BookingWarningDialogCancel,
+                Key::BookingWarningDismiss,
                 Key::BookingWarningOnAbsenceDay,
                 Key::BookingWarningOnUnavailableDay,
                 Key::BookingWarningPaidLimitExceeded,
@@ -1038,12 +1035,8 @@ mod tests {
         // hardcoded "Mitarbeiter".
         let i18n = generate(Locale::De);
         assert_eq!(
-            i18n.t(Key::BookingWarningDialogConfirm).as_ref(),
-            "Trotzdem buchen"
-        );
-        assert_eq!(
-            i18n.t(Key::BookingWarningDialogCancel).as_ref(),
-            "Abbrechen"
+            i18n.t(Key::BookingWarningDismiss).as_ref(),
+            "Hinweis schließen"
         );
         assert_eq!(
             i18n.t(Key::BookingWarningDialogHeaderSingular).as_ref(),
