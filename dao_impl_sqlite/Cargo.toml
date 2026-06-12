@@ -1,6 +1,6 @@
 [package]
 name = "dao_impl_sqlite"
-version = "2026.163.1"
+version = "2026.163.2-dev"
 edition = "2021"
 resolver = "2"
 
