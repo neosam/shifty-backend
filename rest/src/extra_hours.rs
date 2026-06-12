@@ -225,7 +225,7 @@ pub async fn convert_extra_hours_to_absence<RestState: RestStateDef>(
             let day_fraction = body
                 .day_fraction
                 .as_ref()
-                .map(|f| service::absence::DayFraction::from(f));
+                .map(service::absence::DayFraction::from);
             let result = rest_state
                 .absence_conversion_service()
                 .convert_extra_hours_to_absence(
