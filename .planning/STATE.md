@@ -30,7 +30,7 @@ progress:
 Phase: 09 (booking-flow-reverse-warnings-copy-week) — COMPLETE (UAT-Checkpoint ausstehend)
 Plan: 2 of 2
 Status: Phase 09 Plans 01 + 02 abgeschlossen; UAT-Checkpoint für Live-Dialog-Verifikation ausstehend
-Last activity: 2026-06-12 -- Phase 09 Plan 02 abgeschlossen (Shiftplan-Wiring + Copy-Week-Cleanup; 553 Tests grün; WASM + workspace clean)
+Last activity: 2026-06-12 -- Quick-Task 260612-nlv: Absence-Page stundenbasierte Marker durch Filter-Pipeline + Counter-Fix (8 neue Tests, 565 grün, WASM grün)
 
 ## Shipped Milestones
 
@@ -148,6 +148,7 @@ Last activity: 2026-06-12 -- Phase 09 Plan 02 abgeschlossen (Shiftplan-Wiring + 
 |---|-------------|------|--------|-----------|
 | 260516-g63 | Hour-Inputs step=0.01 (frontend) | 2026-05-16 | committed via jj (zrqsmoun) | [260516-g63-stunden-eingaben-m-ssen-auf-zwei-nachkom](./quick/260516-g63-stunden-eingaben-m-ssen-auf-zwei-nachkom/) |
 | 260516-gv8 | Delete-Button für Arbeitsverträge (frontend) | 2026-05-16 | uncommitted (user commits via jj) | [260516-gv8-delete-button-f-r-arbeitsvertr-ge-employ](./quick/260516-gv8-delete-button-f-r-arbeitsvertr-ge-employ/) |
+| 260612-nlv | Absence-Page: stundenbasierte Marker durch Filter-Pipeline + Counter-Fix (frontend) | 2026-06-12 | committed via jj (zpqkztvx feat, szsrlsxp docs); 8 neue Tests, 565 grün, WASM grün | [260612-nlv-absence-page-stundenbasierte-marker-durc](./quick/260612-nlv-absence-page-stundenbasierte-marker-durc/) |
 
 ### Phase-Verzeichnis-Cleanup (optional)
 
