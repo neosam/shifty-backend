@@ -225,6 +225,11 @@ pub struct VacationEntitlementCardProps {
     pub vacation_self: Option<VacationBalance>,
     pub vacation_team: Rc<[VacationBalance]>,
     pub sales_persons: Rc<[SalesPerson]>,
+    /// D2: When HR selects a Sales Person, render that person's self-view
+    /// (hero + 5 StatBoxes) instead of the team aggregate + per-person list.
+    /// When None, HR sees the team aggregate as before. Employee path ignores this.
+    #[props(!optional, default = None)]
+    pub selected_person: Option<Uuid>,
 }
 
 #[component]
@@ -232,41 +237,50 @@ pub fn VacationEntitlementCard(props: VacationEntitlementCardProps) -> Element {
     let i18n = I18N.read().clone();
     let year_str = props.year.to_string();
     let prev_year_str = (props.year.saturating_sub(1)).to_string();
+
+    // D2: HR with a selected person shows the self-view for that person.
+    // Look up the matching VacationBalance in vacation_team (None = not found → zero default).
+    let forced_self: Option<VacationBalance> = props
+        .selected_person
+        .and_then(|id| props.vacation_team.iter().find(|b| b.sales_person_id == id).cloned());
+
+    // show_self is true when: (a) this is not an HR user, OR (b) HR has selected a person.
+    let show_self = !props.is_hr || forced_self.is_some();
+
     let title_template;
     let subtitle_template;
-    let count_label;
-    if props.is_hr {
+    if show_self {
+        title_template = i18n.t(Key::VacationCardSelfTitle).as_ref().to_string();
+        subtitle_template = i18n.t(Key::VacationCardSelfSubtitle).as_ref().to_string();
+    } else {
         title_template = i18n
             .t(Key::VacationCardTeamTitle)
             .as_ref()
             .replace("{count}", &props.vacation_team.len().to_string());
         subtitle_template = i18n.t(Key::VacationCardTeamSubtitle).as_ref().to_string();
-        count_label = props.vacation_team.len();
-    } else {
-        title_template = i18n.t(Key::VacationCardSelfTitle).as_ref().to_string();
-        subtitle_template = i18n.t(Key::VacationCardSelfSubtitle).as_ref().to_string();
-        count_label = 1;
     }
-    let _ = count_label;
+
     rsx! {
         section { class: "bg-surface border border-border rounded-lg overflow-hidden",
             div { class: "px-6 py-4 flex flex-col gap-1 border-b border-border",
                 h3 { class: "text-lg font-semibold text-ink", "{title_template}" }
                 div { class: "text-small text-ink-muted", "{subtitle_template}" }
             }
-            if props.is_hr {
+            if show_self {
+                VacationEntitlementSelfBody {
+                    year: props.year,
+                    year_str: year_str.clone(),
+                    prev_year_str: prev_year_str.clone(),
+                    // For HR-with-selection: use the selected person's balance.
+                    // For employee: fall back to their own vacation_self.
+                    vacation_self: forced_self.clone().or(props.vacation_self.clone()),
+                }
+            } else {
                 VacationEntitlementHrBody {
                     year: props.year,
                     prev_year_str: prev_year_str.clone(),
                     vacation_team: props.vacation_team.clone(),
                     sales_persons: props.sales_persons.clone(),
-                }
-            } else {
-                VacationEntitlementSelfBody {
-                    year: props.year,
-                    year_str: year_str.clone(),
-                    prev_year_str: prev_year_str.clone(),
-                    vacation_self: props.vacation_self.clone(),
                 }
             }
         }
@@ -1899,6 +1913,7 @@ pub fn AbsencesPage() -> Element {
                 vacation_self: vacation_self.clone(),
                 vacation_team: vacation_team.clone(),
                 sales_persons: sales_persons.read().clone(),
+                selected_person: person_filter_val,
             }
             StatsGrid {
                 absences: absences.clone(),
@@ -2504,6 +2519,123 @@ mod tests {
             marker_matches_filters(&m, None, None, None, true, today),
             "Finished marker must be visible when show_past=true"
         );
+    }
+
+    // ── VacationEntitlementCard selected_person snapshot tests (260612-o7t Task 2) ──
+
+    fn make_vacation_balance(sales_person_id: Uuid, remaining_days: f32) -> VacationBalance {
+        VacationBalance {
+            sales_person_id,
+            year: 2026,
+            entitled_days: 30.0,
+            carryover_days: 0,
+            used_days: 30.0 - remaining_days,
+            planned_days: 0.0,
+            remaining_days,
+        }
+    }
+
+    #[test]
+    fn vacation_card_hr_with_selected_person_renders_self_body() {
+        let person_a = Uuid::from_u128(10);
+        let person_b = Uuid::from_u128(20);
+        let bal_a = make_vacation_balance(person_a, 17.0);
+        let bal_b = make_vacation_balance(person_b, 3.0);
+        let team: Rc<[VacationBalance]> = Rc::from(vec![bal_a, bal_b]);
+        fn app() -> Element {
+            let person_a = Uuid::from_u128(10);
+            let person_b = Uuid::from_u128(20);
+            let bal_a = make_vacation_balance(person_a, 17.0);
+            let bal_b = make_vacation_balance(person_b, 3.0);
+            let team: Rc<[VacationBalance]> = Rc::from(vec![bal_a, bal_b]);
+            pin_de_locale();
+            rsx! {
+                VacationEntitlementCard {
+                    is_hr: true,
+                    year: 2026,
+                    vacation_team: team,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    selected_person: Some(person_a),
+                }
+            }
+        }
+        let html = render(app);
+        // Self-view hero label (VacationEntitlementHero key): "Urlaubsanspruch 2026"
+        assert!(
+            html.contains("Urlaubsanspruch"),
+            "self-hero label must appear when HR selects a person: {html}"
+        );
+        // Person A's remaining days
+        assert!(
+            html.contains("17"),
+            "person A's remaining days (17) must appear in self-view: {html}"
+        );
+        // Per-person list header must NOT appear (team aggregate is gone)
+        assert!(
+            !html.contains("Pro Person"),
+            "team aggregate header must NOT appear when a person is selected: {html}"
+        );
+        // Person B's distinct remaining days must NOT appear
+        assert!(
+            !html.contains(">3<"),
+            "person B's remaining days must NOT appear when person A is selected: {html}"
+        );
+    }
+
+    #[test]
+    fn vacation_card_hr_without_selection_renders_team_aggregate() {
+        fn app() -> Element {
+            let person_a = Uuid::from_u128(10);
+            let person_b = Uuid::from_u128(20);
+            let bal_a = make_vacation_balance(person_a, 17.0);
+            let bal_b = make_vacation_balance(person_b, 3.0);
+            let team: Rc<[VacationBalance]> = Rc::from(vec![bal_a, bal_b]);
+            pin_de_locale();
+            rsx! {
+                VacationEntitlementCard {
+                    is_hr: true,
+                    year: 2026,
+                    vacation_team: team,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    selected_person: None,
+                }
+            }
+        }
+        let html = render(app);
+        // Per-person list header must appear (team aggregate view)
+        assert!(
+            html.contains("Pro Person"),
+            "team aggregate header must appear when no person is selected: {html}"
+        );
+    }
+
+    #[test]
+    fn vacation_card_hr_selected_person_missing_from_team_falls_back() {
+        let unknown = Uuid::from_u128(999);
+        fn app() -> Element {
+            let person_a = Uuid::from_u128(10);
+            let unknown = Uuid::from_u128(999);
+            let bal_a = make_vacation_balance(person_a, 17.0);
+            let team: Rc<[VacationBalance]> = Rc::from(vec![bal_a]);
+            pin_de_locale();
+            rsx! {
+                VacationEntitlementCard {
+                    is_hr: true,
+                    year: 2026,
+                    vacation_team: team,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    selected_person: Some(unknown),
+                }
+            }
+        }
+        // Should render without panic — self-body with zero/empty balance
+        let html = render(app);
+        // Hero label must still appear (self-view fallback)
+        assert!(
+            html.contains("Urlaubsanspruch"),
+            "self-hero label must appear even when selected person is not in team: {html}"
+        );
+        let _ = unknown; // suppress unused variable warning
     }
 
     // ── stats_for_person — pure function tests (260612-o7t Task 1) ────────
