@@ -76,3 +76,35 @@ und die Frontend-Anzeige. Bei Aufgriff über `/gsd-discuss-phase` einsteigen —
 mehrere Definitionsfragen offen (Ort der Abweichung, Kategorie-Umfang).
 Tests: Konsistenz Absence-Tage == Reporting-vacation_days für Halbtage,
 Teilzeit, Feiertage, Nicht-Workdays.
+
+## Resolution (2026-06-12)
+
+**Divergenz lag im Backend** (`VacationBalanceService`, nicht Frontend): Die
+VacationEntitlementCard zeigt die Werte aus `GET /vacation-balance/{sp}/{year}`;
+dieser Service zählte `used`/`planned` über naive Kalendertage
+(`days_in_year_for_period`, `from..=to +1`) — ohne Halbtage, Feiertage,
+Nicht-Workdays oder Teilzeit-`hours_per_day`.
+
+Umgesetzt (Decisions 2026-06-12: Modell A „wie Reporting", Scope nur Vacation):
+- `compute_balance` rechnet `used`/`planned` jetzt stundenbasiert: jeden
+  Vacation-Tag des Jahres via `AbsenceService::derive_hours_for_range` (derselbe
+  Pfad wie ReportingService — Workdays/Feiertage/Halbtage schon drin) zu
+  effektiven Stunden auflösen, dann durch `hours_per_day` des aktiven Vertrags
+  teilen. `today` selbst zählt zu `used`.
+- Neuer Helper `representative_hours_per_day()` (jüngster nicht-gelöschter
+  Vertrag, der das Jahr berührt). Naive `days_in_year_for_period` entfernt.
+- Conflict-Resolution (Sick > Vacation > Unpaid) → nur Vacation-Tage zählen.
+
+**Carryover:** war bereits korrekt einbezogen (`entitled + carryover - used -
+planned`) — kein Change nötig.
+
+**Kein Frontend-Change** (Card zeigt Backend-Werte), **kein Snapshot-Bump**
+(reporting.rs/Snapshot-Builder unberührt).
+
+Tests: 4 neue Unit-Tests (Halbtag→0.5, Teilzeit-hours_per_day, today-Split,
+Kategorie-Filter) + 7 bestehende auf `derive_hours_for_range`-Mock umgestellt;
+`cargo test -p service_impl vacation_balance` → 11 passed; voller Workspace grün.
+
+**Offenes Follow-up (bewusst out-of-scope):** Im Frontend zählt
+`stats_for_person` (`absences.rs:1305`) SickLeave/UnpaidLeave im StatsGrid noch
+naiv (Kalendertage). Separater Task, falls gewünscht.

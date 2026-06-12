@@ -7,9 +7,9 @@
 //!   Vertrag, summiert),
 //! - `CarryoverService::get_carryover` → `Carryover.vacation` (Übertrag
 //!   in Tagen, `i32`),
-//! - `AbsenceService::find_by_sales_person` → `AbsencePeriod`s der
-//!   Kategorie `Vacation`, getrennt nach `used` (`to_date < today`) und
-//!   `planned` (`from_date >= today`).
+//! - `AbsenceService::derive_hours_for_range` → pro-Tag aufgelöste
+//!   Vacation-Stunden für das angefragte Jahr, getrennt nach `used`
+//!   (`date <= today`) und `planned` (`date > today`).
 //!
 //! Permissionsmodell:
 //! - `get(sales_person_id, year, ...)`: HR ∨ self via
@@ -17,12 +17,14 @@
 //!   plus `.or()` (T-8-AUTH-01, T-8-IDOR-01).
 //! - `get_team(year, ...)`: HR-only (T-8-AUTH-02).
 //!
-//! Tag-Berechnung (Plan 08-02 — keine Special-Day-Subtraktion in dieser
-//! ersten Iteration; A5-Note in 08-RESEARCH.md): pro Vacation-Periode
-//! `(to_date - from_date).whole_days() + 1`. Periodeen werden auf das
-//! angefragte Jahr beschnitten, indem Tag-Iteration ungenutzt bleibt;
-//! statt dessen wird der Schnitt der Range mit `[year-01-01, year-12-31]`
-//! gebildet.
+//! Tag-Berechnung (stundenbasiert, konsistent mit `ReportingService` —
+//! Decision 2026-06-12, ersetzt die naive Kalendertag-Zählung aus Plan 08-02):
+//! Jeder Vacation-Tag des Jahres wird über `derive_hours_for_range` vertraglich
+//! zu effektiven Stunden aufgelöst (Workdays, Feiertage und Halbtage via
+//! `day_fraction` bereits berücksichtigt). Die Summe wird durch das
+//! `hours_per_day` des aktiven Vertrags geteilt (Modell A: ein `hours_per_day`
+//! pro Jahr, siehe [`representative_hours_per_day`]). Die Beschneidung auf das
+//! Jahr erfolgt implizit über den `[year-01-01, year-12-31]`-Range.
 //!
 //! Carryover-Year-Semantik: `get_carryover(sp_id, year)` liefert das
 //! year-Snapshot (Konvention im Repo, vgl. `service_impl/src/carryover.rs`
@@ -37,7 +39,7 @@ use service::{
     absence::{AbsenceCategory, AbsenceService},
     carryover::CarryoverService,
     clock::ClockService,
-    employee_work_details::EmployeeWorkDetailsService,
+    employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
     permission::{Authentication, HR_PRIVILEGE},
     sales_person::SalesPersonService,
     vacation_balance::{VacationBalance, VacationBalanceService},
@@ -61,33 +63,25 @@ gen_service_impl! {
     }
 }
 
-/// Tag-Anzahl einer Periode, beschnitten auf das angefragte Jahr.
+/// `hours_per_day` des für `year` repräsentativen Vertrags: der jüngste (nach
+/// Vertragsbeginn) nicht-gelöschte Vertrag, dessen Jahresspanne `year` berührt.
 ///
-/// Beide Seiten inklusive (`from..=to`). Liegt die Periode komplett
-/// außerhalb des Jahres, wird `0` zurückgegeben.
-fn days_in_year_for_period(from: Date, to: Date, year: u32) -> u32 {
-    // Build year boundaries; year is u32 from u8/year-of-the-future input,
-    // but `Date::from_calendar_date` takes i32. Cast is safe for v1.3 timeframes.
-    let year_start = match Date::from_calendar_date(year as i32, Month::January, 1) {
-        Ok(d) => d,
-        Err(_) => return 0,
-    };
-    let year_end = match Date::from_calendar_date(year as i32, Month::December, 31) {
-        Ok(d) => d,
-        Err(_) => return 0,
-    };
-    let lo = if from > year_start { from } else { year_start };
-    let hi = if to < year_end { to } else { year_end };
-    if lo > hi {
-        return 0;
-    }
-    // (hi - lo).whole_days() + 1, both inclusive.
-    let span = (hi - lo).whole_days();
-    if span < 0 {
-        0
-    } else {
-        (span as u32) + 1
-    }
+/// Modell A (Decision 2026-06-12): ein `hours_per_day` pro Jahr für die
+/// Stunden→Tage-Umrechnung — exakt bei einem Vertrag/Jahr, approximativ bei
+/// Vertragswechsel mit abweichendem `hours_per_day` mitten im Jahr. Konsistent
+/// mit `ReportingService`, der pro Gruppe ebenfalls ein `hours_per_day` nutzt.
+fn representative_hours_per_day(work_details: &[EmployeeWorkDetails], year: u32) -> f32 {
+    work_details
+        .iter()
+        .filter(|wd| wd.deleted.is_none())
+        .filter(|wd| {
+            let from_year = wd.from_date().map(|d| d.calendar_year()).unwrap_or(u32::MAX);
+            let to_year = wd.to_date().map(|d| d.calendar_year()).unwrap_or(u32::MIN);
+            from_year <= year && year <= to_year
+        })
+        .max_by_key(|wd| (wd.from_year, wd.from_calendar_week))
+        .map(|wd| wd.hours_per_day())
+        .unwrap_or(0.0)
 }
 
 #[async_trait]
@@ -166,45 +160,10 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
     ) -> Result<VacationBalance, ServiceError> {
         let today = self.clock_service.date_now();
 
-        // Vacation-Periodeen über AbsenceService — Authentication::Full,
-        // weil Outer-Permission bereits geprüft ist.
-        let absences = self
-            .absence_service
-            .find_by_sales_person(sales_person_id, Authentication::Full, Some(tx.clone()))
-            .await?;
-
-        let mut used_days: f32 = 0.0;
-        let mut planned_days: f32 = 0.0;
-        for ap in absences.iter() {
-            if ap.deleted.is_some() {
-                continue;
-            }
-            if ap.category != AbsenceCategory::Vacation {
-                continue;
-            }
-            let days = days_in_year_for_period(ap.from_date, ap.to_date, year);
-            if days == 0 {
-                continue;
-            }
-            if ap.to_date < today {
-                used_days += days as f32;
-            } else if ap.from_date > today {
-                planned_days += days as f32;
-            } else {
-                // Aktive Periode (today ∈ [from, to]) — der bereits
-                // vergangene Anteil zählt zu used, der zukünftige zu
-                // planned. Wir splitten auf today als Stichtag.
-                let used_split =
-                    days_in_year_for_period(ap.from_date, today, year) as f32;
-                let planned_split = (days as f32 - used_split).max(0.0);
-                used_days += used_split;
-                planned_days += planned_split;
-            }
-        }
-
-        // Vertragsanspruch — alle Verträge, die das Jahr berühren,
-        // beitragen mit `vacation_days_for_year(year)` (liefert 0.0 für
-        // nicht überlappende Jahre).
+        // Vertragsanspruch — alle Verträge, die das Jahr berühren, beitragen
+        // mit `vacation_days_for_year(year)` (liefert 0.0 für nicht
+        // überlappende Jahre). Zuerst geladen, weil wir `hours_per_day` für die
+        // Stunden→Tage-Umrechnung der Used/Planned-Tage brauchen.
         let work_details = self
             .employee_work_details_service
             .find_by_sales_person_id(sales_person_id, Authentication::Full, Some(tx.clone()))
@@ -214,6 +173,50 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
             .filter(|wd| wd.deleted.is_none())
             .map(|wd| wd.vacation_days_for_year(year))
             .sum();
+
+        // Stundenbasierte Used/Planned-Tage (konsistent mit ReportingService):
+        // jeden Vacation-Tag des Jahres vertraglich zu effektiven Stunden
+        // auflösen (Workdays, Feiertage, Halbtage via day_fraction sind in
+        // `derive_hours_for_range` bereits berücksichtigt) und durch
+        // `hours_per_day` des aktiven Vertrags teilen. Ersetzt die frühere
+        // naive Kalendertag-Zählung (zählte Wochenenden/Feiertage/Halbtage
+        // falsch). Conflict-Resolution (Sick > Vacation > Unpaid) liefert pro
+        // Tag genau eine Kategorie — Vacation wird hier herausgefiltert.
+        let hours_per_day = representative_hours_per_day(&work_details, year);
+        let mut used_hours: f32 = 0.0;
+        let mut planned_hours: f32 = 0.0;
+        if let (Ok(year_start), Ok(year_end)) = (
+            Date::from_calendar_date(year as i32, Month::January, 1),
+            Date::from_calendar_date(year as i32, Month::December, 31),
+        ) {
+            let resolved = self
+                .absence_service
+                .derive_hours_for_range(
+                    year_start,
+                    year_end,
+                    sales_person_id,
+                    Authentication::Full,
+                    Some(tx.clone()),
+                )
+                .await?;
+            for (date, resolved_day) in resolved.iter() {
+                if resolved_day.category != AbsenceCategory::Vacation {
+                    continue;
+                }
+                // `today` selbst zählt zu used (aktive Periode splittet am
+                // Stichtag: [from, today] used, (today, to] planned).
+                if *date <= today {
+                    used_hours += resolved_day.hours;
+                } else {
+                    planned_hours += resolved_day.hours;
+                }
+            }
+        }
+        let (used_days, planned_days) = if hours_per_day > 0.0 {
+            (used_hours / hours_per_day, planned_hours / hours_per_day)
+        } else {
+            (0.0, 0.0)
+        };
 
         // Carryover — Method heißt `get_carryover` und liefert
         // `Option<Carryover>`. Field heißt `vacation: i32`.

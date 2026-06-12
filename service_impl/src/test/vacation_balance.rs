@@ -9,11 +9,12 @@
 //! 6. `get_with_no_active_contract_returns_zero_entitlement`: Edge-Case.
 //! 7. `get_year_without_carryover_returns_zero_carryover`: Carryover-None-Path.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use dao::MockTransaction;
 use dao::MockTransactionDao;
-use service::absence::{AbsenceCategory, AbsencePeriod, DayFraction, MockAbsenceService};
+use service::absence::{AbsenceCategory, MockAbsenceService, ResolvedAbsence};
 use service::carryover::{Carryover, MockCarryoverService};
 use service::clock::MockClockService;
 use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetailsService};
@@ -23,6 +24,7 @@ use service::vacation_balance::VacationBalanceService;
 use service::{MockPermissionService, ServiceError};
 use shifty_utils::DayOfWeek;
 use time::macros::{date, datetime};
+use time::Duration;
 use uuid::{uuid, Uuid};
 
 use crate::test::error_test::test_forbidden;
@@ -38,26 +40,48 @@ fn other_sales_person_id() -> Uuid {
     uuid!("BB000000-0000-0000-0000-000000000002")
 }
 
-fn vacation_period(from: time::Date, to: time::Date, sp_id: Uuid) -> AbsencePeriod {
-    AbsencePeriod {
-        id: uuid!("AB000000-0000-0000-0000-0000000000A1"),
-        sales_person_id: sp_id,
-        category: AbsenceCategory::Vacation,
-        from_date: from,
-        to_date: to,
-        description: "vacation".into(),
-        created: Some(datetime!(2026 - 01 - 01 12:00:00)),
-        deleted: None,
-        version: uuid!("CC000000-0000-0000-0000-0000000000A1"),
-        day_fraction: DayFraction::Full,
-    }
+/// Baut die `derive_hours_for_range`-Mock-Antwort: eine Tag→ResolvedAbsence-Map
+/// mit Kategorie `Vacation` und den gegebenen effektiven Stunden pro Tag.
+/// (Halbtage sind in `hours` bereits eingerechnet — Half = hours_per_day * 0.5,
+/// genau wie es der echte `derive_hours_for_range` liefert.)
+fn vacation_hours_map(entries: &[(time::Date, f32)]) -> BTreeMap<time::Date, ResolvedAbsence> {
+    entries
+        .iter()
+        .map(|(d, h)| {
+            (
+                *d,
+                ResolvedAbsence {
+                    category: AbsenceCategory::Vacation,
+                    hours: *h,
+                },
+            )
+        })
+        .collect()
+}
+
+/// `n` aufeinanderfolgende Vacation-Tage ab `start`, je `hours_each` Stunden.
+fn consecutive_vacation(start: time::Date, n: i64, hours_each: f32) -> Vec<(time::Date, f32)> {
+    (0..n)
+        .map(|i| (start + Duration::days(i), hours_each))
+        .collect()
 }
 
 fn full_year_contract(sp_id: Uuid, vacation_days: u8) -> EmployeeWorkDetails {
+    contract(sp_id, vacation_days, 40.0, 5)
+}
+
+/// Voll-Jahres-Vertrag (KW1/2025 .. KW52/2030) mit parametrierbaren Stunden /
+/// Workdays — für Teilzeit-Tests. `hours_per_day = expected_hours / workdays`.
+fn contract(
+    sp_id: Uuid,
+    vacation_days: u8,
+    expected_hours: f32,
+    workdays_per_week: u8,
+) -> EmployeeWorkDetails {
     EmployeeWorkDetails {
         id: uuid!("11111111-0000-0000-0000-000000000001"),
         sales_person_id: sp_id,
-        expected_hours: 40.0,
+        expected_hours,
         from_day_of_week: DayOfWeek::Monday,
         // Calendar week 1 of 2026 → covers full year for our tests.
         from_calendar_week: 1,
@@ -65,7 +89,7 @@ fn full_year_contract(sp_id: Uuid, vacation_days: u8) -> EmployeeWorkDetails {
         to_day_of_week: DayOfWeek::Sunday,
         to_calendar_week: 52,
         to_year: 2030,
-        workdays_per_week: 5,
+        workdays_per_week,
         is_dynamic: false,
         cap_planned_hours_to_expected: false,
         monday: true,
@@ -177,16 +201,15 @@ async fn get_returns_entitlement_minus_used_minus_planned() {
         .expect_verify_user_is_sales_person()
         .returning(|_, _, _| Ok(()));
 
-    // 1 vergangene Vacation-Periode (2026-04-01..04-05 → 5 Tage, used).
-    // 1 zukünftige Vacation-Periode (2026-08-01..08-10 → 10 Tage, planned).
     let sp_id = default_sales_person_id();
+    // 5 vergangene Vacation-Tage (je 8h, vor today=06-15 → used = 40h/8 = 5 Tage).
+    // 10 zukünftige Vacation-Tage (je 8h, nach today → planned = 80h/8 = 10 Tage).
     deps.absence_service
-        .expect_find_by_sales_person()
-        .returning(move |_, _, _| {
-            Ok(Arc::from([
-                vacation_period(date!(2026 - 04 - 01), date!(2026 - 04 - 05), sp_id),
-                vacation_period(date!(2026 - 08 - 01), date!(2026 - 08 - 10), sp_id),
-            ]))
+        .expect_derive_hours_for_range()
+        .returning(move |_, _, _, _, _| {
+            let mut entries = consecutive_vacation(date!(2026 - 04 - 01), 5, 8.0);
+            entries.extend(consecutive_vacation(date!(2026 - 08 - 01), 10, 8.0));
+            Ok(vacation_hours_map(&entries))
         });
 
     // Vertrag: 25 Vacation-Tage, deckt das ganze Jahr ab.
@@ -256,8 +279,8 @@ async fn get_with_hr_succeeds() {
 
     let sp_id = other_sales_person_id();
     deps.absence_service
-        .expect_find_by_sales_person()
-        .returning(|_, _, _| Ok(Arc::from([])));
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
     deps.employee_work_details_service
         .expect_find_by_sales_person_id()
         .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 30)])));
@@ -356,15 +379,15 @@ async fn get_team_aggregates_per_paid_sales_person() {
             ]))
         });
 
-    // Pro Person eine Vacation-Periode in der Vergangenheit (3 Tage used je Person).
+    // Pro Person 3 vergangene Vacation-Tage (je 8h → used = 24h/8 = 3 Tage).
     deps.absence_service
-        .expect_find_by_sales_person()
-        .returning(move |sp_id, _, _| {
-            Ok(Arc::from([vacation_period(
+        .expect_derive_hours_for_range()
+        .returning(move |_, _, _, _, _| {
+            Ok(vacation_hours_map(&consecutive_vacation(
                 date!(2026 - 03 - 01),
-                date!(2026 - 03 - 03),
-                sp_id,
-            )]))
+                3,
+                8.0,
+            )))
         });
 
     // Pro Person ein Voll-Jahres-Vertrag, beide mit 20 Vacation-Tagen.
@@ -428,8 +451,8 @@ async fn get_with_no_active_contract_returns_zero_entitlement() {
         .returning(|_, _, _| Ok(()));
 
     deps.absence_service
-        .expect_find_by_sales_person()
-        .returning(|_, _, _| Ok(Arc::from([])));
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
     // No active contracts.
     deps.employee_work_details_service
         .expect_find_by_sales_person_id()
@@ -475,8 +498,8 @@ async fn get_year_without_carryover_returns_zero_carryover() {
 
     let sp_id = default_sales_person_id();
     deps.absence_service
-        .expect_find_by_sales_person()
-        .returning(|_, _, _| Ok(Arc::from([])));
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
     deps.employee_work_details_service
         .expect_find_by_sales_person_id()
         .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 24)])));
@@ -496,4 +519,152 @@ async fn get_year_without_carryover_returns_zero_carryover() {
         (result.entitled_days - result.remaining_days).abs() < 0.01,
         "entitled and remaining should match without used/planned/carryover"
     );
+}
+
+// =========================================================================
+// stundenbasierte Tage (Decision 2026-06-12) — Konsistenz mit ReportingService.
+//
+// Feiertags-/Nicht-Workday-Filterung lebt in `derive_hours_for_range` selbst
+// (hier gemockt) und ist in den absence/reporting-Tests abgedeckt. Auf dieser
+// Ebene wird die Stunden→Tage-Umrechnung verifiziert: Halbtage, das
+// hours_per_day des Vertrags (Teilzeit), der today-Split und der
+// Kategorie-Filter (nur Vacation).
+// =========================================================================
+
+/// Convenience: happy-path deps mit gegebenem derive-Resultat + Vertrag, ohne
+/// Carryover. `today = 2026-06-15`.
+fn happy_deps_with(
+    sp_id: Uuid,
+    resolved: BTreeMap<time::Date, ResolvedAbsence>,
+    contract_details: EmployeeWorkDetails,
+) -> VacationBalanceDependencies {
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .return_once(move |_, _, _, _, _| Ok(resolved));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([contract_details.clone()])));
+    deps.carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    let _ = sp_id;
+    deps
+}
+
+/// Ein vergangener Halbtag (4h bei hours_per_day=8) → 0.5 used-Tage.
+#[tokio::test]
+async fn half_day_vacation_counts_as_half_day() {
+    let sp_id = default_sales_person_id();
+    // hours_per_day = 40 / 5 = 8; Halbtag = 4h (so liefert derive_hours_for_range
+    // einen Half-Day bereits: hours_per_day * 0.5).
+    let resolved = vacation_hours_map(&[(date!(2026 - 04 - 10), 4.0)]);
+    let deps = happy_deps_with(sp_id, resolved, full_year_contract(sp_id, 25));
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    assert!(
+        (result.used_days - 0.5).abs() < 0.001,
+        "half day must count as 0.5, got {}",
+        result.used_days
+    );
+    assert!((result.planned_days - 0.0).abs() < 0.001);
+}
+
+/// Teilzeit-Vertrag (20h/5 Tage → hours_per_day=4): 3 vergangene volle
+/// Vacation-Tage (je 4h) → 12h / 4 = 3 used-Tage. Beweist, dass durch das
+/// hours_per_day DES VERTRAGS geteilt wird, nicht durch einen festen Wert.
+#[tokio::test]
+async fn part_time_contract_divides_by_its_hours_per_day() {
+    let sp_id = default_sales_person_id();
+    let resolved = vacation_hours_map(&consecutive_vacation(date!(2026 - 02 - 02), 3, 4.0));
+    let deps = happy_deps_with(sp_id, resolved, contract(sp_id, 20, 20.0, 5));
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    assert!(
+        (result.used_days - 3.0).abs() < 0.001,
+        "12h / 4h_per_day must be 3 days, got {}",
+        result.used_days
+    );
+}
+
+/// Aktive Periode um today=06-15: 06-13/14/15 (≤ today) → used, 06-16/17 →
+/// planned. today selbst zählt zu used.
+#[tokio::test]
+async fn active_period_splits_used_and_planned_at_today() {
+    let sp_id = default_sales_person_id();
+    let resolved = vacation_hours_map(&consecutive_vacation(date!(2026 - 06 - 13), 5, 8.0));
+    let deps = happy_deps_with(sp_id, resolved, full_year_contract(sp_id, 30));
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    // 06-13, 06-14, 06-15 = 3 Tage used (today inklusive); 06-16, 06-17 = 2 planned.
+    assert!(
+        (result.used_days - 3.0).abs() < 0.001,
+        "used_days = {}",
+        result.used_days
+    );
+    assert!(
+        (result.planned_days - 2.0).abs() < 0.001,
+        "planned_days = {}",
+        result.planned_days
+    );
+}
+
+/// Conflict-resolved Nicht-Vacation-Tage (z.B. SickLeave) zählen NICHT zum
+/// Urlaubs-Aggregat.
+#[tokio::test]
+async fn non_vacation_categories_are_ignored() {
+    let sp_id = default_sales_person_id();
+    let resolved: BTreeMap<time::Date, ResolvedAbsence> = [
+        (
+            date!(2026 - 03 - 02),
+            ResolvedAbsence {
+                category: AbsenceCategory::SickLeave,
+                hours: 8.0,
+            },
+        ),
+        (
+            date!(2026 - 03 - 03),
+            ResolvedAbsence {
+                category: AbsenceCategory::UnpaidLeave,
+                hours: 8.0,
+            },
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let deps = happy_deps_with(sp_id, resolved, full_year_contract(sp_id, 25));
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    assert!(
+        (result.used_days - 0.0).abs() < 0.001,
+        "sick/unpaid must not count as vacation, got {}",
+        result.used_days
+    );
+    assert!((result.planned_days - 0.0).abs() < 0.001);
 }
