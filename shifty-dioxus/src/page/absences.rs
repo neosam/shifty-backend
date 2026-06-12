@@ -1707,7 +1707,6 @@ pub fn AbsencesPage() -> Element {
     let status_filter_val = *status_filter.read();
     let show_past_val = *show_past.read();
 
-    let total_count = absences.len();
     let filtered: Vec<AbsencePeriod> = absences
         .iter()
         .filter(|a| {
@@ -1734,8 +1733,24 @@ pub fn AbsencesPage() -> Element {
         })
         .cloned()
         .collect();
-    let filtered_count = filtered.len();
     let filtered_rc: Rc<[AbsencePeriod]> = Rc::from(filtered);
+    let filtered_markers: Vec<ExtraHoursMarker> = hourly_markers
+        .iter()
+        .filter(|m| {
+            marker_matches_filters(
+                m,
+                category_filter_val,
+                person_filter_val,
+                status_filter_val,
+                show_past_val,
+                today,
+            )
+        })
+        .cloned()
+        .collect();
+    let filtered_markers_rc: Rc<[ExtraHoursMarker]> = Rc::from(filtered_markers);
+    let total_count = absences.len() + hourly_markers.len();
+    let filtered_count = filtered_rc.len() + filtered_markers_rc.len();
     let filter_active = category_filter_val.is_some()
         || person_filter_val.is_some()
         || status_filter_val.is_some()
@@ -1883,7 +1898,7 @@ pub fn AbsencesPage() -> Element {
             }
             AbsenceList {
                 rows: filtered_rc.clone(),
-                hourly_markers: hourly_markers.clone(),
+                hourly_markers: filtered_markers_rc.clone(),
                 is_hr: is_hr,
                 today: today,
                 filter_active: filter_active,
