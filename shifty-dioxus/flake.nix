@@ -3,20 +3,27 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Pinned nixpkgs that ships dioxus-cli 0.6.3 — the dx CLI MUST match the
+    # `dioxus` crate (0.6.x) used by this project. nixos-unstable rolled the CLI
+    # forward to 0.7.x, whose asset pipeline strips Tailwind theme classes and
+    # stops serving assets/ (config.json, manifest.json). See devShell below.
+    nixpkgs-dx06.url = "github:NixOS/nixpkgs/01b6809f7f9d1183a2b3e081f0a1e6f8f415cb09";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
     openspec.url = "github:Fission-AI/OpenSpec";
     gsd.url = "github:neosam/gsd-flake";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, openspec, gsd }:
+  outputs = { self, nixpkgs, nixpkgs-dx06, rust-overlay, flake-utils, openspec, gsd }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
         };
-        
+        # dioxus-cli 0.6.3 from the pinned nixpkgs, to match the dioxus 0.6 crate.
+        dioxus-cli-06 = (import nixpkgs-dx06 { inherit system; }).dioxus-cli;
+
         rustToolchain = pkgs.rust-bin.stable.latest.minimal.override {
           extensions = [ "rust-src" "rust-analyzer" ];
           targets = [ "wasm32-unknown-unknown" ];
@@ -185,7 +192,7 @@ EOF
             wasm-pack
             wasm-bindgen-cli_0_2_104
             wasmtime
-            dioxus-cli
+            dioxus-cli-06
             nodejs
             tailwindcss
             pkg-config
