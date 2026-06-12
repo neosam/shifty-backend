@@ -37,7 +37,7 @@ direkt, deshalb keine Neunummerierung).
 
 ### Booking-Flow Reverse-Warnings (FUI-A continued)
 
-- [ ] **FUI-A-05**: Booking-Flow im Shiftplan-Editor wird auf
+- [x] **FUI-A-05**: Booking-Flow im Shiftplan-Editor wird auf
   `POST /shiftplan-edit/booking` umgestellt;
   `BookingCreateResultTO.warnings[]` (Reverse-Warnings) werden als
   nicht-blockierender Confirm-Dialog vor finaler Buchung gerendert
@@ -136,7 +136,7 @@ Explizit ausgeschlossen für v1.3. Begründung jeweils.
 | FUI-A-02    | Phase 8  | Pending |
 | FUI-A-03    | Phase 8  | Pending |
 | FUI-A-04    | Phase 8  | Pending |
-| FUI-A-05    | Phase 9  | Pending |
+| FUI-A-05    | Phase 9  | ✓ Done |
 | FUI-A-06    | Phase 9  | ⊘ Dropped |
 | FUI-A-07    | Phase 10 | Pending |
 | FUI-A-08    | Phase 11 | Pending |

@@ -102,7 +102,7 @@
   - [x] 08.6-04-PLAN.md — OpenAPI-Surface-Test: Cutover-Pfade/-Schemas raus, /feature-flag/{key} bleibt (D-08)
   - [x] 08.6-05-PLAN.md — Verifikations-Gate: cargo test/check --workspace + WASM-Build + Negative-Space/Survivor-Asserts (D-09)
 
-- [ ] **Phase 9: Booking-Flow Reverse-Warnings** (Frontend) — *Copy-Week descoped 2026-06-11 (siehe 09-CONTEXT.md)*
+- [x] **Phase 9: Booking-Flow Reverse-Warnings** (Frontend) — *Copy-Week descoped 2026-06-11 (siehe 09-CONTEXT.md)*
   Shiftplan-Editor-Buchungen laufen über `POST /shiftplan-edit/booking` mit Reverse-Warnings-Confirm-Dialog (Optimistic-Create + Rollback bei Abbruch). **Copy-Week wurde aus dieser Phase descoped** — das Feature war vom User bewusst per Commit `294566f` ("feat: Remove copy last week feature") entfernt; FUI-A-06 ist dropped, der tote Copy-Week-Code wird hier aufgeräumt. Backend `POST /shiftplan-edit/copy-week` + `CopyWeekResultTO` bleiben unangetastet.
   Requirements: FUI-A-05 (FUI-A-06 → dropped)
   Success Criteria:
@@ -112,7 +112,7 @@
   **Plans:** 2 plans across 2 waves
   Plans:
   - [x] 09-01-PLAN.md — Wave 1: Foundation — conflict-aware api/loader fns + shared component/warning_list.rs (3 booking variants + person_name prop + SSR tests) + 7 i18n keys × 3 locales (parity/reference-matcher tests)
-  - [ ] 09-02-PLAN.md — Wave 2: Wiring — shiftplan.rs RollbackBooking action + Dioxus confirm-dialog (optimistic+rollback) + Copy-Week dead-code cleanup + ROADMAP/REQUIREMENTS doc-sync + WASM/workspace gate
+  - [x] 09-02-PLAN.md — Wave 2: Wiring — shiftplan.rs RollbackBooking action + Dioxus confirm-dialog (optimistic+rollback) + Copy-Week dead-code cleanup + ROADMAP/REQUIREMENTS doc-sync + WASM/workspace gate
 
 - [ ] **Phase 10: Shiftplan-View Unavailability-Marker** (Frontend)
   Shiftplan-Wochen-View visualisiert `UnavailabilityMarkerTO` farbig pro Tag pro Person mit drei Visual-States.
@@ -354,7 +354,7 @@
 | 8.4 — Reporting-Additiv-Merge + Deprecation-Rückbau | v1.3 | 0/? | Pending | — |
 | 8.5 — Read-Projektion + HR-Inline-Convert | v1.3 | 0/? | Pending | — |
 | 8.6 — Cutover-Abriss | v1.3 | 5/5 | Complete | 2026-06-11 |
-| 9 — Booking-Flow Reverse-Warnings (Copy-Week descoped) | v1.3 | 0/? | Pending | — |
+| 9 — Booking-Flow Reverse-Warnings (Copy-Week descoped) | v1.3 | 2/2 | Complete | 2026-06-12 |
 | 10 — Shiftplan-View Unavailability-Marker | v1.3 | 0/? | Pending | — |
 | 11 — Migrations-Hinweis-UX + Deprecation-Handling | v1.3 | 0/? | ⊘ Superseded | 2026-06-09 |
 | 12 — UI-Closure v1.1/v1.2-Restanten | v1.3 | 0/? | Pending | — |
