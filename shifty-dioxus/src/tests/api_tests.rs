@@ -52,6 +52,7 @@ mod unit_tests {
             is_prod: false,
             env_short_description: "TEST".into(),
             show_vacation: true,
+            show_absences: true,
         };
         
         assert_eq!(config.backend.as_ref(), "http://localhost:3000");
@@ -68,6 +69,7 @@ mod unit_tests {
             is_prod: true,
             env_short_description: "PROD".into(),
             show_vacation: false,
+            show_absences: true,
         };
         
         assert!(prod_config.is_prod);
@@ -236,6 +238,7 @@ mod unit_tests {
                 is_prod,
                 env_short_description: env.into(),
                 show_vacation: !is_prod,
+                show_absences: true,
             };
             
             assert_eq!(config.env_short_description.as_ref(), env);

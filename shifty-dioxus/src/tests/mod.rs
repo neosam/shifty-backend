@@ -41,6 +41,7 @@ mod unit_tests {
             is_prod: false,
             env_short_description: "TEST".into(),
             show_vacation: true,
+            show_absences: true,
         };
 
         assert_eq!(config.backend.as_ref(), "http://localhost:3000");

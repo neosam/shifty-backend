@@ -143,6 +143,7 @@ mod integration_tests {
             is_prod: false,
             env_short_description: "DEV".into(),
             show_vacation: true,
+            show_absences: true,
         };
 
         let auth_info = AuthInfo {
@@ -184,6 +185,7 @@ mod integration_tests {
             is_prod: false,
             env_short_description: "DEV".into(),
             show_vacation: true,
+            show_absences: true,
         };
 
         let prod_config = Config {
@@ -192,6 +194,7 @@ mod integration_tests {
             is_prod: true,
             env_short_description: "PROD".into(),
             show_vacation: false,
+            show_absences: true,
         };
 
         // Development should show vacation features

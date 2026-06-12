@@ -2,5 +2,6 @@
     "backend": "http://localhost:8080",
     "show_my_time": true,
     "is_prod": false,
-    "env_short_description": "LOCAL"
+    "env_short_description": "LOCAL",
+    "show_absences": true
 }

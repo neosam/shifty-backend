@@ -14,6 +14,13 @@ fn default_show_vacation() -> bool {
     false
 }
 
+/// Feature-Gate für den Absence-Periods-Menüpunkt. Standardmäßig `false`:
+/// ist das Flag in `config.json` nicht gesetzt, gilt das Feature als nicht
+/// aktiviert und der Menüeintrag erscheint NICHT.
+fn default_show_absences() -> bool {
+    false
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
 pub struct Config {
     pub backend: Rc<str>,
@@ -25,4 +32,6 @@ pub struct Config {
     pub env_short_description: Rc<str>,
     #[serde(default = "default_show_vacation")]
     pub show_vacation: bool,
+    #[serde(default = "default_show_absences")]
+    pub show_absences: bool,
 }
