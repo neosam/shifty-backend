@@ -30,7 +30,7 @@ progress:
 Phase: 09 (booking-flow-reverse-warnings-copy-week) — COMPLETE (UAT-Checkpoint ausstehend)
 Plan: 2 of 2
 Status: Phase 09 Plans 01 + 02 abgeschlossen; UAT-Checkpoint für Live-Dialog-Verifikation ausstehend
-Last activity: 2026-06-12 -- Quick-Task 260612-o7t: Absence-Page Sales-Person-Filter auf Aggregat-Widgets (StatsGrid + VacationEntitlementCard zeigen bei Personenselektion nur diese Person; 8 neue Tests, Suite grün, WASM grün)
+Last activity: 2026-06-12 -- Quick-Task 260612-s0p: Absence-Page Personen-Dropdowns (AbsenceModal + AbsenceFilterBar) nur noch bezahlte & aktive Sales Persons; Helper is_selectable_employee + 4 Tests, Suite grün, WASM-Check grün
 
 ## Shipped Milestones
 
@@ -150,6 +150,7 @@ Last activity: 2026-06-12 -- Quick-Task 260612-o7t: Absence-Page Sales-Person-Fi
 | 260516-gv8 | Delete-Button für Arbeitsverträge (frontend) | 2026-05-16 | uncommitted (user commits via jj) | [260516-gv8-delete-button-f-r-arbeitsvertr-ge-employ](./quick/260516-gv8-delete-button-f-r-arbeitsvertr-ge-employ/) |
 | 260612-nlv | Absence-Page: stundenbasierte Marker durch Filter-Pipeline + Counter-Fix (frontend) | 2026-06-12 | committed via jj (zpqkztvx feat, szsrlsxp docs); 8 neue Tests, 565 grün, WASM grün | [260612-nlv-absence-page-stundenbasierte-marker-durc](./quick/260612-nlv-absence-page-stundenbasierte-marker-durc/) |
 | 260612-o7t | Absence-Page: Sales-Person-Filter auch auf Aggregat-Widgets (StatsGrid + VacationEntitlementCard) — Single-Person-View (frontend) | 2026-06-12 | committed via jj (pmqnltkw + nskymxlq feat, llkzulkt docs); 8 neue Tests (stats_for_person x5, vacation_card x3), Suite grün, WASM grün | [260612-o7t-absencespage-sales-person-filter](./quick/260612-o7t-absencespage-sales-person-filter/) |
+| 260612-s0p | Absence-Page: Personen-Dropdowns (AbsenceModal + AbsenceFilterBar) zeigen nur bezahlte & aktive Sales Persons (frontend) | 2026-06-12 | committed via jj (tsklszsq feat, ywxslnly docs); Helper `is_selectable_employee` + 4 Tests, Suite grün, WASM-Check grün | [260612-s0p-bei-den-abwesenheitszeitr-umen-seite-wer](./quick/260612-s0p-bei-den-abwesenheitszeitr-umen-seite-wer/) |
 
 ### Phase-Verzeichnis-Cleanup (optional)
 
