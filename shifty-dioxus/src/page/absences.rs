@@ -1281,35 +1281,58 @@ pub fn AbsenceFilterBar(props: AbsenceFilterBarProps) -> Element {
 
 // ─── StatsGrid ────────────────────────────────────────────────────────────
 
-#[derive(Props, Clone, PartialEq)]
-pub struct StatsGridProps {
-    pub absences: Rc<[AbsencePeriod]>,
-    pub year: u32,
-    pub today: time::Date,
-}
-
-#[component]
-pub fn StatsGrid(props: StatsGridProps) -> Element {
-    let i18n = I18N.read().clone();
+/// Pure function — compute (sick_days, unpaid_days, active_count) for a slice
+/// of AbsencePeriod rows, optionally scoped to a single person (D1).
+///
+/// When `person_filter` is `Some(uuid)`, only rows with a matching
+/// `sales_person_id` are counted. Category and status filters are NOT applied
+/// here — D1 mandates person-dimension ONLY so that the stat boxes remain
+/// meaningful independent metrics.
+pub fn stats_for_person(
+    absences: &[AbsencePeriod],
+    person_filter: Option<Uuid>,
+    year: u32,
+    today: time::Date,
+) -> (i64, i64, usize) {
     let mut sick_days: i64 = 0;
     let mut unpaid_days: i64 = 0;
     let mut active_count: usize = 0;
-    for absence in props.absences.iter() {
+    for absence in absences.iter() {
+        if let Some(p) = person_filter {
+            if absence.sales_person_id != p {
+                continue;
+            }
+        }
         let inclusive_days =
             (absence.to_date - absence.from_date).whole_days().max(0) + 1;
-        let in_year = absence.from_date.year() == props.year as i32
-            || absence.to_date.year() == props.year as i32;
+        let in_year = absence.from_date.year() == year as i32
+            || absence.to_date.year() == year as i32;
         match absence.category {
             AbsenceCategory::SickLeave if in_year => sick_days += inclusive_days,
             AbsenceCategory::UnpaidLeave if in_year => unpaid_days += inclusive_days,
             _ => {}
         }
-        if compute_status(absence.from_date, absence.to_date, props.today)
-            == AbsenceStatus::Active
-        {
+        if compute_status(absence.from_date, absence.to_date, today) == AbsenceStatus::Active {
             active_count += 1;
         }
     }
+    (sick_days, unpaid_days, active_count)
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct StatsGridProps {
+    pub absences: Rc<[AbsencePeriod]>,
+    pub year: u32,
+    pub today: time::Date,
+    #[props(!optional, default = None)]
+    pub person_filter: Option<Uuid>,
+}
+
+#[component]
+pub fn StatsGrid(props: StatsGridProps) -> Element {
+    let i18n = I18N.read().clone();
+    let (sick_days, unpaid_days, active_count) =
+        stats_for_person(&props.absences, props.person_filter, props.year, props.today);
     let year_str = props.year.to_string();
     let sick_label = i18n
         .t(Key::AbsenceStatSickLeaveDays)
@@ -1881,6 +1904,7 @@ pub fn AbsencesPage() -> Element {
                 absences: absences.clone(),
                 year: year,
                 today: today,
+                person_filter: person_filter_val,
             }
             AbsenceFilterBar {
                 is_hr: is_hr,
@@ -2480,5 +2504,164 @@ mod tests {
             marker_matches_filters(&m, None, None, None, true, today),
             "Finished marker must be visible when show_past=true"
         );
+    }
+
+    // ── stats_for_person — pure function tests (260612-o7t Task 1) ────────
+
+    fn make_absence(
+        sales_person_id: Uuid,
+        category: AbsenceCategory,
+        from_date: time::Date,
+        to_date: time::Date,
+    ) -> AbsencePeriod {
+        AbsencePeriod {
+            id: Uuid::nil(),
+            sales_person_id,
+            category,
+            from_date,
+            to_date,
+            description: std::sync::Arc::<str>::from(""),
+            version: Uuid::nil(),
+            day_fraction: DayFraction::Full,
+            person_name: std::sync::Arc::<str>::from(""),
+            background_color: std::sync::Arc::<str>::from(""),
+        }
+    }
+
+    #[test]
+    fn stats_for_person_none_counts_all_persons() {
+        let person_a = Uuid::from_u128(1);
+        let person_b = Uuid::from_u128(2);
+        let today = date!(2026 - 06 - 12);
+        // A: 3-day SickLeave (active — today in range)
+        let a_sick = make_absence(
+            person_a,
+            AbsenceCategory::SickLeave,
+            date!(2026 - 06 - 10),
+            date!(2026 - 06 - 12),
+        );
+        // B: 2-day UnpaidLeave (planned — future)
+        let b_unpaid = make_absence(
+            person_b,
+            AbsenceCategory::UnpaidLeave,
+            date!(2026 - 06 - 20),
+            date!(2026 - 06 - 21),
+        );
+        let absences = vec![a_sick, b_unpaid];
+        let (sick_days, unpaid_days, active_count) =
+            stats_for_person(&absences, None, 2026, today);
+        // Both persons counted: sick=3, unpaid=2, active=1 (only a_sick spans today)
+        assert_eq!(sick_days, 3, "sick_days should span person A's range");
+        assert_eq!(unpaid_days, 2, "unpaid_days should span person B's range");
+        assert_eq!(active_count, 1, "active_count should be 1 (only a_sick is active)");
+    }
+
+    #[test]
+    fn stats_for_person_some_scopes_to_that_person() {
+        let person_a = Uuid::from_u128(1);
+        let person_b = Uuid::from_u128(2);
+        let today = date!(2026 - 06 - 12);
+        // A: 3-day SickLeave (active)
+        let a_sick = make_absence(
+            person_a,
+            AbsenceCategory::SickLeave,
+            date!(2026 - 06 - 10),
+            date!(2026 - 06 - 12),
+        );
+        // B: 5-day SickLeave (planned)
+        let b_sick = make_absence(
+            person_b,
+            AbsenceCategory::SickLeave,
+            date!(2026 - 06 - 20),
+            date!(2026 - 06 - 24),
+        );
+        // B: 2-day UnpaidLeave (planned)
+        let b_unpaid = make_absence(
+            person_b,
+            AbsenceCategory::UnpaidLeave,
+            date!(2026 - 06 - 25),
+            date!(2026 - 06 - 26),
+        );
+        let absences = vec![a_sick, b_sick, b_unpaid];
+        let (sick_days, unpaid_days, active_count) =
+            stats_for_person(&absences, Some(person_a), 2026, today);
+        // Only A's records: sick=3, unpaid=0, active=1
+        assert_eq!(sick_days, 3, "sick_days should only count person A");
+        assert_eq!(unpaid_days, 0, "unpaid_days should be 0 — person A has none");
+        assert_eq!(active_count, 1, "active_count should be 1 — person A's sick leave is active");
+    }
+
+    #[test]
+    fn stats_for_person_sick_and_unpaid_inclusive_day_count() {
+        let person_a = Uuid::from_u128(1);
+        let today = date!(2026 - 01 - 20);
+        // 5-day SickLeave (from 01-01 to 01-05 inclusive = 5 days)
+        let sick = make_absence(
+            person_a,
+            AbsenceCategory::SickLeave,
+            date!(2026 - 01 - 01),
+            date!(2026 - 01 - 05),
+        );
+        // 3-day UnpaidLeave (from 01-10 to 01-12 inclusive = 3 days)
+        let unpaid = make_absence(
+            person_a,
+            AbsenceCategory::UnpaidLeave,
+            date!(2026 - 01 - 10),
+            date!(2026 - 01 - 12),
+        );
+        let absences = vec![sick, unpaid];
+        let (sick_days, unpaid_days, _active_count) =
+            stats_for_person(&absences, None, 2026, today);
+        assert_eq!(sick_days, 5, "5-day SickLeave must count as 5 inclusive days");
+        assert_eq!(unpaid_days, 3, "3-day UnpaidLeave must count as 3 inclusive days");
+    }
+
+    #[test]
+    fn stats_for_person_active_count_uses_compute_status() {
+        let person_a = Uuid::from_u128(1);
+        let today = date!(2026 - 06 - 12);
+        // Active: today is inside the range
+        let active_abs = make_absence(
+            person_a,
+            AbsenceCategory::Vacation,
+            date!(2026 - 06 - 10),
+            date!(2026 - 06 - 15),
+        );
+        // Finished: to_date before today
+        let finished_abs = make_absence(
+            person_a,
+            AbsenceCategory::SickLeave,
+            date!(2026 - 06 - 01),
+            date!(2026 - 06 - 05),
+        );
+        let absences = vec![active_abs, finished_abs];
+        let (_sick_days, _unpaid_days, active_count) =
+            stats_for_person(&absences, None, 2026, today);
+        assert_eq!(active_count, 1, "only the active range should be counted");
+    }
+
+    #[test]
+    fn stats_for_person_excludes_out_of_year() {
+        let person_a = Uuid::from_u128(1);
+        let today = date!(2026 - 06 - 12);
+        // Range entirely in a different year (2025)
+        let past_year = make_absence(
+            person_a,
+            AbsenceCategory::SickLeave,
+            date!(2025 - 03 - 01),
+            date!(2025 - 03 - 10),
+        );
+        // Range in the target year 2026
+        let this_year = make_absence(
+            person_a,
+            AbsenceCategory::SickLeave,
+            date!(2026 - 02 - 01),
+            date!(2026 - 02 - 03),
+        );
+        let absences = vec![past_year, this_year];
+        let (sick_days, _unpaid_days, _active_count) =
+            stats_for_person(&absences, None, 2026, today);
+        // Only the 2026 range (3 days) should be counted
+        assert_eq!(sick_days, 3, "out-of-year ranges must be excluded from sick_days count");
     }
 }
