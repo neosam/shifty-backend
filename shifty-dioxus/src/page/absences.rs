@@ -98,6 +98,15 @@ pub fn compute_status(from: time::Date, to: time::Date, today: time::Date) -> Ab
     }
 }
 
+/// Pure function — a sales person is selectable in the absences person dropdowns
+/// only if they are paid (`is_paid`) and active (`!inactive`). The loaded
+/// `sales_persons` list itself stays complete so existing absences of inactive /
+/// unpaid persons can still resolve their names; only the selection dropdowns
+/// are narrowed.
+pub fn is_selectable_employee(sales_person: &SalesPerson) -> bool {
+    sales_person.is_paid && !sales_person.inactive
+}
+
 /// Map an `ExtraHoursCategoryTO` to an `AbsenceCategory` where possible.
 ///
 /// Only Vacation, SickLeave, and UnpaidLeave have direct counterparts.
@@ -1029,7 +1038,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                                 employee_id.set(parsed);
                             }
                         },
-                        for sp in props.sales_persons.iter() {
+                        for sp in props.sales_persons.iter().filter(|sp| is_selectable_employee(sp)) {
                             option {
                                 value: "{sp.id}",
                                 selected: sp.id == *employee_id.read(),
@@ -1236,7 +1245,7 @@ pub fn AbsenceFilterBar(props: AbsenceFilterBarProps) -> Element {
                         option { value: "all", selected: person_value == "all",
                             "{i18n.t(Key::AbsenceFilterPersonAll)}"
                         }
-                        for sp in props.sales_persons.iter() {
+                        for sp in props.sales_persons.iter().filter(|sp| is_selectable_employee(sp)) {
                             option {
                                 value: "{sp.id}",
                                 selected: person_value == sp.id.to_string(),
@@ -2050,6 +2059,36 @@ mod tests {
         let from = date!(2026 - 05 - 03);
         let to = date!(2026 - 05 - 07);
         assert_eq!(compute_status(from, to, today), AbsenceStatus::Finished);
+    }
+
+    // ── is_selectable_employee — pure function ─────────────────────────
+
+    fn sales_person(is_paid: bool, inactive: bool) -> SalesPerson {
+        SalesPerson {
+            is_paid,
+            inactive,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn selectable_paid_and_active_returns_true() {
+        assert!(is_selectable_employee(&sales_person(true, false)));
+    }
+
+    #[test]
+    fn selectable_paid_but_inactive_returns_false() {
+        assert!(!is_selectable_employee(&sales_person(true, true)));
+    }
+
+    #[test]
+    fn selectable_unpaid_but_active_returns_false() {
+        assert!(!is_selectable_employee(&sales_person(false, false)));
+    }
+
+    #[test]
+    fn selectable_unpaid_and_inactive_returns_false() {
+        assert!(!is_selectable_employee(&sales_person(false, true)));
     }
 
     // ── CategoryBadge snapshots (Pitfall 5: STATIC Tailwind) ───────────
