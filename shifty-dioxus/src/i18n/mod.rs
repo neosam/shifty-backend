@@ -76,7 +76,6 @@ pub enum Key {
 
     // Shiftplan
     ShiftplanCalendarWeek,
-    ShiftplanTakeLastWeek,
     ShiftplanEditAs,
     ShiftplanYouAre,
     ConflictBookingsHeader,
@@ -1056,6 +1055,44 @@ mod tests {
             on_absence_day.as_ref().contains("{person}"),
             "BookingWarningOnAbsenceDay de.rs must contain {{person}} placeholder, got: `{}`",
             on_absence_day
+        );
+    }
+
+    /// Guard against reintroduction of the removed Copy-Week frontend dead code (D-06).
+    /// If any of these symbols reappear in the frontend sources, this test fails immediately.
+    #[test]
+    fn no_copy_week_in_frontend_source() {
+        // Symbols are split to avoid self-matching in the source text of this test
+        let copy_from_prev = ["Copy", "FromPreviousWeek"].concat();
+        let copy_from_prev_fn = ["copy", "_from_previous_week"].concat();
+        let copy_week_fn = ["fn ", "copy_week"].concat();
+        let take_last_week_key = ["Shiftplan", "TakeLastWeek"].concat();
+
+        let shiftplan = include_str!("../page/shiftplan.rs");
+        let api = include_str!("../api.rs");
+        let loader = include_str!("../loader.rs");
+        // Only check the non-test part of mod.rs
+        let full_modrs = include_str!("mod.rs");
+        let modrs = full_modrs
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or(full_modrs);
+
+        assert!(
+            !shiftplan.contains(&copy_from_prev),
+            "dead copy-week action variant must not exist in shiftplan.rs"
+        );
+        assert!(
+            !loader.contains(&copy_from_prev_fn),
+            "dead copy-week loader fn must not exist"
+        );
+        assert!(
+            !api.contains(&copy_week_fn),
+            "dead copy-week api fn must not exist"
+        );
+        assert!(
+            !modrs.contains(&take_last_week_key),
+            "dead i18n key for copy-week must not exist in non-test section of mod.rs"
         );
     }
 }

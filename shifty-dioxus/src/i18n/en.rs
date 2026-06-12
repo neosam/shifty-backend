@@ -29,7 +29,6 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::ShiftplanCalendarWeek,
         "{week}/{year} - from {date}",
     );
-    i18n.add_text(Locale::En, Key::ShiftplanTakeLastWeek, "Add last week");
     i18n.add_text(Locale::En, Key::ShiftplanEditAs, "You edit:");
     i18n.add_text(Locale::En, Key::ShiftplanYouAre, "You are ");
     i18n.add_text(

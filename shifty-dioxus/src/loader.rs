@@ -331,15 +331,6 @@ pub async fn remove_user_from_slot(
     Ok(())
 }
 
-pub async fn copy_from_previous_week(
-    config: Config,
-    week: u8,
-    year: u32,
-) -> Result<(), ShiftyError> {
-    info!("Copy from previous week");
-    api::copy_week(config, week - 1, year, week, year).await?;
-    Ok(())
-}
 
 pub async fn load_employees(
     config: Config,
