@@ -231,6 +231,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::When, "Kdy");
     i18n.add_text(Locale::Cs, Key::Submit, "Odeslat");
     i18n.add_text(Locale::Cs, Key::Cancel, "Zrušit");
+    i18n.add_text(Locale::Cs, Key::ErrorBannerDismiss, "Zavřít chybu");
 
     i18n.add_text(
         Locale::Cs,

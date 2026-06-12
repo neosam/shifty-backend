@@ -180,6 +180,8 @@ pub enum Key {
     When,
     Submit,
     Cancel,
+    /// Schließen-Button (aria-label) im globalen Fehler-Banner (`ErrorView`).
+    ErrorBannerDismiss,
 
     // Add extra hours choice form
     AddExtraHoursChoiceTitle,

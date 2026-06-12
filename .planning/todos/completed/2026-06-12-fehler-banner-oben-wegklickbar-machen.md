@@ -40,3 +40,18 @@ TBD — kleiner Frontend-Fix:
 Klein (~Quick-Task). Tests: Frontend ist WASM — mind. WASM-Build-Gate
 (`cargo build --target wasm32-unknown-unknown` in shifty-dioxus/) grün, ggf.
 ein kleiner Logik-Test für die Clear-Action auf dem `ErrorStore`.
+
+## Resolution (2026-06-12)
+
+Umgesetzt:
+1. `ErrorStore::cleared()`-Helper (no-error-State) + `ErrorAction::ClearError`-Variante
+   in `service/error.rs`.
+2. `ErrorView` rendert jetzt einen `×`-Dismiss-Button (`.error-dismiss`), dessen
+   `onclick` `*ERROR_STORE.write() = ErrorStore::cleared()` setzt → Banner verschwindet.
+   aria-label/title via neuem i18n-Key `ErrorBannerDismiss` (De/En/Cs).
+3. Banner-Styling in `assets/main.css` (`.error-view` Flex-Row, `.error-message`,
+   `.error-dismiss` Hover) — X sitzt rechts.
+
+Tests: 2 neue Unit-Tests (`service::error::tests::cleared_has_no_error`,
+`dismiss_replaces_existing_error_with_none`) grün; volle error-Suite 21 passed;
+WASM-Build-Gate grün.

@@ -208,6 +208,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::When, "When");
     i18n.add_text(Locale::En, Key::Submit, "Submit");
     i18n.add_text(Locale::En, Key::Cancel, "Cancel");
+    i18n.add_text(Locale::En, Key::ErrorBannerDismiss, "Dismiss error");
 
     i18n.add_text(
         Locale::En,

@@ -48,3 +48,38 @@ div.top-bar {
     width: 100%;
     color: white;
 }
+
+/* Global error banner (component/error_view.rs). Row layout so the message
+   takes the available width and the dismiss (×) button sits on the right. */
+.error-view {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 16px;
+    background-color: #b91c1c;
+    color: white;
+}
+
+.error-message {
+    flex: 1 1 auto;
+    word-break: break-word;
+}
+
+.error-dismiss {
+    flex: 0 0 auto;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.error-dismiss:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
