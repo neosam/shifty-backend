@@ -295,6 +295,22 @@ pub async fn register_user_to_slot(
     Ok(())
 }
 
+/// Book a slot via the conflict-aware endpoint and return the new booking ID
+/// together with any warnings. The booking is persisted immediately — the
+/// caller is responsible for rolling it back (via `api::remove_booking`) if
+/// the user cancels the confirm dialog (D-03/D-04).
+pub async fn register_user_to_slot_with_conflict_check(
+    config: Config,
+    slot_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+    week: u8,
+    year: u32,
+) -> Result<(uuid::Uuid, Vec<rest_types::WarningTO>), ShiftyError> {
+    info!("Add booking (conflict-check)");
+    let result = api::book_slot_with_conflict_check(config, user_id, slot_id, week, year).await?;
+    Ok((result.booking.id, result.warnings))
+}
+
 pub async fn remove_user_from_slot(
     config: Config,
     slot_id: uuid::Uuid,

@@ -33,6 +33,7 @@ use crate::i18n::Key;
 use crate::loader;
 use crate::component::absence_convert_modal::AbsenceConvertModal;
 use crate::component::extra_hours_modal::ExtraHoursModal;
+use crate::component::warning_list::{WarningList, WarningsList};
 use crate::service::absence::{
     AbsenceAction, AbsenceModalEvent, ABSENCE_HOURLY_STORE, ABSENCE_MODAL_EVENT, ABSENCE_REFRESH,
     ABSENCE_STORE,
@@ -156,89 +157,6 @@ pub fn StatusPill(props: StatusPillProps) -> Element {
         span {
             class: "inline-flex items-center rounded-full px-2 py-0.5 text-micro font-semibold {text_class} {bg_class}",
             "{label}"
-        }
-    }
-}
-
-// ─── WarningList (D-12 — Forward-Warnings render after successful POST/PUT)
-
-/// Newtype wrapper for `Rc<[WarningTO]>` so the props type can derive
-/// `PartialEq`. `WarningTO` itself does not implement `PartialEq` (it carries
-/// non-comparable data), so we compare by `Rc::ptr_eq` plus length — that
-/// is exact for "same allocation" and accurate-enough for re-render skip.
-#[derive(Clone, Debug)]
-pub struct WarningsList(pub Rc<[WarningTO]>);
-
-impl PartialEq for WarningsList {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl WarningsList {
-    pub fn empty() -> Self {
-        Self(Rc::new([]))
-    }
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-#[derive(Props, Clone, PartialEq)]
-pub struct WarningListProps {
-    pub warnings: WarningsList,
-    #[props(default = false)]
-    pub dense: bool,
-}
-
-#[component]
-pub fn WarningList(props: WarningListProps) -> Element {
-    let i18n = I18N.read().clone();
-    let count = props.warnings.len();
-    if count == 0 {
-        return rsx! {};
-    }
-    let header_text = if count == 1 {
-        i18n.t(Key::AbsenceWarningHeaderSingular).to_string()
-    } else {
-        i18n
-            .t(Key::AbsenceWarningHeaderPlural)
-            .as_ref()
-            .replace("{count}", &count.to_string())
-    };
-    // Spacing-Exception per UI-SPEC: dense uses `p-2.5` (10 px), default `p-3`.
-    let pad_class = if props.dense { "p-2.5" } else { "p-3" };
-    rsx! {
-        div { class: "border-l-[3px] border-warn bg-warn-soft rounded-md {pad_class} flex flex-col gap-2",
-            div { class: "text-micro text-warn font-semibold uppercase", "{header_text}" }
-            ul { class: "list-disc pl-4 text-body text-ink",
-                for warning in props.warnings.0.iter() {
-                    li {
-                        match warning {
-                            WarningTO::AbsenceOverlapsBooking { date, .. } => {
-                                let body = i18n
-                                    .t(Key::AbsenceWarningOverlapsBooking)
-                                    .as_ref()
-                                    .replace("{date}", &date.to_string());
-                                rsx! { "{body}" }
-                            }
-                            WarningTO::AbsenceOverlapsManualUnavailable { .. } => rsx! {
-                                "{i18n.t(Key::AbsenceWarningOverlapsManual)}"
-                            },
-                            // The remaining variants (BookingOnAbsenceDay,
-                            // BookingOnUnavailableDay, PaidEmployeeLimitExceeded)
-                            // are reverse-warnings emitted from booking flows,
-                            // not from absence creation. Render a neutral
-                            // fallback so an unexpected variant does not break
-                            // the list.
-                            _ => rsx! { "{i18n.t(Key::AbsenceWarningOverlapsManual)}" },
-                        }
-                    }
-                }
-            }
         }
     }
 }

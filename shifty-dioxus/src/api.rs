@@ -2,14 +2,14 @@ use std::rc::Rc;
 
 use rest_types::{
     AbsenceCategoryTO, AbsenceListWithProjectionTO, AbsencePeriodCreateResultTO, AbsencePeriodTO,
-    BillingPeriodTO, BlockTO, BookingConflictTO, BookingLogTO, BookingTO,
+    BillingPeriodTO, BlockTO, BookingConflictTO, BookingCreateResultTO, BookingLogTO, BookingTO,
     ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
     CustomExtraHoursTO, DayFractionTO,
     DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursMarkerTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse,
     RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
     SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
-    VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
+    VacationPayloadTO, WarningTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -222,6 +222,41 @@ pub async fn add_booking(
     response.error_for_status_ref()?;
     info!("Added");
     Ok(())
+}
+
+/// Book a slot via the conflict-aware endpoint `POST /shiftplan-edit/booking`.
+/// Returns `BookingCreateResultTO { booking, warnings }` — the booking is
+/// persisted immediately (optimistic create). Callers inspect `warnings` and
+/// may call `remove_booking` as a rollback if the user cancels.
+pub async fn book_slot_with_conflict_check(
+    config: Config,
+    sales_person_id: Uuid,
+    slot_id: Uuid,
+    week: u8,
+    year: u32,
+) -> Result<BookingCreateResultTO, reqwest::Error> {
+    info!(
+        "Booking slot (conflict-check) for user {sales_person_id}, slot {slot_id}, week {week}/{year}"
+    );
+    let url: String = format!("{}/shiftplan-edit/booking", config.backend);
+    let booking_to = BookingTO {
+        id: Uuid::nil(),
+        sales_person_id,
+        slot_id,
+        calendar_week: week as i32,
+        year,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&booking_to).send().await?;
+    response.error_for_status_ref()?;
+    let result: BookingCreateResultTO = response.json().await?;
+    info!("Booked");
+    Ok(result)
 }
 
 pub async fn remove_booking(config: Config, booking_id: Uuid) -> Result<(), reqwest::Error> {
