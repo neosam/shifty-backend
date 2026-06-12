@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::base_types::ImStr;
 use crate::component::atoms::{Btn, BtnVariant, PersonChip};
+use crate::component::{Dialog, DialogVariant, WarningList, WarningsList};
 use crate::component::booking_log_table::BookingLogTable;
 use crate::component::day_aggregate_view::{DayAggregateView, DayButtonBar};
 use crate::component::dropdown_base::DropdownTrigger;
@@ -63,7 +64,7 @@ pub enum ShiftPlanAction {
     NextWeek,
     PreviousWeek,
     UpdateSalesPerson(Uuid),
-    CopyFromPreviousWeek,
+    RollbackBooking(Uuid),
     ToggleAvailability(Weekday),
     ToggleChangeStructureMode,
     LoadWeekMessage,
@@ -128,7 +129,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         ]
         .into(),
     );
-    let _take_last_week_str: ImStr = i18n.t(Key::ShiftplanTakeLastWeek).into();
     let edit_as_str = i18n.t(Key::ShiftplanEditAs);
     let you_are_str = i18n.t(Key::ShiftplanYouAre);
     let conflict_booking_entries_header = i18n.t(Key::ConflictBookingsHeader);
@@ -199,6 +199,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
     let unavailable_days: Signal<Rc<[SalesPersonUnavailable]>> = use_signal(|| [].into());
     let mut change_structure_mode: Signal<bool> = use_signal(|| false);
+
+    // Booking warning dialog state (optimistic-create + rollback)
+    let mut pending_warnings: Signal<WarningsList> = use_signal(WarningsList::empty);
+    let mut pending_rollback_id: Signal<Option<Uuid>> = use_signal(|| None);
     let week_message = use_signal(|| String::new());
     let mut week_message_draft = use_signal(|| String::new());
 
@@ -282,7 +286,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 view_mode,
                 selected_day,
                 day_aggregate,
-                show_sunday
+                show_sunday,
+                pending_warnings,
+                pending_rollback_id
             ];
             async move {
                 let mut update_shiftplan = {
@@ -406,7 +412,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             year,
                         } => {
                             info!("Registering user to slot");
-                            match loader::register_user_to_slot(
+                            match loader::register_user_to_slot_with_conflict_check(
                                 config.to_owned(),
                                 slot_id,
                                 sales_person_id,
@@ -415,16 +421,38 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             )
                             .await
                             {
-                                Ok(_) => {}
+                                Ok((booking_id, warnings)) if !warnings.is_empty() => {
+                                    pending_rollback_id.set(Some(booking_id));
+                                    pending_warnings
+                                        .set(WarningsList(Rc::from(warnings.as_slice())));
+                                    // Dialog opens reactively; do NOT call update_shiftplan() yet
+                                }
+                                Ok(_) => {
+                                    update_shiftplan();
+                                }
                                 Err(crate::error::ShiftyError::Reqwest(ref e))
                                     if e.status() == Some(reqwest::StatusCode::FORBIDDEN) =>
                                 {
-                                    // Silently ignore forbidden booking errors
+                                    // D-13: silently ignore 403, still reload
+                                    update_shiftplan();
                                 }
                                 Err(e) => {
                                     crate::error::error_handler(e);
+                                    update_shiftplan(); // D-13: 422 surfaced
                                 }
                             }
+                        }
+                        ShiftPlanAction::RollbackBooking(booking_id) => {
+                            // D-04: surface error AND reload even on failure
+                            if let Err(e) =
+                                crate::api::remove_booking(config.to_owned(), booking_id).await
+                            {
+                                crate::error::error_handler(
+                                    crate::error::ShiftyError::Reqwest(e),
+                                );
+                            }
+                            pending_rollback_id.set(None);
+                            pending_warnings.set(WarningsList::empty());
                             update_shiftplan();
                         }
                         ShiftPlanAction::RemoveUserFromSlot {
@@ -519,17 +547,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 }
                             }
                             reload_unavailable_days(config.clone()).await;
-                        }
-                        ShiftPlanAction::CopyFromPreviousWeek => {
-                            result_handler(
-                                loader::copy_from_previous_week(
-                                    config.to_owned(),
-                                    *week.read(),
-                                    *year.read(),
-                                )
-                                .await,
-                            );
-                            update_shiftplan();
                         }
                         ShiftPlanAction::ToggleAvailability(weekday) => {
                             if let Some(available_day) = unavailable_days
@@ -1320,11 +1337,129 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 }
             }
         }
+
+        // Booking-warning confirm dialog (optimistic-create + rollback)
+        if !pending_warnings.read().is_empty() {
+            {
+                let warnings_snap = pending_warnings.read().clone();
+                let count = warnings_snap.len();
+                let header_text = if count == 1 {
+                    i18n.t(Key::BookingWarningDialogHeaderSingular).to_string()
+                } else {
+                    i18n.t(Key::BookingWarningDialogHeaderPlural)
+                        .as_ref()
+                        .replace("{count}", &count.to_string())
+                };
+                let rollback_id = pending_rollback_id
+                    .read()
+                    .expect("rollback id must be set when warnings are non-empty");
+                let cancel_label = i18n.t(Key::BookingWarningDialogCancel).to_string();
+                let confirm_label = i18n.t(Key::BookingWarningDialogConfirm).to_string();
+                let person_name: Option<ImStr> = current_sales_person
+                    .read()
+                    .as_ref()
+                    .map(|sp| ImStr::from(sp.name.as_ref()));
+                let footer = rsx! {
+                    Btn {
+                        variant: BtnVariant::Secondary,
+                        on_click: move |_| {
+                            cr.send(ShiftPlanAction::RollbackBooking(rollback_id));
+                        },
+                        "{cancel_label}"
+                    }
+                    Btn {
+                        variant: BtnVariant::Primary,
+                        on_click: move |_| {
+                            pending_rollback_id.set(None);
+                            pending_warnings.set(WarningsList::empty());
+                            *SHIFTPLAN_REFRESH.write() += 1;
+                        },
+                        "{confirm_label}"
+                    }
+                };
+                rsx! {
+                    Dialog {
+                        open: true,
+                        on_close: move |_| {
+                            // All close paths (X, ESC, backdrop) → rollback (Pitfall 2 guard)
+                            cr.send(ShiftPlanAction::RollbackBooking(rollback_id));
+                        },
+                        title: ImStr::from(header_text.as_str()),
+                        footer: Some(footer),
+                        variant: DialogVariant::Auto,
+                        // suppress_header: Dialog.title already renders the header — avoid double-header
+                        WarningList {
+                            warnings: warnings_snap,
+                            person_name,
+                            suppress_header: true,
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::component::{WarningList, WarningsList};
+    use crate::i18n::{generate, Locale};
+    use crate::service::i18n::I18N;
+    use dioxus::prelude::*;
+    use rest_types::{AbsenceCategoryTO, WarningTO};
+    use std::rc::Rc;
+    use uuid::Uuid;
+
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    fn pin_de_locale() {
+        use_hook(|| {
+            *I18N.write() = generate(Locale::De);
+        });
+    }
+
+    /// Guard: WarningList rendered with suppress_header: true must NOT render
+    /// the internal "text-micro text-warn font-semibold uppercase" header row.
+    /// This ensures the booking dialog has exactly ONE header (the Dialog.title bar).
+    #[test]
+    fn booking_dialog_warning_list_suppresses_internal_header() {
+        fn app() -> Element {
+            pin_de_locale();
+            let warnings = WarningsList(Rc::from(
+                vec![WarningTO::BookingOnAbsenceDay {
+                    booking_id: Uuid::nil(),
+                    date: time::Date::from_calendar_date(2026, time::Month::January, 1).unwrap(),
+                    absence_id: Uuid::nil(),
+                    category: AbsenceCategoryTO::Vacation,
+                }]
+                .as_slice(),
+            ));
+            rsx! {
+                WarningList {
+                    warnings,
+                    person_name: Some(crate::base_types::ImStr::from("Testperson")),
+                    suppress_header: true,
+                }
+            }
+        }
+        let html = render(app);
+        // With suppress_header: true, the internal header class must NOT appear
+        assert!(
+            !html.contains("text-micro text-warn font-semibold uppercase"),
+            "WarningList with suppress_header:true must not render internal header, got: {html}"
+        );
+        // But the warning content itself should still be rendered
+        assert!(
+            !html.is_empty(),
+            "WarningList should render warning content even with suppressed header"
+        );
+    }
+
     #[test]
     fn shiftplan_page_no_legacy_classes_in_source() {
         let source = include_str!("shiftplan.rs");
