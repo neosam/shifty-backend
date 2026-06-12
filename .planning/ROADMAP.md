@@ -111,7 +111,7 @@
   3. Alter `POST /booking` bleibt parallel verfügbar (verifiziert durch grep-Check, dass alte Call-Sites unverändert sind)
   **Plans:** 2 plans across 2 waves
   Plans:
-  - [ ] 09-01-PLAN.md — Wave 1: Foundation — conflict-aware api/loader fns + shared component/warning_list.rs (3 booking variants + person_name prop + SSR tests) + 7 i18n keys × 3 locales (parity/reference-matcher tests)
+  - [x] 09-01-PLAN.md — Wave 1: Foundation — conflict-aware api/loader fns + shared component/warning_list.rs (3 booking variants + person_name prop + SSR tests) + 7 i18n keys × 3 locales (parity/reference-matcher tests)
   - [ ] 09-02-PLAN.md — Wave 2: Wiring — shiftplan.rs RollbackBooking action + Dioxus confirm-dialog (optimistic+rollback) + Copy-Week dead-code cleanup + ROADMAP/REQUIREMENTS doc-sync + WASM/workspace gate
 
 - [ ] **Phase 10: Shiftplan-View Unavailability-Marker** (Frontend)
