@@ -107,6 +107,33 @@ pub fn is_selectable_employee(sales_person: &SalesPerson) -> bool {
     sales_person.is_paid && !sales_person.inactive
 }
 
+/// Temporär: Krankheitstage sind auf der Absences-Seite ausgeblendet, weil die
+/// fachliche Behandlung noch unvollständig ist (Quick-Task 260612-svs). Gilt
+/// NUR für diese Seite — Reports zeigen Krankheitstage weiterhin. Reaktivierung:
+/// Konstante auf `true` setzen.
+pub const SICK_LEAVE_ENABLED: bool = false;
+
+/// Parametrischer Kern, damit Tests beide Schalterstellungen prüfen können,
+/// ohne an den aktuellen Wert von `SICK_LEAVE_ENABLED` gekoppelt zu sein.
+fn category_visible_with(sick_leave_enabled: bool, category: AbsenceCategory) -> bool {
+    sick_leave_enabled || category != AbsenceCategory::SickLeave
+}
+
+/// Pure function — ist eine Absence-Kategorie auf der Absences-Seite sichtbar?
+pub fn is_visible_category(category: AbsenceCategory) -> bool {
+    category_visible_with(SICK_LEAVE_ENABLED, category)
+}
+
+/// Pure function — ist ein stundenbasierter Marker mit dieser Kategorie auf der
+/// Absences-Seite sichtbar? Unmappbare Kategorien bleiben sichtbar (bestehendes
+/// Verhalten der Marker-Pipeline); nur SickLeave wird ausgeblendet.
+pub fn is_visible_marker_category(category: &rest_types::ExtraHoursCategoryTO) -> bool {
+    match map_marker_category(category) {
+        Some(cat) => is_visible_category(cat),
+        None => true,
+    }
+}
+
 /// Map an `ExtraHoursCategoryTO` to an `AbsenceCategory` where possible.
 ///
 /// Only Vacation, SickLeave, and UnpaidLeave have direct counterparts.
@@ -1066,10 +1093,12 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                             selected: *category.read() == AbsenceCategory::Vacation,
                             "{i18n.t(Key::AbsenceCategoryVacation)}"
                         }
-                        option {
-                            value: "sick_leave",
-                            selected: *category.read() == AbsenceCategory::SickLeave,
-                            "{i18n.t(Key::AbsenceCategorySickLeave)}"
+                        if SICK_LEAVE_ENABLED {
+                            option {
+                                value: "sick_leave",
+                                selected: *category.read() == AbsenceCategory::SickLeave,
+                                "{i18n.t(Key::AbsenceCategorySickLeave)}"
+                            }
                         }
                         option {
                             value: "unpaid_leave",
@@ -1219,8 +1248,10 @@ pub fn AbsenceFilterBar(props: AbsenceFilterBarProps) -> Element {
                     option { value: "vacation", selected: category_value == "vacation",
                         "{i18n.t(Key::AbsenceCategoryVacation)}"
                     }
-                    option { value: "sick_leave", selected: category_value == "sick_leave",
-                        "{i18n.t(Key::AbsenceCategorySickLeave)}"
+                    if SICK_LEAVE_ENABLED {
+                        option { value: "sick_leave", selected: category_value == "sick_leave",
+                            "{i18n.t(Key::AbsenceCategorySickLeave)}"
+                        }
                     }
                     option { value: "unpaid_leave", selected: category_value == "unpaid_leave",
                         "{i18n.t(Key::AbsenceCategoryUnpaidLeave)}"
@@ -1370,11 +1401,20 @@ pub fn StatsGrid(props: StatsGridProps) -> Element {
     // Desktop-Layout deterministisch zwei oder drei Spalten zeigt — der
     // existierende `auto-fit,minmax(160px,1fr)` faltete je nach Container-
     // Breite zu unschönen 1-col-Fallbacks.
+    // STATIC Tailwind (Pitfall 5): beide Klassenstrings müssen wörtlich im
+    // Quelltext stehen, damit der Tailwind-Scanner sie findet.
+    let grid_class = if SICK_LEAVE_ENABLED {
+        "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5"
+    } else {
+        "grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+    };
     rsx! {
-        div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5",
-            StatBox {
-                label: ImStr::from(sick_label.as_str()),
-                value: ImStr::from(format!("{}", sick_days).as_str()),
+        div { class: "{grid_class}",
+            if SICK_LEAVE_ENABLED {
+                StatBox {
+                    label: ImStr::from(sick_label.as_str()),
+                    value: ImStr::from(format!("{}", sick_days).as_str()),
+                }
             }
             StatBox {
                 label: ImStr::from(unpaid_label.as_str()),
@@ -1753,7 +1793,22 @@ pub fn AbsencesPage() -> Element {
     let status_filter_val = *status_filter.read();
     let show_past_val = *show_past.read();
 
-    let filtered: Vec<AbsencePeriod> = absences
+    // Single-Choke-Point: ausgeblendete Kategorien (aktuell SickLeave, siehe
+    // SICK_LEAVE_ENABLED) werden VOR der User-Filter-Pipeline entfernt, damit
+    // Liste, Stats und Zähler („X von Y") konsistent nur sichtbare Einträge sehen.
+    let visible_absences: Vec<AbsencePeriod> = absences
+        .iter()
+        .filter(|a| is_visible_category(a.category))
+        .cloned()
+        .collect();
+    let visible_absences_rc: Rc<[AbsencePeriod]> = Rc::from(visible_absences);
+    let visible_markers: Vec<ExtraHoursMarker> = hourly_markers
+        .iter()
+        .filter(|m| is_visible_marker_category(&m.category))
+        .cloned()
+        .collect();
+
+    let filtered: Vec<AbsencePeriod> = visible_absences_rc
         .iter()
         .filter(|a| {
             if let Some(cat) = category_filter_val {
@@ -1780,7 +1835,7 @@ pub fn AbsencesPage() -> Element {
         .cloned()
         .collect();
     let filtered_rc: Rc<[AbsencePeriod]> = Rc::from(filtered);
-    let filtered_markers: Vec<ExtraHoursMarker> = hourly_markers
+    let filtered_markers: Vec<ExtraHoursMarker> = visible_markers
         .iter()
         .filter(|m| {
             marker_matches_filters(
@@ -1795,7 +1850,7 @@ pub fn AbsencesPage() -> Element {
         .cloned()
         .collect();
     let filtered_markers_rc: Rc<[ExtraHoursMarker]> = Rc::from(filtered_markers);
-    let total_count = absences.len() + hourly_markers.len();
+    let total_count = visible_absences_rc.len() + visible_markers.len();
     let filtered_count = filtered_rc.len() + filtered_markers_rc.len();
     let filter_active = category_filter_val.is_some()
         || person_filter_val.is_some()
@@ -1925,7 +1980,7 @@ pub fn AbsencesPage() -> Element {
                 selected_person: person_filter_val,
             }
             StatsGrid {
-                absences: absences.clone(),
+                absences: visible_absences_rc.clone(),
                 year: year,
                 today: today,
                 person_filter: person_filter_val,
@@ -2091,6 +2146,37 @@ mod tests {
         assert!(!is_selectable_employee(&sales_person(false, true)));
     }
 
+    // ── Sichtbarkeit von Kategorien (SICK_LEAVE_ENABLED) — pure functions ─
+
+    #[test]
+    fn category_visible_disabled_hides_sick_leave_only() {
+        assert!(!category_visible_with(false, AbsenceCategory::SickLeave));
+        assert!(category_visible_with(false, AbsenceCategory::Vacation));
+        assert!(category_visible_with(false, AbsenceCategory::UnpaidLeave));
+    }
+
+    #[test]
+    fn category_visible_enabled_shows_all_categories() {
+        assert!(category_visible_with(true, AbsenceCategory::SickLeave));
+        assert!(category_visible_with(true, AbsenceCategory::Vacation));
+        assert!(category_visible_with(true, AbsenceCategory::UnpaidLeave));
+    }
+
+    #[test]
+    fn marker_visibility_hides_sick_leave_keeps_vacation_and_unmappable() {
+        use rest_types::ExtraHoursCategoryTO;
+        assert!(!is_visible_marker_category(
+            &ExtraHoursCategoryTO::SickLeave
+        ));
+        assert!(is_visible_marker_category(&ExtraHoursCategoryTO::Vacation));
+        assert!(is_visible_marker_category(
+            &ExtraHoursCategoryTO::UnpaidLeave
+        ));
+        // Unmappbare Kategorien (kein AbsenceCategory-Gegenstück) bleiben
+        // sichtbar — bestehendes Verhalten der Marker-Pipeline.
+        assert!(is_visible_marker_category(&ExtraHoursCategoryTO::ExtraWork));
+    }
+
     // ── CategoryBadge snapshots (Pitfall 5: STATIC Tailwind) ───────────
 
     #[test]
@@ -2230,6 +2316,87 @@ mod tests {
         assert!(
             !html.contains(">Person<"),
             "Employee filter bar must NOT render the Person dropdown label: {html}"
+        );
+    }
+
+    // ── SickLeave ausgeblendet (SICK_LEAVE_ENABLED=false) — SSR-Snapshots ─
+
+    #[test]
+    fn stats_grid_omits_sick_leave_card_when_disabled() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                StatsGrid {
+                    absences: Rc::<[AbsencePeriod]>::from([]),
+                    year: 2026u32,
+                    today: date!(2026 - 06 - 12),
+                    person_filter: None,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("Krank"),
+            "StatsGrid must NOT render the sick-leave card while SICK_LEAVE_ENABLED=false: {html}"
+        );
+    }
+
+    #[test]
+    fn absence_filter_bar_omits_sick_leave_option_when_disabled() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                AbsenceFilterBar {
+                    is_hr: true,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    category_filter: None,
+                    on_category_change: |_| {},
+                    person_filter: None,
+                    on_person_change: |_| {},
+                    status_filter: None,
+                    on_status_change: |_| {},
+                    show_past: true,
+                    on_show_past_change: |_| {},
+                    filtered_count: 0,
+                    total_count: 0,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("sick_leave"),
+            "FilterBar must NOT render a sick_leave option while SICK_LEAVE_ENABLED=false: {html}"
+        );
+        assert!(
+            html.contains("vacation") && html.contains("unpaid_leave"),
+            "FilterBar must still offer vacation and unpaid_leave: {html}"
+        );
+    }
+
+    #[test]
+    fn absence_modal_omits_sick_leave_option_when_disabled() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                AbsenceModal {
+                    open: true,
+                    mode: AbsenceModalMode::Create,
+                    is_hr: true,
+                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    current_sp_id: None,
+                    on_close: |_| {},
+                    on_delete_request: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("sick_leave"),
+            "AbsenceModal must NOT render a sick_leave option while SICK_LEAVE_ENABLED=false: {html}"
+        );
+        assert!(
+            html.contains("vacation") && html.contains("unpaid_leave"),
+            "AbsenceModal must still offer vacation and unpaid_leave: {html}"
         );
     }
 
