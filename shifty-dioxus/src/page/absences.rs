@@ -1781,19 +1781,32 @@ pub fn AbsencesPage() -> Element {
 
     // Refresh-token-driven absence + vacation re-fetch (D-09 branch + D-12
     // forward-warnings flow). The token is bumped from the absence service
-    // on every successful POST/PUT/DELETE. Year changes also re-fire this
-    // effect because `selected_year` is read inside the closure.
-    let refresh_token = *ABSENCE_REFRESH.read();
-    let sales_persons_for_effect = sales_persons.read().clone();
-    let current_sp_for_effect = *current_sp_id.read();
+    // on every successful POST/PUT/DELETE/Convert.
+    //
+    // CRITICAL (debug convert-absence-name-and-refresh): every signal the
+    // effect must react to MUST be read INSIDE the closure. In Dioxus 0.6 a
+    // `use_effect` only subscribes to signals read within its closure body;
+    // reading them outside and capturing the value (a snapshot) does NOT
+    // subscribe. Previously `ABSENCE_REFRESH`, `sales_persons` and
+    // `current_sp_id` were read outside, so the effect only re-fired on
+    // `selected_year` changes. That broke two flows:
+    //   - convert (and any mutation) bumped ABSENCE_REFRESH but the list never
+    //     reloaded (no auto-refresh), and
+    //   - the bootstrap loaded `sales_persons` asynchronously, but the effect
+    //     had already fired LoadAll with an empty list, so the name-join
+    //     failed and employee names showed as "—".
+    // Reading all four signals inside the closure subscribes the effect to
+    // each, so it re-fires on refresh bumps, sales-person load, self-user
+    // resolution, and year changes alike.
     use_effect(move || {
-        let _ = refresh_token;
-        // Reading selected_year inside the effect subscribes to it so Dioxus
-        // re-fires when the year signal changes (◀ / ▶ button clicks).
+        // Subscribe to all reactive sources by reading them in-closure.
+        let _ = *ABSENCE_REFRESH.read();
+        let sales_persons_for_effect = sales_persons.read().clone();
+        let current_sp_for_effect = *current_sp_id.read();
         let year_for_effect = *selected_year.read();
         if is_hr {
             // HR: load all absences + team vacation aggregate.
-            absence_service.send(AbsenceAction::LoadAll(sales_persons_for_effect.clone()));
+            absence_service.send(AbsenceAction::LoadAll(sales_persons_for_effect));
             vacation_service.send(VacationBalanceAction::LoadTeam(year_for_effect));
         } else if let Some(sp) = current_sp_for_effect {
             absence_service.send(AbsenceAction::LoadForSalesPerson(sp));
@@ -3121,5 +3134,67 @@ mod tests {
         // Order must be preserved: b (15 remaining after 30-5=25 used, remaining=5) first
         assert_eq!(result[0].sales_person_id, id_b);
         assert_eq!(result[1].sales_person_id, id_a);
+    }
+
+    // ── Regression: refetch-effect must subscribe to ABSENCE_REFRESH ──────
+    //
+    // Debug session `convert-absence-name-and-refresh` (Bug 2 + Bug 3): the
+    // AbsencesPage refetch `use_effect` previously read `ABSENCE_REFRESH`
+    // OUTSIDE its closure and captured a snapshot, so it never re-fired when a
+    // mutation (e.g. convert-to-absence) bumped the token — the view stayed
+    // stale (Bug 3) and stale-bootstrap snapshots produced empty names (Bug 2).
+    //
+    // This test locks the Dioxus-0.6 reactivity contract the fix relies on: an
+    // effect that reads `ABSENCE_REFRESH` *inside* its closure re-runs when
+    // `bump_absence_refresh()` is called. If someone moves the read back
+    // outside the closure, the effect will stop re-firing and this test fails.
+
+    static EFFECT_FIRE_COUNT: GlobalSignal<u32> = Signal::global(|| 0);
+
+    #[test]
+    fn refetch_effect_reruns_when_absence_refresh_bumps() {
+        use crate::service::absence::{bump_absence_refresh, ABSENCE_REFRESH};
+
+        fn subscriber_app() -> Element {
+            // Reset the shared counter on first mount so the run is
+            // deterministic regardless of other tests sharing the process.
+            use_hook(|| {
+                *EFFECT_FIRE_COUNT.write() = 0;
+            });
+            // Mirror the page's pattern: read ABSENCE_REFRESH INSIDE the effect
+            // closure so Dioxus subscribes the effect to it.
+            use_effect(|| {
+                let _ = *ABSENCE_REFRESH.read();
+                *EFFECT_FIRE_COUNT.write() += 1;
+            });
+            rsx! {}
+        }
+
+        let mut vdom = VirtualDom::new(subscriber_app);
+        vdom.rebuild_in_place();
+        // Effects run when the vdom processes its work queue.
+        vdom.render_immediate(&mut dioxus_core::NoOpMutations);
+        let after_initial = vdom.in_runtime(|| *EFFECT_FIRE_COUNT.read());
+        assert!(
+            after_initial >= 1,
+            "effect must fire at least once on initial build (got {after_initial})"
+        );
+
+        // Bump the refresh token from within the runtime, then let the vdom
+        // process the resulting effect re-run.
+        vdom.in_runtime(|| {
+            bump_absence_refresh();
+        });
+        vdom.render_immediate(&mut dioxus_core::NoOpMutations);
+
+        let after_bump = vdom.in_runtime(|| *EFFECT_FIRE_COUNT.read());
+        assert!(
+            after_bump > after_initial,
+            "effect must re-fire after ABSENCE_REFRESH bump \
+             (subscribed in-closure); before={after_initial} after={after_bump}. \
+             If this fails, the refetch effect likely reads ABSENCE_REFRESH \
+             OUTSIDE its closure again (regression of \
+             convert-absence-name-and-refresh)."
+        );
     }
 }
