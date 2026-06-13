@@ -83,7 +83,12 @@ fn representative_hours_per_day(work_details: &[EmployeeWorkDetails], year: u32)
             from_year <= year && year <= to_year
         })
         .max_by_key(|wd| (wd.from_year, wd.from_calendar_week))
-        .map(|wd| wd.hours_per_day())
+        // hours_per_active_weekday (statt hours_per_day): muss mit dem Per-Tag-
+        // Soll übereinstimmen, das derive_hours_for_range zum Aufbau von
+        // used_hours/planned_hours verwendet. Sonst driftet die Stunden→Tage-
+        // Umrechnung (used_days = used_hours / hours_per_day) bei divergierendem
+        // workdays_per_week (Bug: vacation-hours-overcounted).
+        .map(|wd| wd.hours_per_active_weekday())
         .unwrap_or(0.0)
 }
 

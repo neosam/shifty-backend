@@ -663,3 +663,327 @@ async fn test_lump_sum_vacation_period_with_holiday_emits_short_derived_sum() {
          im compute_gate. Beobachtet: {derived_sum}"
     );
 }
+
+// ----------------------------------------------------------------------------
+// REPRODUCER: vacation-hours-overcounted
+//
+// User-Report: 10h-Wochenvertrag, Urlaub eine ganze Woche (Mo-So) → erwartet
+// werden die Wochenstunden (10h), berechnet werden ABER viel zu viele.
+//
+// Root-Cause-Hypothese: `derive_hours_for_range` iteriert pro Kalendertag und
+// addiert für jeden Tag, an dem `has_day_of_week(weekday) == true`, den Wert
+// `hours_per_day() = expected_hours / workdays_per_week`. Die beiden Felder
+//   - workdays_per_week (Divisor)
+//   - die 7 Wochentag-Booleans (Iterationsfilter)
+// sind unabhängig editierbar und werden NICHT synchronisiert/validiert.
+//
+// Sobald die Anzahl der true-Booleans > workdays_per_week ist, ergibt die Summe
+// mehr als expected_hours. Beispiel hier: alle 7 Tage true, workdays_per_week=5
+// → 7 × (10/5=2h) = 14h statt der erwarteten 10h. Bei stärkerer Divergenz
+// (z.B. workdays_per_week=2) → 7 × 5h = 35h → "viel zu viele".
+// ----------------------------------------------------------------------------
+#[tokio::test]
+async fn test_repro_weekly_contract_overcounts_when_workdays_per_week_diverges_from_booleans() {
+    let mut deps = build_dependencies();
+
+    // Vacation Mo-So der KW 23/2024 (eine volle Kalenderwoche).
+    let vacation = AbsencePeriod {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_CCCC_0001),
+        sales_person_id: fixture_sales_person_id(),
+        category: AbsenceCategory::Vacation,
+        from_date: date!(2024 - 06 - 03),
+        to_date: date!(2024 - 06 - 09),
+        description: Arc::from("full-week vacation"),
+        created: Some(datetime!(2024 - 06 - 01 09:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
+    };
+    let absence_entities: Arc<[AbsencePeriodEntity]> = Arc::from(vec![period_to_entity(&vacation)]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    // 10h-Wochenvertrag. workdays_per_week = 5, ABER alle 7 Wochentag-Booleans
+    // sind true (divergierende Konfiguration, wie sie das Formular zulässt).
+    let mut wd = fixture_work_details_8h_mon_fri();
+    wd.expected_hours = 10.0;
+    wd.workdays_per_week = 5;
+    wd.monday = true;
+    wd.tuesday = true;
+    wd.wednesday = true;
+    wd.thursday = true;
+    wd.friday = true;
+    wd.saturday = true;
+    wd.sunday = true;
+    let wd_arc: Arc<[_]> = Arc::from(vec![wd]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(wd_arc.clone()));
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 03),
+            date!(2024 - 06 - 09),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    let total: f32 = result.values().map(|r| r.hours).sum();
+
+    // Mit dem Fix: pro Tag wird `expected_hours / Anzahl-true-Booleans`
+    // gerechnet (7 Tage × 10/7 ≈ 1.4286h) → Summe = expected_hours = 10h.
+    assert!(
+        (total - 10.0).abs() < 0.01,
+        "Eine volle Urlaubswoche darf nie mehr als die Wochenstunden \
+         (10h) ergeben, egal wie workdays_per_week vs. Booleans gesetzt \
+         sind. Beobachtet: {total}h"
+    );
+}
+
+// ----------------------------------------------------------------------------
+// REGRESSION (vacation-hours-overcounted, human-verify follow-up):
+// Multi-week + partial-week Absicherung.
+//
+// User-Klarstellung: 10h-Wochenvertrag mit EXAKT 2 aktiven Wochentagen
+// (Mo+Di) ergibt pro voller Urlaubswoche genau 10h (= 2 Tage × 5h), NICHT 20h.
+// workdays_per_week divergiert absichtlich (=5), um zu beweisen, dass der Fix
+// den Divisor an die aktiven Booleans koppelt (hours_per_active_weekday =
+// 10/2 = 5h) und workdays_per_week NICHT mehr einfließt.
+//
+// Diese Tests sperren das korrekte Verhalten über mehrere Wochen und über eine
+// mitten in der Woche endende (partielle) Range ein.
+// ----------------------------------------------------------------------------
+
+/// Baut einen 10h-Wochenvertrag mit EXAKT 2 aktiven Tagen (Mo+Di), restliche
+/// Tage false, workdays_per_week=5 (bewusst divergent). Gültig KW22-25/2024
+/// (geerbt aus fixture_work_details_8h_mon_fri). hours_per_active_weekday =
+/// 10 / 2 = 5h.
+fn wd_10h_mon_tue_divergent() -> service::employee_work_details::EmployeeWorkDetails {
+    let mut wd = fixture_work_details_8h_mon_fri();
+    wd.expected_hours = 10.0;
+    wd.workdays_per_week = 5; // divergent: 5 != 2 aktive Booleans
+    wd.monday = true;
+    wd.tuesday = true;
+    wd.wednesday = false;
+    wd.thursday = false;
+    wd.friday = false;
+    wd.saturday = false;
+    wd.sunday = false;
+    wd
+}
+
+#[tokio::test]
+async fn test_multi_week_vacation_counts_only_active_days_per_week() {
+    // Urlaub über 3 volle Kalenderwochen: Mo 2024-06-03 (KW23) bis So
+    // 2024-06-23 (KW25) = 21 Kalendertage. Vertrag: 10h/Woche, nur Mo+Di
+    // aktiv, workdays_per_week=5 (divergent).
+    //
+    // Erwartung: pro Woche zählen NUR Mo+Di (je 5h) = 10h/Woche.
+    // Aktive Tage: 06-03, 06-04, 06-10, 06-11, 06-17, 06-18 = 6 Einträge.
+    // Gesamtsumme = 3 × 10h = 30h. Niemals mehr als 2 Tage/Woche oder 10h/Woche.
+    let mut deps = build_dependencies();
+
+    let vacation = AbsencePeriod {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_CCCC_0002),
+        sales_person_id: fixture_sales_person_id(),
+        category: AbsenceCategory::Vacation,
+        from_date: date!(2024 - 06 - 03),
+        to_date: date!(2024 - 06 - 23),
+        description: Arc::from("three-week vacation"),
+        created: Some(datetime!(2024 - 06 - 01 09:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
+    };
+    let absence_entities: Arc<[AbsencePeriodEntity]> =
+        Arc::from(vec![period_to_entity(&vacation)]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    let wd_arc: Arc<[_]> = Arc::from(vec![wd_10h_mon_tue_divergent()]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(wd_arc.clone()));
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 03),
+            date!(2024 - 06 - 23),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    // Genau die 6 aktiven Tage (Mo+Di der 3 Wochen), je 5h Vacation.
+    let active_days = [
+        date!(2024 - 06 - 03), // KW23 Mo
+        date!(2024 - 06 - 04), // KW23 Di
+        date!(2024 - 06 - 10), // KW24 Mo
+        date!(2024 - 06 - 11), // KW24 Di
+        date!(2024 - 06 - 17), // KW25 Mo
+        date!(2024 - 06 - 18), // KW25 Di
+    ];
+    for d in active_days {
+        assert_eq!(
+            result.get(&d),
+            Some(&ResolvedAbsence {
+                category: AbsenceCategory::Vacation,
+                hours: 5.0,
+            }),
+            "{:?} muss Vacation/5h sein (aktiver Wochentag, 10h/2 aktive Tage)",
+            d
+        );
+    }
+    assert_eq!(
+        result.len(),
+        6,
+        "exakt 6 aktive Tage über 3 Wochen (2 Tage/Woche), keine Wochenend-/inaktiven Tage"
+    );
+
+    // Pro-Woche-Summe: je genau 10h, nie mehr.
+    let week_sum = |days: &[time::Date]| -> f32 {
+        days.iter()
+            .filter_map(|d| result.get(d))
+            .map(|r| r.hours)
+            .sum()
+    };
+    for (label, days) in [
+        ("KW23", &[date!(2024 - 06 - 03), date!(2024 - 06 - 04)][..]),
+        ("KW24", &[date!(2024 - 06 - 10), date!(2024 - 06 - 11)][..]),
+        ("KW25", &[date!(2024 - 06 - 17), date!(2024 - 06 - 18)][..]),
+    ] {
+        let s = week_sum(days);
+        assert!(
+            (s - 10.0).abs() < 0.01,
+            "{label} muss exakt 10h ergeben (2 aktive Tage × 5h), nie mehr. Beobachtet: {s}h"
+        );
+    }
+
+    // Gesamtsumme = 30h.
+    let total: f32 = result.values().map(|r| r.hours).sum();
+    assert!(
+        (total - 30.0).abs() < 0.01,
+        "3 volle Urlaubswochen müssen 3 × 10h = 30h ergeben, niemals mehr \
+         (workdays_per_week=5 darf NICHT einfließen). Beobachtet: {total}h"
+    );
+}
+
+#[tokio::test]
+async fn test_multi_week_vacation_partial_trailing_week_counts_only_its_active_days() {
+    // Partial-week edge: Range endet MITTEN in der dritten Woche, auf Montag
+    // 2024-06-17 (KW25 Mo). Damit umfasst die abschließende (partielle) Woche
+    // KW25 nur den Montag — NICHT den Dienstag — also genau 1 aktiven Tag.
+    //
+    // Erwartung:
+    //   KW23 (voll):    Mo+Di = 10h
+    //   KW24 (voll):    Mo+Di = 10h
+    //   KW25 (partiell): nur Mo = 5h  (Di liegt außerhalb der Range)
+    //   Gesamt = 25h.
+    // Die partielle Woche darf NICHT als volle Woche (10h) gezählt werden.
+    let mut deps = build_dependencies();
+
+    let vacation = AbsencePeriod {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_CCCC_0003),
+        sales_person_id: fixture_sales_person_id(),
+        category: AbsenceCategory::Vacation,
+        from_date: date!(2024 - 06 - 03),
+        to_date: date!(2024 - 06 - 17),
+        description: Arc::from("two-and-partial-week vacation"),
+        created: Some(datetime!(2024 - 06 - 01 09:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+        day_fraction: DayFraction::Full,
+    };
+    let absence_entities: Arc<[AbsencePeriodEntity]> =
+        Arc::from(vec![period_to_entity(&vacation)]);
+    deps.absence_dao
+        .expect_find_by_sales_person()
+        .returning(move |_, _| Ok(absence_entities.clone()));
+
+    let wd_arc: Arc<[_]> = Arc::from(vec![wd_10h_mon_tue_divergent()]);
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(wd_arc.clone()));
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let service = deps.build_service();
+
+    let result = service
+        .derive_hours_for_range(
+            date!(2024 - 06 - 03),
+            date!(2024 - 06 - 17),
+            fixture_sales_person_id(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("derive_hours_for_range should succeed");
+
+    // KW23 + KW24: Mo+Di je 5h.
+    for d in [
+        date!(2024 - 06 - 03),
+        date!(2024 - 06 - 04),
+        date!(2024 - 06 - 10),
+        date!(2024 - 06 - 11),
+    ] {
+        assert_eq!(
+            result.get(&d),
+            Some(&ResolvedAbsence {
+                category: AbsenceCategory::Vacation,
+                hours: 5.0,
+            }),
+            "{:?} muss Vacation/5h sein",
+            d
+        );
+    }
+    // KW25 partiell: nur Mo 06-17 aktiv (5h).
+    assert_eq!(
+        result.get(&date!(2024 - 06 - 17)),
+        Some(&ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 5.0,
+        }),
+        "KW25 Mo muss als einziger aktiver Tag der partiellen Woche 5h sein"
+    );
+    // Di KW25 (06-18) liegt außerhalb der Range → kein Eintrag.
+    assert!(
+        !result.contains_key(&date!(2024 - 06 - 18)),
+        "Di KW25 liegt außerhalb der Range — kein Eintrag (partielle Woche)"
+    );
+
+    assert_eq!(
+        result.len(),
+        5,
+        "2 volle Wochen (4 Tage) + 1 partielle Woche (1 Tag) = 5 Einträge"
+    );
+
+    let total: f32 = result.values().map(|r| r.hours).sum();
+    assert!(
+        (total - 25.0).abs() < 0.01,
+        "Die abschließende partielle Woche darf nur ihre aktiven Tage zählen \
+         (KW25 = nur Mo = 5h), nicht eine volle Woche. Erwartet 10+10+5 = 25h. \
+         Beobachtet: {total}h"
+    );
+}

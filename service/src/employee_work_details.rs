@@ -107,6 +107,28 @@ impl EmployeeWorkDetails {
         self.expected_hours / self.workdays_per_week as f32
     }
 
+    /// Soll-Stundenzahl pro tatsächlich aktivem Arbeitstag (Wochentag-Boolean).
+    ///
+    /// Im Gegensatz zu [`hours_per_day`] (das durch das frei editierbare
+    /// `workdays_per_week`-Feld teilt) teilt diese Methode durch die Anzahl der
+    /// aktiven Wochentag-Booleans ([`potential_days_per_week`]). Damit
+    /// verwenden Divisor und der Tag-für-Tag-Iterationsfilter (über
+    /// `has_day_of_week`) denselben Tag-Satz: die Summe über eine volle
+    /// Arbeitswoche ergibt exakt `expected_hours`, unabhängig davon, ob
+    /// `workdays_per_week` mit der Anzahl der gesetzten Booleans übereinstimmt.
+    ///
+    /// Wird in `AbsenceService::derive_hours_for_range` genutzt, um
+    /// Über-/Unterzählung von Urlaubs-/Krankheits-/Unbezahlt-Stunden bei
+    /// divergierender Vertrags-Konfiguration zu vermeiden. Liefert 0.0, wenn
+    /// kein Arbeitstag aktiv ist (vermeidet Division durch 0).
+    pub fn hours_per_active_weekday(&self) -> f32 {
+        let active = self.potential_days_per_week();
+        if active == 0 {
+            return 0.0;
+        }
+        self.expected_hours / active as f32
+    }
+
     pub fn holiday_hours(&self) -> f32 {
         self.expected_hours / self.potential_days_per_week() as f32
     }

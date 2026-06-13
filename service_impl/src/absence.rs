@@ -487,7 +487,14 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             if holidays.contains(&day) {
                 continue;
             }
-            let hours = contract.hours_per_day();
+            // Per-Tag-Soll aus der Anzahl der AKTIVEN Wochentag-Booleans ableiten
+            // (nicht aus dem frei editierbaren workdays_per_week-Feld). So
+            // verwenden Divisor und Iterationsfilter (has_day_of_week oben)
+            // denselben Tag-Satz; eine volle Arbeitswoche summiert exakt zu
+            // expected_hours. Verhindert Über-/Unterzählung der Urlaubsstunden,
+            // wenn workdays_per_week von der Boolean-Anzahl abweicht
+            // (Bug: vacation-hours-overcounted).
+            let hours = contract.hours_per_active_weekday();
             if hours <= 0.0 {
                 continue;
             }

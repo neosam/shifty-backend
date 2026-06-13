@@ -4,8 +4,10 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 6 (Phase-8.4-Gap2-Bump —
-//!   absence_period-derived Stunden reduzieren jetzt Balance/ExpectedHours symmetrisch).
+//! - `test_snapshot_schema_version_pinned`: erwartet 7 (Bugfix vacation-hours-
+//!   overcounted — derive_hours_for_range nutzt jetzt hours_per_active_weekday
+//!   statt workdays_per_week-Divisor; Vacation/SickLeave/UnpaidLeave-Stunden
+//!   aendern sich bei Feld-Divergenz).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -24,10 +26,12 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 6,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 6 sein nach Phase-8.4-Gap2-Bump \
-         (absence-derived Stunden bewegen jetzt balance/expected symmetrisch — \
-         persistierte value_types Balance + ExpectedHours geaendert). \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 7,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 7 sein nach Bugfix \
+         vacation-hours-overcounted (derive_hours_for_range leitet die Soll-Stunden \
+         pro Tag jetzt aus der Anzahl aktiver Wochentag-Booleans ab statt aus \
+         workdays_per_week — Vacation/SickLeave/UnpaidLeave-Stunden und -Tage \
+         aendern sich bei Feld-Divergenz). \
          Siehe CLAUDE.md § Snapshot Schema Versioning."
     );
 }

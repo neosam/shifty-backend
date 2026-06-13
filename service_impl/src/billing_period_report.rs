@@ -59,7 +59,17 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   Balance + ExpectedHours). v5-Snapshots haben die absence_period-Seite nur
 ///   in den Display-Stunden, nicht in der Balance gezaehlt — ein Validator kann
 ///   v5-Balance/ExpectedHours nicht gegen die neue Computation re-validieren.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 6;
+/// - v7: Bugfix (debug/vacation-hours-overcounted) — die Soll-Stundenzahl pro
+///   Tag in `derive_hours_for_range` wird jetzt aus der Anzahl der AKTIVEN
+///   Wochentag-Booleans abgeleitet (`hours_per_active_weekday` =
+///   expected_hours / count(active weekdays)) statt aus `workdays_per_week`
+///   (`hours_per_day`). Sobald die beiden frei editierbaren Felder divergieren,
+///   liefert die Computation andere Vacation/SickLeave/UnpaidLeave-Stunden (und
+///   die daraus abgeleiteten Tage). Alte Snapshots (v6) wurden unter dem
+///   workdays_per_week-Divisor geschrieben und ueberzaehlten bei mehr aktiven
+///   Booleans als workdays_per_week; ein Validator kann sie nicht gegen die
+///   korrigierte Computation re-validieren.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 7;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
