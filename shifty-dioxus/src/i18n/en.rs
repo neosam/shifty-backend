@@ -891,4 +891,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::BookingWarningPaidLimitExceeded,
         "Paid employee limit exceeded ({current}/{max}).",
     );
+
+    // Quick-260613-jxe — Year navigation on the Absences page.
+    i18n.add_text(Locale::En, Key::AbsenceYearNavPrev, "Previous year");
+    i18n.add_text(Locale::En, Key::AbsenceYearNavNext, "Next year");
 }

@@ -950,4 +950,8 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::BookingWarningPaidLimitExceeded,
         "Překročen limit placených zaměstnanců ({current}/{max}).",
     );
+
+    // Quick-260613-jxe — Navigace rokem na stránce nepřítomností.
+    i18n.add_text(Locale::Cs, Key::AbsenceYearNavPrev, "Předchozí rok");
+    i18n.add_text(Locale::Cs, Key::AbsenceYearNavNext, "Další rok");
 }

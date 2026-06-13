@@ -1759,7 +1759,8 @@ pub fn AbsencesPage() -> Element {
     let absence_service = use_coroutine_handle::<AbsenceAction>();
     let vacation_service = use_coroutine_handle::<VacationBalanceAction>();
     let today = current_date_for_init();
-    let year = current_year_for_init();
+    let mut selected_year = use_signal(current_year_for_init);
+    let year = *selected_year.read();
 
     // Resolved Self-User (only relevant for the Employee variant).
     let mut current_sp_id = use_signal(|| None::<Uuid>);
@@ -1780,19 +1781,23 @@ pub fn AbsencesPage() -> Element {
 
     // Refresh-token-driven absence + vacation re-fetch (D-09 branch + D-12
     // forward-warnings flow). The token is bumped from the absence service
-    // on every successful POST/PUT/DELETE.
+    // on every successful POST/PUT/DELETE. Year changes also re-fire this
+    // effect because `selected_year` is read inside the closure.
     let refresh_token = *ABSENCE_REFRESH.read();
     let sales_persons_for_effect = sales_persons.read().clone();
     let current_sp_for_effect = *current_sp_id.read();
     use_effect(move || {
         let _ = refresh_token;
+        // Reading selected_year inside the effect subscribes to it so Dioxus
+        // re-fires when the year signal changes (◀ / ▶ button clicks).
+        let year_for_effect = *selected_year.read();
         if is_hr {
             // HR: load all absences + team vacation aggregate.
             absence_service.send(AbsenceAction::LoadAll(sales_persons_for_effect.clone()));
-            vacation_service.send(VacationBalanceAction::LoadTeam(year));
+            vacation_service.send(VacationBalanceAction::LoadTeam(year_for_effect));
         } else if let Some(sp) = current_sp_for_effect {
             absence_service.send(AbsenceAction::LoadForSalesPerson(sp));
-            vacation_service.send(VacationBalanceAction::LoadSelf(sp, year));
+            vacation_service.send(VacationBalanceAction::LoadSelf(sp, year_for_effect));
         }
     });
 
@@ -1996,6 +2001,34 @@ pub fn AbsencesPage() -> Element {
                     variant: BtnVariant::Primary,
                     on_click: on_new.clone(),
                     "{new_btn_label}"
+                }
+            }
+            // Year navigation — ◀ {year} ▶ — both HR and employee see it.
+            // Clicking prev/next updates selected_year signal which re-fires
+            // the use_effect above to reload vacation + stats for the new year.
+            div { class: "flex items-center gap-2",
+                button {
+                    r#type: "button",
+                    class: "px-2 py-1 rounded-md border border-border text-ink hover:bg-surface-alt",
+                    title: "{i18n.t(Key::AbsenceYearNavPrev)}",
+                    "aria-label": "{i18n.t(Key::AbsenceYearNavPrev)}",
+                    onclick: move |_| {
+                        let y = *selected_year.read();
+                        selected_year.set(y.saturating_sub(1));
+                    },
+                    "◀"
+                }
+                span { class: "text-body font-semibold font-mono text-ink min-w-[3.5rem] text-center", "{year}" }
+                button {
+                    r#type: "button",
+                    class: "px-2 py-1 rounded-md border border-border text-ink hover:bg-surface-alt",
+                    title: "{i18n.t(Key::AbsenceYearNavNext)}",
+                    "aria-label": "{i18n.t(Key::AbsenceYearNavNext)}",
+                    onclick: move |_| {
+                        let y = *selected_year.read();
+                        selected_year.set(y + 1);
+                    },
+                    "▶"
                 }
             }
             VacationEntitlementCard {
@@ -2823,13 +2856,17 @@ mod tests {
             let bal_a = make_vacation_balance(person_a, 17.0);
             let bal_b = make_vacation_balance(person_b, 3.0);
             let team: Rc<[VacationBalance]> = Rc::from(vec![bal_a, bal_b]);
+            // Provide selectable sales persons so selectable_balances keeps both
+            // balances and the per-person list section renders.
+            let sp_a = SalesPerson { id: person_a, is_paid: true, inactive: false, ..Default::default() };
+            let sp_b = SalesPerson { id: person_b, is_paid: true, inactive: false, ..Default::default() };
             pin_de_locale();
             rsx! {
                 VacationEntitlementCard {
                     is_hr: true,
                     year: 2026,
                     vacation_team: team,
-                    sales_persons: Rc::<[SalesPerson]>::from([]),
+                    sales_persons: Rc::from(vec![sp_a, sp_b]),
                     selected_person: None,
                 }
             }

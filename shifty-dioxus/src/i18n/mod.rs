@@ -535,6 +535,12 @@ pub enum Key {
     /// Link-Text im Hinweis (De: „Zu Abwesenheiten", En: „Go to absences").
     ExtraHoursAbsenceHintLink,
 
+    // Quick-260613-jxe — Year navigation on the Absences page.
+    /// Aria-label / title for the "previous year" button (◀).
+    AbsenceYearNavPrev,
+    /// Aria-label / title for the "next year" button (▶).
+    AbsenceYearNavNext,
+
     // Phase 9 — Booking-Flow Reverse-Warnings (FUI-A-05).
     /// Banner-Titel wenn genau 1 Buchungs-Konflikt vorliegt.
     BookingWarningDialogHeaderSingular,
