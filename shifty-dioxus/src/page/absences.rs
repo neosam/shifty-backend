@@ -16,6 +16,7 @@
 //! Snapshot / pure-function tests live in the `#[cfg(test)]` module at the
 //! end of this file (Plan-05 Task 3).
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use dioxus::prelude::*;
@@ -678,21 +679,51 @@ fn VersionConflictBanner(props: VersionConflictBannerProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 struct SelfOverlapBannerProps {
     raw_payload: String,
+    /// Category of the conflicting entry — substituted into the i18n template.
+    category: AbsenceCategory,
+    /// Parsed range start; `None` when the form value is unparseable.
+    from: Option<time::Date>,
+    /// Parsed range end; `None` when the form value is unparseable.
+    to: Option<time::Date>,
 }
 
 #[component]
 fn SelfOverlapBanner(props: SelfOverlapBannerProps) -> Element {
     let i18n = I18N.read().clone();
+
+    // The body template carries {category}/{from}/{to} placeholders; substitute
+    // them via `t_m` so the user sees concrete, localized values rather than the
+    // raw template (#self-overlap-i18n).
+    let category_key = match props.category {
+        AbsenceCategory::Vacation => Key::AbsenceCategoryVacation,
+        AbsenceCategory::SickLeave => Key::AbsenceCategorySickLeave,
+        AbsenceCategory::UnpaidLeave => Key::AbsenceCategoryUnpaidLeave,
+    };
+    let category_label = i18n.t(category_key);
+    let from_label: Rc<str> = props
+        .from
+        .map(|d| i18n.format_date(&d))
+        .unwrap_or_else(|| Rc::from("?"));
+    let to_label: Rc<str> = props
+        .to
+        .map(|d| i18n.format_date(&d))
+        .unwrap_or_else(|| Rc::from("?"));
+    let mut values: HashMap<&str, &str> = HashMap::new();
+    values.insert("category", category_label.as_ref());
+    values.insert("from", from_label.as_ref());
+    values.insert("to", to_label.as_ref());
+    let body = i18n.t_m(Key::AbsenceErrorSelfOverlapBody, values);
+
     rsx! {
         div { class: "border-l-[3px] border-bad bg-bad-soft rounded-md p-3 flex flex-col gap-1",
             div { class: "text-micro uppercase font-semibold text-bad",
                 "{i18n.t(Key::AbsenceErrorSelfOverlapHeader)}"
             }
             div { class: "text-body text-ink",
-                // Backend returns a free-form string body for 422; we surface the
-                // i18n template plus the raw payload as fallback context. Auto-
-                // escape applies per T-8-XSS-01; never use raw HTML injection.
-                "{i18n.t(Key::AbsenceErrorSelfOverlapBody)}"
+                // Substituted i18n template plus the raw backend payload as
+                // fallback context. Auto-escape applies per T-8-XSS-01; never
+                // use raw HTML injection.
+                "{body}"
                 if !props.raw_payload.is_empty() {
                     span { class: "block text-small text-ink-muted mt-1",
                         "{props.raw_payload}"
@@ -1085,7 +1116,12 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                 }
                 if let Some(payload) = validation_payload_now.clone() {
                     div { class: "col-span-2",
-                        SelfOverlapBanner { raw_payload: payload }
+                        SelfOverlapBanner {
+                            raw_payload: payload,
+                            category: *category.read(),
+                            from: parsed_from,
+                            to: parsed_to,
+                        }
                     }
                 }
                 Field {

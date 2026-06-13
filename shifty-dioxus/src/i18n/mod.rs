@@ -607,6 +607,52 @@ mod tests {
         assert_eq!(de.t(Key::BackToList).as_ref(), "Zurück");
     }
 
+    /// Regression: the self-overlap banner body carries {category}/{from}/{to}
+    /// placeholders. They MUST be substituted via `t_m` — rendering the raw
+    /// template (the original bug) left the literal `{category}-Eintrag ...`
+    /// visible to the user.
+    #[test]
+    fn i18n_self_overlap_body_substitutes_placeholders_in_all_locales() {
+        use std::collections::HashMap;
+
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+
+            // Sanity: the stored template still contains placeholders, otherwise
+            // this test would pass vacuously.
+            let raw = i18n.t(Key::AbsenceErrorSelfOverlapBody);
+            assert!(
+                raw.contains("{category}")
+                    && raw.contains("{from}")
+                    && raw.contains("{to}"),
+                "template for {:?} lost its placeholders: `{}`",
+                locale,
+                raw
+            );
+
+            let mut values: HashMap<&str, &str> = HashMap::new();
+            values.insert("category", "Urlaub");
+            values.insert("from", "13.06.2026");
+            values.insert("to", "20.06.2026");
+            let body = i18n.t_m(Key::AbsenceErrorSelfOverlapBody, values);
+
+            assert!(
+                !body.contains('{') && !body.contains('}'),
+                "unsubstituted placeholder remained for {:?}: `{}`",
+                locale,
+                body
+            );
+            assert!(
+                body.contains("Urlaub")
+                    && body.contains("13.06.2026")
+                    && body.contains("20.06.2026"),
+                "substituted values missing for {:?}: `{}`",
+                locale,
+                body
+            );
+        }
+    }
+
     #[test]
     fn i18n_user_management_keys_present_in_all_locales() {
         for locale in [Locale::En, Locale::De, Locale::Cs] {
