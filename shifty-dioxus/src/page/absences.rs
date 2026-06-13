@@ -107,6 +107,30 @@ pub fn is_selectable_employee(sales_person: &SalesPerson) -> bool {
     sales_person.is_paid && !sales_person.inactive
 }
 
+/// Pure function — filter a vacation-balance slice to only balances whose
+/// `sales_person_id` maps to a selectable (paid && active) `SalesPerson`.
+///
+/// Semantics:
+/// - A balance is KEPT only if `sales_persons` contains an entry with a
+///   matching `id` for which `is_selectable_employee(sp)` is true.
+/// - A balance whose sales person is absent from `sales_persons` is DROPPED
+///   (unknown ≡ not selectable, consistent with the dropdown contract).
+/// - The order of kept balances is preserved; no sorting is applied here.
+///   `VacationPerPersonList` applies its own remaining-days sort downstream.
+pub fn selectable_balances(
+    rows: &[VacationBalance],
+    sales_persons: &[SalesPerson],
+) -> Vec<VacationBalance> {
+    rows.iter()
+        .filter(|b| {
+            sales_persons
+                .iter()
+                .any(|sp| sp.id == b.sales_person_id && is_selectable_employee(sp))
+        })
+        .cloned()
+        .collect()
+}
+
 /// Temporär: Krankheitstage sind auf der Absences-Seite ausgeblendet, weil die
 /// fachliche Behandlung noch unvollständig ist (Quick-Task 260612-svs). Gilt
 /// NUR für diese Seite — Reports zeigen Krankheitstage weiterhin. Reaktivierung:
@@ -503,12 +527,15 @@ pub struct VacationPerPersonListProps {
 pub fn VacationPerPersonList(props: VacationPerPersonListProps) -> Element {
     let i18n = I18N.read().clone();
     let mut show_all = use_signal(|| false);
-    if props.rows.is_empty() {
+    // Filter first — only paid & active persons are shown in the per-person list.
+    // This must happen before the empty-guard so that a non-empty `rows` that
+    // contains only inactive/unpaid persons collapses to the empty state.
+    let filtered = selectable_balances(&props.rows, &props.sales_persons);
+    if filtered.is_empty() {
         return rsx! {};
     }
-    // Sort ascending by remaining_days; clone the slice into a Vec because
-    // `Rc<[T]>` is immutable-shared.
-    let mut sorted: Vec<VacationBalance> = props.rows.iter().cloned().collect();
+    // Sort ascending by remaining_days; filtered is already a Vec<VacationBalance>.
+    let mut sorted: Vec<VacationBalance> = filtered;
     sorted.sort_by(|a, b| {
         a.remaining_days
             .partial_cmp(&b.remaining_days)
@@ -3001,5 +3028,61 @@ mod tests {
             stats_for_person(&absences, None, 2026, today);
         // Only the 2026 range (3 days) should be counted
         assert_eq!(sick_days, 3, "out-of-year ranges must be excluded from sick_days count");
+    }
+
+    // ── selectable_balances — pure function tests (260613-jxe Task 1) ────────
+
+    #[test]
+    fn selectable_balances_keeps_paid_and_active_person() {
+        let id = Uuid::from_u128(1);
+        let sp = SalesPerson { id, is_paid: true, inactive: false, ..Default::default() };
+        let balance = make_vacation_balance(id, 10.0);
+        let result = selectable_balances(&[balance.clone()], &[sp]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].sales_person_id, id);
+    }
+
+    #[test]
+    fn selectable_balances_drops_paid_but_inactive_person() {
+        let id = Uuid::from_u128(2);
+        let sp = SalesPerson { id, is_paid: true, inactive: true, ..Default::default() };
+        let balance = make_vacation_balance(id, 5.0);
+        let result = selectable_balances(&[balance], &[sp]);
+        assert!(result.is_empty(), "paid but inactive person must be dropped");
+    }
+
+    #[test]
+    fn selectable_balances_drops_unpaid_but_active_person() {
+        let id = Uuid::from_u128(3);
+        let sp = SalesPerson { id, is_paid: false, inactive: false, ..Default::default() };
+        let balance = make_vacation_balance(id, 5.0);
+        let result = selectable_balances(&[balance], &[sp]);
+        assert!(result.is_empty(), "unpaid but active person must be dropped");
+    }
+
+    #[test]
+    fn selectable_balances_drops_balance_with_unknown_id() {
+        let known_id = Uuid::from_u128(4);
+        let unknown_id = Uuid::from_u128(99);
+        let sp = SalesPerson { id: known_id, is_paid: true, inactive: false, ..Default::default() };
+        let balance = make_vacation_balance(unknown_id, 7.0);
+        let result = selectable_balances(&[balance], &[sp]);
+        assert!(result.is_empty(), "balance for unknown id must be dropped");
+    }
+
+    #[test]
+    fn selectable_balances_preserves_order_of_kept_balances() {
+        let id_a = Uuid::from_u128(10);
+        let id_b = Uuid::from_u128(20);
+        let sp_a = SalesPerson { id: id_a, is_paid: true, inactive: false, ..Default::default() };
+        let sp_b = SalesPerson { id: id_b, is_paid: true, inactive: false, ..Default::default() };
+        let bal_a = make_vacation_balance(id_a, 15.0);
+        let bal_b = make_vacation_balance(id_b, 5.0);
+        // b comes first in the input slice
+        let result = selectable_balances(&[bal_b.clone(), bal_a.clone()], &[sp_a, sp_b]);
+        assert_eq!(result.len(), 2);
+        // Order must be preserved: b (15 remaining after 30-5=25 used, remaining=5) first
+        assert_eq!(result[0].sales_person_id, id_b);
+        assert_eq!(result[1].sales_person_id, id_a);
     }
 }
