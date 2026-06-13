@@ -26,10 +26,13 @@
 //! pro Jahr, siehe [`representative_hours_per_day`]). Die Beschneidung auf das
 //! Jahr erfolgt implizit über den `[year-01-01, year-12-31]`-Range.
 //!
-//! Carryover-Year-Semantik: `get_carryover(sp_id, year)` liefert das
-//! year-Snapshot (Konvention im Repo, vgl. `service_impl/src/carryover.rs`
-//! und `service_impl/src/test/carryover.rs`). Wir reichen `year` direkt
-//! durch.
+//! Carryover-Year-Semantik: Ein `Carryover`-Eintrag mit `year = Y` speichert
+//! den Ende-von-Jahr-Y-Saldo, der in Jahr Y+1 eingebracht wird. Um den
+//! Übertrag in `year` zu erhalten, muss also `get_carryover(sp_id, year - 1)`
+//! aufgerufen werden — identisch zum Aufruf in `ReportingService::get_employee`
+//! (line 603-616 dort). Fehler in der ursprünglichen Implementierung: `year`
+//! wurde direkt weitergereicht, was den Ende-von-`year`-Saldo (→ nächstes Jahr)
+//! statt den Saldo aus dem Vorjahr lieferte.
 
 use std::sync::Arc;
 
@@ -218,11 +221,13 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
             (0.0, 0.0)
         };
 
-        // Carryover — Method heißt `get_carryover` und liefert
-        // `Option<Carryover>`. Field heißt `vacation: i32`.
+        // Carryover — Ein Carryover-Eintrag mit year=Y speichert den
+        // Ende-von-Jahr-Y-Saldo (Übertrag in Jahr Y+1). Um den Übertrag
+        // EINGEHEND in `year` zu lesen, wird year-1 abgefragt —
+        // konsistent mit ReportingService::get_employee (Z. 603-616 dort).
         let carryover_opt = self
             .carryover_service
-            .get_carryover(sales_person_id, year, Authentication::Full, Some(tx))
+            .get_carryover(sales_person_id, year - 1, Authentication::Full, Some(tx))
             .await?;
         let carryover_days: i32 = carryover_opt
             .filter(|c| c.deleted.is_none())

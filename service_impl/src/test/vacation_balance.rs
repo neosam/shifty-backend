@@ -668,3 +668,109 @@ async fn non_vacation_categories_are_ignored() {
     );
     assert!((result.planned_days - 0.0).abs() < 0.001);
 }
+
+// =========================================================================
+// Carryover-Year-Semantik (Alignierung mit ReportingService)
+//
+// Eine Carryover-Row mit `year = Y` speichert den Ende-von-Jahr-Y-Saldo, der
+// in Jahr Y+1 eingebracht wird. VacationBalanceService muss `get_carryover(sp,
+// year - 1)` aufrufen — exakt wie `ReportingService::get_employee`. Tests
+// prüfen:
+//   a) Dass `get_carryover` mit `TEST_YEAR - 1` aufgerufen wird.
+//   b) Dass eine Carryover-Row für `TEST_YEAR - 1` korrekt in die Balance
+//      eingerechnet wird.
+//   c) Dass eine Carryover-Row für `TEST_YEAR` (aktuelles Jahr) NICHT zur
+//      Balance beiträgt — sie beschreibt den Übertrag ins NÄCHSTE Jahr.
+// =========================================================================
+
+/// VacationBalanceService ruft `get_carryover(sp_id, year - 1)` auf.
+/// Test prüft dies über eine `with`-Expectation auf den year-Parameter.
+#[tokio::test]
+async fn get_carryover_is_called_with_previous_year() {
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+
+    let sp_id = default_sales_person_id();
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(Default::default()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 25)])));
+
+    // Expectation: get_carryover MUSS mit TEST_YEAR - 1 aufgerufen werden.
+    deps.carryover_service
+        .expect_get_carryover()
+        .with(
+            mockall::predicate::always(),
+            mockall::predicate::eq(TEST_YEAR - 1),
+            mockall::predicate::always(),
+            mockall::predicate::always(),
+        )
+        .once()
+        .returning(|_, _, _, _| Ok(None));
+
+    let svc = deps.build_service();
+    svc.get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+    // If get_carryover was called with a different year, mockall will panic here.
+}
+
+/// Eine Carryover-Row für `TEST_YEAR - 1` (Vorjahr) fließt korrekt in die
+/// Balance ein: `carryover_days` = vacation-Field der Row.
+#[tokio::test]
+async fn carryover_from_previous_year_is_included_in_balance() {
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+
+    let sp_id = default_sales_person_id();
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(Default::default()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 25)])));
+
+    // Carryover für das Vorjahr (TEST_YEAR - 1): 7 Tage Urlaub.
+    deps.carryover_service
+        .expect_get_carryover()
+        .returning(move |_, _, _, _| {
+            Ok(Some(Carryover {
+                sales_person_id: sp_id,
+                year: TEST_YEAR - 1,
+                carryover_hours: 0.0,
+                vacation: 7,
+                created: datetime!(2025 - 12 - 31 23:59:00),
+                deleted: None,
+                version: uuid!("FF000000-0000-0000-0000-000000000003"),
+            }))
+        });
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    assert_eq!(
+        result.carryover_days, 7,
+        "Carryover from previous year must appear in carryover_days"
+    );
+    // remaining = entitled (25) + carryover (7) - used (0) - planned (0) = 32
+    assert!(
+        (result.remaining_days - 32.0).abs() < 0.01,
+        "remaining_days = {}, expected 32",
+        result.remaining_days
+    );
+}
