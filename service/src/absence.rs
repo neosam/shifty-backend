@@ -151,10 +151,17 @@ impl AbsencePeriod {
 /// `SickLeave > Vacation > UnpaidLeave`, BUrlG §9-konform). `hours` traegt
 /// die am jeweiligen Tag gueltigen Vertragsstunden; an Feiertagen oder
 /// Tagen ohne Vertrag liegt KEIN Eintrag in der Map vor.
+///
+/// `days` ist der zum Tag gehoerende Urlaubs-/Abwesenheits-TAG-Anteil
+/// (1.0 voll, 0.5 Halbtag, ggf. reduziert durch die Wochen-Deckelung auf
+/// `workdays_per_week`). `hours == days * (expected_hours / workdays_per_week)`.
+/// Die WOCHE wird auf `workdays_per_week` Tage gedeckelt: angehakte Wochentage
+/// sind nur Verfuegbarkeit, nicht die Zahl der Arbeitstage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedAbsence {
     pub category: AbsenceCategory,
     pub hours: f32,
+    pub days: f32,
 }
 
 /// Output von [`AbsenceService::create`] und [`AbsenceService::update`].

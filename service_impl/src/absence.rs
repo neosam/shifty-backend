@@ -457,9 +457,22 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             }
         }
 
-        // Per-Tag-Iteration: Vertragsauswahl, Kalenderfilter, Holiday-Skip,
-        // dominante Kategorie via Prio-Reihenfolge.
+        // Per-Tag-Iteration mit WOCHEN-DECKELUNG.
+        //
+        // Domänenmodell (vom Nutzer bestätigt): Die angehakten Wochentag-Booleans
+        // (`has_day_of_week`) sagen nur, WANN die Person arbeiten KANN
+        // (Verfügbarkeit) — NICHT, wie viele Tage sie arbeitet. Maßgeblich ist
+        // `workdays_per_week`. Pro ISO-Woche werden daher höchstens
+        // `workdays_per_week` Urlaubstage gezählt; jeder gezählte Tag bringt
+        // `hours_per_day() = expected_hours / workdays_per_week`. Eine volle
+        // Urlaubswoche ergibt damit exakt `workdays_per_week` Tage /
+        // `expected_hours` Stunden, unabhängig davon, an wie vielen Wochentagen
+        // die Person verfügbar ist. (Bug: vacation-hours-overcounted — vorher
+        // wurde JEDER verfügbare Tag gezählt → Überzählung.)
         let mut result: BTreeMap<Date, ResolvedAbsence> = BTreeMap::new();
+        // Akkumulator pro ISO-Woche (Schlüssel: Montag der Woche) → bereits
+        // gezählte Urlaubstage (fraktional wegen Halbtagen).
+        let mut week_counted: BTreeMap<Date, f32> = BTreeMap::new();
         for day in date_range.iter_days() {
             // Aktiven Vertrag fuer den Tag waehlen (from_date()/to_date()
             // sind ShiftyDate-Wrapper — bei Konvertierungs-Fehlern wird der
@@ -481,21 +494,11 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             let Some(contract) = active_contract else {
                 continue;
             };
+            // Verfügbarkeit: nur an angehakten Wochentagen kann Urlaub anfallen.
             if !contract.has_day_of_week(day.weekday()) {
                 continue;
             }
             if holidays.contains(&day) {
-                continue;
-            }
-            // Per-Tag-Soll aus der Anzahl der AKTIVEN Wochentag-Booleans ableiten
-            // (nicht aus dem frei editierbaren workdays_per_week-Feld). So
-            // verwenden Divisor und Iterationsfilter (has_day_of_week oben)
-            // denselben Tag-Satz; eine volle Arbeitswoche summiert exakt zu
-            // expected_hours. Verhindert Über-/Unterzählung der Urlaubsstunden,
-            // wenn workdays_per_week von der Boolean-Anzahl abweicht
-            // (Bug: vacation-hours-overcounted).
-            let hours = contract.hours_per_active_weekday();
-            if hours <= 0.0 {
                 continue;
             }
 
@@ -510,28 +513,40 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             let Some(dominant) = dominant else {
                 continue;
             };
-            // Phase 8.3 (D-08.3-04) — Halbtag-Multiplikation: wenn die dominante
-            // Absence day_fraction = Half hat, wird die effektive Soll-Stundenzahl
-            // pro Tag halbiert. Range-Verhalten: uniform für alle Tage der Range
-            // (klassischer Anwendungsfall ist Range = 1 Tag fuer Heiligabend/
-            // Silvester; Range > 1 Tag mit Halbtag ist legitimer Sonderfall mit
-            // einheitlichem Halbierungs-Faktor).
-            //
-            // Aufrufer (reporting.rs::absence_derived_vacation_hours) bleibt
-            // unveraendert — die halbierten Stunden propagieren automatisch in
-            // vacation_hours, vacation_days = vacation_hours / hours_per_day,
-            // und die BillingPeriod-Aggregation. Snapshot-Schema-Version-Bump
-            // (3 -> 4) in billing_period_report.rs signalisiert die geaenderte
-            // Computation.
-            let effective_hours = match dominant.day_fraction {
-                dao::absence::DayFractionEntity::Half => hours * 0.5,
-                dao::absence::DayFractionEntity::Full => hours,
+
+            let workdays = contract.workdays_per_week as f32;
+            let hours_per_day = contract.hours_per_day();
+            if workdays <= 0.0 || hours_per_day <= 0.0 {
+                continue;
+            }
+
+            // Wochen-Deckelung: Montag der ISO-Woche als Schlüssel. Sobald das
+            // Wochenkontingent (`workdays_per_week`) erschöpft ist, zählen
+            // weitere verfügbare Tage derselben Woche nicht mehr (0 Stunden,
+            // kein Map-Eintrag).
+            let monday = day
+                - time::Duration::days(day.weekday().number_days_from_monday() as i64);
+            let already = *week_counted.get(&monday).unwrap_or(&0.0);
+            let remaining = workdays - already;
+            if remaining <= 0.0 {
+                continue;
+            }
+
+            // Phase 8.3 (D-08.3-04) — Halbtag zählt 0.5 Tage. An der
+            // Deckelungsgrenze wird der Tagesanteil zusätzlich auf `remaining`
+            // begrenzt.
+            let day_fraction_factor: f32 = match dominant.day_fraction {
+                dao::absence::DayFractionEntity::Half => 0.5,
+                dao::absence::DayFractionEntity::Full => 1.0,
             };
+            let counted = day_fraction_factor.min(remaining);
+            week_counted.insert(monday, already + counted);
             result.insert(
                 day,
                 ResolvedAbsence {
                     category: (&dominant.category).into(),
-                    hours: effective_hours,
+                    hours: counted * hours_per_day,
+                    days: counted,
                 },
             );
         }

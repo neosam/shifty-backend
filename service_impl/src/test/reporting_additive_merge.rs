@@ -233,6 +233,7 @@ async fn test_additive_only_absence_period() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     derived.insert(
@@ -240,6 +241,7 @@ async fn test_additive_only_absence_period() {
         ResolvedAbsence {
             category: AbsenceCategory::SickLeave,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks
@@ -285,6 +287,7 @@ async fn test_additive_both_sources_distinct_days() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks
@@ -330,6 +333,7 @@ async fn test_additive_converted_rows_not_double_counted() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks
@@ -407,6 +411,7 @@ async fn test_all_employees_additive_merge() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks
@@ -470,6 +475,7 @@ async fn test_get_week_additive_merge() {
         ResolvedAbsence {
             category: AbsenceCategory::SickLeave,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks
@@ -507,6 +513,7 @@ async fn test_same_day_overlap_additive_no_dedup() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks
@@ -689,6 +696,7 @@ async fn test_balance_parity_absence_period_vs_extra_hours() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     let service_absence = build_parity_service(vec![], derived_map);
@@ -799,6 +807,7 @@ async fn test_balance_parity_dynamic_employee_range() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     let service_absence = build_parity_service_dynamic(vec![], derived_map);
@@ -919,6 +928,7 @@ async fn test_balance_parity_dynamic_all_employees() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks_b
@@ -1032,6 +1042,7 @@ async fn test_balance_parity_dynamic_get_week() {
         ResolvedAbsence {
             category: AbsenceCategory::Vacation,
             hours: 8.0,
+            days: 1.0,
         },
     );
     mocks_b

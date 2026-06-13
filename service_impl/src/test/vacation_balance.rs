@@ -41,28 +41,37 @@ fn other_sales_person_id() -> Uuid {
 }
 
 /// Baut die `derive_hours_for_range`-Mock-Antwort: eine Tag→ResolvedAbsence-Map
-/// mit Kategorie `Vacation` und den gegebenen effektiven Stunden pro Tag.
-/// (Halbtage sind in `hours` bereits eingerechnet — Half = hours_per_day * 0.5,
-/// genau wie es der echte `derive_hours_for_range` liefert.)
-fn vacation_hours_map(entries: &[(time::Date, f32)]) -> BTreeMap<time::Date, ResolvedAbsence> {
+/// mit Kategorie `Vacation`, den gegebenen effektiven Stunden und Tagesanteil
+/// (`days`) pro Tag — exakt so, wie es der echte `derive_hours_for_range`
+/// liefert (Halbtage und Wochen-Deckelung sind in `days` bereits eingerechnet;
+/// `hours == days * hours_per_day`). `used_days`/`planned_days` werden im
+/// Service nun direkt aus `days` summiert.
+fn vacation_hours_map(entries: &[(time::Date, f32, f32)]) -> BTreeMap<time::Date, ResolvedAbsence> {
     entries
         .iter()
-        .map(|(d, h)| {
+        .map(|(d, h, days)| {
             (
                 *d,
                 ResolvedAbsence {
                     category: AbsenceCategory::Vacation,
                     hours: *h,
+                    days: *days,
                 },
             )
         })
         .collect()
 }
 
-/// `n` aufeinanderfolgende Vacation-Tage ab `start`, je `hours_each` Stunden.
-fn consecutive_vacation(start: time::Date, n: i64, hours_each: f32) -> Vec<(time::Date, f32)> {
+/// `n` aufeinanderfolgende Vacation-Tage ab `start`, je `hours_each` Stunden
+/// und `days_each` Tagesanteil.
+fn consecutive_vacation(
+    start: time::Date,
+    n: i64,
+    hours_each: f32,
+    days_each: f32,
+) -> Vec<(time::Date, f32, f32)> {
     (0..n)
-        .map(|i| (start + Duration::days(i), hours_each))
+        .map(|i| (start + Duration::days(i), hours_each, days_each))
         .collect()
 }
 
@@ -207,8 +216,8 @@ async fn get_returns_entitlement_minus_used_minus_planned() {
     deps.absence_service
         .expect_derive_hours_for_range()
         .returning(move |_, _, _, _, _| {
-            let mut entries = consecutive_vacation(date!(2026 - 04 - 01), 5, 8.0);
-            entries.extend(consecutive_vacation(date!(2026 - 08 - 01), 10, 8.0));
+            let mut entries = consecutive_vacation(date!(2026 - 04 - 01), 5, 8.0, 1.0);
+            entries.extend(consecutive_vacation(date!(2026 - 08 - 01), 10, 8.0, 1.0));
             Ok(vacation_hours_map(&entries))
         });
 
@@ -387,6 +396,7 @@ async fn get_team_aggregates_per_paid_sales_person() {
                 date!(2026 - 03 - 01),
                 3,
                 8.0,
+                1.0,
             )))
         });
 
@@ -562,9 +572,9 @@ fn happy_deps_with(
 #[tokio::test]
 async fn half_day_vacation_counts_as_half_day() {
     let sp_id = default_sales_person_id();
-    // hours_per_day = 40 / 5 = 8; Halbtag = 4h (so liefert derive_hours_for_range
-    // einen Half-Day bereits: hours_per_day * 0.5).
-    let resolved = vacation_hours_map(&[(date!(2026 - 04 - 10), 4.0)]);
+    // hours_per_day = 40 / 5 = 8; Halbtag = 4h / days=0.5 (so liefert
+    // derive_hours_for_range einen Half-Day bereits: hours_per_day * 0.5, days 0.5).
+    let resolved = vacation_hours_map(&[(date!(2026 - 04 - 10), 4.0, 0.5)]);
     let deps = happy_deps_with(sp_id, resolved, full_year_contract(sp_id, 25));
 
     let svc = deps.build_service();
@@ -582,12 +592,13 @@ async fn half_day_vacation_counts_as_half_day() {
 }
 
 /// Teilzeit-Vertrag (20h/5 Tage → hours_per_day=4): 3 vergangene volle
-/// Vacation-Tage (je 4h) → 12h / 4 = 3 used-Tage. Beweist, dass durch das
-/// hours_per_day DES VERTRAGS geteilt wird, nicht durch einen festen Wert.
+/// Vacation-Tage (je 4h / days=1.0) → 3 used-Tage. Die Tage kommen jetzt
+/// direkt aus `ResolvedAbsence.days` (gedeckelt von derive_hours_for_range),
+/// nicht aus einer Stunden→Tage-Division.
 #[tokio::test]
-async fn part_time_contract_divides_by_its_hours_per_day() {
+async fn part_time_contract_used_days_come_from_days_field() {
     let sp_id = default_sales_person_id();
-    let resolved = vacation_hours_map(&consecutive_vacation(date!(2026 - 02 - 02), 3, 4.0));
+    let resolved = vacation_hours_map(&consecutive_vacation(date!(2026 - 02 - 02), 3, 4.0, 1.0));
     let deps = happy_deps_with(sp_id, resolved, contract(sp_id, 20, 20.0, 5));
 
     let svc = deps.build_service();
@@ -598,7 +609,7 @@ async fn part_time_contract_divides_by_its_hours_per_day() {
 
     assert!(
         (result.used_days - 3.0).abs() < 0.001,
-        "12h / 4h_per_day must be 3 days, got {}",
+        "3 volle Tage (days=1.0) müssen 3 used-Tage ergeben, got {}",
         result.used_days
     );
 }
@@ -608,7 +619,7 @@ async fn part_time_contract_divides_by_its_hours_per_day() {
 #[tokio::test]
 async fn active_period_splits_used_and_planned_at_today() {
     let sp_id = default_sales_person_id();
-    let resolved = vacation_hours_map(&consecutive_vacation(date!(2026 - 06 - 13), 5, 8.0));
+    let resolved = vacation_hours_map(&consecutive_vacation(date!(2026 - 06 - 13), 5, 8.0, 1.0));
     let deps = happy_deps_with(sp_id, resolved, full_year_contract(sp_id, 30));
 
     let svc = deps.build_service();
@@ -641,6 +652,7 @@ async fn non_vacation_categories_are_ignored() {
             ResolvedAbsence {
                 category: AbsenceCategory::SickLeave,
                 hours: 8.0,
+                days: 1.0,
             },
         ),
         (
@@ -648,6 +660,7 @@ async fn non_vacation_categories_are_ignored() {
             ResolvedAbsence {
                 category: AbsenceCategory::UnpaidLeave,
                 hours: 8.0,
+                days: 1.0,
             },
         ),
     ]

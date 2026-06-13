@@ -83,12 +83,14 @@ fn representative_hours_per_day(work_details: &[EmployeeWorkDetails], year: u32)
             from_year <= year && year <= to_year
         })
         .max_by_key(|wd| (wd.from_year, wd.from_calendar_week))
-        // hours_per_active_weekday (statt hours_per_day): muss mit dem Per-Tag-
-        // Soll übereinstimmen, das derive_hours_for_range zum Aufbau von
-        // used_hours/planned_hours verwendet. Sonst driftet die Stunden→Tage-
-        // Umrechnung (used_days = used_hours / hours_per_day) bei divergierendem
-        // workdays_per_week (Bug: vacation-hours-overcounted).
-        .map(|wd| wd.hours_per_active_weekday())
+        // hours_per_day = expected_hours / workdays_per_week. `workdays_per_week`
+        // ist die maßgebliche Zahl der Arbeitstage pro Woche; die angehakten
+        // Wochentag-Booleans sind nur Verfügbarkeit. derive_hours_for_range
+        // deckelt pro Woche auf `workdays_per_week` Tage und nutzt dieselbe
+        // Per-Tag-Rate. Die exakte Tageszählung kommt ohnehin aus
+        // `ResolvedAbsence.days`; `hours_per_day` bleibt hier nur als evtl.
+        // anderweitig genutzter repräsentativer Wert erhalten.
+        .map(|wd| wd.hours_per_day())
         .unwrap_or(0.0)
 }
 
@@ -190,9 +192,15 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
         // naive Kalendertag-Zählung (zählte Wochenenden/Feiertage/Halbtage
         // falsch). Conflict-Resolution (Sick > Vacation > Unpaid) liefert pro
         // Tag genau eine Kategorie — Vacation wird hier herausgefiltert.
-        let hours_per_day = representative_hours_per_day(&work_details, year);
+        // `hours_per_day` wird hier nur noch defensiv ermittelt (z.B. für
+        // künftige stundenbasierte Auswertungen); die Tageszahlen kommen
+        // EXAKT aus `ResolvedAbsence.days` und sind damit deckungsgleich mit
+        // der Wochen-Deckelung in `derive_hours_for_range`.
+        let _hours_per_day = representative_hours_per_day(&work_details, year);
         let mut used_hours: f32 = 0.0;
         let mut planned_hours: f32 = 0.0;
+        let mut used_days: f32 = 0.0;
+        let mut planned_days: f32 = 0.0;
         if let (Ok(year_start), Ok(year_end)) = (
             Date::from_calendar_date(year as i32, Month::January, 1),
             Date::from_calendar_date(year as i32, Month::December, 31),
@@ -212,19 +220,19 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
                     continue;
                 }
                 // `today` selbst zählt zu used (aktive Periode splittet am
-                // Stichtag: [from, today] used, (today, to] planned).
+                // Stichtag: [from, today] used, (today, to] planned). Tage
+                // direkt aus `.days` summieren (exakt gedeckelt); Stunden
+                // bleiben für ggf. andere Nutzung erhalten.
                 if *date <= today {
                     used_hours += resolved_day.hours;
+                    used_days += resolved_day.days;
                 } else {
                     planned_hours += resolved_day.hours;
+                    planned_days += resolved_day.days;
                 }
             }
         }
-        let (used_days, planned_days) = if hours_per_day > 0.0 {
-            (used_hours / hours_per_day, planned_hours / hours_per_day)
-        } else {
-            (0.0, 0.0)
-        };
+        let _ = (used_hours, planned_hours);
 
         // Carryover — Ein Carryover-Eintrag mit year=Y speichert den
         // Ende-von-Jahr-Y-Saldo (Übertrag in Jahr Y+1). Um den Übertrag

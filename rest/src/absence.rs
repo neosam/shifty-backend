@@ -79,26 +79,23 @@ fn two_year_window() -> (ShiftyDate, ShiftyDate) {
 }
 
 /// Reine Zählfunktion (testbar): abgeleitete Anzeige-Tage = Anzahl der Map-Tage
-/// im inklusiven `[from, to]`-Range × Day-Fraction (0.5 bei `Half`).
+/// im inklusiven `[from, to]`-Range.
 ///
-/// Die Map stammt aus `AbsenceService::derive_hours_for_range` und enthält genau
-/// einen Eintrag pro AKTIVEM Arbeitstag (ohne Feiertage) — daher entspricht die
-/// Anzahl der Range-Treffer den effektiven Arbeitstagen der Periode. `None`
-/// (keine Map für die Person) ⇒ 0.0.
+/// Die Map stammt aus `AbsenceService::derive_hours_for_range`. Jeder Eintrag
+/// trägt mit `ResolvedAbsence.days` bereits den exakt gedeckelten Tagesanteil
+/// (Wochen-Deckelung auf `workdays_per_week` und Halbtag via `day_fraction`
+/// sind dort eingerechnet). Wir summieren daher schlicht die `days` der
+/// Einträge im Range; eine separate Fraction-Korrektur ist nicht mehr nötig.
+/// `None` (keine Map für die Person) ⇒ 0.0.
 fn derived_days_from_map(
     map: Option<&std::collections::BTreeMap<time::Date, service::absence::ResolvedAbsence>>,
     from: time::Date,
     to: time::Date,
-    fraction: &service::absence::DayFraction,
 ) -> f32 {
     let Some(map) = map else {
         return 0.0;
     };
-    let factor = match fraction {
-        service::absence::DayFraction::Half => 0.5,
-        service::absence::DayFraction::Full => 1.0,
-    };
-    map.range(from..=to).count() as f32 * factor
+    map.range(from..=to).map(|(_, entry)| entry.days).sum()
 }
 
 /// Berechnet pro Absence-Periode die abgeleiteten Anzeige-Tage (aktive
@@ -148,7 +145,7 @@ async fn derived_days_for_entities<RestState: RestStateDef>(
 
     Ok(entities
         .iter()
-        .map(|e| derived_days_from_map(maps.get(&e.sales_person_id), e.from_date, e.to_date, &e.day_fraction))
+        .map(|e| derived_days_from_map(maps.get(&e.sales_person_id), e.from_date, e.to_date))
         .collect())
 }
 
@@ -473,23 +470,29 @@ pub struct AbsenceApiDoc;
 
 #[cfg(test)]
 mod derived_days_tests {
-    //! Tests für `derived_days_from_map` — die reine Zähl-/Fraction-Logik, die
-    //! die abgeleiteten Anzeige-Tage einer Absence-Periode aus der
-    //! `derive_hours_for_range`-Map berechnet.
+    //! Tests für `derived_days_from_map` — die reine Summier-Logik, die die
+    //! abgeleiteten Anzeige-Tage einer Absence-Periode aus der
+    //! `derive_hours_for_range`-Map berechnet. Wochen-Deckelung und Halbtag
+    //! stecken bereits in `ResolvedAbsence.days`; hier wird nur summiert.
 
     use super::derived_days_from_map;
-    use service::absence::{AbsenceCategory, DayFraction, ResolvedAbsence};
+    use service::absence::{AbsenceCategory, ResolvedAbsence};
     use std::collections::BTreeMap;
     use time::macros::date;
 
-    fn map_with(days: &[time::Date]) -> BTreeMap<time::Date, ResolvedAbsence> {
-        days.iter()
-            .map(|d| {
+    /// Baut eine Map aus `(Datum, days)`-Paaren. `hours` ist für diese Tests
+    /// irrelevant (die Summe geht nur über `.days`), wird aber konsistent
+    /// als `days * 5.0` gesetzt (Beispiel-Vertrag hours_per_day = 5).
+    fn map_with(entries: &[(time::Date, f32)]) -> BTreeMap<time::Date, ResolvedAbsence> {
+        entries
+            .iter()
+            .map(|(d, days)| {
                 (
                     *d,
                     ResolvedAbsence {
                         category: AbsenceCategory::Vacation,
-                        hours: 5.0,
+                        hours: days * 5.0,
+                        days: *days,
                     },
                 )
             })
@@ -497,28 +500,28 @@ mod derived_days_tests {
     }
 
     #[test]
-    fn full_day_counts_active_working_days_in_range() {
-        // Vertrag arbeitet Mo+Di — die Map hat nur diese beiden Tage, NICHT Mi.
-        let map = map_with(&[date!(2026 - 06 - 15), date!(2026 - 06 - 16)]);
+    fn sums_the_days_of_entries_in_range() {
+        // Wochen-Deckelung: workdays_per_week=2, verfügbar Mo–Mi. Die Map hat
+        // nur die zwei gezählten Tage (Mo+Di, je 1.0); Mi bekam keinen Eintrag.
+        let map = map_with(&[(date!(2026 - 06 - 15), 1.0), (date!(2026 - 06 - 16), 1.0)]);
         let days = derived_days_from_map(
             Some(&map),
             date!(2026 - 06 - 15),
-            date!(2026 - 06 - 17), // 3 Kalendertage, aber nur 2 Arbeitstage
-            &DayFraction::Full,
+            date!(2026 - 06 - 17), // 3 Kalendertage, gedeckelt auf 2 gezählte Tage
         );
-        assert_eq!(days, 2.0, "nur die 2 aktiven Arbeitstage zählen, nicht 3 Kalendertage");
+        assert_eq!(days, 2.0, "Summe der gedeckelten Tagesanteile = 2.0");
     }
 
     #[test]
-    fn half_day_halves_the_count() {
-        let map = map_with(&[date!(2026 - 06 - 15), date!(2026 - 06 - 16)]);
+    fn half_day_contributes_half_via_days_field() {
+        // Halbtag ist bereits in `.days` als 0.5 eingerechnet.
+        let map = map_with(&[(date!(2026 - 06 - 15), 0.5), (date!(2026 - 06 - 16), 0.5)]);
         let days = derived_days_from_map(
             Some(&map),
             date!(2026 - 06 - 15),
             date!(2026 - 06 - 16),
-            &DayFraction::Half,
         );
-        assert_eq!(days, 1.0, "2 Arbeitstage × 0.5 (Halbtag) = 1.0");
+        assert_eq!(days, 1.0, "2 × 0.5 (Halbtag) = 1.0");
     }
 
     #[test]
@@ -526,15 +529,14 @@ mod derived_days_tests {
         // Map deckt ein größeres Fenster ab (zwei getrennte Perioden derselben
         // Person); diese Periode zählt nur ihre eigenen Tage.
         let map = map_with(&[
-            date!(2026 - 06 - 15),
-            date!(2026 - 06 - 16),
-            date!(2026 - 12 - 24), // andere Periode im selben min..max-Fenster
+            (date!(2026 - 06 - 15), 1.0),
+            (date!(2026 - 06 - 16), 1.0),
+            (date!(2026 - 12 - 24), 1.0), // andere Periode im selben min..max-Fenster
         ]);
         let days = derived_days_from_map(
             Some(&map),
             date!(2026 - 06 - 15),
             date!(2026 - 06 - 16),
-            &DayFraction::Full,
         );
         assert_eq!(days, 2.0, "der Dezember-Tag liegt außerhalb [from,to] und zählt nicht");
     }
@@ -545,21 +547,19 @@ mod derived_days_tests {
             None,
             date!(2026 - 06 - 15),
             date!(2026 - 06 - 16),
-            &DayFraction::Full,
         );
         assert_eq!(days, 0.0);
     }
 
     #[test]
-    fn period_entirely_on_non_working_days_yields_zero() {
+    fn period_entirely_outside_map_entries_yields_zero() {
         // Map hat keinen Eintrag im Range (alle Tage sind Nicht-Arbeitstage /
-        // Feiertage) → 0 Urlaubstage.
-        let map = map_with(&[date!(2026 - 06 - 15)]);
+        // Feiertage / über Wochen-Deckelung hinaus) → 0 Urlaubstage.
+        let map = map_with(&[(date!(2026 - 06 - 15), 1.0)]);
         let days = derived_days_from_map(
             Some(&map),
             date!(2026 - 06 - 20),
             date!(2026 - 06 - 21),
-            &DayFraction::Full,
         );
         assert_eq!(days, 0.0);
     }
