@@ -1643,6 +1643,13 @@ pub struct AbsencePeriodTO {
     pub version: Uuid,
     #[serde(default)]
     pub day_fraction: DayFractionTO,
+    /// Read-only Anzeige-Feld: die abgeleiteten Urlaubs-/Abwesenheitstage dieser
+    /// Periode = Anzahl der AKTIVEN Arbeitstage im Range (ohne Feiertage) ×
+    /// Day-Fraction (0.5 bei `Half`). Vom List-Endpoint befüllt — Single Source
+    /// of Truth ist `AbsenceService::derive_hours_for_range`. Auf Create/Update-
+    /// Responses und Wire-Roundtrips Default 0.0 (nicht persistiert).
+    #[serde(default)]
+    pub derived_days: f32,
 }
 
 #[cfg(feature = "service-impl")]
@@ -1659,6 +1666,8 @@ impl From<&service::absence::AbsencePeriod> for AbsencePeriodTO {
             deleted: a.deleted,
             version: a.version,
             day_fraction: (&a.day_fraction).into(),
+            // Default; vom List-Endpoint via derive_hours_for_range überschrieben.
+            derived_days: 0.0,
         }
     }
 }

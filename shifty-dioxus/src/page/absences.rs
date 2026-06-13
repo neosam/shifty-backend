@@ -214,7 +214,9 @@ fn marker_matches_filters(
 
 // ─── Modal mode ────────────────────────────────────────────────────────────
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+// Kein `Eq` — enthält `AbsencePeriod`, das wegen `derived_days: f32` nur
+// `PartialEq` implementiert.
+#[derive(Clone, Debug, PartialEq)]
 enum ModalMode {
     Create,
     Edit(AbsencePeriod),
@@ -763,7 +765,9 @@ pub struct AbsenceModalProps {
     pub on_delete_request: EventHandler<()>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+// Kein `Eq` — enthält `AbsencePeriod`, das wegen `derived_days: f32` nur
+// `PartialEq` implementiert.
+#[derive(Clone, Debug, PartialEq)]
 pub enum AbsenceModalMode {
     Create,
     Edit(AbsencePeriod),
@@ -1004,6 +1008,8 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
             version,
             // Phase 8.3 — Halbtag-Support. Form-Signal wird hier durchgereicht.
             day_fraction: (&*day_fraction.read()).into(),
+            // Read-only Anzeige-Feld; auf Create/Update vom Backend ignoriert.
+            derived_days: 0.0,
         };
         let action = match &mode_for_submit {
             AbsenceModalMode::Create => AbsenceAction::Create(body),
@@ -1684,9 +1690,12 @@ fn AbsenceListRow(props: AbsenceListRowProps) -> Element {
     let i18n = I18N.read().clone();
     let absence = props.absence.clone();
     let status = compute_status(absence.from_date, absence.to_date, props.today);
-    let inclusive_days =
-        (absence.to_date - absence.from_date).whole_days().max(0) + 1;
-    let unit_key = if inclusive_days == 1 {
+    // Echte Urlaubs-/Abwesenheitstage (aktive Arbeitstage im Range × Day-Fraction)
+    // vom Backend (derive_hours_for_range) statt der reinen Kalenderspanne. So
+    // zeigt ein Mo–Mi-Zeitraum bei 2 Arbeitstagen/Woche "2 Tage", nicht "3".
+    let derived_days = absence.derived_days;
+    let days_label = format_decimal(derived_days);
+    let unit_key = if (derived_days - 1.0).abs() < f32::EPSILON {
         Key::AbsenceDayUnit
     } else {
         Key::AbsenceDaysUnit
@@ -1722,7 +1731,7 @@ fn AbsenceListRow(props: AbsenceListRowProps) -> Element {
             div { class: "text-body text-ink font-mono flex flex-col gap-0.5",
                 span { "{from_str} – {to_str}" }
                 span { class: "text-small text-ink-muted",
-                    "{inclusive_days} {i18n.t(unit_key)}"
+                    "{days_label} {i18n.t(unit_key)}"
                 }
             }
             div { CategoryBadge { category: absence.category } }
@@ -2529,6 +2538,7 @@ mod tests {
                 description: Arc::<str>::from("Heiligabend"),
                 version: Uuid::nil(),
                 day_fraction: DayFraction::Half,
+                derived_days: 0.5,
                 person_name: Arc::<str>::from(""),
                 background_color: Arc::<str>::from(""),
             };
@@ -2938,6 +2948,7 @@ mod tests {
             description: std::sync::Arc::<str>::from(""),
             version: Uuid::nil(),
             day_fraction: DayFraction::Full,
+            derived_days: 0.0,
             person_name: std::sync::Arc::<str>::from(""),
             background_color: std::sync::Arc::<str>::from(""),
         }

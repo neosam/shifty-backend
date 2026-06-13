@@ -69,7 +69,9 @@ impl From<&DayFraction> for rest_types::DayFractionTO {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+// Kein `Eq` — `derived_days: f32` implementiert nur `PartialEq`. Dioxus-Props
+// brauchen ohnehin nur `PartialEq`.
+#[derive(Clone, Debug, PartialEq)]
 pub struct AbsencePeriod {
     pub id: Uuid,
     pub sales_person_id: Uuid,
@@ -79,6 +81,10 @@ pub struct AbsencePeriod {
     pub description: Arc<str>,
     pub version: Uuid,
     pub day_fraction: DayFraction,
+    /// Abgeleitete Anzeige-Tage = aktive Arbeitstage im Range (ohne Feiertage)
+    /// × Day-Fraction. Vom Backend-List-Endpoint berechnet (Single Source of
+    /// Truth: `derive_hours_for_range`); 0.0 wenn nicht geliefert.
+    pub derived_days: f32,
     /// Side-join field — populated by the loader from the SalesPerson list.
     /// Empty by default; rendering code should treat empty as "unknown".
     pub person_name: Arc<str>,
@@ -97,6 +103,7 @@ impl From<&AbsencePeriodTO> for AbsencePeriod {
             description: t.description.clone(),
             version: t.version,
             day_fraction: (&t.day_fraction).into(),
+            derived_days: t.derived_days,
             person_name: Arc::<str>::from(""),
             background_color: Arc::<str>::from(""),
         }
@@ -170,6 +177,7 @@ mod tests {
             deleted: None,
             version: v,
             day_fraction: rest_types::DayFractionTO::Full,
+            derived_days: 10.0,
         };
         let state: AbsencePeriod = (&to).into();
         assert_eq!(state.id, id);
@@ -180,6 +188,8 @@ mod tests {
         assert_eq!(state.to_date, date!(2026 - 06 - 14));
         assert_eq!(state.description.as_ref(), "Italy");
         assert_eq!(state.day_fraction, DayFraction::Full);
+        // derived_days wird vom Backend geliefert und 1:1 übernommen.
+        assert_eq!(state.derived_days, 10.0);
         // Side-join fields default empty — loader fills these.
         assert_eq!(state.person_name.as_ref(), "");
         assert_eq!(state.background_color.as_ref(), "");
@@ -198,8 +208,10 @@ mod tests {
             deleted: None,
             version: Uuid::from_u128(30),
             day_fraction: rest_types::DayFractionTO::Half,
+            derived_days: 0.5,
         };
         let state: AbsencePeriod = (&to).into();
         assert_eq!(state.day_fraction, DayFraction::Half);
+        assert_eq!(state.derived_days, 0.5);
     }
 }
