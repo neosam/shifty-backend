@@ -30,7 +30,7 @@ progress:
 Phase: 09 (booking-flow-reverse-warnings-copy-week) — COMPLETE (UAT-Checkpoint ausstehend)
 Plan: 2 of 2
 Status: Phase 09 Plans 01 + 02 abgeschlossen; UAT-Checkpoint für Live-Dialog-Verifikation ausstehend
-Last activity: 2026-06-12 -- Quick-Task 260612-svs: Absence-Page Krankheitstage vorerst ausgeblendet (SICK_LEAVE_ENABLED=false; Liste, Marker, Stats-Kachel, Modal- und Filter-Option); 6 neue Tests, Suite 589 grün, WASM-Check grün
+Last activity: 2026-06-13 -- Quick-Task 260613-jxe: Absence-Page inaktive Sales Persons aus Per-Person-Liste gefiltert (selectable_balances, paid && active) + Jahres-Navigation (◀ Jahr ▶, ein Jahr pro Ansicht); 5 neue Tests + 2 i18n-Keys (3 Locales), Suite 594 grün, WASM-Build grün
 
 ## Shipped Milestones
 
@@ -153,6 +153,7 @@ Last activity: 2026-06-12 -- Quick-Task 260612-svs: Absence-Page Krankheitstage 
 | 260612-s0p | Absence-Page: Personen-Dropdowns (AbsenceModal + AbsenceFilterBar) zeigen nur bezahlte & aktive Sales Persons (frontend) | 2026-06-12 | committed via jj (tsklszsq feat, ywxslnly docs); Helper `is_selectable_employee` + 4 Tests, Suite grün, WASM-Check grün | [260612-s0p-bei-den-abwesenheitszeitr-umen-seite-wer](./quick/260612-s0p-bei-den-abwesenheitszeitr-umen-seite-wer/) |
 
 | 260612-svs | Absence-Page: Krankheitstage vorerst ausgeblendet — nur Urlaub + Unbezahlt sichtbar (Liste, Marker, Stats, Modal, Filter); zentrale Konstante SICK_LEAVE_ENABLED (frontend) | 2026-06-12 | committed via jj (vqrqxwsm feat, qwylsork docs); 6 neue Tests, Suite 589 grün, WASM-Check grün | [260612-svs-im-frontend-absences-seite-f-rs-erste-au](./quick/260612-svs-im-frontend-absences-seite-f-rs-erste-au/) |
+| 260613-jxe | Absence-Page: inaktive Sales Persons aus Per-Person-Liste filtern (selectable_balances, paid && active) + Jahres-Navigation (◀ Jahr ▶, ein Jahr pro Ansicht, Default = aktuelles Jahr) (frontend) | 2026-06-13 | committed via jj (0eba6e50 + 8c1fcb26 feat, docs folgt); selectable_balances + 5 Tests, 2 i18n-Keys (3 Locales), Suite 594 grün, WASM-Build grün | [260613-jxe-abwesenheitsseite-inaktive-sales-persons](./quick/260613-jxe-abwesenheitsseite-inaktive-sales-persons/) |
 ### Phase-Verzeichnis-Cleanup (optional)
 
 `.planning/phases/01-04` (v1.0), `.planning/phases/05` (v1.1), `.planning/phases/06-07` (v1.2) liegen alle noch im aktiven `phases/`-Verzeichnis. `gsd-sdk milestone.complete` hat sie nicht automatisch in `milestones/v1.X-phases/` verschoben (`archived.phases: false`). Bei Bedarf manuell via `/gsd-cleanup` oder `mkdir milestones/v1.X-phases && mv phases/...` archivieren.
