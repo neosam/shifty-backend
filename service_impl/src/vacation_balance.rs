@@ -178,11 +178,17 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
             .employee_work_details_service
             .find_by_sales_person_id(sales_person_id, Authentication::Full, Some(tx.clone()))
             .await?;
+        // Urlaubsanspruch ist immer eine gerundete ganze Zahl (Tage). Bei
+        // unterjährigem Vertragsstart/-ende liefert `vacation_days_for_year`
+        // einen anteiligen (aliquoten) f32 mit Nachkommastelle — wir runden
+        // die Summe, konsistent mit dem Reporting-Pfad
+        // (`reporting.rs`: `.sum::<f32>().round()`).
         let entitled_days: f32 = work_details
             .iter()
             .filter(|wd| wd.deleted.is_none())
             .map(|wd| wd.vacation_days_for_year(year))
-            .sum();
+            .sum::<f32>()
+            .round();
 
         // Stundenbasierte Used/Planned-Tage (konsistent mit ReportingService):
         // jeden Vacation-Tag des Jahres vertraglich zu effektiven Stunden

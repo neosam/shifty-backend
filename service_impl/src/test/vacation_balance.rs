@@ -495,6 +495,64 @@ async fn get_with_no_active_contract_returns_zero_entitlement() {
     );
 }
 
+/// Unterjähriger Vertragsstart erzeugt einen aliquoten (fraktionalen)
+/// Anspruch — der Service MUSS ihn auf eine ganze Zahl runden.
+///
+/// Vertrag startet KW27/2026 (= 2026-06-29, ordinal 180), 30 Urlaubstage.
+/// Roher Anspruch = 30 − 30·(180/365) ≈ 15.21 → gerundet exakt 15.
+/// Ohne `.round()` wäre `entitled_days` ≈ 15.21 und der `== 15.0`-Assert
+/// schlüge fehl.
+#[tokio::test]
+async fn get_rounds_aliquot_entitlement_to_whole_number() {
+    let mut deps = build_dependencies();
+
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+
+    let sp_id = default_sales_person_id();
+
+    // Vertrag mit unterjährigem Start KW27/2026 → anteiliger Anspruch.
+    let mut mid_year_contract = full_year_contract(sp_id, 30);
+    mid_year_contract.from_year = 2026;
+    mid_year_contract.from_calendar_week = 27;
+    mid_year_contract.from_day_of_week = DayOfWeek::Monday;
+
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([mid_year_contract.clone()])));
+    deps.carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    // Immer eine gerundete ganze Zahl.
+    assert_eq!(
+        result.entitled_days,
+        result.entitled_days.round(),
+        "entitled_days muss ganzzahlig sein, war {}",
+        result.entitled_days
+    );
+    assert_eq!(
+        result.entitled_days, 15.0,
+        "aliquoter Anspruch (~15.21) muss auf 15 gerundet werden, war {}",
+        result.entitled_days
+    );
+    // remaining = entitled (kein carryover/used/planned) → ebenfalls ganzzahlig.
+    assert_eq!(result.remaining_days, 15.0);
+}
+
 #[tokio::test]
 async fn get_year_without_carryover_returns_zero_carryover() {
     let mut deps = build_dependencies();
