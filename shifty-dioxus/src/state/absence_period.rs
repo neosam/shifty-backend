@@ -127,6 +127,9 @@ pub struct ExtraHoursMarker {
     pub category: ExtraHoursCategoryTO,
     pub description: Arc<str>,
     pub person_name: Arc<str>,
+    /// Aus `amount` (Stunden) abgeleitete Anzeige-Tage am `when`-Datum, vom
+    /// Backend (`AbsenceService::derive_days_for_hourly_markers`) befüllt.
+    pub derived_days: f32,
 }
 
 impl From<&ExtraHoursMarkerTO> for ExtraHoursMarker {
@@ -139,6 +142,7 @@ impl From<&ExtraHoursMarkerTO> for ExtraHoursMarker {
             category: t.category.clone(),
             description: t.description.clone(),
             person_name: t.person_name.clone(),
+            derived_days: t.derived_days,
         }
     }
 }

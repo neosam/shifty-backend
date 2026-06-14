@@ -319,6 +319,10 @@ pub struct VacationEntitlementCardProps {
     /// When None, HR sees the team aggregate as before. Employee path ignores this.
     #[props(!optional, default = None)]
     pub selected_person: Option<Uuid>,
+    /// Doppelklick auf eine Person in der Per-Person-Liste setzt diese als
+    /// Personen-Filter (TODO 260614). Default no-op (Test-/Employee-Pfad).
+    #[props(default)]
+    pub on_person_select: EventHandler<Uuid>,
 }
 
 #[component]
@@ -370,6 +374,7 @@ pub fn VacationEntitlementCard(props: VacationEntitlementCardProps) -> Element {
                     prev_year_str: prev_year_str.clone(),
                     vacation_team: props.vacation_team.clone(),
                     sales_persons: props.sales_persons.clone(),
+                    on_person_select: props.on_person_select,
                 }
             }
         }
@@ -459,6 +464,8 @@ struct VacationEntitlementHrBodyProps {
     prev_year_str: String,
     vacation_team: Rc<[VacationBalance]>,
     sales_persons: Rc<[SalesPerson]>,
+    #[props(default)]
+    on_person_select: EventHandler<Uuid>,
 }
 
 #[component]
@@ -515,6 +522,7 @@ fn VacationEntitlementHrBody(props: VacationEntitlementHrBodyProps) -> Element {
             VacationPerPersonList {
                 rows: team.clone(),
                 sales_persons: props.sales_persons.clone(),
+                on_person_select: props.on_person_select,
             }
         }
     }
@@ -536,6 +544,18 @@ fn StatBox(props: StatBoxProps) -> Element {
     }
 }
 
+/// Toggle-Logik für den Doppelklick-Personen-Filter (TODO 260614): Ein
+/// Doppelklick auf die bereits aktive Person hebt den Filter auf, ein Klick auf
+/// eine andere (oder bei keinem Filter) setzt sie. Rein und testbar gehalten,
+/// damit die Interaktion ohne Event-Simulation verifizierbar ist.
+fn toggle_person_filter(current: Option<Uuid>, clicked: Uuid) -> Option<Uuid> {
+    if current == Some(clicked) {
+        None
+    } else {
+        Some(clicked)
+    }
+}
+
 fn format_decimal(value: f32) -> String {
     if (value - value.trunc()).abs() < 0.05 {
         format!("{}", value.trunc() as i32)
@@ -550,6 +570,10 @@ fn format_decimal(value: f32) -> String {
 pub struct VacationPerPersonListProps {
     pub rows: Rc<[VacationBalance]>,
     pub sales_persons: Rc<[SalesPerson]>,
+    /// Doppelklick auf eine Personen-Karte meldet deren `sales_person_id`
+    /// nach oben, um den Personen-Filter zu setzen (TODO 260614).
+    #[props(default)]
+    pub on_person_select: EventHandler<Uuid>,
 }
 
 #[component]
@@ -607,6 +631,7 @@ pub fn VacationPerPersonList(props: VacationPerPersonListProps) -> Element {
                     PersonVacationCard {
                         balance: row.clone(),
                         sales_persons: props.sales_persons.clone(),
+                        on_person_select: props.on_person_select,
                     }
                 }
             }
@@ -618,6 +643,8 @@ pub fn VacationPerPersonList(props: VacationPerPersonListProps) -> Element {
 struct PersonVacationCardProps {
     balance: VacationBalance,
     sales_persons: Rc<[SalesPerson]>,
+    #[props(default)]
+    on_person_select: EventHandler<Uuid>,
 }
 
 #[component]
@@ -649,8 +676,13 @@ fn PersonVacationCard(props: PersonVacationCardProps) -> Element {
         0
     };
     let bar_style = format!("width:{}%", used_pct);
+    // TODO 260614: Doppelklick auf die Karte setzt diese Person als Filter.
+    let on_person_select = props.on_person_select;
+    let sales_person_id = props.balance.sales_person_id;
     rsx! {
-        div { class: "bg-surface border border-border rounded-md p-2 px-3 flex flex-col gap-1.5",
+        div {
+            class: "bg-surface border border-border rounded-md p-2 px-3 flex flex-col gap-1.5 cursor-pointer hover:border-accent transition-colors select-none",
+            ondoubleclick: move |_| on_person_select.call(sales_person_id),
             div { class: "flex items-center gap-2",
                 span {
                     class: "w-[22px] h-[22px] rounded-full flex-shrink-0",
@@ -1674,6 +1706,16 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
     let convert_label = i18n.t(Key::AbsenceConvertToRangeAction);
     let when_str = marker.when.to_string();
     let amount_str = format!("{:.2}", marker.amount);
+    // Abgeleitete Anzeige-Tage (Backend: amount / hours_per_day am when-Datum),
+    // konsistent zu AbsenceListRow. Die rohen Stunden bleiben in Klammern als
+    // Transparenz über die Legacy-Quelle erhalten (Entscheidung: Tage + Stunden).
+    let derived_days = marker.derived_days;
+    let days_label = format_decimal(derived_days);
+    let days_unit = if (derived_days - 1.0).abs() < f32::EPSILON {
+        i18n.t(Key::AbsenceDayUnit)
+    } else {
+        i18n.t(Key::AbsenceDaysUnit)
+    };
     let person_name = marker.person_name.as_ref();
     let description = marker.description.as_ref();
 
@@ -1696,11 +1738,11 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
                     }
                 }
             }
-            // Spalte 2: Datum + Stunden
+            // Spalte 2: Datum + abgeleitete Tage (rohe Stunden in Klammern)
             div { class: "text-body text-ink font-mono flex flex-col gap-0.5",
                 span { "{when_str}" }
                 span { class: "text-small text-ink-muted",
-                    "{amount_str} {amount_label}"
+                    "{days_label} {days_unit} ({amount_str} {amount_label})"
                 }
             }
             // Spalte 3: Kategorie-Badge + „stundenbasiert"-Badge
@@ -2139,6 +2181,13 @@ pub fn AbsencesPage() -> Element {
                 vacation_team: vacation_team.clone(),
                 sales_persons: sales_persons.read().clone(),
                 selected_person: person_filter_val,
+                // TODO 260614: Doppelklick auf eine Person in der Per-Person-Liste
+                // setzt den Personen-Filter; erneuter Doppelklick auf die bereits
+                // gewählte Person hebt ihn wieder auf (Toggle).
+                on_person_select: move |uuid: Uuid| {
+                    let next = toggle_person_filter(*person_filter.read(), uuid);
+                    person_filter.set(next);
+                },
             }
             StatsGrid {
                 absences: visible_absences_rc.clone(),
@@ -2666,6 +2715,7 @@ mod tests {
             category: ExtraHoursCategoryTO::Vacation,
             description: Arc::<str>::from("Jahresurlaub"),
             person_name: Arc::<str>::from("Max Mustermann"),
+            derived_days: 1.0_f32,
         }
     }
 
@@ -2695,6 +2745,16 @@ mod tests {
         assert!(
             html.contains("Std."),
             "HourlyMarkerRow muss den Stunden-Suffix rendern: {html}"
+        );
+        // TODO 260614: 8h-Marker bei derived_days=1.0 ⇒ „1 Tag" wird angezeigt,
+        // die rohen Stunden bleiben in Klammern erhalten (Tage + Stunden).
+        assert!(
+            html.contains("1 Tag"),
+            "HourlyMarkerRow muss die abgeleiteten Tage rendern: {html}"
+        );
+        assert!(
+            html.contains("(8.00"),
+            "HourlyMarkerRow muss die rohen Stunden in Klammern zeigen: {html}"
         );
     }
 
@@ -2779,6 +2839,7 @@ mod tests {
             category,
             description: std::sync::Arc::<str>::from(""),
             person_name: std::sync::Arc::<str>::from(""),
+            derived_days: 1.0_f32,
         }
     }
 
@@ -3350,6 +3411,52 @@ mod tests {
              If this fails, the refetch effect likely reads ABSENCE_REFRESH \
              OUTSIDE its closure again (regression of \
              convert-absence-name-and-refresh)."
+        );
+    }
+
+    // ── toggle_person_filter — pure function tests (TODO 260614) ───────────
+
+    #[test]
+    fn toggle_sets_filter_when_none_active() {
+        let id = Uuid::from_u128(1);
+        assert_eq!(toggle_person_filter(None, id), Some(id));
+    }
+
+    #[test]
+    fn toggle_switches_to_other_person() {
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        // Doppelklick auf eine ANDERE Person wechselt den Filter (kein Aufheben).
+        assert_eq!(toggle_person_filter(Some(a), b), Some(b));
+    }
+
+    #[test]
+    fn toggle_clears_filter_when_clicking_active_person() {
+        let id = Uuid::from_u128(1);
+        // Doppelklick auf die bereits aktive Person hebt den Filter auf (Toggle).
+        assert_eq!(toggle_person_filter(Some(id), id), None);
+    }
+
+    // ── VacationPerPersonList — Doppelklick-Affordance (TODO 260614) ───────
+
+    /// Die Personen-Karten müssen als klickbar erkennbar sein (`cursor-pointer`),
+    /// damit der Doppelklick-Filter auffindbar ist.
+    #[test]
+    fn person_vacation_card_renders_clickable_affordance() {
+        fn app() -> Element {
+            pin_de_locale();
+            let id = Uuid::from_u128(1);
+            let sp = SalesPerson { id, is_paid: true, inactive: false, ..Default::default() };
+            let rows: Rc<[VacationBalance]> = Rc::from(vec![make_vacation_balance(id, 10.0)]);
+            let sales_persons: Rc<[SalesPerson]> = Rc::from(vec![sp]);
+            rsx! {
+                VacationPerPersonList { rows, sales_persons }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("cursor-pointer"),
+            "PersonVacationCard muss als klickbar (cursor-pointer) gerendert werden: {html}"
         );
     }
 }

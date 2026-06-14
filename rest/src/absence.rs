@@ -39,6 +39,9 @@ use crate::{error_handler, Context, RestStateDef};
 
 /// Konvertiert eine lebende ExtraHours-Row zu einem ExtraHoursMarkerTO.
 /// Kein Range-Raten (D-07) — `when` traegt raw `date_time.date()`.
+/// `derived_days` wird mit 0.0 vorbelegt und vom List-Handler nachträglich über
+/// `AbsenceService::derive_days_for_hourly_markers` befüllt (Single Source of
+/// Truth, analog zu `AbsencePeriodTO.derived_days`).
 fn map_to_marker(
     eh: &service::extra_hours::ExtraHours,
     person_name: std::sync::Arc<str>,
@@ -51,6 +54,7 @@ fn map_to_marker(
         category: (&eh.category).into(),
         description: eh.description.clone(),
         person_name,
+        derived_days: 0.0,
     }
 }
 
@@ -249,11 +253,28 @@ pub async fn get_all_absence_periods<RestState: RestStateDef>(
                         None,
                     )
                     .await?;
-                for eh in raw.iter() {
-                    if is_absence_category(&eh.category) {
-                        hourly_markers.push(map_to_marker(eh, person.name.clone()));
-                    }
+                let mut person_markers: Vec<ExtraHoursMarkerTO> = raw
+                    .iter()
+                    .filter(|eh| is_absence_category(&eh.category))
+                    .map(|eh| map_to_marker(eh, person.name.clone()))
+                    .collect();
+                if person_markers.is_empty() {
+                    continue;
                 }
+                // Pro Marker die abgeleiteten Anzeige-Tage (amount / hours_per_day
+                // am when-Datum) anreichern. Single Source of Truth:
+                // derive_days_for_hourly_markers — keine Logik-Duplizierung.
+                let pairs: Vec<(time::Date, f32)> = person_markers
+                    .iter()
+                    .map(|m| (m.when, m.amount))
+                    .collect();
+                let marker_days = svc
+                    .derive_days_for_hourly_markers(person.id, &pairs, context.clone().into(), None)
+                    .await?;
+                for (marker, days) in person_markers.iter_mut().zip(marker_days.iter()) {
+                    marker.derived_days = *days;
+                }
+                hourly_markers.append(&mut person_markers);
             }
 
             let result = AbsenceListWithProjectionTO {
@@ -423,11 +444,30 @@ pub async fn get_absence_periods_for_sales_person<RestState: RestStateDef>(
                     None,
                 )
                 .await?;
-            let hourly_markers: Vec<ExtraHoursMarkerTO> = raw
+            let mut hourly_markers: Vec<ExtraHoursMarkerTO> = raw
                 .iter()
                 .filter(|eh| is_absence_category(&eh.category))
                 .map(|eh| map_to_marker(eh, person.name.clone()))
                 .collect();
+            // Pro Marker die abgeleiteten Anzeige-Tage anreichern (Single Source
+            // of Truth: derive_days_for_hourly_markers).
+            if !hourly_markers.is_empty() {
+                let pairs: Vec<(time::Date, f32)> = hourly_markers
+                    .iter()
+                    .map(|m| (m.when, m.amount))
+                    .collect();
+                let marker_days = svc
+                    .derive_days_for_hourly_markers(
+                        sales_person_id,
+                        &pairs,
+                        context.clone().into(),
+                        None,
+                    )
+                    .await?;
+                for (marker, days) in hourly_markers.iter_mut().zip(marker_days.iter()) {
+                    marker.derived_days = *days;
+                }
+            }
 
             let result = AbsenceListWithProjectionTO {
                 absence_periods,

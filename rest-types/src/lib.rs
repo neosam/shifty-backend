@@ -1729,6 +1729,14 @@ pub struct ExtraHoursMarkerTO {
     pub description: Arc<str>,
     #[serde(default)]
     pub person_name: Arc<str>,
+    /// Read-only Anzeige-Feld: die aus `amount` (Stunden) abgeleiteten
+    /// Anzeige-Tage am `when`-Datum = `amount / hours_per_day` des dort aktiven
+    /// Arbeitsvertrags (`expected_hours / workdays_per_week`). Vom List-Endpoint
+    /// befüllt — Single Source of Truth ist
+    /// `AbsenceService::derive_days_for_hourly_markers`. Kein aktiver Vertrag /
+    /// `hours_per_day <= 0` ⇒ 0.0. Auf Wire-Roundtrips Default 0.0.
+    #[serde(default)]
+    pub derived_days: f32,
 }
 
 /// Plan 04 Read-Projektion: Kombinierte HR-Übersicht mit absence_periods

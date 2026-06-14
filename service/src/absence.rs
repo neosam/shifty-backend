@@ -256,6 +256,26 @@ pub trait AbsenceService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<BTreeMap<Date, ResolvedAbsence>, ServiceError>;
+
+    /// Rechnet stundenbasierte Legacy-`extra_hours`-Marker in Anzeige-Tage um.
+    /// Pro `(when, hours)` gilt `days = hours / hours_per_day` des am `when`
+    /// AKTIVEN Arbeitsvertrags (`expected_hours / workdays_per_week`). Anders
+    /// als [`Self::derive_hours_for_range`] gibt es KEINE Wochen-Deckelung —
+    /// Marker sind bereits konkret eingetragene Stundenposten, keine Ranges.
+    /// Kein aktiver Vertrag am `when` oder `hours_per_day <= 0` ⇒ 0.0.
+    /// Das Ergebnis ist index-aligned zu `markers`.
+    ///
+    /// Single Source of Truth für die Stunden→Tage-Umrechnung ist damit der
+    /// Service (gleiche Vertrags-Selektion wie `derive_hours_for_range`); der
+    /// REST- und Frontend-Layer dupliziert keine Vertrags-/Tagesstunden-Logik.
+    /// Permission: HR ∨ self (gleiche Regel wie [`Self::find_by_sales_person`]).
+    async fn derive_days_for_hourly_markers(
+        &self,
+        sales_person_id: Uuid,
+        markers: &[(Date, f32)],
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Vec<f32>, ServiceError>;
 }
 
 #[cfg(test)]

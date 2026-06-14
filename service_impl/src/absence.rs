@@ -584,6 +584,84 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
         self.transaction_dao.commit(tx).await?;
         Ok(result)
     }
+
+    async fn derive_days_for_hourly_markers(
+        &self,
+        sales_person_id: Uuid,
+        markers: &[(Date, f32)],
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Vec<f32>, ServiceError> {
+        // Leere Eingabe → kein DAO-Roundtrip, aber index-aligned leeres Ergebnis.
+        if markers.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Permission: HR ∨ self (analog derive_hours_for_range / find_by_sales_person).
+        let (hr, sp) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
+        );
+        hr.or(sp)?;
+
+        // Batch-Fetch aller Verträge; pro Marker den am `when`-Datum aktiven
+        // Vertrag wählen (gleiche from_date()/to_date()-Selektion wie in
+        // derive_hours_for_range). KEINE Wochen-Deckelung — ein Stundenposten
+        // ist bereits konkret, er wird schlicht über hours_per_day in Tage
+        // umgerechnet.
+        let work_details = self
+            .employee_work_details_service
+            .find_by_sales_person_id(sales_person_id, context.clone(), Some(tx.clone()))
+            .await?;
+
+        let result: Vec<f32> = markers
+            .iter()
+            .map(|(when, hours)| {
+                let active_contract = work_details.iter().find(|wh| {
+                    if wh.deleted.is_some() {
+                        return false;
+                    }
+                    let from_date = match wh.from_date() {
+                        Ok(d) => d.to_date(),
+                        Err(_) => return false,
+                    };
+                    let to_date = match wh.to_date() {
+                        Ok(d) => d.to_date(),
+                        Err(_) => return false,
+                    };
+                    from_date <= *when && *when <= to_date
+                });
+                match active_contract {
+                    Some(c) => days_from_hours(*hours, c.hours_per_day()),
+                    None => 0.0,
+                }
+            })
+            .collect();
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(result)
+    }
+}
+
+/// Reine Umrechnung eines Stundenpostens in Anzeige-Tage: `hours / hours_per_day`.
+/// `hours_per_day <= 0` (kein/fehlerhafter Vertrag) ⇒ 0.0 (keine Division durch
+/// Null, kein NaN/Inf in der UI). Single Source of Truth für die Marker-Tage.
+fn days_from_hours(hours: f32, hours_per_day: f32) -> f32 {
+    // `hours_per_day = expected_hours / workdays_per_week` kann bei
+    // workdays_per_week == 0 zu Inf/NaN werden — diese (und <= 0) defensiv
+    // auf 0.0 abbilden, damit nie NaN/Inf in die UI gelangt.
+    if hours_per_day.is_finite() && hours_per_day > 0.0 {
+        hours / hours_per_day
+    } else {
+        0.0
+    }
 }
 
 // =========================================================================
@@ -692,5 +770,54 @@ impl<Deps: AbsenceServiceDeps> AbsenceServiceImpl<Deps> {
         }
 
         Ok(Arc::from(warnings))
+    }
+}
+
+#[cfg(test)]
+mod days_from_hours_tests {
+    //! Tests für `days_from_hours` — die reine Stunden→Tage-Umrechnung für
+    //! Legacy-`extra_hours`-Marker. Single Source of Truth für die in der
+    //! Abwesenheits-Übersicht angezeigten Marker-Tage (TODO 260614).
+
+    use super::days_from_hours;
+
+    #[test]
+    fn full_day_yields_one() {
+        // 8h Posten bei 8h/Tag-Vertrag = 1 Tag.
+        assert_eq!(days_from_hours(8.0, 8.0), 1.0);
+    }
+
+    #[test]
+    fn half_day_yields_half() {
+        // 4h bei 8h/Tag = 0.5 Tage (Heiligabend/Silvester-Pattern).
+        assert_eq!(days_from_hours(4.0, 8.0), 0.5);
+    }
+
+    #[test]
+    fn part_time_contract_scales_days() {
+        // 6h Posten bei 6h/Tag (Teilzeit) = 1 Tag, nicht 0.75.
+        assert_eq!(days_from_hours(6.0, 6.0), 1.0);
+        // 3h bei 6h/Tag = 0.5 Tage.
+        assert_eq!(days_from_hours(3.0, 6.0), 0.5);
+    }
+
+    #[test]
+    fn zero_hours_per_day_yields_zero_not_nan() {
+        // Kein aktiver/gültiger Vertrag (hours_per_day == 0) ⇒ 0.0, kein NaN.
+        let d = days_from_hours(8.0, 0.0);
+        assert_eq!(d, 0.0);
+        assert!(d.is_finite());
+    }
+
+    #[test]
+    fn non_finite_hours_per_day_yields_zero() {
+        // workdays_per_week == 0 ⇒ hours_per_day Inf/NaN ⇒ defensiv 0.0.
+        assert_eq!(days_from_hours(8.0, f32::INFINITY), 0.0);
+        assert_eq!(days_from_hours(8.0, f32::NAN), 0.0);
+    }
+
+    #[test]
+    fn zero_hours_marker_yields_zero_days() {
+        assert_eq!(days_from_hours(0.0, 8.0), 0.0);
     }
 }
