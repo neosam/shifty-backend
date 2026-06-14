@@ -30,7 +30,7 @@ progress:
 Phase: 09 (booking-flow-reverse-warnings-copy-week) — COMPLETE (UAT-Checkpoint ausstehend)
 Plan: 2 of 2
 Status: Phase 09 Plans 01 + 02 abgeschlossen; UAT-Checkpoint für Live-Dialog-Verifikation ausstehend
-Last activity: 2026-06-13 -- Quick-Task 260613-jxe: Absence-Page inaktive Sales Persons aus Per-Person-Liste gefiltert (selectable_balances, paid && active) + Jahres-Navigation (◀ Jahr ▶, ein Jahr pro Ansicht); 5 neue Tests + 2 i18n-Keys (3 Locales), Suite 594 grün, WASM-Build grün
+Last activity: 2026-06-13 -- Quick-Task 260613-qvg: Self-Overlap-Fehlerbanner substituiert jetzt die i18n-Platzhalter ({category}/{from}/{to}) via t_m statt das rohe Template anzuzeigen; 1 Regressionstest (3 Locales), Suite 596 grün, WASM-Build grün
 
 ## Shipped Milestones
 
@@ -154,6 +154,7 @@ Last activity: 2026-06-13 -- Quick-Task 260613-jxe: Absence-Page inaktive Sales 
 
 | 260612-svs | Absence-Page: Krankheitstage vorerst ausgeblendet — nur Urlaub + Unbezahlt sichtbar (Liste, Marker, Stats, Modal, Filter); zentrale Konstante SICK_LEAVE_ENABLED (frontend) | 2026-06-12 | committed via jj (vqrqxwsm feat, qwylsork docs); 6 neue Tests, Suite 589 grün, WASM-Check grün | [260612-svs-im-frontend-absences-seite-f-rs-erste-au](./quick/260612-svs-im-frontend-absences-seite-f-rs-erste-au/) |
 | 260613-jxe | Absence-Page: inaktive Sales Persons aus Per-Person-Liste filtern (selectable_balances, paid && active) + Jahres-Navigation (◀ Jahr ▶, ein Jahr pro Ansicht, Default = aktuelles Jahr) (frontend) | 2026-06-13 | committed via jj (0eba6e50 + 8c1fcb26 feat, docs folgt); selectable_balances + 5 Tests, 2 i18n-Keys (3 Locales), Suite 594 grün, WASM-Build grün | [260613-jxe-abwesenheitsseite-inaktive-sales-persons](./quick/260613-jxe-abwesenheitsseite-inaktive-sales-persons/) |
+| 260613-qvg | Self-Overlap-Fehlerbanner (AbsenceModal) substituiert i18n-Platzhalter via `t_m` statt rohes Template auszugeben — category lokalisiert, from/to via `format_date` (frontend) | 2026-06-13 | uncommitted (user commits via jj); SelfOverlapBannerProps erweitert + Call-Site, 1 Regressionstest (3 Locales), Suite 596 grün, WASM-Build grün | [260613-qvg-fix-self-overlap-absence-banner-i18n-pla](./quick/260613-qvg-fix-self-overlap-absence-banner-i18n-pla/) |
 ### Phase-Verzeichnis-Cleanup (optional)
 
 `.planning/phases/01-04` (v1.0), `.planning/phases/05` (v1.1), `.planning/phases/06-07` (v1.2) liegen alle noch im aktiven `phases/`-Verzeichnis. `gsd-sdk milestone.complete` hat sie nicht automatisch in `milestones/v1.X-phases/` verschoben (`archived.phases: false`). Bei Bedarf manuell via `/gsd-cleanup` oder `mkdir milestones/v1.X-phases && mv phases/...` archivieren.
