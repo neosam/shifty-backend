@@ -173,19 +173,45 @@ fn map_marker_category(c: &rest_types::ExtraHoursCategoryTO) -> Option<AbsenceCa
     }
 }
 
+/// Pure function — does a range-based absence belong to `year`?
+///
+/// A period belongs to the selected year if it *touches* that year, i.e. its
+/// start OR end falls in it. This mirrors the `in_year` semantics already used
+/// by [`stats_for_person`] so the list, the stat boxes, and the counter all
+/// agree on which entries belong to the year. A multi-year-spanning period
+/// (rare for absences) therefore shows up under both years it overlaps.
+pub fn range_in_year(from: time::Date, to: time::Date, year: u32) -> bool {
+    from.year() == year as i32 || to.year() == year as i32
+}
+
+/// Pure function — does a single-day hourly marker belong to `year`?
+///
+/// Legacy hours-based `extra_hours` markers carry a single date (`when`); they
+/// belong to the year that date falls in. Without this gate, markers from every
+/// year leaked into the year-scoped overview (#absence-list-year-filter).
+pub fn marker_in_year(when: time::Date, year: u32) -> bool {
+    when.year() == year as i32
+}
+
 /// Pure filter predicate for `ExtraHoursMarker` entries.
 ///
 /// Analogous to the inline `Range-Absence` filter closure in `AbsencesPage`,
 /// but operates on a single-day marker. `today` is injected so unit tests can
-/// pin it without calling into JS.
+/// pin it without calling into JS. `year` scopes the marker to the selected
+/// year — markers whose `when` falls in a different year are excluded
+/// (#absence-list-year-filter).
 fn marker_matches_filters(
     marker: &ExtraHoursMarker,
     category_filter: Option<AbsenceCategory>,
     person_filter: Option<Uuid>,
     status_filter: Option<AbsenceStatus>,
     show_past: bool,
+    year: u32,
     today: time::Date,
 ) -> bool {
+    if !marker_in_year(marker.when, year) {
+        return false;
+    }
     if let Some(cat) = category_filter {
         match map_marker_category(&marker.category) {
             Some(marker_cat) => {
@@ -1901,6 +1927,11 @@ pub fn AbsencesPage() -> Element {
     let filtered: Vec<AbsencePeriod> = visible_absences_rc
         .iter()
         .filter(|a| {
+            // Year scope first — entries that don't touch the selected year are
+            // excluded regardless of the other filters (#absence-list-year-filter).
+            if !range_in_year(a.from_date, a.to_date, year) {
+                return false;
+            }
             if let Some(cat) = category_filter_val {
                 if a.category != cat {
                     return false;
@@ -1934,13 +1965,25 @@ pub fn AbsencesPage() -> Element {
                 person_filter_val,
                 status_filter_val,
                 show_past_val,
+                year,
                 today,
             )
         })
         .cloned()
         .collect();
     let filtered_markers_rc: Rc<[ExtraHoursMarker]> = Rc::from(filtered_markers);
-    let total_count = visible_absences_rc.len() + visible_markers.len();
+    // `total_count` is the year-scoped denominator for the "X of Y" counter:
+    // the selected year is a navigation-level scope (like ◀ year ▶), not a
+    // user filter, so entries from other years are excluded from both the
+    // numerator and the denominator (#absence-list-year-filter).
+    let total_count = visible_absences_rc
+        .iter()
+        .filter(|a| range_in_year(a.from_date, a.to_date, year))
+        .count()
+        + visible_markers
+            .iter()
+            .filter(|m| marker_in_year(m.when, year))
+            .count();
     let filtered_count = filtered_rc.len() + filtered_markers_rc.len();
     let filter_active = category_filter_val.is_some()
         || person_filter_val.is_some()
@@ -2746,7 +2789,7 @@ mod tests {
         let sp = Uuid::nil();
         let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
         assert!(
-            marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, today),
+            marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, 2026, today),
             "Vacation marker must pass Vacation filter"
         );
     }
@@ -2758,7 +2801,7 @@ mod tests {
         let sp = Uuid::nil();
         let m = test_marker(ExtraHoursCategoryTO::SickLeave, sp, today);
         assert!(
-            !marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, today),
+            !marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, 2026, today),
             "SickLeave marker must NOT pass Vacation filter"
         );
     }
@@ -2770,7 +2813,7 @@ mod tests {
         let sp = Uuid::nil();
         let m = test_marker(ExtraHoursCategoryTO::ExtraWork, sp, today);
         assert!(
-            !marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, today),
+            !marker_matches_filters(&m, Some(AbsenceCategory::Vacation), None, None, true, 2026, today),
             "ExtraWork (unmappable) must NOT pass Vacation filter"
         );
     }
@@ -2782,7 +2825,7 @@ mod tests {
         let sp = Uuid::nil();
         let m = test_marker(ExtraHoursCategoryTO::ExtraWork, sp, today);
         assert!(
-            marker_matches_filters(&m, None, None, None, true, today),
+            marker_matches_filters(&m, None, None, None, true, 2026, today),
             "ExtraWork marker must pass when no category filter is active"
         );
     }
@@ -2794,7 +2837,7 @@ mod tests {
         let sp = Uuid::from_u128(1);
         let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
         assert!(
-            marker_matches_filters(&m, None, Some(sp), None, true, today),
+            marker_matches_filters(&m, None, Some(sp), None, true, 2026, today),
             "Marker must pass person filter with matching sales_person_id"
         );
     }
@@ -2807,7 +2850,7 @@ mod tests {
         let other_sp = Uuid::from_u128(2);
         let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
         assert!(
-            !marker_matches_filters(&m, None, Some(other_sp), None, true, today),
+            !marker_matches_filters(&m, None, Some(other_sp), None, true, 2026, today),
             "Marker must NOT pass person filter with different sales_person_id"
         );
     }
@@ -2820,11 +2863,11 @@ mod tests {
         // when == today → Active
         let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, today);
         assert!(
-            marker_matches_filters(&m, None, None, Some(AbsenceStatus::Active), true, today),
+            marker_matches_filters(&m, None, None, Some(AbsenceStatus::Active), true, 2026, today),
             "Marker on today must match Active status filter"
         );
         assert!(
-            !marker_matches_filters(&m, None, None, Some(AbsenceStatus::Planned), true, today),
+            !marker_matches_filters(&m, None, None, Some(AbsenceStatus::Planned), true, 2026, today),
             "Marker on today must NOT match Planned status filter"
         );
     }
@@ -2837,13 +2880,78 @@ mod tests {
         let sp = Uuid::nil();
         let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, past);
         assert!(
-            !marker_matches_filters(&m, None, None, None, false, today),
+            !marker_matches_filters(&m, None, None, None, false, 2026, today),
             "Finished marker must be hidden when show_past=false"
         );
         assert!(
-            marker_matches_filters(&m, None, None, None, true, today),
+            marker_matches_filters(&m, None, None, None, true, 2026, today),
             "Finished marker must be visible when show_past=true"
         );
+    }
+
+    // ── Year filter — #absence-list-year-filter ──────────────────────────
+    //
+    // Root-cause regression coverage: legacy hours-based extra_hours markers
+    // (and range absences) from a year OTHER than the selected one must NOT
+    // appear in the year-scoped overview.
+
+    #[test]
+    fn marker_in_year_matches_only_its_year() {
+        assert!(marker_in_year(date!(2025 - 12 - 31), 2025));
+        assert!(marker_in_year(date!(2025 - 01 - 01), 2025));
+        assert!(!marker_in_year(date!(2024 - 12 - 31), 2025));
+        assert!(!marker_in_year(date!(2026 - 01 - 01), 2025));
+    }
+
+    #[test]
+    fn marker_from_other_year_is_filtered_out() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::nil();
+        // A vacation marker from 2024 — passes every other filter but the year.
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, date!(2024 - 06 - 12));
+        assert!(
+            !marker_matches_filters(&m, None, None, None, true, 2026, today),
+            "Marker from 2024 must be excluded when year=2026 (#absence-list-year-filter)"
+        );
+        // The same marker IS visible when its own year is selected.
+        assert!(
+            marker_matches_filters(&m, None, None, None, true, 2024, today),
+            "Marker from 2024 must be visible when year=2024"
+        );
+    }
+
+    #[test]
+    fn marker_year_filter_wins_over_other_passing_filters() {
+        use rest_types::ExtraHoursCategoryTO;
+        let today = date!(2026 - 06 - 12);
+        let sp = Uuid::from_u128(7);
+        // Matches category + person, but is from the wrong year.
+        let m = test_marker(ExtraHoursCategoryTO::Vacation, sp, date!(2023 - 03 - 01));
+        assert!(
+            !marker_matches_filters(
+                &m,
+                Some(AbsenceCategory::Vacation),
+                Some(sp),
+                None,
+                true,
+                2026,
+                today
+            ),
+            "Year mismatch must exclude even when category+person filters match"
+        );
+    }
+
+    #[test]
+    fn range_in_year_touches_either_boundary() {
+        // Fully inside the year.
+        assert!(range_in_year(date!(2025 - 03 - 01), date!(2025 - 03 - 10), 2025));
+        // Starts in the year, ends next year → touches the year.
+        assert!(range_in_year(date!(2025 - 12 - 30), date!(2026 - 01 - 02), 2025));
+        // Ends in the year, starts previous year → touches the year.
+        assert!(range_in_year(date!(2024 - 12 - 30), date!(2025 - 01 - 02), 2025));
+        // Entirely in a different year → excluded.
+        assert!(!range_in_year(date!(2024 - 03 - 01), date!(2024 - 03 - 10), 2025));
     }
 
     // ── VacationEntitlementCard selected_person snapshot tests (260612-o7t Task 2) ──
