@@ -24,6 +24,7 @@ pub struct EmployeeWorkDetailsDb {
     pub workdays_per_week: i64,
     pub is_dynamic: i64,
     pub cap_planned_hours_to_expected: i64,
+    pub committed_voluntary: f64,
 
     pub monday: i64,
     pub tuesday: i64,
@@ -61,6 +62,7 @@ impl TryFrom<&EmployeeWorkDetailsDb> for EmployeeWorkDetailsEntity {
             workdays_per_week: working_hours.workdays_per_week as u8,
             is_dynamic: working_hours.is_dynamic != 0,
             cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected != 0,
+            committed_voluntary: working_hours.committed_voluntary as f32,
 
             monday: working_hours.monday != 0,
             tuesday: working_hours.tuesday != 0,
@@ -117,6 +119,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 workdays_per_week,
                 is_dynamic,
                 cap_planned_hours_to_expected,
+                committed_voluntary,
 
                 monday,
                 tuesday,
@@ -167,6 +170,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 workdays_per_week,
                 is_dynamic,
                 cap_planned_hours_to_expected,
+                committed_voluntary,
 
                 monday,
                 tuesday,
@@ -219,6 +223,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 workdays_per_week,
                 is_dynamic,
                 cap_planned_hours_to_expected,
+                committed_voluntary,
 
                 monday,
                 tuesday,
@@ -273,6 +278,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 workdays_per_week,
                 is_dynamic,
                 cap_planned_hours_to_expected,
+                committed_voluntary,
 
                 monday,
                 tuesday,
@@ -325,6 +331,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let to_year = entity.to_year as i64;
         let is_dynamic = entity.is_dynamic as i64;
         let cap_planned_hours_to_expected = entity.cap_planned_hours_to_expected as i64;
+        let committed_voluntary = entity.committed_voluntary as f64;
         let monday = entity.monday as i64;
         let tuesday = entity.tuesday as i64;
         let wednesday = entity.wednesday as i64;
@@ -351,6 +358,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 workdays_per_week,
                 is_dynamic,
                 cap_planned_hours_to_expected,
+                committed_voluntary,
 
                 monday,
                 tuesday,
@@ -365,7 +373,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 created,
                 update_process,
                 update_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             id,
             sales_person_id,
@@ -379,6 +387,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             workdays_per_week,
             is_dynamic,
             cap_planned_hours_to_expected,
+            committed_voluntary,
             monday,
             tuesday,
             wednesday,
@@ -418,6 +427,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
         let workdays_per_week = entity.workdays_per_week as i64;
         let is_dynamic = entity.is_dynamic as i64;
         let cap_planned_hours_to_expected = entity.cap_planned_hours_to_expected as i64;
+        let committed_voluntary = entity.committed_voluntary as f64;
         query!(
             r#"
             UPDATE employee_work_details SET
@@ -430,7 +440,8 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
                 vacation_days = ?,
                 workdays_per_week = ?,
                 is_dynamic = ?,
-                cap_planned_hours_to_expected = ?
+                cap_planned_hours_to_expected = ?,
+                committed_voluntary = ?
             WHERE
                 id = ?
             "#,
@@ -444,6 +455,7 @@ impl EmployeeWorkDetailsDao for EmployeeWorkDetailsDaoImpl {
             workdays_per_week,
             is_dynamic,
             cap_planned_hours_to_expected,
+            committed_voluntary,
             id
         )
         .execute(tx.tx.lock().await.as_mut())

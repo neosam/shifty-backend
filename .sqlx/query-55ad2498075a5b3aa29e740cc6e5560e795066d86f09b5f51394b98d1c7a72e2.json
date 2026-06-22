@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE employee_work_details SET\n                deleted = ?,\n                update_process = ?,\n                to_year = ?,\n                to_calendar_week = ?,\n                to_day_of_week = ?,\n                expected_hours = ?,\n                vacation_days = ?,\n                workdays_per_week = ?,\n                is_dynamic = ?,\n                cap_planned_hours_to_expected = ?,\n                committed_voluntary = ?\n            WHERE\n                id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "55ad2498075a5b3aa29e740cc6e5560e795066d86f09b5f51394b98d1c7a72e2"
+}

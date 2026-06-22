@@ -20,6 +20,7 @@ pub struct EmployeeWorkDetailsEntity {
     pub workdays_per_week: u8,
     pub is_dynamic: bool,
     pub cap_planned_hours_to_expected: bool,
+    pub committed_voluntary: f32,
 
     pub monday: bool,
     pub tuesday: bool,

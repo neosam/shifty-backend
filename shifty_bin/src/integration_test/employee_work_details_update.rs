@@ -60,6 +60,7 @@ fn ewd_template(sales_person_id: Uuid, expected_hours: f32) -> EmployeeWorkDetai
         workdays_per_week: 5,
         is_dynamic: false,
         cap_planned_hours_to_expected: false,
+        committed_voluntary: 0.0,
         monday: true,
         tuesday: true,
         wednesday: true,

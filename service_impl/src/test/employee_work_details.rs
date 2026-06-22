@@ -52,6 +52,15 @@ impl Deps {
 }
 
 fn entity_with_cap(id: Uuid, version: Uuid, cap: bool) -> EmployeeWorkDetailsEntity {
+    entity_with_cap_and_committed(id, version, cap, 0.0)
+}
+
+fn entity_with_cap_and_committed(
+    id: Uuid,
+    version: Uuid,
+    cap: bool,
+    committed_voluntary: f32,
+) -> EmployeeWorkDetailsEntity {
     EmployeeWorkDetailsEntity {
         id,
         sales_person_id: Uuid::new_v4(),
@@ -65,6 +74,7 @@ fn entity_with_cap(id: Uuid, version: Uuid, cap: bool) -> EmployeeWorkDetailsEnt
         workdays_per_week: 3,
         is_dynamic: false,
         cap_planned_hours_to_expected: cap,
+        committed_voluntary,
         monday: true,
         tuesday: true,
         wednesday: true,
@@ -77,6 +87,71 @@ fn entity_with_cap(id: Uuid, version: Uuid, cap: bool) -> EmployeeWorkDetailsEnt
         deleted: None,
         version,
     }
+}
+
+/// CVC-02: Regression test ensuring service-layer `update()` propagates
+/// `committed_voluntary` to the DAO and does not silently reset it to the
+/// stale loaded value (0.0).
+#[tokio::test]
+async fn update_propagates_committed_voluntary_to_dao() {
+    let id = Uuid::new_v4();
+    let version = Uuid::new_v4();
+    let next_version = Uuid::new_v4();
+
+    let mut dao = MockEmployeeWorkDetailsDao::new();
+    // Existing record has committed_voluntary = 0.0 (stale persisted state).
+    dao.expect_find_by_id()
+        .returning(move |_, _| Ok(Some(entity_with_cap_and_committed(id, version, false, 0.0))));
+    // Crucial assertion: entity passed into update() reflects the NEW value
+    // (2.5), not the stale loaded value (0.0).
+    dao.expect_update()
+        .with(
+            function(|e: &EmployeeWorkDetailsEntity| {
+                (e.committed_voluntary - 2.5).abs() < f32::EPSILON
+            }),
+            always(),
+            always(),
+        )
+        .returning(|_, _, _| Ok(()));
+
+    let mut permission_service = MockPermissionService::new();
+    permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    let mut transaction_dao = MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let mut uuid_service = MockUuidService::new();
+    uuid_service
+        .expect_new_uuid()
+        .returning(move |_| next_version);
+
+    let deps = Deps {
+        employee_work_details_dao: dao,
+        sales_person_service: MockSalesPersonService::new(),
+        permission_service,
+        clock_service: MockClockService::new(),
+        uuid_service,
+        transaction_dao,
+    };
+    let service = deps.build();
+
+    // Input from REST: caller sets committed_voluntary to 2.5.
+    let mut input = EmployeeWorkDetails::from(&entity_with_cap_and_committed(id, version, false, 0.0));
+    input.committed_voluntary = 2.5;
+
+    let result = service.update(&input, ().auth(), None).await;
+    assert!(result.is_ok(), "update failed: {:?}", result.err());
+    let returned = result.unwrap();
+    assert!(
+        (returned.committed_voluntary - 2.5).abs() < f32::EPSILON,
+        "returned entity must reflect the new committed_voluntary value, got {}",
+        returned.committed_voluntary
+    );
 }
 
 /// Regression test for the bug where the service-layer `update()` selectively

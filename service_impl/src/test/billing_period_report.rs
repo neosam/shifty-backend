@@ -123,6 +123,7 @@ fn create_test_work_details(sales_person_id: Uuid, is_dynamic: bool) -> Employee
         workdays_per_week: 5,
         is_dynamic,
         cap_planned_hours_to_expected: false,
+        committed_voluntary: 0.0,
         monday: true,
         tuesday: true,
         wednesday: true,

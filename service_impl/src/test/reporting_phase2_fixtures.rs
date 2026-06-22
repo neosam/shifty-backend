@@ -57,6 +57,7 @@ pub fn fixture_work_details_8h_mon_fri() -> EmployeeWorkDetails {
         workdays_per_week: 5,
         is_dynamic: false,
         cap_planned_hours_to_expected: false,
+        committed_voluntary: 0.0,
         monday: true,
         tuesday: true,
         wednesday: true,

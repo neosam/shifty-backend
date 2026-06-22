@@ -609,6 +609,8 @@ pub struct EmployeeWorkDetailsTO {
     pub is_dynamic: bool,
     #[serde(default)]
     pub cap_planned_hours_to_expected: bool,
+    #[serde(default)]
+    pub committed_voluntary: f32,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -648,6 +650,7 @@ impl From<&service::employee_work_details::EmployeeWorkDetails> for EmployeeWork
             workdays_per_week: working_hours.workdays_per_week,
             is_dynamic: working_hours.is_dynamic,
             cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected,
+            committed_voluntary: working_hours.committed_voluntary,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -686,6 +689,7 @@ impl From<&EmployeeWorkDetailsTO> for service::employee_work_details::EmployeeWo
             workdays_per_week: working_hours.workdays_per_week,
             is_dynamic: working_hours.is_dynamic,
             cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected,
+            committed_voluntary: working_hours.committed_voluntary,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -2165,5 +2169,75 @@ mod day_fraction_dto_tests {
         assert_eq!(json, "\"Half\"");
         let parsed: DayFractionTO = serde_json::from_str("\"Full\"").expect("deserialize Full");
         assert_eq!(parsed, DayFractionTO::Full);
+    }
+}
+
+/// CVC-01: Fraktionaler Round-Trip-Test fuer `committed_voluntary`.
+///
+/// Pinnt die Garantie, dass ein fraktionaler Wert (2.5) die vollstaendige
+/// Konversionskette `EmployeeWorkDetails` -> `EmployeeWorkDetailsTO` ->
+/// `EmployeeWorkDetails` unveraendert ueberlebt (Float-Epsilon-Vergleich).
+///
+/// Dieses Modul ist nur bei aktivem `service-impl`-Feature verfuegbar, da
+/// die `From`-Impls zwischen Service-Struct und TO ebenfalls hinter diesem
+/// Feature-Gate liegen.
+#[cfg(all(test, feature = "service-impl"))]
+mod test_employee_work_details_round_trip {
+    use super::*;
+    use service::employee_work_details::EmployeeWorkDetails;
+    use shifty_utils::DayOfWeek;
+    use uuid::Uuid;
+
+    fn make_service_struct(committed_voluntary: f32) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            expected_hours: 8.0,
+            from_day_of_week: DayOfWeek::Monday,
+            from_calendar_week: 1,
+            from_year: 2026,
+            to_day_of_week: DayOfWeek::Sunday,
+            to_calendar_week: 52,
+            to_year: 2026,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            committed_voluntary,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 20,
+            created: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    /// CVC-01: committed_voluntary = 2.5 ueberlebt den Round-Trip
+    /// EmployeeWorkDetails -> EmployeeWorkDetailsTO -> EmployeeWorkDetails
+    /// unveraendert (Epsilon-Vergleich).
+    #[test]
+    fn committed_voluntary_fractional_survives_service_to_to_roundtrip() {
+        let original = make_service_struct(2.5);
+
+        // Forward: EmployeeWorkDetails -> EmployeeWorkDetailsTO
+        let to = EmployeeWorkDetailsTO::from(&original);
+        assert!(
+            (to.committed_voluntary - 2.5).abs() < f32::EPSILON,
+            "committed_voluntary must be 2.5 in TO (got {})",
+            to.committed_voluntary
+        );
+
+        // Backward: EmployeeWorkDetailsTO -> EmployeeWorkDetails
+        let roundtrip = EmployeeWorkDetails::from(&to);
+        assert!(
+            (roundtrip.committed_voluntary - 2.5).abs() < f32::EPSILON,
+            "committed_voluntary must survive full round-trip unchanged: expected 2.5, got {}",
+            roundtrip.committed_voluntary
+        );
     }
 }

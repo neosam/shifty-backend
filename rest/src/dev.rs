@@ -219,6 +219,7 @@ async fn seed_work_details<RestState: RestStateDef>(
                 workdays_per_week: workdays,
                 is_dynamic: false,
                 cap_planned_hours_to_expected: false,
+                committed_voluntary: 0.0,
                 monday: mon,
                 tuesday: tue,
                 wednesday: wed,

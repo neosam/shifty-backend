@@ -74,6 +74,7 @@ prop_compose! {
             
             is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
             monday: true,
             tuesday: true,
@@ -560,6 +561,7 @@ proptest! {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 workdays_per_week: 6,
                 monday: true,
@@ -689,6 +691,7 @@ proptest! {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 // 31st of December 2005
                 to_year: 2005,
@@ -852,6 +855,7 @@ fn test_vacation_at_end_of_year() {
             to_day_of_week: DayOfWeek::Sunday,
             is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
             workdays_per_week: 5,
             monday: true,
             tuesday: true,
@@ -989,6 +993,7 @@ fn test_multiple_contracts() {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 workdays_per_week: 6,
                 monday: true,
@@ -1021,6 +1026,7 @@ fn test_multiple_contracts() {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 workdays_per_week: 4,
                 monday: false,
@@ -1137,6 +1143,7 @@ fn test_extra_hours_beginning_of_year() {
 
             is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
             workdays_per_week: 6,
             monday: true,
@@ -1247,6 +1254,7 @@ fn test_vacation_entitlement_calculcation() {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 workdays_per_week: 6,
                 monday: true,
@@ -1279,6 +1287,7 @@ fn test_vacation_entitlement_calculcation() {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 workdays_per_week: 6,
                 monday: true,
@@ -1311,6 +1320,7 @@ fn test_vacation_entitlement_calculcation() {
 
                 is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
                 workdays_per_week: 4,
                 monday: false,
@@ -1385,6 +1395,7 @@ fn test_shiftyplan_hours_end_of_year() {
 
             is_dynamic: false,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
 
             workdays_per_week: 6,
             monday: true,

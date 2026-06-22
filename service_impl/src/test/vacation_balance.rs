@@ -101,6 +101,7 @@ fn contract(
         workdays_per_week,
         is_dynamic: false,
         cap_planned_hours_to_expected: false,
+        committed_voluntary: 0.0,
         monday: true,
         tuesday: true,
         wednesday: true,

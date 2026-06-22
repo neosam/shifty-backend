@@ -85,6 +85,29 @@ pub fn find_working_hours_for_calendar_week(
     })
 }
 
+/// CVC-03 / D-OVERLAP-AGG = SUM: Aggregiert `committed_voluntary` über alle
+/// in der ISO-Woche aktiven `EmployeeWorkDetails`-Rows per **SUM**.
+///
+/// Liegen zwei überlappende Rows in derselben Woche (Daten-Anomalie — Versionen
+/// sind normalerweise sequenziell, aber `find_working_hours_for_calendar_week`
+/// kann mehrere Rows liefern), wird deren `committed_voluntary` summiert —
+/// konsistent mit dem `expected_hours`-Präzedenzfall in `reporting.rs` (`.fold`-
+/// Pfad, gleiche Selektion). Das Boolean-`.any()`-Pattern des Cap-Flags
+/// generalisiert nicht auf einen numerischen Wert und wird hier nicht kopiert.
+///
+/// **In Phase 14 existiert kein Produktions-Read-Site für diesen Helper** —
+/// das Feld ist inert. Phase 15 (Reporting-Integration) konsumiert diesen
+/// Helper direkt.
+pub fn committed_voluntary_for_calendar_week(
+    working_hours: &[EmployeeWorkDetails],
+    year: u32,
+    week: u8,
+) -> f32 {
+    find_working_hours_for_calendar_week(working_hours, year, week)
+        .map(|wh| wh.committed_voluntary)
+        .sum()
+}
+
 /// Caps shiftplan hours at expected hours when at least one of the active
 /// `EmployeeWorkDetails` records for the week sets `cap_planned_hours_to_expected`.
 /// Returns `(capped_shiftplan_hours, auto_volunteer_hours)`. When the cap is
@@ -1152,6 +1175,7 @@ mod test_dynamic_vacation_days {
             workdays_per_week: 5,
             is_dynamic,
             cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
             monday: true,
             tuesday: true,
             wednesday: true,
@@ -1458,6 +1482,7 @@ mod test_weekly_planned_hours_cap {
             workdays_per_week: 5,
             is_dynamic: false,
             cap_planned_hours_to_expected: cap,
+            committed_voluntary: 0.0,
             monday: true,
             tuesday: true,
             wednesday: true,
@@ -1673,5 +1698,112 @@ mod test_weekly_planned_hours_cap {
         let (shift, vol) = apply_weekly_cap(true, 3.0, 5.0);
         assert_eq!(shift, 3.0);
         assert_eq!(vol, 0.0);
+    }
+}
+
+/// CVC-03 / D-OVERLAP-AGG = SUM: Tests fuer `committed_voluntary_for_calendar_week`.
+///
+/// Pinnt die SUM-Aggregations-Semantik — zwei ueberlappende aktive Rows in
+/// derselben ISO-Woche werden summiert (5.0 + 5.0 -> 10.0), nicht mit `.any()`
+/// oder einem anderen Bool-Reduktions-Pattern aggregiert.
+#[cfg(test)]
+mod test_committed_voluntary_for_calendar_week {
+    use super::*;
+    use shifty_utils::DayOfWeek;
+    use time::macros::datetime;
+    use uuid::Uuid;
+
+    fn make_work_details_with_committed(
+        committed_voluntary: f32,
+        from_year: u32,
+        from_week: u8,
+        to_year: u32,
+        to_week: u8,
+    ) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            expected_hours: 8.0,
+            from_day_of_week: DayOfWeek::Monday,
+            from_calendar_week: from_week,
+            from_year,
+            to_day_of_week: DayOfWeek::Sunday,
+            to_calendar_week: to_week,
+            to_year,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            committed_voluntary,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 0,
+            created: Some(datetime!(2026-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    /// CVC-03 / D-OVERLAP-AGG = SUM: Zwei ueberlappende aktive Rows in KW 10 /
+    /// 2026 mit je committed_voluntary = 5.0 aggregieren zu 10.0.
+    /// Pinnt explizit, dass NICHT `.any()` (Bool-Anti-Pattern des Cap-Flags)
+    /// sondern `.map().sum()` verwendet wird.
+    #[test]
+    fn committed_voluntary_sum_two_overlapping_rows_in_same_week() {
+        let row_a = make_work_details_with_committed(5.0, 2026, 1, 2026, 52);
+        let row_b = make_work_details_with_committed(5.0, 2026, 1, 2026, 52);
+        let working_hours = vec![row_a, row_b];
+
+        let result = committed_voluntary_for_calendar_week(&working_hours, 2026, 10);
+        assert!(
+            (result - 10.0).abs() < f32::EPSILON,
+            "5.0 + 5.0 must sum to 10.0 (got {})",
+            result
+        );
+    }
+
+    /// CVC-03 Single-Row: eine aktive Row mit committed_voluntary = 5.0 ergibt 5.0.
+    #[test]
+    fn committed_voluntary_sum_single_row() {
+        let row = make_work_details_with_committed(5.0, 2026, 1, 2026, 52);
+        let working_hours = vec![row];
+
+        let result = committed_voluntary_for_calendar_week(&working_hours, 2026, 10);
+        assert!(
+            (result - 5.0).abs() < f32::EPSILON,
+            "single row must yield 5.0 (got {})",
+            result
+        );
+    }
+
+    /// CVC-03 Empty: keine aktive Row in der Woche ergibt 0.0 (leere .sum()).
+    #[test]
+    fn committed_voluntary_sum_no_active_row_in_week_yields_zero() {
+        // Row liegt in KW 1-9, KW 10 ist nicht abgedeckt.
+        let row = make_work_details_with_committed(5.0, 2026, 1, 2026, 9);
+        let working_hours = vec![row];
+
+        let result = committed_voluntary_for_calendar_week(&working_hours, 2026, 10);
+        assert!(
+            result.abs() < f32::EPSILON,
+            "no active row must yield 0.0 (got {})",
+            result
+        );
+    }
+
+    /// CVC-03 Empty-Slice: leeres Slice ergibt 0.0.
+    #[test]
+    fn committed_voluntary_sum_empty_slice_yields_zero() {
+        let working_hours: Vec<EmployeeWorkDetails> = vec![];
+        let result = committed_voluntary_for_calendar_week(&working_hours, 2026, 10);
+        assert!(
+            result.abs() < f32::EPSILON,
+            "empty slice must yield 0.0 (got {})",
+            result
+        );
     }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_day_of_week,\n                from_calendar_week,\n                from_year,\n                to_day_of_week,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                is_dynamic,\n                cap_planned_hours_to_expected,\n\n                monday,\n                tuesday,\n                wednesday,\n                thursday,\n                friday,\n                saturday,\n                sunday,\n\n                vacation_days,\n\n\n\n                created,\n                deleted,\n                update_version\n            FROM\n                employee_work_details\n            WHERE\n                sales_person_id = ?\n                and deleted IS NULL\n            ",
+  "query": "\n            SELECT\n                id,\n                sales_person_id,\n                expected_hours,\n                from_day_of_week,\n                from_calendar_week,\n                from_year,\n                to_day_of_week,\n                to_calendar_week,\n                to_year,\n                workdays_per_week,\n                is_dynamic,\n                cap_planned_hours_to_expected,\n                committed_voluntary,\n\n                monday,\n                tuesday,\n                wednesday,\n                thursday,\n                friday,\n                saturday,\n                sunday,\n\n                vacation_days,\n\n                created,\n                deleted,\n                update_version\n            FROM\n                employee_work_details\n            WHERE\n                id = ?\n                and deleted IS NULL\n            ",
   "describe": {
     "columns": [
       {
@@ -64,58 +64,63 @@
         "type_info": "Integer"
       },
       {
-        "name": "monday",
+        "name": "committed_voluntary",
         "ordinal": 12,
-        "type_info": "Integer"
+        "type_info": "Float"
       },
       {
-        "name": "tuesday",
+        "name": "monday",
         "ordinal": 13,
         "type_info": "Integer"
       },
       {
-        "name": "wednesday",
+        "name": "tuesday",
         "ordinal": 14,
         "type_info": "Integer"
       },
       {
-        "name": "thursday",
+        "name": "wednesday",
         "ordinal": 15,
         "type_info": "Integer"
       },
       {
-        "name": "friday",
+        "name": "thursday",
         "ordinal": 16,
         "type_info": "Integer"
       },
       {
-        "name": "saturday",
+        "name": "friday",
         "ordinal": 17,
         "type_info": "Integer"
       },
       {
-        "name": "sunday",
+        "name": "saturday",
         "ordinal": 18,
         "type_info": "Integer"
       },
       {
-        "name": "vacation_days",
+        "name": "sunday",
         "ordinal": 19,
         "type_info": "Integer"
       },
       {
-        "name": "created",
+        "name": "vacation_days",
         "ordinal": 20,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "deleted",
+        "name": "created",
         "ordinal": 21,
         "type_info": "Text"
       },
       {
-        "name": "update_version",
+        "name": "deleted",
         "ordinal": 22,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 23,
         "type_info": "Blob"
       }
     ],
@@ -144,9 +149,10 @@
       false,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "c060716c0858bfda698812b41989d39f6f373add428e7f8341e1b6ef9351e427"
+  "hash": "e77390151cb6fa38712be6722124f6133c5b753bac8ae151547c75ed9872d3e2"
 }

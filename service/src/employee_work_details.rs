@@ -24,6 +24,7 @@ pub struct EmployeeWorkDetails {
     pub workdays_per_week: u8,
     pub is_dynamic: bool,
     pub cap_planned_hours_to_expected: bool,
+    pub committed_voluntary: f32,
 
     pub monday: bool,
     pub tuesday: bool,
@@ -54,6 +55,7 @@ impl From<&dao::employee_work_details::EmployeeWorkDetailsEntity> for EmployeeWo
             workdays_per_week: working_hours.workdays_per_week,
             is_dynamic: working_hours.is_dynamic,
             cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected,
+            committed_voluntary: working_hours.committed_voluntary,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
@@ -205,6 +207,7 @@ impl TryFrom<&EmployeeWorkDetails> for dao::employee_work_details::EmployeeWorkD
             workdays_per_week: working_hours.workdays_per_week,
             is_dynamic: working_hours.is_dynamic,
             cap_planned_hours_to_expected: working_hours.cap_planned_hours_to_expected,
+            committed_voluntary: working_hours.committed_voluntary,
 
             monday: working_hours.monday,
             tuesday: working_hours.tuesday,
