@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 09 (booking-flow-reverse-warnings-copy-week) — COMPLETE (UAT-Checkpoint ausstehend)
-Plan: 2 of 2
-Status: Phase 09 Plans 01 + 02 abgeschlossen; UAT-Checkpoint für Live-Dialog-Verifikation ausstehend
-Last activity: 2026-06-14 -- Quick-Task 260614-a26: Urlaubsanspruch (entitled_days) wird im Vacation-Balance-Pfad jetzt auf eine ganze Zahl gerundet (analog Reporting `.round()`); behebt seltsame Nachkommastelle bei unterjährigem Vertrag. 1 Regressionstest, service_impl 410 grün, Workspace-Build grün
+Phase: 10 (shiftplan-view-unavailability-marker) — CONTEXT gathered (ready for planning)
+Plan: none yet
+Status: Phase 10 CONTEXT.md erstellt (12 Decisions, D-01..D-12, inkl. DSGVO-Revision). Nächster Schritt: ROADMAP Phase-10 SC 2/3 an D-12 angleichen, dann `/gsd:plan-phase 10`. Phase 09 bleibt COMPLETE (UAT-Checkpoint ausstehend).
+Last activity: 2026-06-19 -- Phase 10 discuss-phase abgeschlossen + DSGVO-Revision: 10-CONTEXT.md + 10-DISCUSSION-LOG.md. Kern-Decisions: per-sales-person-Endpoint via Umbau von load_unavailable_sales_person_days_for_week (D-01); Chip im Tag-Spalten-Header, Spalte bleibt neutral bad-soft (D-04/D-05); Aufräum-Button deferred (D-10). DSGVO Art. 9 (D-12, governing): Marker zeigt KEINEN Grund/keine Kategorie — ein neutraler "nicht verfügbar"-Chip identisch für AbsencePeriod/ManualUnavailable/Both (revidiert D-07/D-08/D-11); überschreibt ROADMAP SC 2/3. Reine Frontend-Phase (Backend-Endpoint + DTOs existieren bereits)
 
 ## Shipped Milestones
 
