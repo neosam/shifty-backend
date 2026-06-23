@@ -1,4 +1,5 @@
 use crate::gen_service_impl;
+use crate::reporting::find_working_hours_for_calendar_week;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,6 +25,46 @@ use service::{
 use shifty_utils::DayOfWeek;
 use tokio::join;
 use uuid::Uuid;
+
+/// D-05 / CVC-04: Band 2 per-person surplus = max(actual − committed, 0).
+/// `committed` is the person's OWN cap-gated committed_voluntary for the week
+/// (0.0 for cap=false rows — gated at the call site, CVC-06). `committed = 0`
+/// ⇒ returns `actual` unchanged ⇒ Band 2 bit-identical to pre-v1.4.
+/// NEVER subtract aggregate-from-aggregate — the max is nonlinear, so this MUST
+/// be applied per person before summing (person-set overlap is real, D-05).
+pub(crate) fn volunteer_surplus_above_committed(actual: f32, committed: f32) -> f32 {
+    (actual - committed).max(0.0)
+}
+
+/// Band 2 aggregate (D-05 / CVC-04): sum max(weekly_actual_p − committed_p, 0) PER PERSON.
+///
+/// The per-person weekly actual MUST be summed across the per-day shiftplan-report rows BEFORE
+/// the nonlinear max — `extract_shiftplan_report_for_week` returns one row per (person, day)
+/// because the DAO query groups by `sales_person_id, year, day_of_week`. Subtracting committed
+/// per-day instead of per-week under-counts the surplus (CR-01 BLOCKER):
+///
+/// Example: committed=5, Mon 3h + Tue 4h (weekly actual=7).
+/// - Correct (per-week): max(7 − 5, 0) = 2.0
+/// - Buggy (per-day):    max(3 − 5, 0) + max(4 − 5, 0) = 0 + 0 = 0.0  ← CR-01
+///
+/// `per_day_actuals`: iterator of `(sales_person_id, hours)` for each per-day report row.
+/// `committed_for_person`: closure returning the cap-gated weekly committed for a given person.
+pub(crate) fn volunteer_surplus_band2(
+    per_day_actuals: impl IntoIterator<Item = (uuid::Uuid, f32)>,
+    committed_for_person: impl Fn(uuid::Uuid) -> f32,
+) -> f32 {
+    use std::collections::HashMap;
+    let mut weekly: HashMap<uuid::Uuid, f32> = HashMap::new();
+    for (person, hours) in per_day_actuals {
+        *weekly.entry(person).or_insert(0.0) += hours;
+    }
+    weekly
+        .into_iter()
+        .map(|(person, actual)| {
+            volunteer_surplus_above_committed(actual, committed_for_person(person))
+        })
+        .sum()
+}
 
 gen_service_impl! {
     struct BookingInformationServiceImpl: BookingInformationService = BookingInformationServiceDeps {
@@ -123,6 +164,11 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .filter(|sales_person| !sales_person.is_paid.unwrap_or(false))
             .map(|sales_person| sales_person.id)
             .collect();
+        // Pitfall 4: load work-details ONCE before the per-week loop (not N times)
+        let all_work_details = self
+            .employee_work_details_service
+            .all(Authentication::Full, tx.clone().into())
+            .await?;
         for week in 1..=(weeks_in_year + 3) {
             let (year, week) = if week > weeks_in_year {
                 (year + 1, week - weeks_in_year)
@@ -138,7 +184,14 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 .special_day_service
                 .get_by_week(year, week, Authentication::Full)
                 .await?;
-            let volunteer_hours = self
+            // Band 2 (D-05 / CVC-04 / CR-01 fix): per-person surplus = Σ max(actual_p − committed_p, 0).
+            // CRITICAL: `extract_shiftplan_report_for_week` returns ONE ROW PER (person, day) because
+            // the DAO query groups by `sales_person_id, year, day_of_week`. We MUST aggregate
+            // per-person weekly actuals BEFORE applying the nonlinear max (CR-01 blocker):
+            //   Buggy per-day form: max(3−5,0) + max(4−5,0) = 0 when actual=7, committed=5.
+            //   Correct per-week:   max(7−5, 0) = 2.
+            // volunteer_surplus_band2 accumulates per-day rows into per-person weekly totals first.
+            let shiftplan_reports = self
                 .shiftplan_report_service
                 .extract_shiftplan_report_for_week(
                     year,
@@ -146,11 +199,31 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     Authentication::Full,
                     tx.clone().into(),
                 )
-                .await?
+                .await?;
+            let per_day_actuals = shiftplan_reports
                 .iter()
                 .filter(|report| volunteer_ids.contains(&report.sales_person_id))
-                .map(|report| report.hours)
-                .sum::<f32>();
+                .map(|report| (report.sales_person_id, report.hours));
+            let volunteer_hours = volunteer_surplus_band2(per_day_actuals, |sp_id| {
+                // Per-person cap-gated weekly committed (CVC-06): sum over the person's active rows.
+                find_working_hours_for_calendar_week(&all_work_details, year, week)
+                    .filter(|wh| {
+                        wh.sales_person_id == sp_id
+                            && wh.cap_planned_hours_to_expected // CVC-06 per row
+                    })
+                    .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
+                    .sum()
+            });
+            // Band 1 (D-04 / CVC-04): cap-gated Σ_person committed per week (flat, no weight D-03).
+            // Explicit per-row cap filter (Pitfall 5 / CVC-06): non-capped rows contribute 0.
+            let committed_voluntary_hours: f32 = find_working_hours_for_calendar_week(
+                &all_work_details,
+                year,
+                week,
+            )
+            .filter(|wh| wh.cap_planned_hours_to_expected) // CVC-06 gate, per row
+            .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
+            .sum();
             let slots: Arc<[Slot]> = self
                 .slot_service
                 .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
@@ -194,6 +267,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     });
                 }
             }
+            // overall_available_hours stays volunteer_hours + paid_hours (Pitfall 2 — Phase 16 wires display).
+            // NOTE: volunteer_hours is now the per-person surplus (Band 2); the pledge (Band 1) lives
+            // in committed_voluntary_hours separately. Phase 16 will sum both bands for display.
             let overall_available_hours = volunteer_hours + paid_hours;
             weekly_report.push(WeeklySummary {
                 year,
@@ -201,6 +277,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 overall_available_hours,
                 paid_hours,
                 volunteer_hours,
+                committed_voluntary_hours,
                 working_hours_per_sales_person: working_hours_per_sales_person.into(),
                 required_hours: slot_hours,
                 monday_available_hours: 0.0,
@@ -464,6 +541,10 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             overall_available_hours,
             paid_hours,
             volunteer_hours,
+            // Phase 15: Band 1 is year-view-only (D-04); single-week variant keeps inert 0.0
+            // placeholder (see 15-01-SUMMARY.md). volunteer_hours is left at full actual (no
+            // per-person surplus reduction) because this variant feeds a per-day consumer.
+            committed_voluntary_hours: 0.0,
             working_hours_per_sales_person: working_hours_per_sales_person.into(),
             required_hours: slot_hours,
 
@@ -478,5 +559,62 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
 
         self.transaction_dao.commit(tx).await?;
         Ok(summary)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use service::booking_information::WeeklySummary;
+
+    // --- volunteer_surplus_above_committed helper tests (Task 1, t1-t3) ---
+
+    #[test]
+    fn surplus_over_fulfilled() {
+        // t1: committed=5, actual=7 → surplus = max(7-5, 0) = 2
+        let result = volunteer_surplus_above_committed(7.0, 5.0);
+        assert!((result - 2.0).abs() < 0.001, "expected 2.0, got {result}");
+    }
+
+    #[test]
+    fn surplus_pledge_covers() {
+        // t2: committed=5, actual=3 → surplus = max(3-5, 0) = 0 (floor)
+        let result = volunteer_surplus_above_committed(3.0, 5.0);
+        assert!((result - 0.0).abs() < 0.001, "expected 0.0, got {result}");
+    }
+
+    #[test]
+    fn surplus_committed_zero_backward_compat() {
+        // t3: committed=0, actual=7 → surplus = max(7-0, 0) = 7 (no-op, identical to pre-v1.4)
+        let result = volunteer_surplus_above_committed(7.0, 0.0);
+        assert!((result - 7.0).abs() < 0.001, "expected 7.0, got {result}");
+    }
+
+    #[test]
+    fn weekly_summary_constructs_with_committed_field() {
+        // t4: WeeklySummary with committed_voluntary_hours: 0.0 constructs, Clone/Debug/PartialEq work
+        let summary = WeeklySummary {
+            year: 2026,
+            week: 1,
+            overall_available_hours: 40.0,
+            required_hours: 35.0,
+            paid_hours: 40.0,
+            volunteer_hours: 5.0,
+            committed_voluntary_hours: 0.0,
+            monday_available_hours: 8.0,
+            tuesday_available_hours: 8.0,
+            wednesday_available_hours: 8.0,
+            thursday_available_hours: 8.0,
+            friday_available_hours: 8.0,
+            saturday_available_hours: 0.0,
+            sunday_available_hours: 0.0,
+            working_hours_per_sales_person: Arc::from(vec![]),
+        };
+        let cloned = summary.clone();
+        assert_eq!(summary, cloned);
+        // Debug formatting must not panic
+        let _debug = format!("{:?}", summary);
+        assert!((summary.committed_voluntary_hours - 0.0).abs() < 0.001);
     }
 }

@@ -71,6 +71,7 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   und überzählten bei mehr verfügbaren Tagen als `workdays_per_week`; ein
 ///   Validator kann sie nicht gegen die korrigierte Computation re-validieren.
 ///   (Version BLEIBT 7 — v7 wurde nie deployed.)
+/// - Phase 15 (committed_voluntary Zwei-Band): KEIN Bump — Achse-B-only, kein persistierter value_type berührt.
 pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 7;
 
 gen_service_impl! {

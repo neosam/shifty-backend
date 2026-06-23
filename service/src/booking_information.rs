@@ -41,7 +41,8 @@ pub struct WeeklySummary {
     pub overall_available_hours: f32,
     pub required_hours: f32,
     pub paid_hours: f32,
-    pub volunteer_hours: f32,
+    pub volunteer_hours: f32,        // Band 2 — surplus above pledge (per-person max, D-05)
+    pub committed_voluntary_hours: f32, // Band 1 — the pledge (cap-gated Σ committed, D-04)
 
     pub monday_available_hours: f32,
     pub tuesday_available_hours: f32,
