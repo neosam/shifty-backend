@@ -16,7 +16,8 @@
       "Bash(jj show:*)",
       "Bash(timeout 5 cargo run:*)",
       "Bash(timeout 120 cargo build:*)",
-      "Bash(timeout 120 cargo test:*)"
+      "Bash(timeout 120 cargo test:*)",
+      "Skill(gsd:capture)"
     ],
     "deny": []
   }

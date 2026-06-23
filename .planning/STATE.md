@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Frontend Abwesenheiten + UI-Closure-Restanten
-status: executing
-last_updated: "2026-06-12T09:00:00Z"
-last_activity: 2026-06-12 -- Phase 09 Plan 02 abgeschlossen (Shiftplan-Wiring + Copy-Week-Cleanup; UAT-Checkpoint ausstehend)
+milestone: v1.4
+milestone_name: Committed Voluntary Capacity
+status: ready_to_plan
+last_updated: "2026-06-24T04:47:00.970Z"
+last_activity: 2026-06-24 -- Phase 15 execution started
 progress:
   total_phases: 4
-  completed_phases: 4
-  total_plans: 29
-  completed_plans: 29
-  percent: 100
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -19,20 +19,37 @@ progress:
 
 - **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0, v1.1, v1.2 archived)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.2-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.3-ROADMAP.md` (+ `milestones/v1.3-phases/`)
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped**: v1.2 Frontend rest-types Konsolidierung (2026-05-07)
-- **Current milestone**: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (gestartet 2026-05-07)
-- **Current focus**: v1.3 — Frontend-Abwesenheiten-Maske gegen `/absence-period` als Hauptthema; UI-Closure FUI-01..04 sekundär
+- **Last shipped/closed**: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (closed 2026-06-22; Phasen 8.3/10/12/13 bewusst aufgegeben)
+- **Current milestone**: v1.4 Committed Voluntary Capacity (gestartet 2026-06-22)
+- **Current focus**: v1.4 — zeit-versioniertes `committed_voluntary` auf `EmployeeWorkDetails` + Reporting ohne Doppelzählung + separate Anzeige in Jahresansicht
 
 ## Current Position
 
-Phase: 10 (shiftplan-view-unavailability-marker) — CONTEXT gathered (ready for planning)
-Plan: none yet
-Status: Phase 10 CONTEXT.md erstellt (12 Decisions, D-01..D-12, inkl. DSGVO-Revision). Nächster Schritt: ROADMAP Phase-10 SC 2/3 an D-12 angleichen, dann `/gsd:plan-phase 10`. Phase 09 bleibt COMPLETE (UAT-Checkpoint ausstehend).
-Last activity: 2026-06-19 -- Phase 10 discuss-phase abgeschlossen + DSGVO-Revision: 10-CONTEXT.md + 10-DISCUSSION-LOG.md. Kern-Decisions: per-sales-person-Endpoint via Umbau von load_unavailable_sales_person_days_for_week (D-01); Chip im Tag-Spalten-Header, Spalte bleibt neutral bad-soft (D-04/D-05); Aufräum-Button deferred (D-10). DSGVO Art. 9 (D-12, governing): Marker zeigt KEINEN Grund/keine Kategorie — ein neutraler "nicht verfügbar"-Chip identisch für AbsencePeriod/ManualUnavailable/Both (revidiert D-07/D-08/D-11); überschreibt ROADMAP SC 2/3. Reine Frontend-Phase (Backend-Endpoint + DTOs existieren bereits)
+Phase: 16
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-24
+
+## v1.4 Scope Snapshot (committed voluntary capacity)
+
+- Design D-01 geklärt: Variante B — separates Feld `committed_voluntary: f32` auf `EmployeeWorkDetails`, nur die freiwillige Zusage obendrauf (entkoppelt von `expected_hours`)
+- Scope nur für `cap_planned_hours_to_expected = true`-Personen
+- Reporting: verfügbar = `expected + committed_voluntary`; Überschuss = `max(0, actual_volunteer − committed_voluntary)`; keine Doppelzählung
+- Jahresansicht: committed-Kapazität separat ausweisen
+- Mitarbeiteransicht: „alle"-Filter + unbezahlte Freiwillige brauchen `EmployeeWorkDetails`-Record
+- `CURRENT_SNAPSHOT_SCHEMA_VERSION` vermutlich bumpen
+- Quelle: `todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md`; baut auf `openspec/specs/weekly-planned-hours-cap/spec.md`
 
 ## Shipped Milestones
+
+### v1.3 — Frontend Abwesenheiten + UI-Closure-Restanten (closed 2026-06-22)
+
+- **Geliefert:** Phasen 8, 8.2, 8.4, 8.5, 8.6, 9 — Frontend-Abwesenheiten-Maske (CRUD gegen `/absence-period`, HR + Self-Service), additives Koexistenz-Modell `extra_hours` + `absence_period`, Read-Projektion + HR-Inline-Convert, Cutover-Abriss, Booking-Reverse-Warnings
+- **Superseded:** Phase 8.1 (Batch-Cutover-Wizard) + Phase 11 (Deprecation-Handling) — durch Koexistenz-Modell 8.4–8.6 abgelöst
+- **Bewusst aufgegeben** beim Milestone-Wechsel: Phase 8.3 (Halbtag-Support), Phase 10 (Unavailability-Marker, CONTEXT war erstellt), Phase 12 (UI-Closure v1.1/v1.2-Restanten), Phase 13 (i18n-Audit)
+- **Archiv:** `milestones/v1.3-ROADMAP.md`, `milestones/v1.3-REQUIREMENTS.md`, `milestones/v1.3-phases/` (alle Phasen-Verzeichnisse inkl. Phase-10-CONTEXT)
 
 ### v1.2 — Frontend rest-types Konsolidierung (2026-05-07)
 
@@ -156,6 +173,7 @@ Last activity: 2026-06-19 -- Phase 10 discuss-phase abgeschlossen + DSGVO-Revisi
 | 260613-jxe | Absence-Page: inaktive Sales Persons aus Per-Person-Liste filtern (selectable_balances, paid && active) + Jahres-Navigation (◀ Jahr ▶, ein Jahr pro Ansicht, Default = aktuelles Jahr) (frontend) | 2026-06-13 | committed via jj (0eba6e50 + 8c1fcb26 feat, docs folgt); selectable_balances + 5 Tests, 2 i18n-Keys (3 Locales), Suite 594 grün, WASM-Build grün | [260613-jxe-abwesenheitsseite-inaktive-sales-persons](./quick/260613-jxe-abwesenheitsseite-inaktive-sales-persons/) |
 | 260613-qvg | Self-Overlap-Fehlerbanner (AbsenceModal) substituiert i18n-Platzhalter via `t_m` statt rohes Template auszugeben — category lokalisiert, from/to via `format_date` (frontend) | 2026-06-13 | uncommitted (user commits via jj); SelfOverlapBannerProps erweitert + Call-Site, 1 Regressionstest (3 Locales), Suite 596 grün, WASM-Build grün | [260613-qvg-fix-self-overlap-absence-banner-i18n-pla](./quick/260613-qvg-fix-self-overlap-absence-banner-i18n-pla/) |
 | 260614-a26 | Urlaubsanspruch (entitled_days) immer als gerundete ganze Zahl — Vacation-Balance-Pfad analog Reporting `.round()` (backend) | 2026-06-14 | committed via jj; `service_impl/vacation_balance.rs` + 1 Regressionstest (aliquot KW27 → 15), `service_impl` 410 grün, Workspace-Build grün | [260614-a26-der-urlaubsanspruch-sollte-immer-eine-ga](./quick/260614-a26-der-urlaubsanspruch-sollte-immer-eine-ga/) |
+
 ### Phase-Verzeichnis-Cleanup (optional)
 
 `.planning/phases/01-04` (v1.0), `.planning/phases/05` (v1.1), `.planning/phases/06-07` (v1.2) liegen alle noch im aktiven `phases/`-Verzeichnis. `gsd-sdk milestone.complete` hat sie nicht automatisch in `milestones/v1.X-phases/` verschoben (`archived.phases: false`). Bei Bedarf manuell via `/gsd-cleanup` oder `mkdir milestones/v1.X-phases && mv phases/...` archivieren.

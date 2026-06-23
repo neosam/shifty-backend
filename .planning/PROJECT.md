@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-05-07
-last_milestone: v1.2 Frontend rest-types Konsolidierung (shipped 2026-05-07)
-current_milestone: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten
+last_updated: 2026-06-22
+last_milestone: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (closed 2026-06-22; Phasen 8.3/10/12/13 bewusst aufgegeben)
+current_milestone: v1.4 Committed Voluntary Capacity
 ---
 
 # Shifty — Project Charter
@@ -133,55 +133,60 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Current Milestone: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten
+## Current Milestone: v1.4 Committed Voluntary Capacity
 
-**Status:** Aktiv seit 2026-05-07 — gestartet via `/gsd-new-milestone v1.3`.
+**Status:** Aktiv seit 2026-06-22 — gestartet via `/gsd:new-milestone v1.4`.
 
-**Goal:** Dioxus-Frontend liefert sichtbare Abwesenheiten-Maske gegen
-`/absence-period` REST-API und schließt die UI-Restanten aus v1.1/v1.2
-(sichtbare Capacity-Anzeige, neue Extra-Hours-Kategorien, Settings-Felder).
+**Goal:** Eine im Voraus **zugesagte** freiwillige Stunden-Kapazität wird pro
+Mitarbeiter erfasst und in der Jahresansicht **ohne Doppelzählung** als separat
+ausgewiesene Kapazität ausgewertet. Schließt die Lücke, dass es heute nur reaktiv
+erfasste Volunteer-Stunden (`VolunteerWork`, balance-neutral) und das boolean
+`cap_planned_hours_to_expected`-Flag gibt, aber **keinen Wert für im Voraus
+zugesagte Kapazität**.
+
+**Design-Entscheidung (geklärt, D-01 / Variante B):** Neues zeit-versioniertes
+Feld `committed_voluntary: f32` auf `EmployeeWorkDetails` — **nur die freiwillige
+Zusage obendrauf**, NICHT als Gesamtsumme inkl. Vertrag. Entkoppelt von
+`expected_hours` (keine Invariante `committed >= expected`), unabhängige
+Zeit-Versionierung, additive Reporting-Formel. Verworfen: Variante A
+(`committed_total` inkl. Vertrag — bräuchte Invariante + Subtraktionsschritt).
 
 **Target features:**
 
-- **Frontend Abwesenheiten-Maske** (FUI-A-01..09) als Hauptthema: neue
-  Top-Level-Route `absences` gegen `/absence-period` REST-API; HR-Sicht (alle
-  Mitarbeiter, Filter) + Employee-Self-Service (eigene Liste); Form mit
-  Datum-Range-Picker + Kategorie-Dropdown + Description; nicht-blockierende
-  Warnings-Anzeige aus `AbsencePeriodCreateResultTO.warnings[]`.
-- **Booking-Flow umstellen** auf `POST /shiftplan-edit/booking` für Reverse-
-  Warnings; alter `POST /booking` bleibt für Bestands-Calls.
-- **Shiftplan-Wochen-View** mit `UnavailabilityMarkerTO` farbig pro Tag pro
-  Person inkl. `both`-Visual-Indication.
-- **Migrations-Hinweis-UX** für alte `extra_hours`-Buttons (vor Cutover
-  Soft-Migration; nach Cutover `403 ExtraHoursCategoryDeprecatedErrorTO`-
-  Handling).
-- **i18n** in De / En / Cs für alle neuen Strings.
-- **User-facing Closure** der v1.1-/v1.2-Restanten (FUI-01..04 — sichtbares
+- **Datenmodell:** zeit-versioniertes `committed_voluntary: f32` auf
+  `EmployeeWorkDetails` (Service + DAO + `rest-types` + SQLite-Migration).
+- **Reporting ohne Doppelzählung:** verfügbare Kapazität =
+  `expected + committed_voluntary`; Überschuss =
+  `max(0, actual_volunteer − committed_voluntary)`; geleistete Volunteer-Stunden
+  zählen nicht zusätzlich, solange sie die Zusage nicht übersteigen.
+- **Jahresansicht (`weekly_overview`):** committed-Kapazität **separat**
+  ausgewiesen (nicht mit `paid`/`volunteer` vermischt).
+- **Mitarbeiteransicht:** „alle"-Filter einblendbar; rein unbezahlte Freiwillige
+  bekommen einen `EmployeeWorkDetails`-Record und werden sichtbar/auswählbar.
+- **Snapshot-Schema-Version-Bump** (`CURRENT_SNAPSHOT_SCHEMA_VERSION`), da sich
+  der Reporting-Input der Volunteer-/Kapazitäts-Berechnung ändert.
+
+**Scope-Grenze:** Gilt nur für gedeckelte/freiwillige Personen
+(`cap_planned_hours_to_expected = true`). Für normale Mitarbeiter ohne Cap
+irrelevant.
+
+**Bewusst nicht in v1.4:**
+
+- **Durchschnittliche-Anwesenheit-Auswertung** (verwandtes Todo
+  `2026-06-09-auswertung-durchschnittliche-anwesenheit-flexible-stunden.md`) —
+  zu viele offene Definitionsfragen, eigene spätere Phase/Milestone.
+- **Offene v1.3-UI-Restanten** (Phase 12: sichtbares
   `current_paid_count`/`max_paid_employees`, Capacity-Editor,
-  `VolunteerWork`/`UnpaidLeave` als UI-Element, `cap_planned_hours_to_expected`-
-  Settings).
-
-**Bewusst nicht in v1.3:**
-
-- Stundenebene für Abwesenheiten (z. B. 3 h Arzttermin als Vacation) — bleibt
-  out-of-scope. Halbtage (Heiligabend / Silvester) werden in Phase 8.3 über
-  `day_fraction: Full \| Half` umgesetzt (FUI-A-10; Decision Log:
-  `.planning/notes/halftime-absence-decision.md`).
-- Genehmigungs-Workflow (Backend kennt keinen Approval-Schritt)
-- Min-Paid-Capacity / Skill-Matching (SC-01, SC-02 — Backend-Themen für später)
-- Admin-Cutover-UI (`/admin/cutover/*` ist getrenntes Admin-Surface; CLI-Flow
-  reicht weiter)
+  `VolunteerWork`/`UnpaidLeave`-UI, `cap_planned_hours_to_expected`-Toggle) —
+  bleiben aufgegeben; nicht Teil von v1.4.
+- Genehmigungs-Workflow; Min-Paid-Capacity / Skill-Matching (SC-01, SC-02).
 
 **Quellen:**
 
-- `seeds/abwesenheiten-frontend-milestone.md` (Trigger erfüllt; Sub-Phasen-Skizze)
-- `notes/abwesenheiten-frontend-context.md` (Briefing aus Backend-Brief +
-  Mockup-Walkthrough)
-- `shifty-dioxus/shifty-design/project/uploads/absence-feature-frontend.md`
-  (Backend-Integrations-Brief)
-- `shifty-dioxus/shifty-design/project/absences.jsx` (Mockup, 729 Zeilen JSX —
-  Vorlage für Dioxus-Portierung)
-- `.planning/REQUIREMENTS.md` + `.planning/ROADMAP.md` für v1.3-Scope
+- `todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md`
+  (Problem + geklärte Design-Entscheidung D-01 + Anforderungen 1–5)
+- `openspec/specs/weekly-planned-hours-cap/spec.md` (baut darauf auf)
+- `.planning/REQUIREMENTS.md` + `.planning/ROADMAP.md` für v1.4-Scope
 
 ## Active Milestones Index
 
@@ -189,8 +194,12 @@ Siehe `.planning/ROADMAP.md`. Geshipt:
 - v1.0 Range-Based Absence Management — 2026-05-03 (Phasen 1–4)
 - v1.1 Slot Capacity & Constraints — 2026-05-04 (Phase 5)
 - v1.2 Frontend rest-types Konsolidierung — 2026-05-07 (Phasen 6–7)
+- v1.3 Frontend Abwesenheiten + UI-Closure-Restanten — closed 2026-06-22
+  (Phasen 8, 8.2, 8.4, 8.5, 8.6, 9 geliefert; 8.1/11 superseded; 8.3/10/12/13
+  bewusst aufgegeben). Archiv: `milestones/v1.3-ROADMAP.md`,
+  `milestones/v1.3-phases/`.
 
-Aktiv: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten — siehe oben.
+Aktiv: v1.4 Committed Voluntary Capacity — siehe oben.
 
 ## Evolution
 
