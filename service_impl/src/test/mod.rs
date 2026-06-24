@@ -27,6 +27,8 @@ pub mod reporting_additive_merge;
 #[cfg(test)]
 pub mod reporting_cap_overflow;
 #[cfg(test)]
+pub mod reporting_no_contract_volunteer;
+#[cfg(test)]
 pub mod reporting_phase2_fixtures;
 #[cfg(test)]
 pub mod sales_person;
