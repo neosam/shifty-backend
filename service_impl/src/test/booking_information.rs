@@ -377,7 +377,65 @@ fn d01_committed_zero_matches_pre_phase16_sum() {
     assert!(approx(overall, 16.0), "expected 16.0, got {overall}");
 }
 
-// ─── No-bump regression test (D-01 / CVC-05) ─────────────────────────────────
+// ─── D-05: expected_hours==0 gate-extension fixture tests ────────────────────
+//
+// These tests pin the D-05 gate extension: the production filter in
+// get_weekly_summary (first/year-view variant) uses
+//   `cap_planned_hours_to_expected || expected_hours == 0.0`
+// instead of the old `cap_planned_hours_to_expected` alone.
+//
+// Test strategy: pure logic test of the filter predicate over synthetic tuples
+// (cap: bool, expected_hours: f32, committed_voluntary: f32). Mirrors exactly
+// what the production `.filter(|wh| wh.cap_planned_hours_to_expected || wh.expected_hours == 0.0)`
+// evaluates; no service mock required (consistent with the existing helper-level tests above).
+
+/// Simulates the D-05 Band-1 gate: apply the extended filter predicate to a slice
+/// of (cap, expected_hours, committed_voluntary) tuples and sum committed values.
+fn band1_committed_with_d05_gate(rows: &[(bool, f32, f32)]) -> f32 {
+    rows.iter()
+        .filter(|(cap, expected, _committed)| *cap || *expected == 0.0)
+        .map(|(_cap, _expected, committed)| committed)
+        .sum()
+}
+
+#[test]
+fn d05_expected_hours_zero_flows_into_band1() {
+    // D-05 gate extension: is_paid=false, cap=false, expected_hours=0.0, committed=5.0
+    // The OLD gate (cap only) would exclude this person (cap=false).
+    // The NEW gate (cap || expected_hours==0) INCLUDES them → committed 5.0 flows into Band 1.
+    let rows = vec![(false, 0.0_f32, 5.0_f32)]; // (cap, expected_hours, committed)
+    let band1 = band1_committed_with_d05_gate(&rows);
+    assert!(
+        approx(band1, 5.0),
+        "D-05: expected_hours=0 person must contribute committed=5.0 to Band 1, got {band1}"
+    );
+}
+
+#[test]
+fn d05_capped_person_still_counted() {
+    // Backward-compat: cap=true, expected_hours=40, committed=3.0
+    // The OLD gate already covered this; the NEW gate must preserve the behavior.
+    let rows = vec![(true, 40.0_f32, 3.0_f32)];
+    let band1 = band1_committed_with_d05_gate(&rows);
+    assert!(
+        approx(band1, 3.0),
+        "D-05 backward-compat: capped person (cap=true, expected=40) must still contribute committed=3.0 to Band 1, got {band1}"
+    );
+}
+
+#[test]
+fn d05_uncapped_nonzero_excluded() {
+    // Exclusion: cap=false AND expected_hours=40 (>0) — neither gate branch fires.
+    // Committed must NOT flow into Band 1.
+    let rows = vec![(false, 40.0_f32, 7.0_f32)];
+    let band1 = band1_committed_with_d05_gate(&rows);
+    assert!(
+        approx(band1, 0.0),
+        "D-05 exclusion: cap=false + expected_hours=40 person must contribute 0.0 to Band 1 (excluded), got {band1}"
+    );
+}
+
+// ─── No-bump regression test (D-01 / CVC-05 / D-05 / Plan-01) ───────────────
 
 #[test]
 fn snapshot_schema_version_unchanged_at_7() {
@@ -385,6 +443,10 @@ fn snapshot_schema_version_unchanged_at_7() {
     // (Band 1) and the reduced volunteer_hours (Band 2) are Achse-B (year-view) only and
     // are never read by billing_period_report.rs. Therefore the CLAUDE.md bump rule is
     // NOT triggered; version stays 7.
+    //
+    // Phase 17 addendum: D-05 gate-extension (cap || expected_hours==0) and the
+    // Billing-Personen-Set-Gate (Plan 01, is_paid filtering) are ALSO Achse-B-only and
+    // touch no persisted BillingPeriodValueType. Version remains 7 — no bump required.
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
         7

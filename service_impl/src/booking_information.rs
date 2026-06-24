@@ -209,7 +209,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 find_working_hours_for_calendar_week(&all_work_details, year, week)
                     .filter(|wh| {
                         wh.sales_person_id == sp_id
-                            && wh.cap_planned_hours_to_expected // CVC-06 per row
+                            && (wh.cap_planned_hours_to_expected || wh.expected_hours == 0.0) // D-05: cap || rein-freiwillig (expected_hours=0)
                     })
                     .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
                     .sum()
@@ -221,7 +221,7 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 year,
                 week,
             )
-            .filter(|wh| wh.cap_planned_hours_to_expected) // CVC-06 gate, per row
+            .filter(|wh| wh.cap_planned_hours_to_expected || wh.expected_hours == 0.0) // D-05: cap || rein-freiwillig (expected_hours=0), symmetrisch zu D-01 Editor-Sichtbarkeit
             .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
             .sum();
             let slots: Arc<[Slot]> = self
