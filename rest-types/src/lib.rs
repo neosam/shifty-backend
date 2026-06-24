@@ -376,6 +376,8 @@ pub struct ShortEmployeeReportTO {
     pub overall_hours: f32,
     #[serde(default)]
     pub volunteer_hours: f32,
+    #[serde(default)]
+    pub committed_voluntary_hours: f32,
 }
 
 #[cfg(feature = "service-impl")]
@@ -388,6 +390,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
             volunteer_hours: report.volunteer_hours,
+            committed_voluntary_hours: report.committed_voluntary_hours,
         }
     }
 }
@@ -2316,6 +2319,78 @@ mod test_weekly_summary_to_serde_default {
 
         let to: WeeklySummaryTO =
             serde_json::from_str(json).expect("legacy JSON without committed_voluntary_hours must deserialize");
+        assert!(
+            (to.committed_voluntary_hours - 0.0).abs() < f32::EPSILON,
+            "committed_voluntary_hours must default to 0.0 when absent (got {})",
+            to.committed_voluntary_hours
+        );
+    }
+}
+
+/// ShortEmployeeReportTO: committed_voluntary_hours serde round-trip + backward-compat.
+///
+/// Req 2 (Datentransport): `committed_voluntary_hours` wird im TO korrekt
+/// serialisiert/deserialisiert und defaultt auf 0.0 wenn im JSON nicht vorhanden
+/// (Backward-Compat für ältere API-Clients).
+#[cfg(test)]
+mod test_short_employee_report_to_committed_voluntary {
+    use super::*;
+    use std::sync::Arc;
+
+    fn make_short_report_to(committed_voluntary_hours: f32) -> ShortEmployeeReportTO {
+        ShortEmployeeReportTO {
+            sales_person: SalesPersonTO {
+                id: uuid::Uuid::nil(),
+                name: Arc::<str>::from("Test"),
+                background_color: Arc::<str>::from("#abc"),
+                is_paid: Some(true),
+                inactive: false,
+                deleted: None,
+                version: uuid::Uuid::nil(),
+            },
+            balance_hours: 0.0,
+            expected_hours: 8.0,
+            dynamic_hours: 8.0,
+            overall_hours: 5.0,
+            volunteer_hours: 0.0,
+            committed_voluntary_hours,
+        }
+    }
+
+    /// committed_voluntary_hours = 2.5 survives JSON round-trip unchanged.
+    #[test]
+    fn short_employee_report_committed_voluntary_roundtrip() {
+        let original = make_short_report_to(2.5);
+        let json = serde_json::to_string(&original)
+            .expect("ShortEmployeeReportTO must serialize");
+        let parsed: ShortEmployeeReportTO = serde_json::from_str(&json)
+            .expect("ShortEmployeeReportTO must deserialize");
+        assert!(
+            (parsed.committed_voluntary_hours - 2.5).abs() < f32::EPSILON,
+            "committed_voluntary_hours must survive JSON round-trip unchanged: expected 2.5, got {}",
+            parsed.committed_voluntary_hours
+        );
+    }
+
+    /// Legacy JSON without `committed_voluntary_hours` deserializes to 0.0 (backward-compat).
+    #[test]
+    fn short_employee_report_committed_voluntary_defaults_zero_when_absent() {
+        // Build a JSON string from a known-good TO (with committed_voluntary_hours=1.0),
+        // then strip the field to simulate a legacy payload.
+        let original = make_short_report_to(1.0);
+        let full_json = serde_json::to_string(&original)
+            .expect("must serialize");
+        // Remove the committed_voluntary_hours field from the JSON.
+        let legacy_json = {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json)
+                .expect("must parse as JSON value");
+            value.as_object_mut()
+                .expect("top-level must be an object")
+                .remove("committed_voluntary_hours");
+            serde_json::to_string(&value).expect("must re-serialize")
+        };
+        let to: ShortEmployeeReportTO = serde_json::from_str(&legacy_json)
+            .expect("legacy JSON without committed_voluntary_hours must deserialize");
         assert!(
             (to.committed_voluntary_hours - 0.0).abs() < f32::EPSILON,
             "committed_voluntary_hours must default to 0.0 when absent (got {})",

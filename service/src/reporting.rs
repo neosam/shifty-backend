@@ -157,6 +157,7 @@ pub struct ShortEmployeeReport {
     pub unavailable_hours: f32,
     pub unpaid_leave_hours: f32,
     pub volunteer_hours: f32,
+    pub committed_voluntary_hours: f32,
     pub custom_absence_hours: Arc<[CustomExtraHours]>,
 }
 
