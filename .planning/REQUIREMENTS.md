@@ -26,8 +26,8 @@
 
 ### Editor + unbezahlte Freiwillige (CVC)
 
-- [ ] **CVC-09**: `committed_voluntary` ist im Vertrags-Editor (`contract_modal.rs`, neben dem Cap-Toggle) als numerisches Feld editierbar; Open→Save-unverändert-Round-Trip bewahrt den Backend-Wert.
-- [ ] **CVC-10**: Mitarbeiteransicht bekommt einen einblendbaren „alle"-Filter; rein unbezahlte Freiwillige können einen `EmployeeWorkDetails`-Record halten (`is_paid=false`, `expected_hours=0`) und werden sichtbar/auswählbar. Jede work-details-iterierende paid-only-Site ist explizit auf `sales_person.is_paid` gegated (nicht auf Record-Präsenz) — kein Leak in `paid_hours`/Billing/Year-Summary; `get_week`-Seiteneffekt durch Integrationstest abgesichert.
+- [x] **CVC-09**: `committed_voluntary` ist im Vertrags-Editor (`contract_modal.rs`, neben dem Cap-Toggle) als numerisches Feld editierbar; Open→Save-unverändert-Round-Trip bewahrt den Backend-Wert.
+- [x] **CVC-10**: Mitarbeiteransicht bekommt einen einblendbaren „alle"-Filter; rein unbezahlte Freiwillige können einen `EmployeeWorkDetails`-Record halten (`is_paid=false`, `expected_hours=0`) und werden sichtbar/auswählbar. Jede work-details-iterierende paid-only-Site ist explizit auf `sales_person.is_paid` gegated (nicht auf Record-Präsenz) — kein Leak in `paid_hours`/Billing/Year-Summary; `get_week`-Seiteneffekt durch Integrationstest abgesichert.
 
 ## Future Requirements (v1.5+)
 
@@ -70,8 +70,8 @@ Welche Phasen welche Requirements abdecken. (v1.4 startet bei Phase 14 — v1.3 
 | CVC-06 | Phase 15 | Complete |
 | CVC-07 | Phase 16 | Complete |
 | CVC-08 | Phase 16 | Complete |
-| CVC-09 | Phase 17 | Pending |
-| CVC-10 | Phase 17 | Pending |
+| CVC-09 | Phase 17 | Complete |
+| CVC-10 | Phase 17 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 10 total

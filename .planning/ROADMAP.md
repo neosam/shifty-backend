@@ -42,7 +42,7 @@ Zeit-versioniertes `committed_voluntary: f32` auf `EmployeeWorkDetails` (D-01 / 
   4. `cargo build --target wasm32-unknown-unknown` grün; `cargo test --workspace` grün
   **UI hint**: yes
 
-- [ ] **Phase 17: Contract editor input + „alle"-Filter / unpaid-volunteer path** (Backend + Frontend) — numerisches Eingabefeld, „alle"-Toggle, unbezahlte Freiwillige
+- [x] **Phase 17: Contract editor input + „alle"-Filter / unpaid-volunteer path** (Backend + Frontend) — numerisches Eingabefeld, „alle"-Toggle, unbezahlte Freiwillige
   Most design-open phase (D-UNPAID-RECORD). Numerisches `committed_voluntary`-Feld in `contract_modal.rs` neben dem Cap-Toggle (Open→Save-unverändert-Round-Trip bewahrt den Wert). Einblendbarer „alle"-Filter in der Mitarbeiteransicht; rein unbezahlte Freiwillige bekommen einen `EmployeeWorkDetails`-Record (`is_paid = false`, `expected_hours = 0`) und werden sichtbar/auswählbar. Jede enumerierte paid-only-Site ist explizit auf `sales_person.is_paid` gegated (nicht auf Record-Präsenz) — kein Leak in `paid_hours`/Billing/Year-Summary.
   Requirements: CVC-09, CVC-10
   Success Criteria:
@@ -209,7 +209,18 @@ Plans:
 3. Jede enumerierte work-details-iterierende paid-only-Site ist explizit auf `sales_person.is_paid` gegated (nicht auf Record-Präsenz); ein `get_week`-Seiteneffekt-Integrationstest verifiziert: kein Leak in `paid_hours` / Billing / Year-Summary und Personen-Set-Konsistenz über year-summary / all-employees-report / Billing (CVC-10).
 4. i18n De / En / Cs für neue Labels/Filter vollständig (Per-Locale-Reference-Matcher); `cargo build --target wasm32-unknown-unknown` + `cargo test --workspace` grün.
 
-**Plans:** TBD
+**Plans:** 4/4 plans complete
+
+Plans:
+**Wave 1** *(Backend, parallel — keine File-Überlappung)*
+- [x] 17-01-PLAN.md — is_paid-Gating der at-risk-Sites (reporting::get_week + billing_period_report) + get_week-Seiteneffekt-Integrationstest (CVC-10)
+- [x] 17-02-PLAN.md — D-05 Read-Gate-Erweiterung in get_weekly_summary (cap || expected_hours==0, Achse B, KEIN Snapshot-Bump) + Fixture-Tests (CVC-10)
+
+**Wave 2** *(Frontend Editor, self-contained)*
+- [x] 17-03-PLAN.md — committed_voluntary-Editorfeld (D-01/D-02) + State-Threading beide TryFrom-Richtungen + i18n De/En/Cs (CVC-09)
+
+**Wave 3** *(Frontend Filter, blocked on Wave 1 Gating + Wave 2 i18n)*
+- [x] 17-04-PLAN.md — „alle"-Filter (D-03) + unpaid-volunteer Merge-Lade-Pfad (GET /sales-person) + Filter-Tests (CVC-10)
 
 **UI hint**: yes
 
@@ -230,7 +241,7 @@ Plans:
 | 14 — Data-model foundation (backend) | v1.4 | 2/2 | Complete    | 2026-06-23 |
 | 15 — Reporting no-double-count (KEIN Snapshot-Bump) | v1.4 | 2/2 | Complete    | 2026-06-24 |
 | 16 — Jahresansicht display | v1.4 | 3/3 | Complete    | 2026-06-24 |
-| 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 0/? | Not started | — |
+| 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 4/4 | Complete    | 2026-06-24 |
 
 ---
 
