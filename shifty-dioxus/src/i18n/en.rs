@@ -103,6 +103,12 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
     i18n.add_text(Locale::En, Key::PaidVolunteer, "Paid / Volunteer");
+    i18n.add_text(Locale::En, Key::Committed, "Voluntary committed");
+    i18n.add_text(
+        Locale::En,
+        Key::PaidCommittedVolunteer,
+        "Paid / Voluntary committed / Volunteer",
+    );
     i18n.add_text(
         Locale::En,
         Key::AvailableRequiredHours,

@@ -13,7 +13,7 @@ fn compute_max_hours(weeks: &[WeeklySummary]) -> f32 {
     let max_val = weeks
         .iter()
         .map(|w| {
-            let bar_total = w.paid_hours + w.volunteer_hours;
+            let bar_total = w.paid_hours + w.committed_voluntary_hours + w.volunteer_hours;
             if bar_total > w.required_hours {
                 bar_total
             } else {
@@ -45,6 +45,7 @@ pub fn WeeklyOverviewChart(
             current_year,
             current_week,
             paid_label: i18n.t(Key::Paid).to_string(),
+            committed_label: i18n.t(Key::Committed).to_string(),
             volunteer_label: i18n.t(Key::Volunteer).to_string(),
             required_label: i18n.t(Key::ChartRequiredHours).to_string(),
             week_short: i18n.t(Key::WeekShort).to_string(),
@@ -58,6 +59,7 @@ pub(crate) fn WeeklyOverviewChartView(
     current_year: u32,
     current_week: u8,
     paid_label: String,
+    committed_label: String,
     volunteer_label: String,
     required_label: String,
     week_short: String,
@@ -80,6 +82,10 @@ pub(crate) fn WeeklyOverviewChartView(
                     "{paid_label}"
                 }
                 span { class: "inline-flex items-center gap-1.5",
+                    span { style: "background: var(--good); width: 12px; height: 12px; border-radius: 2px; display: inline-block;" }
+                    "{committed_label}"
+                }
+                span { class: "inline-flex items-center gap-1.5",
                     span { style: "background: var(--ink-muted); opacity: 0.4; width: 12px; height: 12px; border-radius: 2px; display: inline-block;" }
                     "{volunteer_label}"
                 }
@@ -97,6 +103,7 @@ pub(crate) fn WeeklyOverviewChartView(
                 for week in weeks.iter() {
                     {
                         let paid_pct = (week.paid_hours / max_hours) * 100.0;
+                        let committed_pct = (week.committed_voluntary_hours / max_hours) * 100.0;
                         let vol_pct = (week.volunteer_hours / max_hours) * 100.0;
                         let req_top_pct = (1.0 - week.required_hours / max_hours) * 100.0;
                         let is_current = week.year == current_year && week.week == current_week;
@@ -104,9 +111,10 @@ pub(crate) fn WeeklyOverviewChartView(
                         let paid_bg = if is_current { "var(--accent)".to_string() } else { NON_CURRENT_BAR_COLOR.to_string() };
                         let nav_url = format!("/shiftplan/{}/{}", week.year, week.week);
                         let tooltip = format!(
-                            "{week_short} {}: {paid_label} {}h, {volunteer_label} {}h, {required_label} {}h",
+                            "{week_short} {}: {paid_label} {}h, {committed_label} {}h, {volunteer_label} {}h, {required_label} {}h",
                             week.week,
                             format_hours(week.paid_hours, 1),
+                            format_hours(week.committed_voluntary_hours, 1),
                             format_hours(week.volunteer_hours, 1),
                             format_hours(week.required_hours, 1)
                         );
@@ -118,9 +126,13 @@ pub(crate) fn WeeklyOverviewChartView(
                                 onclick: move |_| {
                                     navigator().push(nav_url.clone());
                                 },
-                                // Volunteer (top portion of stack)
+                                // Volunteer / surplus (top portion of stack)
                                 if week.volunteer_hours > 0.0 {
                                     div { style: "height: {vol_pct}%; background: var(--ink-muted); opacity: 0.35;" }
+                                }
+                                // Committed (middle portion) — D-04: solid var(--good), never raw hex.
+                                if week.committed_voluntary_hours > 0.0 {
+                                    div { style: "height: {committed_pct}%; background: var(--good);" }
                                 }
                                 // Paid (bottom portion)
                                 if week.paid_hours > 0.0 {
@@ -150,14 +162,22 @@ pub(crate) fn WeeklyOverviewChartView(
 mod tests {
     use super::*;
 
-    fn sample_week(year: u32, week: u8, paid: f32, volunteer: f32, required: f32) -> WeeklySummary {
+    fn sample_week(
+        year: u32,
+        week: u8,
+        paid: f32,
+        committed: f32,
+        volunteer: f32,
+        required: f32,
+    ) -> WeeklySummary {
         WeeklySummary {
             week,
             year,
-            available_hours: paid + volunteer,
+            available_hours: paid + committed + volunteer,
             required_hours: required,
             paid_hours: paid,
             volunteer_hours: volunteer,
+            committed_voluntary_hours: committed,
             monday_available_hours: 0.0,
             tuesday_available_hours: 0.0,
             wednesday_available_hours: 0.0,
@@ -172,23 +192,24 @@ mod tests {
     #[test]
     fn compute_max_hours_uses_larger_of_bar_or_required() {
         let weeks = vec![
-            sample_week(2026, 1, 20.0, 10.0, 35.0),
-            sample_week(2026, 2, 30.0, 12.0, 25.0),
+            sample_week(2026, 1, 20.0, 0.0, 10.0, 35.0),
+            // CVC-07h: bar_total must include committed → 30 + 5 + 12 = 47
+            sample_week(2026, 2, 30.0, 5.0, 12.0, 25.0),
         ];
-        // Week 2 has bar_total = 42 > all required values
-        assert_eq!(compute_max_hours(&weeks), 42.0);
+        // Week 2 has bar_total = 47 (paid 30 + committed 5 + volunteer 12) > all required values
+        assert_eq!(compute_max_hours(&weeks), 47.0);
     }
 
     #[test]
     fn compute_max_hours_uses_required_when_larger() {
-        let weeks = vec![sample_week(2026, 1, 5.0, 0.0, 30.0)];
+        let weeks = vec![sample_week(2026, 1, 5.0, 0.0, 0.0, 30.0)];
         assert_eq!(compute_max_hours(&weeks), 30.0);
     }
 
     #[test]
     fn compute_max_hours_floors_at_ten() {
         assert_eq!(compute_max_hours(&[]), 10.0);
-        let weeks = vec![sample_week(2026, 1, 0.0, 0.0, 0.0)];
+        let weeks = vec![sample_week(2026, 1, 0.0, 0.0, 0.0, 0.0)];
         assert_eq!(compute_max_hours(&weeks), 10.0);
     }
 
@@ -203,6 +224,7 @@ mod tests {
         current_year: u32,
         current_week: u8,
         paid_label: String,
+        committed_label: String,
         volunteer_label: String,
         required_label: String,
         week_short: String,
@@ -221,6 +243,7 @@ mod tests {
                     current_year: p.current_year,
                     current_week: p.current_week,
                     paid_label: p.paid_label.clone(),
+                    committed_label: p.committed_label.clone(),
                     volunteer_label: p.volunteer_label.clone(),
                     required_label: p.required_label.clone(),
                     week_short: p.week_short.clone(),
@@ -234,6 +257,7 @@ mod tests {
                 current_year,
                 current_week,
                 paid_label: "Paid".to_string(),
+                committed_label: "Committed".to_string(),
                 volunteer_label: "Volunteer".to_string(),
                 required_label: "Required Hours".to_string(),
                 week_short: week_short.to_string(),
@@ -246,14 +270,19 @@ mod tests {
     #[test]
     fn chart_uses_token_styles_not_legacy_hex() {
         let weeks: Rc<[WeeklySummary]> = vec![
-            sample_week(2026, 1, 20.0, 10.0, 35.0),
-            sample_week(2026, 2, 30.0, 12.0, 25.0),
+            // committed > 0 so the var(--good) committed segment is rendered.
+            sample_week(2026, 1, 20.0, 6.0, 10.0, 35.0),
+            sample_week(2026, 2, 30.0, 4.0, 12.0, 25.0),
         ]
         .into();
         let html = render_view(weeks, 2026, 12, "W");
         assert!(
             html.contains("var(--accent)"),
             "expected accent token: {html}"
+        );
+        assert!(
+            html.contains("var(--good)"),
+            "expected good token (committed segment): {html}"
         );
         assert!(
             html.contains("var(--ink-muted)"),
@@ -269,22 +298,32 @@ mod tests {
     #[test]
     fn chart_volunteer_uses_ink_muted_not_good() {
         // The reference uses ink-muted with opacity for volunteer; var(--good) (green) was wrong.
-        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 10.0, 35.0)].into();
+        // committed > 0 so the D-04 committed segment (var(--good)) actually renders and we can
+        // verify that ONLY the committed segment uses --good, NOT the volunteer segment.
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 8.0, 10.0, 35.0)].into();
         let html = render_view(weeks, 2026, 1, "W");
         // The volunteer bar div should reference var(--ink-muted) with opacity 0.35.
         assert!(
             html.contains("background: var(--ink-muted); opacity: 0.35"),
             "expected volunteer ink-muted with opacity 0.35: {html}"
         );
+        // D-04: var(--good) is allowed ONLY for the committed segment, NOT for volunteer.
+        // Segment-specific guard: the volunteer div style (ink-muted + opacity 0.35) must
+        // itself not carry var(--good). The committed segment (separate div) may use --good.
         assert!(
-            !html.contains("background: var(--good)"),
-            "should not use --good for volunteer: {html}"
+            !html.contains("background: var(--good); opacity: 0.35"),
+            "volunteer segment (ink-muted/opacity 0.35) must not use --good: {html}"
+        );
+        // Sanity: the committed segment IS rendered with --good (no opacity suffix).
+        assert!(
+            html.contains("background: var(--good);"),
+            "expected committed segment to use var(--good): {html}"
         );
     }
 
     #[test]
     fn chart_required_line_uses_bad_token_dashed() {
-        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 10.0, 35.0)].into();
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 0.0, 10.0, 35.0)].into();
         let html = render_view(weeks, 2026, 1, "W");
         // Per-bar required line: dashed border-top in --bad
         assert!(
@@ -294,11 +333,31 @@ mod tests {
     }
 
     #[test]
+    fn chart_tooltip_names_all_three_bands() {
+        // D-04: tooltip lists paid, committed and volunteer (plus required).
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 5.0, 3.0, 30.0)].into();
+        let html = render_view(weeks, 2026, 1, "W");
+        // render_view feeds committed_label = "Committed"; the title must mention it with 1-dec hours.
+        assert!(
+            html.contains("Committed 5.0h"),
+            "tooltip should name committed band with one-decimal hours: {html}"
+        );
+        assert!(
+            html.contains("Paid 20.0h"),
+            "tooltip should name paid band: {html}"
+        );
+        assert!(
+            html.contains("Volunteer 3.0h"),
+            "tooltip should name volunteer band: {html}"
+        );
+    }
+
+    #[test]
     fn chart_current_week_full_opacity_others_dimmed() {
         let weeks: Rc<[WeeklySummary]> = vec![
-            sample_week(2026, 16, 20.0, 5.0, 30.0),
-            sample_week(2026, 17, 25.0, 5.0, 30.0),
-            sample_week(2026, 18, 15.0, 5.0, 30.0),
+            sample_week(2026, 16, 20.0, 0.0, 5.0, 30.0),
+            sample_week(2026, 17, 25.0, 0.0, 5.0, 30.0),
+            sample_week(2026, 18, 15.0, 0.0, 5.0, 30.0),
         ]
         .into();
         let html = render_view(weeks, 2026, 17, "W");
@@ -316,8 +375,8 @@ mod tests {
     #[test]
     fn chart_current_week_uses_accent_others_dimmed_color() {
         let weeks: Rc<[WeeklySummary]> = vec![
-            sample_week(2026, 16, 20.0, 5.0, 30.0),
-            sample_week(2026, 17, 25.0, 5.0, 30.0),
+            sample_week(2026, 16, 20.0, 0.0, 5.0, 30.0),
+            sample_week(2026, 17, 25.0, 0.0, 5.0, 30.0),
         ]
         .into();
         let html = render_view(weeks, 2026, 17, "W");
@@ -334,8 +393,8 @@ mod tests {
     #[test]
     fn chart_no_dim_when_year_does_not_match() {
         let weeks: Rc<[WeeklySummary]> = vec![
-            sample_week(2025, 16, 20.0, 5.0, 30.0),
-            sample_week(2025, 17, 25.0, 5.0, 30.0),
+            sample_week(2025, 16, 20.0, 0.0, 5.0, 30.0),
+            sample_week(2025, 17, 25.0, 0.0, 5.0, 30.0),
         ]
         .into();
         let html = render_view(weeks, 2026, 17, "W");
@@ -351,7 +410,7 @@ mod tests {
     #[test]
     fn chart_x_axis_renders_five_locale_labels() {
         let weeks_vec: Vec<WeeklySummary> = (1..=52u8)
-            .map(|w| sample_week(2026, w, 10.0, 5.0, 20.0))
+            .map(|w| sample_week(2026, w, 10.0, 0.0, 5.0, 20.0))
             .collect();
         let weeks: Rc<[WeeklySummary]> = weeks_vec.into();
         let html = render_view(weeks, 2026, 27, "KW");

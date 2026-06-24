@@ -55,7 +55,7 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
     } = props;
 
     let week_label = i18n.t(Key::WeekLabel);
-    let paid_volunteer = i18n.t(Key::PaidVolunteer);
+    let paid_committed_volunteer = i18n.t(Key::PaidCommittedVolunteer);
     let available_required_hours = i18n.t(Key::AvailableRequiredHours);
     let missing_hours = i18n.t(Key::MissingHours);
     let hours_short = i18n.t(Key::HoursShort);
@@ -69,7 +69,7 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                             "{week_label}"
                         }
                         th { class: "px-3 py-2 text-micro font-bold uppercase hidden md:table-cell",
-                            "{paid_volunteer}"
+                            "{paid_committed_volunteer}"
                         }
                         th { class: "px-3 py-2 text-micro font-bold uppercase",
                             "{available_required_hours}"
@@ -100,12 +100,18 @@ pub fn WeeklyOverviewTable(props: WeeklyOverviewTableProps) -> Element {
                                         }
                                     }
                                     td { class: "hidden md:table-cell px-3 py-2 text-ink",
-                                        {format!("💰{} | 🤝{}", format_hours(week.paid_hours, 2), format_hours(week.volunteer_hours, 2))}
+                                        {format!("💰{} | 🎯{} | 🤝{}",
+                                            format_hours(week.paid_hours, 2),
+                                            format_hours(week.committed_voluntary_hours, 2),
+                                            format_hours(week.volunteer_hours, 2))}
                                     }
                                     td { class: "px-3 py-2 text-ink font-mono tabular-nums",
                                         div { {format!("{} / {}", format_hours(week.available_hours, 2), format_hours(week.required_hours, 2))} }
                                         div { class: "text-small font-normal text-ink-muted block md:hidden mt-1",
-                                            {format!("💰{} | 🤝{}", format_hours(week.paid_hours, 2), format_hours(week.volunteer_hours, 2))}
+                                            {format!("💰{} | 🎯{} | 🤝{}",
+                                            format_hours(week.paid_hours, 2),
+                                            format_hours(week.committed_voluntary_hours, 2),
+                                            format_hours(week.volunteer_hours, 2))}
                                         }
                                     }
                                     td { class: "px-3 py-2 {diff_class} font-mono tabular-nums",
@@ -215,14 +221,22 @@ mod tests {
     use crate::state::weekly_overview::SalesPersonAbsence;
     use std::sync::Arc;
 
-    fn sample_week(year: u32, week: u8, paid: f32, volunteer: f32, required: f32) -> WeeklySummary {
+    fn sample_week(
+        year: u32,
+        week: u8,
+        paid: f32,
+        committed: f32,
+        volunteer: f32,
+        required: f32,
+    ) -> WeeklySummary {
         WeeklySummary {
             week,
             year,
-            available_hours: paid + volunteer,
+            available_hours: paid + committed + volunteer,
             required_hours: required,
             paid_hours: paid,
             volunteer_hours: volunteer,
+            committed_voluntary_hours: committed,
             monday_available_hours: 0.0,
             tuesday_available_hours: 0.0,
             wednesday_available_hours: 0.0,
@@ -280,7 +294,7 @@ mod tests {
 
     fn build_full_year(year: u32) -> Rc<[WeeklySummary]> {
         (1..=52u8)
-            .map(|w| sample_week(year, w, 20.0, 5.0, 30.0))
+            .map(|w| sample_week(year, w, 20.0, 0.0, 5.0, 30.0))
             .collect::<Vec<_>>()
             .into()
     }
@@ -370,13 +384,13 @@ mod tests {
         // Use weeks within the window for current_week=3 -> [1,8]
         let weeks: Rc<[WeeklySummary]> = vec![
             // week 1: surplus +3
-            sample_week(2026, 1, 33.0, 0.0, 30.0),
+            sample_week(2026, 1, 33.0, 0.0, 0.0, 30.0),
             // week 2: deficit -5
-            sample_week(2026, 2, 25.0, 0.0, 30.0),
+            sample_week(2026, 2, 25.0, 0.0, 0.0, 30.0),
             // week 3: large deficit -25
-            sample_week(2026, 3, 5.0, 0.0, 30.0),
+            sample_week(2026, 3, 5.0, 0.0, 0.0, 30.0),
             // week 4: zero diff
-            sample_week(2026, 4, 30.0, 0.0, 30.0),
+            sample_week(2026, 4, 30.0, 0.0, 0.0, 30.0),
         ]
         .into();
         let html = render_table(WeeklyOverviewTableProps {
@@ -411,7 +425,7 @@ mod tests {
 
     #[test]
     fn page_absences_row_uses_tokens_and_no_tint() {
-        let mut current = sample_week(2026, 27, 25.0, 5.0, 30.0);
+        let mut current = sample_week(2026, 27, 25.0, 0.0, 5.0, 30.0);
         current.sales_person_absences = vec![SalesPersonAbsence {
             name: Arc::<str>::from("Lena"),
             absence_hours: 8.0,
@@ -548,6 +562,72 @@ mod tests {
                 "legacy class `{legacy}` found: {html}"
             );
         }
+    }
+
+    #[test]
+    fn page_renders_three_separate_tokens_committed_and_surplus() {
+        // D-02 / CVC-07e: committed and surplus render as separate 🎯 / 🤝 tokens,
+        // never combined. committed=5, volunteer(surplus)=2 → 🎯5.00 and 🤝2.00.
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 5.0, 2.0, 30.0)].into();
+        let html = render_table(WeeklyOverviewTableProps {
+            weeks,
+            current_year: 2026,
+            current_week: 1,
+            i18n: generate(Locale::En),
+        });
+        // The committed (🎯) and surplus (🤝) tokens both appear.
+        assert!(html.contains("🎯5.00"), "expected 🎯5.00 token: {html}");
+        assert!(html.contains("🤝2.00"), "expected 🤝2.00 token: {html}");
+        // Three-token string present (paid | committed | surplus), Desktop + Mobile.
+        let three_token = "💰20.00 | 🎯5.00 | 🤝2.00";
+        let count = html.matches(three_token).count();
+        assert!(
+            count >= 2,
+            "expected the three-token string in both desktop and mobile cells (>=2), got {count}: {html}"
+        );
+        // The old two-token combined form must not appear.
+        assert!(
+            !html.contains("💰20.00 | 🤝2.00"),
+            "old two-token form should be gone: {html}"
+        );
+    }
+
+    #[test]
+    fn page_committed_zero_renders_plain_zero_no_dash() {
+        // D-03 / CVC-07f: committed == 0 renders 🎯0.00 (plain zero, two decimals),
+        // no blank/dash/em-dash special-casing.
+        let weeks: Rc<[WeeklySummary]> = vec![sample_week(2026, 1, 20.0, 0.0, 5.0, 30.0)].into();
+        let html = render_table(WeeklyOverviewTableProps {
+            weeks,
+            current_year: 2026,
+            current_week: 1,
+            i18n: generate(Locale::En),
+        });
+        assert!(
+            html.contains("🎯0.00"),
+            "committed=0 should render as 🎯0.00: {html}"
+        );
+        // No dash/em-dash adjacent to the committed glyph.
+        assert!(
+            !html.contains("🎯—") && !html.contains("🎯-") && !html.contains("🎯 —"),
+            "committed=0 must not render a dash/em-dash: {html}"
+        );
+    }
+
+    #[test]
+    fn page_header_uses_three_band_key() {
+        // The desktop header switches to the new three-band key.
+        let weeks = build_full_year(2026);
+        let html = render_table(WeeklyOverviewTableProps {
+            weeks,
+            current_year: 2026,
+            current_week: 27,
+            i18n: generate(Locale::En),
+        });
+        assert!(
+            html.contains("Paid / Voluntary committed / Volunteer"),
+            "header should use the three-band key copy: {html}"
+        );
     }
 
     #[test]

@@ -126,6 +126,13 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview page
     i18n.add_text(Locale::Cs, Key::WeeklyOverviewTitle, "Týdenní přehled");
+    i18n.add_text(Locale::Cs, Key::PaidVolunteer, "Placené / Dobrovolné");
+    i18n.add_text(Locale::Cs, Key::Committed, "Dobrovolně přislíbeno");
+    i18n.add_text(
+        Locale::Cs,
+        Key::PaidCommittedVolunteer,
+        "Placené / Dobrovolně přislíbeno / Dobrovolné",
+    );
     i18n.add_text(
         Locale::Cs,
         Key::AvailableRequiredHours,
@@ -537,6 +544,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Vytvořit nového prodejce",
     );
     i18n.add_text(Locale::Cs, Key::Paid, "Placený");
+    i18n.add_text(Locale::Cs, Key::Volunteer, "Dobrovolné");
     i18n.add_text(Locale::Cs, Key::Inactive, "Neaktivní");
     i18n.add_text(Locale::Cs, Key::Login, "Přihlásit se");
     i18n.add_text(Locale::Cs, Key::LogoutUser, "Odhlásit {user}");

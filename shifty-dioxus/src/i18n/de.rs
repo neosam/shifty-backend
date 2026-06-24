@@ -131,6 +131,12 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // Weekly overview page
     i18n.add_text(Locale::De, Key::WeeklyOverviewTitle, "Jahresübersicht");
     i18n.add_text(Locale::De, Key::PaidVolunteer, "Bezahlt / Freiwillig");
+    i18n.add_text(Locale::De, Key::Committed, "Freiwillig zugesagt");
+    i18n.add_text(
+        Locale::De,
+        Key::PaidCommittedVolunteer,
+        "Bezahlt / Freiwillig zugesagt / Freiwillig",
+    );
     i18n.add_text(
         Locale::De,
         Key::AvailableRequiredHours,

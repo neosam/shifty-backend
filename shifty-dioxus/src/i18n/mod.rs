@@ -118,6 +118,8 @@ pub enum Key {
     // Weekly overview page
     WeeklyOverviewTitle,
     PaidVolunteer,
+    PaidCommittedVolunteer,
+    Committed,
     AvailableRequiredHours,
     MissingHours,
     UnsavedChanges,
@@ -806,6 +808,46 @@ mod tests {
         assert_eq!(i18n.t(Key::AbsenceCategoryVacation).as_ref(), "Dovolená");
         assert_eq!(i18n.t(Key::AbsenceCategorySickLeave).as_ref(), "Nemoc");
         assert_eq!(i18n.t(Key::AbsenceStatusActive).as_ref(), "Aktivní");
+    }
+
+    #[test]
+    fn i18n_committed_keys_match_german_reference() {
+        // Phase-16 D-02/CVC-08 guard: pins the De copy for the committed token +
+        // three-band header, and protects against the Locale::De/Locale::En swap bug.
+        let i18n = generate(Locale::De);
+        assert_eq!(i18n.t(Key::Committed).as_ref(), "Freiwillig zugesagt");
+        assert_eq!(
+            i18n.t(Key::PaidCommittedVolunteer).as_ref(),
+            "Bezahlt / Freiwillig zugesagt / Freiwillig"
+        );
+    }
+
+    #[test]
+    fn i18n_committed_keys_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(i18n.t(Key::Committed).as_ref(), "Voluntary committed");
+        assert_eq!(
+            i18n.t(Key::PaidCommittedVolunteer).as_ref(),
+            "Paid / Voluntary committed / Volunteer"
+        );
+    }
+
+    #[test]
+    fn i18n_committed_keys_match_czech_reference() {
+        let i18n = generate(Locale::Cs);
+        assert_eq!(i18n.t(Key::Committed).as_ref(), "Dobrovolně přislíbeno");
+        assert_eq!(
+            i18n.t(Key::PaidCommittedVolunteer).as_ref(),
+            "Placené / Dobrovolně přislíbeno / Dobrovolné"
+        );
+    }
+
+    #[test]
+    fn i18n_czech_closes_volunteer_and_paid_volunteer_gaps() {
+        // Pre-existing cs.rs gaps (verified absent at HEAD) closed by Phase 16 Plan 03.
+        let i18n = generate(Locale::Cs);
+        assert_eq!(i18n.t(Key::Volunteer).as_ref(), "Dobrovolné");
+        assert_eq!(i18n.t(Key::PaidVolunteer).as_ref(), "Placené / Dobrovolné");
     }
 
     #[test]
