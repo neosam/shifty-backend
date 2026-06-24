@@ -260,6 +260,19 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         week
                     };
 
+                    // User-Regel (quick-260624-ujk): Eine KW OHNE EmployeeWorkDetails-Zeile bedeutet,
+                    // dass der Mitarbeiter in dieser Woche KEINEN Vertrag hat. Geleistete Shiftplan-Stunden
+                    // sind dann Ehrenamt (volunteer), kein bezahltes Soll=Ist. Das unterscheidet sich vom
+                    // dynamischen Vertrag (Zeile vorhanden, expected=0): dort gilt weiterhin Soll=Ist.
+                    //
+                    // Abgrenzung booking_information-Band-Logik: Die booking_information-Baender
+                    // (committed_voluntary Band 1, volunteer_surplus Band 2) sind auf is_paid=false
+                    // (unbezahlte Freiwillige) gegated. Dieser Pfad betrifft bezahlte Mitarbeiter
+                    // ohne Vertragszeile. Beide Pfade sind disjunkt — keine Doppelzaehlung.
+                    let has_contract_row =
+                        find_working_hours_for_calendar_week(&working_hours, year, week)
+                            .next()
+                            .is_some();
                     let (expected_hours, dynamic_hours) =
                         find_working_hours_for_calendar_week(&working_hours, year, week)
                             .map(|wh| weight_for_week(year, week,
@@ -303,7 +316,37 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             .map(|(_, r)| r.hours)
                             .sum::<f32>()
                     };
-                    if expected_hours <= 0.0 {
+                    if !has_contract_row {
+                        // Ehrenamt-Pfad (quick-260624-ujk): Keine Vertragszeile fuer diese KW.
+                        // Shiftplan-Stunden fliessen als Ehrenamt, NICHT in overall/planned.
+                        // ExtraWork bleibt in extra_working_hours (explizit erfasste bezahlte Leistung).
+                        let extra_work: f32 = extra_hours_array
+                            .iter()
+                            .filter(|extra_hours| {
+                                extra_hours.category == ExtraHoursCategory::ExtraWork
+                                &&
+                                extra_hours.date_time.iso_week() == week
+                                    && extra_hours.date_time.year() as u32 == year
+                            })
+                            .map(|extra_hours| extra_hours.amount)
+                            .sum();
+                        WeeklyHours {
+                            shiftplan_hours: 0.0,
+                            extra_working_hours: extra_work,
+                            absense_hours: 0.0,
+                            planned_hours: 0.0,
+                            dynamic_hours,
+                            vacation_hours: 0.0,
+                            sick_leave_hours: 0.0,
+                            holiday_hours: 0.0,
+                            unavailable_hours: 0.0,
+                            unpaid_leave_hours: 0.0,
+                            volunteer_hours: auto_volunteer_hours + shiftplan_hours,
+                            custom_absence_hours: HashMap::new(),
+                            absence_derived_balance_hours: 0.0,
+                        }
+                    } else if expected_hours <= 0.0 {
+                        // Dynamischer Vertrag (Zeile vorhanden, expected=0): Soll=Ist.
                         let extra_work: f32 = extra_hours_array
                             .iter()
                             .filter(|extra_hours| {
@@ -833,6 +876,25 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     .collect::<Vec<_>>()
                     .into()
             };
+            // User-Regel (quick-260624-ujk): Eine KW OHNE EmployeeWorkDetails-Zeile bedeutet,
+            // dass der Mitarbeiter in dieser Woche KEINEN Vertrag hat. Geleistete Shiftplan-Stunden
+            // sind dann Ehrenamt (volunteer), kein bezahltes Soll=Ist.
+            //
+            // Wichtig fuer get_week: `all_for_week` liefert nur Persons MIT Vertragszeile fuer
+            // diese KW — d.h. Personen OHNE Zeile iteriert diese Schleife gar nicht. Falls solche
+            // Personen Shiftplan-Stunden in dieser KW leisten, tauchen sie hier nicht auf. Die
+            // no-contract-Faelle sind deshalb in get_reports_for_all_employees und hours_per_week
+            // abgedeckt; hier ist has_contract_row implizit immer true. Der Guard bleibt fuer
+            // Konsistenz und um den dynamic-Zweig (planned_hours==0, Zeile vorhanden) korrekt zu trennen.
+            //
+            // Abgrenzung booking_information-Band-Logik: Die booking_information-Baender
+            // (committed_voluntary Band 1, volunteer_surplus Band 2) sind auf is_paid=false
+            // (unbezahlte Freiwillige) gegated. Dieser Pfad betrifft bezahlte Mitarbeiter.
+            // Beide Pfade sind disjunkt — keine Doppelzaehlung.
+            let has_contract_row =
+                find_working_hours_for_calendar_week(&working_hours, year, week)
+                    .next()
+                    .is_some();
             let (planned_hours, dynamic_hours): (f32, f32) =
                 find_working_hours_for_calendar_week(&working_hours, year, week)
                     .map(|wh|  weight_for_week(year, week, wh))
@@ -870,8 +932,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             // 0.0 im dynamic-Zweig) und zur Referenz hours_per_week (Z.988: absence_hours + derived
             // beide mit `if working_hours_for_week <= 0.0 { 0.0 }`-Guard).
             // Display-Merge (vacation/sick/unpaid_leave Zeilen unten) bleibt ungegate additiv.
-            let abense_hours_for_balance = if planned_hours <= 0.0 { 0.0f32 } else { abense_hours };
-            let absence_derived_balance_total = if planned_hours <= 0.0 {
+            //
+            // no-contract (quick-260624-ujk): Bei !has_contract_row sind absence_hours irrelevant
+            // (kein Soll => kein Abzug). In der Praxis ist has_contract_row hier immer true (s.o.),
+            // aber der Guard ist explizit fuer Konsistenz mit den anderen Pfaden.
+            let abense_hours_for_balance = if !has_contract_row || planned_hours <= 0.0 { 0.0f32 } else { abense_hours };
+            let absence_derived_balance_total = if !has_contract_row || planned_hours <= 0.0 {
                 0.0f32
             } else {
                 absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours
@@ -879,9 +945,14 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             let expected_hours = planned_hours - abense_hours_for_balance - absence_derived_balance_total;
             let (shiftplan_hours, auto_volunteer_hours) =
                 apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
-            let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours;
+            // no-contract (quick-260624-ujk): Falls has_contract_row false waere, gehen Shiftplan-
+            // Stunden als Ehrenamt. In get_week ist has_contract_row implizit immer true (s.o.),
+            // aber der Guard bleibt als Absicherung konsistent mit den anderen Report-Pfaden.
+            let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
+            let no_contract_volunteer = if has_contract_row { 0.0 } else { shiftplan_hours };
+            let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours + no_contract_volunteer;
             let dynamic_hours = dynamic_hours - abense_hours_for_balance - absence_derived_balance_total;
-            let overall_hours = shiftplan_hours + extra_working_hours;
+            let overall_hours = shiftplan_paid + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
             // D-06 / CVC-10: Fetch SalesPerson vor dem push und gate auf is_paid.
             // Unbezahlte Freiwillige (is_paid=false, expected_hours=0) halten ab Phase 17
@@ -1037,8 +1108,25 @@ fn hours_per_week(
                 );
         let cap_active = find_working_hours_for_calendar_week(working_hours, week.year, week.week)
             .any(|wh| wh.cap_planned_hours_to_expected);
+        // User-Regel (quick-260624-ujk): Eine KW OHNE EmployeeWorkDetails-Zeile bedeutet,
+        // dass der Mitarbeiter in dieser Woche KEINEN Vertrag hat. Geleistete Shiftplan-Stunden
+        // sind dann Ehrenamt (volunteer), kein bezahltes Soll=Ist. Das unterscheidet sich vom
+        // dynamischen Vertrag (Zeile vorhanden, expected=0): dort gilt weiterhin Soll=Ist.
+        //
+        // Abgrenzung booking_information-Band-Logik: Die booking_information-Baender
+        // (committed_voluntary Band 1, volunteer_surplus Band 2) sind auf is_paid=false
+        // (unbezahlte Freiwillige) gegated. Dieser Pfad betrifft bezahlte Mitarbeiter
+        // ohne Vertragszeile. Beide Pfade sind disjunkt — keine Doppelzaehlung.
+        let has_contract_row =
+            find_working_hours_for_calendar_week(working_hours, week.year, week.week)
+                .next()
+                .is_some();
         let (shiftplan_hours, auto_volunteer_hours) =
             apply_weekly_cap(cap_active, raw_shiftplan_hours, working_hours_for_week);
+        // no-contract: shiftplan-Stunden gehen NICHT in overall, sondern als Ehrenamt.
+        // dynamic (has_contract_row && working_hours_for_week == 0): shiftplan_paid bleibt shiftplan_hours (Soll=Ist).
+        let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
+        let no_contract_volunteer = if has_contract_row { 0.0 } else { shiftplan_hours };
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
@@ -1094,7 +1182,13 @@ fn hours_per_week(
             )
             .collect::<Result<Vec<WorkingHoursDay>, ServiceError>>()?;
         day_list.sort_by_key(|day| day.date);
-        let expected_hours = if working_hours_for_week == 0.0 {
+        // Drei Faelle (quick-260624-ujk):
+        // 1. !has_contract_row: Ehrenamt-Pfad — expected=0, shiftplan NICHT in overall.
+        // 2. has_contract_row && working_hours_for_week == 0 (dynamisch): Soll=Ist — expected = shiftplan + extra.
+        // 3. has_contract_row && working_hours_for_week > 0: Normal — expected = Vertragsstunden.
+        let expected_hours = if !has_contract_row {
+            0.0
+        } else if working_hours_for_week == 0.0 {
             shiftplan_hours + extra_work_hours
         } else {
             working_hours_for_week
@@ -1126,9 +1220,11 @@ fn hours_per_week(
             contract_weekly_hours: dynamic_working_hours_for_week,
             expected_hours: expected_hours - absence_hours,
             dynamic_hours: dynamic_working_hours_for_week - absence_hours,
-            overall_hours: shiftplan_hours + extra_work_hours,
-            balance: shiftplan_hours + extra_work_hours - expected_hours + absence_hours,
-            shiftplan_hours,
+            // no-contract (quick-260624-ujk): shiftplan_paid=0 fuer vertraglose Wochen;
+            // ExtraWork bleibt in overall (explizit erfasste bezahlte Leistung).
+            overall_hours: shiftplan_paid + extra_work_hours,
+            balance: shiftplan_paid + extra_work_hours - expected_hours + absence_hours,
+            shiftplan_hours: shiftplan_paid,
             days_per_week,
             workdays_per_week,
             extra_work_hours: filtered_extra_hours_list
@@ -1156,12 +1252,15 @@ fn hours_per_week(
                 .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
                 .map(|eh| eh.amount)
                 .sum(),
+            // no-contract (quick-260624-ujk): no_contract_volunteer traegt die Shiftplan-Stunden
+            // vertragloser Wochen als Ehrenamt bei (+ manuelle VolunteerWork + auto_volunteer vom Cap).
             volunteer_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::VolunteerWork)
                 .map(|eh| eh.amount)
                 .sum::<f32>()
-                + auto_volunteer_hours,
+                + auto_volunteer_hours
+                + no_contract_volunteer,
             custom_extra_hours,
             days: day_list.iter().cloned().collect(),
         });
