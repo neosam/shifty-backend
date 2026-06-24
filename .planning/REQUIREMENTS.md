@@ -21,8 +21,8 @@
 
 ### Jahresansicht-Anzeige (CVC)
 
-- [ ] **CVC-07**: `weekly_overview` zeigt die committed-Kapazität **separat** (eigener Token, z. B. „zugesagt") — nicht mit `paid`/`volunteer` vermischt; Überschuss wird sichtbar ausgewiesen (Beispiel committed=5, actual=7 → `🎯5.00 | 🤝2.00`); committed=5, actual=3 → gedeckte `🎯5.00 | 🤝0.00`. **Revidiert per Phase-16-CONTEXT D-03:** bei committed=0 wird `🎯0.00` gezeigt (konsistent mit paid/volunteer), KEINE blank/Strich-Sonderlogik in der aggregierten Jahresansicht (blank/Strich gehört, falls überhaupt, in Phase 17 / Mitarbeiteransicht).
-- [ ] **CVC-08**: Alle neuen benutzersichtbaren Strings sind in De / En / Cs vollständig gepflegt (kein `Locale::En`-statt-`Locale::De`-Bug; Per-Locale-Reference-Matcher analog v1.3).
+- [x] **CVC-07**: `weekly_overview` zeigt die committed-Kapazität **separat** (eigener Token, z. B. „zugesagt") — nicht mit `paid`/`volunteer` vermischt; Überschuss wird sichtbar ausgewiesen (Beispiel committed=5, actual=7 → `🎯5.00 | 🤝2.00`); committed=5, actual=3 → gedeckte `🎯5.00 | 🤝0.00`. **Revidiert per Phase-16-CONTEXT D-03:** bei committed=0 wird `🎯0.00` gezeigt (konsistent mit paid/volunteer), KEINE blank/Strich-Sonderlogik in der aggregierten Jahresansicht (blank/Strich gehört, falls überhaupt, in Phase 17 / Mitarbeiteransicht).
+- [x] **CVC-08**: Alle neuen benutzersichtbaren Strings sind in De / En / Cs vollständig gepflegt (kein `Locale::En`-statt-`Locale::De`-Bug; Per-Locale-Reference-Matcher analog v1.3).
 
 ### Editor + unbezahlte Freiwillige (CVC)
 
@@ -68,8 +68,8 @@ Welche Phasen welche Requirements abdecken. (v1.4 startet bei Phase 14 — v1.3 
 | CVC-04 | Phase 15 | Complete |
 | CVC-05 | Phase 15 | Complete |
 | CVC-06 | Phase 15 | Complete |
-| CVC-07 | Phase 16 | Pending |
-| CVC-08 | Phase 16 | Pending |
+| CVC-07 | Phase 16 | Complete |
+| CVC-08 | Phase 16 | Complete |
 | CVC-09 | Phase 17 | Pending |
 | CVC-10 | Phase 17 | Pending |
 

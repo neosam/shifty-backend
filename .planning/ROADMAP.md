@@ -32,7 +32,7 @@ Zeit-versioniertes `committed_voluntary: f32` auf `EmployeeWorkDetails` (D-01 / 
   3. `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **7** (KEIN Bump) — begründet im Audit-Trail (Phase 15 berührt keinen persistierten `value_type`; `WeeklySummary` wird von `billing_period_report.rs` nie gelesen). Ein Regressionstest `snapshot_schema_version_unchanged_at_7` bestätigt die unveränderte Version (CVC-05).
   4. `cargo test --workspace` grün; Billing-Period-Snapshot-Regression sauber; keine Doppelzählung gegen Achse B (durch den Fixture-Test in Kriterium 1 strukturell ausgeschlossen)
 
-- [ ] **Phase 16: Jahresansicht display** (Backend + Frontend) — separater „zugesagt"-Token inkl. Überschuss; i18n de/en/cs
+- [x] **Phase 16: Jahresansicht display** (Backend + Frontend) — separater „zugesagt"-Token inkl. Überschuss; i18n de/en/cs
   `WeeklySummary` + `WeeklySummaryTO` + `From` tragen den `committed_voluntary_hours`-Term; Frontend `state/weekly_overview.rs` + `page/weekly_overview.rs` rendert einen **dritten** Token („zugesagt"), getrennt von `paid`/`volunteer`. Überschuss sichtbar (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`). committed=0 wird als `🎯0.00` gezeigt (keine blank/Strich-Sonderlogik, D-03).
   Requirements: CVC-07, CVC-08
   Success Criteria:
@@ -229,7 +229,7 @@ Plans:
 | 8–13 — v1.3 (siehe milestones/v1.3-ROADMAP.md) | v1.3 | — | Closed | 2026-06-22 |
 | 14 — Data-model foundation (backend) | v1.4 | 2/2 | Complete    | 2026-06-23 |
 | 15 — Reporting no-double-count (KEIN Snapshot-Bump) | v1.4 | 2/2 | Complete    | 2026-06-24 |
-| 16 — Jahresansicht display | v1.4 | 3/3 | Complete   | 2026-06-24 |
+| 16 — Jahresansicht display | v1.4 | 3/3 | Complete    | 2026-06-24 |
 | 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 0/? | Not started | — |
 
 ---
