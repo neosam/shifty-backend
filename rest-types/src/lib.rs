@@ -909,6 +909,8 @@ pub struct WeeklySummaryTO {
     pub required_hours: f32,
     pub paid_hours: f32,
     pub volunteer_hours: f32,
+    #[serde(default)]
+    pub committed_voluntary_hours: f32,
     pub monday_available_hours: f32,
     pub tuesday_available_hours: f32,
     pub wednesday_available_hours: f32,
@@ -928,6 +930,7 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
             required_hours: weekly_summary.required_hours,
             paid_hours: weekly_summary.paid_hours,
             volunteer_hours: weekly_summary.volunteer_hours,
+            committed_voluntary_hours: weekly_summary.committed_voluntary_hours,
             monday_available_hours: weekly_summary.monday_available_hours,
             tuesday_available_hours: weekly_summary.tuesday_available_hours,
             wednesday_available_hours: weekly_summary.wednesday_available_hours,
@@ -2238,6 +2241,85 @@ mod test_employee_work_details_round_trip {
             (roundtrip.committed_voluntary - 2.5).abs() < f32::EPSILON,
             "committed_voluntary must survive full round-trip unchanged: expected 2.5, got {}",
             roundtrip.committed_voluntary
+        );
+    }
+}
+
+/// CVC-07b: `WeeklySummaryTO` carries `committed_voluntary_hours` and maps it from
+/// the service-layer `WeeklySummary` (Band 1, the pledge).
+///
+/// The From-mapping test lives behind `service-impl` (where the `From<&WeeklySummary>`
+/// impl is gated). The serde-default test needs no feature flag.
+#[cfg(all(test, feature = "service-impl"))]
+mod test_weekly_summary_committed_voluntary {
+    use super::*;
+    use service::booking_information::WeeklySummary;
+
+    fn make_weekly_summary(committed_voluntary_hours: f32) -> WeeklySummary {
+        WeeklySummary {
+            year: 2026,
+            week: 12,
+            overall_available_hours: 17.0,
+            required_hours: 30.0,
+            paid_hours: 10.0,
+            volunteer_hours: 2.0,
+            committed_voluntary_hours,
+            monday_available_hours: 0.0,
+            tuesday_available_hours: 0.0,
+            wednesday_available_hours: 0.0,
+            thursday_available_hours: 0.0,
+            friday_available_hours: 0.0,
+            saturday_available_hours: 0.0,
+            sunday_available_hours: 0.0,
+            working_hours_per_sales_person: Arc::from([]),
+        }
+    }
+
+    /// CVC-07b: committed_voluntary_hours = 5.0 survives the
+    /// WeeklySummary -> WeeklySummaryTO From-mapping unchanged.
+    #[test]
+    fn committed_voluntary_hours_maps_service_to_to() {
+        let ws = make_weekly_summary(5.0);
+        let to = WeeklySummaryTO::from(&ws);
+        assert!(
+            (to.committed_voluntary_hours - 5.0).abs() < f32::EPSILON,
+            "committed_voluntary_hours must be 5.0 in TO (got {})",
+            to.committed_voluntary_hours
+        );
+    }
+}
+
+/// CVC-07b (Pitfall 7): Wire-backward-compat — JSON without `committed_voluntary_hours`
+/// deserializes to `WeeklySummaryTO` with the field defaulting to 0.0 (no deser error).
+#[cfg(test)]
+mod test_weekly_summary_to_serde_default {
+    use super::*;
+
+    #[test]
+    fn committed_voluntary_hours_defaults_to_zero_when_absent() {
+        let json = r#"{
+            "year": 2026,
+            "week": 12,
+            "overall_available_hours": 12.0,
+            "required_hours": 30.0,
+            "paid_hours": 10.0,
+            "volunteer_hours": 2.0,
+            "monday_available_hours": 0.0,
+            "tuesday_available_hours": 0.0,
+            "wednesday_available_hours": 0.0,
+            "thursday_available_hours": 0.0,
+            "friday_available_hours": 0.0,
+            "saturday_available_hours": 0.0,
+            "sunday_available_hours": 0.0,
+            "working_hours_per_sales_person": []
+        }"#;
+
+        let to: WeeklySummaryTO =
+            serde_json::from_str(json).expect("legacy JSON without committed_voluntary_hours must deserialize");
+        assert!(
+            (to.committed_voluntary_hours - 0.0).abs() < f32::EPSILON,
+            "committed_voluntary_hours must default to 0.0 when absent (got {})",
+            to.committed_voluntary_hours
         );
     }
 }

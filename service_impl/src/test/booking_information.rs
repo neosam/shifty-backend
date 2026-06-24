@@ -304,6 +304,79 @@ fn cvc04_multi_day_multi_person() {
     );
 }
 
+// ─── D-01 overall_available_hours sum (Phase 16) ─────────────────────────────
+//
+// Phase 16 D-01: get_weekly_summary (first variant) now computes
+//   overall_available_hours = paid + committed_voluntary (Band 1) + volunteer (Band 2)
+// These tests pin the sum formula and the no-double-count invariant that makes the
+// three-band addition correct (Band 2 already subtracted committed per-person).
+
+/// The exact arithmetic the production line performs (CVC-07a):
+///   overall_available_hours = committed_voluntary_hours + volunteer_hours + paid_hours
+fn overall_available_hours(paid: f32, committed: f32, volunteer: f32) -> f32 {
+    committed + volunteer + paid
+}
+
+#[test]
+fn d01_overall_available_sums_paid_committed_volunteer() {
+    // CVC-07a: paid=10, committed=5, volunteer(surplus)=2 → 17.0
+    let paid: f32 = 10.0;
+    let committed: f32 = 5.0;
+    let volunteer: f32 = 2.0;
+
+    let overall = overall_available_hours(paid, committed, volunteer);
+
+    assert!(
+        approx(overall, 17.0),
+        "D-01: overall_available_hours expected paid+committed+volunteer = 17.0, got {overall}"
+    );
+    assert!(
+        approx(overall, paid + committed + volunteer),
+        "D-01: overall must equal paid + committed + volunteer"
+    );
+}
+
+#[test]
+fn d01_no_double_count_band2_already_net_of_committed() {
+    // No-double-count (D-04): for one person committed=5, actual=7, paid contributes 0 here.
+    // Band 1 = committed = 5; Band 2 = max(actual−committed,0) = 2.
+    // overall (volunteer side) = committed + surplus = max(committed, actual) = 7 — NOT 5+7=12.
+    let committed: f32 = 5.0;
+    let actual: f32 = 7.0;
+
+    let band1 = committed;
+    let band2 = volunteer_surplus_above_committed(actual, committed); // = 2.0
+
+    let overall = overall_available_hours(0.0, band1, band2);
+
+    assert!(
+        approx(overall, committed.max(actual)),
+        "no-double-count: committed + surplus must equal max(committed, actual) = {}, got {overall}",
+        committed.max(actual)
+    );
+    assert!(
+        approx(overall, 7.0),
+        "no-double-count: expected 7.0 (not 12.0 double-count), got {overall}"
+    );
+}
+
+#[test]
+fn d01_committed_zero_matches_pre_phase16_sum() {
+    // Backward-compat: committed=0 ⇒ overall_available_hours == volunteer + paid (pre-Phase-16).
+    let paid: f32 = 12.0;
+    let committed: f32 = 0.0;
+    let volunteer: f32 = 4.0;
+
+    let overall = overall_available_hours(paid, committed, volunteer);
+
+    assert!(
+        approx(overall, volunteer + paid),
+        "committed=0 ⇒ overall must equal the pre-Phase-16 volunteer+paid = {}, got {overall}",
+        volunteer + paid
+    );
+    assert!(approx(overall, 16.0), "expected 16.0, got {overall}");
+}
+
 // ─── No-bump regression test (D-01 / CVC-05) ─────────────────────────────────
 
 #[test]

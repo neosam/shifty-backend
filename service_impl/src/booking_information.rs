@@ -267,10 +267,10 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     });
                 }
             }
-            // overall_available_hours stays volunteer_hours + paid_hours (Pitfall 2 — Phase 16 wires display).
-            // NOTE: volunteer_hours is now the per-person surplus (Band 2); the pledge (Band 1) lives
-            // in committed_voluntary_hours separately. Phase 16 will sum both bands for display.
-            let overall_available_hours = volunteer_hours + paid_hours;
+            // D-01 (Phase 16): available = paid + committed (Band 1, pledge) + volunteer (Band 2, surplus).
+            // No double-count: Band 2 already subtracted committed per-person (Σ max(actual−committed,0)).
+            let overall_available_hours =
+                committed_voluntary_hours + volunteer_hours + paid_hours;
             weekly_report.push(WeeklySummary {
                 year,
                 week,
