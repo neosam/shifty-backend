@@ -621,7 +621,6 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::WorkingHoursTableTarget, "Target");
     i18n.add_text(Locale::En, Key::WorkingHoursTableUtilization, "Utilization");
     i18n.add_text(Locale::En, Key::WorkingHoursTableTotal, "Total");
-    i18n.add_text(Locale::En, Key::CommittedVoluntaryShort, "Volunteer");
 
     // Absence management (Phase 8)
     i18n.add_text(Locale::En, Key::AbsencePageTitle, "Absences");

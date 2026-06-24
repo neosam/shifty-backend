@@ -408,7 +408,6 @@ pub enum Key {
     WorkingHoursTableTarget,
     WorkingHoursTableUtilization,
     WorkingHoursTableTotal,
-    CommittedVoluntaryShort,
 
     // Absence management (Phase 8)
     // Page-Level

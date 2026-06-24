@@ -13,7 +13,6 @@ pub struct WorkingHoursMini {
     pub actual_hours: f32,
     pub balance_hours: f32,
     pub background_color: ImStr,
-    pub committed_voluntary_hours: f32,
 }
 
 impl Default for WorkingHoursMini {
@@ -26,7 +25,6 @@ impl Default for WorkingHoursMini {
             actual_hours: 0.0,
             balance_hours: 0.0,
             background_color: "#cccccc".into(),
-            committed_voluntary_hours: 0.0,
         }
     }
 }

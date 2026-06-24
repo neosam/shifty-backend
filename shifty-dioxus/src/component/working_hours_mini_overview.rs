@@ -49,12 +49,6 @@ pub(crate) fn hours_text_class(actual: f32, target: f32) -> &'static str {
     }
 }
 
-/// Returns true when `committed` is large enough to display (>= 0.5).
-/// Below this threshold the Ehrenamt/Volunteer line is hidden (Req 3).
-pub(crate) fn show_committed_voluntary(committed: f32) -> bool {
-    committed >= 0.5
-}
-
 /// Formats the difference `actual - target` as a signed string with one decimal
 /// and an `h` suffix. Non-negative values are prefixed with `+`.
 pub(crate) fn signed_hours_diff(actual: f32, target: f32) -> String {
@@ -103,7 +97,6 @@ struct LayoutInnerProps {
 
 #[component]
 fn CardsLayout(props: LayoutInnerProps) -> Element {
-    let i18n = I18N.read().clone();
     rsx! {
         div {
             class: "grid gap-2 select-none",
@@ -127,9 +120,6 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                     let hours_class = hours_text_class(actual, target);
                     let pct = progress_bar_percent(actual, target);
                     let bg_color = working_hour.background_color.clone();
-                    let committed = working_hour.committed_voluntary_hours;
-                    let committed_str = format_hours(committed, 1);
-                    let committed_label = i18n.t(Key::CommittedVoluntaryShort);
                     rsx! {
                         div {
                             class: "{card_class}",
@@ -149,12 +139,6 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                                     "{actual_hours_str} / {dynamic_hours_str}h"
                                     if show_balance {
                                         span { class: "text-ink-muted ml-1", "({balance_hours_str})" }
-                                    }
-                                }
-                                if show_committed_voluntary(committed) {
-                                    div {
-                                        class: "text-micro font-normal text-good",
-                                        "+ {committed_str}h {committed_label}"
                                     }
                                 }
                                 div {
@@ -179,11 +163,8 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
     let i18n = I18N.read().clone();
     let total_actual: f32 = props.rows.iter().map(|r| r.actual_hours).sum();
     let total_target: f32 = props.rows.iter().map(|r| r.dynamic_hours).sum();
-    let total_committed: f32 = props.rows.iter().map(|r| r.committed_voluntary_hours).sum();
     let total_actual_str = format_hours(total_actual, 1);
     let total_target_str = format_hours(total_target, 1);
-    let total_committed_str = format_hours(total_committed, 1);
-    let committed_label = i18n.t(Key::CommittedVoluntaryShort);
 
     rsx! {
         div {
@@ -237,9 +218,6 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                             } else {
                                 "border-t border-border cursor-pointer hover:bg-surface-alt"
                             };
-                            let row_committed = working_hour.committed_voluntary_hours;
-                            let row_committed_str = format_hours(row_committed, 1);
-                            let row_committed_label = i18n.t(Key::CommittedVoluntaryShort);
                             rsx! {
                                 tr {
                                     class: "{row_class}",
@@ -265,12 +243,6 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                                     td {
                                         class: "font-mono tabular-nums px-[14px] py-2 text-right text-ink-muted",
                                         "{target_str}h"
-                                        if show_committed_voluntary(row_committed) {
-                                            div {
-                                                class: "text-small font-normal text-good",
-                                                "+ {row_committed_str}h {row_committed_label}"
-                                            }
-                                        }
                                     }
                                     td {
                                         class: "px-[14px] py-2",
@@ -313,12 +285,6 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                         td {
                             class: "font-mono tabular-nums px-[14px] py-2 text-right font-semibold text-ink-muted",
                             "{total_target_str}h"
-                            if show_committed_voluntary(total_committed) {
-                                div {
-                                    class: "text-small font-normal text-good",
-                                    "+ {total_committed_str}h {committed_label}"
-                                }
-                            }
                         }
                         td { class: "px-[14px] py-2" }
                         td { class: "px-[14px] py-2" }
@@ -408,7 +374,6 @@ mod tests {
             actual_hours: actual,
             balance_hours: 0.0,
             background_color: color.into(),
-            committed_voluntary_hours: 0.0,
         }
     }
 
@@ -501,7 +466,6 @@ mod tests {
                         actual_hours: 5.0,
                         balance_hours: 0.0,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: Some(TEST_ID),
                     layout: WorkingHoursLayout::Cards,
@@ -533,7 +497,6 @@ mod tests {
                         actual_hours: 5.0,
                         balance_hours: -2.5,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: None,
                     show_balance: true,
@@ -649,7 +612,6 @@ mod tests {
                         actual_hours: 22.0,
                         balance_hours: 3.5,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
@@ -675,7 +637,6 @@ mod tests {
                         actual_hours: 15.0,
                         balance_hours: -7.0,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
@@ -706,7 +667,6 @@ mod tests {
                         actual_hours: 22.0,
                         balance_hours: -4.0,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
@@ -759,7 +719,6 @@ mod tests {
                             actual_hours: 5.0,
                             balance_hours: -2.5,
                             background_color: "#abc".into(),
-                            committed_voluntary_hours: 0.0,
                         },
                         WorkingHoursMini {
                             sales_person_id: Uuid::nil(),
@@ -769,7 +728,6 @@ mod tests {
                             actual_hours: 12.0,
                             balance_hours: 4.5,
                             background_color: "#def".into(),
-                            committed_voluntary_hours: 0.0,
                         },
                     ].to_vec()),
                     selected_sales_person_id: None,
@@ -845,7 +803,6 @@ mod tests {
                         actual_hours: 5.0,
                         balance_hours: 0.0,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: Some(TEST_ID),
                     layout: WorkingHoursLayout::Table,
@@ -877,7 +834,6 @@ mod tests {
                         actual_hours: 5.0,
                         balance_hours: 1.5,
                         background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.0,
                     }].to_vec()),
                     selected_sales_person_id: None,
                     layout: WorkingHoursLayout::Table,
@@ -933,96 +889,6 @@ mod tests {
         assert!(
             table_block.contains("on_dbl_click.call"),
             "TableLayout source must call on_dbl_click handler"
-        );
-    }
-
-    // ===== Req 3 — committed_voluntary threshold tests =====
-
-    /// show_committed_voluntary returns true iff committed >= 0.5.
-    #[test]
-    fn show_committed_voluntary_threshold() {
-        assert!(
-            !show_committed_voluntary(0.0),
-            "0.0 must be hidden (< 0.5)"
-        );
-        assert!(
-            !show_committed_voluntary(0.49),
-            "0.49 must be hidden (< 0.5)"
-        );
-        assert!(
-            show_committed_voluntary(0.5),
-            "0.5 must be shown (>= 0.5)"
-        );
-        assert!(
-            show_committed_voluntary(5.0),
-            "5.0 must be shown (>= 0.5)"
-        );
-    }
-
-    /// Req 3: committed_voluntary_hours = 2.0 >= 0.5 → Table-layout renders
-    /// the volunteer line with the hours value and the label "Volunteer" (EN).
-    #[test]
-    fn committed_voluntary_line_rendered_when_at_or_above_threshold() {
-        fn app() -> Element {
-            rsx! {
-                WorkingHoursMiniOverview {
-                    working_hours: Rc::from([WorkingHoursMini {
-                        sales_person_id: Uuid::nil(),
-                        sales_person_name: "A".into(),
-                        expected_hours: 8.0,
-                        dynamic_hours: 8.0,
-                        actual_hours: 5.0,
-                        balance_hours: 0.0,
-                        background_color: "#abc".into(),
-                        committed_voluntary_hours: 2.0,
-                    }].to_vec()),
-                    selected_sales_person_id: None,
-                    layout: WorkingHoursLayout::Table,
-                    on_dbl_click: |_| {},
-                }
-            }
-        }
-        let html = render(app);
-        assert!(
-            html.contains("2.0"),
-            "committed volunteer line must contain the hours value '2.0': {html}"
-        );
-        // EN locale default: label is "Volunteer"
-        assert!(
-            html.contains("Volunteer"),
-            "committed volunteer line must contain 'Volunteer' label: {html}"
-        );
-    }
-
-    /// Req 3: committed_voluntary_hours = 0.3 < 0.5 → Table-layout does NOT
-    /// render the volunteer line.
-    #[test]
-    fn committed_voluntary_line_hidden_below_threshold() {
-        fn app() -> Element {
-            rsx! {
-                WorkingHoursMiniOverview {
-                    working_hours: Rc::from([WorkingHoursMini {
-                        sales_person_id: Uuid::nil(),
-                        sales_person_name: "A".into(),
-                        expected_hours: 8.0,
-                        dynamic_hours: 8.0,
-                        actual_hours: 5.0,
-                        balance_hours: 0.0,
-                        background_color: "#abc".into(),
-                        committed_voluntary_hours: 0.3,
-                    }].to_vec()),
-                    selected_sales_person_id: None,
-                    layout: WorkingHoursLayout::Table,
-                    on_dbl_click: |_| {},
-                }
-            }
-        }
-        let html = render(app);
-        // "0.3" must not appear as a volunteer line
-        // (but the target "8.0h" is present — we check for "0.3" specifically)
-        assert!(
-            !html.contains("+ 0.3h"),
-            "committed volunteer line must NOT appear when below threshold: {html}"
         );
     }
 }
