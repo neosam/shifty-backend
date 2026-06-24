@@ -61,6 +61,8 @@ pub struct EmployeeWorkDetails {
 
     pub cap_planned_hours_to_expected: bool,
 
+    pub committed_voluntary: f32,
+
     pub vacation_days: u8,
 
     pub created: Option<time::PrimitiveDateTime>,
@@ -89,6 +91,8 @@ impl EmployeeWorkDetails {
             dynamic: false,
 
             cap_planned_hours_to_expected: false,
+
+            committed_voluntary: 0.0,
 
             vacation_days: 0,
 
@@ -173,6 +177,8 @@ impl TryFrom<&EmployeeWorkDetailsTO> for EmployeeWorkDetails {
 
             cap_planned_hours_to_expected: details.cap_planned_hours_to_expected,
 
+            committed_voluntary: details.committed_voluntary,
+
             vacation_days: details.vacation_days,
 
             created: details.created,
@@ -210,12 +216,8 @@ impl TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO {
             is_dynamic: details.dynamic,
 
             cap_planned_hours_to_expected: details.cap_planned_hours_to_expected,
-            // Pre-existing gap (HEAD): the frontend EmployeeWorkDetails state does
-            // not yet carry committed_voluntary (editor wiring is Phase 17 scope).
-            // EmployeeWorkDetailsTO.committed_voluntary became a required field at
-            // HEAD, so this constructor must initialize it. 0.0 = round-trips the
-            // wire-default until Phase 17 threads the editor value through.
-            committed_voluntary: 0.0,
+            // D-02: threaded in Phase 17 — committed_voluntary round-trips faithfully.
+            committed_voluntary: details.committed_voluntary,
 
             vacation_days: details.vacation_days,
 
@@ -227,5 +229,86 @@ impl TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO {
             deleted: details.deleted,
             version: details.version,
         })
+    }
+}
+
+#[cfg(test)]
+mod employee_work_details_tests {
+    use super::*;
+    use rest_types::{DayOfWeekTO, EmployeeWorkDetailsTO};
+
+    fn make_to(committed_voluntary: f32) -> EmployeeWorkDetailsTO {
+        EmployeeWorkDetailsTO {
+            id: Uuid::nil(),
+            sales_person_id: Uuid::nil(),
+            expected_hours: 40.0,
+            from_day_of_week: DayOfWeekTO::Monday,
+            from_calendar_week: 1,
+            from_year: 2024,
+            to_day_of_week: DayOfWeekTO::Sunday,
+            to_calendar_week: 52,
+            to_year: 2024,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            committed_voluntary,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 25,
+            days_per_week: 5,
+            hours_per_day: 8.0,
+            hours_per_holiday: 8.0,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        }
+    }
+
+    /// D-02: committed_voluntary round-trips faithfully through
+    /// EmployeeWorkDetails → EmployeeWorkDetailsTO → EmployeeWorkDetails.
+    #[test]
+    fn committed_voluntary_round_trip() {
+        let to = make_to(3.5);
+        let details: EmployeeWorkDetails = EmployeeWorkDetails::try_from(&to)
+            .expect("TO→State conversion should succeed");
+        assert!(
+            (details.committed_voluntary - 3.5).abs() < 0.001,
+            "after TO→State: expected committed_voluntary 3.5, got {}",
+            details.committed_voluntary
+        );
+
+        let to2 = EmployeeWorkDetailsTO::try_from(&details)
+            .expect("State→TO conversion should succeed");
+        assert!(
+            (to2.committed_voluntary - 3.5).abs() < 0.001,
+            "after State→TO: expected committed_voluntary 3.5, got {}",
+            to2.committed_voluntary
+        );
+
+        let details2: EmployeeWorkDetails = EmployeeWorkDetails::try_from(&to2)
+            .expect("round-trip TO→State should succeed");
+        assert!(
+            (details2.committed_voluntary - 3.5).abs() < 0.001,
+            "after round-trip: expected committed_voluntary 3.5, got {}",
+            details2.committed_voluntary
+        );
+    }
+
+    /// D-02: the TO→State direction maps committed_voluntary (previously missing).
+    #[test]
+    fn committed_voluntary_from_to_maps_field() {
+        let to = make_to(7.25);
+        let details: EmployeeWorkDetails = EmployeeWorkDetails::try_from(&to)
+            .expect("TO→State conversion should succeed");
+        assert!(
+            (details.committed_voluntary - 7.25).abs() < 0.001,
+            "TO→State: expected committed_voluntary 7.25, got {}",
+            details.committed_voluntary
+        );
     }
 }

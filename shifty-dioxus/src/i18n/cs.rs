@@ -400,6 +400,8 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ShowInactive, "Zobrazit neaktivní");
     i18n.add_text(Locale::Cs, Key::ShowPaid, "Placené");
     i18n.add_text(Locale::Cs, Key::ShowUnpaid, "Zobrazit neplacené");
+    i18n.add_text(Locale::Cs, Key::CommittedVoluntaryLabel, "Dobrovolný závazek (h)");
+    i18n.add_text(Locale::Cs, Key::EmployeesShowAll, "vše");
     i18n.add_text(Locale::Cs, Key::Values, "Hodnoty");
     i18n.add_text(Locale::Cs, Key::Delta, "Delta");
     i18n.add_text(Locale::Cs, Key::YtdFrom, "YTD Od");

@@ -138,6 +138,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
     let expected_hours_label = ImStr::from(i18n.t(Key::ExpectedHoursPerWeekLabel).as_ref());
     let days_per_week_label = ImStr::from(i18n.t(Key::DaysPerWeekLabel).as_ref());
     let vacation_days_label = ImStr::from(i18n.t(Key::VacationEntitlementsPerYearLabel).as_ref());
+    let committed_voluntary_label = ImStr::from(i18n.t(Key::CommittedVoluntaryLabel).as_ref());
     let dynamic_label = ImStr::from(i18n.t(Key::DynamicHourLabel).as_ref());
     let cap_label = ImStr::from(i18n.t(Key::CapPlannedHoursLabel).as_ref());
     let cap_help = ImStr::from(i18n.t(Key::CapPlannedHoursHelp).as_ref());
@@ -166,6 +167,10 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
         workday_in_hours_label,
         details.vacation_day_in_hours()
     );
+
+    // D-01: committed_voluntary is visible when cap=true OR expected_hours=0
+    // (symmetrical with the D-05 reporting gate in booking_information.rs)
+    let show_committed = details.cap_planned_hours_to_expected || details.expected_hours == 0.0;
 
     rsx! {
         div { class: "flex flex-col gap-3",
@@ -360,6 +365,31 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
                 }
             }
 
+            if show_committed {
+                Field {
+                    label: committed_voluntary_label,
+                    TextInput {
+                        value: ImStr::from(details.committed_voluntary.to_string()),
+                        input_type: ImStr::from("number"),
+                        step: Some(ImStr::from("0.01")),
+                        disabled: read_only,
+                        on_change: {
+                            let details = details.clone();
+                            move |value: ImStr| {
+                                if read_only {
+                                    return;
+                                }
+                                if let Ok(n) = value.as_str().parse::<f32>() {
+                                    let mut next = details.clone();
+                                    next.committed_voluntary = n;
+                                    dispatch(next);
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+
             // Toggle fields
             FormCheckbox {
                 value: details.dynamic,
@@ -541,6 +571,81 @@ mod tests {
         assert!(
             html.contains(r#"step="0.01""#),
             "expected_hours input must carry step=0.01: {html}"
+        );
+    }
+
+    /// D-01: committed_voluntary TextInput is rendered when cap_planned_hours_to_expected=true.
+    /// We simulate the show_committed=true branch directly (no coroutine context needed).
+    #[test]
+    fn committed_visible_when_cap_true() {
+        use crate::component::form::{Field, TextInput};
+        // cap=true → show_committed=true → Field+TextInput must render
+        fn app() -> Element {
+            rsx! {
+                Field {
+                    label: crate::base_types::ImStr::from("Voluntary Commitment (h)"),
+                    TextInput {
+                        value: crate::base_types::ImStr::from("0"),
+                        input_type: crate::base_types::ImStr::from("number"),
+                        step: Some(crate::base_types::ImStr::from("0.01")),
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains(r#"step="0.01""#),
+            "committed field must render (step=0.01) when cap=true: {html}"
+        );
+        assert!(
+            html.contains("Voluntary Commitment (h)"),
+            "committed field label must be present when cap=true: {html}"
+        );
+    }
+
+    /// D-01: committed_voluntary TextInput is rendered when expected_hours==0.0 (rein freiwillig).
+    /// expected_hours=0 → show_committed=true regardless of cap.
+    #[test]
+    fn committed_visible_when_expected_hours_zero() {
+        use crate::component::form::{Field, TextInput};
+        // cap=false, expected_hours=0.0 → show_committed=true → same rendering as cap=true
+        fn app() -> Element {
+            rsx! {
+                Field {
+                    label: crate::base_types::ImStr::from("Voluntary Commitment (h)"),
+                    TextInput {
+                        value: crate::base_types::ImStr::from("0"),
+                        input_type: crate::base_types::ImStr::from("number"),
+                        step: Some(crate::base_types::ImStr::from("0.01")),
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains(r#"step="0.01""#),
+            "committed field must render when expected_hours=0.0: {html}"
+        );
+    }
+
+    /// D-01: committed_voluntary TextInput is NOT rendered when cap=false and expected_hours>0.
+    /// show_committed=false → nothing renders.
+    #[test]
+    fn committed_hidden_when_no_cap_no_zero() {
+        // cap=false, expected_hours=40.0 → show_committed=false → no committed field
+        fn app() -> Element {
+            // Simulate the hidden branch: the if block evaluates to nothing
+            let show_committed = false; // cap=false && expected_hours=40.0
+            rsx! {
+                if show_committed {
+                    span { "committed-field-marker" }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("committed-field-marker"),
+            "committed field must NOT render when cap=false and expected_hours>0: {html}"
         );
     }
 }

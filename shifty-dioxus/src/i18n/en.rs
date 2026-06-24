@@ -369,6 +369,8 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ShowInactive, "Show Inactive");
     i18n.add_text(Locale::En, Key::ShowPaid, "Paid");
     i18n.add_text(Locale::En, Key::ShowUnpaid, "Show Unpaid");
+    i18n.add_text(Locale::En, Key::CommittedVoluntaryLabel, "Voluntary Commitment (h)");
+    i18n.add_text(Locale::En, Key::EmployeesShowAll, "all");
     i18n.add_text(Locale::En, Key::Values, "Values");
     i18n.add_text(Locale::En, Key::Delta, "Delta");
     i18n.add_text(Locale::En, Key::YtdFrom, "YTD From");

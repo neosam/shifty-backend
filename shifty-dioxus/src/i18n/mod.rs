@@ -265,6 +265,8 @@ pub enum Key {
     ShowInactive,
     ShowPaid,
     ShowUnpaid,
+    CommittedVoluntaryLabel,
+    EmployeesShowAll,
     Values,
     Delta,
     YtdFrom,
@@ -848,6 +850,40 @@ mod tests {
         let i18n = generate(Locale::Cs);
         assert_eq!(i18n.t(Key::Volunteer).as_ref(), "Dobrovolné");
         assert_eq!(i18n.t(Key::PaidVolunteer).as_ref(), "Placené / Dobrovolné");
+    }
+
+    // ===== Phase 17 Plan 03 — CommittedVoluntaryLabel + EmployeesShowAll Per-Locale Tests =====
+
+    #[test]
+    fn i18n_phase17_keys_match_german_reference() {
+        // Pitfall-6 guard: ensures de.rs uses Locale::De (not accidentally Locale::En).
+        let i18n = generate(Locale::De);
+        assert_eq!(
+            i18n.t(Key::CommittedVoluntaryLabel).as_ref(),
+            "Freiwillige Zusage (h)"
+        );
+        assert_eq!(i18n.t(Key::EmployeesShowAll).as_ref(), "alle");
+    }
+
+    #[test]
+    fn i18n_phase17_keys_match_english_reference() {
+        let i18n = generate(Locale::En);
+        assert_eq!(
+            i18n.t(Key::CommittedVoluntaryLabel).as_ref(),
+            "Voluntary Commitment (h)"
+        );
+        assert_eq!(i18n.t(Key::EmployeesShowAll).as_ref(), "all");
+    }
+
+    #[test]
+    fn i18n_phase17_keys_match_czech_reference() {
+        // Pitfall-6 guard: ensures cs.rs uses Locale::Cs (not accidentally Locale::En).
+        let i18n = generate(Locale::Cs);
+        assert_eq!(
+            i18n.t(Key::CommittedVoluntaryLabel).as_ref(),
+            "Dobrovolný závazek (h)"
+        );
+        assert_eq!(i18n.t(Key::EmployeesShowAll).as_ref(), "vše");
     }
 
     #[test]

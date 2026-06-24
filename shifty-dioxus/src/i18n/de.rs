@@ -416,6 +416,8 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::ShowInactive, "Inaktive anzeigen");
     i18n.add_text(Locale::De, Key::ShowPaid, "Bezahlt");
     i18n.add_text(Locale::De, Key::ShowUnpaid, "Unbezahlte anzeigen");
+    i18n.add_text(Locale::De, Key::CommittedVoluntaryLabel, "Freiwillige Zusage (h)");
+    i18n.add_text(Locale::De, Key::EmployeesShowAll, "alle");
     i18n.add_text(Locale::De, Key::Values, "Werte");
     i18n.add_text(Locale::De, Key::Delta, "Unterschied");
     i18n.add_text(Locale::De, Key::YtdFrom, "YTD Von");
