@@ -341,6 +341,23 @@ pub async fn load_employees(
     Ok(report_tos.iter().map(Employee::from).collect())
 }
 
+/// D-03: Loads unpaid, non-inactive persons via GET /sales-person and returns them as
+/// null-hours Employee dummies for the show_all-mode merge in employees_list.rs.
+/// Only persons with is_paid=false && !inactive are included (disjoint from the paid
+/// list returned by load_employees, so no deduplication is needed at the call site).
+pub async fn load_unpaid_volunteer_employees(
+    config: Config,
+) -> Result<Rc<[Employee]>, ShiftyError> {
+    let sales_person_tos = api::get_sales_persons(config).await?;
+    let dummies: Rc<[Employee]> = sales_person_tos
+        .iter()
+        .map(|to| SalesPerson::from(to))
+        .filter(|sp| !sp.is_paid && !sp.inactive)
+        .map(Employee::unpaid_placeholder)
+        .collect();
+    Ok(dummies)
+}
+
 pub async fn load_employee_details(
     config: Config,
     year: u32,

@@ -317,6 +317,34 @@ impl From<&ShortEmployeeReportTO> for Employee {
     }
 }
 
+impl Employee {
+    /// D-03: Dummy für unbezahlte Freiwillige im show_all-Modus — Reporting-Werte 0,
+    /// da GET /report sie paid-only ausschließt. Die SalesPerson-Identität (id/name/is_paid)
+    /// wird 1:1 aus der Quelle übernommen; alle Hours-/Reporting-Felder sind 0.
+    pub fn unpaid_placeholder(sales_person: SalesPerson) -> Self {
+        Employee {
+            sales_person,
+            working_hours_by_week: [].into(),
+            working_hours_by_month: [].into(),
+            overall_working_hours: 0.0,
+            expected_working_hours: 0.0,
+            balance: 0.0,
+            carryover_balance: 0.0,
+            shiftplan_hours: 0.0,
+            extra_work_hours: 0.0,
+            vacation_hours: 0.0,
+            sick_leave_hours: 0.0,
+            holiday_hours: 0.0,
+            unpaid_leave_hours: 0.0,
+            volunteer_hours: 0.0,
+            vacation_days: 0.0,
+            vacation_entitlement: 0.0,
+            vacation_carryover: 0,
+            custom_extra_hours: [].into(),
+        }
+    }
+}
+
 impl From<&EmployeeReportTO> for Employee {
     fn from(report: &EmployeeReportTO) -> Self {
         Employee {
@@ -372,5 +400,63 @@ impl From<&ExtraHoursTO> for ExtraHours {
             date_time: extra_hours.date_time,
             version: extra_hours.version,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    fn make_unpaid_sales_person() -> SalesPerson {
+        SalesPerson {
+            id: Uuid::from_u128(42),
+            name: "Freiwillige".into(),
+            background_color: "#fff".into(),
+            is_paid: false,
+            inactive: false,
+            version: Uuid::nil(),
+        }
+    }
+
+    #[test]
+    fn unpaid_dummy_preserves_is_paid_false() {
+        let sp = make_unpaid_sales_person();
+        let dummy = Employee::unpaid_placeholder(sp.clone());
+        assert!(
+            !dummy.sales_person.is_paid,
+            "is_paid must remain false on the dummy"
+        );
+        assert_eq!(
+            dummy.sales_person.id, sp.id,
+            "dummy must carry the original sales person id"
+        );
+        assert_eq!(
+            dummy.sales_person.name, sp.name,
+            "dummy must carry the original sales person name"
+        );
+    }
+
+    #[test]
+    fn unpaid_dummy_has_zero_hours() {
+        let sp = make_unpaid_sales_person();
+        let dummy = Employee::unpaid_placeholder(sp);
+        assert_eq!(dummy.overall_working_hours, 0.0);
+        assert_eq!(dummy.expected_working_hours, 0.0);
+        assert_eq!(dummy.balance, 0.0);
+        assert_eq!(dummy.carryover_balance, 0.0);
+        assert_eq!(dummy.shiftplan_hours, 0.0);
+        assert_eq!(dummy.extra_work_hours, 0.0);
+        assert_eq!(dummy.vacation_hours, 0.0);
+        assert_eq!(dummy.sick_leave_hours, 0.0);
+        assert_eq!(dummy.holiday_hours, 0.0);
+        assert_eq!(dummy.unpaid_leave_hours, 0.0);
+        assert_eq!(dummy.volunteer_hours, 0.0);
+        assert_eq!(dummy.vacation_days, 0.0);
+        assert_eq!(dummy.vacation_entitlement, 0.0);
+        assert_eq!(dummy.vacation_carryover, 0);
+        assert!(dummy.working_hours_by_week.is_empty());
+        assert!(dummy.working_hours_by_month.is_empty());
+        assert!(dummy.custom_extra_hours.is_empty());
     }
 }
