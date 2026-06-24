@@ -574,17 +574,10 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             }
         }
 
-        let shiftplan_hours = shiftplan_report
-            .iter()
-            .filter(|r| {
-                if let Ok(date) = r.to_date() {
-                    date >= from_date && date <= to_date
-                } else {
-                    false
-                }
-            })
-            .map(|r| r.hours)
-            .sum::<f32>();
+        // Hinweis: Das rohe, ungedeckelte shiftplan_hours wird bewusst NICHT mehr
+        // fuer overall/balance/shiftplan_hours verwendet (Debug
+        // `report-ehrenamt-gesamtstunden`). Der per-Woche gedeckelte Wert
+        // `shiftplan_hours_by_week` (siehe unten) ist die einzige Quelle.
         let overall_extra_work_hours = extra_hours
             .iter()
             .filter(|eh| {
@@ -652,14 +645,21 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .into()
         };
 
+        // Debug `report-ehrenamt-gesamtstunden` / Phase-15 D-01: overall_hours,
+        // balance_hours und shiftplan_hours muessen den per-Woche GEDECKELTEN
+        // Wert (`shiftplan_hours_by_week`, via apply_weekly_cap) verwenden — NICHT
+        // das rohe ungedeckelte `shiftplan_hours` (Z.577). Sonst leakt der
+        // Cap-Ueberlauf (= auto_volunteer / Ehrenamt-Anteil) in die Gesamtstunden.
+        // Der Ueberlauf zaehlt korrekt in volunteer_hours (by_week). Konsistent mit
+        // get_reports_for_all_employees, das ebenfalls den gedeckelten Wert nutzt.
         let employee_report = EmployeeReport {
             sales_person: Arc::new(sales_person),
-            balance_hours: shiftplan_hours + overall_extra_work_hours - planned_hours
+            balance_hours: shiftplan_hours_by_week + overall_extra_work_hours - planned_hours
                 + previous_year_carryover,
-            overall_hours: shiftplan_hours + overall_extra_work_hours,
+            overall_hours: shiftplan_hours_by_week + overall_extra_work_hours,
             expected_hours: planned_hours,
             dynamic_hours,
-            shiftplan_hours,
+            shiftplan_hours: shiftplan_hours_by_week,
             holiday_days,
             vacation_carryover: previous_year_vacation,
             vacation_days,

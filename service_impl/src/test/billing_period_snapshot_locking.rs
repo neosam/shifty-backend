@@ -4,11 +4,11 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 7 (Bugfix vacation-hours-
-//!   overcounted — derive_hours_for_range nutzt hours_per_day =
-//!   expected_hours/workdays_per_week und deckelt pro ISO-Woche auf
-//!   workdays_per_week Tage; angehakte Wochentage = nur Verfügbarkeit;
-//!   Vacation/SickLeave/UnpaidLeave-Stunden/-Tage aendern sich gegen v6).
+//! - `test_snapshot_schema_version_pinned`: erwartet 8 (Bugfix report-ehrenamt-
+//!   gesamtstunden — get_report_for_employee_range nutzt jetzt den per-Woche
+//!   GEDECKELTEN shiftplan_hours_by_week fuer overall_hours/balance_hours; bei
+//!   cap_planned_hours_to_expected=true leakte der Cap-Ueberlauf vorher in die
+//!   persistierten value_types Balance + ExpectedHours, weicht also gegen v7 ab).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -27,12 +27,13 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 7,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 7 sein nach Bugfix \
-         vacation-hours-overcounted (derive_hours_for_range nutzt das Per-Tag-Soll \
-         expected_hours/workdays_per_week und deckelt pro ISO-Woche auf \
-         workdays_per_week Tage; angehakte Wochentage sind nur Verfügbarkeit — \
-         Vacation/SickLeave/UnpaidLeave-Stunden und -Tage aendern sich gegen v6). \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 8,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 8 sein nach Bugfix \
+         report-ehrenamt-gesamtstunden (get_report_for_employee_range nutzt jetzt \
+         den per-Woche gedeckelten shiftplan_hours_by_week fuer overall_hours/ \
+         balance_hours/shiftplan_hours; bei cap_planned_hours_to_expected=true \
+         leakte der Cap-Ueberlauf vorher in die persistierten value_types Balance + \
+         ExpectedHours und weicht damit gegen v7-Snapshots ab). \
          Siehe CLAUDE.md § Snapshot Schema Versioning."
     );
 }

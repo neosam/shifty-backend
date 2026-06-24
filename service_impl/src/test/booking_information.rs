@@ -6,8 +6,9 @@
 //!   Band 2 = Σ_person max(actual_p − committed_p, 0)
 //!   No-double-count invariant: committed + surplus(actual, committed) = max(committed, actual)
 //!
-//! Also contains a regression test asserting CURRENT_SNAPSHOT_SCHEMA_VERSION stays 7
-//! (D-01 / CVC-05: Phase 15 touches no persisted BillingPeriodValueType).
+//! Also contains a regression test asserting CURRENT_SNAPSHOT_SCHEMA_VERSION is 8
+//! (D-01 / CVC-05: Phase 15/17 touch no persisted BillingPeriodValueType; the v8 bump
+//! comes from the separate report-ehrenamt-gesamtstunden cap-leak bugfix).
 
 use crate::booking_information::{volunteer_surplus_above_committed, volunteer_surplus_band2};
 
@@ -438,17 +439,23 @@ fn d05_uncapped_nonzero_excluded() {
 // ─── No-bump regression test (D-01 / CVC-05 / D-05 / Plan-01) ───────────────
 
 #[test]
-fn snapshot_schema_version_unchanged_at_7() {
+fn snapshot_schema_version_pinned_at_8() {
     // D-01 / CVC-05: Phase 15 touches NO persisted value_type — committed_voluntary_hours
     // (Band 1) and the reduced volunteer_hours (Band 2) are Achse-B (year-view) only and
-    // are never read by billing_period_report.rs. Therefore the CLAUDE.md bump rule is
-    // NOT triggered; version stays 7.
+    // are never read by billing_period_report.rs. Therefore the Phase-15 work did NOT
+    // trigger the CLAUDE.md bump rule.
     //
     // Phase 17 addendum: D-05 gate-extension (cap || expected_hours==0) and the
     // Billing-Personen-Set-Gate (Plan 01, is_paid filtering) are ALSO Achse-B-only and
-    // touch no persisted BillingPeriodValueType. Version remains 7 — no bump required.
+    // touch no persisted BillingPeriodValueType — no bump from Phase 17 either.
+    //
+    // v8 bump (debug/report-ehrenamt-gesamtstunden): a SEPARATE bugfix DID move the
+    // version — get_report_for_employee_range now uses the per-week CAPPED
+    // shiftplan_hours_by_week for overall_hours/balance_hours, which billing_period_report.rs
+    // persists as the Balance/ExpectedHours value_types. That changes the computation for
+    // cap-enabled employees with overflow, so the version is now 8 (not from Achse-B work).
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        7
+        8
     );
 }

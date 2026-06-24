@@ -72,7 +72,17 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   Validator kann sie nicht gegen die korrigierte Computation re-validieren.
 ///   (Version BLEIBT 7 — v7 wurde nie deployed.)
 /// - Phase 15 (committed_voluntary Zwei-Band): KEIN Bump — Achse-B-only, kein persistierter value_type berührt.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 7;
+/// - v8: Bugfix (debug/report-ehrenamt-gesamtstunden) — `get_report_for_employee_range`
+///   nutzt jetzt den per-Woche GEDECKELTEN `shiftplan_hours_by_week` für
+///   `overall_hours`/`balance_hours`/`shiftplan_hours` statt der rohen,
+///   ungedeckelten shiftplan-Summe. Bei `cap_planned_hours_to_expected = true`
+///   leakte der Cap-Überlauf (auto_volunteer / Ehrenamt-Anteil) vorher in
+///   `overall_hours` + `balance_hours` — und damit in die persistierten value_types
+///   Balance + ExpectedHours (siehe value_delta/ytd/full_year unten). Eine
+///   Neuberechnung weicht für cap-aktive Mitarbeiter mit Überlauf von v7-Snapshots
+///   ab; ein Validator kann v7 nicht gegen die korrigierte Computation
+///   re-validieren. (v7 war nie deployed — daher zugleich erster real deploybarer Bump.)
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 8;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
