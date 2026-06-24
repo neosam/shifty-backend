@@ -31,7 +31,7 @@ Phase: 17
 Plan: Not started
 Status: Milestone complete
 Resume file: .planning/phases/17-contract-editor-unpaid-volunteer-path/17-CONTEXT.md
-Last activity: 2026-06-24
+Last activity: 2026-06-24 — Quick-Task 260624-qgk: Ehrenamt-Stunden unter „Soll" (≥0.5) + No-Contract-Buchung bestätigt
 
 ## v1.4 Scope Snapshot (committed voluntary capacity)
 
@@ -174,6 +174,7 @@ Last activity: 2026-06-24
 | 260613-jxe | Absence-Page: inaktive Sales Persons aus Per-Person-Liste filtern (selectable_balances, paid && active) + Jahres-Navigation (◀ Jahr ▶, ein Jahr pro Ansicht, Default = aktuelles Jahr) (frontend) | 2026-06-13 | committed via jj (0eba6e50 + 8c1fcb26 feat, docs folgt); selectable_balances + 5 Tests, 2 i18n-Keys (3 Locales), Suite 594 grün, WASM-Build grün | [260613-jxe-abwesenheitsseite-inaktive-sales-persons](./quick/260613-jxe-abwesenheitsseite-inaktive-sales-persons/) |
 | 260613-qvg | Self-Overlap-Fehlerbanner (AbsenceModal) substituiert i18n-Platzhalter via `t_m` statt rohes Template auszugeben — category lokalisiert, from/to via `format_date` (frontend) | 2026-06-13 | uncommitted (user commits via jj); SelfOverlapBannerProps erweitert + Call-Site, 1 Regressionstest (3 Locales), Suite 596 grün, WASM-Build grün | [260613-qvg-fix-self-overlap-absence-banner-i18n-pla](./quick/260613-qvg-fix-self-overlap-absence-banner-i18n-pla/) |
 | 260614-a26 | Urlaubsanspruch (entitled_days) immer als gerundete ganze Zahl — Vacation-Balance-Pfad analog Reporting `.round()` (backend) | 2026-06-14 | committed via jj; `service_impl/vacation_balance.rs` + 1 Regressionstest (aliquot KW27 → 15), `service_impl` 410 grün, Workspace-Build grün | [260614-a26-der-urlaubsanspruch-sollte-immer-eine-ga](./quick/260614-a26-der-urlaubsanspruch-sollte-immer-eine-ga/) |
+| 260624-qgk | Ehrenamt ohne Arbeitsvertrag verbuchbar (bestätigt: bereits möglich via expected_hours=0/cap=false-Pfad, Regressionstest gepinnt) + committed_voluntary-Stunden als separate Zeile unter „Soll" (Schwelle ≥ 0.5) (backend + frontend) | 2026-06-24 | uncommitted (user commits via jj); `committed_voluntary_hours` durch ShortEmployeeReport→TO→WorkingHoursMini, `show_committed_voluntary(≥0.5)`-Gate (Card+Table+Total), i18n `CommittedVoluntaryShort` (3 Locales); 3 Backend- + 6 Frontend-Tests, Workspace-Tests grün, shifty-dioxus 630 grün, WASM exit 0; KEIN Snapshot-Bump | [260624-qgk-stunden-ohne-arbeitsvertrag-als-ehrenamt](./quick/260624-qgk-stunden-ohne-arbeitsvertrag-als-ehrenamt/) |
 
 ### Phase-Verzeichnis-Cleanup (optional)
 
