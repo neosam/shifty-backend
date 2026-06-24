@@ -4,11 +4,10 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 8 (Bugfix report-ehrenamt-
-//!   gesamtstunden — get_report_for_employee_range nutzt jetzt den per-Woche
-//!   GEDECKELTEN shiftplan_hours_by_week fuer overall_hours/balance_hours; bei
-//!   cap_planned_hours_to_expected=true leakte der Cap-Ueberlauf vorher in die
-//!   persistierten value_types Balance + ExpectedHours, weicht also gegen v7 ab).
+//! - `test_snapshot_schema_version_pinned`: erwartet 9 (quick-260624-ujk —
+//!   Shiftplan-Stunden in Wochen OHNE EmployeeWorkDetails-Vertragszeile zaehlen
+//!   jetzt als volunteer_hours statt Soll=Ist-neutralisiert; berechnung des
+//!   persistierten value_type volunteer_hours hat sich geaendert).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -27,14 +26,14 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 8,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 8 sein nach Bugfix \
-         report-ehrenamt-gesamtstunden (get_report_for_employee_range nutzt jetzt \
-         den per-Woche gedeckelten shiftplan_hours_by_week fuer overall_hours/ \
-         balance_hours/shiftplan_hours; bei cap_planned_hours_to_expected=true \
-         leakte der Cap-Ueberlauf vorher in die persistierten value_types Balance + \
-         ExpectedHours und weicht damit gegen v7-Snapshots ab). \
-         Siehe CLAUDE.md § Snapshot Schema Versioning."
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 9,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 9 sein nach quick-260624-ujk: \
+         Shiftplan-Stunden in Wochen OHNE EmployeeWorkDetails-Vertragszeile zaehlen \
+         jetzt als volunteer_hours (Ehrenamt) statt Soll=Ist-neutralisiert. \
+         Die Berechnung des persistierten value_type Volunteer hat sich damit geaendert. \
+         Laut CLAUDE.md (Snapshot Schema Versioning: 'Change the computation that produces \
+         an existing value_type') ist ein Bump Pflicht. \
+         Siehe service_impl/src/billing_period_report.rs § CURRENT_SNAPSHOT_SCHEMA_VERSION."
     );
 }
 

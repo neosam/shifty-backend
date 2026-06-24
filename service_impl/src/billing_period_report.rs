@@ -82,7 +82,15 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   Neuberechnung weicht für cap-aktive Mitarbeiter mit Überlauf von v7-Snapshots
 ///   ab; ein Validator kann v7 nicht gegen die korrigierte Computation
 ///   re-validieren. (v7 war nie deployed — daher zugleich erster real deploybarer Bump.)
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 8;
+/// - v9: Bump 8->9 (quick-260624-ujk): Die Berechnung des persistierten value_type
+///   `volunteer_hours` aendert sich — geleistete Shiftplan-Stunden in Wochen OHNE
+///   EmployeeWorkDetails-Vertragszeile zaehlen jetzt als Ehrenamt (volunteer) statt
+///   Soll=Ist-neutralisiert. Laut CLAUDE.md (Snapshot Schema Versioning: "Change the
+///   computation that produces an existing value_type") ist ein Bump Pflicht, damit
+///   Snapshot-Validatoren Schema-Drift von echten Datenfehlern unterscheiden koennen.
+///   Betroffen: BillingPeriodValueType::Volunteer (und transitiv Balance/ExpectedHours
+///   fuer Mitarbeiter mit Shiftplan-Stunden ohne Vertragszeile im Abrechnungszeitraum).
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 9;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {

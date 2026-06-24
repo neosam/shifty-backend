@@ -439,7 +439,7 @@ fn d05_uncapped_nonzero_excluded() {
 // ─── No-bump regression test (D-01 / CVC-05 / D-05 / Plan-01) ───────────────
 
 #[test]
-fn snapshot_schema_version_pinned_at_8() {
+fn snapshot_schema_version_pinned_at_9() {
     // D-01 / CVC-05: Phase 15 touches NO persisted value_type — committed_voluntary_hours
     // (Band 1) and the reduced volunteer_hours (Band 2) are Achse-B (year-view) only and
     // are never read by billing_period_report.rs. Therefore the Phase-15 work did NOT
@@ -453,9 +453,13 @@ fn snapshot_schema_version_pinned_at_8() {
     // version — get_report_for_employee_range now uses the per-week CAPPED
     // shiftplan_hours_by_week for overall_hours/balance_hours, which billing_period_report.rs
     // persists as the Balance/ExpectedHours value_types. That changes the computation for
-    // cap-enabled employees with overflow, so the version is now 8 (not from Achse-B work).
+    // cap-enabled employees with overflow.
+    //
+    // v9 bump (quick-260624-ujk): Shiftplan-Stunden in Wochen OHNE EmployeeWorkDetails-
+    // Vertragszeile zaehlen jetzt als volunteer_hours (Ehrenamt) statt Soll=Ist-neutralisiert.
+    // Das aendert die Berechnung des persistierten value_type Volunteer (BillingPeriodValueType::Volunteer).
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        8
+        9
     );
 }
