@@ -210,6 +210,12 @@ impl TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO {
             is_dynamic: details.dynamic,
 
             cap_planned_hours_to_expected: details.cap_planned_hours_to_expected,
+            // Pre-existing gap (HEAD): the frontend EmployeeWorkDetails state does
+            // not yet carry committed_voluntary (editor wiring is Phase 17 scope).
+            // EmployeeWorkDetailsTO.committed_voluntary became a required field at
+            // HEAD, so this constructor must initialize it. 0.0 = round-trips the
+            // wire-default until Phase 17 threads the editor value through.
+            committed_voluntary: 0.0,
 
             vacation_days: details.vacation_days,
 

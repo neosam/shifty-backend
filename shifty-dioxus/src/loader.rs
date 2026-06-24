@@ -637,6 +637,7 @@ pub async fn load_summary_for_week(
             required_hours: 0.0,
             paid_hours: 0.0,
             volunteer_hours: 0.0,
+            committed_voluntary_hours: 0.0,
             monday_available_hours: 0.0,
             tuesday_available_hours: 0.0,
             wednesday_available_hours: 0.0,

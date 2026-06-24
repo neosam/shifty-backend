@@ -177,6 +177,10 @@ mod employee_work_details_cap_tests {
             workdays_per_week: 5,
             is_dynamic: false,
             cap_planned_hours_to_expected: cap,
+            // Pre-existing gap (HEAD): EmployeeWorkDetailsTO.committed_voluntary is a
+            // required field at HEAD but this test literal predates it. 0.0 keeps the
+            // cap-gating assertions unchanged (Phase 17 owns committed editor wiring).
+            committed_voluntary: 0.0,
             monday: true,
             tuesday: true,
             wednesday: true,

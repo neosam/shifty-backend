@@ -16,6 +16,7 @@ pub struct WeeklySummary {
     pub required_hours: f32,
     pub paid_hours: f32,
     pub volunteer_hours: f32,
+    pub committed_voluntary_hours: f32,
     pub monday_available_hours: f32,
     pub tuesday_available_hours: f32,
     pub wednesday_available_hours: f32,
@@ -35,6 +36,7 @@ impl From<&WeeklySummaryTO> for WeeklySummary {
             required_hours: summary.required_hours,
             paid_hours: summary.paid_hours,
             volunteer_hours: summary.volunteer_hours,
+            committed_voluntary_hours: summary.committed_voluntary_hours,
             monday_available_hours: summary.monday_available_hours,
             tuesday_available_hours: summary.tuesday_available_hours,
             wednesday_available_hours: summary.wednesday_available_hours,
@@ -68,5 +70,61 @@ impl WeeklySummary {
     }
     pub fn sunday_date(&self) -> time::Date {
         time::Date::from_iso_week_date(self.year as i32, self.week, time::Weekday::Sunday).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds a fully-populated `WeeklySummaryTO` for From-mapping tests.
+    /// `committed` flows into the field under test; the remaining fields use
+    /// distinct dummy values so an accidental field-swap would be caught.
+    fn make_to(committed: f32) -> WeeklySummaryTO {
+        WeeklySummaryTO {
+            year: 2026,
+            week: 12,
+            overall_available_hours: 42.0,
+            required_hours: 30.0,
+            paid_hours: 20.0,
+            volunteer_hours: 7.0,
+            committed_voluntary_hours: committed,
+            monday_available_hours: 1.0,
+            tuesday_available_hours: 2.0,
+            wednesday_available_hours: 3.0,
+            thursday_available_hours: 4.0,
+            friday_available_hours: 5.0,
+            saturday_available_hours: 6.0,
+            sunday_available_hours: 7.0,
+            working_hours_per_sales_person: Vec::new().into(),
+        }
+    }
+
+    /// CVC-07c (Pitfall 1 — Omission-Lücke): the From-mapping must carry
+    /// `committed_voluntary_hours` 1:1 from the TO, NOT `Default::default()`.
+    /// A `0.0` default would compile silently and the UI would show `0.00`.
+    #[test]
+    fn committed_voluntary_hours_maps_from_to() {
+        let to = make_to(5.0);
+        let ws = WeeklySummary::from(&to);
+        assert!(
+            (ws.committed_voluntary_hours - 5.0).abs() < f32::EPSILON,
+            "committed_voluntary_hours must map to 5.0 from the TO (got {})",
+            ws.committed_voluntary_hours
+        );
+    }
+
+    /// D-01: `available_hours` is sourced from `overall_available_hours`, which
+    /// already carries the committed band via the backend (no frontend extra logic).
+    #[test]
+    fn available_hours_maps_from_overall_available_hours() {
+        let to = make_to(5.0);
+        let ws = WeeklySummary::from(&to);
+        assert!(
+            (ws.available_hours - to.overall_available_hours).abs() < f32::EPSILON,
+            "available_hours must equal overall_available_hours (got {} vs {})",
+            ws.available_hours,
+            to.overall_available_hours
+        );
     }
 }
