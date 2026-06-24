@@ -33,11 +33,11 @@ Zeit-versioniertes `committed_voluntary: f32` auf `EmployeeWorkDetails` (D-01 / 
   4. `cargo test --workspace` grün; Billing-Period-Snapshot-Regression sauber; keine Doppelzählung gegen Achse B (durch den Fixture-Test in Kriterium 1 strukturell ausgeschlossen)
 
 - [ ] **Phase 16: Jahresansicht display** (Backend + Frontend) — separater „zugesagt"-Token inkl. Überschuss; i18n de/en/cs
-  `WeeklySummary` + `WeeklySummaryTO` + `From` tragen den `committed_voluntary_hours`-Term; Frontend `state/weekly_overview.rs` + `page/weekly_overview.rs` rendert einen **dritten** Token („zugesagt"), getrennt von `paid`/`volunteer`. Überschuss sichtbar (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`). Für nicht-gedeckelte Personen blank/Strich, nicht `0`.
+  `WeeklySummary` + `WeeklySummaryTO` + `From` tragen den `committed_voluntary_hours`-Term; Frontend `state/weekly_overview.rs` + `page/weekly_overview.rs` rendert einen **dritten** Token („zugesagt"), getrennt von `paid`/`volunteer`. Überschuss sichtbar (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`). committed=0 wird als `🎯0.00` gezeigt (keine blank/Strich-Sonderlogik, D-03).
   Requirements: CVC-07, CVC-08
   Success Criteria:
   1. `weekly_overview` zeigt die committed-Kapazität als eigenen Token („zugesagt") — nicht mit `paid`/`volunteer` vermischt; der `From<&WeeklySummaryTO>`-Mapping-Pfad trägt das neue Feld (keine Omission-Lücke)
-  2. Überschuss wird sichtbar ausgewiesen (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`); für nicht-gedeckelte Personen (`cap = false`) wird die Spalte blank/Strich angezeigt, nicht `0`
+  2. Überschuss wird sichtbar ausgewiesen (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`); committed=0 wird als `🎯0.00` gezeigt — keine blank/Strich-Sonderlogik (D-03; die blank/Strich-Idee gehört, falls überhaupt, in die Mitarbeiteransicht/Phase 17)
   3. Alle neuen benutzersichtbaren Strings sind in De / En / Cs vollständig gepflegt; Per-Locale-Reference-Matcher-Tests (analog v1.3) schließen den `Locale::En`-statt-`Locale::De`-Bug aus
   4. `cargo build --target wasm32-unknown-unknown` grün; `cargo test --workspace` grün
   **UI hint**: yes
@@ -163,7 +163,7 @@ Plans:
 
 ### Phase 16: Jahresansicht display
 
-**Goal:** Die Jahresansicht (`weekly_overview`) zeigt die committed-Kapazität als **separaten** Token („zugesagt") — sichtbar getrennt von `paid` und `volunteer` —, inklusive sichtbar ausgewiesenem Überschuss (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`). Der in Phase 15 produzierte `committed_voluntary_hours`-Term wird durch `WeeklySummary` → `WeeklySummaryTO` → Frontend gefädelt und in `state/weekly_overview.rs` + `page/weekly_overview.rs` als dritter Token gerendert. Für nicht-gedeckelte Personen ist die Anzeige blank/Strich, nicht `0`. Alle neuen Strings sind in De/En/Cs vollständig.
+**Goal:** Die Jahresansicht (`weekly_overview`) zeigt die committed-Kapazität als **separaten** Token („zugesagt") — sichtbar getrennt von `paid` und `volunteer` —, inklusive sichtbar ausgewiesenem Überschuss (committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`). Der in Phase 15 produzierte `committed_voluntary_hours`-Term wird durch `WeeklySummary` → `WeeklySummaryTO` → Frontend gefädelt und in `state/weekly_overview.rs` + `page/weekly_overview.rs` als dritter Token gerendert. In der aggregierten Jahresansicht zeigt der committed-Token bei `committed_voluntary_hours == 0` schlicht `0.00` (konsistent mit paid/volunteer) — **keine** blank/Strich-Sonderlogik (revidiert per Phase-16-CONTEXT D-03; die blank/Strich-Idee gehört, falls überhaupt, in die Mitarbeiteransicht / Phase 17). Zusätzlich bekommt der `WeeklyOverviewChart` ein drittes gestapeltes Farb-Segment (paid/committed/surplus) — CVC-F-02 wird per D-04 in Phase 16 vorgezogen. Alle neuen Strings sind in De/En/Cs vollständig.
 
 **Depends on:** Phase 15 (`committed_voluntary_hours` auf den Report-/Summary-Strukturen). Read-/Display-Pfad — niedrigeres Risiko und self-contained, daher vor dem design-offenen Editier-Pfad (Phase 17).
 
@@ -172,11 +172,21 @@ Plans:
 **Success Criteria** (was muss WAHR sein, nachdem die Phase abgeschlossen ist):
 
 1. `weekly_overview` zeigt die committed-Kapazität als eigenen Token („zugesagt") — nicht mit `paid`/`volunteer` vermischt; der `From<&WeeklySummaryTO>`-Mapping-Pfad trägt das neue Feld vollständig (keine Mapping-Omission-Lücke) (CVC-07).
-2. Der Überschuss wird sichtbar ausgewiesen: committed=5, actual=7 → `5 + 2`; committed=5, actual=3 → gedeckte `5`. Für nicht-gedeckelte Personen (`cap = false`) wird die committed-Spalte blank/Strich angezeigt, **nicht** `0` (CVC-06-Display-Konsistenz / CVC-07).
+2. Der Überschuss wird sichtbar ausgewiesen: committed=5, actual=7 → `🎯5.00 | 🤝2.00`; committed=5, actual=3 → gedeckte `🎯5.00 | 🤝0.00`. Bei `committed_voluntary_hours == 0` zeigt der committed-Token `🎯0.00` (plain zero, zwei Dezimalstellen), **keine** blank/Strich-Sonderlogik (revidiert per Phase-16-CONTEXT D-03) (CVC-07).
 3. Alle neuen benutzersichtbaren Strings sind in De / En / Cs vollständig gepflegt; Per-Locale-Reference-Matcher-Tests (analog v1.3) schließen den `Locale::En`-statt-`Locale::De`-Bug aus (CVC-08).
 4. `cargo build --target wasm32-unknown-unknown` im `shifty-dioxus/`-Subordner liefert Exit-Code 0; `cargo test --workspace` im Backend-Root grün (Backend-TO-Erweiterung ohne Regression).
 
-**Plans:** TBD
+**Plans:** 3/3 plans complete
+
+Plans:
+**Wave 1**
+- [x] 16-01-PLAN.md — Backend: overall_available_hours (D-01) + WeeklySummaryTO-Feld/From-Mapping (CVC-07b)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 16-02-PLAN.md — Frontend-State: WeeklySummary committed-Feld + From-Mapping + WASM-Gate (CVC-07c)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 16-03-PLAN.md — Frontend-Render: dritter Token (D-02/D-03) + drittes Chart-Segment (D-04) + i18n De/En/Cs + cs.rs-Lücken (CVC-08)
 
 **UI hint**: yes
 
@@ -219,7 +229,7 @@ Plans:
 | 8–13 — v1.3 (siehe milestones/v1.3-ROADMAP.md) | v1.3 | — | Closed | 2026-06-22 |
 | 14 — Data-model foundation (backend) | v1.4 | 2/2 | Complete    | 2026-06-23 |
 | 15 — Reporting no-double-count (KEIN Snapshot-Bump) | v1.4 | 2/2 | Complete    | 2026-06-24 |
-| 16 — Jahresansicht display | v1.4 | 0/? | Not started | — |
+| 16 — Jahresansicht display | v1.4 | 3/3 | Complete   | 2026-06-24 |
 | 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 0/? | Not started | — |
 
 ---
