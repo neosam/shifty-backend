@@ -508,11 +508,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 unavailable_hours: weekly_hours.unavailable_hours,
                 unpaid_leave_hours: weekly_hours.unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                 volunteer_hours: weekly_hours.volunteer_hours,
-                committed_voluntary_hours: committed_voluntary_for_calendar_week(
-                    &working_hours,
-                    year,
-                    until_week,
-                ),
                 custom_absence_hours,
             });
         }
@@ -965,8 +960,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             if !sales_person.is_paid.unwrap_or(false) {
                 continue;
             }
-            let committed_voluntary_hours =
-                committed_voluntary_for_calendar_week(&working_hours, year, week);
             result.push(ShortEmployeeReport {
                 sales_person: Arc::new(sales_person),
                 balance_hours,
@@ -979,7 +972,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 unavailable_hours,
                 unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                 volunteer_hours,
-                committed_voluntary_hours,
                 custom_absence_hours,
             });
         }
@@ -1917,50 +1909,6 @@ mod test_committed_voluntary_for_calendar_week {
         assert!(
             result.abs() < f32::EPSILON,
             "empty slice must yield 0.0 (got {})",
-            result
-        );
-    }
-
-    /// Req 1 (bestätigend): Eine reine Freiwilligen-Zeile (expected_hours = 0.0,
-    /// cap_planned_hours_to_expected = false, committed_voluntary = 5.0) liefert
-    /// über committed_voluntary_for_calendar_week 5.0.
-    ///
-    /// Pinnt den D-05-Pfad: Ehrenamt ohne bezahlten Vertrag ist verbuchbar /
-    /// aggregierbar. Der Helper filtert NICHT auf expected_hours > 0 — das ist
-    /// korrekt, weil die reine Freiwilligen-Zeile genau expected_hours = 0 trägt.
-    #[test]
-    fn committed_voluntary_bookable_without_paid_contract() {
-        let row = EmployeeWorkDetails {
-            id: Uuid::new_v4(),
-            sales_person_id: Uuid::new_v4(),
-            expected_hours: 0.0,
-            from_day_of_week: DayOfWeek::Monday,
-            from_calendar_week: 1,
-            from_year: 2026,
-            to_day_of_week: DayOfWeek::Sunday,
-            to_calendar_week: 52,
-            to_year: 2026,
-            workdays_per_week: 5,
-            is_dynamic: false,
-            cap_planned_hours_to_expected: false,
-            committed_voluntary: 5.0,
-            monday: true,
-            tuesday: true,
-            wednesday: true,
-            thursday: true,
-            friday: true,
-            saturday: false,
-            sunday: false,
-            vacation_days: 0,
-            created: Some(datetime!(2026-01-01 10:00:00)),
-            deleted: None,
-            version: Uuid::new_v4(),
-        };
-        let working_hours = vec![row];
-        let result = committed_voluntary_for_calendar_week(&working_hours, 2026, 10);
-        assert!(
-            (result - 5.0).abs() < f32::EPSILON,
-            "expected_hours=0 (no paid contract) must still yield committed_voluntary=5.0 (got {})",
             result
         );
     }
