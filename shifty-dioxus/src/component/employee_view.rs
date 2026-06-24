@@ -64,6 +64,13 @@ fn current_week_expected_hours(
         .map(|w| w.expected_hours)
 }
 
+/// Ehrenamt (Volunteer Work) wird im Mitarbeiter-Report (OVERALL-Box) nur
+/// angezeigt, wenn die geleisteten Ehrenamt-Stunden >= 0.5 sind — kleine
+/// Restwerte werden als Rauschen unterdrueckt.
+pub(crate) fn show_volunteer_work(hours: f32) -> bool {
+    hours >= 0.5
+}
+
 #[component]
 pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let i18n = I18N.read().clone();
@@ -259,6 +266,14 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                         {format!("{} {}", format_hours(employee.expected_working_hours, 2), hours_str)}
                     } },
                 }
+                if show_volunteer_work(employee.volunteer_hours) {
+                    TupleRow {
+                        label: ImStr::from(volunteer_work_str.as_ref()),
+                        value: rsx! { span { class: "font-mono tabular-nums",
+                            {format!("{} {}", format_hours(employee.volunteer_hours, 2), hours_str)}
+                        } },
+                    }
+                }
                 div { class: "border-t border-border my-2" }
                 TupleRow {
                     label: ImStr::from(shiftplan_str.as_ref()),
@@ -299,13 +314,6 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     label: ImStr::from(unpaid_leave_str.as_ref()),
                     value: rsx! { span { class: "font-mono tabular-nums",
                         {format!("{} {}", format_hours(employee.unpaid_leave_hours, 2), hours_str)}
-                    } },
-                    dim: true,
-                }
-                TupleRow {
-                    label: ImStr::from(volunteer_work_str.as_ref()),
-                    value: rsx! { span { class: "font-mono tabular-nums",
-                        {format!("{} {}", format_hours(employee.volunteer_hours, 2), hours_str)}
                     } },
                     dim: true,
                 }
@@ -993,6 +1001,15 @@ mod tests {
     #[test]
     fn current_week_expected_returns_none_for_empty_weeks() {
         assert_eq!(current_week_expected_hours(&[], 2026, 17), None);
+    }
+
+    #[test]
+    fn show_volunteer_work_threshold() {
+        // Ehrenamt in der OVERALL-Box nur ab >= 0.5h sichtbar.
+        assert!(!show_volunteer_work(0.0));
+        assert!(!show_volunteer_work(0.49));
+        assert!(show_volunteer_work(0.5));
+        assert!(show_volunteer_work(42.0));
     }
 
     fn render(comp: fn() -> Element) -> String {
