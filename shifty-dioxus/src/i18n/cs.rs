@@ -666,6 +666,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::WorkingHoursTableTarget, "Cíl");
     i18n.add_text(Locale::Cs, Key::WorkingHoursTableUtilization, "Vytížení");
     i18n.add_text(Locale::Cs, Key::WorkingHoursTableTotal, "Celkem");
+    i18n.add_text(Locale::Cs, Key::CommittedVoluntaryShort, "Dobrovolnictví");
 
     // Absence management (Phase 8)
     i18n.add_text(Locale::Cs, Key::AbsencePageTitle, "Nepřítomnosti");

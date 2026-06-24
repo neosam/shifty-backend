@@ -473,6 +473,7 @@ pub(crate) fn build_working_hours_mini(
             .copied()
             .unwrap_or(0.0),
         background_color: color,
+        committed_voluntary_hours: report.committed_voluntary_hours,
     }
 }
 
@@ -498,6 +499,7 @@ mod working_hours_mini_loader_tests {
             dynamic_hours: 8.0,
             overall_hours: 5.0,
             volunteer_hours: 0.0,
+            committed_voluntary_hours: 0.0,
         }
     }
 
