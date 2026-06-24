@@ -878,12 +878,19 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             let dynamic_hours = dynamic_hours - abense_hours_for_balance - absence_derived_balance_total;
             let overall_hours = shiftplan_hours + extra_working_hours;
             let balance_hours = overall_hours - expected_hours;
+            // D-06 / CVC-10: Fetch SalesPerson vor dem push und gate auf is_paid.
+            // Unbezahlte Freiwillige (is_paid=false, expected_hours=0) halten ab Phase 17
+            // einen EmployeeWorkDetails-Record, duerfen aber NICHT in paid_hours /
+            // WorkingHoursPerSalesPerson / Year-Summary lecken.
+            let sales_person = self
+                .sales_person_service
+                .get(sales_person_id, Authentication::Full, tx.clone())
+                .await?;
+            if !sales_person.is_paid.unwrap_or(false) {
+                continue;
+            }
             result.push(ShortEmployeeReport {
-                sales_person: Arc::new(
-                    self.sales_person_service
-                        .get(sales_person_id, Authentication::Full, tx.clone())
-                        .await?,
-                ),
+                sales_person: Arc::new(sales_person),
                 balance_hours,
                 dynamic_hours,
                 expected_hours,

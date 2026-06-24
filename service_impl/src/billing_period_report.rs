@@ -320,6 +320,14 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
 
         let mut sales_person_reports = Vec::new();
         for sales_person in sales_persons.iter() {
+            // D-GATING-STYLE / CVC-10: unbezahlte Personen (is_paid=false) werden ab Phase 17
+            // EmployeeWorkDetails-Records halten (rein freiwillige Helfer). Sie duerfen NICHT als
+            // BillingPeriodSalesPerson-Eintraege im Snapshot erscheinen — Personen-Set-Konsistenz
+            // mit get_week (year-summary) + get_reports_for_all_employees (all-employees-report).
+            // KEIN value_type-Change -> KEIN CURRENT_SNAPSHOT_SCHEMA_VERSION-Bump (bleibt 7).
+            if !sales_person.is_paid.unwrap_or(false) {
+                continue;
+            }
             let sales_person_report = self
                 .build_billing_period_report_for_sales_person(
                     sales_person.clone(),

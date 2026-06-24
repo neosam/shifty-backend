@@ -42,6 +42,58 @@ use crate::test::reporting_phase2_fixtures::{
     fixture_work_details_dynamic_mon_fri,
 };
 
+// ─── Hilfsfunktionen fuer CVC-10-is_paid-Gate-Tests ──────────────────────────
+
+/// Deterministische Id fuer eine unbezahlte Freiwilligen-Person.
+fn unpaid_person_id() -> Uuid {
+    Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_BEEF)
+}
+
+/// Unbezahlte Freiwillige: is_paid=false, expected_hours=0, committed_voluntary=5.
+/// Repraesentiert den neuen Typ "rein freiwilliger Helfer" (D-04 / Phase 17).
+fn unpaid_volunteer_sales_person() -> service::sales_person::SalesPerson {
+    service::sales_person::SalesPerson {
+        id: unpaid_person_id(),
+        name: Arc::from("Unpaid Volunteer"),
+        background_color: Arc::from("#FF0000"),
+        is_paid: Some(false),
+        inactive: false,
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
+/// Work-Details fuer die unbezahlte Person: expected_hours=0, committed_voluntary=5,
+/// gueltig in KW 23/2024 (Mo-Fr).
+fn unpaid_volunteer_work_details() -> service::employee_work_details::EmployeeWorkDetails {
+    service::employee_work_details::EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_BEEF_0010),
+        sales_person_id: unpaid_person_id(),
+        expected_hours: 0.0,
+        from_day_of_week: shifty_utils::DayOfWeek::Monday,
+        from_calendar_week: 22,
+        from_year: 2024,
+        to_day_of_week: shifty_utils::DayOfWeek::Sunday,
+        to_calendar_week: 25,
+        to_year: 2024,
+        workdays_per_week: 5,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        committed_voluntary: 5.0,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+        vacation_days: 0,
+        created: Some(time::macros::datetime!(2024 - 01 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
 struct ReportingMocks {
     extra_hours_service: MockExtraHoursService,
     shiftplan_report_service: MockShiftplanReportService,
@@ -1080,5 +1132,184 @@ async fn test_balance_parity_dynamic_get_week() {
         report_b.balance_hours.abs() < 0.01,
         "dynamic get_week absence: balance ~0, got {}",
         report_b.balance_hours
+    );
+}
+
+// ─── CVC-10: is_paid-Gate fuer get_week (D-06 / Phase 17) ───────────────────
+
+/// CVC-10 Test 1 — get_week_skips_unpaid_person:
+/// Eine Person mit is_paid=false, expected_hours=0, committed_voluntary=5 und
+/// aktivem Vertrag in der Testwoche erscheint NICHT im get_week-Result.
+/// Eine paid-Person mit Vertrag erscheint weiterhin (kein over-gate).
+///
+/// Sichert D-06 ab: Gate auf `sales_person.is_paid`, NICHT auf Record-Praesenz.
+#[tokio::test]
+async fn get_week_skips_unpaid_person() {
+    let mut mocks = ReportingMocks::new();
+
+    // all_for_week liefert ZWEI Work-Details: paid + unpaid.
+    mocks
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                fixture_work_details_8h_mon_fri(),
+                unpaid_volunteer_work_details(),
+            ]))
+        });
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    // find_by_week liefert leere ExtraHours (isoliert den is_paid-Gate).
+    mocks
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(|_, _, _, _| Ok(Arc::from(Vec::<service::extra_hours::ExtraHours>::new())));
+    // get() wird pro sales_person_id aufgerufen — liefert den passenden Typ.
+    let paid_id = fixture_sales_person_id();
+    let unpaid_id = unpaid_person_id();
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(move |id, _, _| {
+            if id == paid_id {
+                Ok(fixture_sales_person())
+            } else if id == unpaid_id {
+                Ok(unpaid_volunteer_sales_person())
+            } else {
+                Err(service::ServiceError::EntityNotFound(id))
+            }
+        });
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    // derive_hours_for_range: leere BTreeMap fuer alle Personen (kein Ablenkungsfeuer).
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(std::collections::BTreeMap::new()));
+
+    let service = mocks.build();
+    let reports = service
+        .get_week(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_week muss erfolgreich sein");
+
+    // Nur die paid-Person erscheint im Result.
+    assert_eq!(
+        reports.len(),
+        1,
+        "get_week darf exakt 1 Report enthalten (nur paid-Person), got {}",
+        reports.len()
+    );
+    assert_eq!(
+        reports[0].sales_person.id,
+        fixture_sales_person_id(),
+        "Der einzige Report muss von der paid-Person stammen (is_paid=true)"
+    );
+    // Unbezahlte Person ist NICHT im Result.
+    let has_unpaid = reports
+        .iter()
+        .any(|r| r.sales_person.id == unpaid_person_id());
+    assert!(
+        !has_unpaid,
+        "Unbezahlte Person (is_paid=false) darf NICHT im get_week-Result erscheinen (D-06/CVC-10)"
+    );
+}
+
+/// CVC-10 Test 2 — get_week_unpaid_no_paid_hours_leak:
+/// Verifiziert dass die unbezahlte Person (is_paid=false, expected_hours=0,
+/// committed_voluntary=5) keinen Beitrag zu `paid_hours` (= Summe dynamic_hours
+/// ueber get_week-Reports) leistet und nicht in working_hours_per_sales_person
+/// auftaucht (Personen-Set-Konsistenz).
+///
+/// Da paid_hours = Σ report.dynamic_hours ueber get_week-Ergebnis (booking_information
+/// get_weekly_summary Z.250-251) und working_hours_per_sales_person aus demselben
+/// Report-Vec aufgebaut wird, ist ein get_week-Ergebnis ohne die unbezahlte Person
+/// aequivalent zum No-Leak in beiden nachgelagerten Aggregaten.
+#[tokio::test]
+async fn get_week_unpaid_no_paid_hours_leak() {
+    let mut mocks = ReportingMocks::new();
+
+    // Zwei Personen: paid (8h/Tag Mo-Fr) + unpaid (0h, committed=5).
+    mocks
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                fixture_work_details_8h_mon_fri(),
+                unpaid_volunteer_work_details(),
+            ]))
+        });
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    mocks
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(|_, _, _, _| Ok(Arc::from(Vec::<service::extra_hours::ExtraHours>::new())));
+    let paid_id = fixture_sales_person_id();
+    let unpaid_id = unpaid_person_id();
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(move |id, _, _| {
+            if id == paid_id {
+                Ok(fixture_sales_person())
+            } else if id == unpaid_id {
+                Ok(unpaid_volunteer_sales_person())
+            } else {
+                Err(service::ServiceError::EntityNotFound(id))
+            }
+        });
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(std::collections::BTreeMap::new()));
+
+    let service = mocks.build();
+    let reports = service
+        .get_week(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_week muss erfolgreich sein");
+
+    // paid_hours = Σ report.dynamic_hours (wie in booking_information::get_weekly_summary).
+    let paid_hours: f32 = reports.iter().map(|r| r.dynamic_hours).sum();
+
+    // Nur paid-Person (40h/Woche) traegt zu paid_hours bei, unpaid-Person (0h) NICHT.
+    // Da keine Shiftplan-Stunden und kein Carryover gesetzt sind, ist paid_hours = expected_hours
+    // der paid-Person fuer diese Woche (40h geteilt auf 5 Tage × 5 Tage in KW23 = 40h).
+    assert!(
+        paid_hours > 0.0,
+        "paid_hours muss > 0 sein (paid-Person traegt 40h/Woche bei), got {}",
+        paid_hours
+    );
+    // Die unbezahlte Person (expected_hours=0) taucht NICHT in den Reports auf,
+    // daher ist ihr Beitrag zu paid_hours exakt 0 (sie ist nicht im Ergebnis).
+    let unpaid_in_result = reports
+        .iter()
+        .any(|r| r.sales_person.id == unpaid_person_id());
+    assert!(
+        !unpaid_in_result,
+        "Unbezahlte Person darf NICHT in get_week-Reports erscheinen — kein paid_hours-Leak (CVC-10)"
+    );
+    // Personen-Set-Konsistenz: working_hours_per_sales_person (abgeleitet aus get_week-Berichten)
+    // wuerde nur paid-Person enthalten, weil get_week die unbezahlte filtert.
+    assert_eq!(
+        reports.len(),
+        1,
+        "Genau 1 Report (paid-Person) — keine unbezahlte Person im Personen-Set"
+    );
+    assert_eq!(
+        reports[0].sales_person.id,
+        fixture_sales_person_id(),
+        "Der Report gehoert der paid-Person, nicht der unbezahlten"
     );
 }
