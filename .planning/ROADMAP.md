@@ -32,7 +32,7 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   - [x] 18-01-PLAN.md — UV-04: Carryover auf `year-1`-Quelle pinnen (Fix bereits präsent) + Regressionstest, der den `year-1`-Read im Mock-Matcher festnagelt.
   - [x] 18-02-PLAN.md — UV-05: derived Absences in per-Woche-Kategorien mergen (ungated), Jahreslumpen-Doppelzählung in `get_report_for_employee` entfernen (Single Source = `by_week`), Snapshot-Bump 9→10, Regressionstests (days>0 stabil über Konvertierung, kein Double-Count, sick_leave-Fall).
 
-- [ ] **Phase 19: Convert-Dialog UX** (Frontend) — Smart bis-Datum (arbeitstagbasiert) + exakter Wochen-Fall („1 Woche" + Mo–So-Vorschlag) im „In Zeitraum umwandeln"-Modal.
+- [x] **Phase 19: Convert-Dialog UX** (Frontend+Backend) — Smart bis-Datum (arbeitstagbasiert) + exakter Wochen-Fall („1 Woche" + Mo–So-Vorschlag) im „In Zeitraum umwandeln"-Modal. ✅ 2026-06-26
   Code: `shifty-dioxus/src/component/absence_convert_modal.rs`, `shifty-dioxus/src/page/absences.rs`.
   Requirements: UV-01, UV-02
   Success Criteria:
@@ -41,8 +41,8 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   3. Bei allen anderen Werten gilt die Arbeitstage-/Tage-Logik (keine Vielfachen, keine Teilwochen).
   4. Frontend-Tests + `cargo build --target wasm32-unknown-unknown` grün.
   Plans: 2 plans (Arch-Entscheidung: FE+BE — Backend rechnet die Vorschlagswerte vor; FE nur Wiring/Anzeige)
-  - [ ] 19-01-PLAN.md — Backend: `suggested_end` + `is_full_week` auf `ExtraHoursMarkerTO`, `AbsenceService::suggest_convert_ranges_for_markers` (Arbeitstag/Feiertag/Wochen-Cap + Exakt-Wochen-Soll), Wiring in beide List-Handler + Tests.
-  - [ ] 19-02-PLAN.md — Frontend: Felder durch `ExtraHoursMarker`-State + Modal-Props threaden, bis aus `suggested_end` vorbelegen, „1 Woche"/„N Tage" in `HourlyMarkerRow`, i18n (De/En/Cs), SSR-Tests + WASM-Gate.
+  - [x] 19-01-PLAN.md — Backend: `suggested_end` + `is_full_week` auf `ExtraHoursMarkerTO`, `AbsenceService::suggest_convert_ranges_for_markers` (Arbeitstag/Feiertag/Wochen-Cap + Exakt-Wochen-Soll), Wiring in beide List-Handler + Tests.
+  - [x] 19-02-PLAN.md — Frontend: Felder durch `ExtraHoursMarker`-State + Modal-Props threaden, bis aus `suggested_end` vorbelegen, „1 Woche"/„N Tage" in `HourlyMarkerRow`, i18n (De/En/Cs), SSR-Tests + WASM-Gate.
 
 - [ ] **Phase 20: Absences-Indikator & Jahres-Histogramm** (Frontend) — ⚠️-Indikator bei stundenbasierten Einträgen; Histogramm-Hover (KW+Datum), KW+Datum-Beschriftung und gestapelte Freiwilligen-Stunden.
   Code: `shifty-dioxus/src/page/absences.rs` `HourlyMarkerRow`; `shifty-dioxus/src/component/employee_weekly_histogram.rs`; `shifty-dioxus/src/component/employee_view.rs`.
@@ -102,7 +102,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 16 — Jahresansicht display | v1.4 | 3/3 | Complete | 2026-06-24 |
 | 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 4/4 | Complete | 2026-06-24 |
 | 18 — Report-/Balance-Korrektheit (BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 19 — Convert-Dialog UX (FE+BE) | v1.5 | 0/2 | Planned | — |
+| 19 — Convert-Dialog UX (FE+BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 0/? | Planned | — |
 | 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 0/? | Planned | — |
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 0/? | Planned | — |

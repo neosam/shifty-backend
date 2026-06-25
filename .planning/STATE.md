@@ -7,10 +7,10 @@ last_updated: "2026-06-25"
 last_activity: 2026-06-25
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 20
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
+  percent: 40
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 19 (Convert-Dialog UX) — als Nächstes (18 abgeschlossen)
+Phase: 20 (Absences-Indikator & Jahres-Histogramm) — als Nächstes (18, 19 abgeschlossen)
 Plan: —
-Status: Autonomer Lauf aktiv. Phase 18 ✅ committet (ddc20197); Snapshot-Bump 9→10.
-Last activity: 2026-06-26 — Phase 18 (UV-04, UV-05) abgeschlossen, cargo test --workspace grün
+Status: Autonomer Lauf aktiv. Phase 18 ✅ (ddc20197, Snapshot 9→10); Phase 19 ✅ (817e4b45, FE+BE, suggested_end/is_full_week).
+Last activity: 2026-06-26 — Phase 19 (UV-01, UV-02) abgeschlossen, FE 634 + BE 522 grün, WASM exit 0
 
 ## Deferred Items
 
