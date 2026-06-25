@@ -82,3 +82,5 @@ cargo build
 jj commit -m "Set version to $FOLLOWING_VERSION"
 jj b m "$BRANCH" --to @-
 jj git push
+
+echo New release version: $NEW_VERSION
