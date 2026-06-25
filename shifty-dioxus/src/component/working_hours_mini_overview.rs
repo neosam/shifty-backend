@@ -168,7 +168,7 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
 
     rsx! {
         div {
-            class: "bg-surface border border-border rounded-lg overflow-hidden select-none",
+            class: "bg-surface border border-border rounded-lg overflow-hidden select-none max-w-5xl mx-auto",
             style: "overflow-x: auto;",
             table {
                 class: "w-full border-collapse text-body",
@@ -198,7 +198,7 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                     }
                 }
                 tbody {
-                    for working_hour in props.rows.iter() {
+                    for (idx, working_hour) in props.rows.iter().enumerate() {
                         {
                             let sales_person_id = working_hour.sales_person_id;
                             let actual = working_hour.actual_hours;
@@ -215,8 +215,10 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                             let is_selected = Some(sales_person_id) == props.selected_sales_person_id;
                             let row_class = if is_selected {
                                 "border-t border-border bg-accent-soft cursor-pointer"
+                            } else if idx % 2 == 0 {
+                                "border-t border-border bg-surface-2 cursor-pointer hover:bg-surface-alt"
                             } else {
-                                "border-t border-border cursor-pointer hover:bg-surface-alt"
+                                "border-t border-border bg-surface cursor-pointer hover:bg-surface-alt"
                             };
                             rsx! {
                                 tr {
@@ -889,6 +891,102 @@ mod tests {
         assert!(
             table_block.contains("on_dbl_click.call"),
             "TableLayout source must call on_dbl_click handler"
+        );
+    }
+
+    // ----- UI-01: max-width + Zebra-Striping tests -----
+
+    #[test]
+    fn table_layout_container_has_max_width() {
+        fn app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    working_hours: Rc::from([make_row("Alice", "#abc", 5.0, 10.0)].to_vec()),
+                    selected_sales_person_id: None,
+                    layout: WorkingHoursLayout::Table,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("max-w-5xl"),
+            "TableLayout container must have max-w-5xl class: {html}"
+        );
+    }
+
+    #[test]
+    fn table_layout_zebra_even_row_has_surface2() {
+        fn app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    working_hours: Rc::from([
+                        make_row("Alice", "#abc", 5.0, 10.0),
+                        make_row("Bob", "#def", 8.0, 8.0),
+                    ].to_vec()),
+                    selected_sales_person_id: None,
+                    layout: WorkingHoursLayout::Table,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        // Check that at least one <tr> opening tag contains bg-surface-2 (zebra stripe on row).
+        // We iterate over all <tr...> opening tags and check if any has bg-surface-2.
+        let tr_open_tags: Vec<&str> = html
+            .split("<tr")
+            .skip(1) // skip before first <tr
+            .filter_map(|s| s.split('>').next())
+            .collect();
+        let has_zebra_row = tr_open_tags.iter().any(|tag| tag.contains("bg-surface-2"));
+        assert!(
+            has_zebra_row,
+            "TableLayout must have at least one <tr> with bg-surface-2 as zebra stripe: {html}"
+        );
+    }
+
+    #[test]
+    fn table_layout_selected_row_wins_over_zebra() {
+        const TEST_ID: Uuid = Uuid::from_u128(0x9999_8888_7777_6666_5555_4444_3333_2222);
+        fn app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    working_hours: Rc::from([
+                        WorkingHoursMini {
+                            sales_person_id: TEST_ID,
+                            sales_person_name: "Selected".into(),
+                            expected_hours: 8.0,
+                            dynamic_hours: 8.0,
+                            actual_hours: 5.0,
+                            balance_hours: 0.0,
+                            background_color: "#abc".into(),
+                        },
+                        make_row("Other", "#def", 8.0, 8.0),
+                    ].to_vec()),
+                    selected_sales_person_id: Some(TEST_ID),
+                    layout: WorkingHoursLayout::Table,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("bg-accent-soft"),
+            "selected row must carry bg-accent-soft: {html}"
+        );
+        // The selected row (index 0 = even) must NOT get bg-surface-2 when selected
+        // Verify by checking that bg-accent-soft appears before bg-surface-2
+        // (selected is always first row here, even row index → would be bg-surface-2 without fix)
+        let accent_pos = html.find("bg-accent-soft").expect("bg-accent-soft must be present");
+        // Confirm the <tr> opening tag containing bg-accent-soft does NOT also carry bg-surface-2.
+        // We extract just the <tr ...> opening tag (up to the first '>') to avoid matching
+        // bg-surface-2 that legitimately appears inside child elements (e.g. progress bar).
+        let tr_start = html[..accent_pos].rfind("<tr").expect("<tr before accent-soft");
+        let tr_tag_end = html[tr_start..].find('>').map(|p| tr_start + p + 1).expect("'>' closing <tr>");
+        let tr_open_tag = &html[tr_start..tr_tag_end];
+        assert!(
+            !tr_open_tag.contains("bg-surface-2"),
+            "selected row's <tr> class must NOT carry bg-surface-2 (selected wins over zebra): {tr_open_tag}"
         );
     }
 }

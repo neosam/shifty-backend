@@ -1629,7 +1629,7 @@ pub fn AbsenceList(props: AbsenceListProps) -> Element {
             // Plan 08-07 Task 5: Header bleibt nur ab `md` sichtbar — auf
             // Mobile zeigt jede Row die Felder gestapelt mit eigenen Labels
             // (kein redundanter Spaltenkopf).
-            div { class: "hidden md:grid bg-surface-alt border-b border-border px-4 py-2 grid-cols-[1.5fr_170px_140px_90px_70px] gap-3.5 text-micro text-ink-muted uppercase font-semibold",
+            div { class: "hidden md:grid bg-surface-alt border-b border-border px-4 py-2 grid-cols-[200px_170px_140px_90px_70px] gap-3.5 text-micro text-ink-muted uppercase font-semibold",
                 div { "{i18n.t(Key::AbsenceColEmployee)}" }
                 div { "{i18n.t(Key::AbsenceColRange)}" }
                 div { "{i18n.t(Key::AbsenceColCategory)}" }
@@ -1727,9 +1727,9 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
     let description = marker.description.as_ref();
 
     rsx! {
-        // Gleiche Grid-Struktur wie AbsenceListRow: md:grid-cols-[1.5fr_170px_140px_90px_70px]
+        // Gleiche Grid-Struktur wie AbsenceListRow: md:grid-cols-[200px_170px_140px_90px_70px]
         div {
-            class: "w-full flex flex-col gap-2 md:grid md:grid-cols-[1.5fr_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border bg-surface-alt/30",
+            class: "w-full flex flex-col gap-2 md:grid md:grid-cols-[200px_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border bg-surface-alt/30",
             // Spalte 1: ⚠️-Indikator (UV-03) + Person + Description
             // (T-8-XSS-01: via RSX auto-escape)
             div { class: "flex items-start gap-1.5 min-w-0",
@@ -1833,7 +1833,7 @@ fn AbsenceListRow(props: AbsenceListRowProps) -> Element {
         // Grid (passend zum Header oben). Gap auf Mobile knapp, ab `md` größer.
         button {
             r#type: "button",
-            class: "w-full text-left flex flex-col gap-2 md:grid md:grid-cols-[1.5fr_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border hover:bg-surface-alt focus:bg-surface-alt focus:outline-none",
+            class: "w-full text-left flex flex-col gap-2 md:grid md:grid-cols-[200px_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border hover:bg-surface-alt focus:bg-surface-alt focus:outline-none",
             onclick: move |_| on_click.call(absence_for_click.clone()),
             div { class: "flex flex-col gap-0.5 min-w-0",
                 span { class: "text-body font-semibold text-ink truncate",
@@ -3588,6 +3588,33 @@ mod tests {
         assert!(
             html.contains("cursor-pointer"),
             "PersonVacationCard muss als klickbar (cursor-pointer) gerendert werden: {html}"
+        );
+    }
+
+    // ── UI-02: schmalere Mitarbeiter-Spalte (3 grid-cols konsistent) ───────
+
+    #[test]
+    fn absence_list_grid_cols_uses_200px_not_1_5fr() {
+        // Source-sweep test: verifies production code has the new narrow column
+        // (200px) and no longer uses the old 1.5fr track. We split at the test
+        // module boundary to avoid counting assertion strings inside tests.
+        let source = include_str!("absences.rs");
+        // Split at the standalone `#[cfg(test)]\nmod tests` marker (the actual
+        // test module declaration), not on occurrences in comments.
+        let production = source
+            .split("\n#[cfg(test)]\nmod tests")
+            .next()
+            .unwrap_or(source);
+        assert!(
+            !production.contains("1.5fr"),
+            "production source must not contain 1.5fr (should have been replaced with 200px)"
+        );
+        let count = production
+            .matches("grid-cols-[200px_170px_140px_90px_70px]")
+            .count();
+        assert!(
+            count >= 3,
+            "production source must contain grid-cols-[200px_170px_140px_90px_70px] at least 3 times (header + HourlyMarkerRow + AbsenceListRow), got {count}"
         );
     }
 }
