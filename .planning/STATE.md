@@ -7,10 +7,10 @@ last_updated: "2026-06-25"
 last_activity: 2026-06-25
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 60
+  completed_phases: 4
+  total_plans: 7
+  completed_plans: 7
+  percent: 80
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 21 (Tabellen-Lesbarkeit) — als Nächstes (18, 19, 20 abgeschlossen)
+Phase: 22 (Mitarbeiter-Statistik HR) — als Nächstes (18–21 abgeschlossen)
 Plan: —
-Status: Autonomer Lauf aktiv. 18 ✅ (Snapshot 9→10); 19 ✅ (FE+BE); 20 ✅ (7df3568c, Histogramm+Indikator).
-Last activity: 2026-06-26 — Phase 20 (UV-03, YV-01/02/03) abgeschlossen, FE 645 grün, WASM exit 0
+Status: Autonomer Lauf aktiv. 18 ✅ (Snapshot 9→10); 19 ✅; 20 ✅; 21 ✅ (26d83643, Tabellen-Polish).
+Last activity: 2026-06-26 — Phase 21 (UI-01, UI-02) abgeschlossen, FE 649 grün, WASM via nix develop Finished
 
 ## Deferred Items
 

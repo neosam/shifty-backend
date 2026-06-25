@@ -57,7 +57,7 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   - [x] 20-01-PLAN.md — UV-03: ⚠️-Indikator führend in `HourlyMarkerRow` Spalte 1 (statisches Tailwind, i18n title+aria in De/En/Cs), Badge bleibt; SSR-Test.
   - [x] 20-02-PLAN.md — YV-01/02/03: gestapelte Balken (regulär + volunteer dezent) + `<title>`-Hover (KW+Datum), `compute_max_y` auf Stapel-Summe, KW+Datum + separater volunteer-Wert in `WeekListExpanded`/`WeekDetailPanel`, i18n; SSR-Tests + WASM-Gate.
 
-- [ ] **Phase 21: Tabellen-Lesbarkeit** (Frontend) — max-width + Zebra für die Schichtplan-Tabelle; schmalere Mitarbeiter-Spalte in der `/absences`-Tabelle.
+- [x] **Phase 21: Tabellen-Lesbarkeit** (Frontend) — max-width + Zebra für die Schichtplan-Tabelle; schmalere Mitarbeiter-Spalte in der `/absences`-Tabelle. ✅ 2026-06-26
   Code: `shifty-dioxus/src/component/working_hours_mini_overview.rs`, `shifty-dioxus/src/page/absences.rs`.
   Requirements: UI-01, UI-02
   Success Criteria:
@@ -65,7 +65,7 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   2. In der `/absences`-Tabelle ist die Mitarbeiter-Spalte deutlich schmaler (weg von `1.5fr`).
   3. Frontend-Tests + WASM-Build grün.
   Plans: 1 plan (Wave 1 — beide UI-Polish-Änderungen sind kleine Tailwind-Edits, zusammen ~15 % Kontext)
-  - [ ] 21-01-PLAN.md — UI-01: max-width (`max-w-5xl`) + Zebra-Striping (Design-Tokens, Selected/Hover gewinnt) im `TableLayout`; UI-02: schmalere Mitarbeiter-Spalte (`1.5fr` → `200px`) konsistent an allen drei `/absences`-grid-cols; SSR-Tests + WASM-Gate.
+  - [x] 21-01-PLAN.md — UI-01: max-width (`max-w-5xl`) + Zebra-Striping (Design-Tokens, Selected/Hover gewinnt) im `TableLayout`; UI-02: schmalere Mitarbeiter-Spalte (`1.5fr` → `200px`) konsistent an allen drei `/absences`-grid-cols; SSR-Tests + WASM-Gate.
 
 - [ ] **Phase 22: Mitarbeiter-Statistik HR** (Backend + Frontend) — HR-only pro-SalesPerson Statistik in `/employees/:id`; Kennzahl Ø gearbeitete Stunden/Woche (urlaubsbereinigt). Setzt Todo `AVG-01` um.
   Code: `ReportingService` (neue Methode + REST) + `shifty-dioxus/src/component/employee_view.rs`. Berechnungsregel A-22-1 in `22-CONTEXT.md` gepinnt (Jahr bis heute; worked = shiftplan+extrawork+volunteer; voll-abwesende Wochen raus; alle vier Abwesenheitskategorien).
@@ -109,7 +109,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 18 — Report-/Balance-Korrektheit (BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 19 — Convert-Dialog UX (FE+BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 0/1 | Planned | — |
+| 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 1/1 | Complete | 2026-06-26 |
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 0/? | Planned | — |
 
 ---
