@@ -46,15 +46,22 @@ fn map_to_marker(
     eh: &service::extra_hours::ExtraHours,
     person_name: std::sync::Arc<str>,
 ) -> ExtraHoursMarkerTO {
+    let when = eh.date_time.date();
     ExtraHoursMarkerTO {
         extra_hours_id: eh.id,
         sales_person_id: eh.sales_person_id,
-        when: eh.date_time.date(),
+        when,
         amount: eh.amount,
         category: (&eh.category).into(),
         description: eh.description.clone(),
         person_name,
         derived_days: 0.0,
+        // suggested_end und is_full_week werden vom List-Handler via
+        // suggest_convert_ranges_for_markers nachträglich befüllt.
+        // Fallback-Wert: suggested_end == when (kein Range-Raten),
+        // is_full_week == false.
+        suggested_end: when,
+        is_full_week: false,
     }
 }
 
@@ -274,6 +281,21 @@ pub async fn get_all_absence_periods<RestState: RestStateDef>(
                 for (marker, days) in person_markers.iter_mut().zip(marker_days.iter()) {
                     marker.derived_days = *days;
                 }
+                // UV-01/UV-02: suggested_end + is_full_week anreichern.
+                let suggest_ranges = svc
+                    .suggest_convert_ranges_for_markers(
+                        person.id,
+                        &pairs,
+                        context.clone().into(),
+                        None,
+                    )
+                    .await?;
+                for (marker, (suggested_end, is_full_week)) in
+                    person_markers.iter_mut().zip(suggest_ranges.iter())
+                {
+                    marker.suggested_end = *suggested_end;
+                    marker.is_full_week = *is_full_week;
+                }
                 hourly_markers.append(&mut person_markers);
             }
 
@@ -466,6 +488,21 @@ pub async fn get_absence_periods_for_sales_person<RestState: RestStateDef>(
                     .await?;
                 for (marker, days) in hourly_markers.iter_mut().zip(marker_days.iter()) {
                     marker.derived_days = *days;
+                }
+                // UV-01/UV-02: suggested_end + is_full_week anreichern.
+                let suggest_ranges = svc
+                    .suggest_convert_ranges_for_markers(
+                        sales_person_id,
+                        &pairs,
+                        context.clone().into(),
+                        None,
+                    )
+                    .await?;
+                for (marker, (suggested_end, is_full_week)) in
+                    hourly_markers.iter_mut().zip(suggest_ranges.iter())
+                {
+                    marker.suggested_end = *suggested_end;
+                    marker.is_full_week = *is_full_week;
                 }
             }
 

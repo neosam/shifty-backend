@@ -763,6 +763,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::AbsenceColWarnings, "Hinweise");
     i18n.add_text(Locale::De, Key::AbsenceDayUnit, "Tag");
     i18n.add_text(Locale::De, Key::AbsenceDaysUnit, "Tage");
+    i18n.add_text(Locale::De, Key::AbsenceOneWeek, "1 Woche");
     i18n.add_text(
         Locale::De,
         Key::VacationEntitlementHero,

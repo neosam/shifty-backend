@@ -1744,6 +1744,23 @@ pub struct ExtraHoursMarkerTO {
     /// `hours_per_day <= 0` ⇒ 0.0. Auf Wire-Roundtrips Default 0.0.
     #[serde(default)]
     pub derived_days: f32,
+    /// Read-only Vorschlag-Feld (UV-01): das arbeitstag-basierte Enddatum des
+    /// Convert-Bereichs. Der Bereich `[when, suggested_end]` enthält exakt
+    /// `derived_days` aktive Arbeitstage (Wochenenden, Feiertage und
+    /// Wochen-Deckelung berücksichtigt). Bei is_full_week = true ist
+    /// `suggested_end` der Sonntag der ISO-Woche von `when` (Mo–So). Fallback:
+    /// `suggested_end == when`. Vom List-Endpoint befüllt via
+    /// `AbsenceService::suggest_convert_ranges_for_markers`. Nie `#[serde(default)]`
+    /// — wird immer vom Producer gesetzt (analog zu `when`).
+    #[schema(value_type = String, format = "date")]
+    pub suggested_end: time::Date,
+    /// Read-only Flag (UV-02): `true` iff `amount` exakt der Wochen-Soll-Stunden
+    /// (`expected_hours`) des am `when` aktiven Vertrags entspricht (f32-Epsilon).
+    /// Dient dem Frontend als Hinweis, ob der Marker eine volle Woche darstellt —
+    /// in diesem Fall schlägt das Backend Mo–So der Kalenderwoche als Range vor.
+    /// Default `false` (kein aktiver Vertrag oder keine genaue Übereinstimmung).
+    #[serde(default)]
+    pub is_full_week: bool,
 }
 
 /// Plan 04 Read-Projektion: Kombinierte HR-Übersicht mit absence_periods

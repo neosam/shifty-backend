@@ -130,6 +130,13 @@ pub struct ExtraHoursMarker {
     /// Aus `amount` (Stunden) abgeleitete Anzeige-Tage am `when`-Datum, vom
     /// Backend (`AbsenceService::derive_days_for_hourly_markers`) befüllt.
     pub derived_days: f32,
+    /// Vom Backend berechnetes Bis-Datum für den Convert-Dialog (Werktage-basiert).
+    /// Bei `is_full_week = true`: Sonntag der ISO-Woche von `when` (Mo–So).
+    /// Fallback (Halbtagsmarker, kein Vertrag): `suggested_end == when`.
+    pub suggested_end: time::Date,
+    /// `true` genau dann, wenn `amount` exakt dem Wochen-Soll des Vertrags entspricht
+    /// (eine volle ISO-Woche Urlaub). Steuert die „1 Woche"-Anzeige in `HourlyMarkerRow`.
+    pub is_full_week: bool,
 }
 
 impl From<&ExtraHoursMarkerTO> for ExtraHoursMarker {
@@ -143,6 +150,8 @@ impl From<&ExtraHoursMarkerTO> for ExtraHoursMarker {
             description: t.description.clone(),
             person_name: t.person_name.clone(),
             derived_days: t.derived_days,
+            suggested_end: t.suggested_end,
+            is_full_week: t.is_full_week,
         }
     }
 }
@@ -217,5 +226,53 @@ mod tests {
         let state: AbsencePeriod = (&to).into();
         assert_eq!(state.day_fraction, DayFraction::Half);
         assert_eq!(state.derived_days, 0.5);
+    }
+
+    #[test]
+    fn extra_hours_marker_roundtrips_suggested_end_and_is_full_week() {
+        use rest_types::{ExtraHoursCategoryTO, ExtraHoursMarkerTO};
+        let sp = Uuid::from_u128(42);
+        let when = date!(2026 - 06 - 16); // Montag
+        let suggested = date!(2026 - 06 - 21); // Sonntag der Woche (is_full_week)
+        let to = ExtraHoursMarkerTO {
+            extra_hours_id: Uuid::from_u128(1),
+            sales_person_id: sp,
+            when,
+            amount: 40.0_f32,
+            category: ExtraHoursCategoryTO::Vacation,
+            description: Arc::<str>::from(""),
+            person_name: Arc::<str>::from(""),
+            derived_days: 5.0_f32,
+            suggested_end: suggested,
+            is_full_week: true,
+        };
+        let state: ExtraHoursMarker = (&to).into();
+        assert_eq!(state.when, when, "when muss 1:1 übernommen werden");
+        assert_eq!(
+            state.suggested_end, suggested,
+            "suggested_end muss vom TO übernommen werden"
+        );
+        assert!(state.is_full_week, "is_full_week=true muss übernommen werden");
+    }
+
+    #[test]
+    fn extra_hours_marker_suggested_end_equals_when_for_half_day() {
+        use rest_types::{ExtraHoursCategoryTO, ExtraHoursMarkerTO};
+        let when = date!(2026 - 06 - 24);
+        let to = ExtraHoursMarkerTO {
+            extra_hours_id: Uuid::from_u128(2),
+            sales_person_id: Uuid::from_u128(5),
+            when,
+            amount: 4.0_f32,
+            category: ExtraHoursCategoryTO::Vacation,
+            description: Arc::<str>::from(""),
+            person_name: Arc::<str>::from(""),
+            derived_days: 0.5_f32,
+            suggested_end: when, // Fallback: Halbtag ⇒ suggested_end == when
+            is_full_week: false,
+        };
+        let state: ExtraHoursMarker = (&to).into();
+        assert_eq!(state.suggested_end, when);
+        assert!(!state.is_full_week);
     }
 }

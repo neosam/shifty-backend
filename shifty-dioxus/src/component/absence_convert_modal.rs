@@ -26,7 +26,8 @@ use crate::service::i18n::I18N;
 ///
 /// Props:
 /// - `extra_hours_id` — ID des zu konvertierenden Eintrags (wird via `on_submit` übergeben)
-/// - `initial_date` — Vorbefüllter Wert für Von/Bis-Datumsfelder
+/// - `initial_date` — Vorbefüllter Wert für Von-Datumsfeld (Eintrags-Tag)
+/// - `suggested_end` — Arbeitstag-basiertes Vorschlags-Bis (vom Backend berechnet, UV-01/UV-02)
 /// - `amount` — Read-only Stundenanzahl (wird nur angezeigt, nicht bearbeitet)
 /// - `category` — Read-only Kategorie (Vacation/SickLeave/UnpaidLeave)
 /// - `on_submit` — Handler: `(extra_hours_id, start, end, DayFractionTO)`
@@ -35,6 +36,7 @@ use crate::service::i18n::I18N;
 pub fn AbsenceConvertModal(
     extra_hours_id: Uuid,
     initial_date: time::Date,
+    suggested_end: time::Date,
     amount: f32,
     category: AbsenceCategoryTO,
     on_submit: EventHandler<(Uuid, time::Date, time::Date, rest_types::DayFractionTO)>,
@@ -42,18 +44,23 @@ pub fn AbsenceConvertModal(
 ) -> Element {
     let i18n = I18N.read().clone();
 
-    // Formatiere initial_date als "YYYY-MM-DD"-String für die date-Inputs.
+    // Formatiere initial_date als "YYYY-MM-DD"-String für das Von-Feld.
     let fmt = time::macros::format_description!("[year]-[month]-[day]");
     let initial_str = initial_date
         .format(fmt)
         .unwrap_or_else(|_| "2026-01-01".to_string());
+    // Formatiere suggested_end für das Bis-Feld (UV-01: Arbeitstag-basiert).
+    let suggested_end_str = suggested_end
+        .format(fmt)
+        .unwrap_or_else(|_| initial_str.clone());
 
-    // Pre-fill Von/Bis mit dem übergebenen Datum.
+    // Von-Feld: Eintrags-Tag (initial_date) — unverändert.
     let mut start_str = use_signal({
         let s = initial_str.clone();
         move || s.clone()
     });
-    let mut end_str = use_signal(move || initial_str.clone());
+    // Bis-Feld: vom Backend vorgeschlagenes Enddatum (suggested_end), NICHT initial_date.
+    let mut end_str = use_signal(move || suggested_end_str.clone());
     let mut error_msg = use_signal(|| Option::<String>::None);
     // Tageshälfte-Select: Default Full
     let mut day_fraction = use_signal(|| rest_types::DayFractionTO::Full);
@@ -214,6 +221,7 @@ mod tests {
                 AbsenceConvertModal {
                     extra_hours_id: id,
                     initial_date: date!(2026-06-10),
+                    suggested_end: date!(2026-06-14),
                     amount: 8.0_f32,
                     category: AbsenceCategoryTO::Vacation,
                     on_submit: |_| {},
@@ -241,6 +249,74 @@ mod tests {
         );
     }
 
+    /// UV-01: Von wird mit initial_date befüllt, Bis mit suggested_end (darf abweichen).
+    /// Prüft per SSR-HTML, dass die value-Attribute der beiden date-Inputs unterschiedlich
+    /// sind, wenn suggested_end != initial_date.
+    #[test]
+    fn absence_convert_modal_bis_prefilled_from_suggested_end() {
+        fn comp() -> Element {
+            use_hook(|| {
+                *I18N.write() = generate(Locale::De);
+            });
+            rsx! {
+                AbsenceConvertModal {
+                    extra_hours_id: Uuid::from_u128(0x9999),
+                    initial_date: date!(2026-06-16),   // Montag (Von)
+                    suggested_end: date!(2026-06-19),  // Freitag (Bis, 4 Werktage)
+                    amount: 32.0_f32,
+                    category: AbsenceCategoryTO::Vacation,
+                    on_submit: |_| {},
+                    on_cancel: |_| {},
+                }
+            }
+        }
+        let html = render(comp);
+        // Von-Input muss den Eintrags-Tag enthalten
+        assert!(
+            html.contains(r#"value="2026-06-16""#),
+            "Von-Input muss value=2026-06-16 enthalten. HTML: {html}"
+        );
+        // Bis-Input muss suggested_end enthalten (Freitag), NICHT initial_date
+        assert!(
+            html.contains(r#"value="2026-06-19""#),
+            "Bis-Input muss value=2026-06-19 (suggested_end) enthalten. HTML: {html}"
+        );
+        // Sicherstellen dass Bis NICHT den Von-Wert spiegelt
+        assert_eq!(
+            html.matches(r#"value="2026-06-16""#).count(),
+            1,
+            "Nur Von darf 2026-06-16 enthalten, nicht auch Bis. HTML: {html}"
+        );
+    }
+
+    /// UV-01 Halbtag-Fallback: Wenn suggested_end == initial_date, ist Von == Bis (Halbtag).
+    #[test]
+    fn absence_convert_modal_half_day_von_equals_bis() {
+        fn comp() -> Element {
+            use_hook(|| {
+                *I18N.write() = generate(Locale::De);
+            });
+            rsx! {
+                AbsenceConvertModal {
+                    extra_hours_id: Uuid::from_u128(0x1111),
+                    initial_date: date!(2026-06-24),   // Halbtag
+                    suggested_end: date!(2026-06-24),  // Fallback: gleicher Tag
+                    amount: 4.0_f32,
+                    category: AbsenceCategoryTO::Vacation,
+                    on_submit: |_| {},
+                    on_cancel: |_| {},
+                }
+            }
+        }
+        let html = render(comp);
+        // Beide date-Inputs müssen denselben Wert haben
+        assert_eq!(
+            html.matches(r#"value="2026-06-24""#).count(),
+            2,
+            "Bei Halbtag müssen beide Inputs value=2026-06-24 haben. HTML: {html}"
+        );
+    }
+
     /// P-7-Submit-Defense: Das Modal dispatcht NICHT bei ungültigem Datum.
     /// (SSR-Smoke-Test — prüft Render-Fehlerfreiheit; Submit-Defense ist zur Laufzeit aktiv.)
     #[test]
@@ -253,6 +329,7 @@ mod tests {
                 AbsenceConvertModal {
                     extra_hours_id: Uuid::from_u128(0x1234),
                     initial_date: date!(2026-12-24),
+                    suggested_end: date!(2026-12-24),
                     amount: 4.0_f32,
                     category: AbsenceCategoryTO::SickLeave,
                     on_submit: |_| {},

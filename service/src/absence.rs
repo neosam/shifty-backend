@@ -276,6 +276,29 @@ pub trait AbsenceService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Vec<f32>, ServiceError>;
+
+    /// Berechnet für jeden stundenbasierten Marker den arbeitstag-basierten
+    /// Convert-Bereich (UV-01 / UV-02). Gibt einen index-alignierten Vec von
+    /// `(suggested_end, is_full_week)` zurück.
+    ///
+    /// - `suggested_end`: Das Enddatum, sodass `[when, suggested_end]` exakt
+    ///   `derived_days` aktive Arbeitstage umfasst (Wochenenden, Feiertage
+    ///   und Wochen-Deckelung berücksichtigt). Bei `is_full_week = true` ist
+    ///   `suggested_end` der Sonntag der ISO-Woche von `when` (Mo–So-Range).
+    ///   Fallback: `suggested_end == when`.
+    /// - `is_full_week`: `true` iff `hours` exakt `contract.expected_hours`
+    ///   entspricht (f32-Epsilon). Kein aktiver Vertrag ⇒ `false`.
+    ///
+    /// Leere Eingabe → leerer Vec. Kein aktiver Vertrag am `when` → push
+    /// `(when, false)`. Permission: HR ∨ self (gleiche Regel wie
+    /// [`Self::find_by_sales_person`]).
+    async fn suggest_convert_ranges_for_markers(
+        &self,
+        sales_person_id: Uuid,
+        markers: &[(Date, f32)],
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Vec<(Date, bool)>, ServiceError>;
 }
 
 #[cfg(test)]

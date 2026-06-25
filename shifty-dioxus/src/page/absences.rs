@@ -1710,11 +1710,17 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
     // konsistent zu AbsenceListRow. Die rohen Stunden bleiben in Klammern als
     // Transparenz über die Legacy-Quelle erhalten (Entscheidung: Tage + Stunden).
     let derived_days = marker.derived_days;
-    let days_label = format_decimal(derived_days);
-    let days_unit = if (derived_days - 1.0).abs() < f32::EPSILON {
-        i18n.t(Key::AbsenceDayUnit)
+    // UV-02: Volle-Woche-Marker zeigen "1 Woche" statt "N Tage" (is_full_week vom Backend).
+    let quantity_label = if marker.is_full_week {
+        i18n.t(Key::AbsenceOneWeek).to_string()
     } else {
-        i18n.t(Key::AbsenceDaysUnit)
+        let days_label = format_decimal(derived_days);
+        let days_unit = if (derived_days - 1.0).abs() < f32::EPSILON {
+            i18n.t(Key::AbsenceDayUnit)
+        } else {
+            i18n.t(Key::AbsenceDaysUnit)
+        };
+        format!("{days_label} {days_unit}")
     };
     let person_name = marker.person_name.as_ref();
     let description = marker.description.as_ref();
@@ -1739,10 +1745,11 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
                 }
             }
             // Spalte 2: Datum + abgeleitete Tage (rohe Stunden in Klammern)
+            // UV-02: quantity_label = "1 Woche" (is_full_week) oder "N Tage"/"1 Tag".
             div { class: "text-body text-ink font-mono flex flex-col gap-0.5",
                 span { "{when_str}" }
                 span { class: "text-small text-ink-muted",
-                    "{days_label} {days_unit} ({amount_str} {amount_label})"
+                    "{quantity_label} ({amount_str} {amount_label})"
                 }
             }
             // Spalte 3: Kategorie-Badge + „stundenbasiert"-Badge
@@ -2079,6 +2086,7 @@ pub fn AbsencesPage() -> Element {
             AbsenceConvertModal {
                 extra_hours_id: m.extra_hours_id,
                 initial_date: m.when,
+                suggested_end: m.suggested_end,
                 amount: m.amount,
                 category: modal_category,
                 on_submit: move |(id, start, end, day_fraction)| {
@@ -2716,6 +2724,8 @@ mod tests {
             description: Arc::<str>::from("Jahresurlaub"),
             person_name: Arc::<str>::from("Max Mustermann"),
             derived_days: 1.0_f32,
+            suggested_end: date!(2026 - 06 - 15),
+            is_full_week: false,
         }
     }
 
@@ -2824,6 +2834,88 @@ mod tests {
         );
     }
 
+    // ── UV-02: HourlyMarkerRow "1 Woche" vs "N Tage" Anzeigebranch ───────
+
+    /// UV-02: is_full_week=true → "1 Woche" wird angezeigt, kein "N Tage".
+    #[test]
+    fn hourly_marker_row_full_week_shows_one_week_label() {
+        fn app() -> Element {
+            pin_de_locale();
+            let marker = ExtraHoursMarker {
+                extra_hours_id: Uuid::nil(),
+                sales_person_id: Uuid::nil(),
+                when: date!(2026 - 06 - 15),
+                amount: 40.0_f32,
+                category: rest_types::ExtraHoursCategoryTO::Vacation,
+                description: std::sync::Arc::<str>::from(""),
+                person_name: std::sync::Arc::<str>::from(""),
+                derived_days: 5.0_f32,
+                suggested_end: date!(2026 - 06 - 21),
+                is_full_week: true,
+            };
+            rsx! {
+                HourlyMarkerRow {
+                    marker,
+                    is_hr: false,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("1 Woche"),
+            "Volle-Woche-Marker muss '1 Woche' anzeigen: {html}"
+        );
+        // Kein N-Tage-String (5 Tage) bei is_full_week=true
+        assert!(
+            !html.contains("5 Tage"),
+            "Volle-Woche-Marker darf NICHT '5 Tage' anzeigen: {html}"
+        );
+        // Rohe Stunden in Klammern müssen erhalten bleiben
+        assert!(
+            html.contains("(40.00"),
+            "Volle-Woche-Marker muss rohe Stunden in Klammern zeigen: {html}"
+        );
+    }
+
+    /// UV-02: is_full_week=false + derived_days=3.0 → "3 Tage" wird angezeigt, kein "1 Woche".
+    #[test]
+    fn hourly_marker_row_partial_week_shows_n_days_label() {
+        fn app() -> Element {
+            pin_de_locale();
+            let marker = ExtraHoursMarker {
+                extra_hours_id: Uuid::nil(),
+                sales_person_id: Uuid::nil(),
+                when: date!(2026 - 06 - 16),
+                amount: 24.0_f32,
+                category: rest_types::ExtraHoursCategoryTO::Vacation,
+                description: std::sync::Arc::<str>::from(""),
+                person_name: std::sync::Arc::<str>::from(""),
+                derived_days: 3.0_f32,
+                suggested_end: date!(2026 - 06 - 18),
+                is_full_week: false,
+            };
+            rsx! {
+                HourlyMarkerRow {
+                    marker,
+                    is_hr: false,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("3 Tage"),
+            "Nicht-Woche-Marker (3.0 Tage) muss '3 Tage' anzeigen: {html}"
+        );
+        assert!(
+            !html.contains("1 Woche"),
+            "Nicht-Woche-Marker darf NICHT '1 Woche' anzeigen: {html}"
+        );
+    }
+
     // ── marker_matches_filters — pure function tests (260612-nlv) ─────────
 
     fn test_marker(
@@ -2840,6 +2932,8 @@ mod tests {
             description: std::sync::Arc::<str>::from(""),
             person_name: std::sync::Arc::<str>::from(""),
             derived_days: 1.0_f32,
+            suggested_end: when,
+            is_full_week: false,
         }
     }
 

@@ -458,6 +458,7 @@ pub enum Key {
     AbsenceColWarnings,
     AbsenceDayUnit,
     AbsenceDaysUnit,
+    AbsenceOneWeek,
     // VacationEntitlementCard
     VacationEntitlementHero,
     VacationDaysRemaining,

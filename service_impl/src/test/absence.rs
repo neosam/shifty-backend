@@ -1054,3 +1054,270 @@ async fn test_find_overlapping_for_booking_forbidden() {
         .await;
     test_forbidden(&result);
 }
+
+// =========================================================================
+// suggest_convert_ranges_for_markers (Phase 19, Plan 01)
+// =========================================================================
+
+/// Gemeinsamer Vertrag für suggest_convert_ranges_for_markers Tests.
+/// Mon–Fri, 40h/Woche, 5 Tage/Woche. Gültig von KW01/2020 bis KW52/2030.
+fn suggest_test_work_details() -> service::employee_work_details::EmployeeWorkDetails {
+    use service::employee_work_details::EmployeeWorkDetails;
+    use shifty_utils::DayOfWeek;
+    EmployeeWorkDetails {
+        id: uuid!("DD000000-0000-0000-0000-000000000001"),
+        sales_person_id: default_sales_person_id(),
+        expected_hours: 40.0,
+        from_day_of_week: DayOfWeek::Monday,
+        from_calendar_week: 1,
+        from_year: 2020,
+        to_day_of_week: DayOfWeek::Sunday,
+        to_calendar_week: 52,
+        to_year: 2030,
+        workdays_per_week: 5,
+        is_dynamic: false,
+        cap_planned_hours_to_expected: false,
+        committed_voluntary: 0.0,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+        vacation_days: 30,
+        created: Some(datetime!(2020 - 01 - 01 10:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
+/// Hilfsfunktion: Dependency-Aufbau für suggest_convert_ranges_for_markers Tests.
+/// Konfiguriert leere Holidays für alle Wochen-Abfragen.
+fn build_suggest_deps_no_holidays() -> AbsenceDependencies {
+    let mut deps = build_dependencies();
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![suggest_test_work_details()])));
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from([])));
+    deps
+}
+
+/// UV-01 Workday-skip Test:
+/// Marker am Donnerstag (2026-04-23), 3 Arbeitstage (24h / 8h/Tag = 3.0).
+/// Mon–Fri Vertrag: Do (1), Fr (2), Mo der nächsten Woche (3).
+/// suggested_end = 2026-04-27 (Montag).
+#[tokio::test]
+async fn suggest_workday_skip_crosses_weekend() {
+    let deps = build_suggest_deps_no_holidays();
+    let service = deps.build_service();
+
+    // 2026-04-23 ist Donnerstag. 3 Arbeitstage: Do, Fr, nächster Mo.
+    // expected_hours/workdays_per_week = 40/5 = 8h/Tag. 24h = 3 Tage.
+    let markers = vec![(date!(2026 - 04 - 23), 24.0_f32)];
+    let result = service
+        .suggest_convert_ranges_for_markers(
+            default_sales_person_id(),
+            &markers,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("should succeed");
+
+    assert_eq!(result.len(), 1);
+    let (suggested_end, is_full_week) = result[0];
+    assert!(!is_full_week, "24h != 40h expected_hours, not full week");
+    // Do(23) + Fr(24) + Mo(27) = 3 workdays → end = 2026-04-27
+    assert_eq!(
+        suggested_end,
+        date!(2026 - 04 - 27),
+        "3 workdays from Thursday should end on following Monday"
+    );
+}
+
+/// UV-01 Holiday-skip Test:
+/// Marker am Montag 2026-04-20, 2 Arbeitstage (16h). Freitag 2026-04-24 ist Feiertag.
+/// Mo (1), Di (2). suggested_end = 2026-04-21 (Dienstag).
+/// (No holiday in 2-day window, but we verify the holiday code path via
+/// a 3-day marker with holiday on Wed → end shifts to Thu.)
+#[tokio::test]
+async fn suggest_holiday_skip() {
+    use service::special_days::{SpecialDay, SpecialDayType};
+    use shifty_utils::DayOfWeek as SdDayOfWeek;
+
+    let mut deps = build_dependencies();
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![suggest_test_work_details()])));
+
+    // 2026-04-22 ist Mittwoch (KW17, 2026). Als Feiertag markieren.
+    // iso week date: 2026 W17 Wednesday
+    let holiday_sd = SpecialDay {
+        id: uuid!("EE000000-0000-0000-0000-000000000001"),
+        year: 2026,
+        calendar_week: 17,
+        day_of_week: SdDayOfWeek::Wednesday,
+        day_type: SpecialDayType::Holiday,
+        time_of_day: None,
+        created: Some(datetime!(2026 - 01 - 01 00:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+    };
+
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(move |year, week, _| {
+            if year == 2026 && week == 17 {
+                Ok(Arc::from(vec![holiday_sd.clone()]))
+            } else {
+                Ok(Arc::from([]))
+            }
+        });
+
+    let service = deps.build_service();
+
+    // 2026-04-20 (Montag, KW17). 3 Arbeitstage à 8h = 24h.
+    // Mon (1), Di (2), Mi = Feiertag (skip), Do (3).
+    // suggested_end = 2026-04-23 (Donnerstag).
+    let markers = vec![(date!(2026 - 04 - 20), 24.0_f32)];
+    let result = service
+        .suggest_convert_ranges_for_markers(
+            default_sales_person_id(),
+            &markers,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("should succeed");
+
+    assert_eq!(result.len(), 1);
+    let (suggested_end, is_full_week) = result[0];
+    assert!(!is_full_week);
+    assert_eq!(
+        suggested_end,
+        date!(2026 - 04 - 23),
+        "Holiday on Wednesday should push end to Thursday"
+    );
+}
+
+/// UV-02 Exact-week Test:
+/// Marker mit amount == expected_hours (40h) → is_full_week true.
+/// suggested_end = Sonntag der ISO-Woche von `when`.
+/// when = 2026-04-20 (Montag, KW17) → Sonntag = 2026-04-26.
+#[tokio::test]
+async fn suggest_exact_week_full_week_flag() {
+    let deps = build_suggest_deps_no_holidays();
+    let service = deps.build_service();
+
+    // 2026-04-20 = Montag KW17/2026. Sonntag KW17 = 2026-04-26.
+    let markers = vec![(date!(2026 - 04 - 20), 40.0_f32)];
+    let result = service
+        .suggest_convert_ranges_for_markers(
+            default_sales_person_id(),
+            &markers,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("should succeed");
+
+    assert_eq!(result.len(), 1);
+    let (suggested_end, is_full_week) = result[0];
+    assert!(is_full_week, "40h == expected_hours 40h → is_full_week");
+    assert_eq!(
+        suggested_end,
+        date!(2026 - 04 - 26),
+        "Full week → Sunday of ISO week 17/2026"
+    );
+}
+
+/// UV-02 Non-exact Test:
+/// Marker mit amount != expected_hours → is_full_week false, UV-01 End-Logik greift.
+#[tokio::test]
+async fn suggest_non_exact_no_full_week_flag() {
+    let deps = build_suggest_deps_no_holidays();
+    let service = deps.build_service();
+
+    // 39.5h ≠ 40.0h → is_full_week false.
+    // 39.5h / 8h/Tag ≈ 4.9375 → ceil = 5 Arbeitstage von Mo.
+    // 2026-04-20 (Mo) + 4 weitere Arbeitstage: Mo(1), Di(2), Mi(3), Do(4), Fr(5).
+    // suggested_end = 2026-04-24 (Freitag).
+    let markers = vec![(date!(2026 - 04 - 20), 39.5_f32)];
+    let result = service
+        .suggest_convert_ranges_for_markers(
+            default_sales_person_id(),
+            &markers,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("should succeed");
+
+    assert_eq!(result.len(), 1);
+    let (suggested_end, is_full_week) = result[0];
+    assert!(!is_full_week, "39.5h ≠ 40h → not full week");
+    assert_eq!(
+        suggested_end,
+        date!(2026 - 04 - 24),
+        "5 workdays Mo–Fr: end = Friday"
+    );
+}
+
+/// D-19-03 Half-day Test:
+/// derived_days == 0.5 (4h / 8h/Tag) → suggested_end == when.
+#[tokio::test]
+async fn suggest_half_day_returns_when() {
+    let deps = build_suggest_deps_no_holidays();
+    let service = deps.build_service();
+
+    // 4h / 8h = 0.5 Tage → half-day → suggested_end = when.
+    let when = date!(2026 - 04 - 22); // Mittwoch
+    let markers = vec![(when, 4.0_f32)];
+    let result = service
+        .suggest_convert_ranges_for_markers(
+            default_sales_person_id(),
+            &markers,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("should succeed");
+
+    assert_eq!(result.len(), 1);
+    let (suggested_end, is_full_week) = result[0];
+    assert!(!is_full_week);
+    assert_eq!(suggested_end, when, "Half-day: suggested_end must equal when");
+}
+
+/// No-contract Test:
+/// Kein aktiver Vertrag → Fallback (when, false).
+#[tokio::test]
+async fn suggest_no_contract_returns_when_false() {
+    let mut deps = build_dependencies();
+    // Leerer work_details-Slice → kein Vertrag aktiv.
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![])));
+
+    let service = deps.build_service();
+
+    let when = date!(2026 - 04 - 20);
+    let markers = vec![(when, 40.0_f32)];
+    let result = service
+        .suggest_convert_ranges_for_markers(
+            default_sales_person_id(),
+            &markers,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("should succeed");
+
+    assert_eq!(result.len(), 1);
+    let (suggested_end, is_full_week) = result[0];
+    assert!(!is_full_week, "No contract → is_full_week false");
+    assert_eq!(suggested_end, when, "No contract → suggested_end == when");
+}

@@ -648,6 +648,159 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
         self.transaction_dao.commit(tx).await?;
         Ok(result)
     }
+
+    async fn suggest_convert_ranges_for_markers(
+        &self,
+        sales_person_id: Uuid,
+        markers: &[(Date, f32)],
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Vec<(Date, bool)>, ServiceError> {
+        // Leere Eingabe → kein DAO-Roundtrip, index-aligned leeres Ergebnis.
+        if markers.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Permission: HR ∨ self (analog derive_days_for_hourly_markers).
+        let (hr, sp) = join!(
+            self.permission_service
+                .check_permission(HR_PRIVILEGE, context.clone()),
+            self.sales_person_service.verify_user_is_sales_person(
+                sales_person_id,
+                context.clone(),
+                tx.clone().into()
+            ),
+        );
+        hr.or(sp)?;
+
+        // Batch-Fetch aller Verträge — gleiche Selektion wie derive_days_for_hourly_markers.
+        let work_details = self
+            .employee_work_details_service
+            .find_by_sales_person_id(sales_person_id, context.clone(), Some(tx.clone()))
+            .await?;
+
+        let mut result: Vec<(Date, bool)> = Vec::with_capacity(markers.len());
+
+        for (when, hours) in markers.iter() {
+            let when = *when;
+            let hours = *hours;
+
+            // Aktiven Vertrag am `when`-Datum suchen.
+            let active_contract = work_details.iter().find(|wh| {
+                if wh.deleted.is_some() {
+                    return false;
+                }
+                let from_date = match wh.from_date() {
+                    Ok(d) => d.to_date(),
+                    Err(_) => return false,
+                };
+                let to_date = match wh.to_date() {
+                    Ok(d) => d.to_date(),
+                    Err(_) => return false,
+                };
+                from_date <= when && when <= to_date
+            });
+
+            let Some(contract) = active_contract else {
+                // Kein aktiver Vertrag: Fallback (when, false).
+                result.push((when, false));
+                continue;
+            };
+
+            // UV-02: is_full_week — relativer Epsilon-Vergleich für f32.
+            let is_full_week = (hours - contract.expected_hours).abs()
+                < f32::EPSILON * hours.max(1.0);
+
+            if is_full_week {
+                // UV-02: suggested_end = Sonntag der ISO-Woche von `when`.
+                // Sonntag = Montag + 6 Tage.
+                let days_from_monday = when.weekday().number_days_from_monday() as i64;
+                let monday = when - time::Duration::days(days_from_monday);
+                let sunday = monday + time::Duration::days(6);
+                result.push((sunday, true));
+                continue;
+            }
+
+            // UV-01: arbeitstag-basierter Forward-Walk.
+            let hours_per_day = contract.hours_per_day();
+            let derived_days = days_from_hours(hours, hours_per_day);
+
+            // Halbtag (0.5) oder nichts → suggested_end = when.
+            if derived_days <= 0.5 {
+                result.push((when, false));
+                continue;
+            }
+
+            // Holidays für den Walk-Bereich sammeln (cap: 60 Kalendertage).
+            let walk_end_bound = when + time::Duration::days(60);
+            let mut weeks: BTreeSet<(u32, u8)> = BTreeSet::new();
+            let mut day = when;
+            while day <= walk_end_bound {
+                let (iso_year, iso_week, _) = day.to_iso_week_date();
+                weeks.insert((iso_year as u32, iso_week));
+                day = day + time::Duration::days(1);
+            }
+            let mut holidays: BTreeSet<Date> = BTreeSet::new();
+            for (year, week) in weeks.iter() {
+                let special = self
+                    .special_day_service
+                    .get_by_week(*year, *week, context.clone())
+                    .await?;
+                for sd in special.iter() {
+                    if sd.deleted.is_some() {
+                        continue;
+                    }
+                    if sd.day_type != SpecialDayType::Holiday {
+                        continue;
+                    }
+                    if let Ok(holiday_date) = time::Date::from_iso_week_date(
+                        sd.year as i32,
+                        sd.calendar_week,
+                        sd.day_of_week.into(),
+                    ) {
+                        holidays.insert(holiday_date);
+                    }
+                }
+            }
+
+            // Forward-Walk: Zähle Arbeitstage vorwärts bis `derived_days` erreicht.
+            // Per-Woche-Cap: maximal `workdays_per_week` Arbeitstage pro ISO-Woche.
+            // Ganzzahl-Ceiling: accumulated >= ceil(derived_days).
+            let target_days = derived_days.ceil() as u32;
+            let mut accumulated: u32 = 0;
+            let mut week_counted: BTreeMap<Date, u32> = BTreeMap::new();
+            let mut suggested_end = when;
+            let mut current = when;
+            let walk_limit = when + time::Duration::days(60);
+
+            while current <= walk_limit {
+                // Arbeitstag-Test.
+                if contract.has_day_of_week(current.weekday()) && !holidays.contains(&current) {
+                    // Per-Woche-Cap.
+                    let days_from_monday =
+                        current.weekday().number_days_from_monday() as i64;
+                    let monday = current - time::Duration::days(days_from_monday);
+                    let week_so_far = *week_counted.get(&monday).unwrap_or(&0);
+                    if week_so_far < contract.workdays_per_week as u32 {
+                        week_counted.insert(monday, week_so_far + 1);
+                        accumulated += 1;
+                        suggested_end = current;
+                        if accumulated >= target_days {
+                            break;
+                        }
+                    }
+                }
+                current = current + time::Duration::days(1);
+            }
+
+            result.push((suggested_end, false));
+        }
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(result)
+    }
 }
 
 /// Reine Umrechnung eines Stundenpostens in Anzeige-Tage: `hours / hours_per_day`.
