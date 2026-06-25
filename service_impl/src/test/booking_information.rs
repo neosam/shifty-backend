@@ -439,7 +439,7 @@ fn d05_uncapped_nonzero_excluded() {
 // ─── No-bump regression test (D-01 / CVC-05 / D-05 / Plan-01) ───────────────
 
 #[test]
-fn snapshot_schema_version_pinned_at_9() {
+fn snapshot_schema_version_pinned_at_10() {
     // D-01 / CVC-05: Phase 15 touches NO persisted value_type — committed_voluntary_hours
     // (Band 1) and the reduced volunteer_hours (Band 2) are Achse-B (year-view) only and
     // are never read by billing_period_report.rs. Therefore the Phase-15 work did NOT
@@ -458,8 +458,12 @@ fn snapshot_schema_version_pinned_at_9() {
     // v9 bump (quick-260624-ujk): Shiftplan-Stunden in Wochen OHNE EmployeeWorkDetails-
     // Vertragszeile zaehlen jetzt als volunteer_hours (Ehrenamt) statt Soll=Ist-neutralisiert.
     // Das aendert die Berechnung des persistierten value_type Volunteer (BillingPeriodValueType::Volunteer).
+    //
+    // v10 bump (UV-05 / D-18-07): converted hours-based absences (extra_hours soft-deleted
+    // -> absence_period) now flow into per-week category fields in hours_per_week.
+    // BillingPeriodValueType::VacationDays (and sick/unpaid days) change from 0 to >0.
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        9
+        10
     );
 }

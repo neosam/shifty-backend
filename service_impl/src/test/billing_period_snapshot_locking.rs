@@ -4,10 +4,10 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 9 (quick-260624-ujk —
-//!   Shiftplan-Stunden in Wochen OHNE EmployeeWorkDetails-Vertragszeile zaehlen
-//!   jetzt als volunteer_hours statt Soll=Ist-neutralisiert; berechnung des
-//!   persistierten value_type volunteer_hours hat sich geaendert).
+//! - `test_snapshot_schema_version_pinned`: erwartet 10 (UV-05 / D-18-07 —
+//!   converted hours-based absences (extra_hours soft-deleted -> absence_period)
+//!   now flow into per-week category fields; BillingPeriodValueType::VacationDays
+//!   (and sick/unpaid days) change from 0 to >0 for converted entries).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -26,11 +26,13 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 9,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 9 sein nach quick-260624-ujk: \
-         Shiftplan-Stunden in Wochen OHNE EmployeeWorkDetails-Vertragszeile zaehlen \
-         jetzt als volunteer_hours (Ehrenamt) statt Soll=Ist-neutralisiert. \
-         Die Berechnung des persistierten value_type Volunteer hat sich damit geaendert. \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 10,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 10 sein nach UV-05 / D-18-07: \
+         converted hours-based absences (extra_hours soft-deleted -> absence_period via \
+         derive_hours_for_range) fliessen jetzt in die per-Woche Kategorie-Felder \
+         (vacation_hours / sick_leave_hours / unpaid_leave_hours) in hours_per_week. \
+         Damit aendert sich BillingPeriodValueType::VacationDays (und sick/unpaid days) \
+         von 0 auf den korrekten >0-Wert fuer konvertierte Eintraege. \
          Laut CLAUDE.md (Snapshot Schema Versioning: 'Change the computation that produces \
          an existing value_type') ist ein Bump Pflicht. \
          Siehe service_impl/src/billing_period_report.rs § CURRENT_SNAPSHOT_SCHEMA_VERSION."

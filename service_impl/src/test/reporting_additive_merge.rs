@@ -1313,3 +1313,127 @@ async fn get_week_unpaid_no_paid_hours_leak() {
         "Der Report gehoert der paid-Person, nicht der unbezahlten"
     );
 }
+
+// ─── UV-05 Regression Tests (D-18-06) ────────────────────────────────────────
+
+/// UV-05 Test 1 — Conversion parity: vacation_days same & >0 before/after conversion.
+/// Lauf 1: Vacation week as extra_hours (8h) -> vacation_days_extra.
+/// Lauf 2: SAME week as absence_period (8h derived, extra_hours empty) -> vacation_days_absence.
+/// Assert: both > 0.0 AND equal (within tolerance).
+///
+/// Pre-fix: absence_period path yielded vacation_days = 0 (vacation_hours = 0 in per-week
+/// category fields — derived not merged). Post-fix: per-week merges derived, so days == hours / hours_per_day > 0.
+#[tokio::test]
+async fn test_converted_vacation_preserves_days() {
+    let vacation_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    // Lauf 1: extra_hours Vacation 8h (no derived).
+    let service_extra = build_parity_service(
+        vec![make_extra_hours(ExtraHoursCategory::Vacation, 8.0, vacation_day)],
+        BTreeMap::new(),
+    );
+    let report_extra = run_report(service_extra).await;
+    let vacation_days_extra = report_extra.vacation_days;
+
+    // Lauf 2: absence_period only — extra_hours soft-deleted (empty slice), 8h derived.
+    let mut derived_map = BTreeMap::new();
+    derived_map.insert(
+        vacation_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+            days: 1.0,
+        },
+    );
+    let service_absence = build_parity_service(vec![], derived_map);
+    let report_absence = run_report(service_absence).await;
+    let vacation_days_absence = report_absence.vacation_days;
+
+    assert!(
+        vacation_days_extra > 0.0,
+        "UV-05: vacation_days (extra_hours path) muss > 0 sein, got {}",
+        vacation_days_extra
+    );
+    assert!(
+        vacation_days_absence > 0.0,
+        "UV-05: vacation_days (absence_period path) muss > 0 sein, got {} (war 0 vor dem Fix)",
+        vacation_days_absence
+    );
+    assert!(
+        (vacation_days_extra - vacation_days_absence).abs() < 0.01,
+        "UV-05: vacation_days muss quellen-unabhaengig identisch sein: extra={} absence={}",
+        vacation_days_extra,
+        vacation_days_absence
+    );
+}
+
+/// UV-05 Test 2 — No double-count: absence_period-only case, vacation_hours == single derived total.
+/// Uses 8h fixture (same as test_additive_only_absence_period) to detect doubling (16h would fail).
+/// Also asserts vacation_days == vacation_hours / hours_per_day.
+#[tokio::test]
+async fn test_converted_vacation_no_double_count() {
+    let vacation_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    // absence_period only: 8h Vacation derived. extra_hours empty (converted = soft-deleted).
+    let mut derived_map = BTreeMap::new();
+    derived_map.insert(
+        vacation_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::Vacation,
+            hours: 8.0,
+            days: 1.0,
+        },
+    );
+    let service = build_parity_service(vec![], derived_map);
+    let report = run_report(service).await;
+
+    // vacation_hours must equal the single derived total (8h), NOT doubled (16h).
+    assert!(
+        (report.vacation_hours - 8.0).abs() < 0.01,
+        "UV-05 no-double-count: vacation_hours muss 8.0h sein (nicht 16.0h), got {}",
+        report.vacation_hours
+    );
+
+    // vacation_days = vacation_hours / hours_per_day (8h / 8h = 1.0).
+    // hours_per_day = contract_weekly_hours / workdays_per_week = 40/5 = 8.0.
+    let hours_per_day = 8.0_f32; // fixture_work_details_8h_mon_fri: 40h/5days
+    assert!(
+        (report.vacation_days - report.vacation_hours / hours_per_day).abs() < 0.01,
+        "UV-05: vacation_days muss vacation_hours / hours_per_day sein: days={} hours={} hpd={}",
+        report.vacation_days,
+        report.vacation_hours,
+        hours_per_day
+    );
+}
+
+/// UV-05 Test 3 — sick_leave_days > 0 for absence_period SickLeave week.
+/// An absence_period SickLeave entry (8h) must yield sick_leave_days > 0 and
+/// absence_days >= sick_leave_days after the UV-05 fix.
+#[tokio::test]
+async fn test_converted_sick_leave_preserves_days() {
+    let sick_day = time::macros::date!(2024 - 06 - 03); // Montag KW23
+
+    let mut derived_map = BTreeMap::new();
+    derived_map.insert(
+        sick_day,
+        ResolvedAbsence {
+            category: AbsenceCategory::SickLeave,
+            hours: 8.0,
+            days: 1.0,
+        },
+    );
+    let service = build_parity_service(vec![], derived_map);
+    let report = run_report(service).await;
+
+    assert!(
+        report.sick_leave_days > 0.0,
+        "UV-05: sick_leave_days muss > 0 sein fuer absence_period SickLeave 8h, got {}",
+        report.sick_leave_days
+    );
+    assert!(
+        report.absence_days >= report.sick_leave_days,
+        "UV-05: absence_days ({}) muss >= sick_leave_days ({}) sein",
+        report.absence_days,
+        report.sick_leave_days
+    );
+}

@@ -90,7 +90,15 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   Snapshot-Validatoren Schema-Drift von echten Datenfehlern unterscheiden koennen.
 ///   Betroffen: BillingPeriodValueType::Volunteer (und transitiv Balance/ExpectedHours
 ///   fuer Mitarbeiter mit Shiftplan-Stunden ohne Vertragszeile im Abrechnungszeitraum).
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 9;
+/// - v10: UV-05 / D-18-07 — fix: converted hours-based absences (extra_hours soft-deleted
+///   -> absence_period via derive_hours_for_range) now flow into the per-week category
+///   fields (vacation_hours / sick_leave_hours / unpaid_leave_hours) in `hours_per_week`.
+///   As a result, `BillingPeriodValueType::VacationDays` (and sick/unpaid days via the
+///   same path) change from 0 to the correct >0 value for converted entries. Snapshots
+///   written under v9 persist vacation_days=0 for converted absences; re-validating them
+///   against the corrected computation would show a false mismatch. Validators MUST treat
+///   v9 snapshots as "older schema" and not re-validate vacation/sick/unpaid day counts.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 10;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {

@@ -846,3 +846,57 @@ async fn carryover_from_previous_year_is_included_in_balance() {
         result.remaining_days
     );
 }
+
+/// Regression-Pin: VacationBalanceService ruft `get_carryover` mit `year - 1`
+/// auf — exakt wie `ReportingService::get_employee` in `reporting.rs:662-672`.
+///
+/// Die `withf`-Expectation bricht den Test, sobald der Produktiv-Code auf
+/// `year` (ohne `- 1`) geändert wird. D-18-02: Vacation-Balance carryover ==
+/// Report-Service carryover für gleiche Person/Jahr.
+#[tokio::test]
+async fn carryover_read_uses_prior_year() {
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+
+    let sp_id = default_sales_person_id();
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(Default::default()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 25)])));
+
+    // withf matcher: schlägt fehl, wenn der zweite Argument nicht TEST_YEAR - 1 ist.
+    deps.carryover_service
+        .expect_get_carryover()
+        .withf(|_sp, year, _auth, _tx| *year == TEST_YEAR - 1)
+        .times(1)
+        .returning(move |_, _, _, _| {
+            Ok(Some(Carryover {
+                sales_person_id: sp_id,
+                year: TEST_YEAR - 1,
+                carryover_hours: 0.0,
+                vacation: 7,
+                created: datetime!(2024 - 12 - 31 23:59:00),
+                deleted: None,
+                version: uuid!("FF000000-0000-0000-0000-000000000010"),
+            }))
+        });
+
+    let svc = deps.build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+
+    // Der Carryover-Wert aus der Vorjahres-Row muss in der Balance erscheinen.
+    assert_eq!(
+        result.carryover_days, 7,
+        "carryover_days must come from the prior-year (TEST_YEAR - 1) record"
+    );
+}

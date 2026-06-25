@@ -606,16 +606,10 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 tx.clone(),
             )
             .await?;
-        let mut absence_derived_vacation_hours = 0.0_f32;
-        let mut absence_derived_sick_leave_hours = 0.0_f32;
-        let mut absence_derived_unpaid_leave_hours = 0.0_f32;
-        for resolved in derived.values() {
-            match resolved.category {
-                AbsenceCategory::Vacation => absence_derived_vacation_hours += resolved.hours,
-                AbsenceCategory::SickLeave => absence_derived_sick_leave_hours += resolved.hours,
-                AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
-            }
-        }
+        // D-18-04: year-lump absence_derived_*_hours removed — since Task 1 (UV-05) the
+        // per-week GroupedReportHours already includes derived category hours, so the
+        // top-level fields are sourced from by_week (single source of truth). The old
+        // year-lump fold (absence_derived_vacation_hours etc.) is no longer needed here.
 
         // Hinweis: Das rohe, ungedeckelte shiftplan_hours wird bewusst NICHT mehr
         // fuer overall/balance/shiftplan_hours verwendet (Debug
@@ -714,32 +708,19 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::ExtraWork)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
-            // Additiv (Phase 8.4 / D-01): lebende extra_hours (deleted IS NULL)
-            // PLUS absence_period-abgeleitete Stunden. Kein Flag-Branch mehr.
-            vacation_hours: extra_hours
-                .iter()
-                .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
-                .map(|eh| eh.amount)
-                .sum::<f32>()
-                + absence_derived_vacation_hours,
-            sick_leave_hours: extra_hours
-                .iter()
-                .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
-                .map(|eh| eh.amount)
-                .sum::<f32>()
-                + absence_derived_sick_leave_hours,
+            // UV-05 / D-18-04: by_week is the SINGLE SOURCE OF TRUTH for category hours.
+            // Per-week fields already include extra_hours + derived (Task 1 / hours_per_week).
+            // Summing by_week eliminates the old year-lump double-count while keeping the
+            // correct additive total (extra_hours-for-week + derived-for-week per week).
+            vacation_hours: by_week.iter().map(|w| w.vacation_hours).sum::<f32>(),
+            sick_leave_hours: by_week.iter().map(|w| w.sick_leave_hours).sum::<f32>(),
             holiday_hours: extra_hours
                 .iter()
                 .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
                 .map(|extra_hours| extra_hours.amount)
                 .sum(),
             volunteer_hours: by_week.iter().map(|w| w.volunteer_hours).sum::<f32>(),
-            unpaid_leave_hours: extra_hours
-                .iter()
-                .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
-                .map(|eh| eh.amount)
-                .sum::<f32>()
-                + absence_derived_unpaid_leave_hours,
+            unpaid_leave_hours: by_week.iter().map(|w| w.unpaid_leave_hours).sum::<f32>(),
             carryover_hours: previous_year_carryover,
             by_week,
             by_month: Arc::new([]),
@@ -1204,6 +1185,23 @@ fn hours_per_week(
                 .into()
         };
 
+        // UV-05 / D-18-03: per-week derived absence hours split by category, UNGATED.
+        // These feed the DISPLAY/DAYS fields (vacation_days/sick_leave_days/absence_days),
+        // independent of working_hours_for_week — so contract-less/dynamic weeks still show
+        // their converted absence days. This is SEPARATE from `derived_absence_hours` (line
+        // ~1139) which is gated and only reduces expected/balance (D-18-05: do NOT change that).
+        let (derived_vacation_hours, derived_sick_leave_hours, derived_unpaid_leave_hours) =
+            derived_absence
+                .iter()
+                .filter(|(d, _)| ShiftyDate::from(**d).as_shifty_week() == week)
+                .fold((0.0f32, 0.0f32, 0.0f32), |(v, s, u), (_, r)| {
+                    match r.category {
+                        service::absence::AbsenceCategory::Vacation => (v + r.hours, s, u),
+                        service::absence::AbsenceCategory::SickLeave => (v, s + r.hours, u),
+                        service::absence::AbsenceCategory::UnpaidLeave => (v, s, u + r.hours),
+                    }
+                });
+
         weeks.push(GroupedReportHours {
             from: week.as_date(DayOfWeek::Monday).max(from_date),
             to: week.as_date(DayOfWeek::Sunday).min(to_date),
@@ -1228,12 +1226,14 @@ fn hours_per_week(
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
                 .map(|eh| eh.amount)
-                .sum(),
+                .sum::<f32>()
+                + derived_vacation_hours,
             sick_leave_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
                 .map(|eh| eh.amount)
-                .sum(),
+                .sum::<f32>()
+                + derived_sick_leave_hours,
             holiday_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
@@ -1243,7 +1243,8 @@ fn hours_per_week(
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
                 .map(|eh| eh.amount)
-                .sum(),
+                .sum::<f32>()
+                + derived_unpaid_leave_hours,
             // no-contract (quick-260624-ujk): no_contract_volunteer traegt die Shiftplan-Stunden
             // vertragloser Wochen als Ehrenamt bei (+ manuelle VolunteerWork + auto_volunteer vom Cap).
             volunteer_hours: filtered_extra_hours_list
