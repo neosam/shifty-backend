@@ -44,7 +44,7 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   - [x] 19-01-PLAN.md — Backend: `suggested_end` + `is_full_week` auf `ExtraHoursMarkerTO`, `AbsenceService::suggest_convert_ranges_for_markers` (Arbeitstag/Feiertag/Wochen-Cap + Exakt-Wochen-Soll), Wiring in beide List-Handler + Tests.
   - [x] 19-02-PLAN.md — Frontend: Felder durch `ExtraHoursMarker`-State + Modal-Props threaden, bis aus `suggested_end` vorbelegen, „1 Woche"/„N Tage" in `HourlyMarkerRow`, i18n (De/En/Cs), SSR-Tests + WASM-Gate.
 
-- [ ] **Phase 20: Absences-Indikator & Jahres-Histogramm** (Frontend) — ⚠️-Indikator bei stundenbasierten Einträgen; Histogramm-Hover (KW+Datum), KW+Datum-Beschriftung und gestapelte Freiwilligen-Stunden.
+- [x] **Phase 20: Absences-Indikator & Jahres-Histogramm** (Frontend) — ⚠️-Indikator bei stundenbasierten Einträgen; Histogramm-Hover (KW+Datum), KW+Datum-Beschriftung und gestapelte Freiwilligen-Stunden. ✅ 2026-06-26
   Code: `shifty-dioxus/src/page/absences.rs` `HourlyMarkerRow`; `shifty-dioxus/src/component/employee_weekly_histogram.rs`; `shifty-dioxus/src/component/employee_view.rs`.
   Requirements: UV-03, YV-01, YV-02, YV-03
   Success Criteria:
@@ -54,8 +54,8 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   4. Freiwilligen-Stunden (`volunteer_hours`) erscheinen gestapelt im Histogramm + als separater Wert in der aufgeklappten KW-Liste / `WeekDetailPanel`.
   5. Frontend-Tests + WASM-Build grün.
   Plans: 2 plans (Wave 1, parallel — keine Datei-Überschneidung außer den additiv-erweiterten i18n-Dateien; UV-03 disjunkt vom Histogramm)
-  - [ ] 20-01-PLAN.md — UV-03: ⚠️-Indikator führend in `HourlyMarkerRow` Spalte 1 (statisches Tailwind, i18n title+aria in De/En/Cs), Badge bleibt; SSR-Test.
-  - [ ] 20-02-PLAN.md — YV-01/02/03: gestapelte Balken (regulär + volunteer dezent) + `<title>`-Hover (KW+Datum), `compute_max_y` auf Stapel-Summe, KW+Datum + separater volunteer-Wert in `WeekListExpanded`/`WeekDetailPanel`, i18n; SSR-Tests + WASM-Gate.
+  - [x] 20-01-PLAN.md — UV-03: ⚠️-Indikator führend in `HourlyMarkerRow` Spalte 1 (statisches Tailwind, i18n title+aria in De/En/Cs), Badge bleibt; SSR-Test.
+  - [x] 20-02-PLAN.md — YV-01/02/03: gestapelte Balken (regulär + volunteer dezent) + `<title>`-Hover (KW+Datum), `compute_max_y` auf Stapel-Summe, KW+Datum + separater volunteer-Wert in `WeekListExpanded`/`WeekDetailPanel`, i18n; SSR-Tests + WASM-Gate.
 
 - [ ] **Phase 21: Tabellen-Lesbarkeit** (Frontend) — max-width + Zebra für die Schichtplan-Tabelle; schmalere Mitarbeiter-Spalte in der `/absences`-Tabelle.
   Code: `shifty-dioxus/src/component/working_hours_mini_overview.rs`, `shifty-dioxus/src/page/absences.rs`.
@@ -106,7 +106,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 4/4 | Complete | 2026-06-24 |
 | 18 — Report-/Balance-Korrektheit (BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 19 — Convert-Dialog UX (FE+BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 0/2 | Planned | — |
+| 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 0/? | Planned | — |
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 0/? | Planned | — |
 

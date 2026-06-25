@@ -7,10 +7,10 @@ last_updated: "2026-06-25"
 last_activity: 2026-06-25
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 40
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
+  percent: 60
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 20 (Absences-Indikator & Jahres-Histogramm) — als Nächstes (18, 19 abgeschlossen)
+Phase: 21 (Tabellen-Lesbarkeit) — als Nächstes (18, 19, 20 abgeschlossen)
 Plan: —
-Status: Autonomer Lauf aktiv. Phase 18 ✅ (ddc20197, Snapshot 9→10); Phase 19 ✅ (817e4b45, FE+BE, suggested_end/is_full_week).
-Last activity: 2026-06-26 — Phase 19 (UV-01, UV-02) abgeschlossen, FE 634 + BE 522 grün, WASM exit 0
+Status: Autonomer Lauf aktiv. 18 ✅ (Snapshot 9→10); 19 ✅ (FE+BE); 20 ✅ (7df3568c, Histogramm+Indikator).
+Last activity: 2026-06-26 — Phase 20 (UV-03, YV-01/02/03) abgeschlossen, FE 645 grün, WASM exit 0
 
 ## Deferred Items
 
