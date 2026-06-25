@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Committed Voluntary Capacity
-status: milestone_complete
-last_updated: "2026-06-24T13:38:01.062Z"
-last_activity: 2026-06-24 -- Phase 17 execution started
+status: completed
+last_updated: "2026-06-25T07:51:54.645Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 11
   percent: 100
 ---
 
@@ -17,33 +17,44 @@ progress:
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0, v1.1, v1.2 archived)
+- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0–v1.4 archived)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.3-ROADMAP.md` (+ `milestones/v1.3-phases/`)
+- **Latest milestone archive**: `.planning/milestones/v1.4-ROADMAP.md` (+ `milestones/v1.4-REQUIREMENTS.md`, `milestones/v1.4-MILESTONE-AUDIT.md`)
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: v1.3 Frontend Abwesenheiten + UI-Closure-Restanten (closed 2026-06-22; Phasen 8.3/10/12/13 bewusst aufgegeben)
-- **Current milestone**: v1.4 Committed Voluntary Capacity (gestartet 2026-06-22)
-- **Current focus**: v1.4 — zeit-versioniertes `committed_voluntary` auf `EmployeeWorkDetails` + Reporting ohne Doppelzählung + separate Anzeige in Jahresansicht
+- **Last shipped/closed**: v1.4 Committed Voluntary Capacity (shipped 2026-06-25; Audit `passed`, 10/10 CVC-Requirements)
+- **Current milestone**: keiner aktiv — bereit für nächsten Zyklus
+- **Current focus**: Planung des nächsten Milestones (`/gsd-new-milestone`)
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
-Status: Milestone complete
-Resume file: .planning/phases/17-contract-editor-unpaid-volunteer-path/17-CONTEXT.md
-Last activity: 2026-06-24 — Quick-Task 260624-qgk: Ehrenamt-Stunden unter „Soll" (≥0.5) + No-Contract-Buchung bestätigt
+Status: Milestone complete (v1.4 shipped 2026-06-25)
+Next step: `/gsd-new-milestone` — nächsten Milestone-Zyklus starten
+Last activity: 2026-06-25 — v1.4 archiviert + getaggt
 
-## v1.4 Scope Snapshot (committed voluntary capacity)
+## Deferred Items
 
-- Design D-01 geklärt: Variante B — separates Feld `committed_voluntary: f32` auf `EmployeeWorkDetails`, nur die freiwillige Zusage obendrauf (entkoppelt von `expected_hours`)
-- Scope nur für `cap_planned_hours_to_expected = true`-Personen
-- Reporting: verfügbar = `expected + committed_voluntary`; Überschuss = `max(0, actual_volunteer − committed_voluntary)`; keine Doppelzählung
-- Jahresansicht: committed-Kapazität separat ausweisen
-- Mitarbeiteransicht: „alle"-Filter + unbezahlte Freiwillige brauchen `EmployeeWorkDetails`-Record
-- `CURRENT_SNAPSHOT_SCHEMA_VERSION` vermutlich bumpen
-- Quelle: `todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md`; baut auf `openspec/specs/weekly-planned-hours-cap/spec.md`
+Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-Entscheidung „acknowledge & proceed"):
+
+| Kategorie | Item | Status | Notiz |
+|-----------|------|--------|-------|
+| human_uat | Phase 16: visuelle Drei-Farben-Chart-Stapelung | pending | nicht test-automatisierbar (SSR pinnt keine Pixel) |
+| human_uat | Phase 16: Czech-Übersetzungsqualität | pending | A3 MEDIUM-confidence, manuelle Sprachprüfung |
+| debug | carryover-absence-vs-report | awaiting_human_verify | historisch (vor v1.4), 2026-06-13 |
+| debug | working-hours-wrong-employee | awaiting_human_verify | historisch (vor v1.4), 2026-06-12 |
+| quick_task | 11 Quick-Tasks (Mai/Juni, Status „missing") | deferred | historischer Absence-Ballast, vor v1.4 |
+| todo | 5 pending Todos (ab Mai 2026) | deferred | historisch (booking-log 500er, admin-rolle-privilegien u.a.) |
+| tech_debt | Nyquist-VALIDATION Phasen 14/15/17 unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |
 
 ## Shipped Milestones
+
+### v1.4 — Committed Voluntary Capacity (shipped 2026-06-25)
+
+- **Geliefert:** Phasen 14–17 (11 Pläne) — zeit-versioniertes `committed_voluntary: f32` (Variante B) end-to-end; Jahresansicht-Verfügbarkeit ohne Doppelzählung (Zwei-Band-Dekomposition, Achse B); separates Token 🎯 „zugesagt" + Chart-Segment; Vertrags-Editor-Input; „alle"-Filter für unbezahlte Freiwillige mit `is_paid`-Gating (kein Leak)
+- **Kein Snapshot-Bump durch v1.4** (CVC-05): Achse-B-only, kein persistierter `BillingPeriodValueType` berührt. Hinweis: absolute Baseline ist mittlerweile 9 (out-of-milestone-Bump durch `adf76c9`)
+- **Audit:** `passed` — 10/10 CVC-Requirements, Integration intakt, Backend + Frontend grün
+- **Archiv:** `milestones/v1.4-ROADMAP.md`, `milestones/v1.4-REQUIREMENTS.md`, `milestones/v1.4-MILESTONE-AUDIT.md`
+
+### v1.3 — Frontend Abwesenheiten + UI-Closure-Restanten (closed 2026-06-22)
 
 ### v1.3 — Frontend Abwesenheiten + UI-Closure-Restanten (closed 2026-06-22)
 

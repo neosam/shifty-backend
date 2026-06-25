@@ -133,73 +133,64 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Current Milestone: v1.4 Committed Voluntary Capacity
+## Current State
 
-**Status:** Aktiv seit 2026-06-22 — gestartet via `/gsd:new-milestone v1.4`.
+**Kein aktiver Milestone.** Zuletzt geshipt: **v1.4 Committed Voluntary Capacity**
+(2026-06-25, Audit `passed`, 10/10 CVC-Requirements). Bereit für den nächsten
+Zyklus via `/gsd-new-milestone`.
 
-**Goal:** Eine im Voraus **zugesagte** freiwillige Stunden-Kapazität wird pro
-Mitarbeiter erfasst und in der Jahresansicht **ohne Doppelzählung** als separat
-ausgewiesene Kapazität ausgewertet. Schließt die Lücke, dass es heute nur reaktiv
-erfasste Volunteer-Stunden (`VolunteerWork`, balance-neutral) und das boolean
-`cap_planned_hours_to_expected`-Flag gibt, aber **keinen Wert für im Voraus
-zugesagte Kapazität**.
+<details>
+<summary>✅ v1.4 Committed Voluntary Capacity — SHIPPED 2026-06-25 (Phasen 14–17)</summary>
 
-**Design-Entscheidung (geklärt, D-01 / Variante B):** Neues zeit-versioniertes
-Feld `committed_voluntary: f32` auf `EmployeeWorkDetails` — **nur die freiwillige
-Zusage obendrauf**, NICHT als Gesamtsumme inkl. Vertrag. Entkoppelt von
-`expected_hours` (keine Invariante `committed >= expected`), unabhängige
-Zeit-Versionierung, additive Reporting-Formel. Verworfen: Variante A
-(`committed_total` inkl. Vertrag — bräuchte Invariante + Subtraktionsschritt).
+**Geliefert (as built):** zeit-versioniertes Feld `committed_voluntary: f32` auf
+`EmployeeWorkDetails` (D-01 / Variante B — nur die freiwillige Zusage obendrauf,
+entkoppelt von `expected_hours`), end-to-end durch SQLite-Migration → DAO → Service
+→ `rest-types` → Frontend-State → Editor. Jahresansicht-Verfügbarkeit rechnet die
+Zusage **ohne Doppelzählung** als separaten `committed_voluntary_hours`-Term ein
+(Zwei-Band-Dekomposition, FORMULA B) — ausschließlich in **Achse B**
+(`booking_information.rs::get_weekly_summary`), NICHT in `reporting.rs` (Achse A).
+Anzeige als drittes Token 🎯 „zugesagt" + drittes gestapeltes Chart-Segment;
+Vertrags-Editor-Input; „alle"-Filter macht rein unbezahlte Freiwillige
+(`is_paid=false`, `expected_hours=0`) sichtbar, mit explizitem `is_paid`-Gating an
+jeder paid-only-Site (kein Leak in `paid_hours`/Billing/Year-Summary). i18n De/En/Cs.
 
-**Target features:**
+**Korrektur ggü. ursprünglichem Plan:** Der ursprünglich angenommene
+**Snapshot-Schema-Version-Bump entfiel** (D-01 revidiert per Phase-15-CONTEXT,
+CVC-05): die Dekomposition ist Achse-B-only und berührt keinen persistierten
+`BillingPeriodValueType`. Die absolute Baseline der Konstante ist mittlerweile **9**
+(out-of-milestone-Bump durch Commit `adf76c9`, nicht durch v1.4).
 
-- **Datenmodell:** zeit-versioniertes `committed_voluntary: f32` auf
-  `EmployeeWorkDetails` (Service + DAO + `rest-types` + SQLite-Migration).
-- **Reporting ohne Doppelzählung:** verfügbare Kapazität =
-  `expected + committed_voluntary`; Überschuss =
-  `max(0, actual_volunteer − committed_voluntary)`; geleistete Volunteer-Stunden
-  zählen nicht zusätzlich, solange sie die Zusage nicht übersteigen.
-- **Jahresansicht (`weekly_overview`):** committed-Kapazität **separat**
-  ausgewiesen (nicht mit `paid`/`volunteer` vermischt).
-- **Mitarbeiteransicht:** „alle"-Filter einblendbar; rein unbezahlte Freiwillige
-  bekommen einen `EmployeeWorkDetails`-Record und werden sichtbar/auswählbar.
-- **Snapshot-Schema-Version-Bump** (`CURRENT_SNAPSHOT_SCHEMA_VERSION`), da sich
-  der Reporting-Input der Volunteer-/Kapazitäts-Berechnung ändert.
+**Validierte Requirements:** CVC-01..10 (alle 10) — siehe
+`milestones/v1.4-REQUIREMENTS.md`, Audit `milestones/v1.4-MILESTONE-AUDIT.md`.
 
-**Scope-Grenze:** Gilt nur für gedeckelte/freiwillige Personen
-(`cap_planned_hours_to_expected = true`). Für normale Mitarbeiter ohne Cap
-irrelevant.
+**Pending Human-UAT (deferred):** Phase 16 visuelle Chart-Farb-Lesbarkeit +
+Czech-Übersetzungsqualität (nicht test-automatisierbar; STATE.md → Deferred Items).
 
-**Bewusst nicht in v1.4:**
+</details>
 
-- **Durchschnittliche-Anwesenheit-Auswertung** (verwandtes Todo
+**Bewusst nicht in v1.4 (offen für v1.5+):**
+
+- **CVC-F-01 / CVC-F-02** — Inline-Banner „Zusage nicht erfüllt"; eigenes
+  committed-Band im Chart (CVC-F-02 teilweise in Phase 16 vorgezogen).
+- **AVG-01 / Durchschnittliche-Anwesenheit-Auswertung** (Todo
   `2026-06-09-auswertung-durchschnittliche-anwesenheit-flexible-stunden.md`) —
-  zu viele offene Definitionsfragen, eigene spätere Phase/Milestone.
-- **Offene v1.3-UI-Restanten** (Phase 12: sichtbares
-  `current_paid_count`/`max_paid_employees`, Capacity-Editor,
-  `VolunteerWork`/`UnpaidLeave`-UI, `cap_planned_hours_to_expected`-Toggle) —
-  bleiben aufgegeben; nicht Teil von v1.4.
+  eigene discuss-Phase, viele offene Definitionsfragen.
+- **Offene v1.3-UI-Restanten** (Phase 12-Cluster) — bleiben aufgegeben.
 - Genehmigungs-Workflow; Min-Paid-Capacity / Skill-Matching (SC-01, SC-02).
-
-**Quellen:**
-
-- `todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md`
-  (Problem + geklärte Design-Entscheidung D-01 + Anforderungen 1–5)
-- `openspec/specs/weekly-planned-hours-cap/spec.md` (baut darauf auf)
-- `.planning/REQUIREMENTS.md` + `.planning/ROADMAP.md` für v1.4-Scope
 
 ## Active Milestones Index
 
-Siehe `.planning/ROADMAP.md`. Geshipt:
+Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
 - v1.0 Range-Based Absence Management — 2026-05-03 (Phasen 1–4)
 - v1.1 Slot Capacity & Constraints — 2026-05-04 (Phase 5)
 - v1.2 Frontend rest-types Konsolidierung — 2026-05-07 (Phasen 6–7)
 - v1.3 Frontend Abwesenheiten + UI-Closure-Restanten — closed 2026-06-22
   (Phasen 8, 8.2, 8.4, 8.5, 8.6, 9 geliefert; 8.1/11 superseded; 8.3/10/12/13
-  bewusst aufgegeben). Archiv: `milestones/v1.3-ROADMAP.md`,
-  `milestones/v1.3-phases/`.
+  bewusst aufgegeben). Archiv: `milestones/v1.3-ROADMAP.md`, `milestones/v1.3-phases/`.
+- v1.4 Committed Voluntary Capacity — shipped 2026-06-25 (Phasen 14–17).
+  Archiv: `milestones/v1.4-ROADMAP.md`.
 
-Aktiv: v1.4 Committed Voluntary Capacity — siehe oben.
+Aktiv: keiner — `/gsd-new-milestone` startet den nächsten Zyklus.
 
 ## Evolution
 

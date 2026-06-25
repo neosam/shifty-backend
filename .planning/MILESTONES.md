@@ -85,3 +85,30 @@ Backend-`rest-types` ist die einzige Quelle der Wahrheit für API-DTOs. Der para
 - **Min-Paid-Capacity / Skill-Matching (SC-01, SC-02)** — Backend-Slot-Constraints für künftiges Backend-Milestone.
 
 ---
+
+## v1.4 — Committed Voluntary Capacity
+
+**Shipped:** 2026-06-25
+**Phases:** 14–17 (4 phases, 11 plans, 26 tasks)
+**Archive:** [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md) · [`milestones/v1.4-REQUIREMENTS.md`](milestones/v1.4-REQUIREMENTS.md) · [`milestones/v1.4-MILESTONE-AUDIT.md`](milestones/v1.4-MILESTONE-AUDIT.md)
+
+**Delivered:**
+Im Voraus zugesagte freiwillige Stunden-Kapazität wird pro Mitarbeiter über ein zeit-versioniertes Feld `committed_voluntary: f32` auf `EmployeeWorkDetails` (Variante B — entkoppelt von `expected_hours`) erfasst und in der Jahresansicht-Verfügbarkeit **ohne Doppelzählung** als separat ausgewiesene Kapazität ausgewertet. Die Zwei-Band-Dekomposition (Band 1 = cap-gated Σ Zusage, Band 2 = Σ Überschuss `max(actual−committed,0)`) lebt ausschließlich in Achse B (`booking_information.rs::get_weekly_summary`) und berührt keinen persistierten `BillingPeriodValueType` → **kein** Snapshot-Schema-Bump durch v1.4. Rein unbezahlte Freiwillige (`is_paid=false`) können einen Vertrags-Record halten und sind via „alle"-Filter sichtbar, ohne in `paid_hours`/Billing/Year-Summary zu leaken.
+
+**Key accomplishments:**
+
+1. **Phase 14** — Additive SQLite-Spalte `committed_voluntary REAL NOT NULL DEFAULT 0` end-to-end durch DAO (f64-Row + `as f32` TryFrom + 4 SELECT/INSERT/UPDATE), Service-Struct + beide Konversionen, `EmployeeWorkDetailsTO` (`#[serde(default)]`) + beide From-Impls; CVC-02 Carry-Forward-Spread bei Versions-Rotation; CVC-03 SUM-Overlap-Aggregation (`committed_voluntary_for_calendar_week`) gepinnt. Feld zunächst inert.
+2. **Phase 15** — No-double-count: separater `committed_voluntary_hours`-Term in `booking_information.rs` (Achse B, FORMULA B), per-Person-Überschuss-Reduktion für `volunteer_hours` (Band 2), cap-gated (CVC-06); KEIN Snapshot-Bump durch v1.4 (CVC-05); 9 deterministische Fixtures + Regressionstest.
+3. **Phase 16** — Jahresansicht zeigt drittes Token 🎯 „zugesagt" (Desktop + Mobile), drittes gestapeltes Chart-Segment `var(--good)`, Überschuss sichtbar; `committed_voluntary_hours` durch `WeeklySummaryTO` → Frontend-State → Render gefädelt; i18n De/En/Cs vollständig (CVC-07/08).
+4. **Phase 17** — `committed_voluntary` im Vertrags-Editor editierbar (Round-Trip-bewahrend, CVC-09); einblendbarer „alle"-Filter für unbezahlte Freiwillige; jede paid-only work-details-Site explizit auf `sales_person.is_paid` gegated — kein Leak (CVC-10). Human-UAT live im Browser bestätigt.
+
+**Test verification:** Backend `cargo check --workspace` GREEN, `cargo test -p service_impl` 451/451 + `rest-types` 3/3; Frontend `cargo check --target wasm32-unknown-unknown` GREEN, `cargo test` 628/628. Audit `passed` (10/10 Requirements, Integration intakt).
+
+**Known deferred items (deferred to v1.5+):**
+
+- **2 Human-UAT-Checks (Phase 16)** — visuelle Drei-Farben-Chart-Lesbarkeit + Czech-Übersetzungsqualität; nicht test-automatisierbar, bewusst beim Close acknowledged (siehe `milestones/v1.4-MILESTONE-AUDIT.md`).
+- **CVC-F-01 / CVC-F-02** — Inline-Banner „Zusage nicht erfüllt"; eigenes committed-Band im Chart (CVC-F-02 wurde teilweise in Phase 16 vorgezogen).
+- **AVG-01** — Auswertung „durchschnittliche Anwesenheit bei flexiblen Stunden" (eigene discuss-Phase).
+- **Tech-Debt:** Nyquist-VALIDATION für Phasen 14/15/17 unvollständig (Discovery-only).
+
+---

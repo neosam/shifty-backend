@@ -342,7 +342,8 @@ impl<Deps: BillingPeriodReportServiceDeps> BillingPeriodReportService
             // EmployeeWorkDetails-Records halten (rein freiwillige Helfer). Sie duerfen NICHT als
             // BillingPeriodSalesPerson-Eintraege im Snapshot erscheinen — Personen-Set-Konsistenz
             // mit get_week (year-summary) + get_reports_for_all_employees (all-employees-report).
-            // KEIN value_type-Change -> KEIN CURRENT_SNAPSHOT_SCHEMA_VERSION-Bump (bleibt 7).
+            // KEIN value_type-Change -> KEIN CURRENT_SNAPSHOT_SCHEMA_VERSION-Bump
+            // (Wert hier unveraendert; aktuelle Baseline ist 9, siehe const-Definition).
             if !sales_person.is_paid.unwrap_or(false) {
                 continue;
             }
