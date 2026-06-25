@@ -5,7 +5,8 @@ use rest_types::{
     BillingPeriodTO, BlockTO, BookingConflictTO, BookingCreateResultTO, BookingLogTO, BookingTO,
     ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
     CustomExtraHoursTO, DayFractionTO,
-    DayOfWeekTO, EmployeeReportTO, EmployeeWorkDetailsTO, ExtraHoursCategoryTO, ExtraHoursMarkerTO,
+    DayOfWeekTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO, EmployeeWorkDetailsTO,
+    ExtraHoursCategoryTO, ExtraHoursMarkerTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse,
     RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
     SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
@@ -423,6 +424,22 @@ pub async fn get_employee_reports(
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+pub async fn get_employee_weekly_statistics(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Rc<EmployeeWeeklyStatisticsTO>, reqwest::Error> {
+    info!("Fetching employee weekly statistics");
+    let url = format!(
+        "{}/report/{}/weekly-statistics",
+        config.backend, sales_person_id
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched weekly statistics");
+    Ok(Rc::new(res))
 }
 
 pub async fn add_extra_hour(

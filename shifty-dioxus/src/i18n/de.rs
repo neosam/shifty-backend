@@ -985,4 +985,13 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     // Quick-260613-jxe — Jahresnavigation auf der Abwesenheitsseite.
     i18n.add_text(Locale::De, Key::AbsenceYearNavPrev, "Vorheriges Jahr");
     i18n.add_text(Locale::De, Key::AbsenceYearNavNext, "Nächstes Jahr");
+
+    // Phase 22 — HR-only Mitarbeiter-Statistik-Block (STAT-01/STAT-02).
+    i18n.add_text(Locale::De, Key::StatisticsHeading, "Statistik");
+    i18n.add_text(
+        Locale::De,
+        Key::AverageWorkedHoursPerWeek,
+        "Durchschnittlich gearbeitete Stunden pro Woche",
+    );
+    i18n.add_text(Locale::De, Key::StatisticsIncludedWeeks, "Einbezogene Wochen");
 }

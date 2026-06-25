@@ -910,4 +910,13 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     // Quick-260613-jxe — Year navigation on the Absences page.
     i18n.add_text(Locale::En, Key::AbsenceYearNavPrev, "Previous year");
     i18n.add_text(Locale::En, Key::AbsenceYearNavNext, "Next year");
+
+    // Phase 22 — HR-only employee statistics block (STAT-01/STAT-02).
+    i18n.add_text(Locale::En, Key::StatisticsHeading, "Statistics");
+    i18n.add_text(
+        Locale::En,
+        Key::AverageWorkedHoursPerWeek,
+        "Average worked hours per week",
+    );
+    i18n.add_text(Locale::En, Key::StatisticsIncludedWeeks, "Included weeks");
 }

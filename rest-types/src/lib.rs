@@ -593,6 +593,29 @@ impl From<&service::reporting::EmployeeReport> for EmployeeReportTO {
     }
 }
 
+/// DTO for the A-22-1 average worked hours per week statistic (Phase 22 / STAT-02).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct EmployeeWeeklyStatisticsTO {
+    /// Average worked hours per week (overall_hours + volunteer_hours), excluding
+    /// fully-absent weeks from the denominator.
+    pub average_worked_hours_per_week: f32,
+    /// Number of ISO weeks included in the average (denominator).
+    pub included_weeks: u32,
+    /// Total worked hours across all included weeks (numerator).
+    pub total_worked_hours: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::reporting::EmployeeWeeklyStatistics> for EmployeeWeeklyStatisticsTO {
+    fn from(stats: &service::reporting::EmployeeWeeklyStatistics) -> Self {
+        Self {
+            average_worked_hours_per_week: stats.average_worked_hours_per_week,
+            included_weeks: stats.included_weeks,
+            total_worked_hours: stats.total_worked_hours,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmployeeWorkDetailsTO {
     #[serde(default)]

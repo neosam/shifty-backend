@@ -67,13 +67,16 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   Plans: 1 plan (Wave 1 — beide UI-Polish-Änderungen sind kleine Tailwind-Edits, zusammen ~15 % Kontext)
   - [x] 21-01-PLAN.md — UI-01: max-width (`max-w-5xl`) + Zebra-Striping (Design-Tokens, Selected/Hover gewinnt) im `TableLayout`; UI-02: schmalere Mitarbeiter-Spalte (`1.5fr` → `200px`) konsistent an allen drei `/absences`-grid-cols; SSR-Tests + WASM-Gate.
 
-- [ ] **Phase 22: Mitarbeiter-Statistik HR** (Backend + Frontend) — HR-only pro-SalesPerson Statistik in `/employees/:id`; Kennzahl Ø gearbeitete Stunden/Woche (urlaubsbereinigt). Setzt Todo `AVG-01` um.
+- [x] **Phase 22: Mitarbeiter-Statistik HR** (Backend + Frontend) — HR-only pro-SalesPerson Statistik in `/employees/:id`; Kennzahl Ø gearbeitete Stunden/Woche (urlaubsbereinigt). Setzt Todo `AVG-01` um. ✅ 2026-06-26
   Code: `ReportingService` (neue Methode + REST) + `shifty-dioxus/src/component/employee_view.rs`. Berechnungsregel A-22-1 in `22-CONTEXT.md` gepinnt (Jahr bis heute; worked = shiftplan+extrawork+volunteer; voll-abwesende Wochen raus; alle vier Abwesenheitskategorien).
   Requirements: STAT-01, STAT-02
   Success Criteria:
   1. Eine pro-SalesPerson Statistik-Ansicht ist ausschließlich mit HR-Rolle zugänglich/sichtbar.
   2. Die Ansicht zeigt die durchschnittlich gearbeiteten Stunden pro Woche, mit aus dem Nenner herausgerechneten Abwesenheitszeiträumen (Definition gemäß A-22-1).
   3. Backend-Berechnung + REST + Frontend getestet; `cargo test --workspace` + WASM-Build grün.
+  Plans: 2 plans (Wave 1 BE → Wave 2 FE)
+  - [x] 22-01-PLAN.md — Backend: `EmployeeWeeklyStatistics` + reine A-22-1-Formel (`average_worked_hours_per_week` über `by_week`), neue HR-gated `ReportingService`-Methode (Jahr bis heute via ClockService, baut auf `get_report_for_employee`), `EmployeeWeeklyStatisticsTO` (ToSchema) + HR-gated REST-Endpoint `GET /report/{id}/weekly-statistics` (+ ReportApiDoc), Unit-Tests (voll-abwesend raus / Teilwoche drin / flexibler Vertrag / Ehrenamt zählt).
+  - [x] 22-02-PLAN.md — Frontend: `get_employee_weekly_statistics`-Fetch, `EmployeeStore.weekly_statistics`-Wiring (Err/403 → None), HR-only Block in `EmployeeView` (is_hr-Gating via `has_privilege("hr")` + `should_show_hr_stats`), i18n De/En/Cs, SSR-Tests (sichtbar mit HR / unsichtbar ohne) + WASM-Gate.
 
 **Abhängigkeiten:** Phase 18 (BE) ist unabhängig. 19/20/21 (FE) sind unabhängig voneinander. 22 baut konzeptionell auf der Reporting-Ecke (18) auf, ist aber separat planbar.
 
@@ -110,8 +113,8 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 19 — Convert-Dialog UX (FE+BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 1/1 | Complete | 2026-06-26 |
-| 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 0/? | Planned | — |
+| 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 
 ---
 
-*Last updated: 2026-06-26 — **Phase 21 geplant** (1 Plan, Wave 1; UI-01 max-width + Zebra im TableLayout, UI-02 schmalere Mitarbeiter-Spalte `1.5fr`→`200px` an allen 3 grid-cols). Nächster Schritt: `/gsd-execute-phase 21`.*
+*Last updated: 2026-06-26 — **Phase 22 geplant** (2 Plans: 22-01 BE Wave 1 — A-22-1-Formel + HR-gated `ReportingService`-Methode + REST/OpenAPI + Unit-Tests; 22-02 FE Wave 2 — HR-only Block in `EmployeeView` + Fetch + i18n + SSR-Tests). Nächster Schritt: `/gsd-execute-phase 22`.*

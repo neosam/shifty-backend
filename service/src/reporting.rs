@@ -192,6 +192,57 @@ pub struct EmployeeReport {
     pub by_month: Arc<[GroupedReportHours]>,
 }
 
+/// Result of the A-22-1 average-worked-hours-per-week computation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmployeeWeeklyStatistics {
+    /// Average worked hours per week (overall_hours + volunteer_hours), excluding
+    /// fully-absent weeks from the denominator (A-22-1).
+    pub average_worked_hours_per_week: f32,
+    /// Number of weeks included in the average (denominator).
+    pub included_weeks: u32,
+    /// Sum of worked hours across all included weeks (numerator).
+    pub total_worked_hours: f32,
+}
+
+/// Pure A-22-1 formula: compute average worked hours per week from a slice of
+/// per-week data.
+///
+/// - Worked for a week = `overall_hours + volunteer_hours`.
+/// - A week is "fully absent" iff `worked == 0.0 && absence > 0.0`, where
+///   `absence = vacation_hours + sick_leave_hours + unpaid_leave_hours + holiday_hours`.
+/// - Fully-absent weeks are EXCLUDED from the denominator.
+/// - Weeks with `worked == 0.0 && absence == 0.0` are INCLUDED as 0.
+/// - Empty included set → average 0.0, included_weeks 0.
+/// - Formula does NOT reference expected_hours or contract_weekly_hours (flexible-contract safe).
+pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWeeklyStatistics {
+    let mut total_worked_hours: f32 = 0.0;
+    let mut included_weeks: u32 = 0;
+
+    for w in weeks {
+        let worked = w.overall_hours + w.volunteer_hours;
+        let absence =
+            w.vacation_hours + w.sick_leave_hours + w.unpaid_leave_hours + w.holiday_hours;
+        // Exclude fully-absent weeks (worked == 0 and some absence recorded).
+        if worked == 0.0 && absence > 0.0 {
+            continue;
+        }
+        total_worked_hours += worked;
+        included_weeks += 1;
+    }
+
+    let average_worked_hours_per_week = if included_weeks > 0 {
+        total_worked_hours / included_weeks as f32
+    } else {
+        0.0
+    };
+
+    EmployeeWeeklyStatistics {
+        average_worked_hours_per_week,
+        included_weeks,
+        total_worked_hours,
+    }
+}
+
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait ReportingService {
@@ -232,4 +283,13 @@ pub trait ReportingService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError>;
+
+    /// Returns average worked hours per week (A-22-1) for the current year up
+    /// to today, for the given sales person. HR-gated (STAT-01/D-22-05).
+    async fn get_employee_weekly_statistics(
+        &self,
+        sales_person_id: &Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<EmployeeWeeklyStatistics, ServiceError>;
 }

@@ -62,3 +62,5 @@ pub mod employee_work_details;
 pub mod extra_hours;
 #[cfg(test)]
 pub mod vacation_balance;
+#[cfg(test)]
+pub mod reporting_avg_weekly;

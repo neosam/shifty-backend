@@ -959,6 +959,38 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
 
         Ok(result.into())
     }
+
+    async fn get_employee_weekly_statistics(
+        &self,
+        sales_person_id: &Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<service::reporting::EmployeeWeeklyStatistics, ServiceError> {
+        // STAT-01 / D-22-05: HR gate is the FIRST statement — no data fetched before auth.
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await?;
+
+        // D-22-01: current year up to current ISO week.
+        let today = self.clock_service.date_now();
+        let (year, current_week, _) = today.to_iso_week_date();
+        let year = year as u32;
+
+        // D-22-06: reuse existing per-week data from get_report_for_employee.
+        let report = self
+            .get_report_for_employee(
+                sales_person_id,
+                year,
+                current_week as u8,
+                context.clone(),
+                tx,
+            )
+            .await?;
+
+        // A-22-1 pure formula.
+        let stats = service::reporting::average_worked_hours_per_week(&report.by_week);
+        Ok(stats)
+    }
 }
 
 fn weight_for_week(

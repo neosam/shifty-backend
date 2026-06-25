@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
+use rest_types::EmployeeWeeklyStatisticsTO;
 use uuid::Uuid;
 
 use crate::base_types::{format_hours, ImStr};
@@ -11,7 +12,7 @@ use crate::component::EmployeeWeeklyHistogram;
 use crate::i18n::Key;
 use crate::js;
 use crate::service::{
-    employee::EmployeeAction, employee::EMPLOYEE_STORE,
+    auth::AUTH, employee::EmployeeAction, employee::EMPLOYEE_STORE,
     employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
 };
 use crate::state::employee::{
@@ -33,6 +34,12 @@ pub struct EmployeeViewPlainProps {
     pub full_year: bool,
     pub custom_hours: Rc<[CustomExtraHours]>,
     pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
+    /// Whether the current user has the HR role.
+    pub is_hr: bool,
+    /// Weekly statistics fetched from the HR-gated backend endpoint.
+    /// None for non-HR users (403 → None) or when data is unavailable.
+    #[props(!optional, default = None)]
+    pub weekly_statistics: Option<Rc<EmployeeWeeklyStatisticsTO>>,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -69,6 +76,16 @@ fn current_week_expected_hours(
 /// Restwerte werden als Rauschen unterdrueckt.
 pub(crate) fn show_volunteer_work(hours: f32) -> bool {
     hours >= 0.5
+}
+
+/// Returns true only when the user has the HR role AND statistics data is
+/// available (defence-in-depth: the backend 403s non-HR fetches so `stats`
+/// will always be None for non-HR users in production).
+pub(crate) fn should_show_hr_stats(
+    is_hr: bool,
+    stats: Option<&EmployeeWeeklyStatisticsTO>,
+) -> bool {
+    is_hr && stats.is_some()
 }
 
 #[component]
@@ -467,6 +484,30 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     on_custom_delete: move |uuid| {
                         props.on_custom_delete.call(uuid);
                     },
+                }
+            }
+        }
+
+        // HR-only statistics block (STAT-01/STAT-02, D-22-04/D-22-05)
+        if should_show_hr_stats(props.is_hr, props.weekly_statistics.as_deref()) {
+            if let Some(stats) = props.weekly_statistics.as_ref() {
+                section { class: "mt-6 pt-4 border-t border-border flex flex-col gap-2",
+                    h2 { class: "text-micro font-bold uppercase text-ink-muted",
+                        {i18n.t(Key::StatisticsHeading)}
+                    }
+                    TupleRow {
+                        label: ImStr::from(i18n.t(Key::AverageWorkedHoursPerWeek).as_ref()),
+                        value: rsx! { span { class: "font-mono tabular-nums",
+                            {format_hours(stats.average_worked_hours_per_week, 2)}
+                        } },
+                    }
+                    TupleRow {
+                        label: ImStr::from(i18n.t(Key::StatisticsIncludedWeeks).as_ref()),
+                        value: rsx! { span { class: "font-mono tabular-nums",
+                            {stats.included_weeks.to_string()}
+                        } },
+                        dim: true,
+                    }
                 }
             }
         }
@@ -939,6 +980,13 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let full_year = employee_store.until_week >= time::util::weeks_in_year(year as i32);
     let custom_hours = employee_store.employee.custom_extra_hours.clone();
     let custom_extra_hours_definitions = employee_store.custom_extra_hours_definitions.clone();
+    let weekly_statistics = employee_store.weekly_statistics.clone();
+    let is_hr = AUTH
+        .read()
+        .auth_info
+        .as_ref()
+        .map(|a| a.has_privilege("hr"))
+        .unwrap_or(false);
 
     rsx! {
         EmployeeViewPlain {
@@ -951,6 +999,8 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             show_delete_employee_work_details: props.show_delete_employee_work_details,
             custom_hours,
             custom_extra_hours_definitions,
+            is_hr,
+            weekly_statistics,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
             on_extra_hour_edit: props.on_extra_hour_edit,
@@ -1388,6 +1438,122 @@ mod tests {
         assert!(
             !html.contains("Volunteer"),
             "WeekDetailPanel must NOT show Volunteer when volunteer_hours==0: {html}"
+        );
+    }
+
+    // --- Phase 22 — HR statistics block SSR tests (STAT-01/STAT-02, D-22-08) ---
+    //
+    // EmployeeViewPlain calls js::get_current_year()/get_current_week() which panic on
+    // non-wasm targets. We therefore test the conditional rendering logic using a minimal
+    // stub component that mirrors only the HR-stats branch — same pattern as delete-contract
+    // and extra-hours-modal SSR tests.
+
+    fn make_test_stats() -> Rc<EmployeeWeeklyStatisticsTO> {
+        Rc::new(EmployeeWeeklyStatisticsTO {
+            average_worked_hours_per_week: 23.5,
+            included_weeks: 10,
+            total_worked_hours: 235.0,
+        })
+    }
+
+    // --- Pure-fn tests for should_show_hr_stats ---
+
+    #[test]
+    fn should_show_hr_stats_true_when_hr_and_stats_present() {
+        let stats = make_test_stats();
+        assert!(should_show_hr_stats(true, Some(&*stats)));
+    }
+
+    #[test]
+    fn should_show_hr_stats_false_when_not_hr_with_stats() {
+        let stats = make_test_stats();
+        assert!(!should_show_hr_stats(false, Some(&*stats)));
+    }
+
+    #[test]
+    fn should_show_hr_stats_false_when_hr_no_stats() {
+        assert!(!should_show_hr_stats(true, None));
+    }
+
+    #[test]
+    fn should_show_hr_stats_false_when_not_hr_no_stats() {
+        assert!(!should_show_hr_stats(false, None));
+    }
+
+    // --- SSR visibility tests for the HR-only block ---
+
+    #[derive(Props, Clone, PartialEq)]
+    struct HrStatsBlockProps {
+        is_hr: bool,
+        weekly_statistics: Option<Rc<EmployeeWeeklyStatisticsTO>>,
+    }
+
+    /// Minimal stub that mirrors only the HR-stats conditional block from EmployeeViewPlain.
+    fn render_hr_stats_block(p: HrStatsBlockProps) -> String {
+        fn app(p: HrStatsBlockProps) -> Element {
+            let i18n = crate::service::i18n::I18N.read().clone();
+            rsx! {
+                div {
+                    if should_show_hr_stats(p.is_hr, p.weekly_statistics.as_deref()) {
+                        if let Some(stats) = p.weekly_statistics.as_ref() {
+                            section {
+                                h2 { {i18n.t(crate::i18n::Key::StatisticsHeading)} }
+                                span { class: "font-mono tabular-nums",
+                                    {format_hours(stats.average_worked_hours_per_week, 2)}
+                                }
+                                span { {stats.included_weeks.to_string()} }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(app, p);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn hr_block_visible_when_hr_with_stats() {
+        let stats = make_test_stats();
+        let html = render_hr_stats_block(HrStatsBlockProps {
+            is_hr: true,
+            weekly_statistics: Some(stats),
+        });
+        // I18N defaults to English in tests; heading should appear
+        assert!(
+            html.contains("Statistics"),
+            "HR stats heading must be present for HR user with stats: {html}"
+        );
+        // average_worked_hours_per_week = 23.5 → format_hours(23.5, 2) = "23.50"
+        assert!(
+            html.contains("23.50") || html.contains("23"),
+            "HR stats must show the average hours value: {html}"
+        );
+    }
+
+    #[test]
+    fn hr_block_hidden_when_not_hr() {
+        let stats = make_test_stats();
+        let html = render_hr_stats_block(HrStatsBlockProps {
+            is_hr: false,
+            weekly_statistics: Some(stats),
+        });
+        assert!(
+            !html.contains("Statistics"),
+            "HR stats heading must NOT be present for non-HR user: {html}"
+        );
+    }
+
+    #[test]
+    fn hr_block_hidden_when_no_stats() {
+        let html = render_hr_stats_block(HrStatsBlockProps {
+            is_hr: true,
+            weekly_statistics: None,
+        });
+        assert!(
+            !html.contains("Statistics"),
+            "HR stats heading must NOT be present when statistics is None: {html}"
         );
     }
 }

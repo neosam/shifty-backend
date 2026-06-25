@@ -5,7 +5,7 @@ use futures_util::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
-use rest_types::ExtraHoursTO;
+use rest_types::{EmployeeWeeklyStatisticsTO, ExtraHoursTO};
 
 use crate::{
     api,
@@ -32,6 +32,7 @@ pub struct EmployeeStore {
     pub employee: Employee,
     pub extra_hours: Rc<[ExtraHours]>,
     pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
+    pub weekly_statistics: Option<Rc<EmployeeWeeklyStatisticsTO>>,
 }
 
 /// Bumped from `refresh_employee_data` after every successful per-employee
@@ -69,6 +70,7 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
     },
     extra_hours: Rc::new([]),
     custom_extra_hours_definitions: Rc::new([]),
+    weekly_statistics: None,
 });
 
 #[derive(Debug)]
@@ -111,12 +113,17 @@ pub async fn load_employee_data(
             }
         };
     super::employee_work_details::load_employee_work_details(sales_person_id).await?;
+    let weekly_statistics =
+        api::get_employee_weekly_statistics(CONFIG.read().clone(), sales_person_id)
+            .await
+            .ok();
     *EMPLOYEE_STORE.write() = EmployeeStore {
         employee,
         extra_hours,
         custom_extra_hours_definitions,
         year,
         until_week,
+        weekly_statistics,
     };
     Ok(())
 }

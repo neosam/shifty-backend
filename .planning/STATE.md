@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
-status: planning
-last_updated: "2026-06-25"
-last_activity: 2026-06-25
+status: in_progress
+last_updated: "2026-06-26"
+last_activity: 2026-06-26 — Phase 22 (Mitarbeiter-Statistik HR) abgeschlossen; alle 5 v1.5-Phasen fertig, Milestone-Lifecycle (audit/complete) ausstehend
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 7
-  completed_plans: 7
-  percent: 80
+  completed_phases: 5
+  total_plans: 9
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -27,10 +27,10 @@ progress:
 
 ## Current Position
 
-Phase: 22 (Mitarbeiter-Statistik HR) — als Nächstes (18–21 abgeschlossen)
+Phase: alle 5 v1.5-Phasen (18–22) abgeschlossen — Milestone-Lifecycle (audit → complete) ausstehend
 Plan: —
-Status: Autonomer Lauf aktiv. 18 ✅ (Snapshot 9→10); 19 ✅; 20 ✅; 21 ✅ (26d83643, Tabellen-Polish).
-Last activity: 2026-06-26 — Phase 21 (UI-01, UI-02) abgeschlossen, FE 649 grün, WASM via nix develop Finished
+Status: Alle Phasen fertig. 18 ✅ (Snapshot 9→10); 19 ✅ (FE+BE); 20 ✅; 21 ✅; 22 ✅ (HR-Statistik, BE+FE).
+Last activity: 2026-06-26 — Phase 22 abgeschlossen (BE 9 Tests + FE 656 Tests grün, WASM exit 0). Bereit für Milestone-Audit.
 
 ## Deferred Items
 

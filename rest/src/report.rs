@@ -7,7 +7,7 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-use rest_types::{EmployeeReportTO, ShortEmployeeReportTO};
+use rest_types::{EmployeeReportTO, EmployeeWeeklyStatisticsTO, ShortEmployeeReportTO};
 use serde::Deserialize;
 use service::reporting::ReportingService;
 use tracing::instrument;
@@ -23,6 +23,7 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             "/week/{year}/{calendar_week}",
             get(get_short_week_report::<RestState>),
         )
+        .route("/{id}/weekly-statistics", get(get_weekly_statistics::<RestState>))
         .route("/{id}", get(get_report::<RestState>))
 }
 
@@ -151,6 +152,42 @@ pub async fn get_short_week_report<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/{id}/weekly-statistics",
+    tags = ["Report"],
+    params(
+        ("id" = Uuid, Path, description = "Sales person ID")
+    ),
+    responses(
+        (status = 200, description = "HR-only average worked hours per week", body = EmployeeWeeklyStatisticsTO, content_type = "application/json"),
+        (status = 403, description = "Forbidden — HR role required"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_weekly_statistics<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Path(sales_person_id): Path<Uuid>,
+    Extension(context): Extension<Context>,
+) -> Response {
+    error_handler(
+        (async {
+            let stats: EmployeeWeeklyStatisticsTO = (&rest_state
+                .reporting_service()
+                .get_employee_weekly_statistics(&sales_person_id, context.into(), None)
+                .await?)
+                .into();
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::new(serde_json::to_string(&stats).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     tags(
@@ -159,8 +196,9 @@ pub async fn get_short_week_report<RestState: RestStateDef>(
     paths(
         get_short_report_for_all,
         get_report,
-        get_short_week_report
+        get_short_week_report,
+        get_weekly_statistics
     ),
-    components(schemas(ShortEmployeeReportTO, EmployeeReportTO, ReportRequest))
+    components(schemas(ShortEmployeeReportTO, EmployeeReportTO, ReportRequest, EmployeeWeeklyStatisticsTO))
 )]
 pub struct ReportApiDoc;

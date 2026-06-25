@@ -563,6 +563,14 @@ pub enum Key {
     BookingWarningOnUnavailableDay,
     /// Pro-Item-Text wenn das Bezahlt-Limit überschritten ist (Platzhalter `{current}`, `{max}`).
     BookingWarningPaidLimitExceeded,
+
+    // Phase 22 — HR-only employee statistics block (STAT-01/STAT-02).
+    /// Heading of the HR-only statistics block on the employee detail page.
+    StatisticsHeading,
+    /// Label for the average worked hours per week row.
+    AverageWorkedHoursPerWeek,
+    /// Label for the included weeks row.
+    StatisticsIncludedWeeks,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

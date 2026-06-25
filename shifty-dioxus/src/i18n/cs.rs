@@ -971,4 +971,13 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     // Quick-260613-jxe — Navigace rokem na stránce nepřítomností.
     i18n.add_text(Locale::Cs, Key::AbsenceYearNavPrev, "Předchozí rok");
     i18n.add_text(Locale::Cs, Key::AbsenceYearNavNext, "Další rok");
+
+    // Phase 22 — HR-only blok statistik zaměstnance (STAT-01/STAT-02).
+    i18n.add_text(Locale::Cs, Key::StatisticsHeading, "Statistika");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AverageWorkedHoursPerWeek,
+        "Průměrně odpracované hodiny za týden",
+    );
+    i18n.add_text(Locale::Cs, Key::StatisticsIncludedWeeks, "Započítané týdny");
 }
