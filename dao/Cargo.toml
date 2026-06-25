@@ -1,6 +1,6 @@
 [package]
 name = "dao"
-version = "2026.163.2-dev"
+version = "2026.176.1"
 edition = "2021"
 resolver = "2"
 
