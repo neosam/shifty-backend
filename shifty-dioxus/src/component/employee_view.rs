@@ -551,7 +551,9 @@ struct WeekListExpandedProps {
 
 #[component]
 fn WeekListExpanded(props: WeekListExpandedProps) -> Element {
+    let i18n = I18N.read().clone();
     let on_select = props.on_select;
+    let volunteer_label = i18n.t(Key::Volunteer);
     // Show every loaded week, newest first.
     let visible: Vec<WorkingHours> = {
         let mut all: Vec<WorkingHours> = props.weeks.iter().cloned().collect();
@@ -567,9 +569,9 @@ fn WeekListExpanded(props: WeekListExpandedProps) -> Element {
                     let is_selected = props.selected_week == Some(key);
                     let under = week.overall_hours < week.expected_hours;
                     let row_class = if is_selected {
-                        "w-full text-left flex items-center justify-between px-2 py-1.5 border-b border-border bg-accent-soft cursor-pointer"
+                        "w-full text-left flex items-start justify-between px-2 py-1.5 border-b border-border bg-accent-soft cursor-pointer"
                     } else {
-                        "w-full text-left flex items-center justify-between px-2 py-1.5 border-b border-border hover:bg-surface-alt cursor-pointer"
+                        "w-full text-left flex items-start justify-between px-2 py-1.5 border-b border-border hover:bg-surface-alt cursor-pointer"
                     };
                     let value_class = if under {
                         "font-mono tabular-nums text-warn"
@@ -583,13 +585,37 @@ fn WeekListExpanded(props: WeekListExpandedProps) -> Element {
                         props.hours_label,
                     );
                     let week_short = props.week_short.clone();
+                    // YV-02: format the from–to date range
+                    let from_str = i18n.format_date(&week.from);
+                    let to_str = i18n.format_date(&week.to);
+                    let date_range = format!("{} – {}", from_str, to_str);
+                    // YV-03: volunteer hours (only show if > 0)
+                    let has_volunteer = week.volunteer_hours > 0.0;
+                    let volunteer_text = format!(
+                        "{}: {} {}",
+                        volunteer_label,
+                        format_hours(week.volunteer_hours, 2),
+                        props.hours_label,
+                    );
                     rsx! {
                         button {
                             r#type: "button",
                             class: "{row_class}",
                             onclick: move |_| on_select.call(key),
-                            span { class: "text-ink", "{week_short} {iso_week}" }
-                            span { class: "{value_class}", "{value_text}" }
+                            // Left side: KW label + date range (two-line)
+                            span { class: "flex flex-col",
+                                span { class: "text-ink", "{week_short} {iso_week}" }
+                                span { class: "text-ink-muted text-micro", "{date_range}" }
+                            }
+                            // Right side: hours + optional volunteer
+                            span { class: "flex flex-col items-end",
+                                span { class: "{value_class}", "{value_text}" }
+                                if has_volunteer {
+                                    span { class: "font-mono tabular-nums text-ink-muted text-micro",
+                                        "{volunteer_text}"
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -644,6 +670,14 @@ fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
             i18n.t(Key::TargetReached).to_string(),
         )
     };
+    let volunteer_label = i18n.t(Key::Volunteer);
+    let has_volunteer = props.week.volunteer_hours > 0.0;
+    let volunteer_text = format!(
+        "{}: {} {hours}",
+        volunteer_label,
+        format_hours(props.week.volunteer_hours, 2),
+    );
+
     rsx! {
         section { class: "mt-3 rounded-md border border-border bg-surface-alt px-3 py-2 flex flex-col gap-2",
             div { class: "flex items-baseline justify-between gap-2",
@@ -653,6 +687,12 @@ fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
                     }
                     span { class: "font-mono tabular-nums text-small font-normal text-ink-muted",
                         "{summary}"
+                    }
+                    // YV-03: volunteer hours as separate value
+                    if has_volunteer {
+                        span { class: "font-mono tabular-nums text-small font-normal text-ink-muted",
+                            "{volunteer_text}"
+                        }
                     }
                 }
                 button {
@@ -1183,6 +1223,171 @@ mod tests {
         assert!(
             !html.contains("Delete contract?"),
             "confirm modal must be hidden in initial render (None state), got: {html}"
+        );
+    }
+
+    // --- YV-02 / YV-03 SSR tests (RED phase, Task 2) ---
+
+    fn make_week_full(
+        from: time::Date,
+        overall: f32,
+        expected: f32,
+        volunteer: f32,
+    ) -> WorkingHours {
+        WorkingHours {
+            from,
+            to: from + time::Duration::days(6),
+            expected_hours: expected,
+            overall_hours: overall,
+            balance: overall - expected,
+            shiftplan_hours: overall,
+            extra_work_hours: 0.0,
+            vacation_hours: 0.0,
+            vacation_days: 0.0,
+            sick_leave_hours: 0.0,
+            holiday_hours: 0.0,
+            unpaid_leave_hours: 0.0,
+            volunteer_hours: volunteer,
+            days: Rc::from([]),
+        }
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct WeekListProps {
+        weeks: Rc<[WorkingHours]>,
+        selected_week: Option<(u32, u8)>,
+        hours_label: ImStr,
+        week_short: ImStr,
+    }
+
+    fn render_week_list(p: WeekListProps) -> String {
+        fn app(p: WeekListProps) -> Element {
+            rsx! {
+                WeekListExpanded {
+                    weeks: p.weeks.clone(),
+                    selected_week: p.selected_week,
+                    hours_label: p.hours_label.clone(),
+                    week_short: p.week_short.clone(),
+                    on_select: |_| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(app, p);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct WeekDetailProps {
+        week: WorkingHours,
+        hours_label: ImStr,
+    }
+
+    fn render_week_detail(p: WeekDetailProps) -> String {
+        fn app(p: WeekDetailProps) -> Element {
+            rsx! {
+                WeekDetailPanel {
+                    week: p.week.clone(),
+                    hours_label: p.hours_label.clone(),
+                    on_close: |_| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(app, p);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn week_list_shows_date_range_in_each_row() {
+        // YV-02: each row in WeekListExpanded must display the from–to date.
+        // from = 2026-03-02 (Mon KW 10), to = 2026-03-08 (Sun KW 10)
+        let from = time::Date::from_iso_week_date(2026, 10, time::Weekday::Monday).unwrap();
+        let weeks: Rc<[WorkingHours]> = vec![make_week_full(from, 20.0, 20.0, 0.0)].into();
+        let html = render_week_list(WeekListProps {
+            weeks,
+            selected_week: None,
+            hours_label: ImStr::from("h"),
+            week_short: ImStr::from("W"),
+        });
+        // The from-date must appear (year 2026 and month 03 in some format)
+        assert!(
+            html.contains("2026") && html.contains("03") && html.contains("02"),
+            "WeekListExpanded must show from-date for each row: {html}"
+        );
+    }
+
+    #[test]
+    fn week_list_shows_volunteer_when_gt_zero() {
+        // YV-03: a row with volunteer_hours > 0 must show a volunteer value.
+        let from = time::Date::from_iso_week_date(2026, 10, time::Weekday::Monday).unwrap();
+        let weeks: Rc<[WorkingHours]> = vec![make_week_full(from, 20.0, 20.0, 5.0)].into();
+        let html = render_week_list(WeekListProps {
+            weeks,
+            selected_week: None,
+            hours_label: ImStr::from("h"),
+            week_short: ImStr::from("W"),
+        });
+        // Must contain "5.00" (the formatted volunteer hours) and "Volunteer" label
+        assert!(
+            html.contains("5.00"),
+            "WeekListExpanded must show volunteer hours value: {html}"
+        );
+        assert!(
+            html.contains("Volunteer"),
+            "WeekListExpanded must show Volunteer label: {html}"
+        );
+    }
+
+    #[test]
+    fn week_list_no_volunteer_when_zero() {
+        // YV-03: a row with volunteer_hours == 0 must NOT show a volunteer section.
+        let from = time::Date::from_iso_week_date(2026, 10, time::Weekday::Monday).unwrap();
+        let weeks: Rc<[WorkingHours]> = vec![make_week_full(from, 20.0, 20.0, 0.0)].into();
+        let html = render_week_list(WeekListProps {
+            weeks,
+            selected_week: None,
+            hours_label: ImStr::from("h"),
+            week_short: ImStr::from("W"),
+        });
+        // "Volunteer" should not appear when volunteer_hours == 0
+        assert!(
+            !html.contains("Volunteer"),
+            "WeekListExpanded must NOT show Volunteer label when volunteer_hours==0: {html}"
+        );
+    }
+
+    #[test]
+    fn week_detail_panel_shows_volunteer_when_gt_zero() {
+        // YV-03: WeekDetailPanel must show volunteer hours as a separate value.
+        let from = time::Date::from_iso_week_date(2026, 10, time::Weekday::Monday).unwrap();
+        let week = make_week_full(from, 20.0, 20.0, 7.5);
+        let html = render_week_detail(WeekDetailProps {
+            week,
+            hours_label: ImStr::from("h"),
+        });
+        assert!(
+            html.contains("7.50"),
+            "WeekDetailPanel must show volunteer hours value: {html}"
+        );
+        assert!(
+            html.contains("Volunteer"),
+            "WeekDetailPanel must show Volunteer label: {html}"
+        );
+    }
+
+    #[test]
+    fn week_detail_panel_no_volunteer_when_zero() {
+        // YV-03: WeekDetailPanel must NOT show volunteer section when volunteer_hours == 0.
+        let from = time::Date::from_iso_week_date(2026, 10, time::Weekday::Monday).unwrap();
+        let week = make_week_full(from, 20.0, 20.0, 0.0);
+        let html = render_week_detail(WeekDetailProps {
+            week,
+            hours_label: ImStr::from("h"),
+        });
+        assert!(
+            !html.contains("Volunteer"),
+            "WeekDetailPanel must NOT show Volunteer when volunteer_hours==0: {html}"
         );
     }
 }

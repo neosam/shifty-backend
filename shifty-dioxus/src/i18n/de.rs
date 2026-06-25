@@ -939,6 +939,12 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "In Zeitraum umwandeln",
     );
     i18n.add_text(Locale::De, Key::AbsenceHourlyAmountLabel, "Std.");
+    // Phase 20 Plan 01 — UV-03: ⚠️-Indikator-Tooltip.
+    i18n.add_text(
+        Locale::De,
+        Key::AbsenceHourlyWarnIndicator,
+        "Noch nicht in einen Zeitraum umgewandelt — bitte konvertieren",
+    );
 
     // Phase 8.5 Plan 07 — Soft-Migration-Hinweis im Working-Hours-Dialog (D-10/D-11).
     i18n.add_text(

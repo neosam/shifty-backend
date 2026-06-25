@@ -533,6 +533,10 @@ pub enum Key {
     AbsenceConvertToRangeAction,
     /// Suffix für die Stundenanzahl in der Marker-Row (De: „Std.", En: „hrs").
     AbsenceHourlyAmountLabel,
+    /// Tooltip/aria-label für den ⚠️-Indikator in Spalte 1 der HourlyMarkerRow
+    /// (Zweck: „Noch nicht in einen Zeitraum umgewandelt — bitte konvertieren").
+    /// Phase 20 Plan 01 — UV-03.
+    AbsenceHourlyWarnIndicator,
 
     // Phase 8.5 Plan 07 — Soft-Migration-Hinweis im Working-Hours-Dialog (D-10/D-11).
     /// Empfehlungs-Satz unter dem Kategorie-Select wenn Vacation/SickLeave/UnpaidLeave gewählt.
@@ -1009,6 +1013,7 @@ mod tests {
                 Key::AbsenceEditHoursAction,
                 Key::AbsenceConvertToRangeAction,
                 Key::AbsenceHourlyAmountLabel,
+                Key::AbsenceHourlyWarnIndicator,
             ] {
                 let value = i18n.t(key);
                 assert!(

@@ -925,6 +925,12 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Převést na rozsah",
     );
     i18n.add_text(Locale::Cs, Key::AbsenceHourlyAmountLabel, "hod.");
+    // Phase 20 Plan 01 — UV-03: ⚠️ indikátor tooltip.
+    i18n.add_text(
+        Locale::Cs,
+        Key::AbsenceHourlyWarnIndicator,
+        "Dosud nepřevedeno na období — převeďte prosím",
+    );
 
     // Phase 8.5 Plan 07 — Jemný migrační hint v dialogu Pracovní hodiny (D-10/D-11).
     i18n.add_text(

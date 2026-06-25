@@ -1704,6 +1704,7 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
     let amount_label = i18n.t(Key::AbsenceHourlyAmountLabel);
     let edit_label = i18n.t(Key::AbsenceEditHoursAction);
     let convert_label = i18n.t(Key::AbsenceConvertToRangeAction);
+    let warn_tooltip = i18n.t(Key::AbsenceHourlyWarnIndicator);
     let when_str = marker.when.to_string();
     let amount_str = format!("{:.2}", marker.amount);
     // Abgeleitete Anzeige-Tage (Backend: amount / hours_per_day am when-Datum),
@@ -1729,18 +1730,29 @@ pub fn HourlyMarkerRow(props: HourlyMarkerRowProps) -> Element {
         // Gleiche Grid-Struktur wie AbsenceListRow: md:grid-cols-[1.5fr_170px_140px_90px_70px]
         div {
             class: "w-full flex flex-col gap-2 md:grid md:grid-cols-[1.5fr_170px_140px_90px_70px] md:gap-3.5 px-4 py-3.5 border-t border-border bg-surface-alt/30",
-            // Spalte 1: Person + Description (T-8-XSS-01: via RSX auto-escape)
-            div { class: "flex flex-col gap-0.5 min-w-0",
-                span { class: "text-body font-semibold text-ink truncate",
-                    if person_name.is_empty() {
-                        "—"
-                    } else {
-                        "{person_name}"
-                    }
+            // Spalte 1: ⚠️-Indikator (UV-03) + Person + Description
+            // (T-8-XSS-01: via RSX auto-escape)
+            div { class: "flex items-start gap-1.5 min-w-0",
+                // UV-03: Warnindikator — stundenbasierter Eintrag ist noch nicht konvertiert.
+                span {
+                    class: "shrink-0 text-warn text-body leading-none",
+                    title: "{warn_tooltip}",
+                    "aria-label": "{warn_tooltip}",
+                    role: "img",
+                    "⚠️"
                 }
-                if !description.is_empty() {
-                    span { class: "text-small text-ink-muted truncate",
-                        "{description}"
+                div { class: "flex flex-col gap-0.5 min-w-0",
+                    span { class: "text-body font-semibold text-ink truncate",
+                        if person_name.is_empty() {
+                            "—"
+                        } else {
+                            "{person_name}"
+                        }
+                    }
+                    if !description.is_empty() {
+                        span { class: "text-small text-ink-muted truncate",
+                            "{description}"
+                        }
                     }
                 }
             }
@@ -2831,6 +2843,31 @@ mod tests {
         assert!(
             !html_non_hr.contains("In Zeitraum umwandeln"),
             "Convert-Button darf bei is_hr=false NICHT vorhanden sein: {html_non_hr}"
+        );
+    }
+
+    /// UV-03: HourlyMarkerRow rendert ⚠️-Indikator in Spalte 1 mit i18n-Tooltip.
+    #[test]
+    fn hourly_marker_row_renders_warn_indicator() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                HourlyMarkerRow {
+                    marker: sample_marker(),
+                    is_hr: false,
+                    on_edit: |_| {},
+                    on_convert: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("⚠"),
+            "HourlyMarkerRow muss das ⚠️-Zeichen in Spalte 1 rendern: {html}"
+        );
+        assert!(
+            html.contains("bitte konvertieren"),
+            "HourlyMarkerRow muss den deutschen Tooltip-Text 'bitte konvertieren' rendern: {html}"
         );
     }
 
