@@ -20,7 +20,7 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
 
 12 Requirements (UV-01..05, YV-01..03, STAT-01/02, UI-01/02) → 5 Phasen. Coverage 100 %.
 
-- [ ] **Phase 18: Report-/Balance-Korrektheit** (Backend) — Carryover-Quelle (`year-1`) angleichen + Urlaubstage-Zählung nach Absence-Konvertierung korrigieren (derived Absences in per-Woche-Kategorien mergen, ohne Doppelzählung).
+- [x] **Phase 18: Report-/Balance-Korrektheit** (Backend) — Carryover-Quelle (`year-1`) angleichen + Urlaubstage-Zählung nach Absence-Konvertierung korrigieren (derived Absences in per-Woche-Kategorien mergen, ohne Doppelzählung). ✅ 2026-06-26
   Code: `service_impl/src/reporting.rs`, `service_impl/src/vacation_balance.rs`, `service/src/reporting.rs`. Snapshot-Hinweis: `CURRENT_SNAPSHOT_SCHEMA_VERSION` Bump 9→10 nötig, weil die persistierte `VacationDays`-Computation sich ändert (konvertierte Einträge: 0 → >0).
   Requirements: UV-04, UV-05
   Success Criteria:
@@ -29,8 +29,8 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   3. `sick_leave_days` und `absence_days` zählen die derived Absences ebenfalls mit, ohne Doppelzählung.
   4. Regressionstests decken beide Pfade ab; `cargo test --workspace` grün.
   Plans: 2 plans
-  - [ ] 18-01-PLAN.md — UV-04: Carryover auf `year-1`-Quelle pinnen (Fix bereits präsent) + Regressionstest, der den `year-1`-Read im Mock-Matcher festnagelt.
-  - [ ] 18-02-PLAN.md — UV-05: derived Absences in per-Woche-Kategorien mergen (ungated), Jahreslumpen-Doppelzählung in `get_report_for_employee` entfernen (Single Source = `by_week`), Snapshot-Bump 9→10, Regressionstests (days>0 stabil über Konvertierung, kein Double-Count, sick_leave-Fall).
+  - [x] 18-01-PLAN.md — UV-04: Carryover auf `year-1`-Quelle pinnen (Fix bereits präsent) + Regressionstest, der den `year-1`-Read im Mock-Matcher festnagelt.
+  - [x] 18-02-PLAN.md — UV-05: derived Absences in per-Woche-Kategorien mergen (ungated), Jahreslumpen-Doppelzählung in `get_report_for_employee` entfernen (Single Source = `by_week`), Snapshot-Bump 9→10, Regressionstests (days>0 stabil über Konvertierung, kein Double-Count, sick_leave-Fall).
 
 - [ ] **Phase 19: Convert-Dialog UX** (Frontend) — Smart bis-Datum (arbeitstagbasiert) + exakter Wochen-Fall („1 Woche" + Mo–So-Vorschlag) im „In Zeitraum umwandeln"-Modal.
   Code: `shifty-dioxus/src/component/absence_convert_modal.rs`, `shifty-dioxus/src/page/absences.rs`.
@@ -98,7 +98,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 15 — Reporting no-double-count (KEIN Snapshot-Bump) | v1.4 | 2/2 | Complete | 2026-06-24 |
 | 16 — Jahresansicht display | v1.4 | 3/3 | Complete | 2026-06-24 |
 | 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 4/4 | Complete | 2026-06-24 |
-| 18 — Report-/Balance-Korrektheit (BE) | v1.5 | 0/2 | Planned | — |
+| 18 — Report-/Balance-Korrektheit (BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 19 — Convert-Dialog UX (FE) | v1.5 | 0/? | Planned | — |
 | 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 0/? | Planned | — |
 | 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 0/? | Planned | — |
