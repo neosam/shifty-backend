@@ -1,9 +1,10 @@
 ---
 slug: working-hours-wrong-employee
-status: awaiting_human_verify
+status: resolved
 trigger: "Wenn man in der Mitarbeiteransicht einen Mitarbeiter auswählt und einen Vertrag (Working Hours) anlegen will, wird der Vertrag dem falschen Mitarbeiter zugeordnet."
 created: 2026-06-12
-updated: 2026-06-12
+updated: 2026-06-25
+resolution: "Gefixt im Frontend (employee_details.rs): employee_id wird per Signal `current_employee_id` gespiegelt und der Coroutine-Handler liest `*current_employee_id.peek()` statt eines eingefrorenen Closure-Captures. Regressionstest `FROZEN_CAPTURE` vorhanden. User-bestätigt 2026-06-25 beim v1.5-Milestone-Start."
 ---
 
 # Debug Session: Working Hours dem falschen Mitarbeiter zugeordnet

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Committed Voluntary Capacity
-status: completed
-last_updated: "2026-06-25T07:51:54.645Z"
+milestone: v1.5
+milestone_name: Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
+status: planning
+last_updated: "2026-06-25"
 last_activity: 2026-06-25
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
@@ -22,14 +22,15 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v1.4-ROADMAP.md` (+ `milestones/v1.4-REQUIREMENTS.md`, `milestones/v1.4-MILESTONE-AUDIT.md`)
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: v1.4 Committed Voluntary Capacity (shipped 2026-06-25; Audit `passed`, 10/10 CVC-Requirements)
-- **Current milestone**: keiner aktiv — bereit für nächsten Zyklus
-- **Current focus**: Planung des nächsten Milestones (`/gsd-new-milestone`)
+- **Current milestone**: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (ab Phase 18)
+- **Current focus**: Requirements für v1.5 definieren, dann Roadmap
 
 ## Current Position
 
-Status: Milestone complete (v1.4 shipped 2026-06-25)
-Next step: `/gsd-new-milestone` — nächsten Milestone-Zyklus starten
-Last activity: 2026-06-25 — v1.4 archiviert + getaggt
+Phase: 18–22 — alle CONTEXT.md geschrieben, bereit für plan+execute
+Plan: —
+Status: Discuss abgeschlossen (gebündelt; STAT-Entscheidungen User-bestätigt). Bereit für autonomen plan+execute-Lauf.
+Last activity: 2026-06-25 — Gebündelte Discuss-Runde: 18-CONTEXT … 22-CONTEXT erstellt (12 Requirements gedeckt)
 
 ## Deferred Items
 
@@ -39,8 +40,8 @@ Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-En
 |-----------|------|--------|-------|
 | human_uat | Phase 16: visuelle Drei-Farben-Chart-Stapelung | pending | nicht test-automatisierbar (SSR pinnt keine Pixel) |
 | human_uat | Phase 16: Czech-Übersetzungsqualität | pending | A3 MEDIUM-confidence, manuelle Sprachprüfung |
-| debug | carryover-absence-vs-report | awaiting_human_verify | historisch (vor v1.4), 2026-06-13 |
-| debug | working-hours-wrong-employee | awaiting_human_verify | historisch (vor v1.4), 2026-06-12 |
+| debug | carryover-absence-vs-report | in v1.5 scope | Bug 1 von v1.5 — Root-Cause diagnostiziert (`get_carryover(year)` → `year-1`) |
+| debug | working-hours-wrong-employee | resolved (obsolet) | gefixt: Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE` in `employee_details.rs` |
 | quick_task | 11 Quick-Tasks (Mai/Juni, Status „missing") | deferred | historischer Absence-Ballast, vor v1.4 |
 | todo | 5 pending Todos (ab Mai 2026) | deferred | historisch (booking-log 500er, admin-rolle-privilegien u.a.) |
 | tech_debt | Nyquist-VALIDATION Phasen 14/15/17 unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |

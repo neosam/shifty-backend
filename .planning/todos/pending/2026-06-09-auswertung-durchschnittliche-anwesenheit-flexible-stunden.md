@@ -2,6 +2,7 @@
 created: 2026-06-09 12:39
 title: Auswertung durchschnittliche Anwesenheit bei flexiblen Stunden (ohne Urlaub)
 area: reporting
+resolves_phase: 22
 files:
   - service_impl/src/reporting.rs (bestehende Reporting-Logik)
   - service/src/ (ggf. neue Reporting-Methode - TBD)
