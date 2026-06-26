@@ -6,8 +6,14 @@
 //!  - `test_book_slot_warning_on_manual_unavailable` (BOOK-02 / D-Phase3-14 BookingOnUnavailableDay)
 //!  - `test_book_slot_no_warning_when_softdeleted_absence` (SC4 / Pitfall-1)
 //!  - `test_copy_week_aggregates_warnings`           (BOOK-02 / D-Phase3-02, D-Phase3-15: KEINE De-Dup)
-//!  - `test_book_slot_with_conflict_check_forbidden` (D-Phase3-12 HR ∨ self)
+//!  - `test_book_slot_with_conflict_check_forbidden` (D-24-04 Shiftplanner ∨ self)
 //!  - `test_copy_week_with_conflict_check_forbidden` (D-Phase3-12 — bulk-Op fordert shiftplan.edit)
+//!
+//! Phase 24 (D-24-02, D-24-04, D-24-08) neue Tests:
+//!  - `test_hard_block_non_shiftplanner_over_limit`   (toggle ON + non-SP over limit → PaidLimitExceeded)
+//!  - `test_hard_block_shiftplanner_bypasses`         (toggle ON + SP → Ok, no block)
+//!  - `test_soft_mode_over_limit_warns_not_blocks`    (toggle OFF → soft warning, no error)
+//!  - `test_hard_block_unpaid_never_blocked`          (toggle ON + unpaid person → Ok)
 //!
 //! Mock-DI-Setup analog `service_impl/src/test/booking.rs:113-192` und
 //! `service_impl/src/test/absence.rs:147-260`.
@@ -27,6 +33,7 @@ use service::{
     sales_person_unavailable::{MockSalesPersonUnavailableService, SalesPersonUnavailable},
     shiftplan_edit::ShiftplanEditService,
     slot::{MockSlotService, Slot},
+    toggle::MockToggleService,
     uuid_service::MockUuidService,
     warning::Warning,
     MockPermissionService, ServiceError,
@@ -153,6 +160,7 @@ pub(crate) struct ShiftplanEditDependencies {
     pub uuid_service: MockUuidService,
     pub transaction_dao: MockTransactionDao,
     pub absence_service: MockAbsenceService,
+    pub toggle_service: MockToggleService,
 }
 
 impl ShiftplanEditServiceDeps for ShiftplanEditDependencies {
@@ -170,6 +178,7 @@ impl ShiftplanEditServiceDeps for ShiftplanEditDependencies {
     type UuidService = MockUuidService;
     type TransactionDao = MockTransactionDao;
     type AbsenceService = MockAbsenceService;
+    type ToggleService = MockToggleService;
 }
 
 impl ShiftplanEditDependencies {
@@ -187,21 +196,23 @@ impl ShiftplanEditDependencies {
             uuid_service: self.uuid_service.into(),
             transaction_dao: self.transaction_dao.into(),
             absence_service: self.absence_service.into(),
+            toggle_service: self.toggle_service.into(),
         }
     }
 }
 
-/// `permission_grants_hr` ⇒ HR-Probe liefert Ok; sonst Forbidden.
+/// `permission_grants_shiftplanner` ⇒ Shiftplanner-Probe liefert Ok; sonst Forbidden.
+/// (D-24-04: gate wurde von HR auf Shiftplanner korrigiert.)
 /// `verify_grants_self` ⇒ verify_user_is_sales_person liefert Ok; sonst Forbidden.
 pub(crate) fn build_dependencies(
-    permission_grants_hr: bool,
+    permission_grants_shiftplanner: bool,
     verify_grants_self: bool,
 ) -> ShiftplanEditDependencies {
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
         .returning(move |_, _| {
-            if permission_grants_hr {
+            if permission_grants_shiftplanner {
                 Ok(())
             } else {
                 Err(ServiceError::Forbidden)
@@ -256,6 +267,16 @@ pub(crate) fn build_dependencies(
         .returning(|_| Ok(MockTransaction));
     transaction_dao.expect_commit().returning(|_| Ok(()));
 
+    // Default toggle: soft mode (false). Tests that exercise the hard-block must
+    // override via `.checkpoint()` + new `expect_is_enabled()`.
+    // Note: toggle is only called when slot.max_paid_employees is Some(_); the
+    // default `monday_slot()` has None, so tests without a slot limit do not trigger
+    // the toggle mock at all.
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_is_enabled()
+        .returning(|_, _, _| Ok(false)); // soft mode by default → existing tests unaffected
+
     ShiftplanEditDependencies {
         permission_service,
         slot_service,
@@ -269,6 +290,7 @@ pub(crate) fn build_dependencies(
         uuid_service: MockUuidService::new(),
         transaction_dao,
         absence_service,
+        toggle_service,
     }
 }
 
@@ -471,7 +493,8 @@ async fn test_copy_week_aggregates_warnings() {
 
 #[tokio::test]
 async fn test_book_slot_with_conflict_check_forbidden() {
-    // Beide Permission-Pfade liefern Forbidden → hr.or(sp) propagiert.
+    // D-24-04: gate ist nun Shiftplanner ∨ self. Beide Pfade liefern Forbidden.
+    // Ein non-shiftplanner non-self Akteur darf nicht buchen → Err(Forbidden).
     let deps = build_dependencies(false, false);
     let service = deps.build_service();
 
@@ -1126,3 +1149,424 @@ async fn booking_conflict_half_day_does_not_warn() {
     );
 }
 
+/// Regression (Phase 23 Browser-UAT): `modify_slot` MUSS `max_paid_employees`
+/// vom eingehenden Slot in den neu erzeugten (versionierten) Slot übernehmen.
+/// Vorher kopierte der Versionierungs-Pfad nur `min_resources`/`from`/`to`, so
+/// dass das im Slot-Editor gesetzte Paid-Limit beim Speichern bestehender Slots
+/// stillschweigend verloren ging (der neue Slot erbte `None` vom Vorgänger).
+#[tokio::test]
+async fn test_modify_slot_carries_max_paid_employees() {
+    let mut deps = build_dependencies(true, true);
+
+    // stored_slot (get_slot) = monday_slot(): version == default_version(),
+    // valid_from = 2024-01-01, max_paid_employees = None. Default-Mock liefert ihn.
+
+    // Der alte Slot wird auf valid_to = 2026-06-21 verkürzt → update_slot
+    // (nicht delete, da 2026-06-21 >= 2024-01-01).
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+
+    // Keine Buchungen im Änderungszeitraum.
+    deps.booking_service
+        .expect_get_for_slot_id_since()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<Booking>::new())));
+
+    // Kern der Assertion: der an create_slot übergebene NEUE Slot trägt das im
+    // Editor gesetzte Limit (Some(7)) sowie das geänderte min_resources (4).
+    deps.slot_service
+        .expect_create_slot()
+        .returning(|slot, _, _| {
+            assert_eq!(
+                slot.max_paid_employees,
+                Some(7),
+                "modify_slot muss max_paid_employees in den neuen Slot übernehmen"
+            );
+            assert_eq!(slot.min_resources, 4);
+            Ok(slot.clone())
+        });
+
+    let service = deps.build_service();
+
+    // Eingehender Slot: gleiche version wie stored (sonst EntityConflicts),
+    // mit gesetztem Paid-Limit und geändertem min_resources.
+    let input = Slot {
+        min_resources: 4,
+        max_paid_employees: Some(7),
+        ..monday_slot()
+    };
+
+    let result = service
+        .modify_slot(&input, 2026, 26, ().auth(), None)
+        .await
+        .expect("modify_slot should succeed");
+
+    assert_eq!(
+        result.max_paid_employees,
+        Some(7),
+        "der zurückgegebene neue Slot muss das gesetzte Paid-Limit tragen"
+    );
+}
+
+// ---------- Phase 24 (Plan 02): Hard-Enforcement Tests (D-24-02, D-24-04, D-24-08) ----------
+
+/// D-24-02 / D-24-08: toggle ON + non-shiftplanner + paid person over limit →
+/// Err(ServiceError::PaidLimitExceeded { current, max }). Keine Buchung persistiert.
+///
+/// Setup: max=2, 2 bestehende paid-Bookings → existing_paid=2; neue Buchung ist paid.
+/// prospective = 2 + 1 = 3 > max=2 → Block. toggle ON, non-shiftplanner (check_permission → Err).
+#[tokio::test]
+async fn test_hard_block_non_shiftplanner_over_limit() {
+    // non-shiftplanner (permission Err), non-self (verify Err) → gate fails unless we allow verify.
+    // Actually: we want the booking gate (Shiftplanner ∨ self) to PASS so we reach the guard.
+    // Use verify_grants_self=true so the self-path allows the booking, but check_permission=false
+    // so the shiftplanner bypass in the enforcement guard is NOT granted.
+    let mut deps = build_dependencies(false, true);
+
+    // Slot with limit max=2.
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    // Toggle: hard mode ON.
+    deps.toggle_service.checkpoint();
+    deps.toggle_service
+        .expect_is_enabled()
+        .returning(|_, _, _| Ok(true));
+
+    // 2 existing paid bookings pre-populate the slot/week.
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(17u8), eq(2026u32), always(), always())
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                existing_paid_booking(
+                    paid_sp_b_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000002"),
+                ),
+            ]))
+        });
+    // BookingService::create MUST NOT be called (block happens pre-persist).
+    // No expect_create() set → if called, mock will panic.
+
+    // get_all_paid: paid_sp_c is paid → booked_is_paid = true.
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+                paid_sales_person(paid_sp_c_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_c_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await;
+
+    match result {
+        Err(ServiceError::PaidLimitExceeded { current, max }) => {
+            assert_eq!(current, 3, "prospective count should be existing(2) + 1 = 3");
+            assert_eq!(max, 2);
+        }
+        other => panic!(
+            "expected PaidLimitExceeded, got {other:?}"
+        ),
+    }
+}
+
+/// D-24-02: toggle ON + actor IS shiftplanner → bypass; booking persists (Ok).
+/// Even when paid count would exceed limit, a shiftplanner is never blocked.
+///
+/// Setup: max=2, 2 existing paid bookings + paid_sp_c new. toggle ON.
+/// check_permission grants shiftplanner → is_shiftplanner=true → bypass → Ok + soft warning.
+#[tokio::test]
+async fn test_hard_block_shiftplanner_bypasses() {
+    // check_permission=true (shiftplanner granted), verify_grants_self=false.
+    let mut deps = build_dependencies(true, false);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    // Toggle: hard mode ON.
+    deps.toggle_service.checkpoint();
+    deps.toggle_service
+        .expect_is_enabled()
+        .returning(|_, _, _| Ok(true));
+
+    // BookingService::create IS called (shiftplanner bypasses block).
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    // Post-persist soft-warning count: 3 paid → warning fires (soft path still active).
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(17u8), eq(2026u32), always(), always())
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                existing_paid_booking(
+                    paid_sp_b_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000002"),
+                ),
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: paid_sp_c_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+                paid_sales_person(paid_sp_c_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_c_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("shiftplanner must bypass hard-block; booking should succeed");
+
+    assert_eq!(
+        result.booking.id,
+        default_booking_id(),
+        "shiftplanner bypass: booking must be persisted"
+    );
+    // Soft warning still fires for the shiftplanner overage case.
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "soft warning should still fire for shiftplanner over-limit; got {:?}",
+        result.warnings
+    );
+}
+
+/// D-24-01: toggle OFF (soft mode) → paid booking over limit persists + emits soft warning.
+/// This is the unchanged existing soft path; verified here explicitly for D-24-01 regression.
+///
+/// Setup: max=2, 2 existing paid + 1 new paid, toggle OFF. Should succeed with warning.
+#[tokio::test]
+async fn test_soft_mode_over_limit_warns_not_blocks() {
+    // non-shiftplanner, but self-booking allowed.
+    let mut deps = build_dependencies(false, true);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    // Toggle: soft mode (false). Default in build_dependencies is already false,
+    // but checkpoint + re-register explicitly for clarity.
+    deps.toggle_service.checkpoint();
+    deps.toggle_service
+        .expect_is_enabled()
+        .returning(|_, _, _| Ok(false));
+
+    // Booking persists in soft mode.
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(17u8), eq(2026u32), always(), always())
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                existing_paid_booking(
+                    paid_sp_b_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000002"),
+                ),
+                Booking {
+                    id: default_booking_id(),
+                    sales_person_id: paid_sp_c_id(),
+                    slot_id: default_slot_id(),
+                    calendar_week: 17,
+                    year: 2026,
+                    created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                    deleted: None,
+                    created_by: None,
+                    deleted_by: None,
+                    version: default_version(),
+                },
+            ]))
+        });
+
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+                paid_sales_person(paid_sp_c_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: paid_sp_c_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("soft mode must not block; booking should succeed");
+
+    // Soft warning fires (not blocked).
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "D-24-01: soft mode must emit PaidEmployeeLimitExceeded warning; got {:?}",
+        result.warnings
+    );
+    assert_eq!(
+        result.booking.id,
+        default_booking_id(),
+        "soft mode: booking must be persisted"
+    );
+}
+
+/// D-24-Grenzregel: toggle ON + non-shiftplanner + UNPAID person → never blocked.
+/// Unpaid persons do not count toward the paid limit.
+///
+/// Setup: max=2, 2 existing paid, new booking is UNPAID. prospective=2 (no change) → Ok.
+#[tokio::test]
+async fn test_hard_block_unpaid_never_blocked() {
+    // non-shiftplanner, self-booking allowed.
+    let mut deps = build_dependencies(false, true);
+
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(slot_with_paid_limit(2)));
+
+    // Toggle: hard mode ON.
+    deps.toggle_service.checkpoint();
+    deps.toggle_service
+        .expect_is_enabled()
+        .returning(|_, _, _| Ok(true));
+
+    // Booking persists — unpaid person does not count.
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_create()
+        .returning(|b, _, _| {
+            Ok(Booking {
+                id: default_booking_id(),
+                version: default_version(),
+                created: Some(datetime!(2026 - 04 - 20 00:00:00)),
+                ..b.clone()
+            })
+        });
+    // Pre-persist count: 2 paid existing; new (unpaid) not in list.
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(17u8), eq(2026u32), always(), always())
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![
+                existing_paid_booking(
+                    paid_sp_a_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000001"),
+                ),
+                existing_paid_booking(
+                    paid_sp_b_id(),
+                    uuid!("CCCCCCCC-0000-0000-0000-000000000002"),
+                ),
+            ]))
+        });
+
+    // get_all_paid does NOT include unpaid_sp_id → booked_is_paid = false → no block.
+    // Called once by pre-persist guard; once again by post-persist soft-warning.
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                paid_sales_person(paid_sp_a_id()),
+                paid_sales_person(paid_sp_b_id()),
+            ]))
+        });
+
+    let booking_to_create = Booking {
+        sales_person_id: unpaid_sp_id(),
+        ..default_booking()
+    };
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&booking_to_create, ().auth(), None)
+        .await
+        .expect("unpaid person must never be blocked; booking should succeed");
+
+    assert_eq!(
+        result.booking.id,
+        default_booking_id(),
+        "unpaid booking must be persisted even when slot is at paid limit"
+    );
+    // No PaidEmployeeLimitExceeded warning (unpaid doesn't count; post-persist count = 2 = max, not > max).
+    assert!(
+        !result
+            .warnings
+            .iter()
+            .any(|w| matches!(w, Warning::PaidEmployeeLimitExceeded { .. })),
+        "D-24-Grenzregel: unpaid booking MUST NOT trigger PaidLimitExceeded warning; got {:?}",
+        result.warnings
+    );
+}

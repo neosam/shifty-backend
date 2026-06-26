@@ -22,7 +22,7 @@ pub enum SlotEditAction {
     SaveSlot,
     Cancel,
     DeleteSlot(Uuid, u32, u8),
-    LoadSlot(Uuid, u32, u8),
+    LoadSlot(Uuid, u32, u8, u8),
 }
 
 pub fn trigger_shiftplan_refresh() {
@@ -39,6 +39,7 @@ pub fn new_slot_edit(year: u32, week: u8, shiftplan_id: Option<Uuid>) -> Result<
     store.week = week;
     store.visible = true;
     store.has_errors = false;
+    store.current_paid_count = 0;
     Ok(())
 }
 
@@ -84,7 +85,12 @@ pub async fn delete_slot_edit(id: Uuid, year: u32, week: u8) -> Result<(), Shift
     Ok(())
 }
 
-pub async fn load_slot_edit(slot_id: Uuid, year: u32, week: u8) -> Result<(), ShiftyError> {
+pub async fn load_slot_edit(
+    slot_id: Uuid,
+    year: u32,
+    week: u8,
+    current_paid_count: u8,
+) -> Result<(), ShiftyError> {
     let slot = loader::load_slot(CONFIG.read().clone(), slot_id).await?;
     let mut store = SLOT_EDIT_STORE.write();
     store.slot_edit_type = SlotEditType::Edit;
@@ -93,6 +99,7 @@ pub async fn load_slot_edit(slot_id: Uuid, year: u32, week: u8) -> Result<(), Sh
     store.week = week;
     store.visible = true;
     store.has_errors = false;
+    store.current_paid_count = current_paid_count;
     Ok(())
 }
 
@@ -106,7 +113,9 @@ pub async fn slot_edit_service(mut rx: UnboundedReceiver<SlotEditAction>) {
             SlotEditAction::SaveSlot => save_slot_edit().await,
             SlotEditAction::Cancel => cancel_slot_edit().await,
             SlotEditAction::DeleteSlot(id, year, week) => delete_slot_edit(id, year, week).await,
-            SlotEditAction::LoadSlot(id, year, week) => load_slot_edit(id, year, week).await,
+            SlotEditAction::LoadSlot(id, year, week, count) => {
+                load_slot_edit(id, year, week, count).await
+            }
         } {
             Ok(_) => {}
             Err(err) => {

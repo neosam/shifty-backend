@@ -907,6 +907,15 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Paid employee limit exceeded ({current}/{max}).",
     );
 
+    // Phase 23 — Slot paid-capacity editor (FUI-02).
+    i18n.add_text(Locale::En, Key::MaxPaidEmployeesLabel, "Max paid employees");
+    i18n.add_text(Locale::En, Key::MaxPaidEmployeesHint, "Empty = no limit");
+    i18n.add_text(
+        Locale::En,
+        Key::MaxPaidEmployeesOverageHint,
+        "Currently {current} paid ({limit} allowed)",
+    );
+
     // Quick-260613-jxe — Year navigation on the Absences page.
     i18n.add_text(Locale::En, Key::AbsenceYearNavPrev, "Previous year");
     i18n.add_text(Locale::En, Key::AbsenceYearNavNext, "Next year");
@@ -919,4 +928,43 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Average worked hours per week",
     );
     i18n.add_text(Locale::En, Key::StatisticsIncludedWeeks, "Included weeks");
+
+    // Phase 24 — Paid-limit enforcement config (D-24-06, D-24-03, D-24-05).
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPaidLimitToggleLabel,
+        "Paid employee limit enforcement",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPaidLimitToggleDescription,
+        "When enabled, booking over the paid limit is blocked for non-shift-planners.",
+    );
+    i18n.add_text(Locale::En, Key::SettingsPaidLimitToggleOn, "Hard (enforced)");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPaidLimitToggleOff,
+        "Soft (warnings only)",
+    );
+    i18n.add_text(Locale::En, Key::SettingsSaved, "Saved.");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSaveError,
+        "Could not save setting.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanPaidOverageSectionHeader,
+        "Paid employee limit exceeded this week",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ShiftplanPaidOverageRow,
+        "{slot}: {current}/{max} paid",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::BookingBlockedPaidLimit,
+        "Paid employee limit reached — only shift planners may book beyond the limit.",
+    );
 }

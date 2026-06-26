@@ -93,6 +93,11 @@ pub struct SlotEdit {
     pub year: u32,
     pub week: u8,
     pub has_errors: bool,
+    /// Display-only live count of paid bookings for this slot's view-week.
+    /// Threaded in by the page closure so the editor can show a non-blocking
+    /// overage banner (D-23-02). NEVER written back — not part of the
+    /// `SlotEditItem` server payload (Pitfall 2).
+    pub current_paid_count: u8,
 }
 impl SlotEdit {
     pub fn new_edit() -> Self {
@@ -103,6 +108,7 @@ impl SlotEdit {
             year: 0,
             week: 0,
             has_errors: false,
+            current_paid_count: 0,
         }
     }
 }

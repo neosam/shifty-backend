@@ -28,6 +28,7 @@ pub(crate) struct NavVisibility {
     pub billing_periods: bool,
     pub user_management: bool,
     pub templates: bool,
+    pub settings: bool,
 }
 
 pub(crate) fn nav_visibility(
@@ -53,6 +54,7 @@ pub(crate) fn nav_visibility(
         billing_periods: show_reports,
         user_management: has("admin"),
         templates: has("admin"),
+        settings: has("admin"),
     }
 }
 
@@ -67,6 +69,7 @@ pub(crate) enum NavTarget {
     BillingPeriods,
     UserManagement,
     Templates,
+    Settings,
 }
 
 pub(crate) fn is_active_for(target: NavTarget, route: &Route) -> bool {
@@ -92,6 +95,7 @@ pub(crate) fn is_active_for(target: NavTarget, route: &Route) -> bool {
                 | Route::SalesPersonDetails { .. }
         ),
         NavTarget::Templates => matches!(route, Route::TextTemplateManagement {}),
+        NavTarget::Settings => matches!(route, Route::Settings {}),
     }
 }
 
@@ -124,6 +128,7 @@ pub(crate) fn is_admin_target(target: NavTarget) -> bool {
             | NavTarget::BillingPeriods
             | NavTarget::UserManagement
             | NavTarget::Templates
+            | NavTarget::Settings
     )
 }
 
@@ -431,6 +436,13 @@ fn TopBarRouted() -> Element {
                 NavTarget::Templates,
                 Route::TextTemplateManagement {},
                 i18n.t(Key::TextTemplateManagement).to_string(),
+            ));
+        }
+        if visibility.settings {
+            items.push((
+                NavTarget::Settings,
+                Route::Settings {},
+                i18n.t(Key::Settings).to_string(),
             ));
         }
         items
@@ -778,8 +790,16 @@ mod tests {
         let v = nav_visibility(Some(&auth), false, true);
         assert!(v.user_management);
         assert!(v.templates);
+        assert!(v.settings, "admin should see Settings nav entry");
         assert!(!v.shiftplan);
         assert!(!v.employees);
+    }
+
+    #[test]
+    fn nav_visibility_non_admin_hides_settings() {
+        let auth = auth_with(&["sales", "hr"]);
+        let v = nav_visibility(Some(&auth), true, true);
+        assert!(!v.settings, "non-admin should not see Settings nav entry");
     }
 
     #[test]
@@ -999,6 +1019,7 @@ mod tests {
             NavTarget::BillingPeriods => Route::BillingPeriods {},
             NavTarget::UserManagement => Route::UserManagementPage {},
             NavTarget::Templates => Route::TextTemplateManagement {},
+            NavTarget::Settings => Route::Settings {},
         };
         (target, route, label.to_string())
     }
@@ -1149,6 +1170,9 @@ mod tests {
         if v.templates {
             items.push(nav_entry(NavTarget::Templates, "Textvorlagen"));
         }
+        if v.settings {
+            items.push(nav_entry(NavTarget::Settings, "Einstellungen"));
+        }
         items
     }
 
@@ -1198,9 +1222,11 @@ mod tests {
                 "Abrechnungszeiträume",
                 "Benutzerverwaltung",
                 "Textvorlagen",
+                "Einstellungen",
             ],
             "Plan 08-07 Task 4: HR sees Absences as the FIRST admin-group \
-             entry, followed by the four classic admin items in declaration order."
+             entry, followed by the four classic admin items in declaration order; \
+             Phase 24 D-24-06 adds Settings at the end."
         );
     }
 

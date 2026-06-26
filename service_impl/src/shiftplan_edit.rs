@@ -8,12 +8,13 @@ use service::{
     carryover::{Carryover, CarryoverService},
     employee_work_details::EmployeeWorkDetailsService,
     extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursService},
-    permission::{Authentication, HR_PRIVILEGE},
+    permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
     reporting::ReportingService,
     sales_person::SalesPersonService,
     sales_person_unavailable::{SalesPersonUnavailable, SalesPersonUnavailableService},
     shiftplan_edit::{BookingCreateResult, CopyWeekResult, ShiftplanEditService},
     slot::{Slot, SlotService},
+    toggle::ToggleService,
     warning::Warning,
     PermissionService, ServiceError,
 };
@@ -36,7 +37,9 @@ gen_service_impl! {
         UuidService: service::uuid_service::UuidService = uuid_service,
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao,
         // NEU für Phase 3 (D-Phase3-06): Reverse-Warning konsumiert AbsenceService
-        AbsenceService: service::absence::AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service
+        AbsenceService: service::absence::AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service,
+        // D-24-08: ToggleService für paid_limit_hard_enforcement-Prüfung
+        ToggleService: service::toggle::ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service
     }
 }
 
@@ -104,17 +107,14 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         new_slot.id = Uuid::nil();
         new_slot.version = Uuid::nil();
         new_slot.min_resources = slot.min_resources;
+        new_slot.max_paid_employees = slot.max_paid_employees;
         new_slot.from = slot.from;
         new_slot.to = slot.to;
-
-        dbg!(&new_slot);
 
         let new_slot = self
             .slot_service
             .create_slot(&new_slot, Authentication::Full, tx.clone().into())
             .await?;
-
-        dbg!(&new_slot);
 
         for booking in bookings.iter() {
             self.booking_service
@@ -407,23 +407,71 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
     ) -> Result<BookingCreateResult, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
 
-        // Permission HR ∨ self (Pattern S2 / D-Phase3-12).
-        let (hr, sp) = join!(
+        // Permission Shiftplanner ∨ self (D-24-04): gate korrigiert von HR → Shiftplanner.
+        // Shiftplanner darf andere Personen buchen; ein Mitarbeiter trägt sich selbst ein.
+        // Admin behält Zugriff via admin-auto-grant-Trigger (alle Privilegien).
+        let (sp_perm, self_perm) = join!(
             self.permission_service
-                .check_permission(HR_PRIVILEGE, context.clone()),
+                .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone()),
             self.sales_person_service.verify_user_is_sales_person(
                 booking.sales_person_id,
                 context.clone(),
                 tx.clone().into(),
             ),
         );
-        hr.or(sp)?;
+        // WR-01: Capture is_shiftplanner from the already-computed sp_perm result before
+        // consuming it with .or(). This avoids the redundant second check_permission call
+        // inside the enforcement guard below.
+        let is_shiftplanner = sp_perm.is_ok();
+        sp_perm.or(self_perm)?;
 
         // Slot-Lookup für day_of_week (Pattern aus modify_slot).
         let slot = self
             .slot_service
             .get_slot(&booking.slot_id, Authentication::Full, tx.clone().into())
             .await?;
+
+        // D-24-02/D-24-08: hard-enforcement pre-persist block. Toggle wird pro Buchung
+        // frisch gelesen (is_enabled ist auth-only → Authentication::Full, konsistent
+        // mit den anderen inneren Cross-Service-Lookups in dieser Methode).
+        // Nur bezahlte Personen zählen (D-24-Grenzregel, strikt-größer wie Soft-Warning).
+        // Shiftplanner bypassen (D-24-02). Existing Bookings werden NIE rückwirkend
+        // angefasst (D-07 / D-24).
+        if let Some(max) = slot.max_paid_employees {
+            let hard = self
+                .toggle_service
+                .is_enabled(
+                    "paid_limit_hard_enforcement",
+                    Authentication::Full,
+                    tx.clone().into(),
+                )
+                .await?;
+            if hard && !is_shiftplanner {
+                // Zähle bereits persistierte paid-Bookings in (slot_id, year, week).
+                // Das neue Booking ist noch nicht persistiert, daher ist dies der
+                // pre-persist-Count. Block wenn (existing + this_if_paid) > max.
+                // CR-02: Reuse the paid_ids from the same fetch to determine
+                // booked_is_paid, avoiding a second get_all_paid DAO round-trip.
+                let (existing_paid, paid_ids) = self
+                    .count_paid_bookings_in_slot_week(
+                        booking.slot_id,
+                        booking.year,
+                        booking.calendar_week as u8,
+                        tx.clone(),
+                    )
+                    .await?;
+                let booked_is_paid = paid_ids.contains(&booking.sales_person_id);
+                let prospective =
+                    if booked_is_paid { existing_paid.saturating_add(1) } else { existing_paid };
+                // Strikt-größer, deckungsgleich mit Soft-Warning (current > max).
+                if prospective > max {
+                    return Err(ServiceError::PaidLimitExceeded {
+                        current: prospective,
+                        max,
+                    });
+                }
+            }
+        }
 
         // Date-Konversion: Booking trägt nur (year, calendar_week, slot_id);
         // wir resolven den exakten Tag via Slot.day_of_week.
@@ -530,7 +578,9 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         // Cast: `booking.calendar_week` ist `i32`; mirroring der existierenden
         // `as u8`-Konvention (siehe BookingOnUnavailableDay-Emission oben).
         if let Some(max) = slot.max_paid_employees {
-            let current_paid_count = self
+            // CR-02: destructure; the paid_ids set is not needed for the soft-warning
+            // path (we only need the count post-persist), so we discard it.
+            let (current_paid_count, _paid_ids) = self
                 .count_paid_bookings_in_slot_week(
                     booking.slot_id,
                     booking.year,
@@ -642,17 +692,20 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditServiceImpl<Deps> {
     ///
     /// Verwendet `Authentication::Full` für die inneren Cross-Service-
     /// Lookups — die Permission des äußeren Aufrufers wurde bereits in
-    /// `book_slot_with_conflict_check` validiert (HR ∨ self).
+    /// `book_slot_with_conflict_check` validiert (Shiftplanner ∨ self, D-24-04).
     ///
     /// Saturating-Cast `count.min(u8::MAX as usize) as u8` analog zu
     /// Plan 05-04's `current_paid_count`-Derivation in `build_shiftplan_day`.
+    ///
+    /// CR-02: Returns `(count, paid_ids)` so callers can determine `booked_is_paid`
+    /// from the same `get_all_paid` fetch, avoiding a redundant DAO round-trip.
     async fn count_paid_bookings_in_slot_week(
         &self,
         slot_id: Uuid,
         year: u32,
         week: u8,
         tx: Deps::Transaction,
-    ) -> Result<u8, ServiceError> {
+    ) -> Result<(u8, std::collections::HashSet<Uuid>), ServiceError> {
         let bookings = self
             .booking_service
             .get_for_week(week, year, Authentication::Full, Some(tx.clone()))
@@ -668,6 +721,6 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditServiceImpl<Deps> {
             .filter(|b| b.slot_id == slot_id && b.deleted.is_none())
             .filter(|b| paid_ids.contains(&b.sales_person_id))
             .count();
-        Ok(count.min(u8::MAX as usize) as u8)
+        Ok((count.min(u8::MAX as usize) as u8, paid_ids))
     }
 }

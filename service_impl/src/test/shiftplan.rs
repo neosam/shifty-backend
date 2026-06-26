@@ -12,7 +12,7 @@ use service::{
     special_days::{MockSpecialDayService, SpecialDay, SpecialDayType},
 };
 use shifty_utils::DayOfWeek;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use time::{Date, Month, Time};
 use uuid::{uuid, Uuid};
@@ -115,6 +115,13 @@ pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
     let mut sales_person_service = MockSalesPersonService::new();
     sales_person_service
         .expect_get_all()
+        .returning(|_, _| Ok(Arc::new([default_sales_person()])));
+    // D-24-03 fix: get_all_paid is called with Authentication::Full in all
+    // shiftplan view service methods to obtain the ungated paid-person set.
+    // Default: return the default_sales_person (who is paid) so tests that
+    // don't override this still behave consistently.
+    sales_person_service
+        .expect_get_all_paid()
         .returning(|_, _| Ok(Arc::new([default_sales_person()])));
     // Phase-3: verify_user_is_sales_person läuft per `tokio::join!` parallel
     // zur HR-Probe — Default Forbidden, Tests die HR ∨ self prüfen müssen
@@ -349,6 +356,12 @@ fn test_build_shiftplan_day_filters_by_day_and_assigns_bookings() {
     let bookings = vec![booking];
     let sales_persons = vec![sp];
 
+    let paid_ids: HashSet<Uuid> = sales_persons
+        .iter()
+        .filter(|sp| sp.is_paid.unwrap_or(false))
+        .map(|sp| sp.id)
+        .collect();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &slots,
@@ -356,6 +369,7 @@ fn test_build_shiftplan_day_filters_by_day_and_assigns_bookings() {
         &sales_persons,
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -381,6 +395,8 @@ fn test_build_shiftplan_day_excludes_all_on_holiday() {
         version: Uuid::new_v4(),
     };
 
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -388,6 +404,7 @@ fn test_build_shiftplan_day_excludes_all_on_holiday() {
         &[sp],
         &[holiday],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -411,6 +428,8 @@ fn test_build_shiftplan_day_filters_short_day() {
         version: Uuid::new_v4(),
     };
 
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[early_slot.clone(), late_slot],
@@ -418,6 +437,7 @@ fn test_build_shiftplan_day_filters_short_day() {
         &[sp],
         &[short_day],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -434,6 +454,8 @@ fn test_build_shiftplan_day_self_added_with_assignments() {
     let mut assignments = HashMap::new();
     assignments.insert(sp.id, Arc::<str>::from("user1"));
 
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -441,6 +463,7 @@ fn test_build_shiftplan_day_self_added_with_assignments() {
         &[sp],
         &[],
         Some(&assignments),
+        &paid_ids,
     )
     .unwrap();
 
@@ -453,6 +476,8 @@ fn test_build_shiftplan_day_self_added_none_without_assignments() {
     let sp = default_sales_person();
     let booking = default_booking(slot.id, sp.id);
 
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -460,6 +485,7 @@ fn test_build_shiftplan_day_self_added_none_without_assignments() {
         &[sp],
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -472,6 +498,8 @@ fn test_build_shiftplan_day_sorts_slots_by_from_time() {
     let early_slot = slot_with_day_and_time(DayOfWeek::Monday, 8, 12);
     let sp = default_sales_person();
 
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[late_slot.clone(), early_slot.clone()],
@@ -479,6 +507,7 @@ fn test_build_shiftplan_day_sorts_slots_by_from_time() {
         &[sp],
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -525,6 +554,9 @@ fn test_shiftplan_week_emits_current_paid_count_zero_when_no_paid() {
     let booking_a = default_booking(slot.id, sp_a.id);
     let booking_b = default_booking(slot.id, sp_b.id);
 
+    // No one is paid — empty set.
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -532,6 +564,7 @@ fn test_shiftplan_week_emits_current_paid_count_zero_when_no_paid() {
         &[sp_a, sp_b],
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -551,6 +584,8 @@ fn test_shiftplan_week_emits_current_paid_count_mixed() {
     let booking_paid_b = default_booking(slot.id, paid_b.id);
     let booking_unpaid = default_booking(slot.id, unpaid.id);
 
+    let paid_ids: HashSet<Uuid> = [paid_a.id, paid_b.id].into_iter().collect();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -558,6 +593,7 @@ fn test_shiftplan_week_emits_current_paid_count_mixed() {
         &[paid_a, paid_b, unpaid],
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -578,6 +614,8 @@ fn test_shiftplan_week_emits_current_paid_count_with_no_limit() {
     let paid = paid_sales_person(Uuid::new_v4(), "Paid");
     let booking = default_booking(slot.id, paid.id);
 
+    let paid_ids: HashSet<Uuid> = [paid.id].into_iter().collect();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -585,6 +623,7 @@ fn test_shiftplan_week_emits_current_paid_count_with_no_limit() {
         &[paid],
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -624,6 +663,8 @@ fn test_shiftplan_week_paid_in_absence_still_counts() {
         day_fraction: DayFraction::Full,
     };
 
+    let paid_ids: HashSet<Uuid> = [paid.id].into_iter().collect();
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[slot],
@@ -631,6 +672,7 @@ fn test_shiftplan_week_paid_in_absence_still_counts() {
         &[paid],
         &[],
         None,
+        &paid_ids,
     )
     .unwrap();
 
@@ -988,4 +1030,147 @@ async fn test_get_shiftplan_week_for_sales_person_forbidden() {
         )
         .await;
     test_forbidden(&result);
+}
+
+/// Regression test for D-24-03: a non-HR caller sees `is_paid = None` on all
+/// SalesPerson records returned by `get_all`, but `current_paid_count` must
+/// still be > 0 because the service fetches the paid-person set via the
+/// ungated `get_all_paid(Authentication::Full, ...)`.
+///
+/// **Fails against old code** (where count used `sb.sales_person.is_paid` →
+/// always 0 for non-HR). **Passes with the fix** (count uses
+/// `paid_sales_person_ids.contains(id)` from `get_all_paid`).
+#[tokio::test]
+async fn test_current_paid_count_correct_for_non_hr_caller() {
+    // Slot with max_paid_employees configured so the paid-cap path is
+    // clearly exercised.
+    let slot_id = uuid!("AAAAAAAA-0000-0000-0000-000000000001");
+    let paid_sp_id = uuid!("BBBBBBBB-0000-0000-0000-000000000001");
+    let unpaid_sp_id = uuid!("CCCCCCCC-0000-0000-0000-000000000001");
+
+    let slot = Slot {
+        id: slot_id,
+        day_of_week: DayOfWeek::Monday,
+        from: time::Time::from_hms(9, 0, 0).unwrap(),
+        to: time::Time::from_hms(17, 0, 0).unwrap(),
+        min_resources: 1,
+        max_paid_employees: Some(1),
+        valid_from: Date::from_calendar_date(2024, Month::January, 1).unwrap(),
+        valid_to: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+        shiftplan_id: None,
+    };
+
+    // The paid sales person — as returned by `get_all` for a NON-HR caller
+    // `is_paid` is scrubbed to None.
+    let paid_sp_gated = SalesPerson {
+        id: paid_sp_id,
+        name: "Paid Person".into(),
+        background_color: "#0000FF".into(),
+        is_paid: None, // scrubbed — simulates non-HR response
+        inactive: false,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    // The unpaid sales person — also has is_paid: None for non-HR callers.
+    let unpaid_sp_gated = SalesPerson {
+        id: unpaid_sp_id,
+        name: "Unpaid Person".into(),
+        background_color: "#00FF00".into(),
+        is_paid: None, // scrubbed
+        inactive: false,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    // What `get_all_paid` returns via Authentication::Full — only the truly
+    // paid person, with is_paid visible (ungated path).
+    let paid_sp_ungated = SalesPerson {
+        is_paid: Some(true),
+        ..paid_sp_gated.clone()
+    };
+
+    // Two bookings: one paid (paid_sp_id), one unpaid (unpaid_sp_id).
+    let booking_paid = Booking {
+        id: uuid!("DDDDDDDD-0000-0000-0000-000000000001"),
+        sales_person_id: paid_sp_id,
+        slot_id,
+        calendar_week: 3,
+        year: 2024,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::new_v4(),
+    };
+    let booking_unpaid = Booking {
+        id: uuid!("DDDDDDDD-0000-0000-0000-000000000002"),
+        sales_person_id: unpaid_sp_id,
+        slot_id,
+        calendar_week: 3,
+        year: 2024,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::new_v4(),
+    };
+
+    let mut deps = build_dependencies();
+
+    // Slot service returns our slot.
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slots_for_week()
+        .returning(move |_, _, _, _, _| Ok(Arc::new([slot.clone()])));
+
+    // Booking service returns both bookings.
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(move |_, _, _, _| Ok(Arc::new([booking_paid.clone(), booking_unpaid.clone()])));
+
+    // Simulated non-HR get_all: is_paid is scrubbed (None) on both persons.
+    deps.sales_person_service.checkpoint();
+    deps.sales_person_service
+        .expect_get_all()
+        .returning(move |_, _| {
+            Ok(Arc::new([paid_sp_gated.clone(), unpaid_sp_gated.clone()]))
+        });
+    // get_all_paid via Authentication::Full returns only the actually-paid
+    // person, with is_paid visible.
+    deps.sales_person_service
+        .expect_get_all_paid()
+        .returning(move |_, _| Ok(Arc::new([paid_sp_ungated.clone()])));
+    deps.sales_person_service
+        .expect_get_all_user_assignments()
+        .returning(|_, _| Ok(HashMap::new()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Err(service::ServiceError::Forbidden));
+
+    let service = deps.build_service();
+    let result = service
+        .get_shiftplan_week(Uuid::nil(), 2024, 3, ().auth(), None)
+        .await
+        .expect("get_shiftplan_week should succeed");
+
+    let monday = &result.days[0];
+    assert_eq!(monday.day_of_week, DayOfWeek::Monday);
+    assert_eq!(monday.slots.len(), 1, "expected one slot on Monday");
+
+    let slot_view = &monday.slots[0];
+    assert_eq!(
+        slot_view.bookings.len(),
+        2,
+        "expected two bookings in the slot"
+    );
+
+    // D-24-03 regression: even though get_all returned is_paid=None for both
+    // persons, current_paid_count must equal 1 (the one truly paid booking).
+    assert_eq!(
+        slot_view.current_paid_count, 1,
+        "D-24-03 regression: current_paid_count should be 1 for a non-HR caller \
+         with 1 paid booking, but got {}",
+        slot_view.current_paid_count
+    );
 }

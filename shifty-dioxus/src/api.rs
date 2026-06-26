@@ -1571,3 +1571,26 @@ mod normalize_backend_tests {
     }
 }
 
+// ─── Toggle REST client (Phase 24 D-24-06) ───────────────────────────────────
+
+/// PUT /toggle/{name}/enable or /disable
+pub async fn set_toggle(
+    config: Config,
+    name: &str,
+    enabled: bool,
+) -> Result<(), reqwest::Error> {
+    let verb = if enabled { "enable" } else { "disable" };
+    let url = format!("{}/toggle/{}/{}", config.backend, name, verb);
+    let client = reqwest::Client::new();
+    client.put(url).send().await?.error_for_status()?;
+    Ok(())
+}
+
+/// GET /toggle/{name}/enabled → bool
+pub async fn get_toggle_enabled(config: Config, name: &str) -> Result<bool, reqwest::Error> {
+    let url = format!("{}/toggle/{}/enabled", config.backend, name);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    Ok(response.json().await?)
+}
+

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -31,6 +31,7 @@ pub(crate) fn build_shiftplan_day(
     sales_persons: &[SalesPerson],
     special_days: &[SpecialDay],
     user_assignments: Option<&HashMap<Uuid, Arc<str>>>,
+    paid_sales_person_ids: &HashSet<Uuid>,
 ) -> Result<ShiftplanDay, ServiceError> {
     // Check if this day is a holiday
     let is_holiday = special_days.iter().any(|sd| {
@@ -94,9 +95,10 @@ pub(crate) fn build_shiftplan_day(
                 })
                 .collect::<Result<Vec<_>, ServiceError>>()?;
 
-            // Phase 5 (D-04, D-05, D-09): count bookings whose
-            // `sales_person.is_paid == true`. Soft-deleted bookings are
-            // already filtered upstream by booking_dao
+            // Phase 5 (D-04, D-05, D-09): count bookings whose sales person
+            // is paid, using the ungated `paid_sales_person_ids` set so the
+            // count is correct for non-HR callers too (D-24-03 fix). Soft-
+            // deleted bookings are already filtered upstream by booking_dao
             // (`WHERE deleted IS NULL`); soft-deleted sales_persons are
             // already filtered upstream by SalesPersonService. Absence
             // status of the booked person is irrelevant (D-05) — anyone
@@ -104,7 +106,7 @@ pub(crate) fn build_shiftplan_day(
             // `slot.max_paid_employees` is configured (D-09).
             let current_paid_count: u8 = slot_bookings
                 .iter()
-                .filter(|sb| sb.sales_person.is_paid.unwrap_or(false))
+                .filter(|sb| paid_sales_person_ids.contains(&sb.booking.sales_person_id))
                 .count()
                 .min(u8::MAX as usize) as u8;
 
@@ -150,6 +152,7 @@ pub(crate) fn build_shiftplan_day_for_sales_person(
     sales_persons: &[SalesPerson],
     special_days: &[SpecialDay],
     user_assignments: Option<&HashMap<Uuid, Arc<str>>>,
+    paid_sales_person_ids: &HashSet<Uuid>,
     sales_person_id: Uuid,
     absence_periods: &[AbsencePeriod],
     manual_unavailables: &[SalesPersonUnavailable],
@@ -161,6 +164,7 @@ pub(crate) fn build_shiftplan_day_for_sales_person(
         sales_persons,
         special_days,
         user_assignments,
+        paid_sales_person_ids,
     )?;
 
     let absence_match = absence_periods.iter().find(|ap| {
@@ -244,6 +248,16 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_all(context.clone(), Some(tx.clone()))
             .await?;
 
+        // Fetch paid-person IDs via ungated Authentication::Full so that
+        // current_paid_count is correct even for non-HR callers (D-24-03).
+        let paid_sales_person_ids: HashSet<Uuid> = self
+            .sales_person_service
+            .get_all_paid(Authentication::Full, Some(tx.clone()))
+            .await?
+            .iter()
+            .map(|sp| sp.id)
+            .collect();
+
         let user_assignments = if self
             .permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
@@ -277,6 +291,7 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 &sales_persons,
                 &special_days,
                 user_assignments.as_ref(),
+                &paid_sales_person_ids,
             )?);
         }
 
@@ -318,6 +333,16 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_all(context.clone(), Some(tx.clone()))
             .await?;
 
+        // Fetch paid-person IDs via ungated Authentication::Full so that
+        // current_paid_count is correct even for non-HR callers (D-24-03).
+        let paid_sales_person_ids: HashSet<Uuid> = self
+            .sales_person_service
+            .get_all_paid(Authentication::Full, Some(tx.clone()))
+            .await?
+            .iter()
+            .map(|sp| sp.id)
+            .collect();
+
         let user_assignments = if self
             .permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
@@ -354,6 +379,7 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 &sales_persons,
                 &special_days,
                 user_assignments.as_ref(),
+                &paid_sales_person_ids,
             )?;
 
             plans.push(PlanDayView {
@@ -435,6 +461,16 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_all(context.clone(), Some(tx.clone()))
             .await?;
 
+        // Fetch paid-person IDs via ungated Authentication::Full so that
+        // current_paid_count is correct even for non-HR callers (D-24-03).
+        let paid_sales_person_ids: HashSet<Uuid> = self
+            .sales_person_service
+            .get_all_paid(Authentication::Full, Some(tx.clone()))
+            .await?
+            .iter()
+            .map(|sp| sp.id)
+            .collect();
+
         let user_assignments = if self
             .permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
@@ -471,6 +507,7 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 &sales_persons,
                 &special_days,
                 user_assignments.as_ref(),
+                &paid_sales_person_ids,
                 sales_person_id,
                 &absence_periods,
                 &manual_unavailables,
@@ -545,6 +582,16 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_all(context.clone(), Some(tx.clone()))
             .await?;
 
+        // Fetch paid-person IDs via ungated Authentication::Full so that
+        // current_paid_count is correct even for non-HR callers (D-24-03).
+        let paid_sales_person_ids: HashSet<Uuid> = self
+            .sales_person_service
+            .get_all_paid(Authentication::Full, Some(tx.clone()))
+            .await?
+            .iter()
+            .map(|sp| sp.id)
+            .collect();
+
         let user_assignments = if self
             .permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context.clone())
@@ -580,6 +627,7 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 &sales_persons,
                 &special_days,
                 user_assignments.as_ref(),
+                &paid_sales_person_ids,
                 sales_person_id,
                 &absence_periods,
                 &manual_unavailables,

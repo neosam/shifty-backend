@@ -968,6 +968,19 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Překročen limit placených zaměstnanců ({current}/{max}).",
     );
 
+    // Phase 23 — Editor kapacity slotu (FUI-02).
+    i18n.add_text(
+        Locale::Cs,
+        Key::MaxPaidEmployeesLabel,
+        "Max. placených zaměstnanců",
+    );
+    i18n.add_text(Locale::Cs, Key::MaxPaidEmployeesHint, "Prázdné = bez limitu");
+    i18n.add_text(
+        Locale::Cs,
+        Key::MaxPaidEmployeesOverageHint,
+        "Aktuálně {current} placených (limit: {limit})",
+    );
+
     // Quick-260613-jxe — Navigace rokem na stránce nepřítomností.
     i18n.add_text(Locale::Cs, Key::AbsenceYearNavPrev, "Předchozí rok");
     i18n.add_text(Locale::Cs, Key::AbsenceYearNavNext, "Další rok");
@@ -980,4 +993,47 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Průměrně odpracované hodiny za týden",
     );
     i18n.add_text(Locale::Cs, Key::StatisticsIncludedWeeks, "Započítané týdny");
+
+    // Phase 24 — Konfigurace vynucení limitu placených (D-24-06, D-24-03, D-24-05).
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPaidLimitToggleLabel,
+        "Vynucení limitu placených zaměstnanců",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPaidLimitToggleDescription,
+        "Pokud je aktivováno, překročení limitu placených zaměstnanců je blokováno pro uživatele bez oprávnění schichtplannera.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPaidLimitToggleOn,
+        "Tvrdé (blokující)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPaidLimitToggleOff,
+        "Měkké (pouze upozornění)",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsSaved, "Uloženo.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSaveError,
+        "Nastavení se nepodařilo uložit.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanPaidOverageSectionHeader,
+        "Limit placených zaměstnanců tento týden překročen",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanPaidOverageRow,
+        "{slot}: {current}/{max} placených",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::BookingBlockedPaidLimit,
+        "Limit placených zaměstnanců dosažen — překročit ho mohou pouze schichtplanneři.",
+    );
 }

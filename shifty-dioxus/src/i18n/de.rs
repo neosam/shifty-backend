@@ -982,6 +982,19 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Bezahlt-Limit überschritten ({current}/{max}).",
     );
 
+    // Phase 23 — Slot-Kapazitäts-Editor (FUI-02).
+    i18n.add_text(
+        Locale::De,
+        Key::MaxPaidEmployeesLabel,
+        "Max. bezahlte Mitarbeiter",
+    );
+    i18n.add_text(Locale::De, Key::MaxPaidEmployeesHint, "Leer = kein Limit");
+    i18n.add_text(
+        Locale::De,
+        Key::MaxPaidEmployeesOverageHint,
+        "Aktuell {current} bezahlt (Limit: {limit})",
+    );
+
     // Quick-260613-jxe — Jahresnavigation auf der Abwesenheitsseite.
     i18n.add_text(Locale::De, Key::AbsenceYearNavPrev, "Vorheriges Jahr");
     i18n.add_text(Locale::De, Key::AbsenceYearNavNext, "Nächstes Jahr");
@@ -994,4 +1007,47 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Durchschnittlich gearbeitete Stunden pro Woche",
     );
     i18n.add_text(Locale::De, Key::StatisticsIncludedWeeks, "Einbezogene Wochen");
+
+    // Phase 24 — Bezahlt-Limit-Durchsetzung konfigurierbar (D-24-06, D-24-03, D-24-05).
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsPaidLimitToggleLabel,
+        "Bezahlt-Limit Durchsetzung",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsPaidLimitToggleDescription,
+        "Wenn aktiviert, wird das Buchen über das Bezahlt-Limit für Nicht-Schichtplaner blockiert.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsPaidLimitToggleOn,
+        "Hart (blockierend)",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsPaidLimitToggleOff,
+        "Weich (nur Warnungen)",
+    );
+    i18n.add_text(Locale::De, Key::SettingsSaved, "Gespeichert.");
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSaveError,
+        "Einstellung konnte nicht gespeichert werden.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanPaidOverageSectionHeader,
+        "Bezahlt-Limit diese Woche überschritten",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanPaidOverageRow,
+        "{slot}: {current}/{max} bezahlt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::BookingBlockedPaidLimit,
+        "Bezahlt-Limit erreicht — nur Schichtplaner können über das Limit buchen.",
+    );
 }

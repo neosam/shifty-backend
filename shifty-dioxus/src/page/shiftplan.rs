@@ -201,6 +201,9 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     // Booking warning banner state (non-blocking, dismissible)
     let mut booking_warnings: Signal<WarningsList> = use_signal(WarningsList::empty);
+    // D-24-05: slot-scoped signal holding the id of the slot whose booking was hard-blocked (409 CONFLICT).
+    // None = no block active. Set to Some(slot_id) when 409 is returned; cleared on next success.
+    let mut block_error: Signal<Option<Uuid>> = use_signal(|| None);
     let week_message = use_signal(|| String::new());
     let mut week_message_draft = use_signal(|| String::new());
 
@@ -260,17 +263,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         *BOOKING_LOG_STORE.write() = [].into();
     });
 
-    //let (current_sales_person, current_sales_person_id): (Rc<str>, Option<Uuid>) =
-    //    match &*current_sales_person_resource.read_unchecked() {
-    //        Some(Ok(Some(sales_person))) => (sales_person.name.clone(), Some(sales_person.id)),
-    //        Some(Ok(None)) => ("No sales person".into(), None),
-    //        Some(Err(err)) => (
-    //            format!("Error while loading sales person: {err}").into(),
-    //            None,
-    //        ),
-    //        None => ("Loading sales person...".into(), None),
-    //    };
-
     let cr = use_coroutine({
         move |mut rx: UnboundedReceiver<ShiftPlanAction>| {
             to_owned![
@@ -285,7 +277,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 selected_day,
                 day_aggregate,
                 show_sunday,
-                booking_warnings
+                booking_warnings,
+                block_error
             ];
             async move {
                 let mut update_shiftplan = {
@@ -383,23 +376,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         .send(BookingConflictAction::LoadWeek(*year.read(), *week.read()));
                 }
 
-                //if let Some(sales_person) = sales_person {
-                //    let unavailable_days = result_handler(
-                //        loader::load_unavailable_sales_person_days_for_week(
-                //            config.clone(),
-                //            sales_person.id,
-                //            *year.read(),
-                //            *week.read(),
-                //        )
-                //        .await,
-                //    )
-                //    .unwrap_or(Rc::new([]))
-                //    .iter()
-                //    .map(|unavailable_day| unavailable_day.day_of_week)
-                //    .collect::<Rc<[Weekday]>>();
-                //    *discouraged_weekdays.write() = unavailable_days;
-                //};
-
                 while let Some(action) = rx.next().await {
                     match action {
                         ShiftPlanAction::AddUserToSlot {
@@ -420,6 +396,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             {
                                 Ok((_booking_id, warnings)) => {
                                     // Booking always kept — no rollback path
+                                    block_error.set(None); // D-24-05: clear any previous hard-block on success
                                     update_shiftplan();
                                     if warnings.is_empty() {
                                         booking_warnings.set(WarningsList::empty());
@@ -434,6 +411,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     // D-13: silently ignore 403, still reload
                                     update_shiftplan();
                                 }
+                                Err(crate::error::ShiftyError::Reqwest(ref e))
+                                    if e.status() == Some(reqwest::StatusCode::CONFLICT) =>
+                                {
+                                    // D-24-05: 409 = PaidLimitExceeded — surface inline at the slot, not silently
+                                    block_error.set(Some(slot_id));
+                                    update_shiftplan();
+                                }
                                 Err(e) => {
                                     crate::error::error_handler(e);
                                     update_shiftplan(); // D-13: 422 surfaced
@@ -445,6 +429,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             sales_person_id,
                         } => {
                             info!("Removing user from slot");
+                            block_error.set(None); // D-24-05: clear hard-block error on any removal action
                             if let Some(Ok(shift_plan)) = &*shift_plan_context.read_unchecked() {
                                 result_handler(
                                     loader::remove_user_from_slot(
@@ -472,6 +457,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             year.set(next_weeks_year);
                             week.set(next_weeks_week);
                             booking_warnings.set(WarningsList::empty());
+                            block_error.set(None); // CR-03: clear stale 409 banner on week navigation
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
 
@@ -504,6 +490,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             year.set(previous_weeks_year);
                             week.set(previous_weeks_week);
                             booking_warnings.set(WarningsList::empty());
+                            block_error.set(None); // CR-03: clear stale 409 banner on week navigation
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
 
@@ -565,6 +552,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             reload_unavailable_days(config.clone()).await;
                         }
                         ShiftPlanAction::ToggleChangeStructureMode => {
+                            block_error.set(None); // WR-04: clear stale 409 banner when entering structure mode
                             let new_change_structure_mode = !*change_structure_mode.read();
                             change_structure_mode.set(new_change_structure_mode);
                         }
@@ -657,10 +645,22 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
             "Edit slot",
             Box::new(move |slot_id: Option<Rc<str>>| {
                 let slot_id: Uuid = slot_id.unwrap().parse().unwrap();
+                // Display-only count for the editor's non-blocking overage
+                // banner (D-23-02). read_unchecked avoids a reactive subscription.
+                let current_paid_count = match &*shift_plan_context.read_unchecked() {
+                    Some(Ok(shift_plan)) => shift_plan
+                        .slots
+                        .iter()
+                        .find(|s| s.id == slot_id)
+                        .map(|s| s.current_paid_count)
+                        .unwrap_or(0),
+                    _ => 0,
+                };
                 slot_edit_service.send(SlotEditAction::LoadSlot(
                     slot_id,
                     *year.read(),
                     *week.read(),
+                    current_paid_count,
                 ))
             }),
         )
@@ -918,6 +918,73 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         }
                     }
                 }
+            }
+        }
+
+        // D-24-03: Persistent overage warning section — all roles, client-side, hidden when no overage.
+        // Inserted below the booking_warnings banner, above the ShiftplanTabBar.
+        {
+            let overage_slots: Vec<(String, u8, u8)> = if let Some(Ok(shiftplan)) =
+                &*shift_plan_context.read_unchecked()
+            {
+                shiftplan
+                    .slots
+                    .iter()
+                    .filter_map(|slot| {
+                        if let Some(max) = slot.max_paid_employees {
+                            if slot.current_paid_count > max {
+                                let weekday_str = slot.day_of_week.i18n_string(&i18n);
+                                let time_formatter =
+                                    time::format_description::parse("[hour]:[minute]").unwrap();
+                                let from_str = slot.from.format(&time_formatter).unwrap_or_default();
+                                let to_str = slot.to.format(&time_formatter).unwrap_or_default();
+                                let label = format!("{weekday_str} {from_str}–{to_str}");
+                                Some((label, slot.current_paid_count, max))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            if !overage_slots.is_empty() {
+                let overage_header = i18n.t(Key::ShiftplanPaidOverageSectionHeader);
+                let overage_row_template = i18n.t(Key::ShiftplanPaidOverageRow);
+                rsx! {
+                    div {
+                        class: "mx-4 my-3 px-4 py-3 bg-warn-soft border border-warn rounded-md print:hidden",
+                        h2 { class: "text-h2 font-semibold pb-2 text-warn", "⚠️ {overage_header}" }
+                        ul { class: "list-disc list-inside text-body text-ink",
+                            for (slot_label , current , max) in overage_slots {
+                                li {
+                                    {
+                                        overage_row_template
+                                            .as_ref()
+                                            .replace("{slot}", &slot_label)
+                                            .replace("{current}", &current.to_string())
+                                            .replace("{max}", &max.to_string())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                rsx! {}
+            }
+        }
+
+        // D-24-05: global hard-block error banner — placed above the table (user decision,
+        // not per-slot). Shown when the backend returned 409 PaidLimitExceeded; non-dismissible,
+        // clears on next successful booking/removal action or week navigation.
+        if block_error.read().is_some() {
+            div {
+                class: "mx-4 my-3 px-4 py-3 bg-bad-soft border border-bad rounded-md text-bad text-body print:hidden",
+                {i18n.t(Key::BookingBlockedPaidLimit)}
             }
         }
 

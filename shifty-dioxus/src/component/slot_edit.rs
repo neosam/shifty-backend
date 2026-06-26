@@ -28,6 +28,9 @@ pub struct SlotEditProps {
     pub year: u32,
     pub week: u8,
     pub has_errors: bool,
+    /// Display-only live count of paid bookings for this slot's view-week.
+    /// Drives the non-blocking overage banner (D-23-02); never written back.
+    pub current_paid_count: u8,
 
     pub on_save: EventHandler<()>,
     pub on_cancel: EventHandler<()>,
@@ -60,6 +63,33 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
     let from_label: ImStr = i18n.t(Key::FromLabel).as_ref().into();
     let to_label: ImStr = i18n.t(Key::ToLabel).as_ref().into();
     let min_persons_label: ImStr = i18n.t(Key::MinPersonsLabel).as_ref().into();
+    let max_paid_label: ImStr = i18n.t(Key::MaxPaidEmployeesLabel).as_ref().into();
+    let max_paid_hint: ImStr = i18n.t(Key::MaxPaidEmployeesHint).as_ref().into();
+    let max_paid_value = props
+        .slot
+        .max_paid_employees
+        .map(|n| n.to_string())
+        .unwrap_or_default();
+    let show_overage = props
+        .slot
+        .max_paid_employees
+        .is_some_and(|n| props.current_paid_count > n);
+    let overage_str = i18n.t_m_rc(
+        Key::MaxPaidEmployeesOverageHint,
+        [
+            ("current", props.current_paid_count.to_string().into()),
+            (
+                "limit",
+                props
+                    .slot
+                    .max_paid_employees
+                    .map(|n| n.to_string())
+                    .unwrap_or_default()
+                    .into(),
+            ),
+        ]
+        .into(),
+    );
     let save_str = i18n.t(Key::SaveLabel).to_string();
     let cancel_str = i18n.t(Key::CancelLabel).to_string();
     let error_str = i18n.t(Key::SlotEditSaveError).to_string();
@@ -201,6 +231,36 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
                     }
                 }
 
+                Field { label: max_paid_label.clone(), hint: Some(max_paid_hint.clone()),
+                    input {
+                        class: FORM_INPUT_CLASSES,
+                        r#type: "number",
+                        min: "0",
+                        value: "{max_paid_value}",
+                        oninput: {
+                            let slot = props.slot.clone();
+                            move |event: Event<FormData>| {
+                                let raw = event.value();
+                                let mut updated = slot.as_ref().clone();
+                                if raw.is_empty() {
+                                    updated.max_paid_employees = None;
+                                    props.on_update_slot.call(updated);
+                                } else if let Ok(value) = raw.parse::<u8>() {
+                                    updated.max_paid_employees = Some(value);
+                                    props.on_update_slot.call(updated);
+                                }
+                                // parse failure (non-empty, non-u8): silently ignore.
+                            }
+                        },
+                    }
+                }
+
+                if show_overage {
+                    div { class: "border-l-[3px] border-warn bg-warn-soft rounded-md p-2.5 text-body text-ink",
+                        "{overage_str}"
+                    }
+                }
+
                 if props.has_errors {
                     p { class: "text-bad text-small font-normal", "{error_str}" }
                 }
@@ -221,6 +281,7 @@ pub fn SlotEdit() -> Element {
             year: slot_edit.year,
             week: slot_edit.week,
             has_errors: slot_edit.has_errors,
+            current_paid_count: slot_edit.current_paid_count,
             on_save: move |_| slot_service.send(SlotEditAction::SaveSlot),
             on_cancel: move |_| slot_service.send(SlotEditAction::Cancel),
             on_update_slot: move |slot| slot_service.send(SlotEditAction::UpdateSlot(slot)),
@@ -231,6 +292,115 @@ pub fn SlotEdit() -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::{generate, Locale};
+    use crate::service::i18n::I18N;
+
+    fn render(comp: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(comp);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    fn pin_de_locale() {
+        use_hook(|| {
+            *I18N.write() = generate(Locale::De);
+        });
+    }
+
+    fn slot_with_max(max: Option<u8>) -> Rc<SlotEditItem> {
+        let mut item = SlotEditItem::empty();
+        item.max_paid_employees = max;
+        Rc::new(item)
+    }
+
+    fn props_with(max: Option<u8>, current_paid_count: u8) -> SlotEditProps {
+        SlotEditProps {
+            visible: true,
+            slot: slot_with_max(max),
+            slot_edit_type: SlotEditType::Edit,
+            year: 2026,
+            week: 26,
+            has_errors: false,
+            current_paid_count,
+            on_save: EventHandler::new(|_| {}),
+            on_cancel: EventHandler::new(|_| {}),
+            on_update_slot: EventHandler::new(|_| {}),
+        }
+    }
+
+    #[test]
+    fn slot_edit_renders_max_paid_employees_field_with_value() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                SlotEditInner { ..props_with(Some(5), 0) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Max. bezahlte Mitarbeiter"),
+            "missing max-paid label: {html}"
+        );
+        assert!(
+            html.contains("value=\"5\"") || html.contains(">5"),
+            "max-paid input should carry value 5: {html}"
+        );
+    }
+
+    #[test]
+    fn slot_edit_renders_empty_max_paid_when_none() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                SlotEditInner { ..props_with(None, 0) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Max. bezahlte Mitarbeiter"),
+            "missing max-paid label: {html}"
+        );
+        // None must render an empty value attribute for the max-paid input.
+        assert!(
+            html.contains("value=\"\""),
+            "max-paid input should be empty when None: {html}"
+        );
+    }
+
+    #[test]
+    fn slot_edit_shows_overage_hint_when_limit_below_count() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                SlotEditInner { ..props_with(Some(2), 3) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("bg-warn-soft"),
+            "overage banner div missing: {html}"
+        );
+        // Interpolated De text "Aktuell 3 bezahlt (Limit: 2)".
+        assert!(
+            html.contains("Aktuell 3 bezahlt") && html.contains("Limit: 2"),
+            "overage banner text missing/incorrect: {html}"
+        );
+    }
+
+    #[test]
+    fn slot_edit_no_overage_hint_when_limit_ok() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                SlotEditInner { ..props_with(Some(5), 3) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("bg-warn-soft"),
+            "overage banner should be absent when limit >= count: {html}"
+        );
+    }
 
     #[test]
     fn parse_time_accepts_hh_mm() {

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
-status: in_progress
-last_updated: "2026-06-26"
-last_activity: 2026-06-26 — Phase 23 (Frontend: Slot Paid-Capacity UI) zur Roadmap hinzugefügt (noch nicht geplant); Phasen 18–22 fertig
+milestone: v1.6
+milestone_name: Paid-Capacity-Durchsetzung & Konfiguration
+status: executing
+last_updated: "2026-06-27T11:12:08.203Z"
+last_activity: 2026-06-27 -- Phase 24 execution started
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
-  percent: 83
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 16
+  completed_plans: 11
+  percent: 69
 ---
 
 # Project State: Shifty Backend
@@ -21,16 +21,16 @@ progress:
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v1.4-ROADMAP.md` (+ `milestones/v1.4-REQUIREMENTS.md`, `milestones/v1.4-MILESTONE-AUDIT.md`)
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: v1.4 Committed Voluntary Capacity (shipped 2026-06-25; Audit `passed`, 10/10 CVC-Requirements)
-- **Current milestone**: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (ab Phase 18)
-- **Current focus**: Requirements für v1.5 definieren, dann Roadmap
+- **Last shipped/closed**: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung (abgeschlossen 2026-06-27, Phasen 18–23; noch nicht via `/gsd:complete-milestone` archiviert)
+- **Current milestone**: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (Phase 24)
+- **Current focus**: Phase 24 diskutieren/planen — Paid-Limit konfigurierbar (global hart/weich), rollenbasierte Überschreitung (nur Shiftplanner), deutlichere Overage-Anzeige
 
 ## Current Position
 
-Phase: alle 5 v1.5-Phasen (18–22) abgeschlossen — Milestone-Lifecycle (audit → complete) ausstehend
-Plan: —
-Status: Alle Phasen fertig. 18 ✅ (Snapshot 9→10); 19 ✅ (FE+BE); 20 ✅; 21 ✅; 22 ✅ (HR-Statistik, BE+FE).
-Last activity: 2026-06-26 — Phase 22 abgeschlossen (BE 9 Tests + FE 656 Tests grün, WASM exit 0). Bereit für Milestone-Audit.
+Phase: 24 (paid-capacity-enforcement-config) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 24
+Last activity: 2026-06-27 -- Phase 24 execution started
 
 ## Deferred Items
 
@@ -90,6 +90,7 @@ Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-En
 
 ### Roadmap Evolution
 
+- Milestone v1.6 + Phase 24 added (2026-06-27): „Paid-Capacity-Durchsetzung & Konfiguration". Ausgelöst durch Browser-UAT von Phase 23: das Paid-Limit ist bisher rein weich (Warnung/Rotfärbung). Phase 24 macht es konfigurierbar (globaler Toggle hart/weich, Default weich = keine Regression), beschränkt die Überschreitung auf die Shiftplanner-Rolle (Backend-Permission-Gate in `book_slot_with_conflict_check`) und macht die Overage-Situation im Wochenplan deutlicher sichtbar. Decisions D-24-01..03 (siehe ROADMAP). Backend-Buchungspfad + `Warning::PaidEmployeeLimitExceeded` existieren aus v1.1/Phase 5; Phase-23-UI als Basis. Offen für discuss-phase: Speicherung des Toggles, exakte Permission-Quelle, UI-Form der Anzeige, Moduswechsel-Verhalten für Bestandsbuchungen. — NB: Während Phase-23-UAT wurde ein Backend-Bug gefunden+gefixt (`modify_slot` ließ `max_paid_employees` fallen; Fix + Regressionstest uncommitted im Working Copy).
 - Phase 23 added (2026-06-26): Frontend: Slot Paid-Capacity UI — Capacity-Editor in Slot-Settings + Warn-Farbe im Schichtplan, wenn `current_paid_count > max_paid_employees`. Backend bereits in v1.1/Phase 5 geliefert (`max_paid_employees`, `current_paid_count`, `Warning::PaidEmployeeLimitExceeded` via REST/DTO). Reines Frontend-Feature in `shifty-dioxus`. Hinweis: v1.5 war thematisch (Mitarbeiter-Sicht/Urlaub) abgeschlossen — Phase 23 ist off-theme angehängt; ggf. in eigenes Milestone verschieben.
 
 ### Architecture Decisions Logged

@@ -571,6 +571,35 @@ pub enum Key {
     AverageWorkedHoursPerWeek,
     /// Label for the included weeks row.
     StatisticsIncludedWeeks,
+
+    // Phase 23 — Slot paid-capacity editor (FUI-02, D-23-01/D-23-02/D-23-06).
+    /// Label for the `max_paid_employees` number field in the slot editor.
+    MaxPaidEmployeesLabel,
+    /// Hint below the `max_paid_employees` field ("empty = no limit").
+    MaxPaidEmployeesHint,
+    /// Non-blocking inline banner when the entered limit is below the current
+    /// paid count (placeholders `{current}`, `{limit}`).
+    MaxPaidEmployeesOverageHint,
+
+    // Phase 24 — Paid-limit enforcement config (D-24-06, D-24-03, D-24-05).
+    /// Settings page toggle label for the paid-limit enforcement feature.
+    SettingsPaidLimitToggleLabel,
+    /// Settings page toggle description (one-liner explaining the effect).
+    SettingsPaidLimitToggleDescription,
+    /// Settings page toggle: button text when enforcement is ON (hard mode).
+    SettingsPaidLimitToggleOn,
+    /// Settings page toggle: button text when enforcement is OFF (soft/warning-only).
+    SettingsPaidLimitToggleOff,
+    /// Settings page: inline success flash after saving the toggle.
+    SettingsSaved,
+    /// Settings page: inline error shown when the toggle PUT fails.
+    SettingsSaveError,
+    /// Shiftplan overage section heading (D-24-03, persistent, all roles).
+    ShiftplanPaidOverageSectionHeader,
+    /// Shiftplan overage row per slot (placeholders `{slot}`, `{current}`, `{max}`).
+    ShiftplanPaidOverageRow,
+    /// Inline hard-block error at the booking slot when paid limit is enforced (D-24-05).
+    BookingBlockedPaidLimit,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -1175,6 +1204,29 @@ mod tests {
     }
 
     #[test]
+    fn i18n_slot_paid_capacity_keys_present_in_all_locales() {
+        // Phase 23 (D-23-06): every slot paid-capacity editor key has a
+        // translation in every locale and never falls back to "??".
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::MaxPaidEmployeesLabel,
+                Key::MaxPaidEmployeesHint,
+                Key::MaxPaidEmployeesOverageHint,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
     fn i18n_booking_warning_keys_match_german_reference() {
         // Pitfall-1 guard: de.rs must use Locale::De, not Locale::En.
         // Also guards against dropping the {person} placeholder back to a
@@ -1233,5 +1285,32 @@ mod tests {
             !modrs.contains(&take_last_week_key),
             "dead i18n key for copy-week must not exist in non-test section of mod.rs"
         );
+    }
+
+    #[test]
+    fn i18n_phase24_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SettingsPaidLimitToggleLabel,
+                Key::SettingsPaidLimitToggleDescription,
+                Key::SettingsPaidLimitToggleOn,
+                Key::SettingsPaidLimitToggleOff,
+                Key::SettingsSaved,
+                Key::SettingsSaveError,
+                Key::ShiftplanPaidOverageSectionHeader,
+                Key::ShiftplanPaidOverageRow,
+                Key::BookingBlockedPaidLimit,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
     }
 }

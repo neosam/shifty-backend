@@ -128,6 +128,7 @@ pub struct CopyWeekRequest {
     responses(
         (status = 201, description = "Booking created (with cross-source warnings if any)", body = BookingCreateResultTO),
         (status = 403, description = "Forbidden"),
+        (status = 409, description = "Paid employee limit exceeded — booking blocked"),
         (status = 422, description = "Validation error"),
     ),
 )]

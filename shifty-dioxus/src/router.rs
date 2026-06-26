@@ -16,6 +16,7 @@ pub use crate::page::Home;
 pub use crate::page::MyEmployeeDetails;
 pub use crate::page::MyShifts;
 pub use crate::page::SalesPersonDetails;
+pub use crate::page::SettingsPage as Settings;
 pub use crate::page::ShiftPlan;
 pub use crate::page::ShiftPlanDeep;
 pub use crate::page::TextTemplateManagement;
@@ -57,4 +58,6 @@ pub enum Route {
     MyShifts {},
     #[route("/absences/")]
     Absences {},
+    #[route("/settings/")]
+    Settings {},
 }

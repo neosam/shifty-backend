@@ -402,6 +402,8 @@ impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditSer
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
     // NEU für Phase 3 (D-Phase3-06):
     type AbsenceService = AbsenceService;
+    // D-24-08: ToggleService für paid_limit_hard_enforcement-Prüfung
+    type ToggleService = ToggleService;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
@@ -902,6 +904,16 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
+        // D-24-08: ToggleService ist Basic-Tier (nur DAO + Permission + Transaction).
+        // Muss VOR ShiftplanEditService (Business-Tier) konstruiert werden,
+        // da ShiftplanEditService jetzt ToggleService als Dependency hat.
+        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
+        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
+            toggle_dao,
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let shiftplan_edit_service =
             Arc::new(service_impl::shiftplan_edit::ShiftplanEditServiceImpl {
                 permission_service: permission_service.clone(),
@@ -917,6 +929,8 @@ impl RestStateImpl {
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
                 // NEU für Phase 3 (D-Phase3-06): Reverse-Warning konsumiert AbsenceService.
                 absence_service: absence_service.clone(),
+                // D-24-08: ToggleService für paid_limit_hard_enforcement-Prüfung.
+                toggle_service: toggle_service.clone(),
             });
         let shiftplan_dao = Arc::new(ShiftplanDao::new(pool.clone()));
         let shiftplan_service = Arc::new(service_impl::shiftplan_catalog::ShiftplanServiceImpl {
@@ -1007,16 +1021,10 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
-        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
-        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
-            toggle_dao,
-            permission_service: permission_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
-
         // Phase-2 Plan-04: FeatureFlagService wird oben (vor reporting_service)
         // konstruiert und in den ReportingService eingespeist. Die Plan-03-DI
         // ist damit vollstaendig live (kein #[allow(unused_variables)] mehr).
+        // D-24-08: toggle_dao + toggle_service wurden nach oben (vor shiftplan_edit_service) verschoben.
 
         // Phase 8.5 (Plan 03) — migration_source_dao wird von AbsenceConversionService benötigt.
         let migration_source_dao = Arc::new(MigrationSourceDao::new(pool.clone()));

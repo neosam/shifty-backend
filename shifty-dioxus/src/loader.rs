@@ -1004,3 +1004,21 @@ pub async fn load_feature_flag(
     let to = api::get_feature_flag(config, key).await?;
     Ok((&to).into())
 }
+
+// ─── Toggle loaders (Phase 24 D-24-06) ──────────────────────────────────────
+
+/// Flip a toggle by name (enabled=true → PUT /enable, false → PUT /disable).
+pub async fn set_toggle(
+    config: Config,
+    name: &str,
+    enabled: bool,
+) -> Result<(), ShiftyError> {
+    api::set_toggle(config, name, enabled).await?;
+    Ok(())
+}
+
+/// Read the current enabled state of a toggle by name.
+pub async fn get_toggle_enabled(config: Config, name: &str) -> Result<bool, ShiftyError> {
+    let enabled = api::get_toggle_enabled(config, name).await?;
+    Ok(enabled)
+}

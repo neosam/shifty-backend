@@ -7,11 +7,41 @@
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (closed 2026-06-22; geliefert: 8, 8.2, 8.4, 8.5, 8.6, 9; 8.1/11 ⊘ superseded; **8.3/10/12/13 bewusst aufgegeben**) — siehe [`milestones/v1.3-ROADMAP.md`](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Committed Voluntary Capacity** — Phasen 14–17 (shipped 2026-06-25) — siehe [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md)
-- ◆ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (aktiv, gestartet 2026-06-25)
+- ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (abgeschlossen 2026-06-27)
+- ◆ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (aktiv, gestartet 2026-06-27)
 
 ## Phases
 
-### v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (active)
+### v1.6 Paid-Capacity-Durchsetzung & Konfiguration (active)
+
+**Milestone-Goal:** Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche) wird
+von einem rein visuellen Soft-Hinweis (v1.1/Phase 5, Phase 23) zu einem global
+konfigurierbar durchsetzbaren Limit — admin-schaltbar hart/weich, im harten Modus
+rollenbasiert (nur Shiftplanner darf überziehen), mit deutlicherer Overage-Anzeige.
+
+- [ ] **Phase 24: Paid-Limit konfigurierbar & rollenbasiert durchsetzen** (Backend+Frontend) — Globaler System-Toggle „Paid-Limit hart/weich", rollenbasierte Überschreitung (nur Shiftplanner-Rolle darf über das Limit buchen) und eine deutlichere Overage-Anzeige im Wochenplan. Baut auf der Phase-23-UI + dem v1.1-Backend (`Warning::PaidEmployeeLimitExceeded`) auf.
+
+  **Goal:** Ein global konfigurierbarer Modus bestimmt, ob das Buchen über `max_paid_employees` hinaus (a) hart blockiert wird (außer für die Shiftplanner-Rolle) oder (b) wie heute nur eine nicht-blockierende Warnung erzeugt; zusätzlich ist die Overage-Situation im Wochenplan deutlicher (persistente Warn-Sektion über dem Plan) sichtbar — alles für En/De/Cs lokalisiert und getestet. Mitgefixt: das Buchungs-Permission-Gate (Shiftplanner ∨ self statt HR ∨ self).
+  **Scope (aus Diskussion 2026-06-27, D-24-01..08):**
+  - D-24-01/01a/07: Globaler Toggle „Paid-Limit-Modus = hart | weich" über den bestehenden `ToggleService` (Key `paid_limit_hard_enforcement`, neue Seed-Migration, `enabled=0`=weich); Default = weich (keine Regression). Bewusst NICHT `feature_flag`.
+  - D-24-02 + Grenzregel: Im harten Modus blockiert das Backend (`book_slot_with_conflict_check`) das Buchen, das den bezahlten Count strikt über das Limit brächte — außer der Akteur hat `SHIFTPLANNER_PRIVILEGE`; nur bezahlte zählen; keine Bestandsbuchungen werden rückwirkend angefasst.
+  - D-24-08: Pre-Persist-Check — `ShiftplanEditService` bekommt `ToggleService`-Dep; die Zählung/Prüfung wird vor `booking_service.create` gezogen.
+  - D-24-04: Buchungs-Gate `HR ∨ self` → `Shiftplanner ∨ self` (Permission-Bugfix).
+  - D-24-05: Neuer, unterscheidbarer ServiceError (`PaidLimitExceeded`, → HTTP 409, NICHT 403) + lokalisierte Inline-Meldung am Slot.
+  - D-24-06: Neue admin-gated `/settings/`-Seite mit nur diesem einen Schalter.
+  - D-24-03: Persistente Overage-Warn-Sektion über dem Schichtplan, alle Rollen, rein clientseitig.
+  **Requirements:** Contract = D-24-01, D-24-01a, D-24-02, D-24-03, D-24-04, D-24-05, D-24-06, D-24-07, D-24-08 + strikt-größer-Grenzregel (keine formalen REQ-IDs; in 24-CONTEXT.md definiert, je Plan als `requirements`-Tags referenziert).
+  **Depends on:** Phase 23 (Slot-Paid-Capacity-UI) ✅ + v1.1/Phase 5 (`Warning::PaidEmployeeLimitExceeded`, Backend-Buchungspfad).
+  **Plans:** 5 plans (2 Waves; Wave 1 parallel: 24-01 Backend-Contract + 24-03 i18n; Wave 2 parallel: 24-02 Backend-Enforcement, 24-04 Settings-Seite, 24-05 Shiftplan-UI — keine Datei-Überschneidung je Wave)
+  Plans:
+  - [x] 24-01-PLAN.md — ServiceError::PaidLimitExceeded (→409) + Toggle-Seed-Migration (D-24-01/01a/05/07)
+  - [x] 24-02-PLAN.md — ToggleService-DI + Pre-Persist-Hard-Block + Gate-Fix HR→Shiftplanner + Tests (D-24-02/04/08 + Grenzregel)
+  - [x] 24-03-PLAN.md — 9 neue i18n-Keys En/De/Cs + Present-in-all-locales-Test
+  - [x] 24-04-PLAN.md — admin-gated /settings/-Seite mit einem Paid-Limit-Toggle + Toggle-REST-Client (D-24-06)
+  - [x] 24-05-PLAN.md — Inline-Hard-Block-Meldung am Slot (D-24-05) + persistente Overage-Sektion (D-24-03)
+
+<details>
+<summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (Phasen 18–23) — abgeschlossen 2026-06-27</summary>
 
 **Milestone-Goal:** Urlaubs-/Abwesenheitswerte sind überall konsistent, das Umwandeln
 stundenbasierter Legacy-Einträge braucht für HR nur noch minimale Handarbeit, die
@@ -78,17 +108,13 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   - [x] 22-01-PLAN.md — Backend: `EmployeeWeeklyStatistics` + reine A-22-1-Formel (`average_worked_hours_per_week` über `by_week`), neue HR-gated `ReportingService`-Methode (Jahr bis heute via ClockService, baut auf `get_report_for_employee`), `EmployeeWeeklyStatisticsTO` (ToSchema) + HR-gated REST-Endpoint `GET /report/{id}/weekly-statistics` (+ ReportApiDoc), Unit-Tests (voll-abwesend raus / Teilwoche drin / flexibler Vertrag / Ehrenamt zählt).
   - [x] 22-02-PLAN.md — Frontend: `get_employee_weekly_statistics`-Fetch, `EmployeeStore.weekly_statistics`-Wiring (Err/403 → None), HR-only Block in `EmployeeView` (is_hr-Gating via `has_privilege("hr")` + `should_show_hr_stats`), i18n De/En/Cs, SSR-Tests (sichtbar mit HR / unsichtbar ohne) + WASM-Gate.
 
-- [ ] **Phase 23: Frontend: Slot Paid-Capacity UI** (Frontend) — Capacity-Editor in den Slot-Settings (`max_paid_employees` setzen, NULL = kein Limit) + Warn-Farbe im Schichtplan-Week-View, wenn `current_paid_count > max_paid_employees`. Reines Frontend-Feature in `shifty-dioxus`; das Backend liefert die Felder bereits.
+- [x] **Phase 23: Frontend: Slot Paid-Capacity UI** (Frontend) — Capacity-Editor in den Slot-Settings (`max_paid_employees` setzen, NULL = kein Limit) + Warn-Farbe im Schichtplan-Week-View, wenn `current_paid_count > max_paid_employees`. ✅ 2026-06-27
+  Code: `shifty-dioxus/src/component/slot_edit.rs`, `shifty-dioxus/src/component/week_view.rs`, `shifty-dioxus/src/page/shiftplan.rs`, i18n. UAT-Bugfix: `modify_slot` ließ `max_paid_employees` fallen → gefixt + Regressionstest (`service_impl/src/shiftplan_edit.rs`, `service_impl/src/test/shiftplan_edit.rs`).
+  Plans: 2 plans
+  - [x] 23-01-PLAN.md — Capacity-Editor (`max_paid_employees`) in Slot-Settings + Service/State-Wiring.
+  - [x] 23-02-PLAN.md — Warn-Farbe (`bg-bad-soft`) im Week-View bei Overage; i18n.
 
-  **Goal:** [To be planned]
-  **Requirements:** TBD
-  **Depends on:** —  (Backend bereits fertig: v1.1 / Phase 5 „Slot Paid Capacity Warning")
-  **Backend-Vorbedingungen (bereits vorhanden):** `slot.max_paid_employees: Option<u8>` + `current_paid_count` werden über REST/DTO geliefert (`SlotTO`, `ShiftplanSlotTO`, `WarningTO`); nicht-blockierende `Warning::PaidEmployeeLimitExceeded`. Buchen bleibt erlaubt, NULL = kein Limit.
-  **Plans:** 0 plans
-  Plans:
-  - [ ] TBD (run /gsd-plan-phase 23 to break down)
-
-**Abhängigkeiten:** Phase 18 (BE) ist unabhängig. 19/20/21 (FE) sind unabhängig voneinander. 22 baut konzeptionell auf der Reporting-Ecke (18) auf, ist aber separat planbar. 23 (FE) ist unabhängig — die nötigen Backend-Felder existieren seit v1.1.
+</details>
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity (Phasen 14–17) — SHIPPED 2026-06-25</summary>
@@ -124,8 +150,9 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 1/1 | Complete | 2026-06-26 |
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 0/0 | Not planned | — |
+| 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
+| 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
 
 ---
 
-*Last updated: 2026-06-26 — **Phase 23 hinzugefügt** (Frontend: Slot Paid-Capacity UI — Capacity-Editor + Warn-Farbe; Backend aus v1.1/Phase 5 bereits vorhanden). Nächster Schritt: `/gsd-discuss-phase 23` (UI-Phase) oder `/gsd-ui-phase 23`.*
+*Last updated: 2026-06-27 — **Milestone v1.6 + Phase 24 geplant** (Paid-Capacity-Durchsetzung & Konfiguration: globaler Toggle hart/weich, rollenbasierte Überschreitung nur für Shiftplanner, deutlichere Overage-Anzeige, Permission-Bugfix — D-24-01..08). 5 Pläne in 2 Waves. v1.5 abgeschlossen (Phasen 18–23). Nächster Schritt: `/gsd-execute-phase 24`.*

@@ -123,6 +123,9 @@ pub enum ServiceError {
     #[error("ExtraHours category {0:?} is deprecated; use POST /absence-period for this category")]
     ExtraHoursCategoryDeprecated(Box<crate::extra_hours::ExtraHoursCategory>),
 
+    #[error("Paid employee limit exceeded: {current} > {max}")]
+    PaidLimitExceeded { current: u8, max: u8 },
+
     #[error("Internal error")]
     InternalError,
 }

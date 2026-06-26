@@ -684,23 +684,39 @@ mod cell_button_tests {
 
     #[test]
     fn cell_background_class_understaffed_is_warn_soft() {
-        assert_eq!(cell_background_class(true, false), "bg-warn-soft");
+        assert_eq!(cell_background_class(true, false, false), "bg-warn-soft");
     }
 
     #[test]
     fn cell_background_class_fully_staffed_is_empty() {
-        assert_eq!(cell_background_class(false, false), "");
+        assert_eq!(cell_background_class(false, false, false), "");
     }
 
     #[test]
     fn cell_background_class_discourage_is_bad_soft() {
-        assert_eq!(cell_background_class(false, true), "bg-bad-soft");
+        assert_eq!(cell_background_class(false, true, false), "bg-bad-soft");
     }
 
     #[test]
     fn cell_background_class_discourage_overrides_missing() {
         // Both flags set → discourage wins (bad takes priority over warn)
-        assert_eq!(cell_background_class(true, true), "bg-bad-soft");
+        assert_eq!(cell_background_class(true, true, false), "bg-bad-soft");
+    }
+
+    #[test]
+    fn cell_background_class_paid_overage_is_bad_soft() {
+        assert_eq!(cell_background_class(false, false, true), "bg-bad-soft");
+    }
+
+    #[test]
+    fn cell_background_class_paid_overage_overrides_missing() {
+        assert_eq!(cell_background_class(true, false, true), "bg-bad-soft");
+    }
+
+    #[test]
+    fn cell_background_class_discourage_overrides_paid_overage() {
+        // All flags set → discourage still wins (same class, asserts no regression).
+        assert_eq!(cell_background_class(true, true, true), "bg-bad-soft");
     }
 
     #[test]
@@ -954,11 +970,18 @@ pub(crate) fn cell_button_classes(button: CellButton) -> &'static str {
 
 /// Returns the per-cell state-background class.
 ///
-/// `discourage` (the editing person is unavailable on this day) takes priority
-/// over `missing` and tints the cell `bad`. Missing-staff cells without
-/// discourage tint `warn`.
-pub(crate) fn cell_background_class(missing: bool, discourage: bool) -> &'static str {
-    if discourage {
+/// Priority (highest first): `discourage` (editing person unavailable on this day,
+/// red) > `paid_overage` (current paid count exceeds the slot's paid limit, red) >
+/// `missing` (understaffed, orange). All-OK cells get no background class.
+pub(crate) fn cell_background_class(
+    missing: bool,
+    discourage: bool,
+    paid_overage: bool,
+) -> &'static str {
+    // `discourage` and `paid_overage` both tint the cell red and outrank
+    // `missing`; combined into one arm to satisfy clippy::if_same_then_else
+    // while preserving the documented priority order.
+    if discourage || paid_overage {
         "bg-bad-soft"
     } else if missing {
         "bg-warn-soft"
@@ -1034,7 +1057,10 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
     let filled = slot.bookings.len();
     let need = slot.min_resources as usize;
     let missing = filled < need;
-    let bg_class = cell_background_class(missing, props.discourage);
+    let paid_overage = slot
+        .max_paid_employees
+        .is_some_and(|n| slot.current_paid_count > n);
+    let bg_class = cell_background_class(missing, props.discourage, paid_overage);
     let mr_class = min_resources_class(missing);
 
     let booking_ids: Vec<Uuid> = slot.bookings.iter().map(|b| b.sales_person_id).collect();
@@ -1497,6 +1523,68 @@ mod week_cell_slot_render_tests {
             html.matches("person-pill").count(),
             3,
             "expected exactly 3 person-pill chips: {html}"
+        );
+    }
+
+    #[test]
+    fn week_cell_slot_paid_overage_is_bad_soft() {
+        fn app() -> Element {
+            // Fully staffed (no understaffing) but over the paid limit:
+            // max_paid_employees=2, current_paid_count=3 → paid overage → bg-bad-soft.
+            let mut slot = super::week_cell_slot_render_tests::make_slot(1, 1);
+            slot.max_paid_employees = Some(2);
+            slot.current_paid_count = 3;
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: None,
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::None,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let html = render_with_tooltip(app);
+        assert!(
+            html.contains("bg-bad-soft"),
+            "expected paid-overage red, got: {html}"
+        );
+    }
+
+    #[test]
+    fn week_cell_slot_understaffed_no_overage_is_warn_soft() {
+        fn app() -> Element {
+            // Understaffed (0 bookings, min_resources=3) with no paid limit:
+            // → orange bg-warn-soft, not the paid-overage red.
+            let slot = super::week_cell_slot_render_tests::make_slot(0, 3);
+            rsx! {
+                WeekCellSlot {
+                    slot,
+                    day_start: 9.0,
+                    highlight_item_id: None,
+                    add_event: None,
+                    remove_event: None,
+                    item_clicked: None,
+                    discourage: false,
+                    button_types: WeekViewButtonTypes::None,
+                    dropdown_entries: None,
+                    is_shiftplanner: false,
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("bg-warn-soft"),
+            "expected understaffing orange, got: {html}"
+        );
+        assert!(
+            !html.contains("bg-bad-soft"),
+            "plain understaffing must not be paid-overage red, got: {html}"
         );
     }
 
