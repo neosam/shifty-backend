@@ -981,7 +981,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .get_report_for_employee(
                 sales_person_id,
                 year,
-                current_week as u8,
+                current_week,
                 context.clone(),
                 tx,
             )

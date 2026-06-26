@@ -740,7 +740,7 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
             while day <= walk_end_bound {
                 let (iso_year, iso_week, _) = day.to_iso_week_date();
                 weeks.insert((iso_year as u32, iso_week));
-                day = day + time::Duration::days(1);
+                day += time::Duration::days(1);
             }
             let mut holidays: BTreeSet<Date> = BTreeSet::new();
             for (year, week) in weeks.iter() {
@@ -792,7 +792,7 @@ impl<Deps: AbsenceServiceDeps> AbsenceService for AbsenceServiceImpl<Deps> {
                         }
                     }
                 }
-                current = current + time::Duration::days(1);
+                current += time::Duration::days(1);
             }
 
             result.push((suggested_end, false));
