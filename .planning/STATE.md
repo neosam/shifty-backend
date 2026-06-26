@@ -4,13 +4,13 @@ milestone: v1.5
 milestone_name: Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
 status: in_progress
 last_updated: "2026-06-26"
-last_activity: 2026-06-26 — Phase 22 (Mitarbeiter-Statistik HR) abgeschlossen; alle 5 v1.5-Phasen fertig, Milestone-Lifecycle (audit/complete) ausstehend
+last_activity: 2026-06-26 — Phase 23 (Frontend: Slot Paid-Capacity UI) zur Roadmap hinzugefügt (noch nicht geplant); Phasen 18–22 fertig
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
   total_plans: 9
   completed_plans: 9
-  percent: 100
+  percent: 83
 ---
 
 # Project State: Shifty Backend
@@ -87,6 +87,10 @@ Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-En
 - Service-Tier-Konvention (Basic vs Business-Logic) durchgehend angewendet
 
 ## Accumulated Context (carry forward)
+
+### Roadmap Evolution
+
+- Phase 23 added (2026-06-26): Frontend: Slot Paid-Capacity UI — Capacity-Editor in Slot-Settings + Warn-Farbe im Schichtplan, wenn `current_paid_count > max_paid_employees`. Backend bereits in v1.1/Phase 5 geliefert (`max_paid_employees`, `current_paid_count`, `Warning::PaidEmployeeLimitExceeded` via REST/DTO). Reines Frontend-Feature in `shifty-dioxus`. Hinweis: v1.5 war thematisch (Mitarbeiter-Sicht/Urlaub) abgeschlossen — Phase 23 ist off-theme angehängt; ggf. in eigenes Milestone verschieben.
 
 ### Architecture Decisions Logged
 

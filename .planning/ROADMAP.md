@@ -7,7 +7,7 @@
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (closed 2026-06-22; geliefert: 8, 8.2, 8.4, 8.5, 8.6, 9; 8.1/11 ⊘ superseded; **8.3/10/12/13 bewusst aufgegeben**) — siehe [`milestones/v1.3-ROADMAP.md`](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Committed Voluntary Capacity** — Phasen 14–17 (shipped 2026-06-25) — siehe [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md)
-- ◆ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–22 (aktiv, gestartet 2026-06-25)
+- ◆ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (aktiv, gestartet 2026-06-25)
 
 ## Phases
 
@@ -78,7 +78,17 @@ Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
   - [x] 22-01-PLAN.md — Backend: `EmployeeWeeklyStatistics` + reine A-22-1-Formel (`average_worked_hours_per_week` über `by_week`), neue HR-gated `ReportingService`-Methode (Jahr bis heute via ClockService, baut auf `get_report_for_employee`), `EmployeeWeeklyStatisticsTO` (ToSchema) + HR-gated REST-Endpoint `GET /report/{id}/weekly-statistics` (+ ReportApiDoc), Unit-Tests (voll-abwesend raus / Teilwoche drin / flexibler Vertrag / Ehrenamt zählt).
   - [x] 22-02-PLAN.md — Frontend: `get_employee_weekly_statistics`-Fetch, `EmployeeStore.weekly_statistics`-Wiring (Err/403 → None), HR-only Block in `EmployeeView` (is_hr-Gating via `has_privilege("hr")` + `should_show_hr_stats`), i18n De/En/Cs, SSR-Tests (sichtbar mit HR / unsichtbar ohne) + WASM-Gate.
 
-**Abhängigkeiten:** Phase 18 (BE) ist unabhängig. 19/20/21 (FE) sind unabhängig voneinander. 22 baut konzeptionell auf der Reporting-Ecke (18) auf, ist aber separat planbar.
+- [ ] **Phase 23: Frontend: Slot Paid-Capacity UI** (Frontend) — Capacity-Editor in den Slot-Settings (`max_paid_employees` setzen, NULL = kein Limit) + Warn-Farbe im Schichtplan-Week-View, wenn `current_paid_count > max_paid_employees`. Reines Frontend-Feature in `shifty-dioxus`; das Backend liefert die Felder bereits.
+
+  **Goal:** [To be planned]
+  **Requirements:** TBD
+  **Depends on:** —  (Backend bereits fertig: v1.1 / Phase 5 „Slot Paid Capacity Warning")
+  **Backend-Vorbedingungen (bereits vorhanden):** `slot.max_paid_employees: Option<u8>` + `current_paid_count` werden über REST/DTO geliefert (`SlotTO`, `ShiftplanSlotTO`, `WarningTO`); nicht-blockierende `Warning::PaidEmployeeLimitExceeded`. Buchen bleibt erlaubt, NULL = kein Limit.
+  **Plans:** 0 plans
+  Plans:
+  - [ ] TBD (run /gsd-plan-phase 23 to break down)
+
+**Abhängigkeiten:** Phase 18 (BE) ist unabhängig. 19/20/21 (FE) sind unabhängig voneinander. 22 baut konzeptionell auf der Reporting-Ecke (18) auf, ist aber separat planbar. 23 (FE) ist unabhängig — die nötigen Backend-Felder existieren seit v1.1.
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity (Phasen 14–17) — SHIPPED 2026-06-25</summary>
@@ -114,7 +124,8 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 1/1 | Complete | 2026-06-26 |
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
+| 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 0/0 | Not planned | — |
 
 ---
 
-*Last updated: 2026-06-26 — **Phase 22 geplant** (2 Plans: 22-01 BE Wave 1 — A-22-1-Formel + HR-gated `ReportingService`-Methode + REST/OpenAPI + Unit-Tests; 22-02 FE Wave 2 — HR-only Block in `EmployeeView` + Fetch + i18n + SSR-Tests). Nächster Schritt: `/gsd-execute-phase 22`.*
+*Last updated: 2026-06-26 — **Phase 23 hinzugefügt** (Frontend: Slot Paid-Capacity UI — Capacity-Editor + Warn-Farbe; Backend aus v1.1/Phase 5 bereits vorhanden). Nächster Schritt: `/gsd-discuss-phase 23` (UI-Phase) oder `/gsd-ui-phase 23`.*
