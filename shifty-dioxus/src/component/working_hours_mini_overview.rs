@@ -168,10 +168,10 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
 
     rsx! {
         div {
-            class: "bg-surface border border-border rounded-lg overflow-hidden select-none max-w-5xl mx-auto",
+            class: "bg-surface border border-border rounded-lg overflow-hidden select-none w-fit max-w-full mx-auto",
             style: "overflow-x: auto;",
             table {
-                class: "w-full border-collapse text-body",
+                class: "w-auto border-collapse text-body",
                 thead {
                     tr {
                         class: "bg-surface-alt text-left",
@@ -909,9 +909,12 @@ mod tests {
             }
         }
         let html = render(app);
+        // UI-01 (überarbeitet): Container schrumpft auf Inhaltsbreite (w-fit) und
+        // ist zentriert (mx-auto), gedeckelt auf max-w-full — statt fix auf 1024px
+        // (max-w-5xl) zu strecken, was die rechte Tabellenhälfte leer ließ.
         assert!(
-            html.contains("max-w-5xl"),
-            "TableLayout container must have max-w-5xl class: {html}"
+            html.contains("w-fit") && html.contains("mx-auto"),
+            "TableLayout container must shrink to content (w-fit) and center (mx-auto): {html}"
         );
     }
 

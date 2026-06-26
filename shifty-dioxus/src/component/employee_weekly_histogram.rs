@@ -197,6 +197,17 @@ fn EmployeeWeeklyHistogramView(props: EmployeeWeeklyHistogramViewProps) -> Eleme
                             onclick: move |_| on_select.call((year, week_num)),
                             // SVG tooltip (standard SVG <title> child element)
                             title { "{title_text}" }
+                            // Transparent full-height hit area so the <title> tooltip
+                            // appears anywhere over the column — not just over the short
+                            // colored bar (YV-01 fix: hovering above/around the bar showed
+                            // nothing because the visible rects only cover the value height).
+                            rect {
+                                x: "{x}",
+                                y: "0",
+                                width: "{bar_width}",
+                                height: "{BAR_AREA_HEIGHT}",
+                                style: "fill: transparent;",
+                            }
                             // Regular segment (overall_hours)
                             rect {
                                 x: "{x}",
@@ -380,10 +391,14 @@ mod tests {
             selected: None,
             week_short: ImStr::from("KW"),
         });
-        let rect_count = html.matches("<rect").count();
+        // Exclude the transparent full-height hover hit-area rect (one per column,
+        // added for the YV-01 tooltip) — assert one COLORED bar per week.
+        let total = html.matches("<rect").count();
+        let hit_areas = html.matches("fill: transparent").count();
+        let colored = total - hit_areas;
         assert_eq!(
-            rect_count, 17,
-            "expected 17 rects, got {rect_count}: {html}"
+            colored, 17,
+            "expected 17 colored bars (total {total} rects incl. {hit_areas} hit areas): {html}"
         );
     }
 
@@ -819,10 +834,14 @@ mod tests {
             selected: None,
             week_short: ImStr::from("KW"),
         });
-        let rect_count = html.matches("<rect").count();
+        // Exclude the transparent hover hit-area rect (YV-01) — assert TWO COLORED
+        // rects (regular + volunteer) for a week with volunteer_hours > 0.
+        let total = html.matches("<rect").count();
+        let hit_areas = html.matches("fill: transparent").count();
+        let colored = total - hit_areas;
         assert_eq!(
-            rect_count, 2,
-            "expected 2 rects (regular + volunteer) for week with volunteer_hours>0, got {rect_count}: {html}"
+            colored, 2,
+            "expected 2 colored rects (regular + volunteer), total {total} incl. {hit_areas} hit areas: {html}"
         );
     }
 

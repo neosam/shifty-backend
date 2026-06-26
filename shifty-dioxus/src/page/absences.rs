@@ -149,6 +149,20 @@ pub fn is_visible_category(category: AbsenceCategory) -> bool {
     category_visible_with(SICK_LEAVE_ENABLED, category)
 }
 
+/// Pure function (UV-02) — „von"-Datum für den Umwandeln-Dialog.
+///
+/// Bei einer erkannten ganzen Vertragswoche (`is_full_week`) der Montag der
+/// ISO-Woche von `when` (passend zum „bis" = Sonntag des Backends), sonst der
+/// Eintragstag `when` selbst.
+pub fn convert_start_date(when: time::Date, is_full_week: bool) -> time::Date {
+    if is_full_week {
+        let (iso_year, iso_week, _) = when.to_iso_week_date();
+        time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Monday).unwrap_or(when)
+    } else {
+        when
+    }
+}
+
 /// Pure function — ist ein stundenbasierter Marker mit dieser Kategorie auf der
 /// Absences-Seite sichtbar? Unmappbare Kategorien bleiben sichtbar (bestehendes
 /// Verhalten der Marker-Pipeline); nur SickLeave wird ausgeblendet.
@@ -2094,10 +2108,14 @@ pub fn AbsencesPage() -> Element {
             rest_types::ExtraHoursCategoryTO::UnpaidLeave => rest_types::AbsenceCategoryTO::UnpaidLeave,
             _ => rest_types::AbsenceCategoryTO::Vacation,
         };
+        // UV-02: Bei erkannter ganzer Woche (is_full_week) wird das „von" auf den
+        // Montag der ISO-Woche gesetzt — passend zum „bis" = Sonntag (suggested_end),
+        // sodass der Vorschlag Mo–So abdeckt. Sonst bleibt „von" = Eintragstag.
+        let convert_start = convert_start_date(m.when, m.is_full_week);
         rsx! {
             AbsenceConvertModal {
                 extra_hours_id: m.extra_hours_id,
-                initial_date: m.when,
+                initial_date: convert_start,
                 suggested_end: m.suggested_end,
                 amount: m.amount,
                 category: modal_category,
@@ -2292,6 +2310,23 @@ mod tests {
     use super::*;
     use crate::i18n::{generate, Locale};
     use std::sync::Arc;
+
+    /// UV-02: full week → von = Monday of the ISO week; otherwise von = entry day.
+    #[test]
+    fn convert_start_date_full_week_is_monday() {
+        // 2026-06-17 is a Wednesday; its ISO week runs Mon 2026-06-15 .. Sun 2026-06-21.
+        let when = time::macros::date!(2026 - 06 - 17);
+        assert_eq!(
+            convert_start_date(when, true),
+            time::macros::date!(2026 - 06 - 15),
+            "full week must snap von to Monday"
+        );
+        assert_eq!(
+            convert_start_date(when, false),
+            when,
+            "non-full-week must keep von = entry day"
+        );
+    }
 
     /// Render a snapshot component. Before rendering we install Locale::De
     /// into the global I18N signal via `use_hook`. The hook runs inside the
