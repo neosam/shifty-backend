@@ -219,3 +219,4 @@ The system handles sophisticated time calculations:
 
 This architecture ensures clean separation of concerns, comprehensive testing, and production-ready deployment capabilities while maintaining developer productivity through hot reload and mock authentication.
 - Always execute cargo build, cargo test and cargo run (with some timeout) when you implement new features.
+- **Clippy is a hard gate.** The `nix build` runs `cargo clippy -- --deny warnings`, so any clippy warning fails the build even when `cargo test`/`cargo build` pass. Every test gate (including autonomous phase execution) MUST also run `cargo clippy --workspace -- -D warnings` before committing — `cargo test` does NOT run clippy. CI (`.github/workflows/rust.yml`) enforces the same step.
