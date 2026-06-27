@@ -181,7 +181,7 @@ async fn test_get_all() {
     assert!(result.is_ok());
     let mut custom_extra_hours_list: Vec<CustomExtraHours> =
         result.unwrap().iter().cloned().collect();
-    custom_extra_hours_list.sort_by(|a, b| a.id.cmp(&b.id));
+    custom_extra_hours_list.sort_by_key(|a| a.id);
     assert_eq!(custom_extra_hours_list.len(), 2);
     assert_eq!(
         custom_extra_hours_list[0],
@@ -285,7 +285,7 @@ async fn test_get_by_sales_person_id() {
     assert!(result.is_ok());
     let mut custom_extra_hours_list: Vec<CustomExtraHours> =
         result.unwrap().iter().cloned().collect();
-    custom_extra_hours_list.sort_by(|a, b| a.id.cmp(&b.id));
+    custom_extra_hours_list.sort_by_key(|a| a.id);
     assert_eq!(custom_extra_hours_list.len(), 2);
     assert_eq!(
         custom_extra_hours_list[0],

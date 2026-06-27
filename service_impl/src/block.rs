@@ -106,7 +106,7 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
 
         // Sort each day's entries by their slot.from time in ascending order.
         for (_, items) in day_map.iter_mut() {
-            items.sort_by(|(_, slot_a), (_, slot_b)| slot_a.from.cmp(&slot_b.from));
+            items.sort_by_key(|(_, slot)| slot.from);
         }
 
         // Build blocks by combining consecutive bookings if the next slot’s start
@@ -254,7 +254,7 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
 
         for (day_of_week, slots) in day_map {
             let mut slots = slots.clone();
-            slots.sort_by(|a, b| a.from.cmp(&b.from));
+            slots.sort_by_key(|a| a.from);
 
             // Filter for slots with insufficient bookings
             let slots: Vec<_> = slots

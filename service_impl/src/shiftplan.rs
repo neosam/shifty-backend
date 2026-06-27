@@ -119,7 +119,7 @@ pub(crate) fn build_shiftplan_day(
     }
 
     // Sort slots by time
-    day_slots.sort_by(|a, b| a.slot.from.cmp(&b.slot.from));
+    day_slots.sort_by_key(|a| a.slot.from);
 
     Ok(ShiftplanDay {
         day_of_week,

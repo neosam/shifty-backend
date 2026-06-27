@@ -79,7 +79,7 @@ pub trait BillingPeriodDao {
         tx: Self::Transaction,
     ) -> Result<Arc<[BillingPeriodEntity]>, crate::DaoError> {
         let mut items: Vec<_> = self.all(tx).await?.to_vec();
-        items.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+        items.sort_by_key(|b| std::cmp::Reverse(b.start_date));
         Ok(items.into())
     }
 

@@ -8,14 +8,14 @@
 //! Vier Testfaelle:
 //! - Fall A: KW OHNE Vertragszeile, 30h Shiftplan => volunteer=30, overall=0, balance=0.
 //! - Fall B: Dynamische Zeile (is_dynamic=true, expected weighted=0), 30h Shiftplan =>
-//!           Soll=Ist unveraendert (overall=30, expected=30, balance=0, volunteer=0).
+//!   Soll=Ist unveraendert (overall=30, expected=30, balance=0, volunteer=0).
 //! - Fall C: Zeile mit expected=40h, 30h Shiftplan => Normal (expected=40, overall=30, balance=-10).
 //! - Fall D: Konsistenz-Check — gleiche no-contract-Daten durch get_reports_for_all_employees
-//!           (Summary-Pfad) liefern identische volunteer_hours=30, overall=0, balance=0.
-//!           Hinweis zu get_week: `all_for_week` liefert nur Persons MIT Vertragszeile fuer
-//!           die KW — Personen OHNE Zeile werden in get_week gar nicht iteriert. Der no-contract-
-//!           Fall existiert in get_week daher strukturell nicht; stattdessen verifizieren wir
-//!           die Detail-vs-Summary-Konsistenz (hours_per_week vs. get_reports_for_all_employees).
+//!   (Summary-Pfad) liefern identische volunteer_hours=30, overall=0, balance=0.
+//!   Hinweis zu get_week: `all_for_week` liefert nur Persons MIT Vertragszeile fuer
+//!   die KW — Personen OHNE Zeile werden in get_week gar nicht iteriert. Der no-contract-
+//!   Fall existiert in get_week daher strukturell nicht; stattdessen verifizieren wir
+//!   die Detail-vs-Summary-Konsistenz (hours_per_week vs. get_reports_for_all_employees).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
