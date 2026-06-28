@@ -10,7 +10,12 @@
 //! (D-01 / CVC-05: Phase 15/17 touch no persisted BillingPeriodValueType; the v8 bump
 //! comes from the separate report-ehrenamt-gesamtstunden cap-leak bugfix).
 
-use crate::booking_information::{volunteer_surplus_above_committed, volunteer_surplus_band2};
+use crate::booking_information::{
+    period_overlaps_week, volunteer_surplus_above_committed, volunteer_surplus_band2,
+};
+use std::collections::HashSet;
+use time::macros::date;
+use uuid::Uuid;
 
 /// Epsilon helper — never use == for f32 comparisons.
 fn approx(a: f32, b: f32) -> bool {
@@ -470,5 +475,129 @@ fn snapshot_schema_version_pinned_at_10() {
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
         11
+    );
+}
+
+// ─── VFA-01: period_overlaps_week pure-helper tests (D-26-01 / D-26-03) ─────
+//
+// All tests pin a concrete week: 2026-W10 (Mon 2026-03-02 .. Sun 2026-03-08).
+// D-26-01: absence category is NOT an input to period_overlaps_week — the
+//   exclusion is category-agnostic (Vacation / SickLeave / UnpaidLeave behave
+//   identically because the helper only compares dates).
+// D-26-03: whole-week-out — any overlap → full exclusion (not pro-rated per day).
+
+/// Mirrors the Band-1 production filter for pure helper tests.
+/// D-26-03: absent volunteer contributes 0, not pro-rated.
+/// D-26-01: category-agnostic — `period_overlaps_week` takes only dates.
+fn committed_excluding_absent(rows: &[(Uuid, f32)], absent: &HashSet<Uuid>) -> f32 {
+    rows.iter()
+        .filter(|(id, _)| !absent.contains(id))
+        .map(|(_, committed)| *committed)
+        .sum()
+}
+
+const WEEK_MON: time::Date = date!(2026 - 03 - 02);
+const WEEK_SUN: time::Date = date!(2026 - 03 - 08);
+
+#[test]
+fn vfa01_overlap_absence_fully_inside_week() {
+    // D-26-03: absence [Wed, Thu] ⊆ [Mon, Sun] → overlap
+    let from = date!(2026 - 03 - 04);
+    let to = date!(2026 - 03 - 05);
+    assert!(
+        period_overlaps_week(from, to, WEEK_MON, WEEK_SUN),
+        "absence fully inside the week must overlap"
+    );
+}
+
+#[test]
+fn vfa01_overlap_ends_exactly_on_monday_inclusive() {
+    // D-26-01/D-26-03 inclusive boundary: single-day absence on Monday (to == monday) → overlap
+    let from = date!(2026 - 03 - 02);
+    let to = date!(2026 - 03 - 02);
+    assert!(
+        period_overlaps_week(from, to, WEEK_MON, WEEK_SUN),
+        "absence ending exactly on week_monday (single day on monday) must overlap (inclusive)"
+    );
+}
+
+#[test]
+fn vfa01_overlap_starts_exactly_on_sunday_inclusive() {
+    // D-26-01/D-26-03 inclusive boundary: single-day absence on Sunday (from == sunday) → overlap
+    let from = date!(2026 - 03 - 08);
+    let to = date!(2026 - 03 - 08);
+    assert!(
+        period_overlaps_week(from, to, WEEK_MON, WEEK_SUN),
+        "absence starting exactly on week_sunday (single day on sunday) must overlap (inclusive)"
+    );
+}
+
+#[test]
+fn vfa01_no_overlap_before_week() {
+    // Absence ends the day before Monday → no overlap
+    let from = date!(2026 - 02 - 23);
+    let to = date!(2026 - 03 - 01);
+    assert!(
+        !period_overlaps_week(from, to, WEEK_MON, WEEK_SUN),
+        "absence entirely before the week must NOT overlap"
+    );
+}
+
+#[test]
+fn vfa01_no_overlap_after_week() {
+    // Absence starts the day after Sunday → no overlap
+    let from = date!(2026 - 03 - 09);
+    let to = date!(2026 - 03 - 15);
+    assert!(
+        !period_overlaps_week(from, to, WEEK_MON, WEEK_SUN),
+        "absence entirely after the week must NOT overlap"
+    );
+}
+
+#[test]
+fn vfa01_overlap_multiweek_spanning_whole_week() {
+    // Multi-week absence spanning well beyond the week → overlap
+    let from = date!(2026 - 02 - 16);
+    let to = date!(2026 - 03 - 20);
+    assert!(
+        period_overlaps_week(from, to, WEEK_MON, WEEK_SUN),
+        "multi-week absence spanning the whole calendar week must overlap"
+    );
+}
+
+#[test]
+fn vfa01_whole_week_out_d2603_not_prorated() {
+    // D-26-03: if one volunteer is absent, their entire committed contribution drops to 0.
+    // Two volunteers (A: committed 5.0, B: committed 3.0). B is absent.
+    // Expected Band-1 sum = 5.0 (A only) — NOT 5.0 + pro-rated-fraction(3.0).
+    //
+    // D-26-01: the exclusion is category-agnostic — committed_excluding_absent uses only the
+    // UUID set; the absence category (Vacation / SickLeave / UnpaidLeave) is not an input
+    // because period_overlaps_week itself takes only dates.
+    let person_a = Uuid::new_v4();
+    let person_b = Uuid::new_v4();
+    let rows = [(person_a, 5.0_f32), (person_b, 3.0_f32)];
+    let mut absent = HashSet::new();
+    absent.insert(person_b);
+
+    let band1 = committed_excluding_absent(&rows, &absent);
+    assert!(
+        approx(band1, 5.0),
+        "D-26-03 whole-week-out: Band-1 must equal only non-absent volunteer's committed (5.0), \
+         got {band1} (absent volunteer must contribute 0, not pro-rated)"
+    );
+}
+
+#[test]
+fn vfa01_non_absent_volunteer_unaffected() {
+    // A volunteer with NO absence in the week contributes their full committed value.
+    let person_a = Uuid::new_v4();
+    let rows = [(person_a, 4.0_f32)];
+    let absent: HashSet<Uuid> = HashSet::new(); // nobody absent
+
+    let band1 = committed_excluding_absent(&rows, &absent);
+    assert!(
+        approx(band1, 4.0),
+        "non-absent volunteer must contribute their full committed value, got {band1}"
     );
 }
