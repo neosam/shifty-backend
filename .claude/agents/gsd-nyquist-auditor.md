@@ -8,7 +8,9 @@ tools:
   - Bash
   - Glob
   - Grep
-color: "#8B5CF6"
+  - Skill
+color: purple
+effort: low
 ---
 
 <role>

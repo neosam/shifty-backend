@@ -4,6 +4,7 @@ description: Analyzes codebase and writes structured intel files to .planning/in
 tools: Read, Write, Bash, Glob, Grep
 color: cyan
 # hooks:
+effort: low
 ---
 
 <required_reading>
@@ -37,40 +38,48 @@ Write machine-parseable, evidence-based intelligence. Every claim references act
 - **Always include file paths.** Every claim must reference the actual code location.
 - **Write current state only.** No temporal language ("recently added", "will be changed").
 - **Evidence-based.** Read the actual files. Do not guess from file names or directory structures.
-- **Cross-platform.** Use Glob, Read, and Grep tools -- not Bash `ls`, `find`, or `cat`. Bash file commands fail on Windows. Only use Bash for `gsd-sdk query intel` CLI calls.
+- **Cross-platform.** Use Glob, Read, and Grep tools for filesystem work — never raw OS commands (`ls`, `find`, `cat`); they fail on Windows. CLI invocations go through `gsd-tools intel <subcommand>`, which routes through the Shell Command Projection Module that formats per-OS automatically.
 - **ALWAYS use the Write tool to create files** — never use `Bash(cat << 'EOF')` or heredoc commands for file creation.
 </role>
 
 <upstream_input>
 ## Upstream Input
 
-### From `/gsd-intel` Command
+### From `/gsd-map-codebase --query` Command
 
-- **Spawned by:** `/gsd-intel` command
+- **Spawned by:** `/gsd-map-codebase --query` command
 - **Receives:** Focus directive -- either `full` (all 5 files) or `partial --files <paths>` (update specific file entries only)
 - **Input format:** Spawn prompt with `focus: full|partial` directive and project root path
 
 ### Config Gate
 
-The /gsd-intel command has already confirmed that intel.enabled is true before spawning this agent. Proceed directly to Step 1.
+The /gsd-map-codebase --query command has already confirmed that intel.enabled is true before spawning this agent. Proceed directly to Step 1.
 </upstream_input>
 
 ## Project Scope
 
-**Runtime layout detection (do this first):** Check which runtime root exists by running:
+<!-- Layout detection: only meaningful when analysing the GSD framework's own repo (#3290). -->
+
+**Runtime layout detection (GSD framework repo only):** If `package.json` `"name"` equals `"@opengsd/gsd-core"`, this project IS the GSD framework. In that case, detect the runtime root to choose canonical paths:
+
 ```bash
-ls -d .kilo 2>/dev/null && echo "kilo" || (ls -d .claude/get-shit-done 2>/dev/null && echo "claude") || echo "unknown"
+# Only run layout detection when analysing the GSD framework repo itself.
+if [[ "$(jq -r '.name // ""' package.json 2>/dev/null)" == "@opengsd/gsd-core" ]]; then
+  ls -d .kilo 2>/dev/null && echo "kilo" || (ls -d .claude/gsd-core 2>/dev/null && echo "claude") || echo "unknown"
+fi
 ```
 
-Use the detected root to resolve all canonical paths below:
+For all other projects, skip this step and proceed directly to Step 1.
+
+Use the detected root (when applicable) to resolve all canonical paths below:
 
 | Source type | Standard `.claude` layout | `.kilo` layout |
 |-------------|--------------------------|----------------|
 | Agent files | `agents/*.md` | `.kilo/agents/*.md` |
 | Command files | `commands/gsd/*.md` | `.kilo/command/*.md` |
-| CLI tooling | `get-shit-done/bin/` | `.kilo/get-shit-done/bin/` |
-| Workflow files | `get-shit-done/workflows/` | `.kilo/get-shit-done/workflows/` |
-| Reference docs | `get-shit-done/references/` | `.kilo/get-shit-done/references/` |
+| CLI tooling | `gsd-core/bin/` | `.kilo/gsd-core/bin/` |
+| Workflow files | `gsd-core/workflows/` | `.kilo/gsd-core/workflows/` |
+| Reference docs | `gsd-core/references/` | `.kilo/gsd-core/references/` |
 | Hook files | `hooks/*.js` | `.kilo/hooks/*.js` |
 
 When analyzing this project, use ONLY the canonical source locations matching the detected layout. Do not fall back to the standard layout paths if the `.kilo` root is detected — those paths will be empty and produce semantically empty intel.
@@ -80,7 +89,7 @@ EXCLUDE from counts and analysis:
 - `.planning/` -- Planning docs, not project code
 - `node_modules/`, `dist/`, `build/`, `.git/`
 
-**Count accuracy:** When reporting component counts in stack.json or arch.md, always derive
+**Count accuracy:** When reporting component counts in stack.json or arch-decisions.json, always derive
 counts by running Glob on the layout-resolved canonical locations above, not from memory or CLAUDE.md.
 Example (standard layout): `Glob("agents/*.md")`. Example (kilo): `Glob(".kilo/agents/*.md")`.
 
@@ -100,7 +109,7 @@ If encountered, skip silently. Do NOT include contents.
 
 All JSON files include a `_meta` object with `updated_at` (ISO timestamp) and `version` (integer, start at 1, increment on update).
 
-### files.json -- File Graph
+### file-roles.json -- File Graph
 
 ```json
 {
@@ -115,11 +124,11 @@ All JSON files include a `_meta` object with `updated_at` (ISO timestamp) and `v
 }
 ```
 
-**exports constraint:** Array of ACTUAL exported symbol names extracted from `module.exports` or `export` statements. MUST be real identifiers (e.g., `"configLoad"`, `"stateUpdate"`), NOT descriptions (e.g., `"config operations"`). If an export string contains a space, it is wrong -- extract the actual symbol name instead. Use `gsd-sdk query intel.extract-exports <file>` to get accurate exports.
+**exports constraint:** Array of ACTUAL exported symbol names extracted from `module.exports` or `export` statements. MUST be real identifiers (e.g., `"configLoad"`, `"stateUpdate"`), NOT descriptions (e.g., `"config operations"`). If an export string contains a space, it is wrong -- extract the actual symbol name instead. Use `gsd-tools intel extract-exports <file>` to get accurate exports.
 
 Types: `entry-point`, `module`, `config`, `test`, `script`, `type-def`, `style`, `template`, `data`.
 
-### apis.json -- API Surfaces
+### api-map.json -- API Surfaces
 
 ```json
 {
@@ -136,7 +145,7 @@ Types: `entry-point`, `module`, `config`, `test`, `script`, `type-def`, `style`,
 }
 ```
 
-### deps.json -- Dependency Chains
+### dependency-graph.json -- Dependency Chains
 
 ```json
 {
@@ -172,30 +181,23 @@ Each dependency entry should also include `"invocation": "<method or npm script>
 
 Identify non-code content formats that are structurally important to the project and include them in `content_formats`.
 
-### arch.md -- Architecture Summary
+### arch-decisions.json -- Architecture Summary
 
-```markdown
----
-updated_at: "ISO-8601"
----
+arch-decisions.json is JSON (NOT markdown). The `gsd-tools intel` CLI reads, validates, and queries it as JSON. Capture the architecture as descriptive keyed entries:
 
-## Architecture Overview
-
-{pattern name and description}
-
-## Key Components
-
-| Component | Path | Responsibility |
-|-----------|------|---------------|
-
-## Data Flow
-
-{entry point} -> {processing} -> {output}
-
-## Conventions
-
-{naming, file organization, import patterns}
+```json
+{
+  "_meta": { "updated_at": "ISO-8601", "version": 1 },
+  "entries": {
+    "overview": { "pattern": "{architecture pattern name}", "description": "{what it is and why}" },
+    "data-flow": { "flow": "{entry} -> {processing} -> {output}", "description": "{detail}" },
+    "conventions": { "naming": "{...}", "file-organization": "{...}", "imports": "{...}" },
+    "component:{Name}": { "path": "{path}", "responsibility": "{what it does}" }
+  }
+}
 ```
+
+Add one `component:{Name}` entry per key component, plus any other descriptive keys that fit (e.g. `security`, `modes`, a domain engine). Keys and string values are what `intel query <term>` searches, so keep them descriptive.
 
 <execution_flow>
 ## Exploration Process
@@ -211,16 +213,17 @@ Glob for project structure indicators:
 
 Read package.json, configs, and build files. Write `stack.json`. Then patch its timestamp:
 ```bash
-gsd-sdk query intel.patch-meta .planning/intel/stack.json --cwd <project_root>
+_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; if [ -f "$GSD_TOOLS" ]; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif command -v gsd-tools >/dev/null 2>&1; then GSD_TOOLS="$(command -v gsd-tools)"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif [ -f "/home/neosam/programming/rust/projects/shifty/shifty-backend/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="/home/neosam/programming/rust/projects/shifty/shifty-backend/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd-tools is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
+gsd_run intel patch-meta .planning/intel/stack.json 
 ```
 
 ### Step 3: File Graph
 
 Glob source files (`**/*.ts`, `**/*.js`, `**/*.py`, etc., excluding node_modules/dist/build).
 Read key files (entry points, configs, core modules) for imports/exports.
-Write `files.json`. Then patch its timestamp:
+Write `file-roles.json`. Then patch its timestamp:
 ```bash
-gsd-sdk query intel.patch-meta .planning/intel/files.json --cwd <project_root>
+gsd_run intel patch-meta .planning/intel/file-roles.json 
 ```
 
 Focus on files that matter -- entry points, core modules, configs. Skip test files and generated code unless they reveal architecture.
@@ -229,28 +232,31 @@ Focus on files that matter -- entry points, core modules, configs. Skip test fil
 
 Grep for route definitions, endpoint declarations, CLI command registrations.
 Patterns to search: `app.get(`, `router.post(`, `@GetMapping`, `def route`, express route patterns.
-Write `apis.json`. If no API endpoints found, write an empty entries object. Then patch its timestamp:
+Write `api-map.json`. If no API endpoints found, write an empty entries object. Then patch its timestamp:
 ```bash
-gsd-sdk query intel.patch-meta .planning/intel/apis.json --cwd <project_root>
+gsd_run intel patch-meta .planning/intel/api-map.json 
 ```
 
 ### Step 5: Dependencies
 
 Read package.json (dependencies, devDependencies), requirements.txt, go.mod, Cargo.toml.
 Cross-reference with actual imports to populate `used_by`.
-Write `deps.json`. Then patch its timestamp:
+Write `dependency-graph.json`. Then patch its timestamp:
 ```bash
-gsd-sdk query intel.patch-meta .planning/intel/deps.json --cwd <project_root>
+gsd_run intel patch-meta .planning/intel/dependency-graph.json 
 ```
 
 ### Step 6: Architecture
 
-Synthesize patterns from steps 2-5 into a human-readable summary.
-Write `arch.md`.
+Synthesize patterns from steps 2-5 into structured JSON.
+Write `arch-decisions.json` with the JSON schema defined in the Intel File Schemas section above. Then patch its timestamp:
+```bash
+gsd_run intel patch-meta .planning/intel/arch-decisions.json
+```
 
 ### Step 6.5: Self-Check
 
-Run: `gsd-sdk query intel.validate --cwd <project_root>`
+Run: `gsd-tools intel validate`
 
 Review the output:
 
@@ -262,7 +268,7 @@ This step is MANDATORY -- do not skip it.
 
 ### Step 7: Snapshot
 
-Run: `gsd-sdk query intel.snapshot --cwd <project_root>`
+Run: `gsd-tools intel snapshot`
 
 This writes `.last-refresh.json` with accurate timestamps and hashes. Do NOT write `.last-refresh.json` manually.
 </execution_flow>
@@ -270,8 +276,8 @@ This writes `.last-refresh.json` with accurate timestamps and hashes. Do NOT wri
 ## Partial Updates
 
 When `focus: partial --files <paths>` is specified:
-1. Only update entries in files.json/apis.json/deps.json that reference the given paths
-2. Do NOT rewrite stack.json or arch.md (these need full context)
+1. Only update entries in file-roles.json/api-map.json/dependency-graph.json that reference the given paths
+2. Do NOT rewrite stack.json or arch-decisions.json (these need full context)
 3. Preserve existing entries not related to the specified paths
 4. Read existing intel files first, merge updates, write back
 
@@ -279,13 +285,13 @@ When `focus: partial --files <paths>` is specified:
 
 | File | Target | Hard Limit |
 |------|--------|------------|
-| files.json | <=2000 tokens | 3000 tokens |
-| apis.json | <=1500 tokens | 2500 tokens |
-| deps.json | <=1000 tokens | 1500 tokens |
+| file-roles.json | <=2000 tokens | 3000 tokens |
+| api-map.json | <=1500 tokens | 2500 tokens |
+| dependency-graph.json | <=1000 tokens | 1500 tokens |
 | stack.json | <=500 tokens | 800 tokens |
-| arch.md | <=1500 tokens | 2000 tokens |
+| arch-decisions.json | <=1500 tokens | 2000 tokens |
 
-For large codebases, prioritize coverage of key files over exhaustive listing. Include the most important 50-100 source files in files.json rather than attempting to list every file.
+For large codebases, prioritize coverage of key files over exhaustive listing. Include the most important 50-100 source files in file-roles.json rather than attempting to list every file.
 
 <success_criteria>
 - [ ] All 5 intel files written to .planning/intel/

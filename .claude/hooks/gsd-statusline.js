@@ -1,11 +1,13 @@
 #!/nix/store/6x6v11xjf0psckgqmyhfyhw9bdma0rn6-nodejs-22.22.2/bin/node
-// gsd-hook-version: 1.39.0-rc.4
+// gsd-hook-version: 1.6.0
 // Claude Code Statusline - GSD Edition
 // Shows: model | current task (or GSD state) | directory | context usage
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { isSemverNewer } = require('../gsd-core/bin/lib/semver-compare.cjs');
+const { PACKAGE_NAME, updateCacheFileName } = require('../gsd-core/bin/lib/package-identity.cjs');
 
 // --- Config + last-command readers ------------------------------------------
 
@@ -157,13 +159,22 @@ function parseStateMd(content) {
       // next_action: recommended command when idle (discuss-phase / plan-phase / execute-phase / verify-phase)
       if (key === 'next_action') state.nextAction = (v === 'null' || v === '') ? null : v;
     }
-    // next_phases YAML flow array: ["4.5", "4.6"] — single-line flow only
-    // Block sequences (- 4.5 / - 4.6 over multiple lines) are intentionally
-    // not parsed here; statusline only needs the primary recommendation.
-    const npMatch = fm.match(/^next_phases:\s*\[([^\]]*)\]/m);
-    if (npMatch) {
-      const items = npMatch[1].split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+    // next_phases supports both flow array and block-list YAML forms.
+    const npFlowMatch = fm.match(/^next_phases:\s*\[([^\]]*)\]/m);
+    if (npFlowMatch) {
+      const items = npFlowMatch[1].split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
       state.nextPhases = items.length > 0 ? items : null;
+    } else {
+      const npBlockMatch = fm.match(/^next_phases:\s*\n((?:[ \t]*-[ \t]*[^\n]+\n?)*)/m);
+      if (npBlockMatch) {
+        const items = npBlockMatch[1]
+          .split('\n')
+          .map(line => line.match(/^[ \t]*-[ \t]*(.+)$/))
+          .filter(Boolean)
+          .map(m => m[1].trim().replace(/^["']|["']$/g, ''))
+          .filter(Boolean);
+        state.nextPhases = items.length > 0 ? items : null;
+      }
     }
     // progress nested block: completed_phases / total_phases / percent (2-space indent)
     const progMatch = fm.match(/^progress:\s*\n((?:[ \t]+\w+:.+\n?)+)/m);
@@ -256,7 +267,7 @@ function formatGsdState(s) {
     // Scene 2: idle + a recommended next command is visible to the user.
     // Surfaces "what to run next" without the user opening STATE.md.
     parts.push(`next ${s.nextAction} ${phasesStr}`);
-  } else if (s.percent === '100' || (s.completedPhases && s.totalPhases && s.completedPhases === s.totalPhases)) {
+  } else if (Number(s.percent) === 100 || (s.completedPhases && s.totalPhases && s.completedPhases === s.totalPhases)) {
     // Scene 3: milestone complete (every phase done).
     parts.push('milestone complete');
   } else {
@@ -301,7 +312,7 @@ function runStatusline() {
     const totalCtx = data.context_window?.total_tokens || 1_000_000;
     const acw = parseInt(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW || '0', 10);
     const AUTO_COMPACT_BUFFER_PCT = acw > 0
-      ? Math.min(100, (acw / totalCtx) * 100)
+      ? Math.min(100, Math.max(0, (1 - acw / totalCtx) * 100))
       : 16.5;
     let ctx = '';
     if (remaining != null) {
@@ -358,14 +369,20 @@ function runStatusline() {
     const todosDir = path.join(claudeDir, 'todos');
     if (session && fs.existsSync(todosDir)) {
       try {
-        const files = fs.readdirSync(todosDir)
-          .filter(f => f.startsWith(session) && f.includes('-agent-') && f.endsWith('.json'))
-          .map(f => ({ name: f, mtime: fs.statSync(path.join(todosDir, f)).mtime }))
-          .sort((a, b) => b.mtime - a.mtime);
+        // Single-pass max-by-mtime scan: only the newest matching todos file
+        // is needed, so the O(n log n) sort and the intermediate array from the
+        // prior `.filter().map(statSync).sort()` chain are unnecessary. Identical
+        // I/O (one statSync per match) and identical result. (#305)
+        let latest = null;
+        for (const entry of fs.readdirSync(todosDir)) {
+          if (!entry.startsWith(session) || !entry.includes('-agent-') || !entry.endsWith('.json')) continue;
+          const mtime = fs.statSync(path.join(todosDir, entry)).mtime;
+          if (!latest || mtime > latest.mtime) latest = { name: entry, mtime };
+        }
 
-        if (files.length > 0) {
+        if (latest) {
           try {
-            const todos = JSON.parse(fs.readFileSync(path.join(todosDir, files[0].name), 'utf8'));
+            const todos = JSON.parse(fs.readFileSync(path.join(todosDir, latest.name), 'utf8'));
             const inProgress = todos.find(t => t.status === 'in_progress');
             if (inProgress) task = inProgress.activeForm || '';
           } catch (e) {}
@@ -379,41 +396,31 @@ function runStatusline() {
     const gsdStateStr = task ? '' : formatGsdState(readGsdState(dir) || {});
 
     // GSD update available?
-    // Check shared cache first (#1421), fall back to runtime-specific cache for
-    // backward compatibility with older gsd-check-update.js versions.
+    // Read only the per-package shared cache file (#607). The legacy
+    // runtime-specific fallback has been removed — the per-package filename
+    // carries lineage and avoids multi-runtime resolution mismatches (#1421).
     let gsdUpdate = '';
-    const sharedCacheFile = path.join(homeDir, '.cache', 'gsd', 'gsd-update-check.json');
-    const legacyCacheFile = path.join(claudeDir, 'cache', 'gsd-update-check.json');
-    const cacheFile = fs.existsSync(sharedCacheFile) ? sharedCacheFile : legacyCacheFile;
+    const cacheFile = path.join(homeDir, '.cache', 'gsd', updateCacheFileName);
     if (fs.existsSync(cacheFile)) {
       try {
         const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-        if (cache.update_available) {
+        const { showUpdate, staleWarning } = evaluateUpdateCache(cache);
+        if (showUpdate) {
           gsdUpdate = '\x1b[33m⬆ /gsd-update\x1b[0m │ ';
         }
-        if (cache.stale_hooks && cache.stale_hooks.length > 0) {
-          // If installed version is ahead of npm latest, this is a dev install.
-          // Running /gsd-update would downgrade — show a contextual warning instead.
-          const isDevInstall = (() => {
-            if (!cache.installed || !cache.latest || cache.latest === 'unknown') return false;
-            const parseV = v => v.replace(/^v/, '').split('.').map(Number);
-            const [ai, bi, ci] = parseV(cache.installed);
-            const [an, bn, cn] = parseV(cache.latest);
-            return ai > an || (ai === an && bi > bn) || (ai === an && bi === bn && ci > cn);
-          })();
-          if (isDevInstall) {
-            gsdUpdate += '\x1b[33m⚠ dev install — re-run installer to sync hooks\x1b[0m │ ';
-          } else {
-            gsdUpdate += '\x1b[31m⚠ stale hooks — run /gsd-update\x1b[0m │ ';
-          }
+        if (staleWarning === 'dev') {
+          gsdUpdate += '\x1b[33m⚠ dev install — re-run installer to sync hooks\x1b[0m │ ';
+        } else if (staleWarning === 'stale') {
+          gsdUpdate += '\x1b[31m⚠ stale hooks — run /gsd-update\x1b[0m │ ';
         }
       } catch (e) {}
     }
 
-    // Last-slash-command suffix (opt-in via statusline.show_last_command, #2538).
+    // Last-slash-command suffix and context_position config (#2538, #2937).
     // Reads the active session transcript for the most recent <command-name> tag.
     // Failure here must never break the statusline — wrap the entire lookup.
     let lastCmdSuffix = '';
+    let position = 'end';
     try {
       const cfg = readGsdConfig(dir);
       if (getConfigValue(cfg, 'statusline.show_last_command') === true) {
@@ -423,6 +430,8 @@ function runStatusline() {
           lastCmdSuffix = ` │ \x1b[2mlast: /${lastCmd}\x1b[0m`;
         }
       }
+      const cfgPos = getConfigValue(cfg, 'statusline.context_position');
+      if (cfgPos != null) position = cfgPos;
     } catch (e) {
       // Never break the statusline on config/transcript errors
     }
@@ -435,21 +444,93 @@ function runStatusline() {
         ? `\x1b[2m${gsdStateStr}\x1b[0m`
         : null;
 
-    if (middle) {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ ${middle} │ \x1b[2m${dirname}\x1b[0m${ctx}${lastCmdSuffix}`);
-    } else {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${lastCmdSuffix}`);
-    }
+    process.stdout.write(composeStatusline({ gsdUpdate, model, ctx, middle, dirname, lastCmdSuffix, position }));
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
   }
 });
 }
 
+// --- Layout composer --------------------------------------------------------
+
+/**
+ * Compose the statusline string from pre-built segments.
+ *
+ * @param {object} opts
+ * @param {string} [opts.gsdUpdate='']      - leading update/stale-hooks warning (already formatted)
+ * @param {string} opts.model               - model display name (plain text; dim styling applied here)
+ * @param {string} [opts.ctx='']            - context-window meter segment (empty string = absent)
+ * @param {string|null} [opts.middle=null]  - middle segment (todo task or GSD state), null = absent
+ * @param {string} opts.dirname             - project directory basename (dim styling applied here)
+ * @param {string} [opts.lastCmdSuffix='']  - last-command suffix, e.g. ' │ last: /foo'
+ * @param {'end'|'front'} [opts.position='end']
+ *   - 'end'   (default): ctx appended after dirname — preserved byte-for-byte
+ *   - 'front': ctx immediately after model name so the meter stays visible in narrow terminals
+ *
+ * Invalid position values are silently coerced to 'end' — config-set schema rejects
+ * invalid values upfront; runtime fallback defends against stale/corrupt configs
+ * without breaking the statusline.
+ */
+function composeStatusline({
+  gsdUpdate = '',
+  model,
+  ctx = '',
+  middle = null,
+  dirname,
+  lastCmdSuffix = '',
+  position = 'end',
+} = {}) {
+  const modelSeg = `\x1b[2m${model}\x1b[0m`;
+  const dirSeg = `\x1b[2m${dirname}\x1b[0m`;
+  // Coerce invalid values to 'end' (belt-and-suspenders; see JSDoc above)
+  const pos = position === 'front' ? 'front' : 'end';
+
+  if (pos === 'front') {
+    if (middle) return `${gsdUpdate}${modelSeg}${ctx} │ ${middle} │ ${dirSeg}${lastCmdSuffix}`;
+    return `${gsdUpdate}${modelSeg}${ctx} │ ${dirSeg}${lastCmdSuffix}`;
+  }
+  // 'end' — preserved byte-for-byte relative to original inline templates
+  if (middle) return `${gsdUpdate}${modelSeg} │ ${middle} │ ${dirSeg}${ctx}${lastCmdSuffix}`;
+  return `${gsdUpdate}${modelSeg} │ ${dirSeg}${ctx}${lastCmdSuffix}`;
+}
+
+function isInstalledAheadOfLatest(installed, latest) {
+  return isSemverNewer(installed, latest);
+}
+
+/**
+ * Pure function: evaluate an update-check cache object and return display flags.
+ * Applies lineage guard — if package_name is absent or foreign, treats cache as absent.
+ *
+ * @param {object|null} cache  Parsed cache object, or null.
+ * @returns {{ showUpdate: boolean, staleWarning: 'none'|'dev'|'stale' }}
+ */
+function evaluateUpdateCache(cache) {
+  const none = { showUpdate: false, staleWarning: 'none' };
+  if (!cache) return none;
+  // Lineage guard: package_name must be present and match this package.
+  if (!cache.package_name || cache.package_name !== PACKAGE_NAME) return none;
+  const showUpdate = Boolean(cache.update_available);
+  let staleWarning = 'none';
+  if (cache.stale_hooks && cache.stale_hooks.length > 0) {
+    const isDevInstall = (
+      cache.installed &&
+      cache.latest &&
+      cache.latest !== 'unknown' &&
+      isInstalledAheadOfLatest(cache.installed, cache.latest)
+    );
+    staleWarning = isDevInstall ? 'dev' : 'stale';
+  }
+  return { showUpdate, staleWarning };
+}
+
 // Export helpers for unit tests. Harmless when run as a script.
 module.exports = {
   readGsdState, parseStateMd, formatGsdState,
   readGsdConfig, getConfigValue, readLastSlashCommand,
+  composeStatusline,
+  isInstalledAheadOfLatest,
+  evaluateUpdateCache,
 };
 
 /**
@@ -462,6 +543,7 @@ function renderStatusline(data) {
   const dirname = path.basename(dir);
 
   let lastCmdSuffix = '';
+  let position = 'end';
   try {
     const cfg = readGsdConfig(dir);
     if (getConfigValue(cfg, 'statusline.show_last_command') === true) {
@@ -470,14 +552,13 @@ function renderStatusline(data) {
         lastCmdSuffix = ` │ \x1b[2mlast: /${lastCmd}\x1b[0m`;
       }
     }
+    const cfgPos = getConfigValue(cfg, 'statusline.context_position');
+    if (cfgPos != null) position = cfgPos;
   } catch (e) { /* swallow */ }
 
   const gsdStateStr = formatGsdState(readGsdState(dir) || {});
   const middle = gsdStateStr ? `\x1b[2m${gsdStateStr}\x1b[0m` : null;
-  if (middle) {
-    return `\x1b[2m${model}\x1b[0m │ ${middle} │ \x1b[2m${dirname}\x1b[0m${lastCmdSuffix}`;
-  }
-  return `\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${lastCmdSuffix}`;
+  return composeStatusline({ model, ctx: '', middle, dirname, lastCmdSuffix, position });
 }
 
 module.exports.renderStatusline = renderStatusline;

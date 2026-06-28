@@ -141,3 +141,30 @@ Die verbliebenen Korrektheits- und Bedienprobleme der Abwesenheits-/Urlaubsverwa
 - **Tech-Debt:** Nyquist-VALIDATION einzelner v1.5-Frontend-Phasen optional/discovery-only.
 
 ---
+
+## v1.6 — Paid-Capacity-Durchsetzung & Konfiguration
+
+**Shipped:** 2026-06-27
+**Phases:** 24 (1 phase, 5 plans, 2 Waves)
+**Closeout:** override_closeout (kein formaler Milestone-Audit; ein Human-UAT-Item bewusst deferred)
+**Archive:** [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
+
+**Delivered:**
+Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche) wurde von einem rein visuellen Soft-Hinweis (v1.1/Phase 5, Phase 23) zu einem **global konfigurierbar durchsetzbaren Limit**. Ein admin-schaltbarer globaler Toggle (`paid_limit_hard_enforcement` über den bestehenden `ToggleService`, Default = weich → keine Regression) bestimmt, ob das Buchen über das Limit hinaus (a) hart blockiert wird — außer für die Shiftplanner-Rolle — oder (b) wie zuvor nur eine nicht-blockierende Warnung erzeugt. Der Hard-Block läuft pre-persist im Business-Logic-Tier (`ShiftplanEditService` mit frisch gelesenem Toggle vor `booking_service.create`), liefert einen unterscheidbaren `ServiceError::PaidLimitExceeded` (HTTP **409**, nicht 403) und eine lokalisierte Inline-Meldung. Eine persistente Overage-Warn-Sektion über dem Wochenplan macht Überschreitungen für **alle Rollen** sichtbar. Mitgefixt: das Buchungs-Permission-Gate von `HR ∨ self` auf `Shiftplanner ∨ self` (D-24-04). Alles für En/De/Cs lokalisiert.
+
+**Key accomplishments:**
+
+1. **24-01 — Error-Contract + Seed** — `ServiceError::PaidLimitExceeded { current, max }` → HTTP 409 in `rest/src/lib.rs` (+ OpenAPI-409-Annotation); Seed-Migration `20260627000000_seed-paid-limit-toggle.sql` (`INSERT OR IGNORE`, `enabled=0` = weich).
+2. **24-02 — Enforcement + Gate-Fix** — Pre-Persist-Hard-Block in `book_slot_with_conflict_check` (`prospective > max`, Shiftplanner-Bypass, nur bezahlte zählen); `ToggleService` in `ShiftplanEditService` verdrahtet (D-24-08, Basic-vor-Business DI); Gate `HR ∨ self` → `Shiftplanner ∨ self`; 4 neue Hard-Block-Tests + migrierte Gate-Tests.
+3. **24-03 — i18n** — 9 neue Keys (Settings-Toggle, Overage-Sektion, Block-Meldung) in En/De/Cs + Present-in-all-locales-Guard-Test.
+4. **24-04 — Settings-Seite** — neue admin-gated `/settings/`-Route (`SettingsPage`, Component-Guard `has_privilege("admin")`) mit genau einem Paid-Limit-Toggle (`aria-pressed`, „Saved."/„Could not save setting."-Inline-Feedback); Toggle-REST-Client (`api`/`loader`) + Nav-Gating.
+5. **24-05 — Shiftplan-UI** — Inline-409-Hard-Block-Meldung (D-24-05) + persistente Overage-Warn-Sektion über `ShiftplanTabBar` für alle Rollen (D-24-03).
+
+**Test verification:** Backend `cargo build` + `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün; Frontend `cargo build --target wasm32-unknown-unknown` grün; 24-VERIFICATION.md 7/7 must-haves verified; Human-UAT 3/4 PASS. Git: Commit `e4ffbba`, 53 Dateien, +6855/−106.
+
+**Known deferred items (acknowledged at close, 2026-06-27):**
+
+- **Human-UAT #1 — Inline-Block-Platzierung** — die 409-Inline-Meldung rendert global unter der WeekView statt an der Slot-Zelle. Bewusst nicht im Browser getestet (User-Entscheidung „#2 fertig, #1 weglassen"); Backend-409-Logik durch 4 Unit-Tests abgedeckt. Nachbesserung der Platzierung offen.
+- **Carry-over Deferred Items aus v1.4/v1.5** (historischer Quick-Task-/Todo-Ballast, Nyquist-VALIDATION-Lücken) — weiterhin deferred, siehe STATE.md → Deferred Items.
+
+---

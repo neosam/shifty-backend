@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-06-27
-last_milestone: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (shipped 2026-06-27, 12/12 Requirements)
-current_milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration
+last_updated: 2026-06-28
+last_milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped 2026-06-27, Phase 24, override_closeout)
+current_milestone: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Planung — Phasen ab 25; Backlog-Phase 999.1 weiterhin off-theme offen)
 ---
 
 # Shifty — Project Charter
@@ -133,18 +133,70 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Current Milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration
+## Aktueller Milestone: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit
 
-**Goal:** Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche) wird von
-einem rein visuellen Soft-Hinweis (v1.1/Phase 5, Phase 23) zu einem global
-konfigurierbar durchsetzbaren Limit — admin-schaltbar hart/weich, im harten Modus
-rollenbasiert (nur Shiftplanner darf überziehen), mit deutlicherer Overage-Anzeige.
-Mitgefixt: das Buchungs-Permission-Gate (Shiftplanner ∨ self statt HR ∨ self).
+**Goal:** Feiertage werden automatisch (statt manuell pro Mitarbeiter) in den
+Mitarbeiterreport eingerechnet, und Urlaub/Abwesenheit von Freiwilligen reduziert
+ihre zugesagte Verfügbarkeit in der Jahresansicht.
 
-**Stand 2026-06-27:** Phase 24 (5 Pläne) ausgeführt + verifiziert (7/7 must-haves),
-Human-UAT 3/4 (Item #1 bewusst weggelassen). Milestone noch nicht via
-`/gsd:complete-milestone` archiviert. Details: `.planning/ROADMAP.md` (active
-section) + `.planning/phases/24-paid-capacity-enforcement-config/`.
+**Target features:**
+- **Feiertags-Automatik (HOL, Achse A):** Pro `Holiday` aus `special_day` wird je
+  Mitarbeiter automatisch das Holiday-Stundenäquivalent angerechnet — Wirkung
+  **identisch** zu manuellem `ExtraHours(Holiday)` (expected runter, Balance hoch,
+  `holiday_hours`-Spalte, Snapshot-`Holiday`). Keine eigenständige
+  `committed_voluntary`-Reduktion.
+- **Freiwilligen-Abwesenheit (VFA, Achse B):** Urlaub/Abwesenheit eines Freiwilligen
+  (`is_paid=false`, `committed_voluntary>0`) reduziert seine committed-Zusage 🎯 in
+  der Jahresansicht für die betroffenen Arbeitstage. Feiertage tun das bewusst
+  **nicht** (Asymmetrie).
+- **Konfigurierbarer Stichtag (HCFG):** Global konfigurierbares „aktiv ab"-Datum für
+  die Feiertags-Automatik (schützt Vergangenheit & verhindert Doppelzählung), mit
+  admin-gated Settings-UI (analog v1.6), i18n de/en/cs.
+- **Cross-Navigation (NAV, Frontend):** Abwesenheitsansicht (`/absences`) und
+  Mitarbeiterreport/Jahresansicht verlinken gegenseitig pro Mitarbeiter (Deep-Link).
+
+**Key context:**
+- Nur **Holiday**; **ShortDay** = separate Future-Story.
+- **Snapshot-Bump 10 → 11 erwartet** (Holiday-Computation/Input-Set ändert sich) —
+  final in der Phase zu bestätigen.
+- Referenz-Logik vollständig kartiert: Holiday-`ExtraHours` wirkt in `reporting.rs`
+  (`:921`/`:932`/`:1137`), Display in `booking_information.rs:253`, Snapshot in
+  `billing_period_report.rs:241`. committed_voluntary-Lücke (VFA): `booking_information.rs:219-226`.
+- Requirements: `.planning/REQUIREMENTS.md` (HOL-01..03, VFA-01/02, HCFG-01..03, HSNAP-01).
+
+**Status:** Planung — Roadmap wird erstellt (Phasen ab 25).
+
+## Letzter Milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped 2026-06-27)
+
+Aktuell ist **kein** Milestone aktiv. Nächster Schritt: `/gsd-new-milestone`
+(oder die off-theme Backlog-Phase 999.1 direkt via `/gsd-plan-phase 999.1`).
+
+<details>
+<summary>✅ v1.6 Paid-Capacity-Durchsetzung & Konfiguration — SHIPPED 2026-06-27 (Phase 24)</summary>
+
+**Geliefert (as built):** Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche)
+ist von einem rein visuellen Soft-Hinweis (v1.1/Phase 5, Phase 23) zu einem **global
+konfigurierbar durchsetzbaren Limit** geworden. Ein admin-schaltbarer globaler Toggle
+(`paid_limit_hard_enforcement` über den bestehenden `ToggleService`, Seed-Migration,
+Default = weich → keine Regression) bestimmt, ob das Buchen über das Limit hinaus hart
+blockiert wird (außer für die Shiftplanner-Rolle) oder nur eine nicht-blockierende Warnung
+erzeugt. Der Hard-Block läuft pre-persist im Business-Logic-Tier (`ShiftplanEditService`
+mit frisch gelesenem Toggle vor `booking_service.create`), liefert einen unterscheidbaren
+`ServiceError::PaidLimitExceeded` (HTTP **409**, nicht 403) + lokalisierte Inline-Meldung.
+Persistente Overage-Warn-Sektion über dem Wochenplan für **alle Rollen**. Permission-Gate
+des Buchungspfads korrigiert von `HR ∨ self` auf `Shiftplanner ∨ self` (D-24-04). i18n De/En/Cs.
+
+**Verifikation:** 7/7 must-haves verified (24-VERIFICATION.md); Human-UAT 3/4 PASS;
+2 Bugs während UAT gefunden+gefixt (Dev-Proxy-Allowlist `/toggle`; Overage-Count
+für Nicht-HR-Rollen). Backend `cargo test`/`clippy -D warnings` grün, Frontend WASM-Build grün.
+
+**Closeout:** override_closeout — kein formaler Milestone-Audit (Phasen-Verifikation +
+UAT genügten, analog v1.5). Ein Human-UAT-Item bewusst deferred (Inline-Block-Platzierung,
+nicht-blockierend; Backend-409-Logik unit-getestet).
+
+**Archiv:** `milestones/v1.6-ROADMAP.md`.
+
+</details>
 
 <details>
 <summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — SHIPPED 2026-06-27 (Phasen 18–23)</summary>
@@ -173,11 +225,15 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**Aktiver Milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (Phase 24
-ausgeführt + verifiziert, Milestone-Close ausstehend). Zuletzt geshipt:
-**v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung** (2026-06-27, 12/12 Requirements) —
-Details + collapsed Summary siehe Abschnitt „Current Milestone" oben. Davor:
-**v1.4 Committed Voluntary Capacity** (2026-06-25, Audit `passed`, 10/10).
+**Kein aktiver Milestone.** Zuletzt geshipt + archiviert:
+**v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (2026-06-27, Phase 24,
+override_closeout, 7/7 must-haves) — Details siehe collapsed Block oben + `milestones/v1.6-ROADMAP.md`.
+Davor: **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung** (2026-06-27, 12/12 Requirements)
+und **v1.4 Committed Voluntary Capacity** (2026-06-25, Audit `passed`, 10/10).
+
+Nächster Schritt: neuen Milestone via `/gsd-new-milestone` aufsetzen, oder die
+off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** direkt
+via `/gsd-plan-phase 999.1` planen.
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity — SHIPPED 2026-06-25 (Phasen 14–17)</summary>
@@ -231,8 +287,10 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v1.4-ROADMAP.md`.
 - v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — shipped 2026-06-27 (Phasen 18–23).
   Archiv: `milestones/v1.5-ROADMAP.md`, `milestones/v1.5-REQUIREMENTS.md`.
+- v1.6 Paid-Capacity-Durchsetzung & Konfiguration — shipped 2026-06-27 (Phase 24).
+  Archiv: `milestones/v1.6-ROADMAP.md`.
 
-Aktiv: **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (Phase 24; Close ausstehend).
+Aktiv: **keiner** — Planung des nächsten Milestones offen (`/gsd-new-milestone`).
 
 ## Evolution
 

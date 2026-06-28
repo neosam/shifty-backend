@@ -75,6 +75,41 @@
 
 ---
 
+## Milestone: v1.6 — Paid-Capacity-Durchsetzung & Konfiguration
+
+**Shipped:** 2026-06-27
+**Phases:** 1 (24) | **Plans:** 5 (2 Waves)
+
+### What Was Built
+- Globaler hart/weich-Toggle (`paid_limit_hard_enforcement`) über den bestehenden `ToggleService` (Seed-Migration, Default weich → keine Regression) — bewusst NICHT `feature_flag`.
+- Pre-Persist-Hard-Block in `book_slot_with_conflict_check` (`ShiftplanEditService` mit `ToggleService`-Dep, Toggle frisch pro Buchung gelesen): Nicht-Shiftplanner über Limit → `ServiceError::PaidLimitExceeded` (HTTP 409) vor `booking_service.create`; Shiftplanner-Bypass; nur bezahlte zählen; strikt-größer-Grenzregel.
+- Permission-Gate des Buchungspfads korrigiert: `HR ∨ self` → `Shiftplanner ∨ self` (D-24-04).
+- Admin-gated `/settings/`-Seite mit genau einem Toggle (`aria-pressed`, Inline-Feedback) + Toggle-REST-Client; persistente Overage-Warn-Sektion über dem Wochenplan für alle Rollen; i18n De/En/Cs.
+
+### What Worked
+- **Bestehende Infrastruktur wiederverwendet statt neue gebaut:** `ToggleService` (statt neuer feature_flag-Mechanik) und der v1.1-`Warning::PaidEmployeeLimitExceeded`-Pfad als Basis hielten die Phase auf 5 Pläne / einen Tag.
+- **Service-Tier-Disziplin zahlte sich aus:** der Pre-Persist-Block lebt korrekt im Business-Logic-Tier (`ShiftplanEditService`), nicht im Basic-Tier-`BookingService` — DI-Order Basic-vor-Business in `main.rs` blieb deterministisch (CLAUDE.md-Konvention).
+- **Distinkter Error-Status (409 statt 403)** machte das Frontend-Inline-Handling sauber adressierbar und vermeidet Verwechslung mit echter Permission-Verweigerung.
+
+### What Was Inefficient
+- **Zwei Bugs erst im Browser-UAT gefunden** (nicht im Plan/Test): (a) `/toggle` fehlte in der Dev-Proxy-Allowlist (`Dioxus.toml`) → Toggle im Dev funktionslos; (b) `current_paid_count` wurde aus dem HR-gegateten `is_paid` berechnet → Overage-Sektion für Nicht-HR-Rollen unsichtbar (D-24-03 verletzt). Beide klassisch „grüner Unit-Test deckt den e2e-/Rollen-Pfad nicht ab" (vgl. Memory „Backend-Roundtrip e2e prüfen").
+- **STATE.md-Frontmatter-Drift:** beim Close stand STATE.md noch auf `executing/69%` (Phase 24 „execution started"), während ROADMAP/Commit längst Complete waren — SDK-Auto-State zog den Phasen-Abschluss nicht nach (bekanntes Muster, manuell korrigiert).
+
+### Patterns Established
+- **Globale Admin-Konfiguration über `ToggleService`** (nicht `feature_flag`): feature_flag = Rollout-Gating, Toggle = bleibende Admin-Einstellung. Saubere Trennung für künftige Schalter.
+- **Rollen-sichtbarer Aggregat-Count ohne Identitäts-Leak:** `current_paid_count` aus un-gegatetem `get_all_paid(Authentication::Full)` zählen, per-Booking `is_paid` weiterhin gegated — der *Count* ist für alle Rollen sichtbar, *wer* bezahlt ist nicht.
+
+### Key Lessons
+1. Neue Backend-Pfad-Familien (`/toggle`) brauchen denselben Tag den passenden Dev-Proxy-Eintrag in `Dioxus.toml` — sonst ist das Feature im Dev still funktionslos, obwohl alle Tests grün sind.
+2. Wenn ein Aggregat-Wert (`current_paid_count`) aus rollen-gegateten Quelldaten abgeleitet wird, explizit prüfen, ob die Anforderung „für alle Rollen sichtbar" mit dem Gating kollidiert — sonst verschwindet die UI für Nicht-privilegierte Rollen.
+3. STATE.md-Frontmatter nach dem letzten Phasen-Abschluss aktiv verifizieren, bevor man `complete-milestone` fährt — der Auto-State ist nicht verlässlich auf 100%.
+
+### Cost Observations
+- Model mix: Planner opus, Executor sonnet (GSD-Config).
+- Notable: kompakter Ein-Phasen-Milestone (53 Dateien, +6855/−106, ein `feat(24)`-Commit) an einem Tag; der Aufwand lag im UAT-Bug-Fixing, nicht im Plan.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -83,6 +118,7 @@
 |-----------|--------|------------|
 | v1.4 | 4 | Erster Milestone mit dediziertem Pre-Close-Integration-Check + formalem Milestone-Audit vor dem Abschluss; no-bump-Justification-Pattern etabliert. |
 | v1.5 | 6 | Backend-rechnet-vor-Pattern für sonst-nur-im-Browser-prüfbare Logik; override_closeout für code-fertige, human-unverifizierte Debug-Sessions; Close ohne formalen Milestone-Audit (Phasen-UAT genügte). |
+| v1.6 | 1 | Kompakter Ein-Phasen-Milestone auf bestehender Infrastruktur (`ToggleService`); override_closeout mit deferred Human-UAT-Item; Decision-getrieben (D-24-XX) statt formaler REQ-IDs (keine REQUIREMENTS.md). |
 
 ### Cumulative Quality
 
@@ -90,6 +126,7 @@
 |-----------|----------------------------|-------------------------|
 | v1.4 | service_impl 451 + rest-types 3 / 628 | 9 (unverändert durch v1.4) |
 | v1.5 | workspace grün (+ Regressionstests UV-04/UV-05/A-22-1) / WASM-Build grün | 10 (Bump 9→10 in Phase 18, `vacation_days`-Computation) |
+| v1.6 | workspace grün (+ 4 Hard-Block-Tests + `test_current_paid_count_correct_for_non_hr_caller`) / WASM-Build grün | 10 (unverändert durch v1.6 — kein persistierter `value_type` berührt) |
 
 ### Top Lessons (Verified Across Milestones)
 

@@ -8,37 +8,31 @@
 - ✅ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (closed 2026-06-22; geliefert: 8, 8.2, 8.4, 8.5, 8.6, 9; 8.1/11 ⊘ superseded; **8.3/10/12/13 bewusst aufgegeben**) — siehe [`milestones/v1.3-ROADMAP.md`](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Committed Voluntary Capacity** — Phasen 14–17 (shipped 2026-06-25) — siehe [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md)
 - ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (shipped 2026-06-27) — siehe [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md)
-- ◆ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (aktiv, gestartet 2026-06-27)
+- ✅ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (shipped 2026-06-27) — siehe [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
+- 🚧 **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (active 2026-06-28)
 
 ## Phases
 
-### v1.6 Paid-Capacity-Durchsetzung & Konfiguration (active)
+### v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Phasen 25–26) — ACTIVE 2026-06-28
 
-**Milestone-Goal:** Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche) wird
-von einem rein visuellen Soft-Hinweis (v1.1/Phase 5, Phase 23) zu einem global
-konfigurierbar durchsetzbaren Limit — admin-schaltbar hart/weich, im harten Modus
-rollenbasiert (nur Shiftplanner darf überziehen), mit deutlicherer Overage-Anzeige.
+**Milestone Goal:** Feiertage werden automatisch (statt manuell pro Mitarbeiter) im Report angerechnet, und Urlaub von Freiwilligen verzerrt die Jahresansicht nicht mehr.
 
-- [ ] **Phase 24: Paid-Limit konfigurierbar & rollenbasiert durchsetzen** (Backend+Frontend) — Globaler System-Toggle „Paid-Limit hart/weich", rollenbasierte Überschreitung (nur Shiftplanner-Rolle darf über das Limit buchen) und eine deutlichere Overage-Anzeige im Wochenplan. Baut auf der Phase-23-UI + dem v1.1-Backend (`Warning::PaidEmployeeLimitExceeded`) auf.
+- [ ] **Phase 25: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration** — Vollständige Feiertags-Automatik mit konfigurierbarem Aktivierungsstichtag: auto-Anrechnung in `reporting.rs` (Wirkung identisch zu manuellem ExtraHours(Holiday)), Konflikt-/Doppelzähl-Schutz, Admin-Settings-UI für den Stichtag und ggf. Snapshot-Schema-Bump (BE+FE).
+- [ ] **Phase 26: Freiwilligen-Abwesenheit & Cross-Navigation** — Urlaub von Freiwilligen reduziert ihre committed-Zusage 🎯 in der Jahresansicht (`booking_information.rs::get_weekly_summary`); bidirektionale Deep-Links zwischen `/absences` und Mitarbeiterreport/Jahresansicht (BE+FE).
 
-  **Goal:** Ein global konfigurierbarer Modus bestimmt, ob das Buchen über `max_paid_employees` hinaus (a) hart blockiert wird (außer für die Shiftplanner-Rolle) oder (b) wie heute nur eine nicht-blockierende Warnung erzeugt; zusätzlich ist die Overage-Situation im Wochenplan deutlicher (persistente Warn-Sektion über dem Plan) sichtbar — alles für En/De/Cs lokalisiert und getestet. Mitgefixt: das Buchungs-Permission-Gate (Shiftplanner ∨ self statt HR ∨ self).
-  **Scope (aus Diskussion 2026-06-27, D-24-01..08):**
-  - D-24-01/01a/07: Globaler Toggle „Paid-Limit-Modus = hart | weich" über den bestehenden `ToggleService` (Key `paid_limit_hard_enforcement`, neue Seed-Migration, `enabled=0`=weich); Default = weich (keine Regression). Bewusst NICHT `feature_flag`.
-  - D-24-02 + Grenzregel: Im harten Modus blockiert das Backend (`book_slot_with_conflict_check`) das Buchen, das den bezahlten Count strikt über das Limit brächte — außer der Akteur hat `SHIFTPLANNER_PRIVILEGE`; nur bezahlte zählen; keine Bestandsbuchungen werden rückwirkend angefasst.
-  - D-24-08: Pre-Persist-Check — `ShiftplanEditService` bekommt `ToggleService`-Dep; die Zählung/Prüfung wird vor `booking_service.create` gezogen.
-  - D-24-04: Buchungs-Gate `HR ∨ self` → `Shiftplanner ∨ self` (Permission-Bugfix).
-  - D-24-05: Neuer, unterscheidbarer ServiceError (`PaidLimitExceeded`, → HTTP 409, NICHT 403) + lokalisierte Inline-Meldung am Slot.
-  - D-24-06: Neue admin-gated `/settings/`-Seite mit nur diesem einen Schalter.
-  - D-24-03: Persistente Overage-Warn-Sektion über dem Schichtplan, alle Rollen, rein clientseitig.
-  **Requirements:** Contract = D-24-01, D-24-01a, D-24-02, D-24-03, D-24-04, D-24-05, D-24-06, D-24-07, D-24-08 + strikt-größer-Grenzregel (keine formalen REQ-IDs; in 24-CONTEXT.md definiert, je Plan als `requirements`-Tags referenziert).
-  **Depends on:** Phase 23 (Slot-Paid-Capacity-UI) ✅ + v1.1/Phase 5 (`Warning::PaidEmployeeLimitExceeded`, Backend-Buchungspfad).
-  **Plans:** 5 plans (2 Waves; Wave 1 parallel: 24-01 Backend-Contract + 24-03 i18n; Wave 2 parallel: 24-02 Backend-Enforcement, 24-04 Settings-Seite, 24-05 Shiftplan-UI — keine Datei-Überschneidung je Wave)
-  Plans:
-  - [x] 24-01-PLAN.md — ServiceError::PaidLimitExceeded (→409) + Toggle-Seed-Migration (D-24-01/01a/05/07)
-  - [x] 24-02-PLAN.md — ToggleService-DI + Pre-Persist-Hard-Block + Gate-Fix HR→Shiftplanner + Tests (D-24-02/04/08 + Grenzregel)
-  - [x] 24-03-PLAN.md — 9 neue i18n-Keys En/De/Cs + Present-in-all-locales-Test
-  - [x] 24-04-PLAN.md — admin-gated /settings/-Seite mit einem Paid-Limit-Toggle + Toggle-REST-Client (D-24-06)
-  - [x] 24-05-PLAN.md — Inline-Hard-Block-Meldung am Slot (D-24-05) + persistente Overage-Sektion (D-24-03)
+<details>
+<summary>✅ v1.6 Paid-Capacity-Durchsetzung & Konfiguration (Phase 24) — SHIPPED 2026-06-27</summary>
+
+- [x] Phase 24: Paid-Limit konfigurierbar & rollenbasiert durchsetzen (BE+FE) (5/5 plans) — D-24-01..08 + strikt-größer-Grenzregel
+
+Globaler hart/weich-Toggle (`paid_limit_hard_enforcement`, Default weich), pre-persist
+Hard-Block (Shiftplanner-Bypass, HTTP 409), admin-gated `/settings/`-Seite, persistente
+Overage-Sektion für alle Rollen, Permission-Gate-Fix HR→Shiftplanner.
+
+Vollständige Phasen-Details, Decisions und Closeout:
+[`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
+
+</details>
 
 <details>
 <summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (Phasen 18–23) — SHIPPED 2026-06-27</summary>
@@ -68,6 +62,33 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 
 </details>
 
+## Phase Details
+
+### Phase 25: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration
+**Goal**: Feiertage werden automatisch und korrekt im Mitarbeiterreport angerechnet — mit identischer Wirkung zu einem manuellen ExtraHours(Holiday)-Eintrag — und ein Admin kann den Aktivierungsstichtag über eine Settings-UI setzen.
+**Depends on**: Phase 24 (Settings-UI-Pattern aus v1.6; Toggle-/Konfig-Infrastruktur vorhanden)
+**Requirements**: HOL-01, HOL-02, HOL-03, HCFG-01, HCFG-02, HCFG-03, HSNAP-01
+**Success Criteria** (what must be TRUE):
+  1. Ein Mitarbeiter mit laut Vertrag am betreffenden Wochentag arbeitendem Feiertag hat im Report denselben `holiday_hours`-Wert wie bei einem äquivalenten manuellen ExtraHours(Holiday)-Eintrag — verifiziert per Vergleichstest (HOL-01, HOL-02).
+  2. Feiertage vor dem konfigurierten "aktiv ab"-Datum werden von der Automatik nicht angerechnet; bestehende manuelle Einträge und historische Snapshots bleiben davon unberührt (HCFG-01).
+  3. Ein Admin kann das "aktiv ab"-Datum in der admin-gated Settings-UI setzen, ändern und nach Seitenreload wiederfinden; alle Texte sind in de/en/cs übersetzt (HCFG-02).
+  4. Hat ein Feiertag bereits einen manuellen ExtraHours(Holiday)-Eintrag, erscheint er nicht doppelt im Report — Konfliktregel greift (HCFG-03).
+  5. `paid_hours`, `committed_voluntary_hours` und `volunteer_hours` in der Jahresansicht sind durch die Feiertags-Automatik unverändert (HOL-03 Regressions-Guard); `CURRENT_SNAPSHOT_SCHEMA_VERSION` ist bei Bedarf auf 11 gebumpt (HSNAP-01).
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 26: Freiwilligen-Abwesenheit & Cross-Navigation
+**Goal**: Urlaub von Freiwilligen verzerrt die Jahresansicht nicht mehr (committed-Zusage wird für Abwesenheitswochen korrekt reduziert), und Benutzer können per Deep-Link direkt zwischen Abwesenheitsansicht und Mitarbeiterreport navigieren.
+**Depends on**: Phase 25 (Feiertags-Guard HOL-03 muss stabil sein, damit VFA-02-Asymmetrie sauber verifizierbar ist)
+**Requirements**: VFA-01, VFA-02, NAV-01
+**Success Criteria** (what must be TRUE):
+  1. In der Jahresansicht zeigt ein Freiwilliger (`is_paid=false`, `committed_voluntary>0`) für Wochen mit Urlaub/Abwesenheit eine niedrigere committed-Zusage 🎯 als für Wochen ohne Abwesenheit (VFA-01).
+  2. Feiertage senken die committed-Zusage eines Freiwilligen nicht — die Asymmetrie ist per Regressionstest abgesichert (VFA-02).
+  3. Von der Jahresansicht/Mitarbeiterreport führt ein Link direkt zur Abwesenheitsansicht des jeweiligen Mitarbeiters (Sales: eigene Ansicht; HR: Mitarbeiter-Filter vorbelegt); alle Beschriftungen in de/en/cs (NAV-01a).
+  4. Von der Abwesenheitsansicht führt ein Link pro Mitarbeiter direkt zur Jahresansicht/Mitarbeiterreport desselben Mitarbeiters; alle Beschriftungen in de/en/cs (NAV-01b).
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -91,6 +112,8 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
+| 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 0/? | Not started | - |
+| 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 0/? | Not started | - |
 
 ## Backlog
 
@@ -118,4 +141,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-06-28 — **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** angelegt (off-theme zu v1.6, eskaliert aus Quick-Task 260627-vgo). v1.5 archiviert; v1.6/Phase 24 ausgeführt + verifiziert, Milestone-Close ausstehend.*
+*Last updated: 2026-06-28 — **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** Roadmap erstellt (Phasen 25–26, 10/10 Requirements gemappt). Phase 25: HOL-01/02/03 + HCFG-01/02/03 + HSNAP-01 (BE+FE). Phase 26: VFA-01/02 + NAV-01 (BE+FE). Nächster Schritt: `/gsd-plan-phase 25`.*
