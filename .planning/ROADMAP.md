@@ -7,7 +7,7 @@
 - ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (closed 2026-06-22; geliefert: 8, 8.2, 8.4, 8.5, 8.6, 9; 8.1/11 ⊘ superseded; **8.3/10/12/13 bewusst aufgegeben**) — siehe [`milestones/v1.3-ROADMAP.md`](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Committed Voluntary Capacity** — Phasen 14–17 (shipped 2026-06-25) — siehe [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md)
-- ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (abgeschlossen 2026-06-27)
+- ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (shipped 2026-06-27) — siehe [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md)
 - ◆ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (aktiv, gestartet 2026-06-27)
 
 ## Phases
@@ -41,78 +41,17 @@ rollenbasiert (nur Shiftplanner darf überziehen), mit deutlicherer Overage-Anze
   - [x] 24-05-PLAN.md — Inline-Hard-Block-Meldung am Slot (D-24-05) + persistente Overage-Sektion (D-24-03)
 
 <details>
-<summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (Phasen 18–23) — abgeschlossen 2026-06-27</summary>
+<summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (Phasen 18–23) — SHIPPED 2026-06-27</summary>
 
-**Milestone-Goal:** Urlaubs-/Abwesenheitswerte sind überall konsistent, das Umwandeln
-stundenbasierter Legacy-Einträge braucht für HR nur noch minimale Handarbeit, die
-Mitarbeiter-Jahresansicht ist schnell les- und zuordenbar, und HR bekommt pro
-Mitarbeiter eine Auswertung der durchschnittlichen Anwesenheit.
+- [x] Phase 18: Report-/Balance-Korrektheit (BE) (2/2 plans) — UV-04, UV-05
+- [x] Phase 19: Convert-Dialog UX (FE+BE) (2/2 plans) — UV-01, UV-02
+- [x] Phase 20: Absences-Indikator & Jahres-Histogramm (FE) (2/2 plans) — UV-03, YV-01/02/03
+- [x] Phase 21: Tabellen-Lesbarkeit (FE) (1/1 plan) — UI-01, UI-02
+- [x] Phase 22: Mitarbeiter-Statistik HR (BE+FE) (2/2 plans) — STAT-01, STAT-02
+- [x] Phase 23: Frontend Slot Paid-Capacity UI (FE) (2/2 plans)
 
-12 Requirements (UV-01..05, YV-01..03, STAT-01/02, UI-01/02) → 5 Phasen. Coverage 100 %.
-
-- [x] **Phase 18: Report-/Balance-Korrektheit** (Backend) — Carryover-Quelle (`year-1`) angleichen + Urlaubstage-Zählung nach Absence-Konvertierung korrigieren (derived Absences in per-Woche-Kategorien mergen, ohne Doppelzählung). ✅ 2026-06-26
-  Code: `service_impl/src/reporting.rs`, `service_impl/src/vacation_balance.rs`, `service/src/reporting.rs`. Snapshot-Hinweis: `CURRENT_SNAPSHOT_SCHEMA_VERSION` Bump 9→10 nötig, weil die persistierte `VacationDays`-Computation sich ändert (konvertierte Einträge: 0 → >0).
-  Requirements: UV-04, UV-05
-  Success Criteria:
-  1. Carryover-Resturlaub in der Vacation-Balance entspricht für beliebige Mitarbeiter dem Wert des Report-Service (`year-1`-Quelle).
-  2. Nach Konvertierung eines stundenbasierten Urlaubseintrags in eine Absence Period zeigt der Employee-Report `vacation_days` weiterhin korrekt (>0, deckungsgleich mit den Stunden) — nicht 0.
-  3. `sick_leave_days` und `absence_days` zählen die derived Absences ebenfalls mit, ohne Doppelzählung.
-  4. Regressionstests decken beide Pfade ab; `cargo test --workspace` grün.
-  Plans: 2 plans
-  - [x] 18-01-PLAN.md — UV-04: Carryover auf `year-1`-Quelle pinnen (Fix bereits präsent) + Regressionstest, der den `year-1`-Read im Mock-Matcher festnagelt.
-  - [x] 18-02-PLAN.md — UV-05: derived Absences in per-Woche-Kategorien mergen (ungated), Jahreslumpen-Doppelzählung in `get_report_for_employee` entfernen (Single Source = `by_week`), Snapshot-Bump 9→10, Regressionstests (days>0 stabil über Konvertierung, kein Double-Count, sick_leave-Fall).
-
-- [x] **Phase 19: Convert-Dialog UX** (Frontend+Backend) — Smart bis-Datum (arbeitstagbasiert) + exakter Wochen-Fall („1 Woche" + Mo–So-Vorschlag) im „In Zeitraum umwandeln"-Modal. ✅ 2026-06-26
-  Code: `shifty-dioxus/src/component/absence_convert_modal.rs`, `shifty-dioxus/src/page/absences.rs`.
-  Requirements: UV-01, UV-02
-  Success Criteria:
-  1. Beim Öffnen des Convert-Modals ist „bis" arbeitstagbasiert vorbelegt (Wochenende + Feiertage übersprungen), sodass der Zeitraum den berechneten Urlaubstagen entspricht.
-  2. Entsprechen die Stunden exakt dem Wochen-Soll, zeigt die Anzeige „1 Woche" und das Modal schlägt Mo–So der betroffenen Kalenderwoche vor.
-  3. Bei allen anderen Werten gilt die Arbeitstage-/Tage-Logik (keine Vielfachen, keine Teilwochen).
-  4. Frontend-Tests + `cargo build --target wasm32-unknown-unknown` grün.
-  Plans: 2 plans (Arch-Entscheidung: FE+BE — Backend rechnet die Vorschlagswerte vor; FE nur Wiring/Anzeige)
-  - [x] 19-01-PLAN.md — Backend: `suggested_end` + `is_full_week` auf `ExtraHoursMarkerTO`, `AbsenceService::suggest_convert_ranges_for_markers` (Arbeitstag/Feiertag/Wochen-Cap + Exakt-Wochen-Soll), Wiring in beide List-Handler + Tests.
-  - [x] 19-02-PLAN.md — Frontend: Felder durch `ExtraHoursMarker`-State + Modal-Props threaden, bis aus `suggested_end` vorbelegen, „1 Woche"/„N Tage" in `HourlyMarkerRow`, i18n (De/En/Cs), SSR-Tests + WASM-Gate.
-
-- [x] **Phase 20: Absences-Indikator & Jahres-Histogramm** (Frontend) — ⚠️-Indikator bei stundenbasierten Einträgen; Histogramm-Hover (KW+Datum), KW+Datum-Beschriftung und gestapelte Freiwilligen-Stunden. ✅ 2026-06-26
-  Code: `shifty-dioxus/src/page/absences.rs` `HourlyMarkerRow`; `shifty-dioxus/src/component/employee_weekly_histogram.rs`; `shifty-dioxus/src/component/employee_view.rs`.
-  Requirements: UV-03, YV-01, YV-02, YV-03
-  Success Criteria:
-  1. Stundenbasierte Marker auf `/absences` zeigen einen ⚠️-Indikator am Zeilenanfang.
-  2. Histogramm-Balken (`EmployeeWeeklyHistogram`) zeigen im Hover KW + von–bis Datum.
-  3. Wo bisher nur die KW-Nummer stand (X-Achse / aufgeklappte KW-Liste), steht jetzt zusätzlich das von–bis Datum.
-  4. Freiwilligen-Stunden (`volunteer_hours`) erscheinen gestapelt im Histogramm + als separater Wert in der aufgeklappten KW-Liste / `WeekDetailPanel`.
-  5. Frontend-Tests + WASM-Build grün.
-  Plans: 2 plans (Wave 1, parallel — keine Datei-Überschneidung außer den additiv-erweiterten i18n-Dateien; UV-03 disjunkt vom Histogramm)
-  - [x] 20-01-PLAN.md — UV-03: ⚠️-Indikator führend in `HourlyMarkerRow` Spalte 1 (statisches Tailwind, i18n title+aria in De/En/Cs), Badge bleibt; SSR-Test.
-  - [x] 20-02-PLAN.md — YV-01/02/03: gestapelte Balken (regulär + volunteer dezent) + `<title>`-Hover (KW+Datum), `compute_max_y` auf Stapel-Summe, KW+Datum + separater volunteer-Wert in `WeekListExpanded`/`WeekDetailPanel`, i18n; SSR-Tests + WASM-Gate.
-
-- [x] **Phase 21: Tabellen-Lesbarkeit** (Frontend) — max-width + Zebra für die Schichtplan-Tabelle; schmalere Mitarbeiter-Spalte in der `/absences`-Tabelle. ✅ 2026-06-26
-  Code: `shifty-dioxus/src/component/working_hours_mini_overview.rs`, `shifty-dioxus/src/page/absences.rs`.
-  Requirements: UI-01, UI-02
-  Success Criteria:
-  1. Die Stunden-Tabelle unter dem Schichtplan (`WorkingHoursMiniOverview` TableLayout) hat eine maximale Breite + Zebra-Striping.
-  2. In der `/absences`-Tabelle ist die Mitarbeiter-Spalte deutlich schmaler (weg von `1.5fr`).
-  3. Frontend-Tests + WASM-Build grün.
-  Plans: 1 plan (Wave 1 — beide UI-Polish-Änderungen sind kleine Tailwind-Edits, zusammen ~15 % Kontext)
-  - [x] 21-01-PLAN.md — UI-01: max-width (`max-w-5xl`) + Zebra-Striping (Design-Tokens, Selected/Hover gewinnt) im `TableLayout`; UI-02: schmalere Mitarbeiter-Spalte (`1.5fr` → `200px`) konsistent an allen drei `/absences`-grid-cols; SSR-Tests + WASM-Gate.
-
-- [x] **Phase 22: Mitarbeiter-Statistik HR** (Backend + Frontend) — HR-only pro-SalesPerson Statistik in `/employees/:id`; Kennzahl Ø gearbeitete Stunden/Woche (urlaubsbereinigt). Setzt Todo `AVG-01` um. ✅ 2026-06-26
-  Code: `ReportingService` (neue Methode + REST) + `shifty-dioxus/src/component/employee_view.rs`. Berechnungsregel A-22-1 in `22-CONTEXT.md` gepinnt (Jahr bis heute; worked = shiftplan+extrawork+volunteer; voll-abwesende Wochen raus; alle vier Abwesenheitskategorien).
-  Requirements: STAT-01, STAT-02
-  Success Criteria:
-  1. Eine pro-SalesPerson Statistik-Ansicht ist ausschließlich mit HR-Rolle zugänglich/sichtbar.
-  2. Die Ansicht zeigt die durchschnittlich gearbeiteten Stunden pro Woche, mit aus dem Nenner herausgerechneten Abwesenheitszeiträumen (Definition gemäß A-22-1).
-  3. Backend-Berechnung + REST + Frontend getestet; `cargo test --workspace` + WASM-Build grün.
-  Plans: 2 plans (Wave 1 BE → Wave 2 FE)
-  - [x] 22-01-PLAN.md — Backend: `EmployeeWeeklyStatistics` + reine A-22-1-Formel (`average_worked_hours_per_week` über `by_week`), neue HR-gated `ReportingService`-Methode (Jahr bis heute via ClockService, baut auf `get_report_for_employee`), `EmployeeWeeklyStatisticsTO` (ToSchema) + HR-gated REST-Endpoint `GET /report/{id}/weekly-statistics` (+ ReportApiDoc), Unit-Tests (voll-abwesend raus / Teilwoche drin / flexibler Vertrag / Ehrenamt zählt).
-  - [x] 22-02-PLAN.md — Frontend: `get_employee_weekly_statistics`-Fetch, `EmployeeStore.weekly_statistics`-Wiring (Err/403 → None), HR-only Block in `EmployeeView` (is_hr-Gating via `has_privilege("hr")` + `should_show_hr_stats`), i18n De/En/Cs, SSR-Tests (sichtbar mit HR / unsichtbar ohne) + WASM-Gate.
-
-- [x] **Phase 23: Frontend: Slot Paid-Capacity UI** (Frontend) — Capacity-Editor in den Slot-Settings (`max_paid_employees` setzen, NULL = kein Limit) + Warn-Farbe im Schichtplan-Week-View, wenn `current_paid_count > max_paid_employees`. ✅ 2026-06-27
-  Code: `shifty-dioxus/src/component/slot_edit.rs`, `shifty-dioxus/src/component/week_view.rs`, `shifty-dioxus/src/page/shiftplan.rs`, i18n. UAT-Bugfix: `modify_slot` ließ `max_paid_employees` fallen → gefixt + Regressionstest (`service_impl/src/shiftplan_edit.rs`, `service_impl/src/test/shiftplan_edit.rs`).
-  Plans: 2 plans
-  - [x] 23-01-PLAN.md — Capacity-Editor (`max_paid_employees`) in Slot-Settings + Service/State-Wiring.
-  - [x] 23-02-PLAN.md — Warn-Farbe (`bg-bad-soft`) im Week-View bei Overage; i18n.
+Vollständige Phasen-Details, Success-Criteria und Requirements:
+[`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md) · [`milestones/v1.5-REQUIREMENTS.md`](milestones/v1.5-REQUIREMENTS.md)
 
 </details>
 
@@ -153,6 +92,30 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
 
+## Backlog
+
+Ungeplante / off-theme Arbeit, die NICHT zum aktiven Milestone gehört. Vor Ausführung
+in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
+
+- [ ] **Phase 999.1: Breaking/Major Dependency-Migration** (Backend + Frontend, Maintenance) — Alle direkten Deps mit verfügbaren Major-Releases über beide Cargo-Workspaces (Backend-Root + `shifty-dioxus/`, 9 Member-Crates) auf den neuen Major heben (Cargo.toml-Constraint-Edits + Code-/API-Migration). **Off-theme zu v1.6** (Paid-Capacity) → bewusst Backlog.
+
+  **Goal:** Reproduzierbares Breaking-Update-Tooling etabliert und alle tragbaren Major-Bumps migriert, mit grünen Gates über beide Workspaces — ohne die heiklen Pins (dioxus 0.6.x) ungefragt anzufassen.
+
+  **Context:** Quick-Task `260627-vgo` hat die **semver-kompatible** Baseline bereits geliefert (nur Cargo.lock, alle Gates grün). Offen ist NUR der Breaking/Major-Teil, der dort eskaliert wurde, weil die gepinnte **stable cargo 1.95.0** kein `cargo update --breaking` kann (nightly-only) und weder `cargo-edit` (`cargo upgrade`) noch `cargo-outdated` noch `+nightly` verfügbar sind.
+
+  **Scope / grobe Wave-Struktur:**
+  - Task 1 — Toolchain-Enabler: nightly-Toolchain bzw. `cargo-edit`/`cargo-outdated` ins `flake.nix` aufnehmen, sodass `cargo update --breaking` oder `cargo upgrade --incompatible` reproduzierbar laufen.
+  - Task 2 — Major-Bump-Inventar: welche direkten Deps, welcher Sprung, Changelog-/Breaking-Risiko (beide Workspaces).
+  - Task 3 — iterativ pro Major migrieren mit Gates: Backend `cargo build` + `cargo clippy --workspace -- -D warnings` + `cargo test --workspace`; Frontend `cargo build --target wasm32-unknown-unknown` (nix-shell -p openssl pkg-config lld) + `cargo test`.
+
+  **Constraints:**
+  - **dioxus-Major** (0.6.x-Pin) NUR mit expliziter User-Freigabe — dx-CLI-0.7-Inkompatibilität dokumentiert (App startet nicht + Design gestrippt).
+  - `flake.lock` Nix-Inputs sind NICHT Teil dieser Phase (separater Maintenance-Job).
+  - jj-Repo: User committet manuell, keine git-Fallbacks.
+
+  **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
+  **Plans:** noch nicht geplant — `/gsd-plan-phase 999.1`
+
 ---
 
-*Last updated: 2026-06-27 — **Milestone v1.6 + Phase 24 geplant** (Paid-Capacity-Durchsetzung & Konfiguration: globaler Toggle hart/weich, rollenbasierte Überschreitung nur für Shiftplanner, deutlichere Overage-Anzeige, Permission-Bugfix — D-24-01..08). 5 Pläne in 2 Waves. v1.5 abgeschlossen (Phasen 18–23). Nächster Schritt: `/gsd-execute-phase 24`.*
+*Last updated: 2026-06-28 — **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** angelegt (off-theme zu v1.6, eskaliert aus Quick-Task 260627-vgo). v1.5 archiviert; v1.6/Phase 24 ausgeführt + verifiziert, Milestone-Close ausstehend.*

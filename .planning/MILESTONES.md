@@ -112,3 +112,32 @@ Im Voraus zugesagte freiwillige Stunden-Kapazität wird pro Mitarbeiter über ei
 - **Tech-Debt:** Nyquist-VALIDATION für Phasen 14/15/17 unvollständig (Discovery-only).
 
 ---
+
+## v1.5 — Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
+
+**Shipped:** 2026-06-27
+**Phases:** 18–23 (6 phases, 11 plans)
+**Closeout:** override_closeout (acknowledged open items — siehe STATE.md Deferred Items)
+**Archive:** [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md) · [`milestones/v1.5-REQUIREMENTS.md`](milestones/v1.5-REQUIREMENTS.md)
+
+**Delivered:**
+Die verbliebenen Korrektheits- und Bedienprobleme der Abwesenheits-/Urlaubsverwaltung geschlossen: Carryover-Resturlaub stimmt jetzt zwischen Vacation-Balance und Report-Service überein (`year-1`-Quelle gepinnt), und `vacation_days` bleibt nach extra_hours→Absence-Konvertierung korrekt (derived Absences werden in die per-Woche-Kategorien gemergt, Single Source `by_week`, ohne Doppelzählung → Snapshot-Bump 9→10). Der „In Zeitraum umwandeln"-Dialog belegt das bis-Datum arbeitstagbasiert vor und erkennt den exakten 1-Wochen-Fall. Die Mitarbeiter-Jahresansicht ist schneller zuordenbar (KW+Datum-Hover/-Labels, gestapelte Freiwilligen-Stunden), HR bekommt eine HR-only Ø-Stunden/Woche-Statistik pro Person (urlaubsbereinigt), und zwei Tabellen wurden lesbarer (max-width + Zebra, schmalere Mitarbeiter-Spalte). Mitgeliefert: Frontend-UI für die Slot-Paid-Capacity (Editor + Overage-Warnfarbe) inkl. `modify_slot`-Bugfix.
+
+**Key accomplishments:**
+
+1. **Phase 18** — Carryover auf `year-1` gepinnt + per-Mock-Matcher gegen Reversion verriegelt (UV-04); derived Absences in per-Woche-`vacation_hours`/`sick_leave_hours`/`unpaid_leave_hours` gemergt, Jahreslumpen-Doppelzählung entfernt (Single Source `by_week`), Snapshot-Bump 9→10 (UV-05).
+2. **Phase 19** — `suggested_end` + `is_full_week` auf `ExtraHoursMarkerTO`, Backend-`suggest_convert_ranges_for_markers` (Arbeitstag/Feiertag/Wochen-Cap + Exakt-Wochen-Soll); Frontend belegt bis vor + „1 Woche"/„N Tage"-Anzeige (UV-01/02).
+3. **Phase 20** — ⚠️-Indikator bei stundenbasierten Markern (UV-03); Histogramm mit KW+Datum-Hover/-Labels und gestapelten `volunteer_hours` + separatem Wert in der KW-Liste (YV-01/02/03).
+4. **Phase 21** — `WorkingHoursMiniOverview` max-width + Zebra (UI-01); `/absences`-Mitarbeiter-Spalte `1.5fr`→`200px` an allen drei grid-cols (UI-02).
+5. **Phase 22** — HR-gated `EmployeeWeeklyStatistics` + REST `GET /report/{id}/weekly-statistics` (Regel A-22-1: Jahr bis heute, voll-abwesende Wochen raus) + HR-only Frontend-Block (STAT-01/02; setzt Todo AVG-01 um).
+6. **Phase 23** — Slot-Capacity-Editor (`max_paid_employees`, NULL = kein Limit) + Overage-Warnfarbe im Week-View; UAT-Bugfix: `modify_slot` ließ `max_paid_employees` fallen → gefixt + Regressionstest.
+
+**Test verification:** Backend `cargo test --workspace` grün (inkl. neuer Regressionstests UV-04/UV-05/A-22-1); Frontend `cargo build --target wasm32-unknown-unknown` grün; v1.5-UAT-Polish im Browser bestätigt (Tabellenbreite, Wochen-Start Montag, Histogramm-Hover).
+
+**Known deferred items (acknowledged at close, 2026-06-27):**
+
+- **`carryover-absence-vs-report`** — Code-Fix ist drin (`vacation_balance.rs:225` → `year-1`, Tests grün) + Phase-18-Mock-Lock; Debug-Session-Status nur noch `awaiting_human_verify` (Browser-Bestätigung ausstehend, kein offener Code).
+- **Historischer Quick-Task-/Todo-Ballast (pre-v1.4)** — seit v1.4-Close deferred, kein v1.5-Scope.
+- **Tech-Debt:** Nyquist-VALIDATION einzelner v1.5-Frontend-Phasen optional/discovery-only.
+
+---

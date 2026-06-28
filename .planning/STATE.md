@@ -17,11 +17,11 @@ progress:
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0–v1.4 archived)
+- **Roadmap**: `.planning/ROADMAP.md` (collapsed milestone format — v1.0–v1.5 archived)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.4-ROADMAP.md` (+ `milestones/v1.4-REQUIREMENTS.md`, `milestones/v1.4-MILESTONE-AUDIT.md`)
+- **Latest milestone archive**: `.planning/milestones/v1.5-ROADMAP.md` (+ `milestones/v1.5-REQUIREMENTS.md`)
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung (abgeschlossen 2026-06-27, Phasen 18–23; noch nicht via `/gsd:complete-milestone` archiviert)
+- **Last shipped/closed**: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung (shipped + archiviert 2026-06-27, Phasen 18–23, 12/12 Requirements, override_closeout)
 - **Current milestone**: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (Phase 24)
 - **Current focus**: Phase 24 diskutieren/planen — Paid-Limit konfigurierbar (global hart/weich), rollenbasierte Überschreitung (nur Shiftplanner), deutlichere Overage-Anzeige
 
@@ -34,19 +34,29 @@ Last activity: 2026-06-27 -- Phase 24 execution started
 
 ## Deferred Items
 
-Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-Entscheidung „acknowledge & proceed"):
+Erneut acknowledged + deferred beim **v1.5-Milestone-Close am 2026-06-27** (User-Entscheidung „Acknowledge & proceed", override_closeout). Carry-over aus dem v1.4-Close vom 2026-06-25:
 
 | Kategorie | Item | Status | Notiz |
 |-----------|------|--------|-------|
-| human_uat | Phase 16: visuelle Drei-Farben-Chart-Stapelung | pending | nicht test-automatisierbar (SSR pinnt keine Pixel) |
-| human_uat | Phase 16: Czech-Übersetzungsqualität | pending | A3 MEDIUM-confidence, manuelle Sprachprüfung |
-| debug | carryover-absence-vs-report | in v1.5 scope | Bug 1 von v1.5 — Root-Cause diagnostiziert (`get_carryover(year)` → `year-1`) |
+| debug | carryover-absence-vs-report | code-fixed, awaiting_human_verify | v1.5: Code-Fix drin (`vacation_balance.rs:225` → `year-1`, Tests grün) + Phase-18-Mock-Lock; nur Browser-Bestätigung offen, kein offener Code |
 | debug | working-hours-wrong-employee | resolved (obsolet) | gefixt: Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE` in `employee_details.rs` |
-| quick_task | 11 Quick-Tasks (Mai/Juni, Status „missing") | deferred | historischer Absence-Ballast, vor v1.4 |
-| todo | 5 pending Todos (ab Mai 2026) | deferred | historisch (booking-log 500er, admin-rolle-privilegien u.a.) |
-| tech_debt | Nyquist-VALIDATION Phasen 14/15/17 unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |
+| human_uat | Phase 16: visuelle Drei-Farben-Chart-Stapelung (v1.4) | pending | nicht test-automatisierbar (SSR pinnt keine Pixel) |
+| human_uat | Phase 16: Czech-Übersetzungsqualität (v1.4) | pending | A3 MEDIUM-confidence, manuelle Sprachprüfung |
+| quick_task | 7 Quick-Tasks (Mai/Juni, Status „missing"/unknown) | deferred | historischer Absence-Ballast, vor v1.4 |
+| todo | 5+ pending Todos (ab Mai 2026) | deferred | historisch (booking-log 500er, admin-rolle-privilegien u.a.) |
+| tech_debt | Nyquist-VALIDATION Phasen 14/15/17 + v1.5-FE-Phasen unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |
+
+> Hinweis: Die Phase-24-Open-Items (UAT `partial`, Verification `human_needed`) gehören zum **aktiven v1.6**-Milestone und sind NICHT Teil des v1.5-Close.
 
 ## Shipped Milestones
+
+### v1.5 — Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (shipped 2026-06-27)
+
+- **Geliefert:** Phasen 18–23 (11 Pläne) — Carryover-Konsistenz (`year-1`-Quelle gepinnt + Mock-Lock); `vacation_days` nach extra_hours→Absence-Konvertierung korrekt (per-Woche-Merge, Single Source `by_week`, kein Double-Count); Convert-Dialog mit arbeitstagbasiertem bis-Datum + 1-Wochen-Fall; Jahresansicht KW+Datum-Hover/-Labels + gestapelte Freiwilligen-Stunden; HR-only Ø-Stunden/Woche-Statistik (A-22-1); UI-Polish; Slot-Paid-Capacity-Frontend inkl. `modify_slot`-Bugfix
+- **Snapshot-Bump 9→10** (Phase 18-02): persistierte `vacation_days`-Computation zählt jetzt konvertierte Absences mit
+- **Requirements:** 12/12 (UV-01..05, YV-01..03, STAT-01/02, UI-01/02)
+- **Closeout:** override_closeout — kein formaler Milestone-Audit; offene Items acknowledged (siehe Deferred Items)
+- **Archiv:** `milestones/v1.5-ROADMAP.md`, `milestones/v1.5-REQUIREMENTS.md`
 
 ### v1.4 — Committed Voluntary Capacity (shipped 2026-06-25)
 
@@ -90,6 +100,7 @@ Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-En
 
 ### Roadmap Evolution
 
+- Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme zu v1.6, eskaliert aus Quick-Task 260627-vgo (stable cargo 1.95.0 kann kein `--breaking`; kein cargo-edit/nightly). Erster Task = Toolchain-Enabler (nightly/cargo-edit ins flake.nix). dioxus-Major nur mit Freigabe. Seed: `.planning/phases/999.1-breaking-dependency-migration/SEED.md`. Plan via `/gsd-plan-phase 999.1`.
 - Milestone v1.6 + Phase 24 added (2026-06-27): „Paid-Capacity-Durchsetzung & Konfiguration". Ausgelöst durch Browser-UAT von Phase 23: das Paid-Limit ist bisher rein weich (Warnung/Rotfärbung). Phase 24 macht es konfigurierbar (globaler Toggle hart/weich, Default weich = keine Regression), beschränkt die Überschreitung auf die Shiftplanner-Rolle (Backend-Permission-Gate in `book_slot_with_conflict_check`) und macht die Overage-Situation im Wochenplan deutlicher sichtbar. Decisions D-24-01..03 (siehe ROADMAP). Backend-Buchungspfad + `Warning::PaidEmployeeLimitExceeded` existieren aus v1.1/Phase 5; Phase-23-UI als Basis. Offen für discuss-phase: Speicherung des Toggles, exakte Permission-Quelle, UI-Form der Anzeige, Moduswechsel-Verhalten für Bestandsbuchungen. — NB: Während Phase-23-UAT wurde ein Backend-Bug gefunden+gefixt (`modify_slot` ließ `max_paid_employees` fallen; Fix + Regressionstest uncommitted im Working Copy).
 - Phase 23 added (2026-06-26): Frontend: Slot Paid-Capacity UI — Capacity-Editor in Slot-Settings + Warn-Farbe im Schichtplan, wenn `current_paid_count > max_paid_employees`. Backend bereits in v1.1/Phase 5 geliefert (`max_paid_employees`, `current_paid_count`, `Warning::PaidEmployeeLimitExceeded` via REST/DTO). Reines Frontend-Feature in `shifty-dioxus`. Hinweis: v1.5 war thematisch (Mitarbeiter-Sicht/Urlaub) abgeschlossen — Phase 23 ist off-theme angehängt; ggf. in eigenes Milestone verschieben.
 
@@ -192,6 +203,7 @@ Beim v1.4-Milestone-Close am 2026-06-25 bewusst acknowledged + deferred (User-En
 | 260613-qvg | Self-Overlap-Fehlerbanner (AbsenceModal) substituiert i18n-Platzhalter via `t_m` statt rohes Template auszugeben — category lokalisiert, from/to via `format_date` (frontend) | 2026-06-13 | uncommitted (user commits via jj); SelfOverlapBannerProps erweitert + Call-Site, 1 Regressionstest (3 Locales), Suite 596 grün, WASM-Build grün | [260613-qvg-fix-self-overlap-absence-banner-i18n-pla](./quick/260613-qvg-fix-self-overlap-absence-banner-i18n-pla/) |
 | 260614-a26 | Urlaubsanspruch (entitled_days) immer als gerundete ganze Zahl — Vacation-Balance-Pfad analog Reporting `.round()` (backend) | 2026-06-14 | committed via jj; `service_impl/vacation_balance.rs` + 1 Regressionstest (aliquot KW27 → 15), `service_impl` 410 grün, Workspace-Build grün | [260614-a26-der-urlaubsanspruch-sollte-immer-eine-ga](./quick/260614-a26-der-urlaubsanspruch-sollte-immer-eine-ga/) |
 | 260624-qgk | Ehrenamt ohne Arbeitsvertrag verbuchbar (bestätigt: bereits möglich via expected_hours=0/cap=false-Pfad, Regressionstest gepinnt) + committed_voluntary-Stunden als separate Zeile unter „Soll" (Schwelle ≥ 0.5) (backend + frontend) | 2026-06-24 | uncommitted (user commits via jj); `committed_voluntary_hours` durch ShortEmployeeReport→TO→WorkingHoursMini, `show_committed_voluntary(≥0.5)`-Gate (Card+Table+Total), i18n `CommittedVoluntaryShort` (3 Locales); 3 Backend- + 6 Frontend-Tests, Workspace-Tests grün, shifty-dioxus 630 grün, WASM exit 0; KEIN Snapshot-Bump | [260624-qgk-stunden-ohne-arbeitsvertrag-als-ehrenamt](./quick/260624-qgk-stunden-ohne-arbeitsvertrag-als-ehrenamt/) |
+| 260627-vgo | Dependency-Update beide Cargo-Workspaces (Backend + shifty-dioxus); Nix flake.lock unberührt | 2026-06-27 | uncommitted (user commits via jj); **partial scope** — semver-kompatibles `cargo update` (nur Cargo.lock) gemacht, alle Gates grün (Backend build+clippy-D+~583 Tests, Frontend WASM-Build+669 Tests, dioxus bleibt 0.6.3). **Breaking/Major eskaliert** (kein `--breaking`/cargo-edit/nightly auf stable 1.95.0) → eigene /gsd-phase empfohlen | [260627-vgo-breaking-dependency-update-ber-beide-car](./quick/260627-vgo-breaking-dependency-update-ber-beide-car/) |
 
 ### Phase-Verzeichnis-Cleanup (optional)
 

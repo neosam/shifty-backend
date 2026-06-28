@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-06-25
-last_milestone: v1.4 Committed Voluntary Capacity (shipped 2026-06-25, Audit passed, 10/10 CVC-Requirements)
-current_milestone: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
+last_updated: 2026-06-27
+last_milestone: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (shipped 2026-06-27, 12/12 Requirements)
+current_milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration
 ---
 
 # Shifty — Project Charter
@@ -133,65 +133,51 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Current Milestone: v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen
+## Current Milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration
 
-**Goal:** Die verbleibenden Korrektheits- und Bedienprobleme der Abwesenheits-/
-Urlaubsverwaltung schließen — konsistente Carryover-Werte und ein Umwandeln-Flow,
-der kaum noch Handarbeit braucht.
+**Goal:** Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche) wird von
+einem rein visuellen Soft-Hinweis (v1.1/Phase 5, Phase 23) zu einem global
+konfigurierbar durchsetzbaren Limit — admin-schaltbar hart/weich, im harten Modus
+rollenbasiert (nur Shiftplanner darf überziehen), mit deutlicherer Overage-Anzeige.
+Mitgefixt: das Buchungs-Permission-Gate (Shiftplanner ∨ self statt HR ∨ self).
 
-**Target features:**
-- **A — Smart „bis"-Datum im Umwandeln-Dialog:** Beim Öffnen des
-  `AbsenceConvertModal` wird das „bis"-Feld automatisch **arbeitstagbasiert**
-  (Wochenenden + Feiertage übersprungen) so vorbelegt, dass der Zeitraum den
-  bereits berechneten `derived_days` entspricht. HR korrigiert nur noch im
-  Ausnahmefall, statt jedes Mal selbst zu rechnen.
-- **B — Warn-Indikator bei stundenbasierten Einträgen:** ⚠️ am Zeilenanfang
-  eines stundenbasierten Markers (`HourlyMarkerRow`) auf der Absences-Seite, weil
-  ein stundenbasierter Eintrag noch **kein echter Urlaub** (Absence Period) ist
-  und konvertiert werden sollte.
-- **Bug 1 — Carryover-Abweichung:** Carryover-Resturlaub in der
-  Vacation-Balance-/Absence-Ansicht an den Report-Service angleichen
-  (`VacationBalanceService` nutzt `get_carryover(year)` → muss `year-1` sein, wie
-  `ReportingService`), mit Tests abgesichert. Report-Service = Wahrheit.
-- **Bug 2 — Urlaubstage = 0 nach Konvertierung:** Im Detail-Employee-Report
-  (`/employees/:id`) zeigt `vacation_days` nach extra_hours→Absence-Konvertierung 0,
-  obwohl die Stunden korrekt sind. Root-Cause: `hours_per_week`
-  (`reporting.rs:1227`) summiert absence-derived Stunden nur in `absence_hours`,
-  nicht in die per-Woche `vacation_hours`/`sick_leave_hours`/`unpaid_leave_hours`,
-  aus denen die `*_days()`-Methoden rechnen. Tage-Felder müssen derived Absences
-  mitzählen (ohne Doppelzählung). Betrifft `vacation_days`/`sick_leave_days`/`absence_days`.
-- **C — Mitarbeiter-Jahresansicht-Lesbarkeit (`/employees/:id`):** Betrifft den
-  Wochen-Graph `EmployeeWeeklyHistogram` (`component/employee_weekly_histogram.rs`)
-  + aufklappbare KW-Liste/`WeekDetailPanel` in `component/employee_view.rs` (NICHT
-  `weekly_overview_chart.rs` = Team-Route `/weekly_overview/`). (1) Balken-Hover zeigt
-  KW + von–bis Datum; (2) wo nur die KW-Nummer steht, von–bis Datum ergänzen
-  („KW XY" ⏎ „von–bis"); (3) Freiwilligen-Stunden (`volunteer_hours`) als gestapeltes
-  Segment im Graph + separater Wert in der aufgeklappten KW-Liste. Datenmodell
-  `WorkingHours` (`from`/`to`/`overall_hours`/`expected_hours`/`volunteer_hours`)
-  hat alle Felder bereits.
-- **D — Mitarbeiter-Statistik (HR-only):** Pro-SalesPerson Statistik-Ansicht, nur
-  mit HR-Rolle zugänglich. Kern-Kennzahl: durchschnittlich gearbeitete Stunden pro
-  Woche, mit aus dem Nenner herausgerechneten Urlaubs-/Abwesenheitszeiträumen.
-  Setzt Todo `AVG-01` um; **größtes/least-defined Item → eigene `discuss-phase`**
-  (Bezugszeitraum, Definition „gearbeitet", welche Abwesenheiten raus, nur flexible
-  Verträge?).
-- **E — UI-Polish (Tabellen-Lesbarkeit):** (1) Stunden-Tabelle unter dem Schichtplan
-  (`WorkingHoursMiniOverview`, `shiftplan.rs:1140`) bekommt max-width + Zebra-Layout;
-  (2) `/absences`-Tabelle: Mitarbeiter-Spalte (`1.5fr`) deutlich schmaler. Ziel:
-  Zeilen auf großen Bildschirmen nicht mehr verrutschen.
+**Stand 2026-06-27:** Phase 24 (5 Pläne) ausgeführt + verifiziert (7/7 must-haves),
+Human-UAT 3/4 (Item #1 bewusst weggelassen). Milestone noch nicht via
+`/gsd:complete-milestone` archiviert. Details: `.planning/ROADMAP.md` (active
+section) + `.planning/phases/24-paid-capacity-enforcement-config/`.
 
-**Phasen-Nummerierung:** v1.5 setzt fort → startet bei **Phase 18**.
+<details>
+<summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — SHIPPED 2026-06-27 (Phasen 18–23)</summary>
 
-**Bewusst NICHT in v1.5:** Bug „Vertrag landet beim falschen Mitarbeiter" ist
-bereits gefixt (Signal-Mirror `current_employee_id` + Regressionstest
-`FROZEN_CAPTURE` in `employee_details.rs`) — Debug-Session
-`working-hours-wrong-employee` ist obsolet.
+**Geliefert (as built):** Carryover-Resturlaub stimmt zwischen Vacation-Balance und
+Report-Service überein (`year-1`-Quelle gepinnt + Mock-Lock); `vacation_days` bleibt
+nach extra_hours→Absence-Konvertierung korrekt (derived Absences in per-Woche-
+Kategorien gemergt, Single Source `by_week`, kein Double-Count → Snapshot-Bump 9→10).
+Convert-Dialog belegt das bis-Datum arbeitstagbasiert vor + erkennt den exakten
+1-Wochen-Fall. Mitarbeiter-Jahresansicht: KW+Datum-Hover/-Labels + gestapelte
+Freiwilligen-Stunden. HR-only Ø-Stunden/Woche-Statistik pro Person (urlaubsbereinigt,
+Regel A-22-1). UI-Polish (max-width + Zebra, schmalere Mitarbeiter-Spalte). Mitgeliefert:
+Slot-Paid-Capacity-Frontend (Editor + Overage-Warnfarbe) inkl. `modify_slot`-Bugfix.
+
+**Validierte Requirements:** UV-01..05, YV-01..03, STAT-01/02, UI-01/02 (12/12) —
+siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
+
+**Closeout:** override_closeout — `carryover-absence-vs-report` code-gefixt, nur
+`awaiting_human_verify`; historischer Quick-Task-/Todo-Ballast deferred (STATE.md).
+
+</details>
+
+**Bewusst NICHT in v1.5:** Bug „Vertrag landet beim falschen Mitarbeiter" ist bereits
+gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
+Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**Aktiver Milestone: v1.5** (Planung gestartet 2026-06-25). Zuletzt geshipt:
-**v1.4 Committed Voluntary Capacity** (2026-06-25, Audit `passed`,
-10/10 CVC-Requirements).
+**Aktiver Milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (Phase 24
+ausgeführt + verifiziert, Milestone-Close ausstehend). Zuletzt geshipt:
+**v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung** (2026-06-27, 12/12 Requirements) —
+Details + collapsed Summary siehe Abschnitt „Current Milestone" oben. Davor:
+**v1.4 Committed Voluntary Capacity** (2026-06-25, Audit `passed`, 10/10).
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity — SHIPPED 2026-06-25 (Phasen 14–17)</summary>
@@ -243,8 +229,10 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   bewusst aufgegeben). Archiv: `milestones/v1.3-ROADMAP.md`, `milestones/v1.3-phases/`.
 - v1.4 Committed Voluntary Capacity — shipped 2026-06-25 (Phasen 14–17).
   Archiv: `milestones/v1.4-ROADMAP.md`.
+- v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — shipped 2026-06-27 (Phasen 18–23).
+  Archiv: `milestones/v1.5-ROADMAP.md`, `milestones/v1.5-REQUIREMENTS.md`.
 
-Aktiv: **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** (ab Phase 18).
+Aktiv: **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (Phase 24; Close ausstehend).
 
 ## Evolution
 
