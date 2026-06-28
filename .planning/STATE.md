@@ -11,7 +11,7 @@ last_activity_desc: "25-03 impl complete: frontend settings Card 2 date field, R
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 4
+  total_plans: 7
   completed_plans: 4
   percent: 50
 ---
@@ -31,11 +31,11 @@ progress:
 ## Current Position
 
 Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) — Phase 25 ✅ complete
-Plan: 4/4 complete (25-01 ✓ · 25-02 ✓ · 25-03 ✓ · 25-04 ✓) — VERIFICATION passed (7/7), human-verify browser-confirmed
-Status: Phase 25 complete & verified — ready to start Phase 26
-Last activity: 2026-06-28 — Phase 25 abgeschlossen: Feiertags-Auto-Anrechnung (derive-on-read, Snapshot 11) + Settings-Stichtag-UI; alle Gates grün, Browser-Verify der Settings-Card passed. Frontend-Toolchain-Fix: wasm-bindgen 0.2.121.
+Plan: 0/3 complete (Wave 1: 26-01 Backend-VFA ∥ 26-03 Frontend-NAV · Wave 2: 26-02 VFA-02-Test) — plan-checker passed, decision-coverage 6/6
+Status: Phase 26 planned — ready to execute (`/gsd-execute-phase 26`)
+Last activity: 2026-06-28 — Phase 26 geplant (3 Pläne / 2 Waves): VFA-01 (Abwesenheit reduziert committed-Zusage, ganze Woche raus, alle 3 Kategorien, kein Stichtag/Snapshot-Bump) + VFA-02-Asymmetrie-Test + NAV-01 (4 Cross-Links, /absences/:employee_id).
 
-Progress: [█████░░░░░] 50% (Phase 25/2 complete)
+Progress: [█████░░░░░] 50% (Phase 25/2 complete; Phase 26 geplant)
 
 ## Deferred Items
 

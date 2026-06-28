@@ -105,7 +105,17 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
   3. Von der Jahresansicht/Mitarbeiterreport führt ein Link direkt zur Abwesenheitsansicht des jeweiligen Mitarbeiters (Sales: eigene Ansicht; HR: Mitarbeiter-Filter vorbelegt); alle Beschriftungen in de/en/cs (NAV-01a).
   4. Von der Abwesenheitsansicht führt ein Link pro Mitarbeiter direkt zur Jahresansicht/Mitarbeiterreport desselben Mitarbeiters; alle Beschriftungen in de/en/cs (NAV-01b).
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1** *(parallel — disjoint file sets)*
+
+- [ ] 26-01-PLAN.md — Backend VFA-01: AbsenceService-DI in BookingInformationService + Wochen-Overlap-Reduktion in get_weekly_summary + pure-helper-Tests (VFA-01, VFA-02; D-26-01/02/03/04)
+- [ ] 26-03-PLAN.md — Frontend NAV-01: Route /absences/:employee_id + AbsencesFor-Wrapper/Preselect + 4 Ghost-Button-Cross-Links + 4 i18n-Keys de/en/cs (NAV-01; D-26-05/06)
+
+**Wave 2** *(blocked on 26-01)*
+
+- [ ] 26-02-PLAN.md — Backend VFA-02-Regressionstest: Feiertags-vs-Abwesenheits-Asymmetrie in get_weekly_summary (full-service) + No-Snapshot-Bump-Guard (VFA-01, VFA-02; D-26-01/02/03/04)
+
 **UI hint**: yes
 
 ## Progress
@@ -132,7 +142,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
 | 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete   | 2026-06-28 |
-| 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 0/? | Not started | - |
+| 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 0/3 | Planned | - |
 
 ## Backlog
 

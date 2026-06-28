@@ -58,7 +58,7 @@ Zwei zusammengehörige Lieferungen für v1.7:
   NICHT, eine Abwesenheit (VFA-01) schon — die Asymmetrie ist explizit getestet.
 
 ### NAV-01: Deep-Link-Mechanismus
-- **D-26-05 (Route-Param `/absences/:employee_id`):** Eine neue Route
+- **D-26-05 (Route-Param mit employee_id):** Eine neue Route
   `/absences/:employee_id` (zusätzlich zur bestehenden param-losen `/absences/`). Der Param
   belegt den **bestehenden** Personen-Selektor der `AbsencesPage` vor. Bookmarkbar, konsistent
   mit `/employees/:employee_id`. Die param-lose Route bleibt der heutige HR-Gesamt-/Self-View.
