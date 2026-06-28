@@ -42,7 +42,7 @@
           nativeBuildInputs = with pkgs; [
             rustToolchain
             wasm-pack
-            wasm-bindgen-cli_0_2_104
+            wasm-bindgen-cli_0_2_121
             nodejs # provides npm
             tailwindcss
             pkg-config
