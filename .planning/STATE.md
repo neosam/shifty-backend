@@ -9,8 +9,8 @@ progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State: Shifty Backend
@@ -28,11 +28,11 @@ progress:
 ## Current Position
 
 Phase: 25 of 26 (Feiertags-Auto-Anrechnung & Stichtag-Konfiguration)
-Plan: 2/4 complete (Wave 1: 25-01 ✓ · Wave 2: 25-02 ✓, 25-03 · Wave 3: 25-04)
-Status: In progress — 25-02 complete
-Last activity: 2026-06-28 — 25-02 complete: derive-on-read holiday auto-credit in ReportingService + snapshot version 11
+Plan: 3/4 complete (Wave 1: 25-01 ✓ · Wave 2: 25-02 ✓, 25-03 impl ✓ [human-verify pending] · Wave 3: 25-04)
+Status: In progress — 25-03 Tasks 1-2 complete; human browser verify pending (Task 3)
+Last activity: 2026-06-28 — 25-03 impl complete: frontend settings Card 2 date field, REST clients, loaders, i18n (en/de/cs), WASM green
 
-Progress: [████░░░░░░] 50%
+Progress: [██████░░░░] 75%
 
 ## Deferred Items
 
@@ -85,8 +85,8 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 3. Read `.planning/REQUIREMENTS.md` (v1.7-Scope, REQ-IDs, Coverage 10/10)
 4. Read `.planning/PROJECT.md` (v1.7 Key Context + Referenz-Logik-Koordinaten)
 
-**Next command**: `/gsd-execute-phase 25` (Wave 2: 25-02 + 25-03)
+**Next command**: Human verify 25-03 Task 3 (browser test at http://localhost:8080/settings), then `/gsd-execute-phase 25` (Wave 3: 25-04)
 
 ---
 
-*State updated: 2026-06-28 — 25-01 complete. Toggle value column + REST value endpoints (HCFG-01, HCFG-02 backend half) done. `holiday_auto_credit` seeded off. `.sqlx` regenerated. Next: Wave 2 (25-02 derive-on-read + 25-03 frontend settings).*
+*State updated: 2026-06-28 — 25-03 Tasks 1-2 complete. Frontend settings Card 2 (holiday auto-credit date input) implemented. WASM build green. i18n test 42/42 pass. Task 3 (human browser verify) pending. Commit: 59dc35e.*
