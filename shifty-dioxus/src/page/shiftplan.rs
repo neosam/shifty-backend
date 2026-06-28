@@ -814,12 +814,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         },
                                         value: current_sales_person.read().as_ref().map(|sp| sp.id.to_string()),
                                         for sales_person in sales_persons.iter().filter(|sp| !sp.inactive) {
-                                            if let Some(ref current_sales_person) = *current_sales_person.read() {
-                                                option {
-                                                    value: sales_person.id.to_string(),
-                                                    selected: sales_person.id == current_sales_person.id,
-                                                    {sales_person.name.clone()}
-                                                }
+                                            option {
+                                                value: sales_person.id.to_string(),
+                                                selected: current_sales_person.read().as_ref().map_or(false, |c| c.id == sales_person.id),
+                                                {sales_person.name.clone()}
                                             }
                                         }
                                     }
