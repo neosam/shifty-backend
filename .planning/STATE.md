@@ -5,15 +5,15 @@ milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
 current_phase: 26
 current_phase_name: Freiwilligen-Abwesenheit & Cross-Navigation
 status: planning
-last_updated: "2026-06-28T12:28:54.590Z"
+last_updated: "2026-06-28T16:58:00Z"
 last_activity: 2026-06-28
-last_activity_desc: "25-03 impl complete: frontend settings Card 2 date field, REST clients, loaders, i18n (en/de/cs), WASM green"
+last_activity_desc: "26-03 NAV-01 complete: /absences/:employee_id route, ABSENCES_PRESELECT GlobalSignal, AbsencesFor wrapper, 4 ghost-button cross-links (Sales+HR, both directions), 4 i18n keys en/de/cs; WASM green, 671 tests pass"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
-  percent: 50
+  completed_plans: 5
+  percent: 57
 ---
 
 # Project State: Shifty Backend
@@ -31,11 +31,11 @@ progress:
 ## Current Position
 
 Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) — Phase 25 ✅ complete
-Plan: 1/3 complete (Wave 1: 26-01 Backend-VFA ✅ ∥ 26-03 Frontend-NAV · Wave 2: 26-02 VFA-02-Test) — plan-checker passed, decision-coverage 6/6
-Status: Phase 26 in progress — 26-01 complete, 26-03/26-02 pending
-Last activity: 2026-06-28 — 26-01 VFA-01 Backend: AbsenceService wired into BookingInformationService; period_overlaps_week helper; get_weekly_summary excludes absent volunteers from committed_voluntary (Band 1 + Band 2); 8 unit tests green; all gates pass (build/test/clippy).
+Plan: 2/3 complete (Wave 1: 26-01 Backend-VFA ✅ ∥ 26-03 Frontend-NAV ✅ · Wave 2: 26-02 VFA-02-Test pending)
+Status: Phase 26 in progress — 26-01 ✅, 26-03 ✅, 26-02 pending
+Last activity: 2026-06-28 — 26-03 NAV-01: /absences/:employee_id route + AbsencesFor wrapper + ABSENCES_PRESELECT GlobalSignal + 4 ghost-button cross-links (Sales↔Absences, HR↔AbsencesFor(:id)) + 4 i18n keys en/de/cs. All gates green (WASM build, 671 tests).
 
-Progress: [█████░░░░░] 50% (Phase 25/2 complete; Phase 26 in progress 1/3)
+Progress: [█████▌░░░░] 57% (Phase 25/2 complete; Phase 26 in progress 2/3)
 
 ## Deferred Items
 
@@ -88,8 +88,8 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 3. Read `.planning/REQUIREMENTS.md` (v1.7-Scope, REQ-IDs, Coverage 10/10)
 4. Read `.planning/PROJECT.md` (v1.7 Key Context + Referenz-Logik-Koordinaten)
 
-**Next command**: Human verify 25-03 Task 3 (browser test at http://localhost:8080/settings), then `/gsd-execute-phase 25` (Wave 3: 25-04)
+**Next command**: `/gsd-execute-phase 26` (Wave 2: 26-02 VFA-02 backend test plan) — or human browser verify NAV-01 links at http://localhost:8080
 
 ---
 
-*State updated: 2026-06-28 — 26-01 complete. VFA-01 backend: AbsenceService → BookingInformationService wired (no DI cycle); period_overlaps_week helper; committed_voluntary exclusion in get_weekly_summary (Band 1 + Band 2, whole-week-out, category-agnostic); 8 unit tests; all gates green. Commits: 191948c, 42ad701, 5f22f69.*
+*State updated: 2026-06-28 — 26-03 complete. NAV-01: Route::AbsencesFor, ABSENCES_PRESELECT GlobalSignal, AbsencesFor wrapper (UUID parse + preselect + AbsencesPage), 4 NavTo* i18n keys en/de/cs, 4 ghost-button cross-links (Links 1–4). Commits: 32e60df, eecb678, faf1f9e.*
