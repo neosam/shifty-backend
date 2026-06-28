@@ -352,6 +352,9 @@ impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependenc
     // Feature-Flag-Switch mehr — FeatureFlagService-Dep entfernt (M-03).
     type AbsenceService = AbsenceService;
     type TransactionDao = TransactionDao;
+    // Phase 25: holiday derive-on-read deps.
+    type SpecialDayService = SpecialDayService;
+    type ToggleService = ToggleService;
 }
 type ReportingService = service_impl::reporting::ReportingServiceImpl<ReportingServiceDependencies>;
 
@@ -875,6 +878,17 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
+        // D-24-08: ToggleService ist Basic-Tier (nur DAO + Permission + Transaction).
+        // Muss VOR ShiftplanEditService (Business-Tier) und VOR ReportingService
+        // konstruiert werden, da beide ToggleService als Dependency haben.
+        // Phase 25: ReportingService liest den holiday_auto_credit-Stichtag via ToggleService.
+        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
+        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
+            toggle_dao,
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl {
             extra_hours_service: extra_hours_service.clone(),
             shiftplan_report_service: shiftplan_report_service.clone(),
@@ -886,6 +900,10 @@ impl RestStateImpl {
             uuid_service: uuid_service.clone(),
             absence_service: absence_service.clone(),
             transaction_dao: transaction_dao.clone(),
+            // Phase 25: holiday derive-on-read deps (special_day_service already
+            // constructed at ~line 753; toggle_service constructed just above).
+            special_day_service: special_day_service.clone(),
+            toggle_service: toggle_service.clone(),
         });
 
         let booking_information_service = Arc::new(
@@ -904,15 +922,6 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
-        // D-24-08: ToggleService ist Basic-Tier (nur DAO + Permission + Transaction).
-        // Muss VOR ShiftplanEditService (Business-Tier) konstruiert werden,
-        // da ShiftplanEditService jetzt ToggleService als Dependency hat.
-        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
-        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
-            toggle_dao,
-            permission_service: permission_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
 
         let shiftplan_edit_service =
             Arc::new(service_impl::shiftplan_edit::ShiftplanEditServiceImpl {
