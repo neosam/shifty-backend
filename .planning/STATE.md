@@ -5,15 +5,15 @@ milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
 current_phase: 26
 current_phase_name: Freiwilligen-Abwesenheit & Cross-Navigation
 status: planning
-last_updated: "2026-06-28T16:58:00Z"
+last_updated: "2026-06-28T18:08:01.124Z"
 last_activity: 2026-06-28
-last_activity_desc: "26-03 NAV-01 complete: /absences/:employee_id route, ABSENCES_PRESELECT GlobalSignal, AbsencesFor wrapper, 4 ghost-button cross-links (Sales+HR, both directions), 4 i18n keys en/de/cs; WASM green, 671 tests pass"
+last_activity_desc: "26-03 NAV-01: /absences/:employee_id route + AbsencesFor wrapper + ABSENCES_PRESELECT GlobalSignal + 4 ghost-button cross-links (Sales↔Absences, HR↔AbsencesFor(:id)) + 4 i18n keys en/de/cs. All gates green (WASM build, 671 tests)."
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 5
-  percent: 57
+  completed_plans: 7
+  percent: 100
 ---
 
 # Project State: Shifty Backend

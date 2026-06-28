@@ -41,12 +41,12 @@ nicht mehr.
 
 ### Freiwilligen-Abwesenheit in der Jahresansicht (VFA) — Achse B (Booking-Information)
 
-- [ ] **VFA-01**: Urlaub/Abwesenheit eines Freiwilligen (`is_paid=false`,
+- [x] **VFA-01**: Urlaub/Abwesenheit eines Freiwilligen (`is_paid=false`,
   `committed_voluntary>0`) **reduziert** seine committed-Zusage 🎯 in der Jahresansicht
   (`booking_information.rs::get_weekly_summary`) für die von der Abwesenheit betroffenen
   Arbeitstage/Wochen.
 
-- [ ] **VFA-02**: Feiertage reduzieren die committed-Zusage bewusst **nicht** (Asymmetrie
+- [x] **VFA-02**: Feiertage reduzieren die committed-Zusage bewusst **nicht** (Asymmetrie
   zu VFA-01, konsistent mit HOL-03) — Regressions-Guard.
 
 ### Stichtag & Konfiguration (HCFG)
