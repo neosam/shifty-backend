@@ -597,6 +597,7 @@ fn ContractCard(props: ContractCardProps) -> Element {
     let hours_label = props.hours_label;
     rsx! {
         button {
+            r#type: "button",
             class: "w-full text-left rounded-md border border-border bg-surface px-3 py-2 hover:bg-surface-alt cursor-pointer",
             onclick: move |_| on_click.call(()),
             div { class: "flex items-baseline justify-between gap-2",
@@ -765,6 +766,7 @@ fn WeekDetailPanel(props: WeekDetailPanelProps) -> Element {
                     }
                 }
                 button {
+                    r#type: "button",
                     class: "w-6 h-6 inline-flex items-center justify-center rounded-md text-ink-muted hover:bg-surface hover:text-ink",
                     onclick: move |_| on_close.call(()),
                     "×"

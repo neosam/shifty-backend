@@ -151,11 +151,13 @@ pub fn AbsenceConvertModal(
                 }
                 div { class: "flex justify-end gap-2",
                     button {
+                        r#type: "button",
                         class: "px-3 py-2 rounded-md bg-surface border border-border text-ink",
                         onclick: move |_| { on_cancel.call(()); },
                         "{cancel_label}"
                     }
                     button {
+                        r#type: "button",
                         class: "px-3 py-2 rounded-md bg-accent text-accent-ink",
                         onclick: move |_| {
                             // P-7-Submit-Defense (T-8.5-05a): parse + s<=e + inline error.

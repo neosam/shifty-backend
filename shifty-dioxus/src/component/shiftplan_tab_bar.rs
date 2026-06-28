@@ -67,6 +67,7 @@ pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
                     rsx! {
                         div { class: "flex items-center",
                             button {
+                                r#type: "button",
                                 class: tab_class,
                                 onclick: move |_| props.on_select.call(id),
                                 ondoubleclick: {
@@ -84,6 +85,7 @@ pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
                             }
                             if props.planning_mode {
                                 button {
+                                    r#type: "button",
                                     class: "ml-1 text-bad-soft hover:text-bad text-small px-1",
                                     "aria-label": "Delete shiftplan",
                                     onclick: move |_| {
@@ -98,6 +100,7 @@ pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
             }
             if props.planning_mode {
                 button {
+                    r#type: "button",
                     class: "ml-2 px-3 py-2 text-body font-medium text-accent hover:bg-accent-soft rounded-md",
                     "aria-label": "Create shiftplan",
                     onclick: move |_| {

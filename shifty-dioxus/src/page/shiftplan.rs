@@ -696,6 +696,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         div { class: "px-4 py-3 print:hidden",
             div { class: "flex flex-wrap items-center gap-2 bg-surface border border-border rounded-lg px-[14px] py-[10px]",
                 button {
+                    r#type: "button",
                     class: nav_btn_class,
                     "aria-label": "Vorwoche",
                     onclick: move |_| cr.send(ShiftPlanAction::PreviousWeek),
@@ -707,6 +708,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     "{calendar_week_str}"
                 }
                 button {
+                    r#type: "button",
                     class: nav_btn_class,
                     "aria-label": "Nächste Woche",
                     onclick: move |_| cr.send(ShiftPlanAction::NextWeek),
@@ -715,6 +717,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 span { class: "w-px h-5 bg-border mx-1.5" }
                 div { class: "inline-flex bg-surface-alt rounded-md p-0.5 gap-0.5",
                     button {
+                        r#type: "button",
                         class: if *view_mode.read() == state::ViewMode::Week { toggle_active_class } else { toggle_inactive_class },
                         onclick: move |_| {
                             view_mode.set(state::ViewMode::Week);
@@ -722,6 +725,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         "{view_week_str}"
                     }
                     button {
+                        r#type: "button",
                         class: if *view_mode.read() == state::ViewMode::Day { toggle_active_class } else { toggle_inactive_class },
                         onclick: move |_| {
                             let default_day = crate::component::day_aggregate_view::default_day_for_week(
@@ -794,6 +798,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         ]
                             .into(),
                         button {
+                            r#type: "button",
                             class: "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt",
                             "…"
                         }
@@ -906,6 +911,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 suppress_header: false,
                             }
                             button {
+                                r#type: "button",
                                 class: "absolute top-2 right-2 w-6 h-6 inline-flex items-center justify-center rounded text-warn hover:bg-warn hover:text-ink font-mono",
                                 "aria-label": "{dismiss_label}",
                                 onclick: move |_| {

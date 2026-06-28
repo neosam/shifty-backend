@@ -1,3 +1,4 @@
+pub mod button_type_tests;
 pub mod error_tests;
 pub mod integration_tests;
 pub mod volunteer_work_tests;

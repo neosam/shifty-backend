@@ -47,6 +47,7 @@ pub fn NavBtn(props: NavBtnProps) -> Element {
 
     rsx! {
         button {
+            r#type: "button",
             class: "{class}",
             disabled,
             "aria-label": props.aria_label.as_ref().map(|s| s.as_str()),

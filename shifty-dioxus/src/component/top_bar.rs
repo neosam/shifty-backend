@@ -494,6 +494,7 @@ fn TopBarRouted() -> Element {
             class: "sticky top-0 h-14 max-md:h-[52px] bg-surface text-ink border-b border-border z-40 print:hidden flex items-center px-[18px] max-md:px-[10px] gap-1",
 
             button {
+                r#type: "button",
                 class: "md:hidden inline-flex items-center justify-center w-[34px] h-[34px] rounded-md border border-border bg-transparent text-ink-soft text-lg flex-shrink-0",
                 "aria-label": "Toggle navigation",
                 onclick: move |_| {
@@ -571,6 +572,7 @@ fn TopBarRouted() -> Element {
                 // size, not a typography role. See
                 // openspec/changes/redesign-typography-bump/specs/typography/spec.md.
                 button {
+                    r#type: "button",
                     class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
                     "aria-label": theme_aria.as_str(),
                     title: format!("{} (klicken zum Wechseln)", theme_aria_label(theme_mode)),
@@ -590,6 +592,7 @@ fn TopBarRouted() -> Element {
                     DropdownTrigger {
                         entries: logout_entries.clone(),
                         button {
+                            r#type: "button",
                             class: "flex items-center gap-2 px-3 py-1 rounded-full bg-surface-alt text-body font-medium text-ink cursor-pointer",
                             "{auth_info.user}"
                         }
@@ -675,6 +678,7 @@ fn TopBarLanding() -> Element {
             div { class: "ml-auto flex items-center gap-2 flex-shrink-0",
                 // 15 px theme glyph — same justification as TopBarRouted above.
                 button {
+                    r#type: "button",
                     class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
                     "aria-label": theme_aria.as_str(),
                     title: theme_title,

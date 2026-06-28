@@ -42,11 +42,13 @@ pub fn UserManagementTabBar(props: UserManagementTabBarProps) -> Element {
     rsx! {
         div { class: "flex border-b border-border mb-4 items-center",
             button {
+                r#type: "button",
                 class: tab_class(active == UserMgmtTab::SalesPersons),
                 onclick: move |_| on_select.call(UserMgmtTab::SalesPersons),
                 "{i18n.t(Key::SalesPersons)}"
             }
             button {
+                r#type: "button",
                 class: tab_class(active == UserMgmtTab::Users),
                 onclick: move |_| on_select2.call(UserMgmtTab::Users),
                 "{i18n.t(Key::Users)}"

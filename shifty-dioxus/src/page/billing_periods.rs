@@ -246,6 +246,7 @@ pub fn BillingPeriods() -> Element {
                                                 let bp_id = billing_period.id;
                                                 rsx! {
                                                     button {
+                                                        r#type: "button",
                                                         class: "px-2 py-1 bg-bad-soft text-bad text-micro rounded-md hover:bg-bad-soft focus:outline-none",
                                                         onclick: move |event: Event<MouseData>| {
                                                             event.prevent_default();

@@ -250,6 +250,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
 
             div { class: "flex flex-col md:flex-row md:border-b-2 border-gray-300 border-dashed mb-1 mt-8",
                 button {
+                    r#type: "button",
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     onclick: move |event| {
                         event.prevent_default();
@@ -259,6 +260,7 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
                     "{cancel_str}"
                 }
                 button {
+                    r#type: "button",
                     class: "block mt-2 pl-2 pr-2 border border-black w-full md:w-1/2",
                     onclick: move |event| {
                         event.prevent_default();

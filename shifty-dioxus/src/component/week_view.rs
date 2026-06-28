@@ -237,6 +237,7 @@ where
             div { class: "flex flex-col flex-grow overflow-scroll no-scrollbar bg-surface",
                 if props.item_data.show_add {
                     button {
+                        r#type: "button",
                         class: "border w-8 print:hidden",
                         onclick: move |_| {
                             if let Some(add_event) = props.add_event {
@@ -251,6 +252,7 @@ where
                 }
                 if props.item_data.show_remove {
                     button {
+                        r#type: "button",
                         class: "border w-8 print:hidden",
                         onclick: move |_| {
                             if let Some(remove_event) = props.remove_event {
@@ -269,7 +271,7 @@ where
                             DropdownTrigger {
                                 entries: dropdown_entries.clone(),
                                 context: props.item_data.custom_data.id(),
-                                button { class: "border w-8 print:hidden", "..." }
+                                button { r#type: "button", class: "border w-8 print:hidden", "..." }
                             }
                         }
                     }
@@ -1143,6 +1145,7 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
             match cell_button {
                 CellButton::Add => rsx! {
                     button {
+                        r#type: "button",
                         class: btn_class,
                         "aria-label": add_label.as_str(),
                         onclick: move |evt| {
@@ -1157,6 +1160,7 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
                 },
                 CellButton::Remove => rsx! {
                     button {
+                        r#type: "button",
                         class: btn_class,
                         "aria-label": remove_label.as_str(),
                         onclick: move |evt| {
@@ -1178,7 +1182,7 @@ pub fn WeekCellSlot(props: WeekCellSlotProps) -> Element {
                                 DropdownTrigger {
                                     entries,
                                     context: ctx,
-                                    button { class: btn_class, "…" }
+                                    button { r#type: "button", class: btn_class, "…" }
                                 }
                             }
                         }

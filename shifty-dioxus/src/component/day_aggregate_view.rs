@@ -364,6 +364,7 @@ pub fn DayButtonBar(props: DayButtonBarProps) -> Element {
     rsx! {
         div { class: "flex flex-row items-center justify-center gap-1 mb-4",
             button {
+                r#type: "button",
                 class: nav_class,
                 "aria-label": "Vorheriger Tag",
                 onclick: move |_| props.on_prev_day.call(()),
@@ -371,6 +372,7 @@ pub fn DayButtonBar(props: DayButtonBarProps) -> Element {
             }
             for day in days.iter() {
                 button {
+                    r#type: "button",
                     class: if *day == props.selected_day { day_active_class } else { day_inactive_class },
                     onclick: {
                         let day = *day;
@@ -380,6 +382,7 @@ pub fn DayButtonBar(props: DayButtonBarProps) -> Element {
                 }
             }
             button {
+                r#type: "button",
                 class: nav_class,
                 "aria-label": "Nächster Tag",
                 onclick: move |_| props.on_next_day.call(()),

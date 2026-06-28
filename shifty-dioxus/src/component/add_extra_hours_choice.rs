@@ -37,13 +37,14 @@ pub fn AddExtraHoursChoice() -> Element {
 
                 div { class: "grid gap-4 md:grid-cols-2",
                     button {
+                        r#type: "button",
                         class: "border-2 border-gray-200 p-2",
                         onclick: move |_| *choice.write() = Choice::Vacation,
                         "{add_vacation_str}"
                     }
-                    button { class: "border-2 border-gray-200 p-2", "{add_sick_leave_str}" }
-                    button { class: "border-2 border-gray-200 p-2", "{add_holiday_str}" }
-                    button { class: "border-2 border-gray-200 p-2", "{add_extra_work_str}" }
+                    button { r#type: "button", class: "border-2 border-gray-200 p-2", "{add_sick_leave_str}" }
+                    button { r#type: "button", class: "border-2 border-gray-200 p-2", "{add_holiday_str}" }
+                    button { r#type: "button", class: "border-2 border-gray-200 p-2", "{add_extra_work_str}" }
                 }
             }
         },

@@ -210,6 +210,7 @@ pub fn CustomExtraHoursManagement() -> Element {
             h1 { class: "text-h1 mb-6", "{title}" }
 
             button {
+                r#type: "button",
                 class: "mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
                 onclick: move |_| start_create(),
                 "{add_new_str}"
@@ -266,11 +267,13 @@ pub fn CustomExtraHoursManagement() -> Element {
 
                     div { class: "flex space-x-2",
                         button {
+                            r#type: "button",
                             class: "px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600",
                             onclick: move |_| save_form(),
                             "{save_str}"
                         }
                         button {
+                            r#type: "button",
                             class: "px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600",
                             onclick: move |_| cancel_form(),
                             "{cancel_str}"
@@ -305,6 +308,7 @@ pub fn CustomExtraHoursManagement() -> Element {
                                 }
                                 td { class: "px-6 py-4 whitespace-nowrap text-body font-medium border-b",
                                     button {
+                                        r#type: "button",
                                         class: "text-blue-600 hover:text-blue-900 mr-2",
                                         onclick: {
                                             let id = custom_hour.id;
@@ -316,6 +320,7 @@ pub fn CustomExtraHoursManagement() -> Element {
                                         "{edit_str}"
                                     }
                                     button {
+                                        r#type: "button",
                                         class: "text-red-600 hover:text-red-900",
                                         onclick: {
                                             let id = custom_hour.id;

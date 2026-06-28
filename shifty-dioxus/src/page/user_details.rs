@@ -48,6 +48,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
             // Header with back button
             div { class: "flex items-center mb-6",
                 button {
+                    r#type: "button",
                     class: "mr-3 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors",
                     onclick: move |_| {
                         nav.push(Route::UserManagementPage {});
@@ -207,6 +208,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                     value: "{invitation.invitation_link}",
                                                 }
                                                 button {
+                                                    r#type: "button",
                                                     class: "px-3 py-2 text-body bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors",
                                                     onclick: {
                                                         to_owned![invitation, copied_invitation_id];

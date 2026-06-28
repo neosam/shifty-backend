@@ -206,6 +206,7 @@ pub fn SettingsPage() -> Element {
 
                 div { class: "flex flex-row items-center gap-3",
                     button {
+                        r#type: "button",
                         class: "{toggle_class}",
                         "aria-pressed": "{aria_pressed}",
                         disabled: is_saving,
@@ -255,12 +256,14 @@ pub fn SettingsPage() -> Element {
                 // Row C: Action row (Save + Clear + inline feedback)
                 div { class: "flex flex-row items-center gap-3",
                     button {
+                        r#type: "button",
                         class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
                         disabled: is_cutoff_saving,
                         onclick: on_save_cutoff,
                         "{i18n.t(Key::SettingsHolidayAutoCreditSave)}"
                     }
                     button {
+                        r#type: "button",
                         class: "px-3 py-2 rounded-md border border-border text-ink-soft text-body bg-surface hover:bg-surface-alt",
                         disabled: is_cutoff_saving || date_empty,
                         onclick: on_clear_cutoff,

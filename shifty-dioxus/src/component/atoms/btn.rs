@@ -86,6 +86,7 @@ pub fn Btn(props: BtnProps) -> Element {
 
     rsx! {
         button {
+            r#type: "button",
             class: "{class}",
             disabled,
             onclick: move |evt| {
