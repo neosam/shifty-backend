@@ -30,12 +30,12 @@ progress:
 
 ## Current Position
 
-Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) — Phase 25 ✅ complete
-Plan: 2/3 complete (Wave 1: 26-01 Backend-VFA ✅ ∥ 26-03 Frontend-NAV ✅ · Wave 2: 26-02 VFA-02-Test pending)
-Status: Phase 26 in progress — 26-01 ✅, 26-03 ✅, 26-02 pending
-Last activity: 2026-06-28 — 26-03 NAV-01: /absences/:employee_id route + AbsencesFor wrapper + ABSENCES_PRESELECT GlobalSignal + 4 ghost-button cross-links (Sales↔Absences, HR↔AbsencesFor(:id)) + 4 i18n keys en/de/cs. All gates green (WASM build, 671 tests).
+Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) ✅ complete — alle v1.7-Phasen fertig
+Plan: 3/3 complete (26-01 Backend-VFA ✅ · 26-03 Frontend-NAV ✅ · 26-02 VFA-02-Test ✅) — VERIFICATION passed (9/9)
+Status: v1.7 alle Phasen (25 + 26) complete & verified — bereit für Milestone-Close (audit → complete → cleanup)
+Last activity: 2026-06-28 — Phase 26 abgeschlossen: VFA-01 (Abwesenheit reduziert committed-Zusage, whole-week-out, alle 3 Kategorien, kein Snapshot-Bump) + VFA-02-Asymmetrie-Test + NAV-01 (4 Cross-Links, /absences/:employee_id). Alle Gates grün, 9/9 verifiziert.
 
-Progress: [█████▌░░░░] 57% (Phase 25/2 complete; Phase 26 in progress 2/3)
+Progress: [██████████] 100% (Phase 25 + 26 complete)
 
 ## Deferred Items
 
