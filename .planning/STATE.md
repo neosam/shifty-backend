@@ -31,11 +31,11 @@ progress:
 ## Current Position
 
 Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) — Phase 25 ✅ complete
-Plan: 0/3 complete (Wave 1: 26-01 Backend-VFA ∥ 26-03 Frontend-NAV · Wave 2: 26-02 VFA-02-Test) — plan-checker passed, decision-coverage 6/6
-Status: Phase 26 planned — ready to execute (`/gsd-execute-phase 26`)
-Last activity: 2026-06-28 — Phase 26 geplant (3 Pläne / 2 Waves): VFA-01 (Abwesenheit reduziert committed-Zusage, ganze Woche raus, alle 3 Kategorien, kein Stichtag/Snapshot-Bump) + VFA-02-Asymmetrie-Test + NAV-01 (4 Cross-Links, /absences/:employee_id).
+Plan: 1/3 complete (Wave 1: 26-01 Backend-VFA ✅ ∥ 26-03 Frontend-NAV · Wave 2: 26-02 VFA-02-Test) — plan-checker passed, decision-coverage 6/6
+Status: Phase 26 in progress — 26-01 complete, 26-03/26-02 pending
+Last activity: 2026-06-28 — 26-01 VFA-01 Backend: AbsenceService wired into BookingInformationService; period_overlaps_week helper; get_weekly_summary excludes absent volunteers from committed_voluntary (Band 1 + Band 2); 8 unit tests green; all gates pass (build/test/clippy).
 
-Progress: [█████░░░░░] 50% (Phase 25/2 complete; Phase 26 geplant)
+Progress: [█████░░░░░] 50% (Phase 25/2 complete; Phase 26 in progress 1/3)
 
 ## Deferred Items
 
@@ -92,4 +92,4 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 
 ---
 
-*State updated: 2026-06-28 — 25-03 Tasks 1-2 complete. Frontend settings Card 2 (holiday auto-credit date input) implemented. WASM build green. i18n test 42/42 pass. Task 3 (human browser verify) pending. Commit: 59dc35e.*
+*State updated: 2026-06-28 — 26-01 complete. VFA-01 backend: AbsenceService → BookingInformationService wired (no DI cycle); period_overlaps_week helper; committed_voluntary exclusion in get_weekly_summary (Band 1 + Band 2, whole-week-out, category-agnostic); 8 unit tests; all gates green. Commits: 191948c, 42ad701, 5f22f69.*

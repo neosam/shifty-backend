@@ -109,7 +109,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 
 **Wave 1** *(parallel — disjoint file sets)*
 
-- [ ] 26-01-PLAN.md — Backend VFA-01: AbsenceService-DI in BookingInformationService + Wochen-Overlap-Reduktion in get_weekly_summary + pure-helper-Tests (VFA-01, VFA-02; D-26-01/02/03/04)
+- [x] 26-01-PLAN.md — Backend VFA-01: AbsenceService-DI in BookingInformationService + Wochen-Overlap-Reduktion in get_weekly_summary + pure-helper-Tests (VFA-01, VFA-02; D-26-01/02/03/04)
 - [ ] 26-03-PLAN.md — Frontend NAV-01: Route /absences/:employee_id + AbsencesFor-Wrapper/Preselect + 4 Ghost-Button-Cross-Links + 4 i18n-Keys de/en/cs (NAV-01; D-26-05/06)
 
 **Wave 2** *(blocked on 26-01)*
