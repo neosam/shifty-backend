@@ -8,7 +8,7 @@ last_activity: 2026-06-28
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -23,14 +23,14 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped + archiviert 2026-06-27/28, Phase 24, 5 Pläne, 7/7 must-haves, override_closeout)
 - **Current milestone**: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit
-- **Current focus**: Phase 25 planen — `/gsd-plan-phase 25`
+- **Current focus**: Phase 25 ausführen — `/gsd-execute-phase 25`
 
 ## Current Position
 
 Phase: 25 of 26 (Feiertags-Auto-Anrechnung & Stichtag-Konfiguration)
-Plan: —
-Status: Context gathered — ready to plan
-Last activity: 2026-06-28 — Phase 25 CONTEXT.md erstellt (discuss: 4 Entscheidungen — derive-on-read, manuell-gewinnt, toggle-value-Spalte, holiday_hours()-Helper)
+Plan: 0/4 complete (Wave 1: 25-01 · Wave 2: 25-02, 25-03 · Wave 3: 25-04)
+Status: Planned — ready to execute
+Last activity: 2026-06-28 — Phase 25 geplant (4 Pläne / 3 Waves; plan-checker passed, decision-coverage 9/9)
 
 Progress: [░░░░░░░░░░] 0%
 

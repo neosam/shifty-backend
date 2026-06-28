@@ -896,21 +896,19 @@ fn hours_per_week(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`ExtraHoursCategory::Holiday.as_report_type()` — RESOLVED**
    - Answer: Returns `ReportType::AbsenceHours` (service/src/extra_hours.rs:57).
    - Impact: Derived holiday hours MUST flow into BOTH `holiday_hours` and `absense_hours` in all three injection points to correctly reduce `expected_hours` and `balance`.
 
-2. **`hours_per_week` call sites beyond get_report_for_employee_range?**
-   - What we know: Test calls in reporting.rs tests (lines 1375+) call it directly with mocks
-   - What's unclear: Any other production call sites
-   - Recommendation: `grep -n "hours_per_week" service_impl/src/reporting.rs` — update all production callsites with the new parameter
+2. **`hours_per_week` call sites beyond get_report_for_employee_range? — RESOLVED**
+   - Answer: Only test call sites in reporting.rs (verified ~18 callsites, lines 1375–1814); the lone production consumer is `get_report_for_employee_range`.
+   - Resolution: Plan 25-02 Task 1 mandates an exhaustive `grep -n "hours_per_week"` and updates every callsite (incl. all test callsites) when threading the new `derived_holiday` parameter — a real compile gate.
 
-3. **special_day range query performance**
-   - What we know: 52-53 async get_by_week calls per full-year report
-   - What's unclear: Whether this is acceptable for production load
-   - Recommendation: Acceptable for MVP; add `find_by_year` DAO method if profiling shows issue
+3. **special_day range query performance — RESOLVED**
+   - Answer: 52–53 async `get_by_week` calls per full-year report.
+   - Resolution: Accepted as MVP (per-week loop). A `find_by_year` DAO method is an explicit future optimization if profiling shows an issue — not in Phase 25 scope.
 
 ---
 

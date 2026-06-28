@@ -65,27 +65,46 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 ## Phase Details
 
 ### Phase 25: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration
+
 **Goal**: Feiertage werden automatisch und korrekt im Mitarbeiterreport angerechnet — mit identischer Wirkung zu einem manuellen ExtraHours(Holiday)-Eintrag — und ein Admin kann den Aktivierungsstichtag über eine Settings-UI setzen.
 **Depends on**: Phase 24 (Settings-UI-Pattern aus v1.6; Toggle-/Konfig-Infrastruktur vorhanden)
 **Requirements**: HOL-01, HOL-02, HOL-03, HCFG-01, HCFG-02, HCFG-03, HSNAP-01
 **Success Criteria** (what must be TRUE):
+
   1. Ein Mitarbeiter mit laut Vertrag am betreffenden Wochentag arbeitendem Feiertag hat im Report denselben `holiday_hours`-Wert wie bei einem äquivalenten manuellen ExtraHours(Holiday)-Eintrag — verifiziert per Vergleichstest (HOL-01, HOL-02).
   2. Feiertage vor dem konfigurierten "aktiv ab"-Datum werden von der Automatik nicht angerechnet; bestehende manuelle Einträge und historische Snapshots bleiben davon unberührt (HCFG-01).
   3. Ein Admin kann das "aktiv ab"-Datum in der admin-gated Settings-UI setzen, ändern und nach Seitenreload wiederfinden; alle Texte sind in de/en/cs übersetzt (HCFG-02).
   4. Hat ein Feiertag bereits einen manuellen ExtraHours(Holiday)-Eintrag, erscheint er nicht doppelt im Report — Konfliktregel greift (HCFG-03).
   5. `paid_hours`, `committed_voluntary_hours` und `volunteer_hours` in der Jahresansicht sind durch die Feiertags-Automatik unverändert (HOL-03 Regressions-Guard); `CURRENT_SNAPSHOT_SCHEMA_VERSION` ist bei Bedarf auf 11 gebumpt (HSNAP-01).
-**Plans**: TBD
+
+**Plans**: 4 plans
+**Wave 1**
+
+- [ ] 25-01-PLAN.md — Toggle `value`-Spalte Infrastruktur (Migration + DAO + Service + REST, HCFG-01/02 Backend)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 25-02-PLAN.md — Reporting derive-on-read (3 Injektionspunkte) + main.rs-DI-Fix + Snapshot-Bump 10→11 (HOL-01/02/03, HCFG-01/03, HSNAP-01)
+- [ ] 25-03-PLAN.md — Frontend Settings-Datumsfeld „aktiv ab" + i18n de/en/cs (HCFG-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 25-04-PLAN.md — Feiertags-Auto-Anrechnung Tests (HOL-01/02/03, HCFG-01/03)
+
 **UI hint**: yes
 
 ### Phase 26: Freiwilligen-Abwesenheit & Cross-Navigation
+
 **Goal**: Urlaub von Freiwilligen verzerrt die Jahresansicht nicht mehr (committed-Zusage wird für Abwesenheitswochen korrekt reduziert), und Benutzer können per Deep-Link direkt zwischen Abwesenheitsansicht und Mitarbeiterreport navigieren.
 **Depends on**: Phase 25 (Feiertags-Guard HOL-03 muss stabil sein, damit VFA-02-Asymmetrie sauber verifizierbar ist)
 **Requirements**: VFA-01, VFA-02, NAV-01
 **Success Criteria** (what must be TRUE):
+
   1. In der Jahresansicht zeigt ein Freiwilliger (`is_paid=false`, `committed_voluntary>0`) für Wochen mit Urlaub/Abwesenheit eine niedrigere committed-Zusage 🎯 als für Wochen ohne Abwesenheit (VFA-01).
   2. Feiertage senken die committed-Zusage eines Freiwilligen nicht — die Asymmetrie ist per Regressionstest abgesichert (VFA-02).
   3. Von der Jahresansicht/Mitarbeiterreport führt ein Link direkt zur Abwesenheitsansicht des jeweiligen Mitarbeiters (Sales: eigene Ansicht; HR: Mitarbeiter-Filter vorbelegt); alle Beschriftungen in de/en/cs (NAV-01a).
   4. Von der Abwesenheitsansicht führt ein Link pro Mitarbeiter direkt zur Jahresansicht/Mitarbeiterreport desselben Mitarbeiters; alle Beschriftungen in de/en/cs (NAV-01b).
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -112,7 +131,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
-| 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 0/? | Not started | - |
+| 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 0/4 | Not started | - |
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 0/? | Not started | - |
 
 ## Backlog
@@ -127,11 +146,13 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   **Context:** Quick-Task `260627-vgo` hat die **semver-kompatible** Baseline bereits geliefert (nur Cargo.lock, alle Gates grün). Offen ist NUR der Breaking/Major-Teil, der dort eskaliert wurde, weil die gepinnte **stable cargo 1.95.0** kein `cargo update --breaking` kann (nightly-only) und weder `cargo-edit` (`cargo upgrade`) noch `cargo-outdated` noch `+nightly` verfügbar sind.
 
   **Scope / grobe Wave-Struktur:**
+
   - Task 1 — Toolchain-Enabler: nightly-Toolchain bzw. `cargo-edit`/`cargo-outdated` ins `flake.nix` aufnehmen, sodass `cargo update --breaking` oder `cargo upgrade --incompatible` reproduzierbar laufen.
   - Task 2 — Major-Bump-Inventar: welche direkten Deps, welcher Sprung, Changelog-/Breaking-Risiko (beide Workspaces).
   - Task 3 — iterativ pro Major migrieren mit Gates: Backend `cargo build` + `cargo clippy --workspace -- -D warnings` + `cargo test --workspace`; Frontend `cargo build --target wasm32-unknown-unknown` (nix-shell -p openssl pkg-config lld) + `cargo test`.
 
   **Constraints:**
+
   - **dioxus-Major** (0.6.x-Pin) NUR mit expliziter User-Freigabe — dx-CLI-0.7-Inkompatibilität dokumentiert (App startet nicht + Design gestrippt).
   - `flake.lock` Nix-Inputs sind NICHT Teil dieser Phase (separater Maintenance-Job).
   - jj-Repo: User committet manuell, keine git-Fallbacks.
