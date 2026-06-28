@@ -27,9 +27,8 @@ in pkgs.rustPlatform.buildRustPackage rec {
     # Dioxus CLI from nixpkgs
     dioxus-cli
     
-    # Node.js for Tailwind CSS
+    # Node.js for Tailwind CSS (nodejs provides npm)
     nodejs
-    nodePackages.npm
     tailwindcss
     
     # System dependencies

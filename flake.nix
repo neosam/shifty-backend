@@ -43,8 +43,7 @@
             rustToolchain
             wasm-pack
             wasm-bindgen-cli_0_2_104
-            nodejs
-            nodePackages.npm
+            nodejs # provides npm
             tailwindcss
             pkg-config
             dioxus-cli
