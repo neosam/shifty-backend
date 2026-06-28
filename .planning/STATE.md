@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
 status: planning
-last_updated: "2026-06-28T10:00:00.000Z"
+last_updated: "2026-06-28T12:00:00.000Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 2
@@ -29,8 +29,8 @@ progress:
 
 Phase: 25 of 26 (Feiertags-Auto-Anrechnung & Stichtag-Konfiguration)
 Plan: —
-Status: Ready to plan
-Last activity: 2026-06-28 — v1.7 Roadmap erstellt (Phasen 25–26, 10/10 Requirements gemappt)
+Status: Context gathered — ready to plan
+Last activity: 2026-06-28 — Phase 25 CONTEXT.md erstellt (discuss: 4 Entscheidungen — derive-on-read, manuell-gewinnt, toggle-value-Spalte, holiday_hours()-Helper)
 
 Progress: [░░░░░░░░░░] 0%
 
