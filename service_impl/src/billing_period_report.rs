@@ -98,7 +98,14 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   written under v9 persist vacation_days=0 for converted absences; re-validating them
 ///   against the corrected computation would show a false mismatch. Validators MUST treat
 ///   v9 snapshots as "older schema" and not re-validate vacation/sick/unpaid day counts.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 10;
+/// - v11: Phase 25 (HOL-01/02, HCFG-01) — derive-on-read holiday auto-credit.
+///   `hours_per_week` now returns derived holiday hours in `holiday_hours` and adds them
+///   to `absense_hours` when the `holiday_auto_credit` toggle is configured. This changes
+///   the computed values for `BillingPeriodValueType::HolidayHours` (and transitively
+///   `Balance`, `ExpectedHours`) for employees whose contracts cover configured holiday
+///   dates. Validators MUST treat v10 snapshots as "older schema" and skip holiday-hours
+///   re-validation for those entries.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 11;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {

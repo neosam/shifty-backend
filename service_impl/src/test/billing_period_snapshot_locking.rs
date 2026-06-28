@@ -4,10 +4,9 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 10 (UV-05 / D-18-07 —
-//!   converted hours-based absences (extra_hours soft-deleted -> absence_period)
-//!   now flow into per-week category fields; BillingPeriodValueType::VacationDays
-//!   (and sick/unpaid days) change from 0 to >0 for converted entries).
+//! - `test_snapshot_schema_version_pinned`: erwartet 11 (Phase 25 HOL-01/02 —
+//!   derive-on-read holiday auto-credit changes holiday_hours and absense_hours
+//!   in the snapshot when the holiday_auto_credit toggle is configured).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -26,13 +25,12 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 10,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 10 sein nach UV-05 / D-18-07: \
-         converted hours-based absences (extra_hours soft-deleted -> absence_period via \
-         derive_hours_for_range) fliessen jetzt in die per-Woche Kategorie-Felder \
-         (vacation_hours / sick_leave_hours / unpaid_leave_hours) in hours_per_week. \
-         Damit aendert sich BillingPeriodValueType::VacationDays (und sick/unpaid days) \
-         von 0 auf den korrekten >0-Wert fuer konvertierte Eintraege. \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 11,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 11 sein nach Phase 25 (HOL-01/02, HCFG-01): \
+         derive-on-read holiday auto-credit — hours_per_week liefert jetzt holiday_hours \
+         und erhoehte absense_hours wenn der holiday_auto_credit-Toggle gesetzt ist. \
+         Damit aendern sich BillingPeriodValueType::HolidayHours (und transitiv Balance, \
+         ExpectedHours) fuer betroffene Mitarbeiter. \
          Laut CLAUDE.md (Snapshot Schema Versioning: 'Change the computation that produces \
          an existing value_type') ist ein Bump Pflicht. \
          Siehe service_impl/src/billing_period_report.rs § CURRENT_SNAPSHOT_SCHEMA_VERSION."

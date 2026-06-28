@@ -462,8 +462,13 @@ fn snapshot_schema_version_pinned_at_10() {
     // v10 bump (UV-05 / D-18-07): converted hours-based absences (extra_hours soft-deleted
     // -> absence_period) now flow into per-week category fields in hours_per_week.
     // BillingPeriodValueType::VacationDays (and sick/unpaid days) change from 0 to >0.
+    //
+    // v11 bump (Phase 25 HOL-01/02, HCFG-01): derive-on-read holiday auto-credit.
+    // hours_per_week now returns derived holiday_hours and raises absense_hours when the
+    // holiday_auto_credit toggle is configured. BillingPeriodValueType::HolidayHours
+    // (and transitively Balance, ExpectedHours) change for affected employees.
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        10
+        11
     );
 }
