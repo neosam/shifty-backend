@@ -610,6 +610,15 @@ pub enum Key {
     ShiftplanPaidOverageRow,
     /// Inline hard-block error at the booking slot when paid limit is enforced (D-24-05).
     BookingBlockedPaidLimit,
+    // ── Phase 26 NAV-01 — bidirectional cross-navigation links ───────────────
+    /// Navigation link label: Sales user → own absences page (Phase 26 NAV-01).
+    NavToMyAbsences,
+    /// Navigation link label: HR user → per-employee absences page (Phase 26 NAV-01).
+    NavToEmployeeAbsences,
+    /// Navigation link label: Absences page (Sales) → own time-account / employee details (Phase 26 NAV-01).
+    NavToMyTimeAccount,
+    /// Navigation link label: Absences page (HR, person selected) → EmployeeDetails report (Phase 26 NAV-01).
+    NavToEmployeeReport,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -1334,6 +1343,28 @@ mod tests {
                 Key::SettingsHolidayAutoCreditSave,
                 Key::SettingsHolidayAutoCreditClear,
                 Key::SettingsHolidayAutoCreditUnsetHint,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_phase26_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::NavToMyAbsences,
+                Key::NavToEmployeeAbsences,
+                Key::NavToMyTimeAccount,
+                Key::NavToEmployeeReport,
             ] {
                 let value = i18n.t(key);
                 assert!(

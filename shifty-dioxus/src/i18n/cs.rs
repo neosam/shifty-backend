@@ -1063,4 +1063,10 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::SettingsHolidayAutoCreditUnsetHint,
         "Nenastaveno — automatika je vypnuta.",
     );
+
+    // Phase 26 — NAV-01 obousměrné navigační odkazy (D-26-06).
+    i18n.add_text(Locale::Cs, Key::NavToMyAbsences, "Moje absence");
+    i18n.add_text(Locale::Cs, Key::NavToEmployeeAbsences, "Absence");
+    i18n.add_text(Locale::Cs, Key::NavToMyTimeAccount, "Moje časové konto");
+    i18n.add_text(Locale::Cs, Key::NavToEmployeeReport, "Přehled zaměstnance");
 }

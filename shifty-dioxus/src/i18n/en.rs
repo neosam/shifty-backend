@@ -990,4 +990,10 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::SettingsHolidayAutoCreditUnsetHint,
         "Not set — automation is off.",
     );
+
+    // Phase 26 — NAV-01 bidirectional cross-navigation links (D-26-06).
+    i18n.add_text(Locale::En, Key::NavToMyAbsences, "My absences");
+    i18n.add_text(Locale::En, Key::NavToEmployeeAbsences, "Absences");
+    i18n.add_text(Locale::En, Key::NavToMyTimeAccount, "My time account");
+    i18n.add_text(Locale::En, Key::NavToEmployeeReport, "Employee report");
 }

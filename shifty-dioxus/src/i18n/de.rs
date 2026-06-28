@@ -1077,4 +1077,10 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::SettingsHolidayAutoCreditUnsetHint,
         "Nicht gesetzt — Automatik inaktiv.",
     );
+
+    // Phase 26 — NAV-01 bidirektionale Quernavigations-Links (D-26-06).
+    i18n.add_text(Locale::De, Key::NavToMyAbsences, "Meine Abwesenheiten");
+    i18n.add_text(Locale::De, Key::NavToEmployeeAbsences, "Abwesenheiten");
+    i18n.add_text(Locale::De, Key::NavToMyTimeAccount, "Mein Zeitkonto");
+    i18n.add_text(Locale::De, Key::NavToEmployeeReport, "Mitarbeiterbericht");
 }
