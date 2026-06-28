@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "dao"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "async-trait",
  "mockall",
@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "dao_impl_sqlite"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "async-trait",
  "dao",
@@ -2268,7 +2268,7 @@ dependencies = [
 
 [[package]]
 name = "rest"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "axum",
  "axum-oidc",
@@ -2296,7 +2296,7 @@ dependencies = [
 
 [[package]]
 name = "rest-types"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2662,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "service"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "async-trait",
  "dao",
@@ -2677,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "service_impl"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2732,7 +2732,7 @@ dependencies = [
 
 [[package]]
 name = "shifty-utils"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "thiserror 2.0.18",
  "time",
@@ -2740,7 +2740,7 @@ dependencies = [
 
 [[package]]
 name = "shifty_bin"
-version = "2026.179.1-dev"
+version = "2026.179.1"
 dependencies = [
  "axum",
  "dao",
