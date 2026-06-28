@@ -13,6 +13,7 @@ struct ToggleDb {
     name: String,
     enabled: i64,
     description: Option<String>,
+    value: Option<String>,
 }
 
 impl From<&ToggleDb> for ToggleEntity {
@@ -21,6 +22,7 @@ impl From<&ToggleDb> for ToggleEntity {
             name: db.name.clone(),
             enabled: db.enabled != 0,
             description: db.description.clone(),
+            value: db.value.clone(),
         }
     }
 }
@@ -82,7 +84,7 @@ impl ToggleDao for ToggleDaoImpl {
     ) -> Result<Option<ToggleEntity>, DaoError> {
         Ok(query_as!(
             ToggleDb,
-            r#"SELECT name, enabled, description
+            r#"SELECT name, enabled, description, value
                FROM toggle
                WHERE name = ?"#,
             name,
@@ -100,7 +102,7 @@ impl ToggleDao for ToggleDaoImpl {
     ) -> Result<Arc<[ToggleEntity]>, DaoError> {
         let rows = query_as!(
             ToggleDb,
-            r#"SELECT name, enabled, description
+            r#"SELECT name, enabled, description, value
                FROM toggle
                ORDER BY name"#,
         )
@@ -120,10 +122,11 @@ impl ToggleDao for ToggleDaoImpl {
         let enabled: i64 = if toggle.enabled { 1 } else { 0 };
         query!(
             r#"UPDATE toggle
-               SET enabled = ?, description = ?, update_process = ?
+               SET enabled = ?, description = ?, value = ?, update_process = ?
                WHERE name = ?"#,
             enabled,
             toggle.description,
+            toggle.value,
             process,
             toggle.name,
         )
@@ -167,6 +170,44 @@ impl ToggleDao for ToggleDaoImpl {
 
         // Returns false for non-existent toggles (fail-safe default)
         Ok(result.map(|row| row.enabled != 0).unwrap_or(false))
+    }
+
+    async fn get_toggle_value(
+        &self,
+        name: &str,
+        tx: Self::Transaction,
+    ) -> Result<Option<String>, DaoError> {
+        let result = query!(
+            r#"SELECT value FROM toggle WHERE name = ?"#,
+            name,
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+        Ok(result.and_then(|row| row.value))
+    }
+
+    async fn set_toggle_value(
+        &self,
+        name: &str,
+        value: Option<String>,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
+        let enabled: i64 = if value.is_some() { 1 } else { 0 };
+        query!(
+            r#"UPDATE toggle
+               SET value = ?, enabled = ?, update_process = ?
+               WHERE name = ?"#,
+            value,
+            enabled,
+            process,
+            name,
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+        Ok(())
     }
 
     async fn create_toggle_group(
@@ -293,7 +334,7 @@ impl ToggleDao for ToggleDaoImpl {
     ) -> Result<Arc<[ToggleEntity]>, DaoError> {
         let rows = query_as!(
             ToggleDb,
-            r#"SELECT t.name, t.enabled, t.description
+            r#"SELECT t.name, t.enabled, t.description, t.value
                FROM toggle t
                INNER JOIN toggle_group_toggle tgt ON t.name = tgt.toggle_name
                WHERE tgt.toggle_group_name = ?

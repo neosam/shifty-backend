@@ -50,6 +50,7 @@ fn default_toggle_entity() -> ToggleEntity {
         name: "test_toggle".to_string(),
         enabled: true,
         description: Some("Test toggle description".to_string()),
+        value: None,
     }
 }
 
@@ -58,6 +59,7 @@ fn default_toggle() -> Toggle {
         name: "test_toggle".into(),
         enabled: true,
         description: Some("Test toggle description".into()),
+        value: None,
     }
 }
 
@@ -392,4 +394,152 @@ async fn test_non_admin_cannot_modify_toggles() {
     let toggle = default_toggle();
     let result = service.create_toggle(&toggle, ().auth(), None).await;
     assert!(matches!(result, Err(ServiceError::Forbidden)));
+}
+
+// Tests for get_toggle_value / set_toggle_value roundtrip (HCFG-02)
+
+#[tokio::test]
+async fn test_toggle_value_roundtrip() {
+    // Phase 1: Set a value (admin-gated) — should succeed
+    {
+        let mut deps = build_dependencies();
+        deps.permission_service = mock_toggle_admin_permission_service();
+        deps.toggle_dao
+            .expect_set_toggle_value()
+            .with(
+                eq("holiday_auto_credit"),
+                eq(Some("2026-01-01".to_string())),
+                eq("toggle-service"),
+                always(),
+            )
+            .returning(|_, _, _, _| Ok(()));
+
+        let service = deps.build_service();
+        let result = service
+            .set_toggle_value(
+                "holiday_auto_credit",
+                Some("2026-01-01".to_string()),
+                ().auth(),
+                None,
+            )
+            .await;
+        assert!(result.is_ok(), "set_toggle_value should succeed for admin");
+    }
+
+    // Phase 2: Read the value back (authenticated user) — should equal what was set
+    {
+        let mut deps = build_dependencies();
+        deps.permission_service = mock_authenticated_permission_service();
+        deps.toggle_dao
+            .expect_get_toggle_value()
+            .with(eq("holiday_auto_credit"), always())
+            .returning(|_, _| Ok(Some("2026-01-01".to_string())));
+
+        let service = deps.build_service();
+        let result = service
+            .get_toggle_value("holiday_auto_credit", ().auth(), None)
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap().as_deref(),
+            Some("2026-01-01"),
+            "get_toggle_value must return the previously set ISO date"
+        );
+    }
+
+    // Phase 3: Clear the value (admin-gated, None) — should succeed
+    {
+        let mut deps = build_dependencies();
+        deps.permission_service = mock_toggle_admin_permission_service();
+        deps.toggle_dao
+            .expect_set_toggle_value()
+            .with(
+                eq("holiday_auto_credit"),
+                eq(None::<String>),
+                eq("toggle-service"),
+                always(),
+            )
+            .returning(|_, _, _, _| Ok(()));
+
+        let service = deps.build_service();
+        let result = service
+            .set_toggle_value("holiday_auto_credit", None, ().auth(), None)
+            .await;
+        assert!(result.is_ok(), "clearing value (None) should succeed for admin");
+    }
+
+    // Phase 4: After clearing, get_toggle_value returns None (D-25-05 default off)
+    {
+        let mut deps = build_dependencies();
+        deps.permission_service = mock_authenticated_permission_service();
+        deps.toggle_dao
+            .expect_get_toggle_value()
+            .with(eq("holiday_auto_credit"), always())
+            .returning(|_, _| Ok(None));
+
+        let service = deps.build_service();
+        let result = service
+            .get_toggle_value("holiday_auto_credit", ().auth(), None)
+            .await;
+        assert!(result.is_ok());
+        assert!(
+            result.unwrap().is_none(),
+            "get_toggle_value should return None after clearing (automation off)"
+        );
+    }
+
+    // Phase 5: is_enabled is false after clearing (D-25-05 enabled mirrors value presence)
+    {
+        let mut deps = build_dependencies();
+        deps.permission_service = mock_authenticated_permission_service();
+        deps.toggle_dao
+            .expect_is_enabled()
+            .with(eq("holiday_auto_credit"), always())
+            .returning(|_, _| Ok(false));
+
+        let service = deps.build_service();
+        let result = service
+            .is_enabled("holiday_auto_credit", ().auth(), None)
+            .await;
+        assert!(result.is_ok());
+        assert!(
+            !result.unwrap(),
+            "Toggle should be disabled after clearing value (D-25-05)"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_set_toggle_value_requires_toggle_admin_privilege() {
+    let mut deps = build_dependencies();
+    deps.permission_service = mock_no_toggle_admin_permission_service();
+
+    let service = deps.build_service();
+    let result = service
+        .set_toggle_value(
+            "holiday_auto_credit",
+            Some("2026-01-01".to_string()),
+            ().auth(),
+            None,
+        )
+        .await;
+    assert!(
+        matches!(result, Err(ServiceError::Forbidden)),
+        "set_toggle_value must be admin-gated"
+    );
+}
+
+#[tokio::test]
+async fn test_get_toggle_value_requires_authentication() {
+    let mut deps = build_dependencies();
+    deps.permission_service = mock_unauthenticated_permission_service();
+
+    let service = deps.build_service();
+    let result = service
+        .get_toggle_value("holiday_auto_credit", ().auth(), None)
+        .await;
+    assert!(
+        matches!(result, Err(ServiceError::Unauthorized)),
+        "get_toggle_value must require authentication"
+    );
 }

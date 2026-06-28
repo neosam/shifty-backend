@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT t.name, t.enabled, t.description\n               FROM toggle t\n               INNER JOIN toggle_group_toggle tgt ON t.name = tgt.toggle_name\n               WHERE tgt.toggle_group_name = ?\n               ORDER BY t.name",
+  "query": "SELECT name, enabled, description, value\n               FROM toggle\n               ORDER BY name",
   "describe": {
     "columns": [
       {
@@ -17,16 +17,22 @@
         "name": "description",
         "ordinal": 2,
         "type_info": "Text"
+      },
+      {
+        "name": "value",
+        "ordinal": 3,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "4cfefdbf6c86cd8af58cb3a485f41d9d67e7b14b5818d168daf4b14e591fa354"
+  "hash": "6ba9b30b23b62e924b4edb23dbc2dac432ad0931fc0cee3286d4b479cad5c49d"
 }

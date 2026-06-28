@@ -8,6 +8,7 @@ pub struct ToggleEntity {
     pub name: String,
     pub enabled: bool,
     pub description: Option<String>,
+    pub value: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +54,20 @@ pub trait ToggleDao {
     ) -> Result<(), DaoError>;
 
     async fn is_enabled(&self, name: &str, tx: Self::Transaction) -> Result<bool, DaoError>;
+
+    async fn get_toggle_value(
+        &self,
+        name: &str,
+        tx: Self::Transaction,
+    ) -> Result<Option<String>, DaoError>;
+
+    async fn set_toggle_value(
+        &self,
+        name: &str,
+        value: Option<String>,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
 
     // Toggle Group CRUD
     async fn create_toggle_group(

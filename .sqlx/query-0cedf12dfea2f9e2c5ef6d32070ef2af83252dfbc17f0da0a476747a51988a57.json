@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE toggle\n               SET enabled = ?, description = ?, value = ?, update_process = ?\n               WHERE name = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "0cedf12dfea2f9e2c5ef6d32070ef2af83252dfbc17f0da0a476747a51988a57"
+}

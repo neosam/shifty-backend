@@ -1,0 +1,1 @@
+ALTER TABLE toggle ADD COLUMN value TEXT;

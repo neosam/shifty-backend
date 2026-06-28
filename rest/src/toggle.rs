@@ -24,6 +24,9 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
         .route("/{name}/enable", put(enable_toggle::<RestState>))
         .route("/{name}/disable", put(disable_toggle::<RestState>))
         .route("/{name}", delete(delete_toggle::<RestState>))
+        .route("/{name}/value", get(get_toggle_value::<RestState>))
+        .route("/{name}/value", put(set_toggle_value::<RestState>))
+        .route("/{name}/value", delete(clear_toggle_value::<RestState>))
 }
 
 pub fn generate_group_route<RestState: RestStateDef>() -> Router<RestState> {
@@ -274,6 +277,139 @@ pub async fn delete_toggle<RestState: RestStateDef>(
             rest_state
                 .toggle_service()
                 .delete_toggle(&name, context.into(), None)
+                .await?;
+            Ok(Response::builder().status(204).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+// Toggle value endpoints
+
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/{name}/value",
+    tags = ["Toggles"],
+    params(
+        ("name", description = "Toggle name", example = "holiday_auto_credit"),
+    ),
+    responses(
+        (status = 200, description = "Toggle value (ISO date string YYYY-MM-DD)", body = String),
+        (status = 204, description = "Toggle has no value set"),
+        (status = 401, description = "Unauthorized"),
+    ),
+)]
+pub async fn get_toggle_value<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(name): Path<String>,
+) -> Response {
+    error_handler(
+        (async {
+            let value = rest_state
+                .toggle_service()
+                .get_toggle_value(&name, context.into(), None)
+                .await?;
+            match value {
+                Some(v) => Ok(Response::builder()
+                    .status(200)
+                    .header("Content-Type", "application/json")
+                    .body(Body::new(serde_json::to_string(v.as_ref()).unwrap()))
+                    .unwrap()),
+                None => Ok(Response::builder().status(204).body(Body::empty()).unwrap()),
+            }
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    put,
+    path = "/{name}/value",
+    tags = ["Toggles"],
+    params(
+        ("name", description = "Toggle name", example = "holiday_auto_credit"),
+    ),
+    request_body(content = String, description = "ISO date string (YYYY-MM-DD)", example = "\"2026-01-01\""),
+    responses(
+        (status = 204, description = "Toggle value set; toggle enabled"),
+        (status = 400, description = "Invalid ISO date format (expected YYYY-MM-DD)"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - requires toggle_admin privilege"),
+    ),
+)]
+pub async fn set_toggle_value<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(name): Path<String>,
+    Json(value): Json<String>,
+) -> Response {
+    error_handler(
+        (async {
+            // Validate ISO date format YYYY-MM-DD (T-25-01 input validation)
+            let valid = (|| -> Option<()> {
+                if value.len() != 10 {
+                    return None;
+                }
+                let b = value.as_bytes();
+                if b[4] != b'-' || b[7] != b'-' {
+                    return None;
+                }
+                let year: i32 = value[0..4].parse().ok()?;
+                let month: u8 = value[5..7].parse().ok()?;
+                let day: u8 = value[8..10].parse().ok()?;
+                time::Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day)
+                    .ok()?;
+                Some(())
+            })()
+            .is_some();
+
+            if !valid {
+                return Ok(Response::builder()
+                    .status(400)
+                    .header("Content-Type", "text/plain")
+                    .body(Body::new(
+                        "Invalid ISO date format. Expected YYYY-MM-DD.".to_string(),
+                    ))
+                    .unwrap());
+            }
+
+            rest_state
+                .toggle_service()
+                .set_toggle_value(&name, Some(value), context.into(), None)
+                .await?;
+            Ok(Response::builder().status(204).body(Body::empty()).unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    delete,
+    path = "/{name}/value",
+    tags = ["Toggles"],
+    params(
+        ("name", description = "Toggle name", example = "holiday_auto_credit"),
+    ),
+    responses(
+        (status = 204, description = "Toggle value cleared; toggle disabled"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - requires toggle_admin privilege"),
+    ),
+)]
+pub async fn clear_toggle_value<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(name): Path<String>,
+) -> Response {
+    error_handler(
+        (async {
+            rest_state
+                .toggle_service()
+                .set_toggle_value(&name, None, context.into(), None)
                 .await?;
             Ok(Response::builder().status(204).body(Body::empty()).unwrap())
         })
@@ -594,6 +730,9 @@ pub async fn disable_group<RestState: RestStateDef>(
         enable_toggle,
         disable_toggle,
         delete_toggle,
+        get_toggle_value,
+        set_toggle_value,
+        clear_toggle_value,
     ),
     components(schemas(ToggleTO))
 )]

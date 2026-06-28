@@ -13,6 +13,7 @@ pub struct Toggle {
     pub name: Arc<str>,
     pub enabled: bool,
     pub description: Option<Arc<str>>,
+    pub value: Option<Arc<str>>,
 }
 
 impl From<&dao::toggle::ToggleEntity> for Toggle {
@@ -21,6 +22,7 @@ impl From<&dao::toggle::ToggleEntity> for Toggle {
             name: entity.name.clone().into(),
             enabled: entity.enabled,
             description: entity.description.clone().map(Into::into),
+            value: entity.value.clone().map(Into::into),
         }
     }
 }
@@ -31,6 +33,7 @@ impl From<&Toggle> for dao::toggle::ToggleEntity {
             name: toggle.name.to_string(),
             enabled: toggle.enabled,
             description: toggle.description.as_ref().map(|s| s.to_string()),
+            value: toggle.value.as_ref().map(|s| s.to_string()),
         }
     }
 }
@@ -104,6 +107,21 @@ pub trait ToggleService {
     async fn disable_toggle(
         &self,
         name: &str,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
+
+    async fn get_toggle_value(
+        &self,
+        name: &str,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Option<Arc<str>>, ServiceError>;
+
+    async fn set_toggle_value(
+        &self,
+        name: &str,
+        value: Option<String>,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;

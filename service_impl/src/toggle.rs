@@ -152,6 +152,44 @@ impl<Deps: ToggleServiceDeps> ToggleService for ToggleServiceImpl<Deps> {
         Ok(())
     }
 
+    async fn get_toggle_value(
+        &self,
+        name: &str,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Option<Arc<str>>, ServiceError> {
+        // Requires authentication (user must be logged in)
+        let user_id = self.permission_service.current_user_id(context).await?;
+        if user_id.is_none() {
+            return Err(ServiceError::Unauthorized);
+        }
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let result = self.toggle_dao.get_toggle_value(name, tx.clone()).await?;
+        self.transaction_dao.commit(tx).await?;
+        Ok(result.map(Into::into))
+    }
+
+    async fn set_toggle_value(
+        &self,
+        name: &str,
+        value: Option<String>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        // Requires toggle_admin privilege (same gate as enable_toggle/disable_toggle)
+        self.permission_service
+            .check_permission(TOGGLE_ADMIN_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        self.toggle_dao
+            .set_toggle_value(name, value, TOGGLE_SERVICE_PROCESS, tx.clone())
+            .await?;
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
+    }
+
     async fn delete_toggle(
         &self,
         name: &str,

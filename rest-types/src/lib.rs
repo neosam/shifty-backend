@@ -1532,6 +1532,8 @@ pub struct ToggleTO {
     pub enabled: bool,
     #[serde(default)]
     pub description: Option<Arc<str>>,
+    #[serde(default)]
+    pub value: Option<Arc<str>>,
 }
 
 #[cfg(feature = "service-impl")]
@@ -1541,6 +1543,7 @@ impl From<&service::toggle::Toggle> for ToggleTO {
             name: toggle.name.clone(),
             enabled: toggle.enabled,
             description: toggle.description.clone(),
+            value: toggle.value.clone(),
         }
     }
 }
@@ -1552,6 +1555,7 @@ impl From<&ToggleTO> for service::toggle::Toggle {
             name: toggle.name.clone(),
             enabled: toggle.enabled,
             description: toggle.description.clone(),
+            value: toggle.value.clone(),
         }
     }
 }
