@@ -21,7 +21,11 @@ thiserror = "2.0.17"
 futures-util = "0.3.30"
 js-sys = "0.3.77"
 manganis = "0.6.2"
-wasm-bindgen = "0.2.97"
+# Pinned to match the flake's `wasm-bindgen-cli_0_2_121` — dx requires the crate and
+# the wasm-bindgen CLI to be the EXACT same version. Bumping this (e.g. via `cargo update`)
+# without also bumping the flake CLI breaks `dx serve`/`dx build`. nixpkgs currently tops
+# out at wasm-bindgen-cli 0.2.121, so this is the ceiling until the flake CLI is raised.
+wasm-bindgen = "=0.2.121"
 wasm-bindgen-futures = "0.4.47"
 gloo-timers = { version = "0.3.0", features = ["futures"] }
 

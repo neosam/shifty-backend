@@ -50,7 +50,7 @@
           nativeBuildInputs = with pkgs; [
             rustToolchain
             wasm-pack
-            wasm-bindgen-cli_0_2_104
+            wasm-bindgen-cli_0_2_121
             nodejs
             tailwindcss
             pkg-config
@@ -190,7 +190,7 @@ EOF
           buildInputs = with pkgs; [
             rustToolchain
             wasm-pack
-            wasm-bindgen-cli_0_2_104
+            wasm-bindgen-cli_0_2_121
             wasmtime
             dioxus-cli-06
             nodejs
