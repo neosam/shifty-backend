@@ -9,8 +9,8 @@ progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -28,11 +28,11 @@ progress:
 ## Current Position
 
 Phase: 25 of 26 (Feiertags-Auto-Anrechnung & Stichtag-Konfiguration)
-Plan: 1/4 complete (Wave 1: 25-01 ✓ · Wave 2: 25-02, 25-03 · Wave 3: 25-04)
-Status: In progress — 25-01 complete
-Last activity: 2026-06-28 — 25-01 complete: toggle value column + REST value endpoints (HCFG-01, HCFG-02 backend)
+Plan: 2/4 complete (Wave 1: 25-01 ✓ · Wave 2: 25-02 ✓, 25-03 · Wave 3: 25-04)
+Status: In progress — 25-02 complete
+Last activity: 2026-06-28 — 25-02 complete: derive-on-read holiday auto-credit in ReportingService + snapshot version 11
 
-Progress: [██░░░░░░░░] 25%
+Progress: [████░░░░░░] 50%
 
 ## Deferred Items
 

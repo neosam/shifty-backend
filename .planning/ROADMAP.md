@@ -84,7 +84,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 25-02-PLAN.md — Reporting derive-on-read (3 Injektionspunkte) + main.rs-DI-Fix + Snapshot-Bump 10→11 (HOL-01/02/03, HCFG-01/03, HSNAP-01)
+- [x] 25-02-PLAN.md — Reporting derive-on-read (3 Injektionspunkte) + main.rs-DI-Fix + Snapshot-Bump 10→11 (HOL-01/02/03, HCFG-01/03, HSNAP-01)
 - [ ] 25-03-PLAN.md — Frontend Settings-Datumsfeld „aktiv ab" + i18n de/en/cs (HCFG-02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
