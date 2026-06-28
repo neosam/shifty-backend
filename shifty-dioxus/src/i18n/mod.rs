@@ -594,6 +594,16 @@ pub enum Key {
     SettingsSaved,
     /// Settings page: inline error shown when the toggle PUT fails.
     SettingsSaveError,
+    /// Settings page Card 2 label — holiday auto-credit activation date (Phase 25 D-25-06).
+    SettingsHolidayAutoCreditLabel,
+    /// Settings page Card 2 description — explains the cutoff date effect.
+    SettingsHolidayAutoCreditDescription,
+    /// Settings page Card 2 Save button label.
+    SettingsHolidayAutoCreditSave,
+    /// Settings page Card 2 Clear button label (and implicit disable action).
+    SettingsHolidayAutoCreditClear,
+    /// Settings page Card 2 hint shown when no date is set (automation off).
+    SettingsHolidayAutoCreditUnsetHint,
     /// Shiftplan overage section heading (D-24-03, persistent, all roles).
     ShiftplanPaidOverageSectionHeader,
     /// Shiftplan overage row per slot (placeholders `{slot}`, `{current}`, `{max}`).
@@ -1301,6 +1311,29 @@ mod tests {
                 Key::ShiftplanPaidOverageSectionHeader,
                 Key::ShiftplanPaidOverageRow,
                 Key::BookingBlockedPaidLimit,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_phase25_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SettingsHolidayAutoCreditLabel,
+                Key::SettingsHolidayAutoCreditDescription,
+                Key::SettingsHolidayAutoCreditSave,
+                Key::SettingsHolidayAutoCreditClear,
+                Key::SettingsHolidayAutoCreditUnsetHint,
             ] {
                 let value = i18n.t(key);
                 assert!(

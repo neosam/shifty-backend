@@ -1022,3 +1022,24 @@ pub async fn get_toggle_enabled(config: Config, name: &str) -> Result<bool, Shif
     let enabled = api::get_toggle_enabled(config, name).await?;
     Ok(enabled)
 }
+
+// ─── Holiday auto-credit cutoff loaders (Phase 25 D-25-06) ───────────────────
+
+/// Fetch the current holiday auto-credit cutoff date.
+/// Returns Ok(None) when no date is set (automation disabled).
+pub async fn get_holiday_cutoff_date(config: Config) -> Result<Option<String>, ShiftyError> {
+    Ok(api::get_toggle_value(config, "holiday_auto_credit").await?)
+}
+
+/// Set (Some) or clear (None) the holiday auto-credit cutoff date.
+/// Passing None calls DELETE, passing Some calls PUT with the ISO date string.
+pub async fn set_holiday_cutoff_date(
+    config: Config,
+    value: Option<&str>,
+) -> Result<(), ShiftyError> {
+    match value {
+        Some(v) => api::set_toggle_value(config, "holiday_auto_credit", v).await?,
+        None => api::clear_toggle_value(config, "holiday_auto_credit").await?,
+    }
+    Ok(())
+}

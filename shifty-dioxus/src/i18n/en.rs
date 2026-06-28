@@ -967,4 +967,27 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::BookingBlockedPaidLimit,
         "Paid employee limit reached — only shift planners may book beyond the limit.",
     );
+
+    // Phase 25 — Holiday auto-credit activation date (D-25-06, HCFG-02).
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsHolidayAutoCreditLabel,
+        "Holiday auto-credit activation date",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsHolidayAutoCreditDescription,
+        "Holidays on or after this date are credited automatically. Leave empty to disable.",
+    );
+    i18n.add_text(Locale::En, Key::SettingsHolidayAutoCreditSave, "Save date");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsHolidayAutoCreditClear,
+        "Clear (disable)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsHolidayAutoCreditUnsetHint,
+        "Not set — automation is off.",
+    );
 }

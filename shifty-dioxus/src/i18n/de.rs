@@ -1050,4 +1050,31 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::BookingBlockedPaidLimit,
         "Bezahlt-Limit erreicht — nur Schichtplaner können über das Limit buchen.",
     );
+
+    // Phase 25 — Feiertags-Automatik Stichtag (D-25-06, HCFG-02).
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsHolidayAutoCreditLabel,
+        "Feiertags-Automatik aktiv ab",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsHolidayAutoCreditDescription,
+        "Feiertage ab diesem Datum werden automatisch angerechnet. Leer lassen = Automatik deaktiviert.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsHolidayAutoCreditSave,
+        "Datum speichern",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsHolidayAutoCreditClear,
+        "Löschen (deaktivieren)",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsHolidayAutoCreditUnsetHint,
+        "Nicht gesetzt — Automatik inaktiv.",
+    );
 }

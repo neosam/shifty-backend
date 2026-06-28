@@ -1036,4 +1036,31 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::BookingBlockedPaidLimit,
         "Limit placených zaměstnanců dosažen — překročit ho mohou pouze schichtplanneři.",
     );
+
+    // Phase 25 — Automatické připisování svátků od (D-25-06, HCFG-02).
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsHolidayAutoCreditLabel,
+        "Automatické připisování svátků od",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsHolidayAutoCreditDescription,
+        "Svátky od tohoto data jsou automaticky připisovány. Prázdné = automatika vypnuta.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsHolidayAutoCreditSave,
+        "Uložit datum",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsHolidayAutoCreditClear,
+        "Smazat (deaktivovat)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsHolidayAutoCreditUnsetHint,
+        "Nenastaveno — automatika je vypnuta.",
+    );
 }

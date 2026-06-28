@@ -1594,3 +1594,45 @@ pub async fn get_toggle_enabled(config: Config, name: &str) -> Result<bool, reqw
     Ok(response.json().await?)
 }
 
+// ─── Toggle value REST clients (Phase 25 D-25-06) ────────────────────────────
+
+/// GET /toggle/{name}/value → Option<String>
+/// Returns Ok(None) when the server responds 204 (value not set).
+pub async fn get_toggle_value(
+    config: Config,
+    name: &str,
+) -> Result<Option<String>, reqwest::Error> {
+    let url = format!("{}/toggle/{}/value", config.backend, name);
+    let response = reqwest::get(url).await?;
+    if response.status() == 204 {
+        return Ok(None);
+    }
+    response.error_for_status_ref()?;
+    Ok(response.json::<Option<String>>().await?)
+}
+
+/// PUT /toggle/{name}/value — sets the value to the given ISO date string.
+pub async fn set_toggle_value(
+    config: Config,
+    name: &str,
+    value: &str,
+) -> Result<(), reqwest::Error> {
+    let url = format!("{}/toggle/{}/value", config.backend, name);
+    let client = reqwest::Client::new();
+    client
+        .put(url)
+        .json(value)
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
+}
+
+/// DELETE /toggle/{name}/value — clears the value (disables automation).
+pub async fn clear_toggle_value(config: Config, name: &str) -> Result<(), reqwest::Error> {
+    let url = format!("{}/toggle/{}/value", config.backend, name);
+    let client = reqwest::Client::new();
+    client.delete(url).send().await?.error_for_status()?;
+    Ok(())
+}
+

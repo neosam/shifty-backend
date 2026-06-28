@@ -1,11 +1,15 @@
-//! SettingsPage — admin-gated page with the paid-limit hard/soft toggle.
-//! Phase 24 D-24-06: one switch that flips the `paid_limit_hard_enforcement`
-//! toggle via the existing Toggle REST API.
+//! SettingsPage — admin-gated page with the paid-limit hard/soft toggle (Card 1)
+//! and the holiday auto-credit activation date field (Card 2).
+//! Phase 24 D-24-06: paid-limit enforcement toggle.
+//! Phase 25 D-25-06: holiday auto-credit cutoff date input.
+
+use time::macros::format_description;
 
 use dioxus::prelude::*;
 
 use crate::{
-    component::TopBar,
+    base_types::ImStr,
+    component::{form::TextInput, TopBar},
     i18n::Key,
     loader,
     service::{auth::AUTH, config::CONFIG, i18n::I18N},
@@ -34,21 +38,16 @@ pub fn SettingsPage() -> Element {
         };
     }
 
-    // Load the initial toggle state.
+    // ── Card 1: Paid-limit enforcement toggle (Phase 24) ──────────────────────
+
     let config_for_load = config.clone();
     let toggle_resource =
         use_resource(move || loader::get_toggle_enabled(config_for_load.clone(), TOGGLE_NAME));
 
-    // Local signal that mirrors the loaded state and is updated on click.
     let mut hard_enforcement = use_signal(|| false);
-
-    // Feedback signals: None = nothing shown, Some(true) = saved, Some(false) = error.
     let mut save_result: Signal<Option<bool>> = use_signal(|| None);
-
-    // Reflects whether a PUT is in flight (disables the button).
     let mut saving = use_signal(|| false);
 
-    // Synchronise the signal when the resource resolves.
     use_effect(move || {
         if let Some(Ok(enabled)) = &*toggle_resource.read_unchecked() {
             hard_enforcement.set(*enabled);
@@ -73,7 +72,6 @@ pub fn SettingsPage() -> Element {
                     save_result.set(Some(true));
                 }
                 Err(_) => {
-                    // Revert — state stays `current` (signal unchanged).
                     save_result.set(Some(false));
                 }
             }
@@ -98,6 +96,93 @@ pub fn SettingsPage() -> Element {
 
     let aria_pressed = if is_on { "true" } else { "false" };
 
+    // ── Card 2: Holiday auto-credit activation date (Phase 25) ────────────────
+
+    let mut date_str: Signal<String> = use_signal(String::new);
+    let mut date_str_loaded_empty = use_signal(|| false);
+    let mut cutoff_save_result: Signal<Option<bool>> = use_signal(|| None);
+    let mut cutoff_saving = use_signal(|| false);
+
+    let config_for_cutoff = config.clone();
+    let cutoff_resource =
+        use_resource(move || loader::get_holiday_cutoff_date(config_for_cutoff.clone()));
+
+    use_effect(move || {
+        match &*cutoff_resource.read_unchecked() {
+            Some(Ok(Some(date))) => {
+                date_str.set(date.clone());
+                date_str_loaded_empty.set(false);
+            }
+            Some(Ok(None)) => {
+                date_str.set(String::new());
+                date_str_loaded_empty.set(true);
+            }
+            _ => {}
+        }
+    });
+
+    let config_for_save = config.clone();
+    let on_save_cutoff = move |_| {
+        if *cutoff_saving.read() {
+            return;
+        }
+        let val = date_str.read().clone();
+        if val.is_empty() {
+            return;
+        }
+        // Client-side ISO date validation (defense in depth; <input type=date> enforces this
+        // in the browser, but we double-check before the PUT).
+        let date_format = format_description!("[year]-[month]-[day]");
+        if time::Date::parse(&val, date_format).is_err() {
+            cutoff_save_result.set(Some(false));
+            return;
+        }
+        cutoff_saving.set(true);
+        cutoff_save_result.set(None);
+        let cfg = config_for_save.clone();
+        spawn(async move {
+            match loader::set_holiday_cutoff_date(cfg, Some(&val)).await {
+                Ok(()) => {
+                    cutoff_save_result.set(Some(true));
+                    date_str_loaded_empty.set(false);
+                }
+                Err(_) => {
+                    cutoff_save_result.set(Some(false));
+                }
+            }
+            cutoff_saving.set(false);
+        });
+    };
+
+    let config_for_clear = config.clone();
+    let on_clear_cutoff = move |_| {
+        if *cutoff_saving.read() {
+            return;
+        }
+        cutoff_saving.set(true);
+        cutoff_save_result.set(None);
+        let cfg = config_for_clear.clone();
+        spawn(async move {
+            match loader::set_holiday_cutoff_date(cfg, None).await {
+                Ok(()) => {
+                    date_str.set(String::new());
+                    date_str_loaded_empty.set(true);
+                    cutoff_save_result.set(Some(true));
+                }
+                Err(_) => {
+                    cutoff_save_result.set(Some(false));
+                }
+            }
+            cutoff_saving.set(false);
+        });
+    };
+
+    let is_cutoff_saving = *cutoff_saving.read();
+    let loaded_empty = *date_str_loaded_empty.read();
+    let date_string = date_str.read().clone();
+    let date_value = ImStr::from(date_string.as_str());
+    let date_empty = date_string.is_empty();
+
     rsx! {
         TopBar {}
 
@@ -106,6 +191,7 @@ pub fn SettingsPage() -> Element {
                 "{i18n.t(Key::Settings)}"
             }
 
+            // Card 1 — Paid-limit enforcement (Phase 24, unchanged)
             div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3",
 
                 // Toggle row
@@ -141,6 +227,67 @@ pub fn SettingsPage() -> Element {
                         },
                         None => rsx! { },
                     }}
+                }
+            }
+
+            // Card 2 — Holiday auto-credit activation date (Phase 25 D-25-06)
+            div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3 mt-4",
+
+                // Row A: Feature label + description
+                div { class: "flex flex-col gap-1",
+                    span { class: "text-body text-ink font-semibold",
+                        "{i18n.t(Key::SettingsHolidayAutoCreditLabel)}"
+                    }
+                    span { class: "text-small text-ink-soft",
+                        "{i18n.t(Key::SettingsHolidayAutoCreditDescription)}"
+                    }
+                }
+
+                // Row B: Date input (width-constrained)
+                div { class: "max-w-[200px]",
+                    TextInput {
+                        input_type: ImStr::from("date"),
+                        value: date_value,
+                        on_change: move |v: ImStr| date_str.set(v.as_str().to_string()),
+                    }
+                }
+
+                // Row C: Action row (Save + Clear + inline feedback)
+                div { class: "flex flex-row items-center gap-3",
+                    button {
+                        class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                        disabled: is_cutoff_saving,
+                        onclick: on_save_cutoff,
+                        "{i18n.t(Key::SettingsHolidayAutoCreditSave)}"
+                    }
+                    button {
+                        class: "px-3 py-2 rounded-md border border-border text-ink-soft text-body bg-surface hover:bg-surface-alt",
+                        disabled: is_cutoff_saving || date_empty,
+                        onclick: on_clear_cutoff,
+                        "{i18n.t(Key::SettingsHolidayAutoCreditClear)}"
+                    }
+
+                    // Inline feedback — reuses SettingsSaved / SettingsSaveError keys
+                    {match *cutoff_save_result.read() {
+                        Some(true) => rsx! {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsSaved)}"
+                            }
+                        },
+                        Some(false) => rsx! {
+                            span { class: "text-bad text-small",
+                                "{i18n.t(Key::SettingsSaveError)}"
+                            }
+                        },
+                        None => rsx! { },
+                    }}
+                }
+
+                // Row D: Unset hint (shown only when no date is set after load)
+                if loaded_empty {
+                    span { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsHolidayAutoCreditUnsetHint)}"
+                    }
                 }
             }
         }
