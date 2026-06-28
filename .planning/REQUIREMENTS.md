@@ -13,9 +13,11 @@ nicht mehr.
 
 - **Feiertags-Referenz-Logik:** Die Auto-Anrechnung repliziert **exakt** die Wirkung
   eines manuellen `ExtraHours` mit Kategorie `Holiday` — nicht mehr und nicht weniger.
+
 - **Asymmetrie (bewusst):** Feiertage lassen die freiwillige committed-Zusage 🎯
   unberührt (wie Holiday-`ExtraHours`); **Urlaub/Abwesenheit** eines Freiwilligen
   reduziert sie.
+
 - **Stichtag:** Die Feiertags-Automatik greift erst ab einem konfigurierbaren Datum;
   die Vergangenheit (Snapshots, evtl. manuelle Einträge) bleibt unberührt.
 
@@ -23,15 +25,17 @@ nicht mehr.
 
 ### Automatische Feiertags-Anrechnung (HOL) — Achse A (Reporting)
 
-- [ ] **HOL-01**: Pro `Holiday` aus `special_day` wird für jeden Mitarbeiter, der am
+- [x] **HOL-01**: Pro `Holiday` aus `special_day` wird für jeden Mitarbeiter, der am
   betreffenden Wochentag laut am Tag gültigem Vertrag arbeitet, das Feiertags-
   Stundenäquivalent (`hours_per_holiday` = Wochenstunden / Arbeitstage) automatisch
   angerechnet — ohne manuellen `ExtraHours`-Eintrag.
-- [ ] **HOL-02**: Die Wirkung der Auto-Anrechnung ist **identisch** zu einem manuellen
+
+- [x] **HOL-02**: Die Wirkung der Auto-Anrechnung ist **identisch** zu einem manuellen
   `ExtraHours(Holiday)`: reduziert `expected_hours`, erhöht die Balance, erscheint als
   `holiday_hours`-Spalte in Report und Jahresansicht-Display. Verifiziert per
   Vergleichstest gegen einen äquivalenten manuellen Eintrag.
-- [ ] **HOL-03**: Die Verfügbarkeits-Rechnung der Jahresansicht (`paid_hours`,
+
+- [x] **HOL-03**: Die Verfügbarkeits-Rechnung der Jahresansicht (`paid_hours`,
   `committed_voluntary_hours` 🎯, `volunteer_hours` 🤝) bleibt durch die Feiertags-
   Automatik **unverändert** (Regressions-Guard).
 
@@ -41,18 +45,21 @@ nicht mehr.
   `committed_voluntary>0`) **reduziert** seine committed-Zusage 🎯 in der Jahresansicht
   (`booking_information.rs::get_weekly_summary`) für die von der Abwesenheit betroffenen
   Arbeitstage/Wochen.
+
 - [ ] **VFA-02**: Feiertage reduzieren die committed-Zusage bewusst **nicht** (Asymmetrie
   zu VFA-01, konsistent mit HOL-03) — Regressions-Guard.
 
 ### Stichtag & Konfiguration (HCFG)
 
-- [ ] **HCFG-01**: Ein global konfigurierbares „Feiertags-Automatik aktiv ab"-Datum
+- [x] **HCFG-01**: Ein global konfigurierbares „Feiertags-Automatik aktiv ab"-Datum
   steuert, ab wann die Auto-Anrechnung greift. Feiertage **vor** dem Stichtag werden von
   der Automatik nicht angerechnet (Bestand/manuelle Einträge geschützt).
+
 - [ ] **HCFG-02**: Admin-gated Settings-UI zum Setzen/Ändern des Stichtag-Datums (analog
   `/settings/`-Seite aus v1.6), persistiert über die bestehende Konfig-/Toggle-Infra.
   i18n de/en/cs.
-- [ ] **HCFG-03**: Keine Doppelzählung ab Stichtag — ein Feiertag wird entweder durch die
+
+- [x] **HCFG-03**: Keine Doppelzählung ab Stichtag — ein Feiertag wird entweder durch die
   Automatik **oder** durch einen evtl. vorhandenen manuellen `ExtraHours(Holiday)`
   angerechnet, nicht beides. (Konfliktregel final in discuss-phase.)
 
@@ -67,6 +74,7 @@ nicht mehr.
 - [ ] **NAV-01**: Die Abwesenheitsansicht (`/absences`) und der Mitarbeiterreport /
   Jahresansicht verlinken **gegenseitig** pro Mitarbeiter (Deep-Link mit vorbelegtem
   Personen-Kontext). Beide Report-Einstiege werden berücksichtigt:
+
   - **(a) Sales-Rolle** → „Mein Zeitkonto" (eigener Report) ↔ eigene Abwesenheiten.
   - **(b) HR-Rolle** → Mitarbeiterseite (Report pro Mitarbeiter) ↔ Abwesenheiten des
     jeweiligen Mitarbeiters.

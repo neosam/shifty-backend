@@ -77,7 +77,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
   4. Hat ein Feiertag bereits einen manuellen ExtraHours(Holiday)-Eintrag, erscheint er nicht doppelt im Report — Konfliktregel greift (HCFG-03).
   5. `paid_hours`, `committed_voluntary_hours` und `volunteer_hours` in der Jahresansicht sind durch die Feiertags-Automatik unverändert (HOL-03 Regressions-Guard); `CURRENT_SNAPSHOT_SCHEMA_VERSION` ist bei Bedarf auf 11 gebumpt (HSNAP-01).
 
-**Plans**: 4 plans
+**Plans**: 4/4 plans complete
 **Wave 1**
 
 - [x] 25-01-PLAN.md — Toggle `value`-Spalte Infrastruktur (Migration + DAO + Service + REST, HCFG-01/02 Backend)
@@ -85,11 +85,11 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 25-02-PLAN.md — Reporting derive-on-read (3 Injektionspunkte) + main.rs-DI-Fix + Snapshot-Bump 10→11 (HOL-01/02/03, HCFG-01/03, HSNAP-01)
-- [ ] 25-03-PLAN.md — Frontend Settings-Datumsfeld „aktiv ab" + i18n de/en/cs (HCFG-02)
+- [x] 25-03-PLAN.md — Frontend Settings-Datumsfeld „aktiv ab" + i18n de/en/cs (HCFG-02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 25-04-PLAN.md — Feiertags-Auto-Anrechnung Tests (HOL-01/02/03, HCFG-01/03)
+- [x] 25-04-PLAN.md — Feiertags-Auto-Anrechnung Tests (HOL-01/02/03, HCFG-01/03)
 
 **UI hint**: yes
 
@@ -131,7 +131,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
 | 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
-| 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 0/4 | Not started | - |
+| 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete   | 2026-06-28 |
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 0/? | Not started | - |
 
 ## Backlog

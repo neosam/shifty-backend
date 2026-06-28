@@ -2,15 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
+current_phase: 25
+current_phase_name: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration
 status: planning
-last_updated: "2026-06-28T20:00:00.000Z"
+last_updated: "2026-06-28T12:28:54.590Z"
 last_activity: 2026-06-28
+last_activity_desc: "25-03 impl complete: frontend settings Card 2 date field, REST clients, loaders, i18n (en/de/cs), WASM green"
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 75
+  completed_plans: 4
+  percent: 50
 ---
 
 # Project State: Shifty Backend
