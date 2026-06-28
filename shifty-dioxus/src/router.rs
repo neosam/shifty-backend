@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 
+pub use crate::page::AbsencesFor;
 pub use crate::page::AbsencesPage;
 // `dioxus_router`'s `#[derive(Routable)]` looks up a component by the exact
 // variant name, so the `Absences {}` route below needs an item called
@@ -58,6 +59,8 @@ pub enum Route {
     MyShifts {},
     #[route("/absences/")]
     Absences {},
+    #[route("/absences/:employee_id/")]
+    AbsencesFor { employee_id: String },
     #[route("/settings/")]
     Settings {},
 }

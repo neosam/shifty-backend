@@ -28,6 +28,7 @@ use rest_types::{AbsenceCategoryTO, AbsencePeriodTO, WarningTO};
 use crate::base_types::ImStr;
 use crate::component::atoms::{Btn, BtnVariant};
 use crate::component::error_view::ErrorView;
+use crate::router::Route;
 use crate::component::form::{Field, SelectInput, TextInput, TextareaInput};
 use crate::component::{Dialog, DialogVariant, TopBar};
 use crate::i18n::Key;
@@ -49,6 +50,13 @@ use crate::state::absence_period::{AbsenceCategory, AbsencePeriod, DayFraction, 
 use crate::state::employee::{ExtraHours, WorkingHoursCategory};
 use crate::state::shiftplan::SalesPerson;
 use crate::state::vacation_balance::VacationBalance;
+
+// ─── NAV-01 preselect (D-26-05) ────────────────────────────────────────────
+//
+// Written by `AbsencesFor` wrapper on mount; consumed once by `AbsencesPage`
+// to seed the `person_filter` signal. Cleared after consumption so a later
+// param-less `/absences/` visit is not sticky.
+pub static ABSENCES_PRESELECT: GlobalSignal<Option<Uuid>> = Signal::global(|| None);
 
 // ─── Time helpers ──────────────────────────────────────────────────────────
 //
@@ -1968,6 +1976,17 @@ pub fn AbsencesPage() -> Element {
     let mut category_filter = use_signal(|| None::<AbsenceCategory>);
     let mut person_filter = use_signal(|| None::<Uuid>);
     let mut status_filter = use_signal(|| None::<AbsenceStatus>);
+
+    // NAV-01 one-shot preselect (D-26-05): if the AbsencesFor wrapper seeded
+    // ABSENCES_PRESELECT on mount, apply it to person_filter and clear the
+    // global so a later param-less /absences visit is not sticky.
+    use_effect(move || {
+        let val = *ABSENCES_PRESELECT.read();
+        if let Some(id) = val {
+            person_filter.set(Some(id));
+            *ABSENCES_PRESELECT.write() = None;
+        }
+    });
     let mut show_past = use_signal(|| true);
 
     let absences = ABSENCE_STORE.read().clone();
@@ -2289,6 +2308,35 @@ pub fn AbsencesPage() -> Element {
     }
 }
 
+
+// ─── AbsencesFor wrapper (D-26-05, NAV-01) ────────────────────────────────
+//
+// Bookmarkable route `/absences/:employee_id/`. Parses the param as a UUID,
+// seeds ABSENCES_PRESELECT on mount, then renders AbsencesPage. The param
+// only seeds the UI selector — data loading remains permission-gated
+// server-side (AbsenceService enforces HR ∨ self, T-26-03).
+
+#[component]
+pub fn AbsencesFor(employee_id: String) -> Element {
+    let parsed = match Uuid::parse_str(&employee_id) {
+        Ok(id) => id,
+        Err(_) => {
+            return rsx! {
+                div { "Invalid employee id" }
+            };
+        }
+    };
+
+    // Seed the preselect on mount (D-26-05). AbsencesPage will consume it
+    // once in its own use_effect and clear ABSENCES_PRESELECT afterward.
+    use_effect(move || {
+        *ABSENCES_PRESELECT.write() = Some(parsed);
+    });
+
+    rsx! {
+        AbsencesPage {}
+    }
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Tests (Plan 05 Task 3) — 11 snapshot / pure-function tests covering

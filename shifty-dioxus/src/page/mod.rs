@@ -16,6 +16,7 @@ pub mod user_details;
 pub mod user_management;
 pub mod weekly_overview;
 
+pub use absences::AbsencesFor;
 pub use absences::AbsencesPage;
 pub use billing_period_details::BillingPeriodDetails;
 pub use billing_periods::BillingPeriods;
