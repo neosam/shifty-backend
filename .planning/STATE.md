@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
 status: planning
-last_updated: "2026-06-28T12:00:00.000Z"
+last_updated: "2026-06-28T20:00:00.000Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 25
 ---
 
 # Project State: Shifty Backend
@@ -28,11 +28,11 @@ progress:
 ## Current Position
 
 Phase: 25 of 26 (Feiertags-Auto-Anrechnung & Stichtag-Konfiguration)
-Plan: 0/4 complete (Wave 1: 25-01 · Wave 2: 25-02, 25-03 · Wave 3: 25-04)
-Status: Planned — ready to execute
-Last activity: 2026-06-28 — Phase 25 geplant (4 Pläne / 3 Waves; plan-checker passed, decision-coverage 9/9)
+Plan: 1/4 complete (Wave 1: 25-01 ✓ · Wave 2: 25-02, 25-03 · Wave 3: 25-04)
+Status: In progress — 25-01 complete
+Last activity: 2026-06-28 — 25-01 complete: toggle value column + REST value endpoints (HCFG-01, HCFG-02 backend)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 25%
 
 ## Deferred Items
 
@@ -85,8 +85,8 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 3. Read `.planning/REQUIREMENTS.md` (v1.7-Scope, REQ-IDs, Coverage 10/10)
 4. Read `.planning/PROJECT.md` (v1.7 Key Context + Referenz-Logik-Koordinaten)
 
-**Next command**: `/gsd-plan-phase 25`
+**Next command**: `/gsd-execute-phase 25` (Wave 2: 25-02 + 25-03)
 
 ---
 
-*State updated: 2026-06-28 — v1.7 Roadmap erstellt. Phase 25 (HOL-01/02/03 + HCFG-01/02/03 + HSNAP-01, BE+FE) und Phase 26 (VFA-01/02 + NAV-01, BE+FE) definiert. 10/10 Requirements gemappt. Nächster Schritt: `/gsd-plan-phase 25`.*
+*State updated: 2026-06-28 — 25-01 complete. Toggle value column + REST value endpoints (HCFG-01, HCFG-02 backend half) done. `holiday_auto_credit` seeded off. `.sqlx` regenerated. Next: Wave 2 (25-02 derive-on-read + 25-03 frontend settings).*

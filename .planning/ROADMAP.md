@@ -80,7 +80,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 **Plans**: 4 plans
 **Wave 1**
 
-- [ ] 25-01-PLAN.md — Toggle `value`-Spalte Infrastruktur (Migration + DAO + Service + REST, HCFG-01/02 Backend)
+- [x] 25-01-PLAN.md — Toggle `value`-Spalte Infrastruktur (Migration + DAO + Service + REST, HCFG-01/02 Backend)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
