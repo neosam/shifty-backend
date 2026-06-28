@@ -17,7 +17,7 @@
 
 **Milestone Goal:** Feiertage werden automatisch (statt manuell pro Mitarbeiter) im Report angerechnet, und Urlaub von Freiwilligen verzerrt die Jahresansicht nicht mehr.
 
-- [ ] **Phase 25: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration** — Vollständige Feiertags-Automatik mit konfigurierbarem Aktivierungsstichtag: auto-Anrechnung in `reporting.rs` (Wirkung identisch zu manuellem ExtraHours(Holiday)), Konflikt-/Doppelzähl-Schutz, Admin-Settings-UI für den Stichtag und ggf. Snapshot-Schema-Bump (BE+FE).
+- [x] **Phase 25: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration** — Vollständige Feiertags-Automatik mit konfigurierbarem Aktivierungsstichtag: auto-Anrechnung in `reporting.rs` (Wirkung identisch zu manuellem ExtraHours(Holiday)), Konflikt-/Doppelzähl-Schutz, Admin-Settings-UI für den Stichtag und ggf. Snapshot-Schema-Bump (BE+FE).
 - [ ] **Phase 26: Freiwilligen-Abwesenheit & Cross-Navigation** — Urlaub von Freiwilligen reduziert ihre committed-Zusage 🎯 in der Jahresansicht (`booking_information.rs::get_weekly_summary`); bidirektionale Deep-Links zwischen `/absences` und Mitarbeiterreport/Jahresansicht (BE+FE).
 
 <details>

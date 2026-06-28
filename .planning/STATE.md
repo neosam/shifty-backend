@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
-current_phase: 25
-current_phase_name: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration
+current_phase: 26
+current_phase_name: Freiwilligen-Abwesenheit & Cross-Navigation
 status: planning
 last_updated: "2026-06-28T12:28:54.590Z"
 last_activity: 2026-06-28
@@ -26,16 +26,16 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped + archiviert 2026-06-27/28, Phase 24, 5 Pläne, 7/7 must-haves, override_closeout)
 - **Current milestone**: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit
-- **Current focus**: Phase 25 ausführen — `/gsd-execute-phase 25`
+- **Current focus**: Phase 26 — Freiwilligen-Abwesenheit & Cross-Navigation (`/gsd-discuss-phase 26`)
 
 ## Current Position
 
-Phase: 25 of 26 (Feiertags-Auto-Anrechnung & Stichtag-Konfiguration)
-Plan: 3/4 complete (Wave 1: 25-01 ✓ · Wave 2: 25-02 ✓, 25-03 impl ✓ [human-verify pending] · Wave 3: 25-04)
-Status: In progress — 25-03 Tasks 1-2 complete; human browser verify pending (Task 3)
-Last activity: 2026-06-28 — 25-03 impl complete: frontend settings Card 2 date field, REST clients, loaders, i18n (en/de/cs), WASM green
+Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) — Phase 25 ✅ complete
+Plan: 4/4 complete (25-01 ✓ · 25-02 ✓ · 25-03 ✓ · 25-04 ✓) — VERIFICATION passed (7/7), human-verify browser-confirmed
+Status: Phase 25 complete & verified — ready to start Phase 26
+Last activity: 2026-06-28 — Phase 25 abgeschlossen: Feiertags-Auto-Anrechnung (derive-on-read, Snapshot 11) + Settings-Stichtag-UI; alle Gates grün, Browser-Verify der Settings-Card passed. Frontend-Toolchain-Fix: wasm-bindgen 0.2.121.
 
-Progress: [██████░░░░] 75%
+Progress: [█████░░░░░] 50% (Phase 25/2 complete)
 
 ## Deferred Items
 

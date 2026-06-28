@@ -1,10 +1,12 @@
 ---
 phase: 25-feiertags-auto-anrechnung-stichtag-konfiguration
 verified: 2026-06-28T00:00:00Z
-status: human_needed
-score: 6/7 must-haves verified
+status: passed
+score: 7/7 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+human_verified: 2026-06-28
+human_verified_note: "Browser-verified live (DEVUSER granted admin role via sqlite for the check). Item 1: set 2026-01-15 -> Save -> backend value=2026-01-15, enabled=true, 'Saved.' -> reload shows date. Item 2: Clear -> backend 204/empty, enabled=false, 'Not set - automation is off.', no dialog. Item 4: admin-gate confirmed (non-admin -> 'Not authorized.', admin -> cards). Item 3 (i18n) verified by passing completeness test (5 keys x en/de/cs) + German label compiled into WASM; no in-app locale switcher to flip live."
 human_verification:
   - test: "As admin, open /settings, pick a date in the 'Feiertags-Automatik aktiv ab' card and click 'Datum speichern'. Reload the page and confirm the same date is still shown."
     expected: "Saved date persists across page reload; inline 'Saved.' feedback appears on success."
