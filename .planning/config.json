@@ -1,5 +1,6 @@
 {
   "mode": "yolo",
+  "commit_docs": false,
   "workflow": {
     "use_worktrees": false
   }

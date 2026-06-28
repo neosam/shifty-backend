@@ -9,11 +9,19 @@
 - ✅ **v1.4 Committed Voluntary Capacity** — Phasen 14–17 (shipped 2026-06-25) — siehe [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md)
 - ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (shipped 2026-06-27) — siehe [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (shipped 2026-06-27) — siehe [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
-- 🚧 **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (active 2026-06-28)
+- ✅ **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (complete & verified 2026-06-28; Milestone-Close offen)
+- 🚧 **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (active 2026-06-29)
 
 ## Phases
 
-### v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Phasen 25–26) — ACTIVE 2026-06-28
+### v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (Phasen 27–28) — ACTIVE 2026-06-29
+
+**Milestone Goal:** HR-UX rund um Abwesenheiten/Urlaub: Freiwillige sind in den Abwesenheits-Selektoren auswählbar, und HR kann den berechneten Jahres-Urlaubsanspruch per Korrektur-Offset anpassen.
+
+- [ ] **Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE)** — gruppierter Personen-Selector (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar; `is_selectable_employee` lockern, 2 neue i18n-Keys de/en/cs. Reines Frontend (VOL-SEL-01).
+- [ ] **Phase 28: Urlaubsanspruch-Korrektur via Offset (BE+FE)** — signed Offset pro Person+Jahr auf den berechneten Anspruch (Delta, kein Override); HR-gekennzeichnet+editierbar, für User unsichtbar; neue Tabelle + HR-gated CRUD + Edit/Marker in der Urlaubsübersicht (VAC-OFFSET-01).
+
+### v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Phasen 25–26) — COMPLETE & VERIFIED 2026-06-28
 
 **Milestone Goal:** Feiertage werden automatisch (statt manuell pro Mitarbeiter) im Report angerechnet, und Urlaub von Freiwilligen verzerrt die Jahresansicht nicht mehr.
 
@@ -118,6 +126,72 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 
 **UI hint**: yes
 
+## Milestone v1.8 — Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
+
+### Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE)
+
+**Goal**: Auf der Abwesenheitsseite lassen sich auch Freiwillige (`sales_person.is_paid == false`) auswählen — sowohl beim Anlegen einer Abwesenheit (AbsenceModal) als auch im HR-Personenfilter (AbsenceFilterBar). Angestellte und Freiwillige sind im selben Dropdown sichtbar getrennt (gruppierter Selector), nicht vermischt.
+**Depends on**: Phase 26 (Backend-VFA für Freiwilligen-Abwesenheiten muss stabil sein)
+**Requirements**: VOL-SEL-01
+**Success Criteria** (what must be TRUE):
+
+  1. Im AbsenceModal-Personen-Dropdown erscheinen aktive Freiwillige (`!inactive && !is_paid`) in einer eigenen, beschrifteten Gruppe „Freiwillige" 🎯 unterhalb der Gruppe „Angestellte" — und eine Abwesenheit kann für sie angelegt werden.
+  2. Im AbsenceFilterBar-Personenfilter (HR) sind Freiwillige genauso gruppiert auswählbar; die bestehende „Alle"-Option bleibt erhalten.
+  3. Inaktive Personen (`inactive`) bleiben in beiden Selektoren ausgeblendet — egal ob Angestellte oder Freiwillige.
+  4. Beide Gruppen-Beschriftungen sind in allen drei Locales (de/en/cs) vorhanden (neue i18n-Keys `AbsenceGroupEmployees` / `AbsenceGroupVolunteers`).
+  5. Leere Gruppen werden nicht gerendert (kein leeres `optgroup`, wenn es z.B. keine Freiwilligen gibt).
+
+**Konzept-Eckpunkte** (entschieden, 2026-06-29):
+
+  - **Selector-UX**: gruppierter Dropdown via native `optgroup` (Angestellte zuerst, dann Freiwillige). `SelectInput` bleibt unverändert (rendert `children` → Aufrufer übergeben `optgroup`/`option`).
+  - **Geltungsbereich**: Modal UND Filter — gemeinsamer Helfer für beide Call-Sites (kein Copy-Paste).
+  - **Filter-Predicate**: `is_selectable_employee` von „`is_paid && !inactive`" auf „`!inactive`" reduzieren; `is_paid` wandert in die Gruppierung. Bestehende Call-Sites prüfen, ob die Lockerung anderswo unerwünscht greift.
+  - **Backend**: keine Änderung — Phase 26 (VFA) + EmployeeWorkDetails seit Phase 17 unterstützen Freiwilligen-Abwesenheiten bereits.
+
+**Offener Punkt für die Planung**: Welche Abwesenheits-Kategorien (Urlaub / Krank / Unbezahlt) sind für Freiwillige sinnvoll? Betrifft nur das Kategorie-Dropdown, nicht den Personen-Selector.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 27 to break down)
+
+### Phase 28: Urlaubsanspruch-Korrektur via Offset (HR, BE+FE)
+
+**Goal**: HR kann den berechneten Jahres-Urlaubsanspruch einer Person um einen signed **Offset (Korrektur-Delta)** anheben/senken, um Rundungs-/Proration-Differenzen auszugleichen (z.B. Shifty rechnet 17 → HR setzt +1 → angezeigt 18). Der Offset wandert bei Vertragsänderungen mit (Delta, kein absoluter Override). In der HR-Ansicht ist die Korrektur gekennzeichnet und editierbar; für normale User ist sie unsichtbar (nur die finale Zahl).
+**Depends on**: Phase 26 (vacation_balance / EmployeeWorkDetails stabil); unabhängig von Phase 27
+**Requirements**: VAC-OFFSET-01
+**Success Criteria** (what must be TRUE):
+
+  1. Für eine Person mit gesetztem Offset gilt in der HR-Urlaubsübersicht `entitled_effective = round(berechneter Anspruch) + offset` 🎯; das wirkt automatisch auf `remaining_days` durch (Anspruch + Carryover − Verbraucht − Geplant).
+  2. Der Offset ist **signed** (positiv wie negativ setzbar) und pro **Person + Jahr** persistiert; nach Seitenreload bleibt er erhalten.
+  3. Ändert sich später der Vertrag, bleibt der Offset bestehen und wird auf den neu berechneten Anspruch angewandt (Delta-Verhalten, nicht eingefroren).
+  4. In der HR-Personen-Detailansicht zeigt die „Vertragsanspruch"-StatBox den Effektivwert plus ein **immer sichtbares, signed Inline-Offset-Zahlenfeld** mit Beschriftung „berechnet {n} + Offset [x]"; Änderung speichert HR-gated (on-blur/Enter).
+  5. In der User-Eigenansicht erscheint in derselben StatBox **nur der Effektivwert** — kein „berechnet/Offset", kein Eingabefeld.
+  6. Das Setzen/Ändern des Offsets ist HR-gated (`HR_PRIVILEGE`); neue Texte in de/en/cs.
+
+**Konzept-Eckpunkte** (entschieden, 2026-06-29):
+
+  - **Mechanismus**: Offset/Delta, NICHT absoluter Override (User-Entscheidung) — überlebt Vertragsänderungen.
+  - **Datenmodell**: neue kleine Tabelle (z.B. `vacation_entitlement_offset`: `sales_person_id`, `year`, `offset_days` signed, `version`, `created`, `deleted`).
+  - **Backend**: Offset in `vacation_balance`-Berechnung addieren (nach `.round()` bei `service_impl/src/vacation_balance.rs:191`); HR-gated CRUD-Endpoint.
+  - **Frontend-Platzierung**: in der **Personen-Detailansicht** (`VacationEntitlementSelfBody`, im HR-Kontext via `forced_self`), an der **„Vertragsanspruch"-StatBox** (`VacationStatContract` = `entitled_days`). HR erreicht sie per Klick auf eine Person in `VacationPerPersonList`.
+  - **Edit-Control (entschieden)**: **Inline-Zahlenfeld** — in der HR-Detailansicht immer sichtbar, signed Offset, Anzeige „berechnet 17 + Offset [1]" → die große/Box-Zahl zeigt den Effektivwert 18. Speichern on-blur/Enter (HR-gated). Self-Body bekommt dafür ein `is_hr`-Flag durchgereicht.
+  - **User-Ansicht**: dieselbe StatBox zeigt **nur den Effektivwert**, kein „berechnet/Offset", kein Feld.
+  - **Optional**: kleiner Indikator an Personen mit Offset in der kompakten `VacationPerPersonList` (editiert wird aber nur im Detail).
+
+**Offene Punkte für die Planung**:
+
+  1. „Für User unsichtbar" — UI-only oder API-level? (Self-Endpoint „HR ∨ self" liefert den Offset sonst in der rohen Antwort mit. Empfehlung: API-seitig im Self-Pfad weglassen, sauberer als nur UI-Ausblenden.)
+  2. Off-by-one in der Proration (`employee_work_details.rs:173`, `ordinal()` statt `ordinal()-1`) als Begleit-Fix mitnehmen oder bewusst draußen lassen?
+  3. Snapshot-Bump prüfen: Urlaub ist vermutlich kein billing `value_type` → kein Bump; bei Planung verifizieren.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 28 to break down)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -143,6 +217,8 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
 | 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete   | 2026-06-28 |
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 3/3 | Complete   | 2026-06-28 |
+| 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 0/0 | Not planned | — |
+| 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 0/0 | Not planned | — |
 
 ## Backlog
 
@@ -170,6 +246,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
   **Plans:** noch nicht geplant — `/gsd-plan-phase 999.1`
 
----
-
-*Last updated: 2026-06-28 — **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** Roadmap erstellt (Phasen 25–26, 10/10 Requirements gemappt). Phase 25: HOL-01/02/03 + HCFG-01/02/03 + HSNAP-01 (BE+FE). Phase 26: VFA-01/02 + NAV-01 (BE+FE). Nächster Schritt: `/gsd-plan-phase 25`.*
+*Last updated: 2026-06-29 — **Milestone v1.8** (Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur, HR-UX): Phase 27 (VOL-SEL-01, gruppierter Selector in Modal + Filter, FE) und Phase 28 (VAC-OFFSET-01, signed Urlaubsanspruch-Offset pro Person+Jahr, HR-gekennzeichnet/User-unsichtbar, BE+FE) hinzugefügt. v1.7 (Phasen 25–26) bleibt complete/verified. Nächster Schritt: `/gsd-plan-phase 27` bzw. `/gsd-plan-phase 28`.*

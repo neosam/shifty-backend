@@ -1,41 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: Automatische Feiertage & Freiwilligen-Abwesenheit
-current_phase: 26
-current_phase_name: Freiwilligen-Abwesenheit & Cross-Navigation
+milestone: v1.8
+milestone_name: Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
+current_phase: 27
+current_phase_name: Freiwillige in Abwesenheitsliste auswählbar (FE)
 status: planning
-last_updated: "2026-06-28T18:08:01.124Z"
-last_activity: 2026-06-28
-last_activity_desc: "26-03 NAV-01: /absences/:employee_id route + AbsencesFor wrapper + ABSENCES_PRESELECT GlobalSignal + 4 ghost-button cross-links (Sales↔Absences, HR↔AbsencesFor(:id)) + 4 i18n keys en/de/cs. All gates green (WASM build, 671 tests)."
+last_updated: "2026-06-29T00:00:00.000Z"
+last_activity: 2026-06-29
+last_activity_desc: "Milestone v1.8: Phase 27 (VOL-SEL-01, gruppierter Selector, FE) + Phase 28 (VAC-OFFSET-01, signed Urlaubsanspruch-Offset pro Person+Jahr, HR-gekennzeichnet/User-unsichtbar, BE+FE) angelegt inkl. Konzept + SEED.md. Nächster Schritt: /gsd-plan-phase 27 bzw. 28."
 progress:
   total_phases: 2
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (Phasen 25–26 aktiv; v1.0–v1.6 archived)
+- **Roadmap**: `.planning/ROADMAP.md` (Phase 27 aktiv / v1.8; Phasen 25–26 v1.7 complete; v1.0–v1.6 archived)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v1.6-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped + archiviert 2026-06-27/28, Phase 24, 5 Pläne, 7/7 must-haves, override_closeout)
-- **Current milestone**: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit
-- **Current focus**: Phase 26 — Freiwilligen-Abwesenheit & Cross-Navigation (`/gsd-discuss-phase 26`)
+- **Current milestone**: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
+- **Current focus**: Phase 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) (`/gsd-plan-phase 27`); danach Phase 28 (`/gsd-plan-phase 28`)
 
 ## Current Position
 
-Phase: 26 of 26 (Freiwilligen-Abwesenheit & Cross-Navigation) ✅ complete — alle v1.7-Phasen fertig
-Plan: 3/3 complete (26-01 Backend-VFA ✅ · 26-03 Frontend-NAV ✅ · 26-02 VFA-02-Test ✅) — VERIFICATION passed (9/9)
-Status: v1.7 alle Phasen (25 + 26) complete & verified — bereit für Milestone-Close (audit → complete → cleanup)
-Last activity: 2026-06-28 — Phase 26 abgeschlossen: VFA-01 (Abwesenheit reduziert committed-Zusage, whole-week-out, alle 3 Kategorien, kein Snapshot-Bump) + VFA-02-Asymmetrie-Test + NAV-01 (4 Cross-Links, /absences/:employee_id). Alle Gates grün, 9/9 verifiziert.
+Phase: 27 + 28 angelegt, beide noch nicht geplant
+Plan: 0/0 — `/gsd-plan-phase 27` bzw. `/gsd-plan-phase 28`
+Status: v1.8 (2 Phasen) — Konzepte + UX-Entscheidungen + SEED.md erfasst. Phase 27 = gruppierter Freiwilligen-Selector (FE). Phase 28 = signed Urlaubsanspruch-Offset (Delta, HR-gekennzeichnet/User-unsichtbar, BE+FE). v1.7 (Phasen 25–26) bleibt complete & verified — Milestone-Close noch offen, falls gewünscht.
+Last activity: 2026-06-29 — Phase 28 (VAC-OFFSET-01) zur Roadmap hinzugefügt; Offset-Mechanismus statt Override (überlebt Vertragsänderungen), Backend rundet bei `vacation_balance.rs:191`.
 
-Progress: [██████████] 100% (Phase 25 + 26 complete)
+Progress: [──────────] 0% (Phasen 27 + 28 not planned)
 
 ## Deferred Items
 
@@ -78,6 +78,8 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 
 - Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme zu v1.6, eskaliert aus Quick-Task 260627-vgo (stable cargo 1.95.0 kann kein `--breaking`; kein cargo-edit/nightly). Erster Task = Toolchain-Enabler. Seed: `.planning/phases/999.1-breaking-dependency-migration/SEED.md`.
 - Milestone v1.7 + Phasen 25–26 angelegt (2026-06-28): 10 Requirements (HOL-01..03, VFA-01/02, HCFG-01..03, HSNAP-01, NAV-01) → 2 Phasen. Phase 25 = Axis-A (Reporting) + Settings-UI. Phase 26 = Axis-B (VFA) + Cross-Navigation.
+- Milestone v1.8 + Phase 27 angelegt (2026-06-29): VOL-SEL-01 — Freiwillige (`is_paid=false`) in Abwesenheits-Selektoren auswählbar, gruppiert (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar. Reines Frontend; `is_selectable_employee` von `is_paid && !inactive` → `!inactive` lockern, `is_paid` wird Gruppierung. 2 neue i18n-Keys (de/en/cs). Offen für Planung: Kategorie-Set für Freiwillige. Dir: `.planning/phases/27-freiwillige-abwesenheitsliste-selector/`.
+- Phase 28 angelegt (2026-06-29): VAC-OFFSET-01 — HR-Korrektur des Jahres-Urlaubsanspruchs via signed **Offset** (Delta, KEIN absoluter Override → überlebt Vertragsänderungen), pro Person+Jahr. `entitled_effective = round(berechnet) + offset`, wirkt auf `remaining_days` durch. HR-gekennzeichnet+editierbar in der Urlaubsübersicht, für User unsichtbar. Neue Tabelle `vacation_entitlement_offset` + HR-gated CRUD + Edit/Marker (`absences.rs:602–727`). Offen: User-Hiding UI-only vs API-level; Off-by-one-Begleit-Fix (`employee_work_details.rs:173`); Snapshot-Bump-Check (vermutlich nein). Dir: `.planning/phases/28-urlaubsanspruch-korrektur-offset/`.
 
 ## Session Continuity
 
@@ -88,8 +90,8 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 3. Read `.planning/REQUIREMENTS.md` (v1.7-Scope, REQ-IDs, Coverage 10/10)
 4. Read `.planning/PROJECT.md` (v1.7 Key Context + Referenz-Logik-Koordinaten)
 
-**Next command**: `/gsd-execute-phase 26` (Wave 2: 26-02 VFA-02 backend test plan) — or human browser verify NAV-01 links at http://localhost:8080
+**Next command**: `/gsd-plan-phase 27` (FE, kleiner) bzw. `/gsd-plan-phase 28` (BE+FE, größer) — optional vorher `/gsd-new-milestone` für v1.8-Charter, und/oder v1.7-Milestone-Close (audit → complete → cleanup).
 
 ---
 
-*State updated: 2026-06-28 — 26-03 complete. NAV-01: Route::AbsencesFor, ABSENCES_PRESELECT GlobalSignal, AbsencesFor wrapper (UUID parse + preselect + AbsencesPage), 4 NavTo* i18n keys en/de/cs, 4 ghost-button cross-links (Links 1–4). Commits: 32e60df, eecb678, faf1f9e.*
+*State updated: 2026-06-29 — Milestone v1.8 mit Phase 27 (VOL-SEL-01, FE) + Phase 28 (VAC-OFFSET-01, BE+FE) angelegt. Konzepte + UX-Entscheidungen in ROADMAP.md + SEED.md erfasst. Phase 28: Offset-Mechanismus (Delta) für HR-Urlaubsanspruch-Korrektur, HR-gekennzeichnet/User-unsichtbar.*
