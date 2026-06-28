@@ -1912,6 +1912,7 @@ pub fn AbsencesPage() -> Element {
 
     let absence_service = use_coroutine_handle::<AbsenceAction>();
     let vacation_service = use_coroutine_handle::<VacationBalanceAction>();
+    let nav = use_navigator();
     let today = current_date_for_init();
     let mut selected_year = use_signal(current_year_for_init);
     let year = *selected_year.read();
@@ -2192,6 +2193,32 @@ pub fn AbsencesPage() -> Element {
         TopBar {}
         ErrorView {}
         div { class: "p-4 md:p-6 flex flex-col gap-3",
+            // NAV-01 Link 3 (D-26-06): Sales self-view → own time account (MyEmployeeDetails)
+            if !is_hr {
+                div { class: "flex items-center",
+                    Btn {
+                        variant: BtnVariant::Ghost,
+                        on_click: move |_| { nav.push(Route::MyEmployeeDetails {}); },
+                        "{i18n.t(Key::NavToMyTimeAccount)}"
+                    }
+                }
+            }
+            // NAV-01 Link 4 (D-26-06): HR + person selected → EmployeeDetails(:id)
+            if is_hr {
+                if let Some(selected_id) = person_filter_val {
+                    div { class: "flex items-center",
+                        Btn {
+                            variant: BtnVariant::Ghost,
+                            on_click: move |_| {
+                                nav.push(Route::EmployeeDetails {
+                                    employee_id: selected_id.to_string(),
+                                });
+                            },
+                            "{i18n.t(Key::NavToEmployeeReport)}"
+                        }
+                    }
+                }
+            }
             header { class: "flex items-start justify-between gap-3 flex-wrap",
                 div { class: "flex flex-col gap-1 min-w-0",
                     h1 { class: "text-h1 font-semibold text-ink", "{page_title}" }

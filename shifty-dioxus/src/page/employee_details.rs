@@ -182,6 +182,16 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                         "{back_label}"
                     }
                 }
+                // NAV-01 Link 2 (D-26-06): HR EmployeeDetails → AbsencesFor(:id)
+                Btn {
+                    variant: BtnVariant::Ghost,
+                    on_click: move |_| {
+                        nav.push(Route::AbsencesFor {
+                            employee_id: employee_id.to_string(),
+                        });
+                    },
+                    "{i18n.t(Key::NavToEmployeeAbsences)}"
+                }
                 EmployeeView {
                     onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
                     show_vacation: true,
