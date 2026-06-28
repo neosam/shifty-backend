@@ -208,6 +208,11 @@ impl service_impl::booking_information::BookingInformationServiceDeps
     type UuidService = UuidService;
     type TransactionDao = TransactionDao;
     type EmployeeWorkDetailsService = WorkingHoursService;
+    // VFA-01 (D-26-01/D-26-03): AbsenceService wired into BookingInformationService.
+    // absence_service is constructed at line ~821 (before booking_information_service at ~909)
+    // — no construction-order change needed. No DI cycle: AbsenceService does not consume
+    // BookingInformationService (D-Phase3-18 regression-lock).
+    type AbsenceService = AbsenceService;
 }
 type BookingInformationService = service_impl::booking_information::BookingInformationServiceImpl<
     BookingInformationServiceDependencies,
@@ -916,6 +921,8 @@ impl RestStateImpl {
                 reporting_service: reporting_service.clone(),
                 special_day_service: special_day_service.clone(),
                 employee_work_details_service: working_hours_service.clone(),
+                // VFA-01: absence_service already in scope (built at line ~821, before this point).
+                absence_service: absence_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),

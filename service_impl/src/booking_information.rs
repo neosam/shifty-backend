@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
+    absence::AbsenceService,
     booking::BookingService,
     booking_information::{
         build_booking_information, BookingInformation, BookingInformationService, WeeklySummary,
@@ -76,6 +77,11 @@ gen_service_impl! {
         ReportingService: ReportingService<Transaction = Self::Transaction> = reporting_service,
         SpecialDayService: SpecialDayService = special_day_service,
         EmployeeWorkDetailsService: EmployeeWorkDetailsService<Transaction = Self::Transaction> = employee_work_details_service,
+        // VFA-01 (D-26-01/D-26-03): AbsenceService provides volunteer absences for the year-view.
+        // BookingInformationService (business-logic tier) → AbsenceService (business-logic tier):
+        // no DI cycle because AbsenceService does NOT consume BookingInformationService
+        // (Service-Tier rule; D-Phase3-18 regression-lock preserved).
+        AbsenceService: AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         ClockService: ClockService = clock_service,
         UuidService: UuidService = uuid_service,
