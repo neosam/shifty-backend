@@ -67,6 +67,21 @@ pub(crate) fn volunteer_surplus_band2(
         .sum()
 }
 
+/// VFA-01 (D-26-01 / D-26-03): Returns `true` iff the absence period `[from, to]` overlaps
+/// the calendar week `[week_monday, week_sunday]` (all bounds inclusive, per AbsencePeriod D-05).
+///
+/// Any overlap of the Mon–Sun calendar week counts as a whole-week-out (D-26-03): the test is
+/// purely date-based, not proportional per day. All three absence categories (Vacation, SickLeave,
+/// UnpaidLeave) use this helper identically — category is not an input (D-26-01 category-agnostic).
+pub(crate) fn period_overlaps_week(
+    from: time::Date,
+    to: time::Date,
+    week_monday: time::Date,
+    week_sunday: time::Date,
+) -> bool {
+    from <= week_sunday && to >= week_monday
+}
+
 gen_service_impl! {
     struct BookingInformationServiceImpl: BookingInformationService = BookingInformationServiceDeps {
         ShiftplanReportService: ShiftplanReportService<Transaction = Self::Transaction> = shiftplan_report_service,
@@ -175,12 +190,48 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .employee_work_details_service
             .all(Authentication::Full, tx.clone().into())
             .await?;
+        // VFA-01 (D-26-01): load all absence periods once before the week loop (load-once pattern,
+        // mirrors all_work_details optimisation above). Authentication::Full matches every sibling
+        // internal load in this method. find_all is category-agnostic (Vacation + SickLeave +
+        // UnpaidLeave all included). We pre-filter to volunteer sales_person_ids to minimise
+        // per-week iteration work.
+        let all_absences = self
+            .absence_service
+            .find_all(Authentication::Full, tx.clone().into())
+            .await?;
         for week in 1..=(weeks_in_year + 3) {
             let (year, week) = if week > weeks_in_year {
                 (year + 1, week - weeks_in_year)
             } else {
                 (year, week)
             };
+            // VFA-01 (D-26-01 / D-26-03): build the set of volunteers absent in this calendar week.
+            // Uses pre-loaded all_absences (load-once pattern). Category-agnostic: find_all returns
+            // all three categories (Vacation, SickLeave, UnpaidLeave). Whole-week-out: any overlap
+            // of Mon–Sun → full exclusion from both bands for that week (not pro-rated per day).
+            // On date construction error (should not happen with valid ISO weeks), skip exclusion
+            // for that week — never panic.
+            let absent_volunteer_ids: std::collections::HashSet<Uuid> =
+                if let (Ok(week_monday), Ok(week_sunday)) = (
+                    time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday),
+                    time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday),
+                ) {
+                    all_absences
+                        .iter()
+                        .filter(|period| {
+                            volunteer_ids.contains(&period.sales_person_id)
+                                && period_overlaps_week(
+                                    period.from_date,
+                                    period.to_date,
+                                    week_monday,
+                                    week_sunday,
+                                )
+                        })
+                        .map(|period| period.sales_person_id)
+                        .collect()
+                } else {
+                    std::collections::HashSet::new()
+                };
             let mut working_hours_per_sales_person = vec![];
             let week_report = self
                 .reporting_service
@@ -211,6 +262,13 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 .filter(|report| volunteer_ids.contains(&report.sales_person_id))
                 .map(|report| (report.sales_person_id, report.hours));
             let volunteer_hours = volunteer_surplus_band2(per_day_actuals, |sp_id| {
+                // VFA-01 (D-26-03 / D-26-01): absent volunteer's committed pledge drops to 0 for
+                // this week (Band-2 consistency decision, 26-CONTEXT): removing the pledge from
+                // BOTH bands prevents the surplus math from being overstated. Category-agnostic
+                // because absent_volunteer_ids was built from the category-agnostic find_all.
+                if absent_volunteer_ids.contains(&sp_id) {
+                    return 0.0;
+                }
                 // Per-person cap-gated weekly committed (CVC-06): sum over the person's active rows.
                 find_working_hours_for_calendar_week(&all_work_details, year, week)
                     .filter(|wh| {
@@ -222,12 +280,15 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             });
             // Band 1 (D-04 / CVC-04): cap-gated Σ_person committed per week (flat, no weight D-03).
             // Explicit per-row cap filter (Pitfall 5 / CVC-06): non-capped rows contribute 0.
+            // VFA-01 (D-26-03): absent volunteers' committed contribution drops to 0 for the whole
+            // week — category-agnostic whole-week-out, not pro-rated per day.
             let committed_voluntary_hours: f32 = find_working_hours_for_calendar_week(
                 &all_work_details,
                 year,
                 week,
             )
             .filter(|wh| wh.cap_planned_hours_to_expected || wh.expected_hours == 0.0) // D-05: cap || rein-freiwillig (expected_hours=0), symmetrisch zu D-01 Editor-Sichtbarkeit
+            .filter(|wh| !absent_volunteer_ids.contains(&wh.sales_person_id)) // VFA-01 (D-26-03): absent → 0 for whole week
             .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
             .sum();
             let slots: Arc<[Slot]> = self
