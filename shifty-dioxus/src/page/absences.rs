@@ -2089,6 +2089,27 @@ pub fn AbsencesPage() -> Element {
     let page_title = i18n.t(Key::AbsencePageTitle);
     let page_subtitle = i18n.t(Key::AbsencePageSubtitle);
 
+    // NAV-01 (D-26-06): precompute the cross-nav button data before rsx!
+    // so the move closures inside rsx! can capture plain owned values.
+    //
+    // Link 3 (self-view): always visible for non-HR users.
+    let nav_my_time_account_label = i18n.t(Key::NavToMyTimeAccount);
+    //
+    // Link 4 (HR, person selected): label uses the selected person's name.
+    let hr_nav_label_opt: Option<std::rc::Rc<str>> = if is_hr {
+        person_filter_val.and_then(|id| {
+            sales_persons.read().iter().find(|sp| sp.id == id).map(|sp| {
+                i18n.t_m(Key::NavToEmployeeReport, [("name", sp.name.as_ref())].into())
+            })
+        })
+    } else {
+        None
+    };
+    let show_hr_nav = hr_nav_label_opt.is_some();
+    // id_str is empty when show_hr_nav is false — only used inside the `if show_hr_nav` guard.
+    let hr_nav_id_str: String = person_filter_val.map(|id| id.to_string()).unwrap_or_default();
+    let hr_nav_label_display: std::rc::Rc<str> = hr_nav_label_opt.unwrap_or_else(|| "".into());
+
     let sales_persons_for_modal = sales_persons.read().clone();
     let absence_service_for_delete = absence_service.clone();
 
@@ -2193,41 +2214,37 @@ pub fn AbsencesPage() -> Element {
         TopBar {}
         ErrorView {}
         div { class: "p-4 md:p-6 flex flex-col gap-3",
-            // NAV-01 Link 3 (D-26-06): Sales self-view → own time account (MyEmployeeDetails)
-            if !is_hr {
-                div { class: "flex items-center",
-                    Btn {
-                        variant: BtnVariant::Ghost,
-                        on_click: move |_| { nav.push(Route::MyEmployeeDetails {}); },
-                        "{i18n.t(Key::NavToMyTimeAccount)}"
-                    }
-                }
-            }
-            // NAV-01 Link 4 (D-26-06): HR + person selected → EmployeeDetails(:id)
-            if is_hr {
-                if let Some(selected_id) = person_filter_val {
-                    div { class: "flex items-center",
-                        Btn {
-                            variant: BtnVariant::Ghost,
-                            on_click: move |_| {
-                                nav.push(Route::EmployeeDetails {
-                                    employee_id: selected_id.to_string(),
-                                });
-                            },
-                            "{i18n.t(Key::NavToEmployeeReport)}"
-                        }
-                    }
-                }
-            }
             header { class: "flex items-start justify-between gap-3 flex-wrap",
                 div { class: "flex flex-col gap-1 min-w-0",
                     h1 { class: "text-h1 font-semibold text-ink", "{page_title}" }
                     div { class: "text-body text-ink-muted", "{page_subtitle}" }
                 }
-                Btn {
-                    variant: BtnVariant::Primary,
-                    on_click: on_new.clone(),
-                    "{new_btn_label}"
+                div { class: "flex items-center gap-2",
+                    // NAV-01 Link 3 (D-26-06): Sales self-view → own time account.
+                    if !is_hr {
+                        Btn {
+                            variant: BtnVariant::Secondary,
+                            on_click: move |_| { nav.push(Route::MyEmployeeDetails {}); },
+                            "🧾 {nav_my_time_account_label} →"
+                        }
+                    }
+                    // NAV-01 Link 4 (D-26-06): HR + person selected → EmployeeDetails(:id).
+                    if show_hr_nav {
+                        Btn {
+                            variant: BtnVariant::Secondary,
+                            on_click: move |_| {
+                                nav.push(Route::EmployeeDetails {
+                                    employee_id: hr_nav_id_str.clone(),
+                                });
+                            },
+                            "🧾 {hr_nav_label_display} →"
+                        }
+                    }
+                    Btn {
+                        variant: BtnVariant::Primary,
+                        on_click: on_new.clone(),
+                        "{new_btn_label}"
+                    }
                 }
             }
             // Year navigation — ◀ {year} ▶ — both HR and employee see it.

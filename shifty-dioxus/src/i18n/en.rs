@@ -993,7 +993,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     // Phase 26 — NAV-01 bidirectional cross-navigation links (D-26-06).
     i18n.add_text(Locale::En, Key::NavToMyAbsences, "My absences");
-    i18n.add_text(Locale::En, Key::NavToEmployeeAbsences, "Absences");
+    i18n.add_text(Locale::En, Key::NavToEmployeeAbsences, "{name}'s absences");
     i18n.add_text(Locale::En, Key::NavToMyTimeAccount, "My time account");
-    i18n.add_text(Locale::En, Key::NavToEmployeeReport, "Employee report");
+    i18n.add_text(Locale::En, Key::NavToEmployeeReport, "{name}'s time account");
 }

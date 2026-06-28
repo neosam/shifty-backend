@@ -182,16 +182,6 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                         "{back_label}"
                     }
                 }
-                // NAV-01 Link 2 (D-26-06): HR EmployeeDetails → AbsencesFor(:id)
-                Btn {
-                    variant: BtnVariant::Ghost,
-                    on_click: move |_| {
-                        nav.push(Route::AbsencesFor {
-                            employee_id: employee_id.to_string(),
-                        });
-                    },
-                    "{i18n.t(Key::NavToEmployeeAbsences)}"
-                }
                 EmployeeView {
                     onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
                     show_vacation: true,
@@ -203,6 +193,12 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                     on_employee_work_details_clicked: move |id| cr.send(EmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
                     on_delete_employee_work_details_clicked: move |_id| cr.send(EmployeeDetailsAction::Update),
                     on_open_extra_hours: Some(EventHandler::new(move |_| cr.send(EmployeeDetailsAction::OpenExtraHours))),
+                    // NAV-01 Link 2 (D-26-06): HR EmployeeDetails → AbsencesFor(:id)
+                    on_nav_to_absences: Some(EventHandler::new(move |_| {
+                        nav.push(Route::AbsencesFor {
+                            employee_id: employee_id.to_string(),
+                        });
+                    })),
                 }
             }
         }

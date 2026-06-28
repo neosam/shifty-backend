@@ -3,7 +3,6 @@ use uuid::Uuid;
 
 use crate::{
     component::{
-        atoms::{Btn, BtnVariant},
         employee_work_details_form::EmployeeWorkDetailsFormType,
         error_view::ErrorView,
         ContractModal,
@@ -11,13 +10,11 @@ use crate::{
         ExtraHoursModal,
         TopBar,
     },
-    i18n::Key,
     router::Route,
     service::{
         config::CONFIG,
         employee::{EmployeeAction, EMPLOYEE_STORE},
         employee_work_details::EmployeeWorkDetailsAction,
-        i18n::I18N,
     },
     state::employee::ExtraHours,
 };
@@ -86,7 +83,6 @@ pub fn MyEmployeeDetails() -> Element {
 
     let sales_person_id = EMPLOYEE_STORE.read().employee.sales_person.id;
     let nav = use_navigator();
-    let i18n = I18N.read().clone();
 
     rsx! {
         TopBar {}
@@ -111,14 +107,6 @@ pub fn MyEmployeeDetails() -> Element {
         }
 
         div { class: "ml-1 mr-1 pt-4 md:m-8",
-            // NAV-01 Link 1 (D-26-06): Sales → own Absences
-            div { class: "mb-4 flex items-center",
-                Btn {
-                    variant: BtnVariant::Ghost,
-                    on_click: move |_| { nav.push(Route::Absences {}); },
-                    "{i18n.t(Key::NavToMyAbsences)}"
-                }
-            }
             EmployeeView {
                 show_delete_employee_work_details: false,
                 show_vacation: config.show_vacation,
@@ -128,6 +116,8 @@ pub fn MyEmployeeDetails() -> Element {
                 on_custom_delete: move |_uuid| cr.send(MyEmployeeDetailsAction::Update),
                 on_employee_work_details_clicked: move |id| cr.send(MyEmployeeDetailsAction::OpenEmployeeWorkDetails(id)),
                 on_open_extra_hours: Some(EventHandler::new(move |_| cr.send(MyEmployeeDetailsAction::OpenExtraHours))),
+                // NAV-01 Link 1 (D-26-06): Sales self-view → own Absences
+                on_nav_to_absences: Some(EventHandler::new(move |_| { nav.push(Route::Absences {}); })),
             }
         }
     }

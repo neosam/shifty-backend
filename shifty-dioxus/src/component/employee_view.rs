@@ -55,6 +55,11 @@ pub struct EmployeeViewPlainProps {
 
     #[props(!optional, default = None)]
     pub on_open_extra_hours: Option<EventHandler<()>>,
+
+    /// When set, renders a secondary "📅 … →" button in the person identity
+    /// header row that navigates to the Absences page for this person.
+    #[props(!optional, default = None)]
+    pub on_nav_to_absences: Option<EventHandler<()>>,
 }
 
 fn current_week_expected_hours(
@@ -165,6 +170,17 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let on_open_extra_hours = props.on_open_extra_hours;
     let on_add_work_details = props.on_add_employee_work_details;
     let on_work_details_clicked = props.on_employee_work_details_clicked;
+    let on_nav_to_absences = props.on_nav_to_absences;
+
+    // NAV-01: label for the absences cross-link in the person header.
+    // HR view uses a person-aware template; self-view uses the plain self label.
+    let nav_to_absences_label: Option<std::rc::Rc<str>> = on_nav_to_absences.as_ref().map(|_| {
+        if props.is_hr {
+            i18n.t_m(Key::NavToEmployeeAbsences, [("name", name.as_ref())].into())
+        } else {
+            i18n.t(Key::NavToMyAbsences)
+        }
+    });
 
     let year = props.year;
 
@@ -201,6 +217,18 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                     if expected > 0.0 {
                         span { class: "font-mono tabular-nums text-ink-muted text-body",
                             "{expected:.0} {hours_str}"
+                        }
+                    }
+                }
+                // NAV-01: absences cross-link — right-aligned in the identity row.
+                if let Some(handler) = on_nav_to_absences {
+                    if let Some(label) = nav_to_absences_label.as_ref() {
+                        div { class: "ml-auto",
+                            Btn {
+                                variant: BtnVariant::Secondary,
+                                on_click: move |_| handler.call(()),
+                                "📅 {label} →"
+                            }
                         }
                     }
                 }
@@ -964,6 +992,10 @@ pub struct EmployeeViewProps {
     pub on_delete_employee_work_details_clicked: Option<EventHandler<Uuid>>,
     #[props(!optional, default = None)]
     pub on_open_extra_hours: Option<EventHandler<()>>,
+    /// When set, renders a secondary "📅 … →" cross-nav button in the person
+    /// identity header that navigates to the Absences view for this person.
+    #[props(!optional, default = None)]
+    pub on_nav_to_absences: Option<EventHandler<()>>,
 }
 
 #[component]
@@ -1029,6 +1061,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
                 employee_service.send(EmployeeAction::PrevYear);
             },
             on_open_extra_hours: props.on_open_extra_hours,
+            on_nav_to_absences: props.on_nav_to_absences,
         }
     }
 }
