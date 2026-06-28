@@ -32,6 +32,8 @@ use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::MockShiftplanReportService;
+use service::special_days::MockSpecialDayService;
+use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
 use shifty_utils::ShiftyDate;
@@ -105,6 +107,9 @@ struct ReportingMocks {
     uuid_service: MockUuidService,
     absence_service: MockAbsenceService,
     transaction_dao: dao::MockTransactionDao,
+    // Phase 25: holiday derive-on-read deps.
+    special_day_service: MockSpecialDayService,
+    toggle_service: MockToggleService,
 }
 
 struct TestDeps;
@@ -121,10 +126,18 @@ impl ReportingServiceDeps for TestDeps {
     type UuidService = MockUuidService;
     type AbsenceService = MockAbsenceService;
     type TransactionDao = dao::MockTransactionDao;
+    // Phase 25: holiday derive-on-read deps.
+    type SpecialDayService = MockSpecialDayService;
+    type ToggleService = MockToggleService;
 }
 
 impl ReportingMocks {
     fn new() -> Self {
+        // Phase 25: toggle automation off by default (no value = no holiday auto-credit).
+        let mut toggle_service = MockToggleService::new();
+        toggle_service
+            .expect_get_toggle_value()
+            .returning(|_, _, _| Ok(None));
         Self {
             extra_hours_service: MockExtraHoursService::new(),
             shiftplan_report_service: MockShiftplanReportService::new(),
@@ -136,6 +149,8 @@ impl ReportingMocks {
             uuid_service: MockUuidService::new(),
             absence_service: MockAbsenceService::new(),
             transaction_dao: dao::MockTransactionDao::new(),
+            special_day_service: MockSpecialDayService::new(),
+            toggle_service,
         }
     }
 
@@ -151,6 +166,8 @@ impl ReportingMocks {
             uuid_service: Arc::new(self.uuid_service),
             absence_service: Arc::new(self.absence_service),
             transaction_dao: Arc::new(self.transaction_dao),
+            special_day_service: Arc::new(self.special_day_service),
+            toggle_service: Arc::new(self.toggle_service),
         }
     }
 }

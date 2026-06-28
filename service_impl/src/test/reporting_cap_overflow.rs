@@ -27,6 +27,8 @@ use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
+use service::special_days::MockSpecialDayService;
+use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
 use shifty_utils::{DayOfWeek, ShiftyDate};
@@ -50,6 +52,9 @@ impl ReportingServiceDeps for TestDeps {
     type UuidService = MockUuidService;
     type AbsenceService = MockAbsenceService;
     type TransactionDao = dao::MockTransactionDao;
+    // Phase 25: holiday derive-on-read deps.
+    type SpecialDayService = MockSpecialDayService;
+    type ToggleService = MockToggleService;
 }
 
 /// 8h/Tag Mo-Fr (expected 40h/Woche), KW22-25/2024, cap_planned_hours_to_expected=true.
@@ -125,6 +130,12 @@ fn build_capped_service() -> ReportingServiceImpl<TestDeps> {
         .expect_use_transaction()
         .returning(|_| Ok(dao::MockTransaction));
 
+    // Phase 25: toggle automation off by default (no value = no holiday auto-credit).
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     ReportingServiceImpl {
         extra_hours_service: Arc::new(extra_hours_service),
         shiftplan_report_service: Arc::new(shiftplan_report_service),
@@ -136,6 +147,8 @@ fn build_capped_service() -> ReportingServiceImpl<TestDeps> {
         uuid_service: Arc::new(MockUuidService::new()),
         absence_service: Arc::new(absence_service),
         transaction_dao: Arc::new(transaction_dao),
+        special_day_service: Arc::new(MockSpecialDayService::new()),
+        toggle_service: Arc::new(toggle_service),
     }
 }
 
@@ -238,6 +251,12 @@ async fn uncapped_overflow_stays_in_overall_hours() {
         .expect_use_transaction()
         .returning(|_| Ok(dao::MockTransaction));
 
+    // Phase 25: toggle automation off by default.
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     let service = ReportingServiceImpl::<TestDeps> {
         extra_hours_service: Arc::new(extra_hours_service),
         shiftplan_report_service: Arc::new(shiftplan_report_service),
@@ -249,6 +268,8 @@ async fn uncapped_overflow_stays_in_overall_hours() {
         uuid_service: Arc::new(MockUuidService::new()),
         absence_service: Arc::new(absence_service),
         transaction_dao: Arc::new(transaction_dao),
+        special_day_service: Arc::new(MockSpecialDayService::new()),
+        toggle_service: Arc::new(toggle_service),
     };
 
     let report = service

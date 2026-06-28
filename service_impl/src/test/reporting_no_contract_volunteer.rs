@@ -29,6 +29,8 @@ use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
+use service::special_days::MockSpecialDayService;
+use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
 use shifty_utils::{DayOfWeek, ShiftyDate};
@@ -52,6 +54,9 @@ impl ReportingServiceDeps for TestDeps {
     type UuidService = MockUuidService;
     type AbsenceService = MockAbsenceService;
     type TransactionDao = dao::MockTransactionDao;
+    // Phase 25: holiday derive-on-read deps.
+    type SpecialDayService = MockSpecialDayService;
+    type ToggleService = MockToggleService;
 }
 
 /// 30h Shiftplan-Stunden in KW23/2024, auf drei Tage verteilt.
@@ -131,6 +136,12 @@ fn build_detail_service(
         .expect_use_transaction()
         .returning(|_| Ok(dao::MockTransaction));
 
+    // Phase 25: toggle automation off by default.
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     ReportingServiceImpl {
         extra_hours_service: Arc::new(extra_hours_service),
         shiftplan_report_service: Arc::new(shiftplan_report_service),
@@ -142,6 +153,8 @@ fn build_detail_service(
         uuid_service: Arc::new(MockUuidService::new()),
         absence_service: Arc::new(absence_service),
         transaction_dao: Arc::new(transaction_dao),
+        special_day_service: Arc::new(MockSpecialDayService::new()),
+        toggle_service: Arc::new(toggle_service),
     }
 }
 
@@ -192,6 +205,12 @@ fn build_summary_service(
         .expect_use_transaction()
         .returning(|_| Ok(dao::MockTransaction));
 
+    // Phase 25: toggle automation off by default.
+    let mut toggle_service_b = MockToggleService::new();
+    toggle_service_b
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     ReportingServiceImpl {
         extra_hours_service: Arc::new(extra_hours_service),
         shiftplan_report_service: Arc::new(shiftplan_report_service),
@@ -203,6 +222,8 @@ fn build_summary_service(
         uuid_service: Arc::new(MockUuidService::new()),
         absence_service: Arc::new(absence_service),
         transaction_dao: Arc::new(transaction_dao),
+        special_day_service: Arc::new(MockSpecialDayService::new()),
+        toggle_service: Arc::new(toggle_service_b),
     }
 }
 

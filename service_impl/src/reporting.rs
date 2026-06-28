@@ -136,6 +136,112 @@ pub fn apply_weekly_cap(
     }
 }
 
+impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
+    /// Phase 25 (HOL-01/02, HCFG-01/03): Build a per-employee derived-holiday map
+    /// for a date range. The map is keyed by the concrete holiday date and
+    /// contains the credited hours (= `EmployeeWorkDetails::holiday_hours()`).
+    ///
+    /// Returns an empty map when:
+    /// - The `holiday_auto_credit` toggle has no `value` set (automation off, D-25-05).
+    /// - A manual `ExtraHours(Holiday)` already covers the same employee+day
+    ///   (manual wins, D-25-03 / HCFG-03).
+    ///
+    /// Respects year-boundary-safe ISO-week date arithmetic (uses
+    /// `time::Date::from_iso_week_date`, never manual week math — Pitfall 1).
+    async fn build_derived_holiday_map(
+        &self,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
+        working_hours: &[EmployeeWorkDetails],
+        extra_hours: &[ExtraHours],
+        context: Authentication<Deps::Context>,
+    ) -> Result<std::collections::HashMap<time::Date, f32>, ServiceError> {
+        // Step 1: Read cutoff from toggle service (D-25-05).
+        // Treat Unauthorized as "no cutoff configured" (automation off) rather than
+        // propagating the error — the reporting service is called with various
+        // authentication contexts (e.g. mock-auth tests) where the toggle service
+        // requires a real user ID but the caller has none.
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value("holiday_auto_credit", context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => return Ok(std::collections::HashMap::new()),
+            Err(e) => return Err(e),
+        };
+        let cutoff: time::Date = match toggle_value
+            .as_deref()
+            .and_then(|s| {
+                time::Date::parse(s, &time::format_description::well_known::Iso8601::DEFAULT).ok()
+            }) {
+            Some(d) => d,
+            None => return Ok(std::collections::HashMap::new()), // automation off
+        };
+
+        let mut result: std::collections::HashMap<time::Date, f32> =
+            std::collections::HashMap::new();
+
+        // Step 2: Iterate over every ISO week in the range, fetch special days.
+        let from_week = from_date.as_shifty_week();
+        let to_week = to_date.as_shifty_week();
+        for week in from_week.iter_until(&to_week) {
+            let special_days = self
+                .special_day_service
+                .get_by_week(week.year, week.week, context.clone())
+                .await?;
+
+            for sd in special_days.iter() {
+                // Only process Holiday entries (not ShortDay etc.).
+                if sd.day_type != service::special_days::SpecialDayType::Holiday {
+                    continue;
+                }
+
+                // Step 3: Convert (year, calendar_week, day_of_week) → concrete date.
+                // Use time::Date::from_iso_week_date to handle year-boundary correctly.
+                let holiday_date = match time::Date::from_iso_week_date(
+                    sd.year as i32,
+                    sd.calendar_week,
+                    time::Weekday::from(sd.day_of_week),
+                ) {
+                    Ok(d) => d,
+                    Err(_) => continue, // invalid date — defensive skip
+                };
+
+                // Step 4: Cutoff gate (HCFG-01, D-25-05).
+                if holiday_date < cutoff {
+                    continue;
+                }
+
+                // Step 5: Conflict check — manual ExtraHours(Holiday) for same day
+                // takes priority (D-25-03 / HCFG-03).
+                let has_manual = extra_hours.iter().any(|eh| {
+                    eh.category == ExtraHoursCategory::Holiday
+                        && eh.date_time.date() == holiday_date
+                });
+                if has_manual {
+                    continue; // manual wins — skip auto-credit for this day
+                }
+
+                // Step 6: Find contract valid this week. Credit only when the
+                // employee's contract covers this day-of-week (D-25-02).
+                if let Some(wh) =
+                    find_working_hours_for_calendar_week(working_hours, week.year, week.week).next()
+                {
+                    if wh.has_day_of_week(time::Weekday::from(sd.day_of_week)) {
+                        let hours = wh.holiday_hours();
+                        if hours > 0.0 {
+                            result.insert(holiday_date, hours);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+}
+
 #[async_trait]
 impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
     for ReportingServiceImpl<Deps>
@@ -246,6 +352,18 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     paid_employee.id,
                     context.clone(),
                     tx.clone(),
+                )
+                .await?;
+
+            // Phase 25: Pre-compute per-employee derived-holiday map for the year range.
+            // Empty when toggle has no value (automation off, D-25-05).
+            let derived_holiday = self
+                .build_derived_holiday_map(
+                    ShiftyDate::first_day_in_year(year),
+                    ShiftyWeek::new(year, until_week).as_date(DayOfWeek::Sunday),
+                    &working_hours,
+                    &extra_hours_array,
+                    context.clone(),
                 )
                 .await?;
 
@@ -406,11 +524,23 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
                             .map(|eh| eh.amount)
                             .sum::<f32>();
-                        let holiday_hours = week_extra_hours
+                        let manual_holiday_hours = week_extra_hours
                             .iter()
                             .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
                             .map(|eh| eh.amount)
                             .sum::<f32>();
+                        // Phase 25 (injection point 1b): derived holiday for this (year, week).
+                        // Must also be added to absense_hours (Pitfall 3 — Holiday is AbsenceHours).
+                        let derived_holiday_for_week: f32 = derived_holiday
+                            .iter()
+                            .filter(|(date, _)| {
+                                let w = ShiftyDate::from(**date).as_shifty_week();
+                                w.year == year && w.week == week
+                            })
+                            .map(|(_, h)| h)
+                            .sum();
+                        let holiday_hours = manual_holiday_hours + derived_holiday_for_week;
+                        let absense_hours = absense_hours + derived_holiday_for_week;
                         let unavailable_hours = week_extra_hours
                             .iter()
                             .filter(|eh| eh.category == ExtraHoursCategory::Unavailable)
@@ -618,6 +748,18 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         // top-level fields are sourced from by_week (single source of truth). The old
         // year-lump fold (absence_derived_vacation_hours etc.) is no longer needed here.
 
+        // Phase 25: Precompute per-employee derived-holiday map for the range.
+        // Returns empty map when toggle has no value (automation off, D-25-05).
+        let derived_holiday = self
+            .build_derived_holiday_map(
+                from_date,
+                to_date,
+                &working_hours,
+                &extra_hours,
+                context.clone(),
+            )
+            .await?;
+
         // Hinweis: Das rohe, ungedeckelte shiftplan_hours wird bewusst NICHT mehr
         // fuer overall/balance/shiftplan_hours verwendet (Debug
         // `report-ehrenamt-gesamtstunden`). Der per-Woche gedeckelte Wert
@@ -636,7 +778,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             &extra_hours,
             &working_hours,
             &derived,
-            &std::collections::HashMap::new(), // placeholder — replaced in Task 2
+            &derived_holiday,
             from_date,
             to_date,
         )?;
@@ -722,11 +864,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             // correct additive total (extra_hours-for-week + derived-for-week per week).
             vacation_hours: by_week.iter().map(|w| w.vacation_hours).sum::<f32>(),
             sick_leave_hours: by_week.iter().map(|w| w.sick_leave_hours).sum::<f32>(),
-            holiday_hours: extra_hours
-                .iter()
-                .filter(|extra_hours| extra_hours.category == ExtraHoursCategory::Holiday)
-                .map(|extra_hours| extra_hours.amount)
-                .sum(),
+            // Phase 25 (injection point 1c): switch to by_week single source of truth
+            // (Option A from RESEARCH). by_week.holiday_hours already includes both
+            // manual extra_hours + derived holiday hours (from hours_per_week 1a).
+            // The billing-period snapshot reads EmployeeReport.holiday_hours — this
+            // is why point 1c matters for HSNAP-01 correctness.
+            holiday_hours: by_week.iter().map(|w| w.holiday_hours).sum::<f32>(),
             volunteer_hours: by_week.iter().map(|w| w.volunteer_hours).sum::<f32>(),
             unpaid_leave_hours: by_week.iter().map(|w| w.unpaid_leave_hours).sum::<f32>(),
             carryover_hours: previous_year_carryover,
@@ -1064,7 +1207,7 @@ fn hours_per_week(
     extra_hours_list: &Arc<[ExtraHours]>,
     working_hours: &[EmployeeWorkDetails],
     derived_absence: &std::collections::BTreeMap<time::Date, service::absence::ResolvedAbsence>,
-    _derived_holiday: &std::collections::HashMap<time::Date, f32>,
+    derived_holiday: &std::collections::HashMap<time::Date, f32>,
     from_date: ShiftyDate,
     to_date: ShiftyDate,
 ) -> Result<Arc<[GroupedReportHours]>, ServiceError> {
@@ -1168,6 +1311,22 @@ fn hours_per_week(
                 .sum::<f32>()
         };
         let absence_hours = absence_hours + derived_absence_hours;
+
+        // Phase 25 (HOL-01/02 injection point 1a): add derived holiday hours
+        // for this ISO week. Holiday is AbsenceHours-typed, so derived hours
+        // must be added to BOTH holiday_hours AND absence_hours to correctly
+        // reduce expected_hours/balance (Pitfall 3). Gated by working_hours_for_week
+        // like absence_hours above (no credit in contract-less/dynamic weeks).
+        let derived_holiday_for_week: f32 = if working_hours_for_week <= 0.0 {
+            0.0
+        } else {
+            derived_holiday
+                .iter()
+                .filter(|(date, _)| ShiftyDate::from(**date).as_shifty_week() == week)
+                .map(|(_, h)| h)
+                .sum()
+        };
+        let absence_hours = absence_hours + derived_holiday_for_week;
 
         let mut day_list = filtered_extra_hours_list
             .iter()
@@ -1275,11 +1434,14 @@ fn hours_per_week(
                 .map(|eh| eh.amount)
                 .sum::<f32>()
                 + derived_sick_leave_hours,
+            // Phase 25 (injection point 1a): manual Holiday hours + derived-for-week.
+            // The derived amount was already added to absence_hours above (Pitfall 3).
             holiday_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
                 .map(|eh| eh.amount)
-                .sum(),
+                .sum::<f32>()
+                + derived_holiday_for_week,
             unpaid_leave_hours: filtered_extra_hours_list
                 .iter()
                 .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
