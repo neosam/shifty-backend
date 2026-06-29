@@ -985,6 +985,19 @@ pub async fn load_team_vacation(
     Ok(tos.iter().map(VacationBalance::from).collect())
 }
 
+/// Phase 28 (VAC-OFFSET-01, D-28-07/D-28-09): persist the signed per-(person,
+/// year) vacation-entitlement offset via the HR-gated endpoint. HR enforcement
+/// is server-side; the caller re-loads the balance afterwards so the effective
+/// value re-computes from the backend.
+pub async fn save_vacation_entitlement_offset(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    offset_days: i32,
+) -> Result<(), ShiftyError> {
+    api::save_vacation_entitlement_offset(config, sales_person_id, year, offset_days).await
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Feature-Flag loader (Phase 8 Plan 08-07 Gap-Closure, Task 3)
 //

@@ -10,7 +10,7 @@ use rest_types::{
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse,
     RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
     SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
-    VacationPayloadTO, WarningTO, WeekMessageTO, WeeklySummaryTO,
+    VacationEntitlementOffsetTO, VacationPayloadTO, WarningTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -683,6 +683,34 @@ pub async fn get_vacation_balance(
     let res = response.json().await?;
     info!("Fetched");
     Ok(res)
+}
+
+/// POST `/vacation-entitlement-offset` (Phase 28, VAC-OFFSET-01, D-28-06b).
+/// Upserts the signed per-(person, year) vacation-entitlement offset. HR
+/// enforcement is server-side (`HR_PRIVILEGE` gate in the Basic offset
+/// service — T-28-09); the FE editor visibility is convenience only. Mirrors
+/// the `post(url).json(&body).send()` + `error_for_status_ref()` pattern from
+/// `create_absence_period`.
+pub async fn save_vacation_entitlement_offset(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    offset_days: i32,
+) -> Result<(), ShiftyError> {
+    info!(
+        "Saving vacation-entitlement offset for sales person {sales_person_id} year {year}: {offset_days}"
+    );
+    let body = VacationEntitlementOffsetTO {
+        sales_person_id,
+        year,
+        offset_days,
+    };
+    let url = format!("{}/vacation-entitlement-offset", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    response.error_for_status_ref()?;
+    info!("Saved vacation-entitlement offset");
+    Ok(())
 }
 
 pub async fn get_team_vacation_balance(

@@ -30,6 +30,11 @@ pub static VACATION_TEAM_STORE: GlobalSignal<Rc<[VacationBalance]>> =
 pub enum VacationBalanceAction {
     LoadSelf(Uuid, u32),
     LoadTeam(u32),
+    /// Phase 28 (VAC-OFFSET-01, D-28-07/D-28-09): HR sets/changes the signed
+    /// per-(person, year) vacation-entitlement offset. After a successful save
+    /// the stores are re-loaded so the effective value re-computes from the
+    /// backend. Year-scoped (one active row per person+year, D-28-09).
+    SaveOffset(Uuid, u32, i32),
 }
 
 pub async fn vacation_balance_service(mut rx: UnboundedReceiver<VacationBalanceAction>) {
@@ -51,6 +56,43 @@ pub async fn vacation_balance_service(mut rx: UnboundedReceiver<VacationBalanceA
                 match loader::load_team_vacation(config, year).await {
                     Ok(list) => {
                         *VACATION_TEAM_STORE.write() = list;
+                    }
+                    Err(err) => {
+                        *ERROR_STORE.write() = ErrorStore { error: Some(err) };
+                    }
+                }
+            }
+            VacationBalanceAction::SaveOffset(sp_id, year, offset_days) => {
+                match loader::save_vacation_entitlement_offset(
+                    config.clone(),
+                    sp_id,
+                    year,
+                    offset_days,
+                )
+                .await
+                {
+                    Ok(()) => {
+                        // Re-load the team aggregate so the HR person-detail view
+                        // (forced_self reads from VACATION_TEAM_STORE) reflects the
+                        // new effective value re-computed by the backend.
+                        match loader::load_team_vacation(config.clone(), year).await {
+                            Ok(list) => *VACATION_TEAM_STORE.write() = list,
+                            Err(err) => {
+                                *ERROR_STORE.write() = ErrorStore { error: Some(err) }
+                            }
+                        }
+                        // If the self store is populated for the same person,
+                        // refresh it too so the employee self-view stays in sync.
+                        let self_sp =
+                            VACATION_BALANCE_STORE.read().as_ref().map(|b| b.sales_person_id);
+                        if self_sp == Some(sp_id) {
+                            match loader::load_vacation_balance(config, sp_id, year).await {
+                                Ok(b) => *VACATION_BALANCE_STORE.write() = Some(b),
+                                Err(err) => {
+                                    *ERROR_STORE.write() = ErrorStore { error: Some(err) }
+                                }
+                            }
+                        }
                     }
                     Err(err) => {
                         *ERROR_STORE.write() = ErrorStore { error: Some(err) };

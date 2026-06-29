@@ -499,6 +499,8 @@ fn VacationEntitlementSelfBody(props: VacationEntitlementSelfBodyProps) -> Eleme
         used_days: 0.0,
         planned_days: 0.0,
         remaining_days: 0.0,
+        offset_days: None,
+        computed_entitled_days: None,
     });
     let hero_label = i18n
         .t(Key::VacationEntitlementHero)
@@ -3438,6 +3440,8 @@ mod tests {
             used_days: 30.0 - remaining_days,
             planned_days: 0.0,
             remaining_days,
+            offset_days: None,
+            computed_entitled_days: None,
         }
     }
 
