@@ -31,7 +31,7 @@ use crate::component::error_view::ErrorView;
 use crate::router::Route;
 use crate::component::form::{Field, SelectInput, TextInput, TextareaInput};
 use crate::component::{Dialog, DialogVariant, TopBar};
-use crate::i18n::Key;
+use crate::i18n::{I18nType, Key};
 use crate::loader;
 use crate::component::absence_convert_modal::AbsenceConvertModal;
 use crate::component::extra_hours_modal::ExtraHoursModal;
@@ -114,6 +114,81 @@ pub fn compute_status(from: time::Date, to: time::Date, today: time::Date) -> Ab
 /// are narrowed.
 pub fn is_selectable_employee(sales_person: &SalesPerson) -> bool {
     sales_person.is_paid && !sales_person.inactive
+}
+
+/// Grouping bucket for the absences person selectors (VOL-SEL-01).
+/// `Employees` = active & paid, `Volunteers` = active & unpaid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PersonGroup {
+    Employees,
+    Volunteers,
+}
+
+/// Pure function — partition the loaded `sales_persons` into the two
+/// selector groups for the absences page (D-27-01, D-27-03, D-27-06).
+///
+/// Semantics:
+/// - `Employees` group: active & paid (`!inactive && is_paid`).
+/// - `Volunteers` group: active & unpaid (`!inactive && !is_paid`).
+/// - Inactive persons (`inactive`) land in NEITHER group.
+/// - Input order is preserved within each group (load order kept).
+/// - Only NON-empty groups are returned, ordered `Employees` before
+///   `Volunteers`. An empty group produces no entry, so call-sites never
+///   render an empty `<optgroup>`.
+///
+/// This uses its OWN predicate and intentionally does NOT call or modify
+/// `is_selectable_employee` / `selectable_balances` — the HR vacation list
+/// stays paid-only (D-27-02).
+pub fn grouped_selectable(sales_persons: &[SalesPerson]) -> Vec<(PersonGroup, Vec<&SalesPerson>)> {
+    let employees: Vec<&SalesPerson> = sales_persons
+        .iter()
+        .filter(|sp| !sp.inactive && sp.is_paid)
+        .collect();
+    let volunteers: Vec<&SalesPerson> = sales_persons
+        .iter()
+        .filter(|sp| !sp.inactive && !sp.is_paid)
+        .collect();
+
+    let mut groups = Vec::with_capacity(2);
+    if !employees.is_empty() {
+        groups.push((PersonGroup::Employees, employees));
+    }
+    if !volunteers.is_empty() {
+        groups.push((PersonGroup::Volunteers, volunteers));
+    }
+    groups
+}
+
+/// Shared RSX helper feeding BOTH absences person selectors (D-27-01) — the
+/// AbsenceModal person dropdown and the AbsenceFilterBar HR person filter.
+/// Renders one native `<optgroup>` per non-empty group (Employees first, then
+/// Volunteers) with one `<option>` per member. `selected_id` marks the active
+/// option; passing `None` (e.g. the FilterBar "Alle" value) leaves the groups
+/// unselected. Because `grouped_selectable` omits empty groups, no empty
+/// `<optgroup>` is ever rendered (D-27-03). `SelectInput` renders this as its
+/// `children`, so the `optgroup` passes through unchanged.
+fn grouped_person_options(
+    sales_persons: &[SalesPerson],
+    selected_id: Option<Uuid>,
+    i18n: &I18nType,
+) -> Element {
+    rsx! {
+        for (group , members) in grouped_selectable(sales_persons) {
+            optgroup {
+                label: match group {
+                    PersonGroup::Employees => i18n.t(Key::AbsenceGroupEmployees).to_string(),
+                    PersonGroup::Volunteers => i18n.t(Key::AbsenceGroupVolunteers).to_string(),
+                },
+                for sp in members {
+                    option {
+                        value: "{sp.id}",
+                        selected: Some(sp.id) == selected_id,
+                        "{sp.name}"
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Pure function — filter a vacation-balance slice to only balances whose
@@ -1214,13 +1289,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                                 employee_id.set(parsed);
                             }
                         },
-                        for sp in props.sales_persons.iter().filter(|sp| is_selectable_employee(sp)) {
-                            option {
-                                value: "{sp.id}",
-                                selected: sp.id == *employee_id.read(),
-                                "{sp.name}"
-                            }
-                        }
+                        { grouped_person_options(&props.sales_persons, Some(*employee_id.read()), &i18n) }
                     }
                 }
                 Field {
@@ -1425,13 +1494,7 @@ pub fn AbsenceFilterBar(props: AbsenceFilterBarProps) -> Element {
                         option { value: "all", selected: person_value == "all",
                             "{i18n.t(Key::AbsenceFilterPersonAll)}"
                         }
-                        for sp in props.sales_persons.iter().filter(|sp| is_selectable_employee(sp)) {
-                            option {
-                                value: "{sp.id}",
-                                selected: person_value == sp.id.to_string(),
-                                "{sp.name}"
-                            }
-                        }
+                        { grouped_person_options(&props.sales_persons, Uuid::parse_str(&person_value).ok(), &i18n) }
                     }
                 }
                 span { class: "w-px h-[22px] bg-border mx-1" }
@@ -2501,6 +2564,97 @@ mod tests {
     #[test]
     fn selectable_unpaid_and_inactive_returns_false() {
         assert!(!is_selectable_employee(&sales_person(false, true)));
+    }
+
+    // ── grouped_selectable — pure function (VOL-SEL-01, D-27-01..D-27-06) ──
+
+    /// Build a `SalesPerson` with a distinct id + name for grouping tests.
+    fn named_sp(name: &str, is_paid: bool, inactive: bool) -> SalesPerson {
+        // Derive a stable id from the name bytes so equality checks by id work
+        // without depending on Uuid::new_v4 randomness.
+        let mut bytes = [0u8; 16];
+        for (i, b) in name.bytes().take(16).enumerate() {
+            bytes[i] = b;
+        }
+        SalesPerson {
+            id: Uuid::from_bytes(bytes),
+            name: name.into(),
+            is_paid,
+            inactive,
+            ..Default::default()
+        }
+    }
+
+    /// D-27-06: active-paid → Employees, active-unpaid → Volunteers, inactive
+    /// persons (paid or unpaid) land in neither group.
+    #[test]
+    fn grouped_selectable_partitions_active_paid_and_unpaid() {
+        let a = named_sp("A", true, false); // active-paid → Employees
+        let b = named_sp("B", false, false); // active-unpaid → Volunteers
+        let c = named_sp("C", true, true); // inactive-paid → neither
+        let d = named_sp("D", false, true); // inactive-unpaid → neither
+        let input = vec![a.clone(), b.clone(), c, d];
+        let groups = grouped_selectable(&input);
+        assert_eq!(groups.len(), 2, "expected exactly two non-empty groups");
+        let employees = &groups[0];
+        let volunteers = &groups[1];
+        assert_eq!(employees.0, PersonGroup::Employees);
+        assert_eq!(
+            employees.1.iter().map(|sp| sp.id).collect::<Vec<_>>(),
+            vec![a.id]
+        );
+        assert_eq!(volunteers.0, PersonGroup::Volunteers);
+        assert_eq!(
+            volunteers.1.iter().map(|sp| sp.id).collect::<Vec<_>>(),
+            vec![b.id]
+        );
+    }
+
+    /// D-27-01: when both groups are non-empty, Employees comes first.
+    #[test]
+    fn grouped_selectable_orders_employees_before_volunteers() {
+        let input = vec![
+            named_sp("vol", false, false),
+            named_sp("emp", true, false),
+        ];
+        let groups = grouped_selectable(&input);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].0, PersonGroup::Employees);
+        assert_eq!(groups[1].0, PersonGroup::Volunteers);
+    }
+
+    /// D-27-03: only active-paid persons → exactly one Employees group, no
+    /// empty Volunteers entry.
+    #[test]
+    fn grouped_selectable_omits_empty_volunteers_group() {
+        let input = vec![named_sp("A", true, false), named_sp("B", true, false)];
+        let groups = grouped_selectable(&input);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].0, PersonGroup::Employees);
+    }
+
+    /// D-27-03: only active-unpaid persons → exactly one Volunteers group at
+    /// index 0 (no empty Employees entry).
+    #[test]
+    fn grouped_selectable_omits_empty_employees_group() {
+        let input = vec![named_sp("A", false, false), named_sp("B", false, false)];
+        let groups = grouped_selectable(&input);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].0, PersonGroup::Volunteers);
+    }
+
+    /// Load order is preserved within a group.
+    #[test]
+    fn grouped_selectable_preserves_order_within_group() {
+        let a = named_sp("A", true, false);
+        let b = named_sp("B", true, false);
+        let input = vec![a.clone(), b.clone()];
+        let groups = grouped_selectable(&input);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(
+            groups[0].1.iter().map(|sp| sp.id).collect::<Vec<_>>(),
+            vec![a.id, b.id]
+        );
     }
 
     // ── Sichtbarkeit von Kategorien (SICK_LEAVE_ENABLED) — pure functions ─
