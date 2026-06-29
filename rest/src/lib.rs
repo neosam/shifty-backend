@@ -32,6 +32,7 @@ mod text_template;
 mod toggle;
 mod user_invitation;
 mod vacation_balance;
+mod vacation_entitlement_offset;
 mod week_message;
 
 #[cfg(feature = "mock_auth")]
@@ -541,6 +542,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/toggle-group", api = toggle::ToggleGroupApiDoc),
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
         (path = "/vacation-balance", api = vacation_balance::VacationBalanceApiDoc),
+        (path = "/vacation-entitlement-offset", api = vacation_entitlement_offset::VacationEntitlementOffsetApiDoc),
         (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
@@ -605,6 +607,10 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         )
         .nest("/absence-period", absence::generate_route())
         .nest("/vacation-balance", vacation_balance::generate_route())
+        .nest(
+            "/vacation-entitlement-offset",
+            vacation_entitlement_offset::generate_route(),
+        )
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())

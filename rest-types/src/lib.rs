@@ -2094,6 +2094,24 @@ impl From<&VacationBalanceTO> for service::vacation_balance::VacationBalance {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 28 — Vacation-Entitlement-Offset DTO (VAC-OFFSET-01, D-28-06b)
+//
+// Plain DTO für den HR-gated REST-CRUD-Endpoint (`POST` upsert /
+// `DELETE /{sales_person_id}/{year}`). Trägt nur Primitive — kein
+// `service-impl`-Gate nötig, da der Handler den Basic-Offset-Service direkt
+// mit Primitiven aufruft. Year-scoped (eine aktive Zeile pro Person+Jahr,
+// D-28-09).
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct VacationEntitlementOffsetTO {
+    pub sales_person_id: Uuid,
+    pub year: u32,
+    /// Signierte Korrektur in ganzen Tagen (kann negativ sein).
+    pub offset_days: i32,
+}
+
 // =====================
 // User Invitation API (migrated from rest/src/user_invitation.rs in v1.2 Phase 6)
 // =====================
