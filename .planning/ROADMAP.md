@@ -18,7 +18,7 @@
 
 **Milestone Goal:** HR-UX rund um Abwesenheiten/Urlaub: Freiwillige sind in den Abwesenheits-Selektoren auswählbar, und HR kann den berechneten Jahres-Urlaubsanspruch per Korrektur-Offset anpassen.
 
-- [ ] **Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE)** — gruppierter Personen-Selector (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar; `is_selectable_employee` lockern, 2 neue i18n-Keys de/en/cs. Reines Frontend (VOL-SEL-01).
+- [x] **Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE)** — gruppierter Personen-Selector (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar via gemeinsamem Helfer; `is_selectable_employee` NICHT gelockert (D-27-02: HR-Urlaubsübersicht bleibt paid-only), neue Gruppierung nutzt eigenes `!inactive`-Predicate; 2 neue i18n-Keys de/en/cs. Reines Frontend (VOL-SEL-01). **Executed 2026-06-29** — Automatik-Gates grün (677 Tests, WASM-Build), Browser-Smoke als Human-UAT offen.
 - [ ] **Phase 28: Urlaubsanspruch-Korrektur via Offset (BE+FE)** — signed Offset pro Person+Jahr auf den berechneten Anspruch (Delta, kein Override); HR-gekennzeichnet+editierbar, für User unsichtbar; neue Tabelle + HR-gated CRUD + Edit/Marker in der Urlaubsübersicht (VAC-OFFSET-01).
 
 ### v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Phasen 25–26) — COMPLETE & VERIFIED 2026-06-28
@@ -150,11 +150,11 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 
 **Offener Punkt für die Planung**: Welche Abwesenheits-Kategorien (Urlaub / Krank / Unbezahlt) sind für Freiwillige sinnvoll? Betrifft nur das Kategorie-Dropdown, nicht den Personen-Selector.
 
-**Plans**: 0 plans
+**Plans**: 1/1 plans complete (Executed 2026-06-29; Browser-Smoke = Human-UAT offen)
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 27 to break down)
+- [x] 27-01-PLAN.md — Pure `grouped_selectable` + `PersonGroup` + RSX-Helfer `grouped_person_options`; beide Call-Sites (Modal + FilterBar) umgestellt; 2 i18n-Keys de/en/cs; 5 neue Pure-Function-Tests (D-27-01..06)
 
 ### Phase 28: Urlaubsanspruch-Korrektur via Offset (HR, BE+FE)
 
@@ -217,7 +217,7 @@ Plans:
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
 | 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete   | 2026-06-28 |
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 3/3 | Complete   | 2026-06-28 |
-| 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 0/0 | Not planned | — |
+| 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 1/1 | Executed ⚠ smoke | 2026-06-29 |
 | 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 0/0 | Not planned | — |
 
 ## Backlog

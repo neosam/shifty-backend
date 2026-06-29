@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
-current_phase: 27
-current_phase_name: Freiwillige in Abwesenheitsliste auswählbar (FE)
+current_phase: 28
+current_phase_name: Urlaubsanspruch-Korrektur via Offset (BE+FE)
 status: planning
-last_updated: "2026-06-29T00:00:00.000Z"
+last_updated: "2026-06-29T07:40:00.000Z"
 last_activity: 2026-06-29
-last_activity_desc: "Milestone v1.8: Phase 27 (VOL-SEL-01, gruppierter Selector, FE) + Phase 28 (VAC-OFFSET-01, signed Urlaubsanspruch-Offset pro Person+Jahr, HR-gekennzeichnet/User-unsichtbar, BE+FE) angelegt inkl. Konzept + SEED.md. Nächster Schritt: /gsd-plan-phase 27 bzw. 28."
+last_activity_desc: "Phase 27 (VOL-SEL-01) EXECUTED — gruppierter Freiwilligen-Selector (Modal+FilterBar) via gemeinsamem Helfer; is_selectable_employee NICHT gelockert (D-27-02). Automatik-Gates grün (677 FE-Tests, WASM-Build, D-27-02-Guard, keine neuen Clippy-Warnungen); Browser-Smoke als Human-UAT offen. jj-nativ committet. Nächster Schritt: Phase 28 (VAC-OFFSET-01) plan+execute."
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -30,12 +30,12 @@ progress:
 
 ## Current Position
 
-Phase: 27 + 28 angelegt, beide noch nicht geplant
-Plan: 0/0 — `/gsd-plan-phase 27` bzw. `/gsd-plan-phase 28`
-Status: v1.8 (2 Phasen) — Konzepte + UX-Entscheidungen + SEED.md erfasst. Phase 27 = gruppierter Freiwilligen-Selector (FE). Phase 28 = signed Urlaubsanspruch-Offset (Delta, HR-gekennzeichnet/User-unsichtbar, BE+FE). v1.7 (Phasen 25–26) bleibt complete & verified — Milestone-Close noch offen, falls gewünscht.
-Last activity: 2026-06-29 — Phase 28 (VAC-OFFSET-01) zur Roadmap hinzugefügt; Offset-Mechanismus statt Override (überlebt Vertragsänderungen), Backend rundet bei `vacation_balance.rs:191`.
+Phase: 27 EXECUTED (Browser-Smoke offen); 28 als nächstes (plan+execute)
+Plan: 27 → 1/1 complete; 28 → 0/0 (`/gsd-plan-phase 28`)
+Status: v1.8 (2 Phasen, autonom). Phase 27 (gruppierter Freiwilligen-Selector, FE) geliefert: `grouped_selectable`+`PersonGroup`+`grouped_person_options`, beide Call-Sites (Modal+FilterBar) umgestellt, 2 i18n-Keys de/en/cs, 5 neue Tests; `is_selectable_employee` bewusst NICHT gelockert (D-27-02 → HR-Urlaubsübersicht bleibt paid-only). Automatik-Gates grün; Browser-Smoke deferred (Human-UAT). Phase 28 = signed Urlaubsanspruch-Offset (Delta, HR-gekennzeichnet/User-unsichtbar, BE+FE). v1.7 (25–26) bleibt complete & verified — Milestone-Close offen.
+Last activity: 2026-06-29 — Phase 27 ausgeführt + jj-nativ committet (Commit-Strategie: jj-nativ pro Task; commit_docs:false; WIP vorab in 2 saubere Changes gesplittet).
 
-Progress: [──────────] 0% (Phasen 27 + 28 not planned)
+Progress: [█████─────] 50% (Phase 27 executed; Phase 28 offen)
 
 ## Deferred Items
 
@@ -51,6 +51,7 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 | todo | 5+ pending Todos (ab Mai 2026) | deferred | historisch (booking-log 500er, admin-rolle-privilegien u.a.) |
 | tech_debt | Nyquist-VALIDATION Phasen 14/15/17 + v1.5-FE-Phasen unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |
 | human_uat | Phase 24 #1: Inline-Block-Platzierung (v1.6) | deferred | acknowledged beim v1.6-Close 2026-06-28; 409-Meldung rendert global unter WeekView statt an Slot-Zelle; nicht-blockierend, Backend-409-Logik durch 4 Unit-Tests abgedeckt |
+| human_uat | Phase 27: Browser-Smoke Freiwilligen-Selector (v1.8) | pending | 2026-06-29 deferred (User: weiter zu Phase 28). Logik voll unit-getestet (5 Tests) + WASM-Build grün; offen nur visueller Roundtrip: Freiwilliger gruppiert in Modal+FilterBar, Anlege-Pfad, de/cs-Labels. Resume: `/gsd-verify-work 27`. Braucht aktive is_paid=false-Person in Dev-DB |
 
 ## Shipped Milestones
 
