@@ -27,6 +27,7 @@ pub mod special_day;
 pub mod text_template;
 pub mod toggle;
 pub mod user_invitation;
+pub mod vacation_entitlement_offset;
 pub mod week_message;
 
 pub trait ResultDbErrorExt<T, E> {

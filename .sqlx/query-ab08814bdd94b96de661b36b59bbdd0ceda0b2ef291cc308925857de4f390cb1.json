@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vacation_entitlement_offset (id, sales_person_id, year, offset_days, created, deleted, update_process, update_version)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "ab08814bdd94b96de661b36b59bbdd0ceda0b2ef291cc308925857de4f390cb1"
+}

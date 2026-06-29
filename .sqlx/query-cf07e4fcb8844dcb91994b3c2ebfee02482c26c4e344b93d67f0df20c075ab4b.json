@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE vacation_entitlement_offset\n               SET offset_days = ?, deleted = ?, update_process = ?, update_version = ?\n               WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "cf07e4fcb8844dcb91994b3c2ebfee02482c26c4e344b93d67f0df20c075ab4b"
+}
