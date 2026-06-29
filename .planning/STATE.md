@@ -4,16 +4,16 @@ milestone: v1.8
 milestone_name: Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
 current_phase: 28
 current_phase_name: Urlaubsanspruch-Korrektur via Offset (BE+FE)
-status: planning
-last_updated: "2026-06-29T07:40:00.000Z"
+status: executed
+last_updated: "2026-06-29T08:25:00.000Z"
 last_activity: 2026-06-29
-last_activity_desc: "Phase 27 (VOL-SEL-01) EXECUTED — gruppierter Freiwilligen-Selector (Modal+FilterBar) via gemeinsamem Helfer; is_selectable_employee NICHT gelockert (D-27-02). Automatik-Gates grün (677 FE-Tests, WASM-Build, D-27-02-Guard, keine neuen Clippy-Warnungen); Browser-Smoke als Human-UAT offen. jj-nativ committet. Nächster Schritt: Phase 28 (VAC-OFFSET-01) plan+execute."
+last_activity_desc: "Phase 28 (VAC-OFFSET-01) EXECUTED — 4 Pläne (data layer, off-by-one + Snapshot-Bump 11→12, integration + API-hiding + REST CRUD + DI, FE inline editor). Integrated-Gates grün: cargo test --workspace + clippy --workspace -D warnings (0 Fehler/0 Warnungen), WASM-Build + 678 FE-Tests. Browser-Smoke (HR-Offset-Roundtrip) als Human-UAT offen. Beide v1.8-Phasen executed → Milestone-Lifecycle (audit/complete/cleanup) ausstehend."
 progress:
   total_phases: 2
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 50
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -30,12 +30,12 @@ progress:
 
 ## Current Position
 
-Phase: 27 EXECUTED (Browser-Smoke offen); 28 als nächstes (plan+execute)
-Plan: 27 → 1/1 complete; 28 → 0/0 (`/gsd-plan-phase 28`)
-Status: v1.8 (2 Phasen, autonom). Phase 27 (gruppierter Freiwilligen-Selector, FE) geliefert: `grouped_selectable`+`PersonGroup`+`grouped_person_options`, beide Call-Sites (Modal+FilterBar) umgestellt, 2 i18n-Keys de/en/cs, 5 neue Tests; `is_selectable_employee` bewusst NICHT gelockert (D-27-02 → HR-Urlaubsübersicht bleibt paid-only). Automatik-Gates grün; Browser-Smoke deferred (Human-UAT). Phase 28 = signed Urlaubsanspruch-Offset (Delta, HR-gekennzeichnet/User-unsichtbar, BE+FE). v1.7 (25–26) bleibt complete & verified — Milestone-Close offen.
-Last activity: 2026-06-29 — Phase 27 ausgeführt + jj-nativ committet (Commit-Strategie: jj-nativ pro Task; commit_docs:false; WIP vorab in 2 saubere Changes gesplittet).
+Phase: 27 + 28 BEIDE EXECUTED (je Browser-Smoke offen). v1.8-Milestone-Lifecycle ausstehend.
+Plan: 27 → 1/1 complete; 28 → 4/4 complete
+Status: v1.8 (2 Phasen, autonom) — beide ausgeführt, alle Automatik-Gates grün, jj-nativ pro Task committet. Phase 27 (FE): gruppierter Freiwilligen-Selector (`grouped_selectable`/`PersonGroup`/`grouped_person_options`, Modal+FilterBar), `is_selectable_employee` NICHT gelockert (D-27-02). Phase 28 (BE+FE): signed Urlaubsanspruch-Offset (Delta, neue Tabelle `vacation_entitlement_offset` + Basic-Service + HR-gated REST CRUD + DI; `entitled_effective=round(base)+offset` mit API-level Hiding; FE-Inline-Editor HR-only) + Off-by-one-Proration-Fix + Snapshot-Bump 11→12 (VacationEntitlement). Integrated-Gates: cargo test --workspace ✓, clippy --workspace -D warnings ✓, WASM-Build ✓, 678 FE-Tests ✓. 2 Browser-Smokes deferred (Human-UAT). v1.7 (25–26) bleibt complete & verified — auch dort Milestone-Close offen.
+Last activity: 2026-06-29 — Phase 28 (4 Pläne) ausgeführt + jj-nativ committet; integrierter Backend+FE-Gate grün.
 
-Progress: [█████─────] 50% (Phase 27 executed; Phase 28 offen)
+Progress: [██████████] 100% (beide v1.8-Phasen executed; Lifecycle + 2 Smokes offen)
 
 ## Deferred Items
 
@@ -52,6 +52,7 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 | tech_debt | Nyquist-VALIDATION Phasen 14/15/17 + v1.5-FE-Phasen unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |
 | human_uat | Phase 24 #1: Inline-Block-Platzierung (v1.6) | deferred | acknowledged beim v1.6-Close 2026-06-28; 409-Meldung rendert global unter WeekView statt an Slot-Zelle; nicht-blockierend, Backend-409-Logik durch 4 Unit-Tests abgedeckt |
 | human_uat | Phase 27: Browser-Smoke Freiwilligen-Selector (v1.8) | pending | 2026-06-29 deferred (User: weiter zu Phase 28). Logik voll unit-getestet (5 Tests) + WASM-Build grün; offen nur visueller Roundtrip: Freiwilliger gruppiert in Modal+FilterBar, Anlege-Pfad, de/cs-Labels. Resume: `/gsd-verify-work 27`. Braucht aktive is_paid=false-Person in Dev-DB |
+| human_uat | Phase 28: Browser-Smoke HR-Offset-Roundtrip (v1.8) | pending | 2026-06-29 deferred. Backend+FE voll automatik-verifiziert (offset_calc/delta/api_hiding + 678 FE-Tests). Offen: HR-Detail zeigt „berechnet {n} + Offset [x]" → Box=Effektiv; +1 setzen, blur/Enter persistiert nach Reload; User-Self-View zeigt NUR Effektivwert (kein offset_days in roher API-Antwort). Resume: `/gsd-verify-work 28` |
 
 ## Shipped Milestones
 

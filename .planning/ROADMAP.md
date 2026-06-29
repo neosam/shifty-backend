@@ -10,7 +10,7 @@
 - ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (shipped 2026-06-27) — siehe [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (shipped 2026-06-27) — siehe [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
 - ✅ **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (complete & verified 2026-06-28; Milestone-Close offen)
-- 🚧 **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (active 2026-06-29)
+- 🚧 **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (beide executed 2026-06-29; Automatik-Gates grün, 2 Browser-Smokes als Human-UAT offen; Milestone-Close ausstehend)
 
 ## Phases
 
@@ -19,7 +19,7 @@
 **Milestone Goal:** HR-UX rund um Abwesenheiten/Urlaub: Freiwillige sind in den Abwesenheits-Selektoren auswählbar, und HR kann den berechneten Jahres-Urlaubsanspruch per Korrektur-Offset anpassen.
 
 - [x] **Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE)** — gruppierter Personen-Selector (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar via gemeinsamem Helfer; `is_selectable_employee` NICHT gelockert (D-27-02: HR-Urlaubsübersicht bleibt paid-only), neue Gruppierung nutzt eigenes `!inactive`-Predicate; 2 neue i18n-Keys de/en/cs. Reines Frontend (VOL-SEL-01). **Executed 2026-06-29** — Automatik-Gates grün (677 Tests, WASM-Build), Browser-Smoke als Human-UAT offen.
-- [ ] **Phase 28: Urlaubsanspruch-Korrektur via Offset (BE+FE)** — signed Offset pro Person+Jahr auf den berechneten Anspruch (Delta, kein Override); HR-gekennzeichnet+editierbar, für User unsichtbar; neue Tabelle + HR-gated CRUD + Edit/Marker in der Urlaubsübersicht (VAC-OFFSET-01).
+- [x] **Phase 28: Urlaubsanspruch-Korrektur via Offset (BE+FE)** — signed Offset pro Person+Jahr (Delta, kein Override); HR-gekennzeichnet+inline editierbar, für User unsichtbar (API-level hiding); neue Tabelle + HR-gated CRUD + FE-Inline-Editor. Plus Off-by-one-Proration-Fix + Snapshot-Bump 11→12 (VAC-OFFSET-01). **Executed 2026-06-29** — Backend+FE-Gates grün (test --workspace + clippy -D warnings; WASM-Build + 678 FE-Tests), Browser-Smoke als Human-UAT offen.
 
 ### v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Phasen 25–26) — COMPLETE & VERIFIED 2026-06-28
 
@@ -186,14 +186,14 @@ Plans:
   2. Off-by-one in der Proration (`employee_work_details.rs:173`, `ordinal()` statt `ordinal()-1`) als Begleit-Fix mitnehmen oder bewusst draußen lassen?
   3. Snapshot-Bump prüfen: Urlaub ist vermutlich kein billing `value_type` → kein Bump; bei Planung verifizieren.
 
-**Plans**: 4 plans
+**Plans**: 4/4 plans complete (Executed 2026-06-29; Browser-Smoke = Human-UAT offen)
 
 Plans:
 
-- [ ] 28-01-PLAN.md — Backend data layer: additive migration + `vacation_entitlement_offset` table + DAO trait/sqlite impl + Basic HR-gated `VacationEntitlementOffsetService` + CRUD/HR-gate tests (D-28-01, D-28-06, D-28-06b) [Wave 1]
-- [ ] 28-02-PLAN.md — VacationBalance integration: offset-after-`.round()`, API-level hiding (HR-only breakdown), `VacationBalanceTO` + domain fields, HR-gated REST CRUD endpoint, DI wiring, offset/delta/hiding tests (D-28-02, D-28-03, D-28-06b, D-28-09) [Wave 2]
-- [ ] 28-03-PLAN.md — Off-by-one proration fix (`vacation_days_for_year`, year-start only) + snapshot bump 11→12 (VacationEntitlement) + guard/regression tests (D-28-04, D-28-05) [Wave 1]
-- [ ] 28-04-PLAN.md — Frontend inline signed offset editor in HR person-detail StatBox (“berechnet {n} + Offset [x]”), user-side effective-only, i18n de/en/cs, FE state/api/service plumbing (D-28-07, D-28-03, D-28-08, D-28-09) [Wave 3]
+- [x] 28-01-PLAN.md — Backend data layer: additive migration + `vacation_entitlement_offset` table + DAO trait/sqlite impl + Basic HR-gated `VacationEntitlementOffsetService` + CRUD/HR-gate tests (D-28-01, D-28-06, D-28-06b) [Wave 1]
+- [x] 28-02-PLAN.md — VacationBalance integration: offset-after-`.round()`, API-level hiding (HR-only breakdown), `VacationBalanceTO` + domain fields, HR-gated REST CRUD endpoint, DI wiring, offset/delta/hiding tests (D-28-02, D-28-03, D-28-06b, D-28-09) [Wave 2]
+- [x] 28-03-PLAN.md — Off-by-one proration fix (`vacation_days_for_year`, year-start only) + snapshot bump 11→12 (VacationEntitlement) + guard/regression tests (D-28-04, D-28-05) [Wave 1]
+- [x] 28-04-PLAN.md — Frontend inline signed offset editor in HR person-detail StatBox (“berechnet {n} + Offset [x]”), user-side effective-only, i18n de/en/cs, FE state/api/service plumbing (D-28-07, D-28-03, D-28-08, D-28-09) [Wave 3]
 
 ## Progress
 
@@ -221,7 +221,7 @@ Plans:
 | 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete   | 2026-06-28 |
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 3/3 | Complete   | 2026-06-28 |
 | 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 1/1 | Executed ⚠ smoke | 2026-06-29 |
-| 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 0/0 | Not planned | — |
+| 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 4/4 | Executed ⚠ smoke | 2026-06-29 |
 
 ## Backlog
 
