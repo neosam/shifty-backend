@@ -21,6 +21,9 @@ use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetail
 use service::permission::{Authentication, HR_PRIVILEGE};
 use service::sales_person::{MockSalesPersonService, SalesPerson};
 use service::vacation_balance::VacationBalanceService;
+use service::vacation_entitlement_offset::{
+    MockVacationEntitlementOffsetService, VacationEntitlementOffset,
+};
 use service::{MockPermissionService, ServiceError};
 use shifty_utils::DayOfWeek;
 use time::macros::{date, datetime};
@@ -133,6 +136,7 @@ pub(crate) struct VacationBalanceDependencies {
     pub employee_work_details_service: MockEmployeeWorkDetailsService,
     pub carryover_service: MockCarryoverService,
     pub sales_person_service: MockSalesPersonService,
+    pub vacation_entitlement_offset_service: MockVacationEntitlementOffsetService,
     pub permission_service: MockPermissionService,
     pub clock_service: MockClockService,
     pub transaction_dao: MockTransactionDao,
@@ -145,6 +149,7 @@ impl VacationBalanceServiceDeps for VacationBalanceDependencies {
     type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
     type CarryoverService = MockCarryoverService;
     type SalesPersonService = MockSalesPersonService;
+    type VacationEntitlementOffsetService = MockVacationEntitlementOffsetService;
     type PermissionService = MockPermissionService;
     type ClockService = MockClockService;
     type TransactionDao = MockTransactionDao;
@@ -157,11 +162,32 @@ impl VacationBalanceDependencies {
             employee_work_details_service: self.employee_work_details_service.into(),
             carryover_service: self.carryover_service.into(),
             sales_person_service: self.sales_person_service.into(),
+            vacation_entitlement_offset_service: self.vacation_entitlement_offset_service.into(),
             permission_service: self.permission_service.into(),
             clock_service: self.clock_service.into(),
             transaction_dao: self.transaction_dao.into(),
         }
     }
+}
+
+/// Baut eine `MockVacationEntitlementOffsetService`, deren `get` immer den
+/// gegebenen Offset zurückliefert (`Some(offset_days)`), bzw. `None`, wenn
+/// `offset_days` `None` ist. Ersetzt im Test die per-Default `None`-Mock, um
+/// mockall-FIFO-Matching-Probleme zu vermeiden.
+fn offset_mock(sp_id: Uuid, offset_days: Option<i32>) -> MockVacationEntitlementOffsetService {
+    let mut mock = MockVacationEntitlementOffsetService::new();
+    mock.expect_get().returning(move |_, _, _, _| {
+        Ok(offset_days.map(|days| VacationEntitlementOffset {
+            id: uuid!("CC000000-0000-0000-0000-000000000001"),
+            sales_person_id: sp_id,
+            year: TEST_YEAR,
+            offset_days: days,
+            created: Some(datetime!(2026 - 01 - 02 09:00:00)),
+            deleted: None,
+            version: uuid!("CC000000-0000-0000-0000-0000000000FF"),
+        }))
+    });
+    mock
 }
 
 /// Build dependencies with a default `today = 2026-06-15` and a happy-path
@@ -172,6 +198,14 @@ pub(crate) fn build_dependencies() -> VacationBalanceDependencies {
     let employee_work_details_service = MockEmployeeWorkDetailsService::new();
     let carryover_service = MockCarryoverService::new();
     let sales_person_service = MockSalesPersonService::new();
+    // Phase 28: per-Default kein Offset (Ok(None)) — bestehende Tests bleiben
+    // unverändert grün. Offset-spezifische Tests ERSETZEN diese Mock via
+    // `offset_mock(..)`, statt eine zweite Expectation hinzuzufügen (mockall
+    // matcht FIFO → die Default-`None` würde sonst zuerst greifen).
+    let mut vacation_entitlement_offset_service = MockVacationEntitlementOffsetService::new();
+    vacation_entitlement_offset_service
+        .expect_get()
+        .returning(|_, _, _, _| Ok(None));
     let permission_service = MockPermissionService::new();
     let mut clock_service = MockClockService::new();
     let mut transaction_dao = MockTransactionDao::new();
@@ -189,6 +223,7 @@ pub(crate) fn build_dependencies() -> VacationBalanceDependencies {
         employee_work_details_service,
         carryover_service,
         sales_person_service,
+        vacation_entitlement_offset_service,
         permission_service,
         clock_service,
         transaction_dao,
@@ -898,5 +933,181 @@ async fn carryover_read_uses_prior_year() {
     assert_eq!(
         result.carryover_days, 7,
         "carryover_days must come from the prior-year (TEST_YEAR - 1) record"
+    );
+}
+
+// =========================================================================
+// Phase 28 (VAC-OFFSET-01) — Vacation-Entitlement-Offset
+//
+// D-28-02: Offset wird NACH `.round()` addiert und fließt in remaining_days.
+// D-28-03: `entitled_days` ist IMMER der effektive Wert; der Breakdown
+//          (offset_days / computed_entitled_days) ist nur für HR `Some(..)`.
+// ROADMAP SC3: Der Offset ist ein DELTA — überlebt eine Basis-Änderung
+//          (17→20 → effektiv 21), keine eingefrorene Absolutzahl.
+// =========================================================================
+
+/// Convenience: happy-path deps (HR Ok) mit gegebener Vertrags-Vacation-Basis
+/// und Offset-Mock, ohne Carryover/Absence. `today = 2026-06-15`.
+fn offset_deps(sp_id: Uuid, base_vacation_days: u8, offset: Option<i32>) -> VacationBalanceDependencies {
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, base_vacation_days)])));
+    deps.carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    deps.vacation_entitlement_offset_service = offset_mock(sp_id, offset);
+    deps
+}
+
+/// D-28-02: round(base=17) + offset → effektiver entitled + remaining.
+/// +1 ⇒ 18, −2 ⇒ 15.
+#[tokio::test]
+async fn offset_calc() {
+    let sp_id = default_sales_person_id();
+
+    // Offset +1: entitled 17 → 18, remaining (kein carryover/used/planned) → 18.
+    let svc = offset_deps(sp_id, 17, Some(1)).build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+    assert_eq!(
+        result.entitled_days, 18.0,
+        "round(17) + 1 must be 18, got {}",
+        result.entitled_days
+    );
+    assert_eq!(
+        result.remaining_days, 18.0,
+        "remaining must flow the +1 offset, got {}",
+        result.remaining_days
+    );
+
+    // Offset −2: entitled 17 → 15.
+    let svc = offset_deps(sp_id, 17, Some(-2)).build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+    assert_eq!(
+        result.entitled_days, 15.0,
+        "round(17) − 2 must be 15, got {}",
+        result.entitled_days
+    );
+    assert_eq!(result.remaining_days, 15.0);
+}
+
+/// ROADMAP SC3 / D-28-03: Der Offset ist ein DELTA, keine eingefrorene
+/// Absolutzahl. Ändert sich die berechnete Basis 17→20, ergibt der gleiche
+/// +1-Offset eine effektive Entitlement von 21.
+#[tokio::test]
+async fn offset_delta() {
+    let sp_id = default_sales_person_id();
+
+    // Gleicher +1-Offset, aber Basis 20 (statt 17) → effektiv 21.
+    let svc = offset_deps(sp_id, 20, Some(1)).build_service();
+    let result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("get should succeed");
+    assert_eq!(
+        result.entitled_days, 21.0,
+        "delta survives base change: round(20) + 1 must be 21, got {}",
+        result.entitled_days
+    );
+}
+
+/// D-28-03 / T-28-04: API-level field hiding. HR-Aufrufer erhält den Breakdown
+/// (`offset_days`/`computed_entitled_days` = Some), self-only-Aufrufer NICHT
+/// (beide None) — aber `entitled_days` ist für BEIDE der effektive Wert.
+#[tokio::test]
+async fn offset_api_hiding() {
+    let sp_id = default_sales_person_id();
+
+    // --- HR-Pfad: permission Ok → is_hr = true → Breakdown exponiert. ---
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+    // verify darf fehlschlagen — `or()` filtert es; HR genügt.
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Err(ServiceError::Forbidden));
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 20)])));
+    deps.carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    deps.vacation_entitlement_offset_service = offset_mock(sp_id, Some(1));
+
+    let svc = deps.build_service();
+    let hr_result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("HR get should succeed");
+
+    assert_eq!(hr_result.entitled_days, 21.0, "effective entitlement (HR)");
+    assert_eq!(
+        hr_result.offset_days,
+        Some(1),
+        "HR caller must see the offset breakdown"
+    );
+    assert_eq!(
+        hr_result.computed_entitled_days,
+        Some(20.0),
+        "HR caller must see the pre-offset computed base"
+    );
+
+    // --- Self-Pfad: permission Err + verify Ok → is_hr = false → kein Breakdown. ---
+    let mut deps = build_dependencies();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Err(ServiceError::Forbidden));
+    deps.sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    deps.absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    deps.employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(Arc::from([full_year_contract(sp_id, 20)])));
+    deps.carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+    deps.vacation_entitlement_offset_service = offset_mock(sp_id, Some(1));
+
+    let svc = deps.build_service();
+    let self_result = svc
+        .get(sp_id, TEST_YEAR, Authentication::Full, None)
+        .await
+        .expect("self get should succeed");
+
+    // entitled_days ist auch für self-only der EFFEKTIVE Wert (round(20)+1).
+    assert_eq!(
+        self_result.entitled_days, 21.0,
+        "self caller still gets the effective entitlement, got {}",
+        self_result.entitled_days
+    );
+    assert_eq!(
+        self_result.offset_days, None,
+        "self-only caller must NOT see the raw offset"
+    );
+    assert_eq!(
+        self_result.computed_entitled_days, None,
+        "self-only caller must NOT see the pre-offset base"
     );
 }
