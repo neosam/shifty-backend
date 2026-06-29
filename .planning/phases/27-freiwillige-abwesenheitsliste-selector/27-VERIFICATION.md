@@ -1,17 +1,24 @@
 ---
 phase: 27-freiwillige-abwesenheitsliste-selector
-verified: 2026-06-29T07:35:00Z
-status: human_needed
-score: 5/6 must-haves automation-verified; 1 pending human browser-smoke
-behavior_unverified: 1
+verified: 2026-06-29T11:15:00Z
+status: passed
+score: 6/6 success criteria verified (automation + live HR browser smoke)
+behavior_unverified: 0
 overrides_applied: 0
 ---
 
 # Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE) — Verification Report
 
 **Phase Goal:** Auf der Abwesenheitsseite sind aktive Freiwillige (`is_paid==false`) in beiden Personen-Selektoren (AbsenceModal + HR AbsenceFilterBar) auswählbar, sichtbar getrennt von Angestellten über native `optgroup`-Gruppierung (VOL-SEL-01).
-**Verified:** 2026-06-29 (automated by orchestrator)
-**Status:** HUMAN_NEEDED — all automated gates pass; one interactive browser-smoke deferred to human-UAT (user chose to continue to Phase 28; phases are independent).
+**Verified:** 2026-06-29 (automated + live HR browser smoke by orchestrator)
+**Status:** PASSED — all automated gates + live HR browser smoke confirmed.
+
+## Live HR browser smoke (2026-06-29) — PASSED
+Backend (:3000) + frontend (:8080) started; DEVUSER temporarily granted HR (reverted after). With HR (so `is_paid` is not redacted):
+- **AbsenceModal** person dropdown split into **Employees** (Anna Müller, Max Mustermann, Max Schmidt, Sarah Fischer) and **Volunteers** (Tom Bauer) — Employees group first.
+- **HR AbsenceFilterBar** dropdown: **"All people"** option first, then the same Employees/Volunteers optgroups.
+- Inactive Lisa Weber excluded from both; no empty optgroup.
+- Discovered (NOT a Phase 27 defect): the backend `get_all` redacts `is_paid → null` for non-HR callers (`sales_person.rs:69`); since both selectors are HR-gated, this is correct by design — non-HR users see a disabled/hidden control.
 
 ---
 

@@ -4,10 +4,10 @@ milestone: v1.8
 milestone_name: Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
 current_phase: 28
 current_phase_name: Urlaubsanspruch-Korrektur via Offset (BE+FE)
-status: executed
-last_updated: "2026-06-29T08:25:00.000Z"
+status: verified
+last_updated: "2026-06-29T11:25:00.000Z"
 last_activity: 2026-06-29
-last_activity_desc: "Phase 28 (VAC-OFFSET-01) EXECUTED — 4 Pläne (data layer, off-by-one + Snapshot-Bump 11→12, integration + API-hiding + REST CRUD + DI, FE inline editor). Integrated-Gates grün: cargo test --workspace + clippy --workspace -D warnings (0 Fehler/0 Warnungen), WASM-Build + 678 FE-Tests. Browser-Smoke (HR-Offset-Roundtrip) als Human-UAT offen. Beide v1.8-Phasen executed → Milestone-Lifecycle (audit/complete/cleanup) ausstehend."
+last_activity_desc: "Beide v1.8-Phasen VERIFIED (Automatik-Gates + Live-HR-Browser-Smokes). Phase 27: HR-Selektoren splitten Angestellte/Freiwillige korrekt (Modal + FilterBar). Phase 28: HR-Offset-Roundtrip live bestätigt (Offset 3 → effektiv 18, remaining 33, persistiert). Smoke fand + fixte 1 Dev-Bug: /vacation-entitlement-offset fehlte im Dioxus.toml-Proxy (FE-Save 405) → fix(28) committet. Test-Mutationen (HR-Rolle, Offset-Zeile) revertiert. Offen: Milestone-Close (v1.7 + v1.8: audit/complete/cleanup) — wartet auf User."
 progress:
   total_phases: 2
   completed_phases: 2
@@ -30,12 +30,12 @@ progress:
 
 ## Current Position
 
-Phase: 27 + 28 BEIDE EXECUTED (je Browser-Smoke offen). v1.8-Milestone-Lifecycle ausstehend.
-Plan: 27 → 1/1 complete; 28 → 4/4 complete
+Phase: 27 + 28 BEIDE VERIFIED (Automatik-Gates + Live-HR-Smokes). v1.8-Milestone-Close (audit/complete/cleanup) wartet auf User; v1.7-Close ebenfalls offen.
+Plan: 27 → 1/1 complete (verified); 28 → 4/4 complete (verified) + fix(28) Dioxus.toml-Proxy
 Status: v1.8 (2 Phasen, autonom) — beide ausgeführt, alle Automatik-Gates grün, jj-nativ pro Task committet. Phase 27 (FE): gruppierter Freiwilligen-Selector (`grouped_selectable`/`PersonGroup`/`grouped_person_options`, Modal+FilterBar), `is_selectable_employee` NICHT gelockert (D-27-02). Phase 28 (BE+FE): signed Urlaubsanspruch-Offset (Delta, neue Tabelle `vacation_entitlement_offset` + Basic-Service + HR-gated REST CRUD + DI; `entitled_effective=round(base)+offset` mit API-level Hiding; FE-Inline-Editor HR-only) + Off-by-one-Proration-Fix + Snapshot-Bump 11→12 (VacationEntitlement). Integrated-Gates: cargo test --workspace ✓, clippy --workspace -D warnings ✓, WASM-Build ✓, 678 FE-Tests ✓. 2 Browser-Smokes deferred (Human-UAT). v1.7 (25–26) bleibt complete & verified — auch dort Milestone-Close offen.
 Last activity: 2026-06-29 — Phase 28 (4 Pläne) ausgeführt + jj-nativ committet; integrierter Backend+FE-Gate grün.
 
-Progress: [██████████] 100% (beide v1.8-Phasen executed; Lifecycle + 2 Smokes offen)
+Progress: [██████████] 100% (beide v1.8-Phasen verified inkl. Live-HR-Smokes; nur Milestone-Close offen)
 
 ## Deferred Items
 
@@ -51,8 +51,8 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 | todo | 5+ pending Todos (ab Mai 2026) | deferred | historisch (booking-log 500er, admin-rolle-privilegien u.a.) |
 | tech_debt | Nyquist-VALIDATION Phasen 14/15/17 + v1.5-FE-Phasen unvollständig | deferred | Discovery-only, optional `/gsd-validate-phase` |
 | human_uat | Phase 24 #1: Inline-Block-Platzierung (v1.6) | deferred | acknowledged beim v1.6-Close 2026-06-28; 409-Meldung rendert global unter WeekView statt an Slot-Zelle; nicht-blockierend, Backend-409-Logik durch 4 Unit-Tests abgedeckt |
-| human_uat | Phase 27: Browser-Smoke Freiwilligen-Selector (v1.8) | pending | 2026-06-29 deferred (User: weiter zu Phase 28). Logik voll unit-getestet (5 Tests) + WASM-Build grün; offen nur visueller Roundtrip: Freiwilliger gruppiert in Modal+FilterBar, Anlege-Pfad, de/cs-Labels. Resume: `/gsd-verify-work 27`. Braucht aktive is_paid=false-Person in Dev-DB |
-| human_uat | Phase 28: Browser-Smoke HR-Offset-Roundtrip (v1.8) | pending | 2026-06-29 deferred. Backend+FE voll automatik-verifiziert (offset_calc/delta/api_hiding + 678 FE-Tests). Offen: HR-Detail zeigt „berechnet {n} + Offset [x]" → Box=Effektiv; +1 setzen, blur/Enter persistiert nach Reload; User-Self-View zeigt NUR Effektivwert (kein offset_days in roher API-Antwort). Resume: `/gsd-verify-work 28` |
+| human_uat | Phase 27: Browser-Smoke Freiwilligen-Selector (v1.8) | ✅ resolved 2026-06-29 | Live-HR-Smoke bestätigt: Modal + FilterBar splitten Angestellte (Anna/Max M/Max S/Sarah) vs Freiwillige (Tom Bauer); inaktive ausgeblendet; „All people" erhalten. (Hinweis: is_paid ist für Nicht-HR backend-redacted — by-design, Selektoren sind HR-gated.) |
+| human_uat | Phase 28: Browser-Smoke HR-Offset-Roundtrip (v1.8) | ✅ resolved 2026-06-29 | Live-HR-Smoke bestätigt: HR-StatBox „calculated 15 + Offset [n]"; Offset 3 gesetzt → effektiv 18, remaining 33, persistiert (Backend offset_days=3). Smoke fand+fixte Dev-Proxy-Gap (Dioxus.toml fehlte /vacation-entitlement-offset → FE-Save 405) via fix(28). |
 
 ## Shipped Milestones
 

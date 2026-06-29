@@ -10,7 +10,7 @@
 - ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (shipped 2026-06-27) — siehe [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (shipped 2026-06-27) — siehe [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
 - ✅ **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (complete & verified 2026-06-28; Milestone-Close offen)
-- 🚧 **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (beide executed 2026-06-29; Automatik-Gates grün, 2 Browser-Smokes als Human-UAT offen; Milestone-Close ausstehend)
+- 🚧 **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (beide VERIFIED 2026-06-29 inkl. Live-HR-Browser-Smokes; +fix(28) Dioxus.toml-Proxy; Milestone-Close ausstehend)
 
 ## Phases
 
@@ -220,8 +220,8 @@ Plans:
 | 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete   | 2026-06-27 |
 | 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete   | 2026-06-28 |
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 3/3 | Complete   | 2026-06-28 |
-| 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 1/1 | Executed ⚠ smoke | 2026-06-29 |
-| 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 4/4 | Executed ⚠ smoke | 2026-06-29 |
+| 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 1/1 | Complete ✓ | 2026-06-29 |
+| 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 4/4 | Complete ✓ | 2026-06-29 |
 
 ## Backlog
 

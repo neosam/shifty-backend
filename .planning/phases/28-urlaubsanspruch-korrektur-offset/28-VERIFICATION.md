@@ -1,17 +1,24 @@
 ---
 phase: 28-urlaubsanspruch-korrektur-offset
-verified: 2026-06-29T08:20:00Z
-status: human_needed
-score: 6/6 success criteria automation-verified; 1 pending human browser-smoke
-behavior_unverified: 1
+verified: 2026-06-29T11:20:00Z
+status: passed
+score: 6/6 success criteria verified (automation + live HR browser smoke); 1 dev-proxy bug found & fixed
+behavior_unverified: 0
 overrides_applied: 0
 ---
 
 # Phase 28: Urlaubsanspruch-Korrektur via Offset (HR, BE+FE) — Verification Report
 
 **Phase Goal:** HR kann den berechneten Jahres-Urlaubsanspruch per signed Offset (Delta) korrigieren; HR-gekennzeichnet+editierbar, für User unsichtbar (nur Effektivwert). Plus Off-by-one-Proration-Fix + Snapshot-Bump 11→12.
-**Verified:** 2026-06-29 (automated by orchestrator — integrated full-workspace gate)
-**Status:** HUMAN_NEEDED — all automated gates pass; one interactive browser-smoke (HR offset roundtrip) deferred to human-UAT.
+**Verified:** 2026-06-29 (automated + live HR browser smoke by orchestrator)
+**Status:** PASSED — all automated gates + live HR browser smoke confirmed; one dev-proxy gap found and fixed during the smoke.
+
+## Live HR browser smoke (2026-06-29) — PASSED (+ bug found & fixed)
+Backend (:3000) + frontend (:8080) started; DEVUSER temporarily granted HR (reverted after); test offset cleaned up.
+- **Read-path / HR API-hiding:** for Max Schmidt, `GET /vacation-balance` returned `entitled_days: 16` (= round(15) + offset 1), `offset_days: 1`, `computed_entitled_days: 15`, `remaining_days: 31` — offset flows through; HR sees the breakdown.
+- **HR inline editor:** the "Vertragsanspruch" StatBox rendered **"calculated 15 + Offset [n]"** with a signed number input; the big box showed the effective value.
+- **Write-path:** setting the offset to 3 via the UI saved (no error) → effective **18**, remaining **33/33**, backend persisted `offset_days: 3` — full round-trip confirmed.
+- **BUG FOUND & FIXED (fix(28) commit):** the FE offset-save first returned **HTTP 405** because `/vacation-entitlement-offset` was missing from `shifty-dioxus/Dioxus.toml`'s dev proxy (the 28-04 work added the api call + backend route but not the dev-proxy registration). Added the proxy rule; after a dx-serve restart the write-path works. (Dev-proxy only; production serves all routes via the backend.)
 
 ---
 
