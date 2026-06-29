@@ -28,7 +28,7 @@
         # take the whole repo and `cd shifty-dioxus` in the build phase.
         frontend-build = pkgs.rustPlatform.buildRustPackage {
           pname = "shifty-dioxus";
-          version = "2026.179.3-dev";
+          version = "2026.180.0";
 
           src = ./.;
           setSourceRoot = ''
@@ -197,10 +197,18 @@ EOF
             sqlite
             nodejs
             pkg-config
+            # lld is required for linking the frontend's wasm32 build gate
+            # (cargo build --target wasm32-unknown-unknown). The default linker
+            # cannot link the wasm target.
+            lld
 
             openspec.packages.${system}.default
             gsd.packages.${system}.default
           ];
+
+          # Target-specific: only affects the wasm32 frontend build gate, the
+          # native backend build keeps its default linker.
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "lld";
         };
       }
     ) // {

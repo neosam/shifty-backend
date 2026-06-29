@@ -1,6 +1,6 @@
 [package]
 name = "service_impl"
-version = "2026.179.3-dev"
+version = "2026.180.0"
 edition = "2021"
 resolver = "2"
 
