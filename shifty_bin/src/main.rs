@@ -50,6 +50,9 @@ type TextTemplateDao = dao_impl_sqlite::text_template::TextTemplateDaoImpl;
 type UserInvitationDao = dao_impl_sqlite::user_invitation::UserInvitationDaoImpl;
 type ToggleDao = dao_impl_sqlite::toggle::ToggleDaoImpl;
 type ShiftplanDao = dao_impl_sqlite::shiftplan::ShiftplanDaoImpl;
+// Phase 28 (VAC-OFFSET-01): Basic-Offset-DAO für den Urlaubsanspruch-Offset.
+type VacationEntitlementOffsetDao =
+    dao_impl_sqlite::vacation_entitlement_offset::VacationEntitlementOffsetDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -259,11 +262,33 @@ impl service_impl::absence::AbsenceServiceDeps for AbsenceServiceDependencies {
 type AbsenceService =
     service_impl::absence::AbsenceServiceImpl<AbsenceServiceDependencies>;
 
+// Phase 28 (VAC-OFFSET-01, D-28-06): VacationEntitlementOffsetServiceImpl ist
+// Basic-Tier (Entity-Manager) — nur DAO + Permission + Clock + Uuid +
+// Transaction. Konsumiert KEINEN Domain-Service, damit kein Zyklus mit dem
+// Business-Logic VacationBalanceService entsteht.
+pub struct VacationEntitlementOffsetServiceDependencies;
+impl service_impl::vacation_entitlement_offset::VacationEntitlementOffsetServiceDeps
+    for VacationEntitlementOffsetServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type VacationEntitlementOffsetDao = VacationEntitlementOffsetDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type VacationEntitlementOffsetService =
+    service_impl::vacation_entitlement_offset::VacationEntitlementOffsetServiceImpl<
+        VacationEntitlementOffsetServiceDependencies,
+    >;
+
 // Phase 8 (D-04, 08-02-PLAN.md): VacationBalanceServiceImpl ist BL-Tier.
 // Konsumiert AbsenceService + EmployeeWorkDetails (alias WorkingHoursService)
-// + CarryoverService + SalesPersonService + PermissionService + ClockService
-// + TransactionDao. Type-Alias-Namen (WorkingHoursService statt
-// EmployeeWorkDetailsService) folgen der bestehenden main.rs-Konvention.
+// + CarryoverService + SalesPersonService + VacationEntitlementOffsetService
+// (Phase 28, Basic) + PermissionService + ClockService + TransactionDao.
+// Type-Alias-Namen (WorkingHoursService statt EmployeeWorkDetailsService)
+// folgen der bestehenden main.rs-Konvention.
 pub struct VacationBalanceServiceDependencies;
 impl service_impl::vacation_balance::VacationBalanceServiceDeps
     for VacationBalanceServiceDependencies
@@ -274,6 +299,7 @@ impl service_impl::vacation_balance::VacationBalanceServiceDeps
     type EmployeeWorkDetailsService = WorkingHoursService;
     type CarryoverService = CarryoverService;
     type SalesPersonService = SalesPersonService;
+    type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type TransactionDao = TransactionDao;
@@ -573,6 +599,8 @@ pub struct RestStateImpl {
     feature_flag_service: Arc<FeatureFlagService>,
     // Phase 8.5 (Plan 03): HR-gated per-Row-Convert extra_hours -> absence_period.
     absence_conversion_service: Arc<AbsenceConversionService>,
+    // Phase 28 (VAC-OFFSET-01): HR-gated REST-CRUD für den Urlaubsanspruch-Offset.
+    vacation_entitlement_offset_service: Arc<VacationEntitlementOffsetService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -606,6 +634,7 @@ impl rest::RestStateDef for RestStateImpl {
     type SalesPersonShiftplanService = SalesPersonShiftplanService;
     type FeatureFlagService = FeatureFlagService;
     type AbsenceConversionService = AbsenceConversionService;
+    type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -703,6 +732,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService> {
         self.absence_conversion_service.clone()
     }
+    fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService> {
+        self.vacation_entitlement_offset_service.clone()
+    }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
     }
@@ -713,6 +745,8 @@ impl RestStateImpl {
         let permission_dao = Arc::new(PermissionDao::new(pool.clone()));
         let slot_dao = SlotDao::new(pool.clone());
         let carryover_dao = Arc::new(CarryoverDao::new(pool.clone()));
+        let vacation_entitlement_offset_dao =
+            Arc::new(VacationEntitlementOffsetDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
         let booking_log_dao = Arc::new(dao_impl_sqlite::booking_log::BookingLogDaoImpl);
@@ -865,6 +899,20 @@ impl RestStateImpl {
             carryover_dao,
             transaction_dao: transaction_dao.clone(),
         });
+        // Phase 28 (VAC-OFFSET-01, D-28-06): Basic-Offset-Service NACH
+        // carryover_service und VOR vacation_balance_service konstruiert —
+        // Business-Logic konsumiert Basic, kein Forward-Reference, kein Cycle.
+        let vacation_entitlement_offset_service = Arc::new(
+            service_impl::vacation_entitlement_offset::VacationEntitlementOffsetServiceImpl::<
+                VacationEntitlementOffsetServiceDependencies,
+            > {
+                vacation_entitlement_offset_dao,
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
         // Phase 8 (D-04, Pitfall 3): VacationBalanceServiceImpl ist BL-Tier
         // und MUSS NACH absence_service (Z. ~798), working_hours_service
         // (Z. ~788) und carryover_service (oben) konstruiert werden — sonst
@@ -878,6 +926,7 @@ impl RestStateImpl {
                 employee_work_details_service: working_hours_service.clone(),
                 carryover_service: carryover_service.clone(),
                 sales_person_service: sales_person_service.clone(),
+                vacation_entitlement_offset_service: vacation_entitlement_offset_service.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 transaction_dao: transaction_dao.clone(),
@@ -1094,6 +1143,7 @@ impl RestStateImpl {
             sales_person_shiftplan_service,
             feature_flag_service,
             absence_conversion_service,
+            vacation_entitlement_offset_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }

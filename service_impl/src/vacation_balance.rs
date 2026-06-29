@@ -46,6 +46,7 @@ use service::{
     permission::{Authentication, HR_PRIVILEGE},
     sales_person::SalesPersonService,
     vacation_balance::{VacationBalance, VacationBalanceService},
+    vacation_entitlement_offset::VacationEntitlementOffsetService,
     PermissionService, ServiceError,
 };
 use time::{Date, Month};
@@ -60,6 +61,7 @@ gen_service_impl! {
         EmployeeWorkDetailsService: EmployeeWorkDetailsService<Context = Self::Context, Transaction = Self::Transaction> = employee_work_details_service,
         CarryoverService: CarryoverService<Context = Self::Context, Transaction = Self::Transaction> = carryover_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
+        VacationEntitlementOffsetService: VacationEntitlementOffsetService<Context = Self::Context, Transaction = Self::Transaction> = vacation_entitlement_offset_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         ClockService: ClockService = clock_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
@@ -118,10 +120,15 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceService for VacationBalanc
                 tx.clone().into()
             ),
         );
+        // D-28-03: HR-Status VOR `hr.or(sp)?` einfangen (das `.or()`
+        // konsumiert `hr`). Steuert ausschließlich die *Exposure* des
+        // Offset-Breakdowns im Rückgabe-Aggregat — die effektive
+        // `entitled_days` ist für beide Rollen korrekt.
+        let is_hr = hr.is_ok();
         hr.or(sp)?;
 
         let balance = self
-            .compute_balance(sales_person_id, year, tx.clone())
+            .compute_balance(sales_person_id, year, is_hr, tx.clone())
             .await?;
 
         self.transaction_dao.commit(tx).await?;
@@ -148,7 +155,8 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceService for VacationBalanc
 
         let mut balances: Vec<VacationBalance> = Vec::with_capacity(sales_persons.len());
         for sp in sales_persons.iter() {
-            let balance = self.compute_balance(sp.id, year, tx.clone()).await?;
+            // HR-only-Pfad → Offset-Breakdown immer exponiert (is_hr = true).
+            let balance = self.compute_balance(sp.id, year, true, tx.clone()).await?;
             balances.push(balance);
         }
 
@@ -166,6 +174,7 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
         &self,
         sales_person_id: Uuid,
         year: u32,
+        is_hr: bool,
         tx: <Deps as VacationBalanceServiceDeps>::Transaction,
     ) -> Result<VacationBalance, ServiceError> {
         let today = self.clock_service.date_now();
@@ -183,12 +192,26 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
         // einen anteiligen (aliquoten) f32 mit Nachkommastelle — wir runden
         // die Summe, konsistent mit dem Reporting-Pfad
         // (`reporting.rs`: `.sum::<f32>().round()`).
-        let entitled_days: f32 = work_details
+        let computed_entitled_days: f32 = work_details
             .iter()
             .filter(|wd| wd.deleted.is_none())
             .map(|wd| wd.vacation_days_for_year(year))
             .sum::<f32>()
             .round();
+
+        // D-28-02: signierten Offset NACH `.round()` addieren (ganztägige
+        // Korrektur, NICHT in die f32-Summe). Der innere Read nutzt
+        // `Authentication::Full` ABSICHTLICH, damit `entitled_days` für BEIDE
+        // Rollen korrekt ist — die *Exposure* des Breakdowns wird separat über
+        // `is_hr` beim Bauen der Rückgabe-Struktur gegated (D-28-03). Der
+        // HR-Gate des Basic-Offset-Services governt WRITES (REST-CRUD), nicht
+        // diesen internen Read.
+        let offset = self
+            .vacation_entitlement_offset_service
+            .get(sales_person_id, year, Authentication::Full, Some(tx.clone()))
+            .await?;
+        let offset_days = offset.map(|o| o.offset_days).unwrap_or(0);
+        let entitled_effective = computed_entitled_days + offset_days as f32;
 
         // Stundenbasierte Used/Planned-Tage (konsistent mit ReportingService):
         // jeden Vacation-Tag des Jahres vertraglich zu effektiven Stunden
@@ -254,16 +277,25 @@ impl<Deps: VacationBalanceServiceDeps> VacationBalanceServiceImpl<Deps> {
             .unwrap_or(0);
 
         let remaining_days =
-            entitled_days + carryover_days as f32 - (used_days + planned_days);
+            entitled_effective + carryover_days as f32 - (used_days + planned_days);
 
         Ok(VacationBalance {
             sales_person_id,
             year,
-            entitled_days,
+            // D-28-03: `entitled_days` ist IMMER der effektive Wert
+            // (round(base) + offset) — für HR und self-only identisch.
+            entitled_days: entitled_effective,
             carryover_days,
             used_days,
             planned_days,
             remaining_days,
+            // HR-only Breakdown: nur für HR-Aufrufer exponiert (D-28-03).
+            offset_days: if is_hr { Some(offset_days) } else { None },
+            computed_entitled_days: if is_hr {
+                Some(computed_entitled_days)
+            } else {
+                None
+            },
         })
     }
 }

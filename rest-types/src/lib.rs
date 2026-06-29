@@ -2042,11 +2042,22 @@ impl From<&service::absence::AbsencePeriodCreateResult> for AbsencePeriodCreateR
 pub struct VacationBalanceTO {
     pub sales_person_id: Uuid,
     pub year: u32,
+    /// Effektiver Anspruch (`round(base) + offset`) — IMMER gesetzt, für HR
+    /// und self-only identisch (Phase 28, D-28-03).
     pub entitled_days: f32,
     pub carryover_days: i32,
     pub used_days: f32,
     pub planned_days: f32,
     pub remaining_days: f32,
+    /// HR-only Breakdown (Phase 28, D-28-03): angewendeter signierter Offset.
+    /// `Some(n)` nur für HR-Aufrufer, `None` für self-only (Server-seitiges
+    /// API-Hiding). `Option`, damit der WASM-/Frontend-Build round-trippt.
+    #[serde(default)]
+    pub offset_days: Option<i32>,
+    /// HR-only Breakdown (Phase 28, D-28-03): Vertragsanspruch VOR Offset
+    /// (`round(base)`). `Some(..)` nur für HR-Aufrufer, sonst `None`.
+    #[serde(default)]
+    pub computed_entitled_days: Option<f32>,
 }
 
 #[cfg(feature = "service-impl")]
@@ -2060,6 +2071,8 @@ impl From<&service::vacation_balance::VacationBalance> for VacationBalanceTO {
             used_days: v.used_days,
             planned_days: v.planned_days,
             remaining_days: v.remaining_days,
+            offset_days: v.offset_days,
+            computed_entitled_days: v.computed_entitled_days,
         }
     }
 }
@@ -2075,6 +2088,8 @@ impl From<&VacationBalanceTO> for service::vacation_balance::VacationBalance {
             used_days: v.used_days,
             planned_days: v.planned_days,
             remaining_days: v.remaining_days,
+            offset_days: v.offset_days,
+            computed_entitled_days: v.computed_entitled_days,
         }
     }
 }

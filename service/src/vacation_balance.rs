@@ -72,6 +72,16 @@ pub struct VacationBalance {
     /// `entitled_days + carryover_days − (used_days + planned_days)`.
     /// Wird vom Service berechnet, um Frontend-Drift zu vermeiden.
     pub remaining_days: f32,
+    /// HR-only Breakdown (D-28-03): der angewendete signierte Offset in
+    /// ganzen Tagen. Der *effektive* Wert (`round(base) + offset`) steckt
+    /// IMMER in [`entitled_days`]; dieses Feld ist `Some(n)` nur für
+    /// HR-Aufrufer und `None` für self-only-Aufrufer (Server-seitiges
+    /// API-Hiding, niemals nur im Frontend).
+    pub offset_days: Option<i32>,
+    /// HR-only Breakdown (D-28-03): der gerundete Vertragsanspruch VOR
+    /// Offset-Korrektur (`round(Σ vacation_days_for_year)`). `Some(..)` nur
+    /// für HR-Aufrufer, `None` für self-only — analog [`offset_days`].
+    pub computed_entitled_days: Option<f32>,
 }
 
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]

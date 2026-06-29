@@ -389,6 +389,12 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 28 (VAC-OFFSET-01, D-28-06b): Basic-Tier HR-gated Offset-Service,
+    // konsumiert vom `/vacation-entitlement-offset`-CRUD-Endpoint.
+    type VacationEntitlementOffsetService: service::vacation_entitlement_offset::VacationEntitlementOffsetService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -423,6 +429,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn feature_flag_service(&self) -> Arc<Self::FeatureFlagService>;
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
+    fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
