@@ -95,6 +95,8 @@ backend = "http://localhost:3000/absence-period"
 [[web.proxy]]
 backend = "http://localhost:3000/vacation-balance"
 [[web.proxy]]
+backend = "http://localhost:3000/vacation-entitlement-offset"
+[[web.proxy]]
 backend = "http://localhost:3000/feature-flag"
 [[web.proxy]]
 backend = "http://localhost:3000/admin/cutover"
