@@ -11,10 +11,30 @@
 - ✅ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (shipped 2026-06-27) — siehe [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
 - ✅ **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (shipped 2026-06-29) — siehe [`milestones/v1.7-ROADMAP.md`](milestones/v1.7-ROADMAP.md)
 - ✅ **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (shipped 2026-06-29) — siehe [`milestones/v1.8-ROADMAP.md`](milestones/v1.8-ROADMAP.md)
-
-Aktiv: **keiner** — nächster Milestone via `/gsd-new-milestone` (oder off-theme Backlog-Phase 999.1 direkt via `/gsd-plan-phase 999.1`).
+- ✅ **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** — Phasen 29–32 (shipped 2026-06-29) — siehe [`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md)
 
 ## Phases
+
+<details>
+<summary>✅ v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (Phasen 29–32) — SHIPPED 2026-06-29</summary>
+
+- [x] Phase 29: Urlaubs-Balken-Konsistenz (FE) (1/1 plan) — VAC-01
+- [x] Phase 30: Stale-Daten-Race Guard (FE) (1/1 plan) — SHP-02
+- [x] Phase 31: Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) (1/1 plan) — SHP-01
+- [x] Phase 32: Admin-Impersonation Frontend + Audit-Schicht (FE+BE) (3/3 plans) — IMP-01..04
+
+Drei Schichtplan-/Urlaubs-UX-Fixes + vollwertige Admin-Impersonation mit Audit der echten
+Admin-Identität. Urlaubsbalken `(used+planned)/total` (Überzug als Farb-Signal); geteilter
+`(year,week)`-Staleness-Guard über alle Summary-Loader; proaktive „Nicht Verfügbar"-Markierung
+eigener/ausgewählter Absence-Tage (kategorie-treu zur `BookingOnAbsenceDay`-Warnung, null Drift);
+Impersonation-FE (nicht-schließbarer Banner, reload-persistent, Users-Tab-Einstieg) + zentrale
+Audit-Middleware (`RealUser`) + Store-Teardown — ohne `Authentication<Context>`-Signatur-Change,
+ohne Snapshot-Bump, ohne Migration. Audit `passed` (7/7 Requirements, 4/4 Integration + E2E).
+
+Vollständige Phasen-Details, Decisions und Closeout:
+[`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md) · [`milestones/v1.9-REQUIREMENTS.md`](milestones/v1.9-REQUIREMENTS.md) · [`milestones/v1.9-MILESTONE-AUDIT.md`](milestones/v1.9-MILESTONE-AUDIT.md)
+
+</details>
 
 <details>
 <summary>✅ v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (Phasen 27–28) — SHIPPED 2026-06-29</summary>
@@ -117,6 +137,10 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 3/3 | Complete | 2026-06-28 |
 | 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 1/1 | Complete | 2026-06-29 |
 | 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 4/4 | Complete | 2026-06-29 |
+| 29 — Urlaubs-Balken-Konsistenz (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
+| 30 — Stale-Daten-Race Guard (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
+| 31 — Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
+| 32 — Admin-Impersonation Frontend + Audit-Schicht (FE+BE) | v1.9 | 3/3 | Complete    | 2026-06-29 |
 
 ## Backlog
 
@@ -142,6 +166,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   - jj-Repo: User committet manuell, keine git-Fallbacks.
 
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
-  **Plans:** noch nicht geplant — `/gsd-plan-phase 999.1`
+  **Plans:** 3/3 plans complete
 
-*Last updated: 2026-06-29 — **v1.7 + v1.8 Milestone-Close**: beide Milestones archiviert (Phasen 25–28 → collapsed `<details>` + `milestones/v1.7-*` / `milestones/v1.8-*`). Kein aktiver Milestone — nächster Schritt `/gsd-new-milestone`.*
+*Last updated: 2026-06-29 — **v1.9 Roadmap created**: Phasen 29–32 geplant (7/7 Requirements gemappt). Aktiver Milestone v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation.*

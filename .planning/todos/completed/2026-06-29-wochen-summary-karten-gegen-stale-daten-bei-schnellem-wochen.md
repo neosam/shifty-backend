@@ -2,6 +2,7 @@
 created: 2026-06-29T14:08:01.509Z
 title: Wochen-Summary-Karten gegen Stale-Daten bei schnellem Wochenwechsel absichern
 area: shiftplan
+resolves_phase: 30
 files:
   - shifty-dioxus/src/service/weekly_summary.rs:37-42
   - shifty-dioxus/src/service/weekly_summary.rs:45-49

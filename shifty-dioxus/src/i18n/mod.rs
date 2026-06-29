@@ -400,6 +400,16 @@ pub enum Key {
     DeleteUserConfirmTitle,
     DeleteUserConfirmBody,
 
+    // Impersonation (Phase 32 — D-32-08)
+    /// Person-list action label ("Act as this person" / "Als diese Person agieren").
+    ImpersonateActAs,
+    /// Banner body with `{user}` placeholder (e.g. "You are acting as {user}.").
+    ImpersonateBanner,
+    /// Stop button in the amber banner ("Stop impersonation" / "Impersonation beenden").
+    ImpersonateStop,
+    /// P10 known-limitation hint shown in the banner (D-32-02a).
+    ImpersonateP10Hint,
+
     // Working-hours mini overview (cards / table layout toggle)
     WorkingHoursLayoutCards,
     WorkingHoursLayoutTable,
@@ -1385,5 +1395,65 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ===== Phase 32 — Impersonation i18n Tests =====
+
+    #[test]
+    fn i18n_impersonation_keys_present_in_all_locales() {
+        // D-32-08: all four impersonation keys must be non-empty and non-"??" in
+        // every locale (en, de, cs).  Primary guard against Pitfall 2.
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::ImpersonateActAs,
+                Key::ImpersonateBanner,
+                Key::ImpersonateStop,
+                Key::ImpersonateP10Hint,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_impersonation_banner_carries_user_placeholder() {
+        // The ImpersonateBanner key MUST contain the `{user}` placeholder so
+        // the banner component can substitute the impersonated username.
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            let template = i18n.t(Key::ImpersonateBanner);
+            assert!(
+                template.contains("{user}"),
+                "ImpersonateBanner for {:?} must contain {{user}} placeholder, got: `{}`",
+                locale,
+                template
+            );
+        }
+    }
+
+    #[test]
+    fn i18n_impersonation_keys_match_german_reference() {
+        // Pitfall-2 guard: pins the De copy so a locale-swap bug fails fast.
+        let i18n = generate(Locale::De);
+        assert_eq!(
+            i18n.t(Key::ImpersonateActAs).as_ref(),
+            "Als diese Person agieren"
+        );
+        assert_eq!(
+            i18n.t(Key::ImpersonateBanner).as_ref(),
+            "Du agierst als {user}."
+        );
+        assert_eq!(
+            i18n.t(Key::ImpersonateStop).as_ref(),
+            "Impersonation beenden"
+        );
     }
 }

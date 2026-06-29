@@ -87,6 +87,13 @@ pub async fn start_impersonate<RestState: RestStateDef>(
                 .session_service()
                 .start_impersonate(session.id.clone(), Arc::from(target_user_id.as_str()))
                 .await?;
+            // D-32-01 (WR-01): audit AFTER the service call succeeds, so a failed
+            // start can never produce a false-positive audit entry (matches stop).
+            tracing::info!(
+                real_user = %session.user_id,
+                target_user = %target_user_id,
+                "impersonation started"
+            );
 
             let response = serde_json::to_string(&ImpersonateTO {
                 impersonating: true,
@@ -137,6 +144,13 @@ pub async fn stop_impersonate<RestState: RestStateDef>(
                 .session_service()
                 .stop_impersonate(session.id.clone())
                 .await?;
+            // D-32-01 (WR-02): audit stop with the impersonated target (still held in
+            // the local session copy fetched before the stop) for a self-contained trail.
+            tracing::info!(
+                real_user = %session.user_id,
+                target_user = ?session.impersonate_user_id,
+                "impersonation stopped"
+            );
 
             let response = serde_json::to_string(&ImpersonateTO {
                 impersonating: false,

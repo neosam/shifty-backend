@@ -1445,6 +1445,8 @@ mod absence_no_drift;
 #[cfg(test)]
 mod absence_period;
 #[cfg(test)]
+mod impersonation_audit;
+#[cfg(test)]
 mod absence_projection;
 #[cfg(test)]
 mod convert_to_absence;

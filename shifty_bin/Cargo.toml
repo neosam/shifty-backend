@@ -1,6 +1,6 @@
 [package]
 name = "shifty_bin"
-version = "2026.180.1-dev"
+version = "2026.180.1"
 edition = "2021"
 resolver = "2"
 
@@ -70,6 +70,9 @@ serde_json = "1.0"
 tower = { version = "0.5.2", features = ["util"] }
 http-body-util = "0.1"
 axum = "0.8.7"
+# Impersonation audit integration tests need CookieManagerLayer to inject the
+# app_session cookie into probe/impersonate routers — same version as rest/Cargo.toml.
+tower-cookies = "0.10.0"
 
 [dev-dependencies.rest-types]
 path = "../rest-types"

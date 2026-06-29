@@ -7,7 +7,7 @@ use rest_types::{
     CustomExtraHoursTO, DayFractionTO,
     DayOfWeekTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO, EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO, ExtraHoursMarkerTO,
-    ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, InvitationResponse,
+    ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, ImpersonateTO, InvitationResponse,
     RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
     SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
     VacationEntitlementOffsetTO, VacationPayloadTO, WarningTO, WeekMessageTO, WeeklySummaryTO,
@@ -1662,5 +1662,52 @@ pub async fn clear_toggle_value(config: Config, name: &str) -> Result<(), reqwes
     let client = reqwest::Client::new();
     client.delete(url).send().await?.error_for_status()?;
     Ok(())
+}
+
+// ─── Impersonation REST clients (Phase 32) ───────────────────────────────────
+
+/// GET `/admin/impersonate` — returns the current impersonation status for
+/// the authenticated admin (D-32-05).  A 403 from the server indicates the
+/// caller is not an admin; the service layer maps that to "not impersonating"
+/// rather than surfacing an error to non-admins.
+pub async fn get_impersonate_status(config: Config) -> Result<ImpersonateTO, reqwest::Error> {
+    info!("Fetching impersonation status");
+    let url = format!("{}/admin/impersonate", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched impersonation status");
+    Ok(res)
+}
+
+/// POST `/admin/impersonate/{user_id}` — start impersonating the given user.
+/// `user_id` is the auth username / identity and goes in the URL path (D-32-03:
+/// no body payload; `ImpersonateTO` is not changed).  Returns the new
+/// impersonation state from the server.
+pub async fn start_impersonate(
+    config: Config,
+    user_id: ImStr,
+) -> Result<ImpersonateTO, reqwest::Error> {
+    info!("Starting impersonation as {user_id}");
+    let url = format!("{}/admin/impersonate/{}", config.backend, user_id.as_str());
+    let client = reqwest::Client::new();
+    let response = client.post(url).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Started impersonation");
+    Ok(res)
+}
+
+/// DELETE `/admin/impersonate` — stop the current impersonation session.
+/// Returns the cleared impersonation state from the server (D-32-06 / IMP-04).
+pub async fn stop_impersonate(config: Config) -> Result<ImpersonateTO, reqwest::Error> {
+    info!("Stopping impersonation");
+    let url = format!("{}/admin/impersonate", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Stopped impersonation");
+    Ok(res)
 }
 

@@ -1,177 +1,183 @@
 # Project Research Summary
 
-**Project:** Shifty — v1.4 "Committed Voluntary Capacity"
-**Domain:** Brownfield field-add — time-versioned `committed_voluntary: f32` on `EmployeeWorkDetails`, threaded through DAO → Service → rest-types → reporting/year-view → Dioxus, with no-double-count reporting and a billing-snapshot bump (D-01 / Variante B)
-**Researched:** 2026-06-22
-**Confidence:** HIGH (every integration point, formula site, and pitfall was verified against actual repo files at `HEAD`)
+**Project:** Shifty v1.9 — Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
+**Domain:** Brownfield HR/shift-planning SaaS — four targeted feature additions to existing Axum + SQLite + Dioxus/WASM stack
+**Researched:** 2026-06-29
+**Confidence:** HIGH
 
 ## Executive Summary
 
-v1.4 adds a single forward-looking number — `committed_voluntary` — to the time-versioned `EmployeeWorkDetails` contract record, so the Jahresansicht (year view) can show *pledged* voluntary capacity alongside paid and actual-volunteer hours. The data-model half is mechanically trivial: there are **two near-identical precedents** (`cap_planned_hours_to_expected` from v1.3 and `is_dynamic` before it) for adding exactly this kind of field to exactly this entity. Copy them line-for-line — one additive `ALTER TABLE … ADD COLUMN committed_voluntary REAL NOT NULL DEFAULT 0` migration, the field on the DAO row/entity/service struct/DTO, both conversion directions at each boundary, `#[serde(default)]` for wire backward-compat, and `cargo sqlx prepare` to regenerate the offline query cache. No new dependency, no new DI wiring (`EmployeeWorkDetailsService` stays a Basic Service), no OpenAPI/utoipa work (this endpoint family deliberately has none today).
+Shifty v1.9 delivers four independent UX and admin improvements to a production Rust application. Three of the four features are pure frontend changes requiring no backend modifications: the vacation bar percentage formula fix (1-line change), the stale week-summary race guard (generation token in three sibling Dioxus stores), and the absence-to-discourage-marker join in the shiftplan grid. All data these features need is already loaded; no new HTTP endpoints are required for any of them. The recommended approach is to ship these three in order from lowest to highest risk before tackling Admin-Impersonation.
 
-The *hard* half is reporting integration, and the single most important finding across all four research files is that **the year view is NOT fed by `reporting.rs`.** The Jahresansicht (`weekly_overview`) is fed by `booking_information.rs::get_weekly_summary` → `WeeklySummaryTO`. There are **two independent, non-interchangeable "volunteer_hours" axes**: Axis A is the reactive cap-overflow computed in `reporting.rs` (consumed by the per-employee report and the billing snapshot), and Axis B is the sum of booked hours of `is_paid=false` persons computed in `booking_information.rs` (this IS the year view's volunteer number). The todo's formula wording (`available = expected + committed_voluntary`) reads as if it targets `reporting.rs`, but the year-view integration must land in `booking_information.rs::get_weekly_summary`. Conflating the two axes is the highest-risk mistake in the milestone. The no-double-count rule reduces to a clean closed form — `counted_volunteer = max(committed_voluntary, actual_volunteer)` **per ISO-week, summed over the year** (never `max(Σ, Σ)`) — and the strong recommendation is to add a **new, separate** `committed_voluntary_hours` term to `WeeklySummary` rather than folding it into the paid or volunteer terms, which both satisfies the "separate display" requirement (D-01 #4) and structurally prevents double-counting.
+The Admin-Impersonation feature is the most nuanced. The headline distinction that MUST be understood: the impersonation MECHANISM is already complete in the backend. `Session.impersonate_user_id`, `start_impersonate`/`stop_impersonate` service methods, three REST endpoints at `/admin/impersonate`, and the `context_extractor` middleware that substitutes the effective identity — all of this exists and works. Write operations transparently run as the impersonated user. What is NOT yet built is (a) the AUDIT layer (real admin identity is silently dropped; a second Axum `Extension<RealUser>` must be inserted in `context_extractor` when impersonation is active, so write sites can log `real_user + impersonating`), and (b) the entire frontend (banner, status polling on mount, start/stop UI, and explicit store tear-down on stop).
 
-Three risks are load-bearing and should drive phase design. (1) **Snapshot drift:** the change alters the input/computation of the persisted `BillingPeriodValueType::Volunteer`, so `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUST bump 7→8 **in the same commit** as the reporting change. (2) **Unpaid-volunteer record side effects:** giving a pure volunteer an `EmployeeWorkDetails` row (so they can hold a pledge) breaks the historical "has work-details ⇒ paid employee" assumption — `is_paid` lives on `SalesPerson`, not `EmployeeWorkDetails`, and several reporting/billing sites iterate work-details-holders without a paid filter. (3) **Scope-gate mismatch:** the intended gate is `cap_planned_hours_to_expected=true`, but the year-view volunteer axis actually keys on `is_paid=false` — these do not coincide for the motivating "5h paid + 5h pledged" person, so where exactly the pledge lands is a real open decision.
+The key risks are all in the impersonation feature: audit trail loss if the audit layer is deferred (cannot be retrofitted cheaply), silent impersonation after page reload if the frontend banner only sets state from the start-callback rather than fetching `GET /admin/impersonate` on mount, and stale frontend stores after stop-impersonation if each user-scoped store is not explicitly reloaded. All other three features carry low implementation risk — they are mechanical formula and signal-guard changes on code whose root causes have been confirmed by direct source inspection.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is **fixed** — this is a reuse map, not a tech selection. There is essentially nothing new to add; the job is to copy how `cap_planned_hours_to_expected` was threaded through every layer in v1.3. See `STACK.md` for the line-by-line reuse table.
+No new Cargo dependencies are needed for any of the four v1.9 features, backend or frontend. The stack is entirely fixed. All four features are implementable with crates already present: `axum 0.8.7`, `tracing 0.1.41`, `tower-cookies 0.10.0`, `serde_json 1.0.145`, `rest-types` (path dep), `dioxus 0.6.1`, and `reqwest 0.12.15`.
 
-**Core technologies (all existing, unchanged):**
-- SQLite via `sqlx` (compile-time-checked, committed `.sqlx/` offline cache) — additive `ADD COLUMN … REAL NOT NULL DEFAULT 0` migration; `cargo sqlx prepare` after editing any `query!`/`query_as!`. On NixOS use `nix develop` + `sqlx migrate run` (additive); **never** `sqlx database reset` (destructive, requires user confirmation).
-- `gen_service_impl!` DI macro — **no change**; the field is data, not a dependency; `EmployeeWorkDetailsService` stays a Basic Service.
-- Single shared `rest-types` crate — `EmployeeWorkDetailsTO` gets `#[serde(default)] committed_voluntary: f32` (no `ToSchema`, matching the surrounding struct); the consolidation means a missing mirror breaks the WASM compile (intended safety net).
-- Dioxus 0.6.3 (WASM, dx-CLI pinned to 0.6.x in `flake.nix`) — mirror the field into frontend state + both `TryFrom` directions; numeric input (the date-input test caveat does NOT apply).
+**Core technologies (unchanged):**
+- `Axum 0.8.7` — REST handlers and middleware; `Extension` type used for the new `RealUser` audit extension
+- `tracing 0.1.41` — structured audit events for impersonation write-path logging; already in `rest/Cargo.toml`
+- `Dioxus 0.6.1` — `GlobalSignal`, coroutines, RSX; `dx-CLI` pinned to 0.6.x in `flake.nix`
+- `rest-types` (path dep) — `ImpersonateTO`, `AbsencePeriodTO`, `VacationBalanceTO` all exist
+- `jj` — VCS; `commit_docs: false` in GSD config; all commits are manual
+
+**Critical version note:** `dx-CLI` must remain on 0.6.x (nixpkgs has rolled to 0.7.x which breaks the app). Pin is in `flake.nix`. Use `nix develop` (not `nix-shell`).
 
 ### Expected Features
 
-See `FEATURES.md`. The closed-form rule is `counted_volunteer = max(committed_voluntary, actual_volunteer)` per ISO-week (`committed=0` ⇒ identical to today, guaranteeing backward-compat).
+**Must have (table stakes) for v1.9:**
+- Vacation bar and remaining-days number measure the same quantity — `(used + planned) / total` — users trust neither when they disagree
+- Stale-week race guard: summary cards always show data for the currently-selected week; three stores must be fixed atomically (WEEKLY_SUMMARY_STORE, BOOKING_CONFLICTS_STORE, reload_unavailable_days)
+- Absence dates (all categories or an explicit whitelist) appear as discouraged cells in the shiftplan grid before booking, not only as a post-hoc warning
+- Impersonation banner: persistent, non-dismissible, amber/yellow, with a one-click stop button — present on every page reload (requires `GET /admin/impersonate` on app mount)
+- Real admin identity preserved in structured logs for all writes under impersonation
+- Frontend stores cleared and reloaded for the real user on stop-impersonation
 
-**Must have (table stakes):**
-- `committed_voluntary: f32` on `EmployeeWorkDetails`, time-versioned (shares the row's from/to window) — the foundation.
-- Pledge folded into year-view available capacity **per week** via `max(committed, actual)`, integrated in `booking_information.rs::get_weekly_summary` (Axis B), **not** `reporting.rs`.
-- Committed capacity shown **separately** from paid & volunteer (a third token, e.g. `zugesagt`), with i18n in all three locales (En/De/Cs).
-- Snapshot version bump 7→8 (the `Volunteer` value_type computation changes).
-- "alle"-filter + unpaid-volunteer record path (`is_paid=false`, `expected_hours=0`) with verified `get_week` side-effects.
+**Should have (competitive differentiators, defer if needed):**
+- Two-segment vacation bar (used solid + planned lighter) — more information per pixel; purely additive
+- Hover tooltip on discouraged shiftplan cell showing absence type and dates
+- Overdraft overflow visual (bar continues past 100% mark in warning color)
 
-**Should have (competitive / defer to v1.5):**
-- Surplus display (`5 + 2` when actual exceeds pledge) — `diff_color_and_sign` token reuse.
-- Pledge-unmet **inline banner** (not a blocking dialog, per project preference) when committed > actual.
-- Committed band in `WeeklyOverviewChart`.
-
-**Defer (v2+):**
-- Pledge approval workflow (out per PROJECT.md SC-01), min-paid-capacity / skill matching (SC-02), average-attendance evaluation.
-
-**Explicit anti-features:** do NOT reuse the `reporting.rs` cap-overflow path for the year-view number (double-counts against Axis B); do NOT give unpaid volunteers a paid-style record (`expected_hours>0` flips them into paid loops); do NOT add a `committed >= expected` invariant (Variante A was rejected); do NOT pro-rate the pledge by partial-week weight; do NOT couple the pledge to absence/vacation.
+**Defer to v2+:**
+- Impersonation session auto-timeout (server-side `impersonate_expires_at`)
+- Absence approval workflow (pending vs approved distinction)
+- Audit log UI (DB-persisted impersonation history visible to other admins)
+- Impersonating another admin (Pitfall 10 — document as known limitation for v1.9)
 
 ### Architecture Approach
 
-See `ARCHITECTURE.md`. The existing layered architecture is fixed; this is an integration/build-order exercise. The field rides the *same* time-versioned `EmployeeWorkDetails` row as `expected_hours` and `cap_planned_hours_to_expected`, so it inherits the from/to ISO-week window for free — only the *value* is decoupled, not the *time window* (a key subtlety, see Pitfall 4).
+All four features integrate into the existing layered architecture without redesigning it. The backend is REST → Service-trait → DAO-trait → SQLite; the frontend is Dioxus Pages → Components → Coroutine Services → GlobalSignals → loader/API. The impersonation mechanism splits at the `context_extractor` middleware: effective identity flows into `Extension<Context>` for all normal handlers; real identity must be added as a second `Extension<RealUser>` when impersonation is active. This is the ONLY backend change needed for v1.9.
 
-**Major components / touch boundaries:**
-1. **Data model** (`migrations/sqlite`, `dao`, `dao_impl_sqlite`, `service/src/employee_work_details.rs`, `rest-types`) — field + conversions at every boundary; `.sqlx` regen is the first compile gate. REST handlers and OpenAPI: **no change** (serde-transparent, no `#[utoipa::path]`/`ToSchema` here today — do not add a phantom OpenAPI task).
-2. **Reporting + snapshot** (`service_impl/src/reporting.rs` 3 parallel volunteer sites; `service_impl/src/billing_period_report.rs` version bump) — Business-Logic tier, no new DI dep; bump fused into the same commit.
-3. **Year-view** (`service_impl/src/booking_information.rs::get_weekly_summary` → `service::booking_information::WeeklySummary` → `WeeklySummaryTO` → frontend `state/weekly_overview.rs` + `page/weekly_overview.rs`) — the real display integration, via a **new separate** `committed_voluntary_hours` term.
-4. **Contract editor + "alle"-filter** (`shifty-dioxus/src/component/contract_modal.rs`, `state/employee_work_details.rs`, plus relaxing paid-only filters in `loader.rs`/`reporting.rs`/`booking_information.rs`) — the most design-open part.
+**Components involved:**
+1. `rest/src/session.rs` `context_extractor` — MODIFIED: insert `Extension<RealUser>` when `impersonate_user_id` is Some; no change to `Authentication<Context>` signatures
+2. `rest/src/impersonate.rs` — MODIFIED: add `tracing::info!` audit events at start/stop; no structural change
+3. `shifty-dioxus/src/service/weekly_summary.rs` and `booking_conflict.rs` — MODIFIED: add `(loaded_year, loaded_week)` guard fields; guard store writes after await
+4. `shifty-dioxus/src/page/shiftplan.rs` — MODIFIED: merge absence-derived weekdays into `discourage_weekdays`; add render guard for stale-week; guard `reload_unavailable_days` closure
+5. `shifty-dioxus/src/page/absences.rs` — MODIFIED: `PersonVacationCard` bar formula to `(used + planned) / total`
+6. `shifty-dioxus/src/service/impersonate.rs` (NEW) — `ImpersonateStore` + coroutine for start/stop/status
+7. `shifty-dioxus/src/component/impersonation_banner.rs` (NEW) — banner component; driven by `ImpersonateStore`
+8. `shifty-dioxus/src/app.rs` — MODIFIED: mount banner + init impersonation coroutine with startup `GET /admin/impersonate` call
 
 ### Critical Pitfalls
 
-Top items from `PITFALLS.md` (read P1, P2, P5 first — they are load-bearing):
+1. **Audit trail loss (P1 — CRITICAL)** — `Context = Option<Arc<str>>` has a single slot; when impersonation is active, the real admin identity is dropped in `context_extractor`. Solution for v1.9: add a `pub struct RealUser(pub Arc<str>)` newtype as a second Axum `Extension`, inserted in `context_extractor` when `impersonate_user_id.is_some()`. REST write-site handlers extract `Extension<RealUser>` and emit `tracing::info!(real_user = %..., impersonating = %..., "write-under-impersonation")`. Do NOT change `Authentication<Context>` signatures — that has a massive blast radius. This must be locked before any write path is wired up.
 
-1. **Double-counting committed vs already-counted volunteer hours** — implement replacement-not-addition: `counted = committed + max(0, actual − committed) = max(committed, actual)` per week. Pick **one** reconciliation site (`booking_information::get_weekly_summary`), enter the pledge as a separate max-clamped term, never `committed + actual`.
-2. **Forgetting the snapshot bump in the same commit** — the `Volunteer` value_type's input/computation changes, so bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` 7→8 with a `// - v8:` history note, atomically with the reporting change (or write an explicit no-bump justification proving no persisted value_type changed).
-3. **Unpaid-volunteer record leaks into paid-only queries** — `is_paid` is on `SalesPerson`, not `EmployeeWorkDetails`; enumerate and gate every work-details-iterating site (see at-risk list below). Gate on `sales_person.is_paid`, not on record presence; keep `expected_hours=0` AND explicitly exclude `!is_paid` from `paid_hours`/billing.
-4. **Time-version skew** — value is decoupled but the time window is *shared* with the contract row; changing the pledge mid-window requires rotating the row (same as the cap flag). Read the pledge via the **same** `find_working_hours_for_calendar_week` selection; define behaviour for two overlapping active rows in one week (sum vs max — open decision).
-5. **Scope-gate leakage** — gate every read of `committed_voluntary` behind the same `cap_active` predicate; when cap is off, the pledge contributes `0.0` to everything.
+2. **Admin gate checks impersonated user (P2 — HIGH)** — Any new admin-only endpoint that gates via the `context_extractor`-injected context will check the IMPERSONATED user's privileges and return 403 while an admin is impersonating a non-admin. Prevention: all admin-management endpoints must read the raw session cookie and construct `Authentication::Context(Some(session.user_id.clone()))` directly, as the three existing impersonate handlers already do.
 
-**At-risk work-details-iterating sites for the unpaid-volunteer record (enumerated):**
-- `reporting::get_week` (`reporting.rs:719`) — iterates `all_for_week` (NOT paid-filtered) → unpaid volunteer now gets a `ShortEmployeeReport` row. **The main surprise** (feeds the year view via `:133`).
-- `booking_information` `paid_hours` accumulation (`:176-178`, `:288-290`) — sums `dynamic_hours` over every `get_week` row → unpaid volunteer's `expected_hours` could leak into `paid_hours`.
-- `reporting::get_reports_for_all_employees` (`:139-142`) — `is_paid`-filtered → unpaid volunteer *excluded* here → person-set inconsistency vs the year summary.
-- `booking_information` day-level loop (`:341`) — `is_paid==true` only → per-day vs weekly-total disagreement.
-- `billing_period_report::build_new_billing_period` (`:315-332`) — iterates `get_all` (no paid filter) → could write a snapshot balance row for an unpaid person.
-- `vacation_balance` (`:146`) — uses `get_all_paid` → excluded (verify nothing reads work-details directly).
+3. **Frontend stores stale after stop-impersonation (P3 — HIGH)** — Dioxus global stores hold the impersonated user's data. When stop-impersonation succeeds, nothing broadcasts reload to user-scoped stores. Prevention: the `ImpersonationService` `StopImpersonation` handler must explicitly broadcast reload actions to every user-scoped store before returning.
+
+4. **Banner missing after page reload (P9 — HIGH)** — If `ImpersonateTO` signal defaults to `{ impersonating: false }` on app mount, a hard reload while impersonating shows no banner. Prevention: `GET /admin/impersonate` must be the FIRST call in the app init sequence, before any user-data loads.
+
+5. **Stale-week race in all three loaders (P4+P5 — MEDIUM)** — `load_summary_for_week`, `load_booking_conflict_week`, and `reload_unavailable_days` all perform unconditional writes after `await`. Fix all three in the same phase with the `(loaded_year, loaded_week)` guard pattern.
+
+---
 
 ## Implications for Roadmap
 
-Phases are ordered strictly by **compile dependency** (each compiles/tests green before the next; backend foundation precedes frontend that consumes it). This matches the build order in `ARCHITECTURE.md`.
+### Phase 1: Urlaubs-Balken-Konsistenz (Vacation Bar Formula Fix)
+**Rationale:** Smallest possible change, zero risk of regressions elsewhere, immediately visible correctness fix.
+**Delivers:** Vacation bar and remaining-days number measure the same quantity; overdraft visually signaled.
+**Addresses:** FEATURES Feature B; Pitfall P6
+**Implements:** Single expression change in `absences.rs:866`; `(used + planned) / total` formula; overdraft warning color via existing `remaining_days <= 3.0` threshold (fires for negative values naturally)
+**Avoids:** Silent overdraft clamped to 100%; bar-number contradiction that breaks HR trust
+**Research flag:** SKIP — confirmed formula bug, confirmed fix, zero design ambiguity
 
-### Phase A: Data-model foundation (backend)
-**Rationale:** The field must exist on `EmployeeWorkDetails` (service) before reporting can read it or the DTO can transport it. `.sqlx` regeneration is the first hard compile gate.
-**Delivers:** migration + `.sqlx` regen → DAO entity/row + 4 SELECT + INSERT + UPDATE + `TryFrom` → service struct + 2 conversions → `EmployeeWorkDetailsTO` + 2 `From` impls + `#[serde(default)]` → extend `employee_work_details_update` integration test (fractional roundtrip).
-**Addresses:** table-stakes field; backward-compat (`DEFAULT 0`).
-**Avoids:** P3 (forward-default migration), the silent-`0.0`/compile-error of a missed conversion site.
-**Note:** field is inert (read nowhere yet); no REST/OpenAPI change.
+### Phase 2: Stale-Daten-Race Guard (Week-Summary Generation Token)
+**Rationale:** Pure frontend, low risk, self-contained. Must be fixed before Phase 3 adds another async load path to shiftplan. Fix atomically across all three loaders.
+**Delivers:** Summary cards always show data for the currently-selected week; no mixed-state from rapid navigation.
+**Addresses:** FEATURES Feature C; Pitfall P4, P5
+**Implements:** Add `loaded_year: u32`, `loaded_week: u8` to `WeeklySummaryStore` and `BOOKING_CONFLICTS_STORE`; guard writes after await; render guard in shiftplan; guard `reload_unavailable_days` closure
+**Avoids:** Partial-fix antipattern (fixing only WEEKLY_SUMMARY_STORE, leaving sibling loaders racy)
+**Research flag:** SKIP — root cause confirmed from direct source; fix pattern is clear
 
-### Phase B: Reporting no-double-count + snapshot bump (SAME commit)
-**Rationale:** Needs Phase A's field; the bump and the formula switch are atomic by the snapshot-versioning contract.
-**Delivers:** `reporting.rs` — all 3 parallel volunteer sites changed identically, gated on `cap_planned_hours_to_expected`, exposing a separate `committed_voluntary_hours` on the report structs; `billing_period_report.rs` — `CURRENT_SNAPSHOT_SCHEMA_VERSION` 7→8 + `// - v8:` history entry; fixture + snapshot-validator tests.
-**Implements:** Business-Logic reporting tier (no new DI dep).
-**Avoids:** P1 (double-count), P2 (snapshot drift), P6 (scope-gate leakage), Anti-Pattern 2 (changing only one of the three sites).
+### Phase 3: Urlaub → Nicht-Verfügbar (Absence Discourage Marker)
+**Rationale:** Frontend-primary; adds a new async data load. Order after Phase 2 so shiftplan page is already race-guarded before adding more coroutine paths.
+**Delivers:** Absence dates appear as discouraged cells in the shiftplan grid proactively.
+**Addresses:** FEATURES Feature A; Pitfall P7, P11
+**Implements:** `reload_absence_days` closure; `person_absences` signal; `absence_periods_to_discourage_days` pure helper function; merge into `discourage_weekdays` at `shiftplan.rs:1120`
+**Avoids:** P7 (define explicit category whitelist `const`); P11 (gate absence fetch on `current_sales_person` being `Some`)
+**Key decision for discuss-phase:** Which `AbsenceCategory` variants produce a discourage marker? Recommendation: all three (Vacation + SickLeave + UnpaidLeave), matching existing `BookingOnAbsenceDay` behavior.
+**Research flag:** NEEDS DISCUSS — category whitelist must be a D-NN decision in CONTEXT before planning
 
-### Phase C: Jahresansicht display (year view)
-**Rationale:** Needs Phase B's `committed_voluntary_hours`; the read/display path is lower-risk and self-contained, so ship it before the design-open editing path.
-**Delivers:** `booking_information.rs::get_weekly_summary` adds the **separate** `committed_voluntary_hours` term into `overall_available_hours` (per-week `max`); `service::booking_information::WeeklySummary` + `WeeklySummaryTO` + `From`; frontend `state/weekly_overview.rs` + `page/weekly_overview.rs` renders a third token; i18n x3.
-**Addresses:** "pledge counts into available capacity" + "shown separately" (D-01 #3/#4).
-**Avoids:** P1 (integration in Axis B, not Axis A), the `From<&WeeklySummaryTO>` mapping-omission gotcha.
-
-### Phase D: Contract editor input + "alle"-filter / unpaid-volunteer path
-**Rationale:** Input editing needs the Phase A DTO field; the "alle" path carries the open paid-only-assumption design question — split out so its risk doesn't block C. **Most design-open phase.**
-**Delivers:** `contract_modal.rs` numeric input (next to the cap toggle) + `state/employee_work_details.rs` both `TryFrom`; "alle"-toggle relaxing paid-only filters in list/loader/reporting so unpaid volunteers get an EWD record and become selectable; i18n x3; side-effect tests.
-**Addresses:** todo req 5 (unpaid-volunteer visibility + record).
-**Avoids:** P5 (unpaid-volunteer leakage) — the enumerated at-risk sites must each be gated on `is_paid`.
+### Phase 4: Admin-Impersonation Frontend + Audit Layer
+**Rationale:** Largest surface; backend mechanism is already complete. Build last so simpler fixes ship independently.
+**Delivers:** Admin can start/stop impersonation; persistent banner on all pages; audit log entries in structured logs with real admin identity; stores tear down and reload on stop.
+**Addresses:** FEATURES Feature D; Pitfall P1, P2, P3, P8, P9, P10
+**Implements:**
+  - Backend: insert `Extension<RealUser>` in `context_extractor`; `tracing::info!` at start/stop in `impersonate.rs`
+  - Frontend: `service/impersonate.rs` (new), `component/impersonation_banner.rs` (new), `api.rs` (3 new calls), `app.rs` mount + startup status fetch, i18n strings in 3 locales
+**Avoids:** P1 via `RealUser` extension (NOT `Authentication<Context>` change); P9 via startup `GET /admin/impersonate`; P3 via explicit store tear-down on stop
+**Known limitation:** Admin is locked out of admin-only endpoints while impersonating a non-admin (P10) — document in banner text and DISCUSS; correct behavior, not a bug
+**Research flag:** NEEDS DISCUSS — audit design (RealUser extension vs Context struct) must be a D-NN decision before any write-path handler is coded
 
 ### Phase Ordering Rationale
-- **A before everything:** field must exist before it can be read/transported; `.sqlx` is the gating step.
-- **B fuses snapshot bump with the formula switch:** non-negotiable (same commit, or the stamp lies about the rules).
-- **C before D:** display (read path) is lower-risk and self-contained; editing + "alle"-filter carries the open design question. C ships the year view showing committed capacity (zero until D enables entry) without being blocked by D.
-- **Frontend trails its backend DTO in each phase:** the single `rest-types` crate breaks the WASM compile if a field is unmirrored — forcing sync within the phase.
-- **VCS:** jj-only commits; GSD auto-commit disabled; user commits each phase manually.
+- Phases 1-2 have zero network changes and zero inter-phase dependencies; clean baseline first.
+- Phase 3 introduces a new async load path; placing it after Phase 2 means the race guard is already in place.
+- Phase 4's backend work is trivially small but the design decision must precede any code; the frontend is the largest single-phase surface.
+- All four phases can be verified independently: `cargo clippy --workspace -D warnings` + `cargo test --workspace` + WASM build gate + manual smoke.
 
 ### Research Flags
-
-Phases likely needing deeper research / a dedicated design note during planning:
-- **Phase B (reporting/year-view math):** highest-risk phase — the two-axes reconciliation and the per-week-`max` no-double-count rule warrant a design note before planning. Resolve **D-FORMULA-PATH** and **D-SCOPE-GATE** first.
-- **Phase D (unpaid-volunteer record + "alle"-filter):** the at-risk-site enumeration (P5) and the paid-only-assumption relaxation are the deliverable; this is the most design-open area. Resolve **D-UNPAID-RECORD**.
+Phases needing recorded decisions in discuss-phase:
+- **Phase 3:** Absence category whitelist must be D-NN in CONTEXT before planning.
+- **Phase 4:** Audit design (RealUser extension approach) must be D-NN in CONTEXT before any write-path handler code. Admin-gate two-path contract must be documented in `rest/src/lib.rs` before new handlers are added.
 
 Phases with standard patterns (skip research-phase):
-- **Phase A (data-model):** two exact precedents (`cap_planned_hours_to_expected`, `is_dynamic`); copy line-for-line.
+- **Phase 1:** Single expression change; no design ambiguity.
+- **Phase 2:** Generation-guard pattern established; three store locations identified.
 
-## Open Decisions for Requirements/Roadmap
-
-These MUST be answered before/within requirements. Each is a real fork verified against the code, not a stylistic choice.
-
-| ID | Decision | Recommendation |
-|----|----------|----------------|
-| **D-FORMULA-PATH** | Does the year-view integration land in `booking_information.rs::get_weekly_summary` (Axis B) or `reporting.rs` (Axis A)? The todo's wording implies `reporting.rs` but that path never reaches the year view. | **Axis B / `booking_information.rs`.** Treat Axis A and Axis B as independent; do NOT merge. |
-| **D-SCOPE-GATE** | For a capped **paid** person (`is_paid=true`, `cap=true`, the "5h paid + 5h pledged" example), where does the pledge land — `paid_hours`, `volunteer_hours`, or a new term? The intended gate (`cap=true`) and the year-view volunteer gate (`is_paid=false`) do **not** coincide for this person. | **A new, separate `committed_voluntary_hours` term** on `WeeklySummary`, gated on `cap_planned_hours_to_expected=true`. Genuinely "separate" (req 4) and never double-counts against Axis B. Confirm display for non-capped persons: blank/dash, not `0`. |
-| **D-PARTIAL-WEEK** | Is the pledge flat-per-active-week or pro-rated by `weight_for_week` like `expected_hours`? | **Flat per active week** — pro-rating would silently shrink a "5h pledge" on first/last partial weeks. |
-| **D-UNPAID-RECORD** | What field values for a pure unpaid-volunteer's EWD record, and how are the at-risk paid-only sites gated? | **`is_paid=false` + `expected_hours=0`** (likely `cap=true` so the gate lets the pledge through); explicitly gate every enumerated site on `sales_person.is_paid` (not record presence); add the `get_week` side-effect integration test (#4/#5). |
-| **D-SNAPSHOT** | Bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` 7→8? | **Yes, bump 7→8, same commit as Phase B** — the persisted `BillingPeriodValueType::Volunteer` computation/input changes. (One file notes a conditional "verify it's persisted first" framing; the architecture + pitfalls reads confirm `Volunteer` IS persisted and IS affected → bump.) |
-| **D-ABSENCE-DISPLAY** | Does the pledge interact with absence/holiday/vacation? | **No** — flat capacity number, no cross-entity coupling. Any "hide on full-holiday week" is a display-only filter, kept out of the core formula. |
-| **D-OVERLAP-AGG** *(new, from P4)* | When two active `EmployeeWorkDetails` rows overlap one ISO-week and both carry `committed_voluntary`, which wins — sum, max, or first? The existing `.any(...)` cap pattern doesn't define this for a numeric value. | **Pin it explicitly with a test** (the cap flag only needs `.any()` because it's boolean; a numeric pledge needs a defined aggregation). Add to a CONTEXT decision. |
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Every mechanism verified against repo files at `HEAD`; two exact precedents for the field-add. |
-| Features | HIGH | Formula + side-effects verified directly against `reporting.rs` and `booking_information.rs`, line areas cited. |
-| Architecture | HIGH | All 14 integration files located and line-verified; build order derived from compile dependencies. |
-| Pitfalls | HIGH | Grounded in direct reads plus the v1.3 Phase-8.4 additive-merge and snapshot-versioning lessons in STATE.md/CLAUDE.md. |
+| Stack | HIGH | All integration points verified by direct file reads at HEAD `905980b`; no new dependencies needed |
+| Features | MEDIUM | Table stakes consistent across 4+ external sources; Shifty-specific integration paths verified by direct source read |
+| Architecture | HIGH | All component boundaries, file paths, and line numbers confirmed by direct source inspection |
+| Pitfalls | HIGH | All pitfalls derived from direct source inspection of affected call sites; root causes confirmed |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
+- **Absence category policy (Phase 3):** Which categories produce discourage markers — product decision, not technical. Must be confirmed in discuss-phase.
+- **Audit design choice (Phase 4):** `RealUser` extension approach vs full `Context` struct refactor. Recommend extension approach; must be ratified as D-NN in CONTEXT before code ships.
+- **Impersonation entry point UI (Phase 4):** Where in admin UI to place "Impersonate" action — UX decision for discuss-phase.
+- **Impersonation session lifetime:** `impersonate_expires_at` deferred to v2+; must be explicitly recorded as known limitation in Phase 4 DISCUSS.
 
-- **D-SCOPE-GATE landing (the "5h paid + 5h pledged" person):** the precise term and per-week math for capped-paid persons is the one genuinely-open formula decision — resolve in Phase B planning with a worked-example test fixture. *Highest-leverage gap.*
-- **D-OVERLAP-AGG:** overlapping active work-details rows in one week is undefined for a numeric pledge; decide sum/max/first and pin with a test (data-model + reporting phases).
-- **D-UNPAID-RECORD side-effects (#4/#5):** the benign-`get_week`-row behaviour for a zero-expected unpaid record is the highest-risk integration test; verify person-set consistency across year-summary / all-employees-report / billing.
-- **Pledge carried forward on contract-version rotation:** confirm the editor/update path doesn't reset `committed_voluntary` to default when rotating a row (struct-update spread should carry it — verify).
-- **D-SNAPSHOT framing reconciliation:** FEATURES.md states the bump conditionally ("verify `volunteer_hours` is persisted first"); ARCHITECTURE.md + PITFALLS.md confirm `BillingPeriodValueType::Volunteer` IS persisted and affected → bump 7→8. Resolved as "bump," but trace it explicitly in Phase B success criteria.
+---
 
 ## Sources
 
-### Primary (HIGH confidence — direct repo reads at `HEAD`, commit `5ade710`)
-- `service_impl/src/reporting.rs` — `apply_weekly_cap` (:94-107), 3 volunteer sites (:362-367/:781-788/:852-854), `get_week` record-keyed iteration (:719), `is_paid` filter (:139-142).
-- `service_impl/src/booking_information.rs` — `get_weekly_summary` Axis B (:95-218), volunteer sum (:141-153), `paid_hours` (:176-178), `overall_available_hours` (:197/:309), day-level paid filter (:341).
-- `service_impl/src/billing_period_report.rs:74` — `CURRENT_SNAPSHOT_SCHEMA_VERSION = 7`; `Volunteer` value_type (:240-250); `build_new_billing_period` (:315-332).
-- `service/`, `dao/`, `dao_impl_sqlite/src/employee_work_details.rs` — struct, conversions, DAO columns; `service/src/sales_person.rs:17` (`is_paid` on SalesPerson).
-- `rest-types/src/lib.rs` — `EmployeeWorkDetailsTO` (:596-705), `WeeklySummaryTO` (:900-944).
-- `shifty-dioxus/src/{state,page}/weekly_overview.rs`, `state/employee_work_details.rs`, `component/contract_modal.rs`, `loader.rs`, `api.rs`.
-- `migrations/sqlite/20260426120000_add-cap-flag-to-employee-work-details.sql` (migration template); `flake.nix:197-198` (sqlx-cli/sqlite).
-- `shifty-backend/CLAUDE.md` Layered Architecture / Service-Tier-Konventionen / Billing Period Snapshot Schema Versioning.
-- `.planning/STATE.md` (Phase-8.4 additive-merge no-double-count + snapshot-bump-same-commit + i18n guard lessons).
-- `.planning/PROJECT.md` v1.4 + `.planning/todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md` (D-01 / Variante B, reqs 1-5, worked examples).
+### Primary — HIGH confidence (direct codebase inspection, HEAD `905980b`)
+- `service/src/session.rs`, `service_impl/src/session.rs` — Session struct, impersonate service methods
+- `rest/src/impersonate.rs` — three REST handlers, admin gate using real `session.user_id`
+- `rest/src/session.rs` — `context_extractor`, `resolve_session_user_id`, `Context` type alias
+- `rest/src/lib.rs` — route wiring
+- `service_impl/src/permission.rs` — `check_permission` effective-context-only confirmed
+- `service_impl/src/booking_information.rs` — `period_overlaps_week` helper
+- `shifty-dioxus/src/service/weekly_summary.rs` — unconditional write-after-await at lines 37-42
+- `shifty-dioxus/src/service/booking_conflict.rs` — same pattern
+- `shifty-dioxus/src/page/shiftplan.rs:1120-1123` — `discourage_weekdays` source; `reload_unavailable_days` at lines 350-368
+- `shifty-dioxus/src/page/absences.rs:866-871` — bar math confirmed `used_days/total` only
+- `shifty-dioxus/src/state/vacation_balance.rs` — all balance fields confirmed present
+- `rest-types/src/lib.rs:1591` — `ImpersonateTO` confirmed
 
-### Secondary (HIGH confidence — user-confirmed conventions)
-- Project memory: `reference_local_dev_commands` (nix develop / migrate run vs destructive reset), `feedback_destructive_db_ops`, `project_frontend_dx_version_pin`, `feedback_service_tier_convention`, `feedback_warnings_inline_not_dialog`, `reference_dioxus_browser_test_date_inputs`.
-
-### Detailed research documents
-- `.planning/research/STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md` (all HIGH confidence, line-verified).
+### Secondary — MEDIUM confidence
+- [PropelAuth User Impersonation](https://docs.propelauth.com/overview/user-management/user-impersonation) — audit trail + privilege non-escalation conventions
+- [Small Improvements User Impersonation](https://intercomdocs.small-improvements.com/en/articles/9146194-user-impersonation) — banner UX
+- [Yaro Labs Safe Impersonation](https://yaro-labs.com/blog/user-impersonation-tool-saas) — session timeout, security invariants
+- [Deputy Leave Management](https://help.deputy.com/hc/en-au/articles/4658289483023-Manager-s-awareness-of-leave) — proactive grid marking
+- [When I Work Interpreting Availability](https://help.wheniwork.com/articles/interpreting-availability-on-the-schedule-computer/) — discourage cell conventions
+- [Dayforce Your Balances](https://help.dayforce.com/r/documents/Employee-Guide/Your-Balances) — bar consistency, overdraft display
+- OWASP CD-SEC-02 — privilege escalation prevention
 
 ---
-*Research completed: 2026-06-22*
+*Research completed: 2026-06-29*
 *Ready for roadmap: yes*

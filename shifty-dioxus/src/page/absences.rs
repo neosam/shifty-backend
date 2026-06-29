@@ -832,6 +832,28 @@ pub fn VacationPerPersonList(props: VacationPerPersonListProps) -> Element {
     }
 }
 
+/// Compute the vacation bar fill percentage and the low-remaining flag.
+///
+/// Returns `(fill_pct, low)`:
+/// - `fill_pct` — `(used_days + planned_days) / (entitled_days + carryover_days) * 100`,
+///   clamped to `0..=100` and truncated to `u32`. Zero when `total <= 0.01`.
+/// - `low` — `remaining_days <= 3.0` (drives both bar and number color, D-29-03).
+///
+/// Pure function — no Dioxus runtime, no Tailwind class strings (Pitfall 5: the
+/// caller keeps the static-class match so Tailwind's content scan sees the
+/// literal class names).
+fn compute_vacation_bar(b: &VacationBalance) -> (u32, bool) {
+    let total = b.entitled_days + (b.carryover_days as f32);
+    let fill_pct: u32 = if total > 0.01 {
+        ((b.used_days + b.planned_days) / total * 100.0)
+            .clamp(0.0, 100.0) as u32
+    } else {
+        0
+    };
+    let low = b.remaining_days <= 3.0;
+    (fill_pct, low)
+}
+
 #[derive(Props, Clone, PartialEq)]
 struct PersonVacationCardProps {
     balance: VacationBalance,
@@ -854,21 +876,16 @@ fn PersonVacationCard(props: PersonVacationCardProps) -> Element {
         Some(p) => ImStr::from(p.background_color.as_ref()),
         None => ImStr::from("#cccccc"),
     };
-    // Pitfall 5: `text-warn` low-indicator is a STATIC class — picked via
-    // a match on a small bucket, not interpolated.
-    let low = props.balance.remaining_days <= 3.0;
+    // Pitfall 5: `text-warn`/`text-good` and `bg-warn`/`bg-good` are STATIC
+    // class literals — chosen via a match on `low`, never interpolated, so
+    // Tailwind's content scan keeps them (D-29-03).
+    let (fill_pct, low) = compute_vacation_bar(&props.balance);
     let (remaining_class, bar_class) = if low {
         ("text-warn", "bg-warn")
     } else {
         ("text-good", "bg-good")
     };
-    let total = props.balance.entitled_days + (props.balance.carryover_days as f32);
-    let used_pct: u32 = if total > 0.01 {
-        ((props.balance.used_days / total) * 100.0).clamp(0.0, 100.0) as u32
-    } else {
-        0
-    };
-    let bar_style = format!("width:{}%", used_pct);
+    let bar_style = format!("width:{}%", fill_pct);
     // TODO 260614: Doppelklick auf die Karte setzt diese Person als Filter.
     let on_person_select = props.on_person_select;
     let sales_person_id = props.balance.sales_person_id;
@@ -4002,5 +4019,86 @@ mod tests {
             count >= 3,
             "production source must contain grid-cols-[200px_170px_140px_90px_70px] at least 3 times (header + HourlyMarkerRow + AbsenceListRow), got {count}"
         );
+    }
+
+    // ── compute_vacation_bar — pure function (VAC-01 / D-29-01..D-29-03) ──
+
+    /// Build a minimal `VacationBalance` from the five scalar inputs; HR-only
+    /// breakdown fields (`offset_days`, `computed_entitled_days`) are set to
+    /// `None` — the helper only reads the five core fields.
+    fn vacation_balance_fixture(
+        entitled_days: f32,
+        carryover_days: i32,
+        used_days: f32,
+        planned_days: f32,
+        remaining_days: f32,
+    ) -> VacationBalance {
+        VacationBalance {
+            sales_person_id: Uuid::from_u128(0),
+            year: 2026,
+            entitled_days,
+            carryover_days,
+            used_days,
+            planned_days,
+            remaining_days,
+            offset_days: None,
+            computed_entitled_days: None,
+        }
+    }
+
+    /// D-29-01 / D-29-02: overdraw fixture — used + planned > total
+    /// → fill clamped to 100% and low = true (negative remaining).
+    #[test]
+    fn compute_vacation_bar_overdraw_fills_and_sets_low() {
+        // entitled 18, carryover 0 → total 18; used 6, planned 13 → 19/18 → 100%.
+        let b = vacation_balance_fixture(18.0, 0, 6.0, 13.0, -1.0);
+        let (fill, low) = compute_vacation_bar(&b);
+        assert_eq!(fill, 100, "overdraw (19/18) must clamp fill to 100");
+        assert!(low, "remaining=-1 must set low=true (D-29-02)");
+    }
+
+    /// D-29-01 / D-29-03: good-path fixture — used 6, planned 0 → 33% and not-low.
+    #[test]
+    fn compute_vacation_bar_good_case_33_pct_not_low() {
+        // entitled 18, carryover 0 → total 18; used 6, planned 0 → 6/18*100 = 33.
+        let b = vacation_balance_fixture(18.0, 0, 6.0, 0.0, 12.0);
+        let (fill, low) = compute_vacation_bar(&b);
+        assert_eq!(fill, 33, "(6/18)*100 = 33.33 truncates to 33");
+        assert!(!low, "remaining=12 is above threshold, must not be low");
+    }
+
+    /// D-29-03: remaining exactly at the threshold (3.0 ≤ 3.0) → low = true.
+    #[test]
+    fn compute_vacation_bar_boundary_remaining_3_is_low() {
+        let b = vacation_balance_fixture(18.0, 0, 15.0, 0.0, 3.0);
+        let (_, low) = compute_vacation_bar(&b);
+        assert!(low, "remaining=3.0 is at threshold (<=3.0), must be low");
+    }
+
+    /// D-29-03: remaining < 0 is a strict subset of remaining ≤ 3.0 → low = true.
+    #[test]
+    fn compute_vacation_bar_negative_remaining_is_low() {
+        let b = vacation_balance_fixture(18.0, 0, 23.0, 0.0, -5.0);
+        let (_, low) = compute_vacation_bar(&b);
+        assert!(low, "remaining=-5 must be low (D-29-03: <0 ⊂ <=3)");
+    }
+
+    /// T-29-02: zero-total guard — no divide-by-zero; fill = 0.
+    #[test]
+    fn compute_vacation_bar_zero_total_guard() {
+        let b = vacation_balance_fixture(0.0, 0, 0.0, 0.0, 0.0);
+        let (fill, _) = compute_vacation_bar(&b);
+        assert_eq!(fill, 0, "zero-total guard: fill must be 0 (no divide-by-zero)");
+    }
+
+    /// D-29-01: explicit sub-100% case WITH planned > 0 — proves `planned_days`
+    /// is counted in the numerator without relying on the clamp. used 6 + planned 6
+    /// of total 18 → (12/18)*100 = 66; remaining 6 > 3 → not low.
+    #[test]
+    fn compute_vacation_bar_planned_counts_below_100() {
+        let b = vacation_balance_fixture(18.0, 0, 6.0, 6.0, 6.0);
+        let (fill, low) = compute_vacation_bar(&b);
+        assert_eq!(fill, 66, "(used 6 + planned 6)/18*100 = 66.66 truncates to 66");
+        assert!(!low, "remaining=6 is above the <=3 threshold");
     }
 }

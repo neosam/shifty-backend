@@ -1,196 +1,236 @@
-# Stack Research — v1.4 Committed Voluntary Capacity
+# Stack Research — v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
 
-**Domain:** Brownfield internal feature — add one time-versioned `f32` field (`committed_voluntary`) to `EmployeeWorkDetails`, threading it through DAO → Service → rest-types → reporting → Dioxus frontend.
-**Researched:** 2026-06-22
-**Confidence:** HIGH (every mechanism verified against actual repo files at the commit on `HEAD`)
+**Domain:** Brownfield additions to an existing Axum + SQLite + Dioxus/WASM app
+**Researched:** 2026-06-29
+**Confidence:** HIGH (derived from direct inspection of repo files at HEAD commit `905980b`)
 
-> This is a **reuse map**, not a tech selection. The stack is fixed. There is **almost nothing new to add** — the whole job is "copy how `cap_planned_hours_to_expected` was added in v1.3 and how `is_dynamic` was added before it." Two near-identical precedents exist for adding a column to this exact entity; follow them line-for-line.
-
----
-
-## TL;DR — Mechanisms This Feature MUST Reuse
-
-| Concern | Existing mechanism to copy | Reference precedent |
-|---------|---------------------------|---------------------|
-| Time-versioning | **from/to ISO-week date ranges** (`from_year/from_calendar_week/from_day_of_week` .. `to_*`), NOT logical_id rotation | already on `EmployeeWorkDetails` |
-| Column add | `ALTER TABLE … ADD COLUMN … INTEGER/REAL NOT NULL DEFAULT 0` migration | `20260426120000_add-cap-flag-to-employee-work-details.sql` |
-| sqlx compile-check | `cargo sqlx prepare` regenerates `.sqlx/` after editing `query!`/`query_as!` | 155 files in `.sqlx/` |
-| DI wiring | `gen_service_impl!` macro (no change needed — no new dep) | `service_impl/src/employee_work_details.rs:21` |
-| Row→Entity conversion | hand-written `TryFrom<&…Db>` with `as f32` / `!= 0` coercions | `dao_impl_sqlite/src/employee_work_details.rs:43` |
-| DTO derives | `Serialize, Deserialize` + `#[serde(default)]` for backward-compat | `rest-types/src/lib.rs:596` |
-| Snapshot versioning | bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` | `service_impl/src/billing_period_report.rs:74` (currently `7`) |
-| Frontend model | mirror DTO into `state::employee_work_details::EmployeeWorkDetails` + both `TryFrom` directions | `shifty-dioxus/src/state/employee_work_details.rs` |
+> This is a **reuse map**, not a tech selection. The stack is fixed. For all four
+> v1.9 features: **no new Cargo dependencies are needed** — backend or frontend.
+> The following sections document exactly which existing primitives cover each
+> feature and which integration points are already in place vs still to build.
 
 ---
 
-## 1. Time-Versioning Pattern (the answer to "how does this field get versioned?")
+## TL;DR — New Dependencies for v1.9
 
-**Verdict: date-range versioning via ISO-week tuples, NOT logical_id rotation.**
+**Backend (workspace root): zero new crates.**
+**Frontend (shifty-dioxus/): zero new crates.**
 
-`EmployeeWorkDetails` is **not** versioned by `logical_id` rotation (that pattern exists elsewhere — `extra_hours` got a `logical_id` in `20260428101456_add-logical-id-to-extra-hours.sql` — but `EmployeeWorkDetails` does **not** use it). Instead each row carries a validity window:
-
-```
-from_day_of_week / from_calendar_week / from_year   ← inclusive start (ISO week date)
-to_day_of_week   / to_calendar_week   / to_year     ← inclusive end   (ISO week date)
-```
-
-(`service/src/employee_work_details.rs:13-41`, mirrored in `dao/src/employee_work_details.rs:9-37`.)
-
-**How "versioning" actually happens** (`service_impl/src/employee_work_details.rs`):
-- `create` (l.182) inserts a brand-new row with a fresh `id` + `version` UUID and an open-ended `from`/`to` window.
-- `update` (l.217) only mutates the **trailing boundary + payload fields** (`to_*`, `expected_hours`, `vacation_days`, `workdays_per_week`, `is_dynamic`, `cap_planned_hours_to_expected`) and rotates the optimistic-lock `version` UUID. To "change a value from week X onward" the caller closes the old row's `to_*` and `create`s a successor — the frontend does this (`save_new_employee_work_details` + `update_employee_work_details` in `loader.rs:666/674`).
-- Lookup-by-week is a pure range query: `find_for_week` (DAO `dao_impl_sqlite/src/employee_work_details.rs:254`) does `(from_year*100+from_calendar_week) <= (?*100+?) AND (to_year*100+to_calendar_week) >= (?*100+?)`; service `find_for_week` (l.90) does the same comparison in Rust.
-
-**Consequence for `committed_voluntary`:** it is a plain payload field on the *same* row — it inherits the from/to window automatically. **D-01/Variante B is satisfied for free:** because the voluntary pledge lives in its own column on the same versioned row as `expected_hours`, it is independently editable but shares the time window. There is **no new versioning machinery to build.** The one decision the planner must make: **add `committed_voluntary` to the mutable set in the service `update` method** (`service_impl/src/employee_work_details.rs:241-248`) and to the DAO `UPDATE` statement (`dao_impl_sqlite/src/employee_work_details.rs:421-448`) — exactly parallel to how `cap_planned_hours_to_expected` appears in both lists.
-
-`has_day_of_week` / the weekday booleans are an **orthogonal** concern (which weekdays the person works) and are NOT part of versioning — do not touch them.
+All four features are implementable with the crates already in `rest/Cargo.toml`
+and `shifty-dioxus/Cargo.toml`.
 
 ---
 
-## 2. SQLite Migration + `.sqlx` Regeneration (NixOS workflow)
+## Feature-by-Feature Stack Analysis
 
-### The migration
-Add **one** additive migration `migrations/sqlite/<UTC-stamp>_add-committed-voluntary-to-employee-work-details.sql`. Copy the cap-flag precedent verbatim, changing type to `REAL` (f32 → SQLite `REAL`):
+### Feature 1 — Admin-Impersonation (READ + WRITE)
 
-```sql
-ALTER TABLE employee_work_details
-ADD COLUMN committed_voluntary REAL NOT NULL DEFAULT 0;
-```
+**Verdict: backend infrastructure is largely already implemented at HEAD.**
 
-(Precedent: `20260426120000_add-cap-flag-to-employee-work-details.sql` used `INTEGER NOT NULL DEFAULT 0` for a bool; `is_dynamic` did the same. For an `f32` use `REAL`. `NOT NULL DEFAULT 0` keeps all existing rows valid → no backfill, no down-migration needed; this project's migrations are forward-only.)
+Direct code inspection confirms these pieces are in place:
 
-Filename stamp: sortable `YYYYMMDDHHMMSS`; latest in tree is `20260611000002`. Pick a stamp after it.
+| Component | File | Status |
+|-----------|------|--------|
+| `Session.impersonate_user_id: Option<Arc<str>>` | `service/src/session.rs:15` | **EXISTS** |
+| `SessionService.start_impersonate()` / `stop_impersonate()` | `service/src/session.rs:50-55` | **EXISTS** |
+| `SessionServiceImpl` with DB-level `update_impersonate` | `service_impl/src/session.rs:56-72` | **EXISTS** |
+| REST handlers: `POST /{user_id}`, `DELETE /`, `GET /` | `rest/src/impersonate.rs` | **EXISTS** |
+| Route mounted at `/admin/impersonate` | `rest/src/lib.rs:635` | **EXISTS** |
+| `resolve_session_user_id()` propagates impersonated user as `Context` | `rest/src/session.rs:54-60` | **EXISTS** |
+| Admin check uses REAL `session.user_id`, not impersonated | `rest/src/impersonate.rs:67-73` | **EXISTS** |
+| `ImpersonateTO { impersonating, user_id }` DTO | `rest-types/src/lib.rs:1591` | **EXISTS** |
 
-### Local workflow on NixOS (verified)
-`flake.nix:197-198` puts **`sqlx-cli`** and **`sqlite`** in the dev shell. Per project memory (`reference_local_dev_commands`, `feedback_destructive_db_ops`):
+**What is NOT yet built for v1.9:**
 
-```bash
-nix develop                       # enter dev shell (NOT nix-shell — shell.nix is broken)
+1. **Audit identity propagation** — when impersonation is active, downstream handlers and
+   tracing events should carry `real_user` so the audit trail does not lose the admin's
+   identity. Implementation: in `context_extractor` (both mock and OIDC variants in
+   `rest/src/session.rs`), insert a second Axum `Extension` for the real user when
+   `impersonate_user_id` is Some:
+   ```rust
+   // new newtype to avoid clash with the existing Context (Option<Arc<str>>)
+   pub struct RealUser(pub Arc<str>);
+   // in context_extractor, when impersonation is active:
+   request.extensions_mut().insert(RealUser(session.user_id.clone()));
+   ```
+   REST handlers that need to log writes can then extract `Extension<RealUser>` and emit:
+   ```rust
+   tracing::info!(
+       real_user = %real_user.0,
+       impersonating = %impersonated_as,
+       "write-action-under-impersonation"
+   );
+   ```
+   `tracing 0.1.41` is already in `rest/Cargo.toml`. No new crate.
 
-# additive, NON-destructive — apply the new migration to localdb.sqlite3:
-sqlx migrate run --source migrations/sqlite
+2. **Frontend banner** — a Dioxus component that polls `GET /admin/impersonate` on mount
+   and renders a prominent banner when `impersonating: true`. The `ImpersonateTO` DTO is
+   already in `rest-types`. Use a `use_resource` or a new coroutine to fetch status on
+   load. The banner provides start/stop buttons that call `POST /admin/impersonate/{user_id}`
+   and `DELETE /admin/impersonate`. No new frontend crate.
 
-# regenerate the offline query cache after editing any query!/query_as!:
-cargo sqlx prepare --workspace
-#   (writes/updates .sqlx/query-*.json — 155 files today; commit the new/changed ones)
-```
+**Write actions under impersonation: already work.** `context_extractor` resolves the
+impersonated user as `Context = Option<Arc<str>>`. Every service call, including writes
+(booking, absence, etc.), receives that context and operates as the impersonated user.
+Nothing in the service layer needs to change.
 
-- **`DATABASE_URL=sqlite:./localdb.sqlite3`** (`env.example`) must be set (`.env`).
-- `sqlx migrate run` is **additive** — safe, only applies pending migrations.
-- **`sqlx database reset` is DESTRUCTIVE** (drops + recreates) — the dev DB is **not recoverable**; require explicit user confirmation before ever running it. For this feature `migrate run` is sufficient; `reset` is not needed.
-- `query_as!`/`query!` are **compile-time checked** against the DB schema. After editing the EWD `SELECT`/`INSERT`/`UPDATE` statements you MUST run the migration first (so the live schema has the column) then `cargo sqlx prepare`, otherwise `cargo build` fails with "column not found" or a stale-cache error.
+**Privilege non-escalation: already correct.** All permission checks in
+`service_impl/src/permission.rs` use `context` (which resolves to the impersonated user's
+ID) to look up privileges in the DB. The admin does not gain the impersonated user's
+privileges — the impersonated user's own privilege set is enforced.
+
+**Crates used (all already present):**
+- `axum 0.8.7` — `Extension`, middleware
+- `tracing 0.1.41` — structured audit events
+- `tower-cookies 0.10.0` — cookie extraction for session ID
+- `serde_json 1.0.145` — `ImpersonateTO` serialization
+- `rest-types` (path dep) — `ImpersonateTO` DTO
 
 ---
 
-## 3. DI Macro + DAO Trait/Impl + `TryFrom` Threading
+### Feature 2 — Stale-Daten-Race (week-switch coroutine guard)
 
-No DI change — the field is data, not a dependency.
+**Verdict: pure Dioxus GlobalSignal state pattern, zero new crates.**
 
-- **`gen_service_impl!`** (`service_impl/src/employee_work_details.rs:21`): the dependency set (`EmployeeWorkDetailsDao`, `SalesPersonService`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`) is **unchanged**. Do not add deps. `EmployeeWorkDetailsService` is a **Basic Service** per the service-tier convention — keep it basic (no new domain-service deps).
-- **DAO trait** (`dao/src/employee_work_details.rs`): add field to `EmployeeWorkDetailsEntity` struct (l.9-37). Trait method signatures are unchanged.
-- **DAO impl** (`dao_impl_sqlite/src/employee_work_details.rs`), four touch points — all parallel to `cap_planned_hours_to_expected`:
-  1. `EmployeeWorkDetailsDb` row struct: add `pub committed_voluntary: f64` (SQLite REAL → Rust `f64`; precedent: `expected_hours: f64` at l.17).
-  2. `TryFrom<&EmployeeWorkDetailsDb>` (l.43): `committed_voluntary: working_hours.committed_voluntary as f32` (mirror `expected_hours as f32` at l.50).
-  3. `SELECT` lists (4 queries: `all`, `find_by_id`, `find_by_sales_person_id`, `find_for_week`) — add the column name.
-  4. `INSERT` in `create` (l.339) — add column + `?` placeholder + bound local; and `UPDATE` in `update` (l.421) — add `committed_voluntary = ?` to the SET list (this is what makes the value editable on the active version).
-- **Service↔Entity `From`/`TryFrom`** (`service/src/employee_work_details.rs`): add the field to `From<&…Entity> for EmployeeWorkDetails` (l.42) and `TryFrom<&EmployeeWorkDetails> for …Entity` (l.192). Add to the service `update` mutable set (l.241-248).
+The race: `weekly_summary_service` in
+`shifty-dioxus/src/service/weekly_summary.rs` processes `LoadWeek(y, w)` messages
+sequentially (one at a time). After the HTTP fetch for week N completes, it writes to
+`WEEKLY_SUMMARY_STORE` unconditionally — even if the user has already moved to week N+1
+and that message is already queued. The store briefly shows stale data before the N+1
+fetch completes.
 
----
-
-## 4. rest-types DTO Derive Conventions
-
-`EmployeeWorkDetailsTO` (`rest-types/src/lib.rs:596`) derives **`Debug, Serialize, Deserialize`** (note: it does **NOT** derive `ToSchema` — this DTO predates strict OpenAPI coverage; do not add `ToSchema` just for this field, match the surrounding struct).
-
-**Backward-compat convention — confirmed in-struct:** newer/optional fields carry **`#[serde(default)]`** (`id` l.598, `cap_planned_hours_to_expected` l.610, `created`/`deleted` l.627/629, `version` with `#[serde(rename="$version")]` l.631). For `committed_voluntary`, add:
+Fix — generation token guard using existing `GlobalSignal`:
 
 ```rust
-#[serde(default)]
-pub committed_voluntary: f32,
+pub struct WeeklySummaryStore {
+    pub weekly_summary: Rc<[WeeklySummary]>,
+    pub data_loaded: bool,
+    pub last_requested: Option<(u32, u8)>,  // NEW: (year, week) guard
+}
+
+async fn load_summary_for_week(year: u32, week: u8) -> Result<(), ShiftyError> {
+    // Record what was requested BEFORE the async fetch
+    (*WEEKLY_SUMMARY_STORE.write()).last_requested = Some((year, week));
+    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = false;
+
+    let weekly_summary = loader::load_summary_for_week(..., year, week).await?;
+
+    // Discard stale result if a newer request came in while we were fetching
+    if WEEKLY_SUMMARY_STORE.read().last_requested != Some((year, week)) {
+        return Ok(());
+    }
+    (*WEEKLY_SUMMARY_STORE.write()).weekly_summary = Rc::new([weekly_summary]);
+    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = true;
+    Ok(())
+}
 ```
 
-`#[serde(default)]` → `0.0` for any persisted/old payload missing the field, so old clients and old stored JSON deserialize cleanly. Then thread the field through **both** conversion impls in this file: `From<&service::…EmployeeWorkDetails> for EmployeeWorkDetailsTO` (l.636) and `From<&EmployeeWorkDetailsTO> for service::…EmployeeWorkDetails` (l.674).
+The `LoadYear` path needs the same guard with `last_requested: None` or a separate
+`last_requested_year: Option<u32>` sentinel.
 
-**Reporting DTOs (only if the year-view surfaces a separate number):** `WeeklySummaryTO` (`rest-types/src/lib.rs:900`) derives `Clone, Debug, Serialize, Deserialize`. D-01 requirement #4 ("committed-Kapazität SEPARAT ausweisen") implies adding a new field here (e.g. `committed_voluntary_hours: f32`) plus its source field on `service::booking_information::WeeklySummary` and the `From` impl at l.918. Use `#[serde(default)]` here too for forward/back compat. The computation lives in `service_impl/src/booking_information.rs:95` (`get_weekly_summary`) where `overall_available_hours = volunteer_hours + paid_hours` (l.197) — this is the formula the requirement modifies.
-
----
-
-## 5. Reporting Formula + Snapshot Version (the load-bearing logic change)
-
-The "no double-counting" rule lands in two places — verified:
-- **Per-employee yearly report** `service_impl/src/reporting.rs`: `apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours)` (defined ~l.96, called l.266 and l.852) returns `(capped_shiftplan_hours, auto_volunteer_hours)`. `volunteer_hours = manual_volunteer_hours + auto_volunteer_hours` (l.367, l.854). The D-01 formula `Überschuss = max(0, actual_volunteer − committed_voluntary)` and `verfügbar = expected + committed_voluntary` gets woven in around these sites. **Gate: only for `cap_planned_hours_to_expected = true`** (`.any(|wh| wh.cap_planned_hours_to_expected)` at l.265/l.814 is the existing flag check to reuse).
-- **Weekly year-overview** `service_impl/src/booking_information.rs:get_weekly_summary` (l.95): `volunteer_hours` (l.141) and `overall_available_hours` (l.197) are where the committed capacity must be added as a separately-reported value.
-
-**Snapshot bump is MANDATORY.** Per CLAUDE.md "Billing Period Snapshot Schema Versioning": because the input set and computation of the volunteer/capacity value changes, bump **`CURRENT_SNAPSHOT_SCHEMA_VERSION`** in `service_impl/src/billing_period_report.rs:74` from `7` → `8`. (It is read at write time on l.338.)
+**Crates used (all already present):**
+- `dioxus 0.6.1` — `GlobalSignal`, coroutine `UnboundedReceiver`
+- No new crates.
 
 ---
 
-## 6. Frontend (Dioxus) Touchpoints — no new deps
+### Feature 3 — Urlaub → Nicht-Verfügbar (absence days as "discouraged" in shiftplan)
 
-`shifty-dioxus/` consumes only the shared `rest-types` crate + reqwest; **no new frontend dependency.** Component-Service-State pattern (per frontend CLAUDE.md). Touch points for `committed_voluntary` on the work-details record:
+**Verdict: pure frontend rendering change, zero new crates.**
 
-| File | Change |
-|------|--------|
-| `shifty-dioxus/src/state/employee_work_details.rs` | add `committed_voluntary: f32` to `EmployeeWorkDetails` (l.43), to `blank_standard` (l.72), and to **both** `TryFrom<&EmployeeWorkDetailsTO>` (l.145) and `TryFrom<&EmployeeWorkDetails> for EmployeeWorkDetailsTO` (l.185) |
-| `shifty-dioxus/src/component/employee_work_details_form.rs` | add an input field (HR edit mask) — note datepicker caveat does NOT apply (this is a numeric input, not `<input type=date>`) |
-| `shifty-dioxus/src/service/employee_work_details.rs` | passes the model through; usually no logic change |
+The data is already loaded. `absence_service` coroutine is registered in `app.rs:27`
+and exposes absence periods in a global store. The shiftplan grid renders cells per
+(employee, day). The fix is to cross-reference the employee's own absence periods
+against the rendered cell date and apply a "discouraged" CSS class / visual indicator
+when the date falls within a `Vacation` (and potentially other) absence category range.
 
-For the **year-overview (`weekly_overview`)** separate display (D-01 #4):
+No new HTTP calls, no new backend endpoints, no new crates. This is a rendering-logic
+change in the shiftplan week view component and/or the cell rendering helper.
 
-| File | Change |
-|------|--------|
-| `shifty-dioxus/src/state/weekly_overview.rs` (`WeeklySummary`, l.11) | add a `committed_voluntary_hours` field + map it in `From<&WeeklySummaryTO>` (l.29) |
-| `shifty-dioxus/src/page/weekly_overview.rs` | render it as a SEPARATE column/figure (not folded into `paid`/`volunteer`) |
-| `shifty-dioxus/src/api.rs` (`get_weekly_overview` l.915) / `loader.rs` (l.615/628) | no change beyond the auto-updated DTO |
-
-**i18n:** any new label MUST be added to all three locales (En, De, Cs) in `shifty-dioxus/src/i18n/`.
-
-**WASM build gate:** after changes, `cargo build --target wasm32-unknown-unknown` from `shifty-dioxus/` must stay green (the single-`rest-types` consolidation means a backend DTO change breaks the frontend compile if not mirrored — that's the intended safety net).
+**Crates used (all already present):**
+- `dioxus 0.6.1` — signal reads, RSX rendering
+- `rest-types` — `AbsencePeriodTO`, `AbsenceCategoryTO`
 
 ---
 
-## What NOT to Add / Do (explicit do-not list)
+### Feature 4 — Urlaubs-Balken-Konsistenz (vacation bar vs remaining-days number)
 
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| Any new Cargo dependency (backend or frontend) | `f32` field needs nothing new; sqlx/serde/utoipa/reqwest already present | Reuse existing crates |
-| A `logical_id` column on `employee_work_details` | This entity versions by from/to date range, not logical-id rotation | Put `committed_voluntary` on the existing versioned row |
-| A new table / join table for the pledge | Decoupled-but-co-versioned per D-01 means same row | Single `ADD COLUMN` |
-| An invariant `committed >= expected` or a derived/subtractive read | Explicitly the rejected Variante A | Variante B: independent additive column |
-| `sqlx database reset` | Destructive, dev DB unrecoverable; not needed for an additive migration | `sqlx migrate run` (additive) |
-| Adding the field to the weekday booleans / `has_day_of_week` logic | Those model which days are worked, unrelated to capacity | Leave weekday logic untouched |
-| Adding `ToSchema` to `EmployeeWorkDetailsTO` | Surrounding struct deliberately lacks it; not in scope | Match existing derive set (`Serialize, Deserialize`) |
-| New DI deps on `EmployeeWorkDetailsService` | It's a Basic Service; adding domain-service deps breaks the tier convention | Keep dependency set unchanged |
-| Forgetting the snapshot bump | Drift would be indistinguishable from a data bug | Bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` 7→8 |
-| A down/rollback migration | Project migrations are forward-only; `NOT NULL DEFAULT 0` makes old rows valid | Forward-only `ADD COLUMN … DEFAULT 0` |
+**Verdict: pure frontend calculation fix, zero new crates.**
+
+The vacation balance data is already fetched by the existing `vacation_balance_service`
+coroutine. The fix is in the progress-bar computation on the absences page: ensure the
+bar reflects `used + planned` (with overage visually distinguishable) consistent with the
+displayed remaining-days number.
+
+No new HTTP calls, no backend changes, no new crates.
+
+**Crates used (all already present):**
+- `dioxus 0.6.1` — signal reads, RSX rendering
+- `rest-types` — `VacationBalanceTO`
 
 ---
 
 ## Existing Stack (unchanged — for context)
 
-| Layer | Technology | Notes |
-|-------|-----------|-------|
-| Backend web | Axum + utoipa | EWD routes in `rest/src/employee_work_details.rs` (POST/PUT/DELETE/GET) — unchanged shape |
-| Persistence | SQLite via `sqlx` (compile-time checked, offline `.sqlx/` cache) | `query!`/`query_as!` macros |
-| DI | `gen_service_impl!` macro | per-service dependency declaration |
-| Shared DTOs | single `rest-types` crate (consolidated v1.2) | consumed by backend + frontend |
-| Frontend | Dioxus 0.6.3 (WASM), Tailwind, reqwest | dx-CLI pinned to 0.6.x in `flake.nix` — do NOT use 0.7.x |
-| Dev shell | `nix develop` → provides `sqlx-cli`, `sqlite` | `shell.nix` is broken; use the flake |
-| VCS | jj (co-located git) | commit via jj, never `git commit` |
+| Layer | Technology | Version | Notes |
+|-------|-----------|---------|-------|
+| Backend web | Axum | 0.8.7 | REST handlers, middleware, extensions |
+| Session/cookie | tower-cookies | 0.10.0 | `app_session` cookie extraction |
+| Structured logging / audit | tracing | 0.1.41 | already used in `rest/src/lib.rs`, `rest/src/session.rs` |
+| Serialization | serde + serde_json | 1.0.228 / 1.0.145 | all DTOs |
+| Shared DTOs | rest-types (path dep) | — | includes `ImpersonateTO`, `AbsencePeriodTO`, `VacationBalanceTO` |
+| Auth / RBAC | `Authentication<Context>` + `PermissionService` | — | `service/src/permission.rs`; impl in `service_impl/` |
+| Session store | `SessionService` + `dao::session::SessionDao` | — | `service/src/session.rs`; SQLite-backed; already has `impersonate_user_id` column |
+| Frontend framework | Dioxus | 0.6.1 | `GlobalSignal`, coroutines, RSX; dx-CLI pinned to 0.6.x in flake.nix |
+| Frontend HTTP | reqwest | 0.12.15 | `features = ["json"]` |
+| Dev shell | nix develop (flake) | — | provides sqlx-cli, sqlite; `shell.nix` is broken — use `nix develop` |
+| VCS | jj (co-located git) | — | commit via jj, never `git commit` |
+
+---
+
+## What NOT to Add (explicit do-not list)
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Any new Cargo dependency | All four features are covered by existing crates | Reuse existing stack |
+| A dedicated `audit_log` service/table | The requirement is "audit keeps real admin identity" — `tracing` structured events on the REST layer satisfy this without a new DB table | Add `RealUser` Extension + `tracing::info!` at write sites |
+| Storing `real_user` inside `Context` / changing `Authentication<Context>` | Changing the service-layer `Context` type from `Option<Arc<str>>` propagates to all service impls and mocks — massive blast radius for a REST-layer concern | Keep `Context` as `Option<Arc<str>>`; add a separate `RealUser` Axum Extension for REST-layer audit |
+| Changing `PermissionService` to accept a dual-identity auth type | Overkill; non-escalation is already enforced by resolving impersonated user as `Context` | No change to permission service |
+| `sqlx database reset` | Destructive; no new migration needed for v1.9 features | Not applicable — no schema changes in v1.9 |
+| Snapshot version bump | None of the four features touch persisted `BillingPeriodValueType` computations | Do not bump — confirmed in PROJECT.md |
+
+---
+
+## Integration Points Summary
+
+| Feature | Backend change | Frontend change |
+|---------|---------------|-----------------|
+| Admin-Impersonation READ+WRITE | `context_extractor`: insert `RealUser` Extension when impersonating; add `tracing::info!` audit events at write sites | New impersonation-banner component; poll `GET /admin/impersonate`; start/stop buttons |
+| Stale-Daten-Race | None | Add `last_requested: Option<(u32, u8)>` to `WeeklySummaryStore`; guard writes in `load_summary_for_week` |
+| Urlaub → Nicht-Verfügbar | None (data already in shiftplan view) | Rendering change in shiftplan cell component: cross-reference absence periods |
+| Urlaubs-Balken-Konsistenz | None | Fix progress-bar math on absences page |
 
 ---
 
 ## Sources
 
-- Repo files at `HEAD` (commit `5ade710`), read directly — HIGH confidence:
-  - `service/src/employee_work_details.rs`, `dao/src/employee_work_details.rs`, `dao_impl_sqlite/src/employee_work_details.rs`, `service_impl/src/employee_work_details.rs`
-  - `rest-types/src/lib.rs` (l.596-705, l.900-944)
-  - `service_impl/src/reporting.rs`, `service_impl/src/booking_information.rs`, `service_impl/src/billing_period_report.rs:74`
-  - `migrations/sqlite/20260426120000_add-cap-flag-to-employee-work-details.sql`, `…20251029192107_add-column-is-dynamic-…sql`
-  - `shifty-dioxus/src/state/{employee_work_details,weekly_overview}.rs`, `shifty-dioxus/src/{api,loader}.rs`
-  - `flake.nix:197-198` (sqlx-cli, sqlite), `env.example` (DATABASE_URL)
-- Project memory: `reference_local_dev_commands` (nix develop / migrate run vs reset), `feedback_destructive_db_ops`, `project_frontend_dx_version_pin`, `feedback_service_tier_convention` — HIGH confidence (user-confirmed conventions)
-- `.planning/PROJECT.md` v1.4 section + `todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md` (D-01 Variante B) — requirements source
+- Repo files at HEAD (`905980b`), read directly — HIGH confidence:
+  - `service/src/session.rs` (Session struct, SessionService trait)
+  - `service/src/permission.rs` (Authentication<Context>, PermissionService)
+  - `service_impl/src/session.rs` (SessionServiceImpl, start/stop_impersonate)
+  - `service_impl/src/permission.rs` (check_permission, check_user)
+  - `rest/src/impersonate.rs` (REST endpoints, admin gate logic)
+  - `rest/src/session.rs` (context_extractor, resolve_session_user_id, Context type)
+  - `rest/src/lib.rs` (RestStateDef, route wiring, error_handler)
+  - `rest/Cargo.toml` (axum 0.8.7, tracing 0.1.41, tower-cookies 0.10.0)
+  - `rest-types/src/lib.rs:1591` (ImpersonateTO)
+  - `shifty-dioxus/src/service/weekly_summary.rs` (WeeklySummaryStore, coroutine pattern)
+  - `shifty-dioxus/src/app.rs` (coroutine registrations)
+  - `shifty-dioxus/Cargo.toml` (dioxus 0.6.1, reqwest 0.12.15)
+  - `.planning/PROJECT.md` (v1.9 feature scope, snapshot-version note)
+- Project memory: `reference_local_dev_commands`, `project_frontend_dx_version_pin`,
+  `feedback_service_tier_convention` — HIGH confidence (user-confirmed conventions)
 
 ---
-*Stack research for: v1.4 Committed Voluntary Capacity (brownfield field-add)*
-*Researched: 2026-06-22*
+*Stack research for: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation*
+*Researched: 2026-06-29*

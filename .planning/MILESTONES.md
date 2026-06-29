@@ -247,3 +247,46 @@ Version-Bump 11 → 12 (`BillingPeriodValueType::VacationEntitlement`).
 - **Carry-over Deferred Items aus v1.4–v1.6** (carryover-absence-vs-report awaiting_human_verify, Phase-24-Human-UAT #1, historischer Quick-Task-/Todo-Ballast, Nyquist-Lücken) — weiterhin deferred, siehe STATE.md → Deferred Items.
 
 ---
+
+## v1.9 — Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
+
+**Shipped:** 2026-06-29 (autonomer Run; alle 4 Phasen VERIFIED, 2 optionale Browser-Smokes deferred)
+**Phases:** 29–32 (4 phases, 6 plans)
+**Closeout:** override_closeout (Milestone-Audit `passed`; Carry-over Deferred Items acknowledged)
+**Audit:** ✅ passed (7/7 Requirements, 4/4 Integration, 4/4 E2E-Flows)
+**Archive:** [`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md) · [`milestones/v1.9-REQUIREMENTS.md`](milestones/v1.9-REQUIREMENTS.md) · [`milestones/v1.9-MILESTONE-AUDIT.md`](milestones/v1.9-MILESTONE-AUDIT.md)
+
+**Delivered:**
+Drei betrieblich aufgefallene Schichtplan-/Urlaubs-UX-Lücken geschlossen und eine
+vollwertige (lesend **und** schreibend) Admin-Impersonation mit Audit der echten
+Admin-Identität ergänzt — alles frontend-zentriert, keine neuen Dependencies, kein
+Snapshot-Bump, keine Migration. Der Pro-Person-Urlaubsbalken misst jetzt dieselbe Größe
+wie die Resturlaub-Zahl (`(used+planned)/total`, Überzug per Farb-Signal). Die
+Wochen-Summary-Karten zeigen beim schnellen Wochenwechsel nur noch die aktuelle Woche
+(geteilter `(year,week)`-Staleness-Guard über alle Loader). Eigene/ausgewählte
+Abwesenheits-Tage erscheinen proaktiv als „Nicht Verfügbar" im Schichtplan-Grid
+(Kategorie-Set identisch zur Buchungs-Warnung, kein Drift). Admins können aus der
+Users-Liste heraus impersonieren — persistenter, nicht-schließbarer Banner auf jeder
+Seite (überlebt Reload), zentrale Audit-Middleware loggt jede schreibende Aktion mit
+echter Admin-Identität, sauberer Store-Teardown beim Beenden, Admin-Gate gegen die rohe
+Session-Identität (kein Privilege-Leak).
+
+**Key accomplishments:**
+
+1. **Phase 29 (VAC-01)** — Pure Helfer `compute_vacation_bar((used+planned)/total, clamp, low-flag)` aus dem Dioxus-Render extrahiert + verdrahtet in `PersonVacationCard`; Überzug per voller amber Balken + negativer Zahl (Farb-Signal, D-29-02); 6 Unit-Tests; Static-class-Pitfall-5 bewahrt.
+2. **Phase 30 (SHP-02)** — Geteilter `(year,week)`-Guard: neues `week_guard.rs` (`SELECTED_WEEK` GlobalSignal + pure `is_current_selection`), synchron-vor-Dispatch gesetzt, Drop-on-Mismatch in **allen vier** Summary-Loadern (Code-Review fand den 4., `working_hours_mini`) + Render-Guard; 4 Prädikat-Tests.
+3. **Phase 31 (SHP-01)** — `absence_marker.rs` pure Helfer `absence_periods_to_discourage_days` (alle 3 Kategorien, nur Ganztags — **byte-genau** zur `BookingOnAbsenceDay`-Warnung, null Drift) + guarded `reload_absence_days` (reused Phase-30-Guard) an 4 Triggern + Union-Merge in `discourage_weekdays`; 8 Tests; Scope = `current_sales_person`.
+4. **Phase 32 (IMP-01..04)** — Backend: `RealUser`-Newtype in **beiden** `context_extractor`-Varianten injiziert + zentrale `audit_impersonated_writes`-Tower-Middleware (nach `context_extractor`) loggt `real_user`+`acting_as` für jede mutierende Anfrage + Start/Stop-Tracing + Two-Path/P10-Doku; Admin-Gate gegen rohe `session.user_id` (kein Privilege-Leak); 3 Integration-Tests (SC3/SC5/P10), 11 Session-Unit-Tests. Frontend: 3 `api.rs`-Calls + `service/impersonate.rs` (Store + `status_from_to` + Full-Reload-Teardown) + nicht-schließbarer Amber-Banner in `app.rs` (First-Init `LoadStatus`, überlebt Reload) + Users-Tab-„Act as"-Einstieg + i18n de/en/cs. **Keine** `Authentication<Context>`-Signatur-Änderung.
+
+**Code review (alle adressiert):** P30 WR-01 (4. Loader `working_hours_mini` ungeschützt) gefixt; P31 IN-02 (symmetrischer Test) + IN-01 (Kommentar) gefixt; P32 WR-01 (Start-Tracing nach Erfolg), WR-02 (Stop-Tracing mit Target), WR-03 (Test-Kommentar) gefixt.
+
+**Test verification:** Backend `cargo test --workspace` (inkl. 3 Impersonation-Integration- + 11 Session-Unit-Tests) + `cargo clippy --workspace -- -D warnings` grün (unabhängig re-verifiziert); Frontend `cargo build --target wasm32-unknown-unknown` + 705 FE-Tests grün. Kein Snapshot-Bump (bleibt 12), keine Migration, keine neuen Deps.
+
+**Known deferred items (acknowledged at close, 2026-06-29):**
+
+- **2 optionale Browser-Smokes** (P30 schnelles Wochen-Klicken, P32 Impersonation-Roundtrip) — nicht pixel-/timing-automatisierbar; strukturelle Korrektheit voll verifiziert; user-akzeptiert als deferred UAT.
+- **Carry-over Deferred Items aus v1.4–v1.8** (carryover-absence-vs-report, Phase-24-UAT/Verification, historischer Quick-Task-/Todo-Ballast, Nyquist-Lücken) — weiterhin deferred, siehe STATE.md → Deferred Items. Keines v1.9-spezifisch.
+
+**Hinweis:** v1.9 ist das interne Planungs-Label; der gesamte Code liegt uncommitted im Arbeitsbaum (jj manueller Commit durch User). Reale Release-Version datumsbasiert via `cli-update-version`.
+
+---

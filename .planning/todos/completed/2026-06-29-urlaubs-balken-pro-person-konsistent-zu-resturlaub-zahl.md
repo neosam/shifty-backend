@@ -2,6 +2,7 @@
 created: 2026-06-29T14:30:00.000Z
 title: Urlaubs-Balken pro Person konsistent zu Resturlaub-Zahl machen
 area: absence
+resolves_phase: 29
 files:
   - shifty-dioxus/src/page/absences.rs:843-898
   - shifty-dioxus/src/state/vacation_balance.rs:10-27

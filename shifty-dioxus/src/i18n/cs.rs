@@ -1073,4 +1073,14 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::NavToEmployeeAbsences, "Absence – {name}");
     i18n.add_text(Locale::Cs, Key::NavToMyTimeAccount, "Moje časové konto");
     i18n.add_text(Locale::Cs, Key::NavToEmployeeReport, "Časové konto – {name}");
+
+    // Phase 32 — Personifikace UI (D-32-08).
+    i18n.add_text(Locale::Cs, Key::ImpersonateActAs, "Jednat jako tato osoba");
+    i18n.add_text(Locale::Cs, Key::ImpersonateBanner, "Jednáš jako {user}.");
+    i18n.add_text(Locale::Cs, Key::ImpersonateStop, "Ukončit personifikaci");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ImpersonateP10Hint,
+        "Funkce pouze pro administrátory jsou deaktivovány při jednání jako ne-admin; ukončení je kdykoli dostupné.",
+    );
 }

@@ -2,6 +2,7 @@
 created: 2026-06-29T14:45:00.000Z
 title: Eigener Urlaub markiert nicht als Nicht-Verfügbar im Schichtplan
 area: shiftplan / absence
+resolves_phase: 31
 files:
   - shifty-dioxus/src/page/shiftplan.rs:1120-1123
   - shifty-dioxus/src/component/week_view.rs:975-1065

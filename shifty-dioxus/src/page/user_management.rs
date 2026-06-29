@@ -17,6 +17,7 @@ use crate::{
     router::Route,
     service::{
         i18n::I18N,
+        impersonate::ImpersonateAction,
         user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
     },
 };
@@ -38,6 +39,8 @@ pub(crate) fn matches_search(name: &str, term: &str) -> bool {
 #[component]
 pub fn UserManagementPage() -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
+    // D-32-07 / IMP-01: impersonate service handle for "Act as this person".
+    let impersonate_service = use_coroutine_handle::<ImpersonateAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
     let i18n = I18N.read().clone();
 
@@ -77,6 +80,10 @@ pub fn UserManagementPage() -> Element {
                     search: users_search,
                     on_open_add_user: move |_| show_add_user_dialog.set(true),
                     on_request_delete: move |username: ImStr| delete_user_confirm.set(Some(username)),
+                    // D-32-07 / IMP-01: start impersonation from the Users tab.
+                    on_impersonate: move |username: ImStr| {
+                        impersonate_service.send(ImpersonateAction::Start(username))
+                    },
                 }
             }
         }
@@ -349,6 +356,8 @@ struct UsersTabContentProps {
     search: Signal<String>,
     on_open_add_user: EventHandler<()>,
     on_request_delete: EventHandler<ImStr>,
+    /// D-32-07 / IMP-01: callback to start impersonating the given username.
+    on_impersonate: EventHandler<ImStr>,
 }
 
 #[component]
@@ -369,6 +378,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
 
     let on_open_add_user = props.on_open_add_user;
     let on_request_delete = props.on_request_delete;
+    let on_impersonate = props.on_impersonate;
 
     rsx! {
         div { class: "flex items-center gap-2 mb-4",
@@ -401,6 +411,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                         let username = user.username.clone();
                         let username_for_link = username.clone();
                         let username_for_delete = username.clone();
+                        let username_for_impersonate = username.clone();
                         let linked_sp = user_management
                             .user_sales_person_links
                             .get(&username)
@@ -411,6 +422,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                             .get(&username)
                             .cloned();
                         let on_request_delete = on_request_delete.clone();
+                        let on_impersonate = on_impersonate.clone();
                         rsx! {
                             tr { class: "border-b border-border hover:bg-surface-alt",
                                 td { class: "py-2 px-3 font-mono text-ink", "{username}" }
@@ -446,6 +458,15 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                                 }
                                 td { class: "py-2 px-3 w-[1%]",
                                     div { class: "flex gap-2",
+                                        // D-32-07 / IMP-01: "Act as this person" — starts
+                                        // impersonation with the row's username (the auth
+                                        // identity the POST /admin/impersonate/{username}
+                                        // endpoint expects).
+                                        Btn {
+                                            variant: BtnVariant::Secondary,
+                                            on_click: move |_| on_impersonate.call(username_for_impersonate.clone()),
+                                            "{i18n.t(Key::ImpersonateActAs)}"
+                                        }
                                         {
                                             let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
                                             let href = format!(
@@ -527,6 +548,7 @@ mod tests {
                     search,
                     on_open_add_user: |_| {},
                     on_request_delete: |_: ImStr| {},
+                    on_impersonate: |_: ImStr| {},
                 }
             }
         }
@@ -716,6 +738,23 @@ mod tests {
         let html = render_users_with(store, "ALE");
         assert!(html.contains("alex"));
         assert!(!html.contains(">bob<"));
+    }
+
+    /// D-32-07 / IMP-01: each Users-tab row must render the "Act as this person"
+    /// action label so admins can start impersonation from the person list.
+    #[test]
+    fn users_tab_act_as_renders_for_user_row() {
+        let store = store_with_users(vec![User {
+            username: ImStr::from("alice"),
+        }]);
+        let html = render_users_with(store, "");
+        // The English i18n text for Key::ImpersonateActAs (default locale).
+        assert!(
+            html.contains("Act as this person"),
+            "users tab must render 'Act as this person' for the row, got: {html}"
+        );
+        // The username appears in the row (username column).
+        assert!(html.contains("alice"), "username must be present in row, got: {html}");
     }
 
     fn render_add_user_dialog(open: bool) -> String {

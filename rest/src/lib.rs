@@ -16,13 +16,13 @@ pub mod extra_hours;
 // reach `feature_flag::generate_route` via tower::oneshot — same pattern as
 // `pub mod cutover;` which lets `integration_test/cutover.rs` use it.
 pub mod feature_flag;
-mod impersonate;
+pub mod impersonate;
 mod my_block;
 mod permission;
 mod report;
 mod sales_person;
 mod sales_person_shiftplan;
-mod session;
+pub mod session;
 mod shiftplan;
 mod shiftplan_catalog;
 mod shiftplan_edit;
@@ -57,7 +57,10 @@ use service::user_service::UserService;
 use service::PermissionService;
 use service::ServiceError;
 pub use session::Context;
-use session::{context_extractor, forbid_unauthenticated};
+/// Re-export for integration tests that reference `rest::RealUser` when
+/// inspecting request extensions (D-32-01).
+pub use session::RealUser;
+use session::{audit_impersonated_writes, context_extractor, forbid_unauthenticated};
 use text_template::TextTemplateApiDoc;
 use thiserror::Error;
 #[cfg(feature = "mock_auth")]
@@ -631,6 +634,18 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     #[cfg(feature = "mock_auth")]
     let app = app.nest("/dev", dev::generate_route());
 
+    // D-32-02 / Two-path admin-gate invariant:
+    //   All three handlers (start, stop, get_status) check admin privilege
+    //   against the raw session.user_id (the real caller), never against the
+    //   effective/impersonated Context.  This means a non-admin caller is
+    //   always rejected with 403 regardless of whether impersonation is active.
+    //
+    // D-32-02a / P10 known limitation:
+    //   While impersonating a non-admin the admin's effective Context becomes
+    //   non-admin, locking them out of admin-only endpoints — this is the
+    //   correct security property.  However, the STOP endpoint (DELETE
+    //   /admin/impersonate) still succeeds because it also reads the raw
+    //   session.user_id for the admin check, not the impersonated Context.
     let app = app
         .nest("/admin/impersonate", impersonate::generate_route());
 
@@ -640,6 +655,13 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             rest_state.clone(),
             forbid_unauthenticated::<RestState>,
         ))
+        // D-32-01 audit layer: runs AFTER context_extractor at request time.
+        // Tower applies layers in reverse source order (last-added = outermost /
+        // runs first).  Placing this layer here — immediately before
+        // context_extractor in source — makes it the inner layer, so
+        // context_extractor (outer) executes first, populating both Context and
+        // RealUser extensions, and then audit_impersonated_writes reads them.
+        .layer(middleware::from_fn(audit_impersonated_writes))
         .layer(middleware::from_fn_with_state(
             rest_state.clone(),
             context_extractor::<RestState>,

@@ -1,42 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: "(kein aktiver Milestone — v1.7 + v1.8 geschlossen 2026-06-29)"
-current_phase: null
-current_phase_name: "(Planung des nächsten Milestones offen)"
-status: milestone_complete
-last_updated: "2026-06-29T12:30:00.000Z"
+milestone: v1.9
+milestone_name: "— Aktiv: Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation"
+current_phase: 9
+status: Awaiting next milestone
+last_updated: "2026-06-29T20:46:58.860Z"
 last_activity: 2026-06-29
-last_activity_desc: "v1.7 + v1.8 Milestone-Close (manuell, jj-nativ). Beide Milestones archiviert: milestones/v1.7-{ROADMAP,REQUIREMENTS}.md + milestones/v1.8-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md; MILESTONES.md + ROADMAP.md (collapsed) + PROJECT.md + RETROSPECTIVE.md nachgezogen; REQUIREMENTS.md entfernt (Inhalt war v1.7 → archiviert). override_closeout: Carry-over Deferred Items acknowledged. Snapshot-Schema-Version jetzt 12. Offen: User committet via jj + setzt Tags v1.7/v1.8; danach /gsd-new-milestone."
+last_activity_desc: Milestone v1.9 completed and archived
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 6
+  completed_plans: 6
+  percent: 100
+current_phase_name: Admin-Impersonation Frontend + Audit-Schicht (FE+BE)
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (kein aktiver Milestone; v1.0–v1.8 alle archiviert/collapsed)
+- **Roadmap**: `.planning/ROADMAP.md` (v1.0–v1.9 alle archiviert/collapsed; **kein aktiver Milestone** — bereit für `/gsd-new-milestone`; Backlog 999.1 erhalten)
+- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` (v1.9 archiviert nach `milestones/v1.9-REQUIREMENTS.md`; frische via `/gsd-new-milestone`)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.8-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.9-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (shipped + archiviert 2026-06-29, Phasen 27–28, 5 Pläne, 2/2 Requirements, Audit `passed`, override_closeout); zeitgleich v1.7 (Phasen 25–26, 10/10 Requirements) nachgeholt
-- **Current milestone**: keiner — Planung des nächsten offen
-- **Current focus**: `/gsd-new-milestone` (oder off-theme Backlog-Phase 999.1 via `/gsd-plan-phase 999.1`)
-- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12)
+- **Last shipped/closed**: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** (shipped + archiviert 2026-06-29, Phasen 29–32, 6 Pläne, 7/7 Requirements, Audit `passed`, override_closeout) — gesamter v1.9-Code **uncommitted** im Arbeitsbaum (jj manueller Commit durch User)
+- **Current milestone**: keiner aktiv — v1.9 abgeschlossen. Nächster via `/gsd-new-milestone` (interne Planungs-Labels; reale Release-Version datumsbasiert via `cli-update-version`)
+- **Current focus**: v1.9 abgeschlossen + archiviert (7/7 Requirements, Audit `passed`). Offen: User committet den v1.9-Code mit jj (+ optional 2 deferred Browser-Smokes P30 schnelles Wochen-Klicken / P32 Impersonation-Roundtrip). Danach `/gsd-new-milestone`.
+- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9 **kein** Bump (Baseline bleibt 12)
 
 ## Current Position
 
-Phase: keiner aktiv. v1.7 + v1.8 **geschlossen** am 2026-06-29 (manueller Close, jj-nativ — `milestone.complete`-CLI bewusst umgangen wg. Junk-Einträgen).
-Status: Beide Milestones archiviert. v1.8 (Phasen 27–28, 5 Pläne) — Phase 27 (FE): gruppierter Freiwilligen-Selector (`grouped_selectable`/`PersonGroup`/`grouped_person_options`, Modal+FilterBar), `is_selectable_employee` NICHT gelockert (D-27-02). Phase 28 (BE+FE): signed Urlaubsanspruch-Offset (Delta, Tabelle `vacation_entitlement_offset` + Basic-Service + HR-gated REST CRUD + DI; `entitled_effective=round(base)+offset` mit API-level Hiding; FE-Inline-Editor HR-only) + Off-by-one-Proration-Fix + Snapshot-Bump 11→12. v1.7 (Phasen 25–26): Feiertags-Auto-Anrechnung derive-on-read + Stichtag-Toggle + VFA-Reduktion + Cross-Navigation, Snapshot-Bump 10→11. Alle Automatik-Gates grün (cargo test/clippy -D warnings, WASM-Build, 678 FE-Tests); v1.8 zusätzlich Live-HR-Browser-Smokes (`behavior_unverified: 0`).
-Closeout: **override_closeout** für beide — Carry-over Deferred Items acknowledged (siehe unten). v1.8 hatte zusätzlich formalen Milestone-Audit (`passed`).
-Last activity: 2026-06-29 — Milestone-Close v1.7 + v1.8: Archive geschrieben, ROADMAP collapsed, MILESTONES/PROJECT/RETROSPECTIVE nachgezogen, REQUIREMENTS.md entfernt. **Offen: User committet via jj + setzt Git-Tags v1.7/v1.8.**
-
-Progress: [          ] kein aktiver Milestone — nächster via `/gsd-new-milestone`
+Phase: Milestone v1.9 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-29 — Milestone v1.9 completed and archived
 
 ## Deferred Items
 
@@ -57,8 +56,18 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | human_uat | Phase 24 #1: Inline-Block-Platzierung (v1.6) | deferred | acknowledged beim v1.6-Close 2026-06-28; 409-Meldung rendert global unter WeekView statt an Slot-Zelle; nicht-blockierend, Backend-409-Logik durch 4 Unit-Tests abgedeckt |
 | human_uat | Phase 27: Browser-Smoke Freiwilligen-Selector (v1.8) | ✅ resolved 2026-06-29 | Live-HR-Smoke bestätigt: Modal + FilterBar splitten Angestellte (Anna/Max M/Max S/Sarah) vs Freiwillige (Tom Bauer); inaktive ausgeblendet; „All people" erhalten. (Hinweis: is_paid ist für Nicht-HR backend-redacted — by-design, Selektoren sind HR-gated.) |
 | human_uat | Phase 28: Browser-Smoke HR-Offset-Roundtrip (v1.8) | ✅ resolved 2026-06-29 | Live-HR-Smoke bestätigt: HR-StatBox „calculated 15 + Offset [n]"; Offset 3 gesetzt → effektiv 18, remaining 33, persistiert (Backend offset_days=3). Smoke fand+fixte Dev-Proxy-Gap (Dioxus.toml fehlte /vacation-entitlement-offset → FE-Save 405) via fix(28). |
+| human_uat | Phase 30: Browser-Smoke schnelles Wochen-Klicken (v1.9) | deferred (optional) | acknowledged beim v1.9-Close 2026-06-29; nicht pixel-/timing-automatisierbar; strukturelle Korrektheit voll verifiziert (pure Prädikat-Tests + Source-verifizierte Synchron-vor-Dispatch-Ordering + alle 4 Summary-Loader gegated). |
+| human_uat | Phase 32: Browser-Smoke Impersonation-Roundtrip (v1.9) | deferred (optional) | acknowledged beim v1.9-Close 2026-06-29; Live-Roundtrip (Start→Banner→Reload-Persistenz→auditierter Write→Stop→Teardown); strukturell voll verifiziert (17/17 must-haves, 3 BE-Integration-Tests SC3/SC5/P10, Banner non-closable per SSR-Test). |
 
 ## Shipped Milestones
+
+### v1.9 — Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (shipped 2026-06-29)
+
+- **Geliefert:** Phasen 29–32 (6 Pläne). VAC-01 Urlaubsbalken `(used+planned)/total` (Überzug = Farb-Signal); SHP-02 geteilter `(year,week)`-Staleness-Guard (`week_guard.rs`) über alle 4 Summary-Loader; SHP-01 proaktive „Nicht Verfügbar"-Markierung eigener/ausgewählter Absence-Tage (`absence_marker.rs`, kategorie-treu zur Buchungs-Warnung, reused Phase-30-Guard); IMP-01..04 Admin-Impersonation-FE (nicht-schließbarer Banner, reload-persistent, Users-Tab-Einstieg, Store-Teardown) + zentrale Audit-Middleware (`RealUser`, kein Privilege-Leak).
+- **Kein Snapshot-Bump** (bleibt 12), **keine** Migration, **keine** neuen Deps, **keine** `Authentication<Context>`-Signatur-Änderung.
+- **Verifikation:** alle 4 Phasen VERIFIED (29: 3/3, 30: 5/5 struktur., 31: 7/7, 32: 17/17); Milestone-Audit `passed` (7/7 Requirements, 4/4 Integration + E2E). Code-Review pro Phase, alle Findings adressiert (u.a. P30 WR-01 4. Loader `working_hours_mini`, P32 3 Audit-WR). Gates: `cargo clippy --workspace -- -D warnings` + `cargo test --workspace` grün; FE WASM-Build + 705 FE-Tests grün.
+- **Closeout:** override_closeout (Audit `passed`; Carry-over Deferred Items acknowledged; 2 optionale Browser-Smokes deferred). **Code uncommitted** (jj manueller Commit durch User).
+- **Archiv:** `milestones/v1.9-ROADMAP.md`, `milestones/v1.9-REQUIREMENTS.md`, `milestones/v1.9-MILESTONE-AUDIT.md`.
 
 ### v1.8 — Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (shipped 2026-06-29)
 
@@ -102,20 +111,26 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - Milestone v1.7 + Phasen 25–26 angelegt (2026-06-28): 10 Requirements (HOL-01..03, VFA-01/02, HCFG-01..03, HSNAP-01, NAV-01) → 2 Phasen. Phase 25 = Axis-A (Reporting) + Settings-UI. Phase 26 = Axis-B (VFA) + Cross-Navigation.
 - Milestone v1.8 + Phase 27 angelegt (2026-06-29): VOL-SEL-01 — Freiwillige (`is_paid=false`) in Abwesenheits-Selektoren auswählbar, gruppiert (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar. Reines Frontend; `is_selectable_employee` von `is_paid && !inactive` → `!inactive` lockern, `is_paid` wird Gruppierung. 2 neue i18n-Keys (de/en/cs). Offen für Planung: Kategorie-Set für Freiwillige. Dir: `.planning/phases/27-freiwillige-abwesenheitsliste-selector/`.
 - Phase 28 angelegt (2026-06-29): VAC-OFFSET-01 — HR-Korrektur des Jahres-Urlaubsanspruchs via signed **Offset** (Delta, KEIN absoluter Override → überlebt Vertragsänderungen), pro Person+Jahr. `entitled_effective = round(berechnet) + offset`, wirkt auf `remaining_days` durch. HR-gekennzeichnet+editierbar in der Urlaubsübersicht, für User unsichtbar. Neue Tabelle `vacation_entitlement_offset` + HR-gated CRUD + Edit/Marker (`absences.rs:602–727`). Offen: User-Hiding UI-only vs API-level; Off-by-one-Begleit-Fix (`employee_work_details.rs:173`); Snapshot-Bump-Check (vermutlich nein). Dir: `.planning/phases/28-urlaubsanspruch-korrektur-offset/`.
+- Milestone v1.9 + Phasen 29–32 angelegt (2026-06-29): 7 Requirements (VAC-01, SHP-01, SHP-02, IMP-01..04) → 4 Phasen. Phase 29 = Vacation bar formula fix (FE-only). Phase 30 = Stale-week race guard, atomar über 3 Loader (FE-only). Phase 31 = Absence discourage marker im Shiftplan-Grid (FE-primary, needs discuss SHP-01 category whitelist). Phase 32 = Admin-Impersonation FE + Audit-Schicht (FE+kleines BE, needs discuss IMP audit design + admin-gate two-path contract).
 
 ## Session Continuity
 
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (kein aktiver Milestone; v1.0–v1.8 archiviert; Backlog 999.1)
-3. Read `.planning/PROJECT.md` (Charter + Current State; **keine aktive REQUIREMENTS.md** — wird beim nächsten Milestone via `/gsd-new-milestone` neu erstellt)
-4. Read `.planning/MILESTONES.md` (Index inkl. v1.7 + v1.8)
+2. Read `.planning/ROADMAP.md` (v1.9 aktiv, Phasen 29–32 expanded; v1.0–v1.8 archiviert/collapsed; Backlog 999.1)
+3. Read `.planning/REQUIREMENTS.md` (v1.9, 7/7 Requirements, Traceability befüllt)
+4. Read `.planning/PROJECT.md` (Charter + Current State: v1.9 aktiv)
+5. Read `.planning/MILESTONES.md` (Index inkl. v1.7 + v1.8)
 
-**Offene Aktion (User):** Working-Copy via `jj` committen + Git-Tags `v1.7` / `v1.8` setzen (siehe Close-Zusammenfassung). Danach:
+**Aktueller Stand:** v1.9 Roadmap fertig — 7/7 Requirements gemappt (VAC-01→P29, SHP-02→P30, SHP-01→P31, IMP-01..04→P32). Phasen 29 + 30 können direkt geplant werden. Phasen 31 + 32 benötigen vorher je einen `/gsd-discuss-phase`-Aufruf.
 
-**Next command**: `/gsd-new-milestone` (nächsten Milestone-Charter aufsetzen) — oder off-theme Backlog-Phase 999.1 via `/gsd-plan-phase 999.1`.
+**Next command**: `/gsd-plan-phase 29` (VAC-01, FE-only, no discuss needed) — oder `/gsd-discuss-phase 31` für SHP-01 (Kategorie-Whitelist-Decision).
 
 ---
 
-*State updated: 2026-06-29 — **v1.7 + v1.8 Milestone-Close** (manuell, jj-nativ). Beide Milestones archiviert (milestones/v1.7-* + milestones/v1.8-*), ROADMAP collapsed, MILESTONES/PROJECT/RETROSPECTIVE nachgezogen, REQUIREMENTS.md entfernt. Snapshot-Schema-Version 12. Kein aktiver Milestone.*
+*State updated: 2026-06-29 — **v1.9 Roadmap created** (manuell). Phasen 29–32 angelegt, 7/7 Requirements gemappt, Progress-Counters auf total_phases=4 gesetzt.*
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

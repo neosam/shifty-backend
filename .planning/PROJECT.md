@@ -1,8 +1,8 @@
 ---
 type: project_charter
 last_updated: 2026-06-29
-last_milestone: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (shipped 2026-06-29, Phasen 27–28, override_closeout, Audit passed)
-current_milestone: none (v1.7 + v1.8 geschlossen 2026-06-29; nächster via /gsd-new-milestone; Backlog-Phase 999.1 weiterhin off-theme offen)
+last_milestone: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (shipped 2026-06-29, Phasen 29–32, 6 Pläne, 7/7 Requirements, override_closeout, Audit passed) — Code uncommitted (jj manuell)
+current_milestone: none — v1.9 abgeschlossen; nächster via /gsd-new-milestone (internes GSD-Planungs-Label, reale Release-Version datumsbasiert via cli-update-version)
 ---
 
 # Shifty — Project Charter
@@ -133,11 +133,41 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Aktueller Milestone: keiner
+## Aktueller Milestone: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
 
-**v1.7 + v1.8 geschlossen am 2026-06-29.** Aktuell ist **kein** Milestone aktiv.
-Nächster Schritt: `/gsd-new-milestone` (oder die off-theme Backlog-Phase 999.1 direkt
-via `/gsd-plan-phase 999.1`).
+> **Versions-Hinweis:** `v1.9` ist das **interne GSD-Planungs-Label** (Fortführung
+> der Sequenz v1.0–v1.8 für Roadmap, Phasen-Nummerierung und Archiv-Handles). Die
+> **reale Release-Version** vergibt der User datumsbasiert via `./cli-update-version`
+> (z. B. `2026.180.0`) zum Release-Zeitpunkt — entkoppelt vom Planungs-Label.
+
+**Goal:** Drei betrieblich aufgefallene UX-/Korrektheits-Lücken im Schichtplan-/
+Urlaubs-Bereich schließen und Admins eine vollwertige (lesend **und** schreibend)
+Impersonation anderer Benutzer geben.
+
+**Target features:**
+- **Urlaub → Nicht-Verfügbar:** Eigene Absence-Zeiträume (Vacation, ggf. weitere
+  Kategorien) markieren die betroffenen Tage im Schichtplan-Grid als „Nicht Verfügbar"
+  (discourage), nicht nur als Buchungs-Warnung (Todo
+  `2026-06-29-eigener-urlaub-markiert-nicht-als-nicht-verfuegbar-im-schich.md`).
+- **Urlaubs-Balken-Konsistenz:** Der Pro-Person-Balken auf der Abwesenheiten-Seite
+  stimmt mit der Resturlaub-Zahl überein (`used` + `planned`, Überzug sichtbar) (Todo
+  `2026-06-29-urlaubs-balken-pro-person-konsistent-zu-resturlaub-zahl.md`).
+- **Stale-Daten-Race:** Wochen-Summary-Karten zeigen beim schnellen Wochenwechsel
+  immer nur die Daten der aktuell gewählten Woche (Generation-Token / `(year,week)`-Guard)
+  (Todo `2026-06-29-wochen-summary-karten-gegen-stale-daten-bei-schnellem-wochen.md`).
+- **Admin-Impersonation (Read + Write):** Admin kann temporär als anderer User agieren
+  (inkl. schreibender Aktionen), strikt `admin`-gated, mit Banner im Frontend + Audit,
+  das die echte Admin-Identität mitführt, ohne Privilege-Eskalation (Todo
+  `2026-06-29-impersonate-feature-f-r-admins.md`).
+
+**Bewusst NICHT in v1.9:**
+- **End-to-End-Browser-Integrationstests** (Todo
+  `2026-06-29-end-to-end-integrationstests-mit-ferngesteuertem-browser.md`) — eigenes
+  Infra-/Tooling-Thema, vertagt auf einen späteren Milestone.
+- Off-theme **Backlog-Phase 999.1** (Breaking/Major Dependency-Migration) bleibt separat.
+
+**Snapshot-Schema-Version:** voraussichtlich **nicht** betroffen — kein Bump erwartet
+(UX-Fixes + Auth-Feature berühren keine persistierte `BillingPeriodValueType`-Computation).
 
 ## Zuletzt geshipt: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (2026-06-29)
 
@@ -244,19 +274,25 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**Kein aktiver Milestone.** Zuletzt geshipt + archiviert (beide am 2026-06-29 geschlossen):
-**v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** (Phasen 27–28,
-override_closeout, Audit `passed`, 2/2 Requirements) und **v1.7 Automatische Feiertage &
-Freiwilligen-Abwesenheit** (Phasen 25–26, override_closeout, 10/10 Requirements) — Details
-siehe collapsed Blöcke oben + `milestones/v1.8-ROADMAP.md` / `milestones/v1.7-ROADMAP.md`.
-Davor: **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (2026-06-27, 7/7 must-haves).
+**Kein aktiver Milestone — v1.9 abgeschlossen + archiviert am 2026-06-29.**
+
+Zuletzt geshipt + archiviert: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen &
+Admin-Impersonation** (Phasen 29–32, 6 Pläne, 7/7 Requirements, override_closeout, Audit
+`passed`; autonomer Run). Geliefert: VAC-01 Urlaubsbalken-Konsistenz, SHP-02 Stale-Daten-
+Race-Guard, SHP-01 proaktive Abwesenheits-Markierung, IMP-01..04 Admin-Impersonation-FE +
+zentrale Audit-Schicht. Kein Snapshot-Bump, keine Migration, keine neuen Deps. **Gesamter
+v1.9-Code liegt uncommitted im Arbeitsbaum** (jj manueller Commit durch User). Details:
+`milestones/v1.9-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`.
+Davor: **v1.8 HR-UX** (Phasen 27–28) und **v1.7 Feiertage/VFA** (Phasen 25–26), beide
+2026-06-29 geschlossen; **v1.6 Paid-Capacity** (2026-06-27).
 
 **Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11 Holiday-Computation; v1.8 Bump
-11→12 `VacationEntitlement`-Computation).
+11→12 `VacationEntitlement`-Computation; v1.9 kein Bump).
 
-Nächster Schritt: neuen Milestone via `/gsd-new-milestone` aufsetzen, oder die
-off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** direkt
-via `/gsd-plan-phase 999.1` planen.
+Nächster Schritt: v1.9-Code mit jj committen (+ optional die 2 deferred Browser-Smokes
+P30/P32), dann `/gsd-new-milestone` für die nächste Iteration. Die off-theme **Backlog-Phase
+999.1 (Breaking/Major Dependency-Migration)** bleibt separat verfügbar via
+`/gsd-plan-phase 999.1`.
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity — SHIPPED 2026-06-25 (Phasen 14–17)</summary>
@@ -317,7 +353,8 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
 - v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) — shipped 2026-06-29 (Phasen 27–28).
   Archiv: `milestones/v1.8-ROADMAP.md`, `milestones/v1.8-REQUIREMENTS.md`, `milestones/v1.8-MILESTONE-AUDIT.md`.
 
-Aktiv: **keiner** — Planung des nächsten Milestones offen (`/gsd-new-milestone`).
+Aktiv: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** (gestartet 2026-06-29) —
+Requirements + Roadmap in Aufbau.
 
 ## Evolution
 

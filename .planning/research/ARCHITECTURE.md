@@ -1,271 +1,565 @@
-# Architecture Research — v1.4 Committed Voluntary Capacity
+# Architecture Research — v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
 
-**Domain:** Threading a new time-versioned field `committed_voluntary: f32` (D-01 / Variante B) through the existing layered Rust backend (REST → Service-trait → DAO-trait → SQLite) plus the Dioxus frontend, with no-double-count reporting integration and a billing-period snapshot bump.
-**Researched:** 2026-06-22
-**Confidence:** HIGH (every integration point below was located in this repo by reading the actual source; line numbers are real and current)
+**Domain:** Integration of four features into the existing Shifty layered Rust backend + Dioxus frontend
+**Researched:** 2026-06-29
+**Confidence:** HIGH (all integration points located by reading actual source; line numbers are real and current)
 
-This is an **integration / build-order** research document, not a greenfield architecture survey. The existing layered architecture (see `CLAUDE.md` § Layered Architecture, § Service-Tier-Konventionen, § Billing Period Snapshot Schema Versioning) is taken as fixed and is **not** redesigned. The job is to map the field onto the existing layers and order the phases against compile dependencies.
+This is an **integration / build-order** research document for an existing codebase, not a greenfield design.
+The layered architecture (REST → Service-trait → DAO-trait → SQLite on the backend; Component/Service/State/Page on
+the frontend) is taken as fixed and is **not** redesigned. The job is to map each of the four v1.9 features
+onto the existing layers, identify every new-vs-modified component, and order the phases against their dependencies.
 
 ---
 
-## Standard Architecture (existing, do not redesign)
+## Existing Architecture (do not redesign)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  shifty-dioxus/ (WASM frontend)                                              │
-│   page/weekly_overview.rs ─ state/weekly_overview.rs ─ loader.rs ─ api.rs    │
-│   component/contract_modal.rs (EmployeeWorkDetailsForm) ─ state/employee_…   │
-│                          ▲ consumes rest-types DTOs (shared crate)           │
-└──────────────────────────│──────────────────────────────────────────────────┘
-                           │ HTTP/REST (JSON)
-┌──────────────────────────│──────────────────────────────────────────────────┐
-│  Backend workspace        ▼                                                   │
-│  rest/  ── rest-types/ (EmployeeWorkDetailsTO, WeeklySummaryTO, …)            │
-│    │           ▲ From / TryFrom                                               │
-│    ▼           │                                                              │
-│  service/ (traits)  ── service_impl/ (reporting.rs, booking_information.rs,   │
-│    │                    billing_period_report.rs ← SNAPSHOT VERSION)          │
-│    ▼                                                                          │
-│  dao/ (traits) ── dao_impl_sqlite/ (employee_work_details.rs)                 │
-│    ▼                                                                          │
-│  SQLite (migrations/sqlite/*.sql + compile-time-checked .sqlx/)              │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│  shifty-dioxus/ (WASM frontend)                                                        │
+│   Pages (src/page/shiftplan.rs, absences.rs) → Components (week_view.rs, …)            │
+│   Services (src/service/weekly_summary.rs, booking_conflict.rs, absence.rs, …)         │
+│   State  (src/state/vacation_balance.rs, weekly_overview.rs, …)                        │
+│   Loader/API  (src/loader.rs, src/api.rs)  ← rest-types DTOs (shared crate)            │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+                         │ HTTP/REST (JSON, cookie-session)
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│  Backend workspace                                                                     │
+│  rest/ (Axum handlers + session.rs middleware)                                         │
+│    └─ context_extractor: resolves impersonate_user_id → effective Context              │
+│    └─ impersonate.rs: /admin/impersonate POST/DELETE/GET  ← ALREADY EXISTS             │
+│    └─ booking_information.rs, shiftplan.rs, absence.rs, vacation_balance.rs, …         │
+│  service/ (traits incl. PermissionService, BookingInformationService, SessionService)   │
+│  service_impl/ (booking_information.rs, permission.rs, …)                              │
+│  dao/ + dao_impl_sqlite/                                                               │
+│  SQLite                                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Field lifecycle (where `committed_voluntary` lives at each layer)
-
-| Layer | Type that gains the field | File |
-|-------|---------------------------|------|
-| SQLite | new column `committed_voluntary REAL NOT NULL DEFAULT 0` | new `migrations/sqlite/<ts>_add-committed-voluntary-to-employee-work-details.sql` |
-| DAO row | `EmployeeWorkDetailsDb.committed_voluntary: f64` + 4 `query!`/`query_as!` blocks + `TryFrom` | `dao_impl_sqlite/src/employee_work_details.rs` |
-| DAO entity | `EmployeeWorkDetailsEntity.committed_voluntary: f32` | `dao/src/employee_work_details.rs` |
-| Service domain | `EmployeeWorkDetails.committed_voluntary: f32` + two conversions | `service/src/employee_work_details.rs` |
-| DTO | `EmployeeWorkDetailsTO.committed_voluntary: f32` + two `From` impls | `rest-types/src/lib.rs` |
-| Frontend state | `state::employee_work_details::EmployeeWorkDetails.committed_voluntary` + two `TryFrom` | `shifty-dioxus/src/state/employee_work_details.rs` |
-
----
-
-## Integration Points — Layer-by-Layer Touch List (Q1)
-
-### 1. SQLite migration + `.sqlx`
-
-- **New migration file** `migrations/sqlite/<timestamp>_add-committed-voluntary-to-employee-work-details.sql`. Template directly from the existing cap-flag migration (`migrations/sqlite/20260426120000_add-cap-flag-to-employee-work-details.sql`):
-  ```sql
-  ALTER TABLE employee_work_details
-  ADD COLUMN committed_voluntary REAL NOT NULL DEFAULT 0;
-  ```
-  Use `REAL` (not `INTEGER`) — `expected_hours` is already `REAL`/`f64` in the DB and `f32` in the entity; mirror that exactly so the `as f32` / `as f64` casts in the DAO stay consistent.
-- **`.sqlx` regeneration is mandatory and is the first compile gate.** SQLx uses compile-time `query_as!`/`query!` macros. Adding the column to the four SELECT lists and the INSERT/UPDATE in `dao_impl_sqlite/src/employee_work_details.rs` changes the query fingerprints, so `cargo sqlx prepare` must regenerate `.sqlx/query-*.json`. Run after the DB has the migration applied (`sqlx database reset` is DESTRUCTIVE — per MEMORY use `sqlx migrate run` to apply additively, then `cargo sqlx prepare`). This is on NixOS → wrap sqlx calls in `nix develop`.
-
-### 2. DAO trait + sqlite impl + entity `TryFrom`
-
-- **`dao/src/employee_work_details.rs`** — add `pub committed_voluntary: f32` to `EmployeeWorkDetailsEntity` (struct only; the trait method signatures already pass `&EmployeeWorkDetailsEntity`, so no trait-method changes).
-- **`dao_impl_sqlite/src/employee_work_details.rs`** — five edits:
-  1. `EmployeeWorkDetailsDb` struct: add `pub committed_voluntary: f64` (DB is `f64`, mirrors `expected_hours`).
-  2. `TryFrom<&EmployeeWorkDetailsDb> for EmployeeWorkDetailsEntity`: `committed_voluntary: working_hours.committed_voluntary as f32`.
-  3. `all()`, `find_by_id()`, `find_by_sales_person_id()`, `find_for_week()` — add `committed_voluntary` to each of the four SELECT column lists.
-  4. `create()` — add a `let committed_voluntary = entity.committed_voluntary as f64;`, the column in the INSERT list, a `?` placeholder, and the bind in the `query!` arg list.
-  5. `update()` — add `committed_voluntary = ?` to the SET clause + the bind. **Note:** the existing `update()` is a *partial* update (it does NOT write `monday..sunday`, `sales_person_id`, etc.). `committed_voluntary` is mutable over time → it MUST be in the UPDATE set clause, alongside `expected_hours` and `cap_planned_hours_to_expected` which are already there.
-
-### 3. Service domain struct + `From` impls
-
-- **`service/src/employee_work_details.rs`** — three edits, all mechanical:
-  1. `EmployeeWorkDetails` struct: `pub committed_voluntary: f32`.
-  2. `From<&EmployeeWorkDetailsEntity> for EmployeeWorkDetails`: copy the field.
-  3. `TryFrom<&EmployeeWorkDetails> for dao::…::EmployeeWorkDetailsEntity`: copy the field.
-  The `EmployeeWorkDetailsService` trait itself needs **no** signature change (create/update already take `&EmployeeWorkDetails`).
-
-### 4. rest-types DTO(s) — which EmployeeWorkDetails DTO family member?
-
-- **Only `EmployeeWorkDetailsTO`** (rest-types/src/lib.rs:597) gets the field. It is the *single* DTO for this entity — used by create, update, find-for-week, and find-for-sales-person handlers alike. There is no separate "create vs read" DTO split for this entity.
-  - Add `#[serde(default)] pub committed_voluntary: f32` (mirror the `#[serde(default)]` already on `cap_planned_hours_to_expected` so old frontend payloads without the field still deserialize → safe rollout).
-  - Update both conversion impls: `From<&EmployeeWorkDetails> for EmployeeWorkDetailsTO` (rest-types/src/lib.rs:636) and `From<&EmployeeWorkDetailsTO> for EmployeeWorkDetails` (rest-types/src/lib.rs:674).
-- **Do NOT touch** `WorkingHoursReportTO` (l.460), `EmployeeReportTO` (l.523), `WorkingHoursDayTO` (l.443), `WeeklySummaryTO` (l.901) at the *data-model* phase — those are reporting/summary DTOs and only change later when the reporting output surfaces committed capacity (see Q2/Q4).
-
-### 5. REST handler(s) + OpenAPI surface — **important finding: NO `#[utoipa::path]` impact**
-
-- **Handlers that read/write `EmployeeWorkDetails`:** all five in `rest/src/employee_work_details.rs` — `create_working_hours`, `update_working_hours`, `delete_employee_work_details`, `get_working_hours_for_week`, `get_working_hours_for_sales_person`. They serialize/deserialize `EmployeeWorkDetailsTO` directly via `serde_json`, so once the DTO has the field they transport it **with zero handler-body changes**.
-- **OpenAPI surface test impact: NONE.** Verified directly:
-  - `EmployeeWorkDetailsTO` has **no `ToSchema` derive** (rest-types/src/lib.rs:596 is `#[derive(Debug, Serialize, Deserialize)]` only — contrast with `WeeklySummaryTO` and the report TOs which also lack it, vs. `SpecialDayTypeTO` which has it).
-  - The handlers carry **no `#[utoipa::path]` annotations**.
-  - The routes are mounted (`rest/src/lib.rs:588` `/working-hours`, `:590` `/employee-work-details`) but are **not registered in any `ApiDoc`** struct nest list.
-  - **Consequence:** This contradicts the general CLAUDE.md guideline ("REST endpoints require `#[utoipa::path]`"). For *this specific endpoint family* the OpenAPI integration does not exist today, so adding the field does **not** require touching utoipa schemas and will **not** break any OpenAPI/Swagger surface snapshot test. Do not let a planner add a phantom "update OpenAPI" task here. (If the team wants to *retrofit* OpenAPI annotations, that is an orthogonal cleanup, explicitly out of v1.4 scope.)
-- **Integration test that WILL flex:** `shifty_bin/src/integration_test/employee_work_details_update.rs` roundtrips `EmployeeWorkDetails` through the real SQLite DAO (it already guards the `expected_hours` f32→f64 cast bug). Extend `ewd_template()` with `committed_voluntary` and add an assertion that a fractional value roundtrips — this is the natural home for the data-model test (satisfies the global "always have tests" rule).
-
----
-
-## Reporting Integration — the no-double-count formula (Q2)
-
-### Where the computation belongs
-
-The no-double-count logic belongs in **`service_impl/src/reporting.rs`**, at the **per-week `volunteer_hours` aggregation sites**. There are **three** of them and all three must change identically (they are parallel implementations of the same per-week math):
-
-| Method | volunteer_hours site | line |
-|--------|----------------------|------|
-| `get_reports_for_all_employees` | `manual VolunteerWork sum + auto_volunteer_hours` | reporting.rs:362–367 |
-| `get_reports_for_employee` (detailed) | `manual_volunteer_hours + auto_volunteer_hours` | reporting.rs:854 |
-| (the per-employee ShortEmployeeReport push) | same pattern | reporting.rs:781–788, 852–854 |
-
-Today `volunteer_hours = manual_VolunteerWork_extra_hours + auto_volunteer_hours` (where `auto_volunteer_hours` is the auto-cap overflow from `apply_weekly_cap`, reporting.rs:94). This is the **actual_volunteer** quantity from the todo.
-
-The D-01 formula maps onto the existing variables as:
-
-- **Available/committed capacity** = `expected + committed_voluntary`. `expected_hours` is computed per-week at reporting.rs:851 (`planned_hours - absence - derived`). The new committed capacity is a **separate display axis**, not folded into `expected_hours` (D-01 explicitly decouples them — no `committed >= expected` invariant).
-- **Surplus / over-commitment** = `max(0, actual_volunteer − committed_voluntary)`. I.e. replace the raw `volunteer_hours` that flows into the report with `max(0.0, (manual + auto_volunteer) − committed_voluntary_for_week)`, and expose `committed_voluntary_for_week` as its own field so the year view can show "5 committed (covered) + 2 surplus".
-- `committed_voluntary_for_week` is read from the same `working_hours` (`Arc<[EmployeeWorkDetails]>`) the method already loads via `employee_work_details_service` (reporting.rs:129) and already filters per week via `find_working_hours_for_calendar_week` (reporting.rs:77) — **scope-gate it on `cap_planned_hours_to_expected == true`** per the todo (only capped/volunteer persons). Pattern mirrors the existing `cap_active = …any(|wh| wh.cap_planned_hours_to_expected)` (reporting.rs:265, 814, 1001).
-
-### Is reporting the right (Business-Logic) tier? — YES
-
-`ReportingServiceImpl` is squarely a **Business-Logic service** per CLAUDE.md § Service-Tier-Konventionen: it consumes other domain services (`ExtraHoursService`, `ShiftplanReportService`, `EmployeeWorkDetailsService`, `SalesPersonService`, `CarryoverService`, `AbsenceService` — reporting.rs:59–74). A cross-entity invariant ("committed vs actual volunteer, no double count") is exactly what the business-logic tier exists for. The `EmployeeWorkDetailsService` is a **Basic** service (entity manager) and correctly stays dumb about reporting.
-
-### New service dependencies needed? — NO
-
-The computation **reuses what `reporting.rs` already pulls in**. `committed_voluntary` rides along on the `EmployeeWorkDetails` records that `employee_work_details_service.all()` / `.find_…` already return (reporting.rs:129–158). No new DI dependency, no change to the `ReportingServiceDeps` macro block, no change to construction order in `shifty_bin/src/main.rs`. This keeps the change low-risk and contained.
-
-### Report output struct(s) that gain a field
-
-To surface committed capacity *separately* (todo req 4), add a field (e.g. `committed_voluntary_hours: f32`) to the report structs and propagate to their TOs:
-- `service::reporting::EmployeeReport` / `GroupedReportHours` / `ShortEmployeeReport` (whichever the year view consumes — `WeeklySummary` is built from `ReportingService.get_week` reports, see Q4).
-- Corresponding TOs: `EmployeeReportTO`, `WorkingHoursReportTO` only if the detail view needs it; **`WeeklySummaryTO` is the one the Jahresansicht actually reads** (Q4).
-
----
-
-## Snapshot Versioning — bump confirmed (Q3)
-
-**`CURRENT_SNAPSHOT_SCHEMA_VERSION` MUST bump from 7 → 8.** Confirmed against CLAUDE.md § Billing Period Snapshot Schema Versioning and the actual writer.
-
-- The constant lives at `service_impl/src/billing_period_report.rs:74` (`pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 7;`).
-- The affected `value_type` is **`BillingPeriodValueType::Volunteer`** (billing_period_report.rs:240–248). It is written from `report_delta.volunteer_hours` / `report_start/end/end_of_year.volunteer_hours` — i.e. **directly from the `ReportingService` `volunteer_hours` field this feature changes**.
-- This is **not a new `BillingPeriodValueType`** — it is a **changed computation of an existing one**. The trigger in CLAUDE.md that fires: *"Change the computation that produces an existing value_type … anything that would make a fresh re-computation disagree with an older snapshot for the same period"* and *"Change the input set the computation reads from."* Both apply: the volunteer value now subtracts `committed_voluntary` (new input from `EmployeeWorkDetails`) and clamps at 0.
-- A validator re-running the live computation on a v7 snapshot would get a different `Volunteer` value the moment any person has `committed_voluntary > 0`. Without the bump, that drift is indistinguishable from a real data bug — exactly the failure mode the version guards.
-- **Add a `- v8:` history entry** to the doc comment above the constant (billing_period_report.rs:38–73), matching the existing v3..v7 prose style, naming the changed value_type (`Volunteer`) and the new input (`EmployeeWorkDetails.committed_voluntary`).
-
-**Placement rule (Q5):** the bump MUST land in the **same commit** as the reporting-formula switch. The version stamp's whole purpose is "was this snapshot written under the same rules I'm using now" — splitting them creates a window where the new formula writes snapshots still stamped v7. Do not bump early (before the formula change) and do not defer.
-
----
-
-## Frontend Integration (Q4)
-
-### Jahresansicht (`weekly_overview`) — separate committed display
-
-The year view does **not** read `EmployeeWorkDetails` directly. It consumes `WeeklySummaryTO` via:
-`page/weekly_overview.rs` → `state/weekly_overview.rs::WeeklySummary` ← `loader.rs::load_weekly_summary_for_year` ← `api::get_weekly_overview` ← backend `GET /booking-information…` → `WeeklySummaryTO` (rest-types/src/lib.rs:901) ← `service::booking_information::WeeklySummary`.
-
-So the committed capacity must be **plumbed up through the summary**, not the contract DTO:
-
-1. **Backend `service_impl/src/booking_information.rs`** — `get_weekly_summary…` (l.100) builds `WeeklySummary` from per-week `ReportingService` reports (`week_report`, l.133). It currently sums `paid_hours` (l.176–178) and `volunteer_hours` (l.141–153/197). Add a `committed_voluntary_hours` accumulation from the reports' new field and put it on the `WeeklySummary` struct (`service/src/booking_information.rs:38`).
-2. **`service/src/booking_information.rs`** — add `pub committed_voluntary_hours: f32` to `WeeklySummary`.
-3. **`rest-types/src/lib.rs`** — add `committed_voluntary_hours` to `WeeklySummaryTO` (l.901) + its `From<&WeeklySummary>` impl (l.917).
-4. **Frontend `state/weekly_overview.rs`** — add `committed_voluntary_hours: f32` to the `WeeklySummary` state struct (l.12) + its `From` mapping (l.30ff).
-5. **Frontend `page/weekly_overview.rs`** — render committed **separately** (todo req 4: not vermischt with paid/volunteer). The current cell renders `"💰{paid} | 🤝{volunteer}"` (weekly_overview.rs:103/108). Add a third token (e.g. a `📌`/committed glyph or a labelled column) for committed capacity. Add an i18n key in all three locales (En/De/Cs) per project rule.
-6. **`loader.rs::load_weekly_summary_for_year` (l.611)** and `api.rs` need no logic change beyond the DTO carrying the new field (serde-driven).
-
-### Mitarbeiteransicht — "alle"-Filter + unpaid-volunteer EmployeeWorkDetails path
-
-- **Contract editor (where the field is entered):** `shifty-dioxus/src/component/contract_modal.rs` hosts the `EmployeeWorkDetailsForm`; the existing `cap_planned_hours_to_expected` toggle is at contract_modal.rs:382. The `committed_voluntary` numeric input goes **right next to it** (only meaningful when cap is on → can be gated/shown conditionally). The form binds to `state::employee_work_details::EmployeeWorkDetails`, which needs the new field (state/employee_work_details.rs:44 struct + both `TryFrom` at l.145ff and the `→ TO` direction). Browser-test caveat from MEMORY: prefer cargo tests over programmatic input for verifying form state.
-- **"alle"-Filter / unpaid-volunteer visibility:** today the employee list and the year-view reporting are **paid-only**:
-  - `loader.rs:474` hard-codes `is_paid: Some(true)` in `load_working_hours_minified_for_week`.
-  - `reporting.rs:139–142` (`get_reports_for_all_employees`) filters `employees.filter(|e| e.is_paid.unwrap_or(false))`.
-  - `booking_information.rs:118–125` builds `volunteer_ids` from **un**paid persons (`!is_paid`) but only for the shiftplan-report volunteer sum — unpaid persons still need an `EmployeeWorkDetails` record to carry `committed_voluntary`.
-  - `component/employees_list.rs` filters the list (search + `!inactive`, l.82–88) — no paid filter there, but the data source upstream is paid-gated.
-  - **Required:** an "alle"-toggle that, when on, (a) includes unpaid persons in the list/year-view, and (b) lets a pure-volunteer (unpaid) person get an `EmployeeWorkDetails` record so `committed_voluntary` is editable. This is the most design-open part of the milestone — it touches the paid-only assumption baked into reporting and loaders. Flag for deeper phase-level design (see PITFALLS).
-
----
-
-## Suggested Phase Decomposition + Build Order (Q5)
-
-Ordered strictly by **compile dependency** (each phase compiles green before the next; backend foundation precedes any frontend that consumes it). 4 phases, with the snapshot bump fused into the reporting phase.
+### Auth/Context propagation path (crucial for impersonation analysis)
 
 ```
-Phase A  Data-model foundation (backend, bottom-up)
-   migration + .sqlx  →  dao entity  →  dao_impl_sqlite  →  service struct+conversions
-   →  EmployeeWorkDetailsTO + From impls  →  extend employee_work_details_update integ test
-   Gate: cargo build + cargo test + cargo sqlx prepare green. Field transported end-to-end,
-         persisted, roundtrip-tested — but inert (read nowhere yet).
-   Compile dep: nothing above depends on it failing; .sqlx regen is the first hard gate.
-
-Phase B  Reporting no-double-count  +  Snapshot bump  (SAME phase, SAME commit)
-   reporting.rs: all 3 volunteer_hours sites → max(0, actual_volunteer − committed_voluntary),
-   gated on cap_planned_hours_to_expected; add committed_voluntary_hours to report structs.
-   billing_period_report.rs: CURRENT_SNAPSHOT_SCHEMA_VERSION 7→8 + v8 history note.
-   Tests: extend reporting fixtures (service_impl/src/test/reporting_*; billing_period_report test).
-   Gate: cargo test green; snapshot validator tests acknowledge v8.
-   Compile dep: needs Phase A's field on EmployeeWorkDetails. MUST be one commit (snapshot
-                stamp must match the formula that wrote it).
-
-Phase C  Jahresansicht display (booking_information → WeeklySummary(TO) → frontend year view)
-   service WeeklySummary + WeeklySummaryTO + state::weekly_overview + page render + i18n×3.
-   Gate: cargo test (backend) + cargo build --target wasm32-unknown-unknown (frontend).
-   Compile dep: needs Phase B's committed_voluntary_hours on the reports.
-
-Phase D  Contract editor input + "alle"-filter / unpaid-volunteer EWD path
-   contract_modal.rs committed_voluntary input + state TryFrom both directions;
-   "alle"-toggle relaxing the paid-only filter in list/loader/reporting so unpaid
-   volunteers get an EWD record and are selectable. i18n×3.
-   Gate: cargo build --target wasm32 + cargo test; manual UAT (frontend-in-scope per PROJECT.md).
-   Compile dep: input editing needs the DTO field (Phase A); the "alle" path is the most
-                design-open — split out so its risk doesn't block C.
+HTTP request
+  └─ CookieManagerLayer → app_session cookie
+       └─ context_extractor middleware (rest/src/session.rs)
+            └─ SessionService::verify_user_session(session_id)
+                 └─ resolve_session_user_id(session):
+                       if session.impersonate_user_id.is_some()
+                           → impersonated user id   ← SUBSTITUTION HAPPENS HERE
+                       else
+                           → real user id
+            └─ Extension<Context> = Option<Arc<str>>   (effective user id, ONE value)
+  └─ REST handler receives Extension(context)
+       └─ builds Authentication<Context>::Context(context)
+            └─ passes to service methods
+                 └─ PermissionService::check_permission(privilege, authentication)
+                      └─ matches Authentication::Context(ctx) → UserService::current_user(ctx)
+                           └─ checks EFFECTIVE user's privileges in DB
 ```
 
-### Ordering rationale / compile-dependency notes
-
-- **A before everything:** the field must exist on `EmployeeWorkDetails` (service) before reporting can read it and before the DTO can transport it. `.sqlx` regeneration is the gating step — get it green first.
-- **B fuses snapshot bump with the formula switch** — non-negotiable per the snapshot-versioning contract (same commit).
-- **C before D:** the *display* (read path, Phase C) is lower-risk and self-contained; the *editing + "alle"-filter* (Phase D) carries the open paid-only-assumption design question. Shipping C first means the year view shows committed capacity (zero for everyone until D lets it be entered) without being blocked by D's design work.
-- **Frontend always trails its backend DTO change** in each phase — the consolidated single `rest-types` crate (PROJECT.md: resolved in v1.2) means a missing field breaks the WASM compile, so the frontend edits are forced to stay in sync within the same phase.
-- VCS: jj-only commits, GSD auto-commit disabled — user commits each phase manually (CLAUDE.local.md / MEMORY).
+The critical property: **every service call downstream of context_extractor sees only the effective user**.
+The real admin identity is NOT present in `Authentication<Context>` once it leaves the impersonate endpoints.
 
 ---
 
-## Anti-Patterns (specific to this change)
+## Feature 1: Admin-Impersonation READ + WRITE
 
-### Anti-Pattern 1: Folding `committed_voluntary` into `expected_hours`
-**What people do:** add committed capacity to `expected_hours` so it "just shows up" in available hours.
-**Why wrong:** breaks D-01 (Variante B is explicitly additive/separate, no `committed >= expected` invariant), inflates the balance computation (`balance = overall − expected`), and corrupts every existing `Balance`/`ExpectedHours` snapshot value_type — a far bigger snapshot-versioning blast radius.
-**Instead:** keep it a separate axis; only the `Volunteer` value_type computation changes.
+### What already exists (no BE work needed)
 
-### Anti-Pattern 2: Changing only one of the three reporting volunteer sites
-**What people do:** patch `get_reports_for_all_employees` and forget `get_reports_for_employee` / the ShortEmployeeReport push.
-**Why wrong:** the year view and the detail view diverge; snapshots (built from one path) disagree with the live UI (built from another).
-**Instead:** change all three volunteer_hours sites (reporting.rs:362, 781–788/852–854) identically; cover with a fixture test that exercises both report entry points.
+| Component | File | State |
+|-----------|------|-------|
+| `start_impersonate` endpoint | `rest/src/impersonate.rs` | DONE — checks admin on REAL user, sets `session.impersonate_user_id` |
+| `stop_impersonate` endpoint | `rest/src/impersonate.rs` | DONE — checks admin on REAL user, clears `session.impersonate_user_id` |
+| `get_impersonate_status` endpoint | `rest/src/impersonate.rs` | DONE — returns `ImpersonateTO { impersonating, user_id }` |
+| Session substitution in middleware | `rest/src/session.rs:54-60` | DONE — `resolve_session_user_id()` substitutes the impersonated ID into the `Context` extension |
+| `SessionService::start_impersonate` / `stop_impersonate` | `service/src/session.rs:50-55` | DONE — trait + impl exist |
+| `ImpersonateTO` DTO | `rest-types/src/lib.rs` | DONE — `{ impersonating: bool, user_id: Option<Arc<str>> }` |
 
-### Anti-Pattern 3: Adding a phantom OpenAPI/utoipa task for the EWD endpoint
-**What people do:** dutifully "add `#[utoipa::path]` / `ToSchema`" per the generic CLAUDE.md rule.
-**Why wrong:** this endpoint family is *not* in the OpenAPI surface today (no `ToSchema`, no `#[utoipa::path]`, not in any `ApiDoc`). Adding it is scope creep and risks new surface-snapshot test churn unrelated to v1.4.
-**Instead:** only add `committed_voluntary` to the plain serde `EmployeeWorkDetailsTO`. Leave OpenAPI retrofit out of scope.
+The entire backend impersonation stack is already implemented and working. All regular service calls
+downstream of `context_extractor` transparently run as the impersonated user. WRITE operations
+(bookings, absences, etc.) use the impersonated user's effective identity — this is the intended
+"act as" behavior.
 
-### Anti-Pattern 4: Splitting the snapshot bump from the reporting change
-**What people do:** bump version in a "prep" commit, change the formula in a later commit.
-**Why wrong:** snapshots written in between are stamped with a version whose rules they don't actually follow.
-**Instead:** one commit, Phase B.
+### No-privilege-escalation seam — confirmed correct
+
+The `start_impersonate`, `stop_impersonate`, and `get_impersonate_status` handlers all perform:
+```rust
+let real_user_context = Authentication::Context(Some(session.user_id.clone()));
+//                                                    ^^^^^^^^^^^^^^^^ REAL user, not impersonated
+rest_state.permission_service().check_permission("admin", real_user_context).await?;
+```
+They bypass `context_extractor`'s substitution by directly constructing the context from
+`session.user_id`, not `resolve_session_user_id(session)`. This means:
+- Admin-check always uses the real calling admin's identity.
+- While impersonating a non-admin user, all other endpoints see the target user's privileges.
+- The admin cannot abuse impersonation to gain privileges the target does not have; `check_permission`
+  reads the effective user's DB roles, and the effective user IS the impersonated person.
+
+### Audit seam (minimal viable for v1.9)
+
+The impersonate endpoints already run through Axum's tracing middleware. The minimal v1.9 audit
+approach: add explicit `tracing::info!("admin {} started impersonation as {}", session.user_id, target_user_id)`
+and `tracing::info!("admin {} stopped impersonation", session.user_id)` lines in `rest/src/impersonate.rs`.
+This produces a structured log entry in the server log with both the real admin identity and the target.
+Full DB-persisted audit log is out of scope for v1.9.
+
+### What is missing — FE only
+
+| Component | New/Modified | File | Notes |
+|-----------|-------------|------|-------|
+| `ImpersonateStore` global signal | NEW | `shifty-dioxus/src/service/impersonate.rs` (new file) | Stores `{ impersonating: bool, impersonated_user: Option<Arc<str>> }` |
+| `impersonate` service coroutine | NEW | same file | Actions: `Check`, `Start(user_id)`, `Stop`; calls `api::get_impersonate_status`, `api::start_impersonate`, `api::stop_impersonate` |
+| `api::get_impersonate_status` | NEW | `shifty-dioxus/src/api.rs` | `GET /admin/impersonate` → `ImpersonateTO` |
+| `api::start_impersonate(user_id)` | NEW | `shifty-dioxus/src/api.rs` | `POST /admin/impersonate/{user_id}` |
+| `api::stop_impersonate` | NEW | `shifty-dioxus/src/api.rs` | `DELETE /admin/impersonate` |
+| `ImpersonationBanner` component | NEW | `shifty-dioxus/src/component/impersonation_banner.rs` (new file) | Inline banner: "Acting as: {user}" + Stop button; only renders when `impersonating == true` |
+| Admin impersonate UI (selector) | NEW | embedded in admin/settings page or modal | Shows user list, start button; only rendered when the user is an admin (see below) |
+| App-level banner mount | MODIFIED | `shifty-dioxus/src/app.rs` | Load impersonation status on startup; render `ImpersonationBanner` in the global layout |
+| i18n keys | NEW | `src/i18n/en.rs`, `de.rs`, `cs.rs` | "Impersonating as:", "Stop Impersonation", start-dialog i18n |
+
+### How the FE knows if the current real user is an admin
+
+**Problem**: When impersonating a non-admin user, `GET /auth-info` returns the IMPERSONATED user's
+name and privileges (because `context_extractor` has already substituted the identity). So the FE
+cannot use `auth-info` privileges to decide whether to show the impersonation UI.
+
+**Solution**: Call `GET /admin/impersonate` on page load. This endpoint:
+- Returns `200 { impersonating, user_id }` if the REAL session user is admin.
+- Returns `403` if the real user is not admin.
+
+The FE uses the `200`/`403` distinction to gate the impersonation UI. This call is independent of
+`auth-info`. Once the FE receives `200`, it knows:
+1. The real user is an admin.
+2. Whether an impersonation is currently active.
+
+The `ImpersonationBanner` should be shown whenever `impersonating == true`. The "Start Impersonation"
+UI should be shown whenever `GET /admin/impersonate` returns `200` (admin, regardless of active impersonation).
 
 ---
 
-## Integration Points Summary Table
+## Feature 2: Urlaub → Nicht-Verfügbar (discourage marker)
 
-| Boundary | File(s) | Change |
-|----------|---------|--------|
-| DB schema | new `migrations/sqlite/<ts>_add-committed-voluntary-…sql` + `.sqlx/` regen | add `REAL` column |
-| DAO entity ↔ row | `dao/src/employee_work_details.rs`, `dao_impl_sqlite/src/employee_work_details.rs` | field + 4 SELECT + INSERT + UPDATE + TryFrom |
-| Service domain | `service/src/employee_work_details.rs` | field + 2 conversions |
-| DTO | `rest-types/src/lib.rs` (`EmployeeWorkDetailsTO` l.597) | field + 2 From impls |
-| REST handlers | `rest/src/employee_work_details.rs` | **no body change**; **no utoipa** |
-| Reporting | `service_impl/src/reporting.rs` (l.362, 781, 852) | no-double-count, 3 sites, no new dep |
-| Snapshot | `service_impl/src/billing_period_report.rs` (l.74, 240) | bump 7→8, same commit as reporting |
-| Year-view backend | `service_impl/src/booking_information.rs` (l.100, 197), `service/src/booking_information.rs` (l.38) | `committed_voluntary_hours` on `WeeklySummary` |
-| Year-view DTO | `rest-types/src/lib.rs` (`WeeklySummaryTO` l.901) | field + From |
-| Year-view frontend | `shifty-dioxus/src/state/weekly_overview.rs`, `src/page/weekly_overview.rs` (l.103/108) | field + separate render + i18n×3 |
-| Contract editor | `shifty-dioxus/src/component/contract_modal.rs` (l.382), `src/state/employee_work_details.rs` | input + 2 TryFrom + i18n×3 |
-| "alle"-filter | `shifty-dioxus/src/loader.rs` (l.474), `src/component/employees_list.rs`, `service_impl/src/reporting.rs` (l.139) | relax paid-only; design-open |
-| Tests | `shifty_bin/src/integration_test/employee_work_details_update.rs`, `service_impl/src/test/reporting_*`, `…/billing_period_report.rs` | roundtrip + formula + snapshot |
+### Root cause confirmed
+
+In `shifty-dioxus/src/page/shiftplan.rs:1120-1123`:
+```rust
+discourage_weekdays: unavailable_days
+    .read()
+    .iter()
+    .map(|unavailable_day| unavailable_day.day_of_week)
+    .collect(),
+```
+`discourage_weekdays` is computed **exclusively** from `sales_person_unavailable` entries
+(recurring weekday-based unavailability). Absence date ranges (Vacation, SickLeave, UnpaidLeave)
+from `absence_period` are not included.
+
+`WeekView` component receives `discourage_weekdays: Vec<DayOfWeek>` — a weekday set, not a date set.
+The current model is weekday-based. Absences are date-based.
+
+### No new backend endpoint needed
+
+The `GET /absence-period` REST endpoint already exists and is used by the absences page. The
+shiftplan page needs to load the current user's absences for the displayed year. The backend already
+gates this correctly: non-HR users can only see their own absences; HR/admin can see all. When an
+admin is impersonating a user, the effective context IS the impersonated user — so loading absences
+returns the impersonated user's absence data naturally.
+
+Existing data relationship in `service_impl/src/booking_information.rs` is informative:
+`BookingInformationServiceImpl` already uses `period_overlaps_week(from, to, week_monday, week_sunday)`
+(line 77) to check whether an absence date range hits a calendar week. This exact helper can be
+reused or copied as a pure function in the frontend for the date→weekday conversion.
+
+### Integration design: frontend join
+
+For the shiftplan page's displayed week `(year, week)`:
+1. Load the current person's absence periods (`GET /absence-period?sales_person_id=...&year=...`).
+2. For each absence period `[from_date, to_date]`, and for each day-of-week Mon–Sun, compute
+   whether the concrete date for that weekday in `(year, week)` falls within `[from_date, to_date]`.
+3. Add those weekdays to `discourage_weekdays` alongside the existing `unavailable_days` weekdays.
+
+Concrete conversion (pure Rust logic, no await):
+```rust
+fn absence_periods_to_discourage_days(
+    absences: &[AbsencePeriod],
+    year: u32,
+    week: u8,
+) -> Vec<DayOfWeek> {
+    use time::{Date, Weekday};
+    let days = [
+        (Weekday::Monday,    DayOfWeek::Monday),
+        (Weekday::Tuesday,   DayOfWeek::Tuesday),
+        // ...
+    ];
+    let mut result = vec![];
+    for (tw, dow) in &days {
+        if let Ok(date) = Date::from_iso_week_date(year as i32, week, *tw) {
+            if absences.iter().any(|a| a.from_date <= date && date <= a.to_date) {
+                result.push(*dow);
+            }
+        }
+    }
+    result
+}
+```
+
+### Scope decision (inform discuss-phase)
+
+The todo is scoped to **own absences of the editing person**. The shiftplan already has
+`current_sales_person` signal (the person being worked on). Apply only to that person's absences.
+For admin/shiftplanner acting on behalf of another person (or via impersonation), the backend
+permission gate on `/absence-period` will return the correct data based on the effective context.
+
+All three absence categories (Vacation, SickLeave, UnpaidLeave) should produce the discourage
+marker (mirrors the `BookingOnAbsenceDay` warning that already fires for all three).
+
+### What is missing — FE only
+
+| Component | New/Modified | File | Notes |
+|-----------|-------------|------|-------|
+| `reload_absence_days` closure | NEW | `shifty-dioxus/src/page/shiftplan.rs` | Mirrors existing `reload_unavailable_days` (lines 350–368); loads absences when `current_sales_person` changes; same trigger: on person-change event |
+| `person_absences` signal | NEW | `shifty-dioxus/src/page/shiftplan.rs` | `Signal<Rc<[AbsencePeriod]>>` stored in the shiftplan coroutine's local state |
+| `absence_periods_to_discourage_days` helper | NEW | `shifty-dioxus/src/page/shiftplan.rs` or `src/service/` helper module | Pure function; unit-testable with `cargo test` |
+| `discourage_weekdays` computation | MODIFIED | `shiftplan.rs:1120-1124` | Merge `unavailable_days` weekdays + absence-derived weekdays |
+| `api::get_absence_periods_for_person` | MODIFIED or NEW | `shifty-dioxus/src/api.rs` | May already exist for absences page; add or expose for shiftplan use |
+
+---
+
+## Feature 3: Stale-Daten-Race (week-race guard)
+
+### Root cause confirmed
+
+In `shifty-dioxus/src/service/weekly_summary.rs:37-42`:
+```rust
+async fn load_summary_for_week(year: u32, week: u8) -> Result<(), ShiftyError> {
+    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = false;
+    let weekly_summary = loader::load_summary_for_week(CONFIG.read().clone(), year, week).await?;
+    (*WEEKLY_SUMMARY_STORE.write()).weekly_summary = Rc::new([weekly_summary]);   // ← UNCONDITIONAL
+    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = true;
+    Ok(())
+}
+```
+The store write is unconditional. A stale response from an earlier week can overwrite a newer
+response because the coroutine processes actions sequentially but cannot cancel in-flight awaits.
+
+Same pattern exists in `booking_conflict.rs:20-24` (also unconditional write).
+`reload_unavailable_days` in `shiftplan.rs:350-368` is a closure-based async, same risk.
+
+### Recommended guard: `(year, week)` tag in store
+
+Rationale: cleaner than a generation counter because it's semantically meaningful (the stored data
+IS for a specific week) and allows the render to also guard (show loading instead of stale data).
+
+**Pattern for `WeeklySummaryStore`:**
+
+```rust
+pub struct WeeklySummaryStore {
+    pub weekly_summary: Rc<[WeeklySummary]>,
+    pub data_loaded: bool,
+    pub loaded_year: u32,    // NEW
+    pub loaded_week: u8,     // NEW
+}
+```
+
+```rust
+async fn load_summary_for_week(year: u32, week: u8) -> Result<(), ShiftyError> {
+    // Mark as loading for THIS (year, week)
+    {
+        let mut store = WEEKLY_SUMMARY_STORE.write();
+        store.data_loaded = false;
+        store.loaded_year = year;
+        store.loaded_week = week;
+    }
+    let weekly_summary = loader::load_summary_for_week(CONFIG.read().clone(), year, week).await?;
+    // Guard: only write if the store still expects THIS (year, week)
+    {
+        let mut store = WEEKLY_SUMMARY_STORE.write();
+        if store.loaded_year == year && store.loaded_week == week {
+            store.weekly_summary = Rc::new([weekly_summary]);
+            store.data_loaded = true;
+        }
+        // else: stale result, discard
+    }
+    Ok(())
+}
+```
+
+The "last `LoadWeek` wins in setting `loaded_year/loaded_week`" property makes stale writes
+self-discard: when LoadWeek(2026, 24) arrives after LoadWeek(2026, 25) has already set
+`loaded_week = 25`, the guard `loaded_week == 24` is false → result dropped.
+
+**Render guard in `shiftplan.rs`:**
+In the section that reads `weekly_summary.weekly_summary` (lines 1127+), add a check:
+```rust
+if weekly_summary.data_loaded
+    && weekly_summary.loaded_year == *year.read()
+    && weekly_summary.loaded_week == *week.read()
+```
+A mismatch shows a loading/empty state rather than stale data.
+
+**Apply the same pattern to `booking_conflict.rs`:**
+`BOOKING_CONFLICTS_STORE` has the same unconditional write risk. Extend `BookingConflictAction`
+and `BOOKING_CONFLICTS_STORE` with the same tag. The `reload_unavailable_days` closure
+(shiftplan.rs:350-368) can use a simpler guard: capture `(year_snapshot, week_snapshot)` before
+the await, and after the await compare against the current signal values before writing to the signal.
+
+### What is modified — FE only
+
+| Component | New/Modified | File | Notes |
+|-----------|-------------|------|-------|
+| `WeeklySummaryStore` struct | MODIFIED | `shifty-dioxus/src/service/weekly_summary.rs:14-22` | Add `loaded_year: u32`, `loaded_week: u8` fields |
+| `load_summary_for_week` | MODIFIED | same file, line 37 | Add tag-set + guard write |
+| `WeeklySummaryStore` default | MODIFIED | same file | Initialize `loaded_year: 0, loaded_week: 0` |
+| Summary card render | MODIFIED | `shifty-dioxus/src/page/shiftplan.rs:1127` | Add `loaded_year == year && loaded_week == week` guard |
+| `BOOKING_CONFLICTS_STORE` | MODIFIED | `shifty-dioxus/src/service/booking_conflict.rs:13` | Add same `(year, week)` tag |
+| `load_booking_conflict_week` | MODIFIED | same file, line 20 | Same guard pattern |
+| `reload_unavailable_days` | MODIFIED | `shifty-dioxus/src/page/shiftplan.rs:350-368` | Capture `(year, week)` before await; check after |
+
+---
+
+## Feature 4: Urlaubs-Balken-Konsistenz
+
+### Root cause confirmed
+
+In `shifty-dioxus/src/page/absences.rs:866-871`:
+```rust
+let used_pct: u32 = if total > 0.01 {
+    ((props.balance.used_days / total) * 100.0).clamp(0.0, 100.0) as u32
+} else { 0 };
+```
+The bar fills based on `used_days` ONLY. The `remaining_days` display, however, is computed by
+the backend as `entitled + carryover - used - planned`, which includes `planned_days`. So the bar
+(visual) and the number (textual) are inconsistent when `planned_days > 0`.
+
+All required data is **already in the `VacationBalance` state** (`state/vacation_balance.rs:17`):
+- `used_days: f32` — confirmed days off, already booked
+- `planned_days: f32` — future absence-period entries not yet past
+- `remaining_days: f32` — already correctly accounts for both
+
+### Fix: FE-only, single expression change
+
+Change the bar percentage computation to:
+```rust
+let committed_days = props.balance.used_days + props.balance.planned_days;
+let used_pct: u32 = if total > 0.01 {
+    ((committed_days / total) * 100.0).clamp(0.0, 100.0) as u32
+} else { 0 };
+```
+
+Optional enhancement: show `used` and `planned` as two visually distinct bar segments (different
+colors or a striped segment for planned) to communicate "used vs upcoming". This is a UI decision
+for the discuss-phase. The minimal viable fix is the single computation change above.
+
+**Overflow case**: When `used_days + planned_days > entitled_days + carryover_days`, `remaining_days`
+is negative. The bar `clamp(0.0, 100.0)` already handles this; the existing low-indicator
+(`remaining_days <= 3.0` → `text-warn`) already fires for the overconsumption case.
+The todo specifically requires: "Überzug sichtbar" — the bar should visually show 100% fill
+(and the warn color) when the person is over-entitled. The current clamp to 100% plus the warn
+class handles this already if the computation above is applied.
+
+### What is modified — FE only
+
+| Component | New/Modified | File | Notes |
+|-----------|-------------|------|-------|
+| `VacationPerPersonCard` component | MODIFIED | `shifty-dioxus/src/page/absences.rs:866` | Change `used_days / total` to `(used_days + planned_days) / total` |
+| Optional: bar segmentation | MODIFIED | same component | Split bar into used (solid) + planned (striped) segments — discuss-phase decision |
+
+No state, DTO, service, or backend changes required.
+
+---
+
+## Cross-Feature Integration Table
+
+| Feature | BE modified | FE modified | New FE files | New BE files | Dependencies |
+|---------|-------------|-------------|--------------|--------------|--------------|
+| Admin-Impersonation | None (complete) | `app.rs`, `api.rs`, `service/mod.rs` | `service/impersonate.rs`, `component/impersonation_banner.rs` | None (complete) | None |
+| Discourage marker | None | `page/shiftplan.rs`, `api.rs` | optional helper module | None | `api::get_absence_periods` |
+| Week-race guard | None | `service/weekly_summary.rs`, `service/booking_conflict.rs`, `page/shiftplan.rs` | None | None | None |
+| Vacation bar | None | `page/absences.rs` | None | None | None |
+
+All four features are **independent** — no cross-feature compile dependency. Each can be phased separately.
+
+---
+
+## Recommended Build Order
+
+Dependencies govern order within a feature; across features, they are all independent.
+Ordering below is by risk (trivial first, network-involved last) and FE compile-dependency.
+
+```
+Phase A  Urlaubs-Balken-Konsistenz (FE-only, ~1 day)
+   absences.rs: change bar computation + optional two-segment display + tests.
+   Gate: cargo test (frontend), WASM build.
+   Compile dep: none. Zero risk of regressions elsewhere.
+
+Phase B  Stale-Daten-Race guard (FE-only, ~1 day)
+   weekly_summary.rs: add tag fields, guard write.
+   booking_conflict.rs: same pattern.
+   shiftplan.rs: render guard + reload_unavailable_days guard.
+   Gate: cargo test (frontend, service_tests.rs covers weekly_summary), WASM build.
+   Compile dep: none. Purely additive to existing store struct.
+
+Phase C  Urlaub→Nicht-Verfügbar (FE-only, ~2 days)
+   api.rs: expose absence-period load for shiftplan context.
+   shiftplan.rs: reload_absence_days closure + person_absences signal +
+                 absence_periods_to_discourage_days helper +
+                 merge with unavailable_days in discourage_weekdays.
+   Gate: cargo test (helper unit tests), WASM build, manual shiftplan smoke.
+   Compile dep: none beyond existing absence API. Order after B so the shiftplan
+                page file has already been touched (reduces merge conflicts).
+
+Phase D  Admin-Impersonation FE (FE-only, ~2-3 days)
+   api.rs: 3 new calls (get_status, start, stop).
+   service/impersonate.rs (new): ImpersonateStore + coroutine.
+   component/impersonation_banner.rs (new): banner + stop button.
+   Admin selector UI: user list + start button (location TBD in discuss-phase).
+   app.rs: mount banner + init coroutine.
+   i18n: 3 locales.
+   Gate: cargo test + WASM build + manual admin-path smoke.
+   Compile dep: rest-types ImpersonateTO already exists (no new DTO needed).
+```
+
+### Ordering rationale
+
+- A and B are purely mechanical, zero-risk FE changes on data already in state/store.
+  Ship them first to reduce noise in later phases.
+- C is also FE-only but involves a new network call and a new signal; order it after B
+  so the shiftplan page is already "clean" (race guard in place) before adding more
+  async load paths.
+- D comes last because it has the most new FE surface (new file, new coroutine, new
+  component, i18n), and the backend is already complete so no sequencing risk there.
+- All four phases can be verified independently; none gate the others.
+
+---
+
+## Anti-Patterns Specific to This Change
+
+### Anti-Pattern 1: Adding a new BE endpoint for the discourage-marker absence data
+
+**What people do:** create `GET /shiftplan-absence-days?year=N&week=M&person_id=P` to return
+weekday bits from the backend.
+**Why wrong:** the data already exists at `GET /absence-period`. Computing weekday-from-date
+is trivial Rust (a few lines). Adding a new endpoint creates BE maintenance burden for zero benefit.
+**Instead:** frontend join: load absences via the existing endpoint, compute weekday hits locally
+using `Date::from_iso_week_date`.
+
+### Anti-Pattern 2: Using `auth-info` to gate the impersonation UI
+
+**What people do:** check `privileges.contains("admin")` from `GET /auth-info` to decide whether
+to show the admin impersonation controls.
+**Why wrong:** when impersonating a non-admin user, `auth-info` returns the IMPERSONATED user's
+privileges — which may not include "admin". The impersonation UI would disappear mid-session.
+**Instead:** call `GET /admin/impersonate`. A 200 response proves the real user is admin.
+A 403 response proves they are not. This endpoint always checks the real session user.
+
+### Anti-Pattern 3: Encoding the race guard as an atomic counter in global scope
+
+**What people do:** `static LOAD_GEN: AtomicU32 = AtomicU32::new(0)` and increment on each load.
+**Why wrong:** in Dioxus WASM (single-threaded), atomics add no synchronization benefit; the
+counter is semantically meaningless to the render code ("gen 5" doesn't say which week is loaded).
+**Instead:** `(loaded_year, loaded_week)` in the store is self-documenting, lets the render guard
+state declaratively, and is trivially comparable.
+
+### Anti-Pattern 4: Showing the vacation bar at 100% capped with no overconsumption signal
+
+**What people do:** clamp `(used + planned) / total` to 100% but don't change the bar or warn color.
+**Why wrong:** the remaining-days number shows a negative value, but the bar looks full-but-green.
+**Instead:** the existing `remaining_days <= 3.0 → text-warn / bg-warn` already fires for negatives
+(since -5 <= 3). Just apply the `committed_days = used + planned` computation and the low-threshold
+warn path handles overflow correctly at no extra code cost.
+
+### Anti-Pattern 5: Splitting impersonation stop/start across service tiers
+
+**What people do:** add an `ImpersonationService` at the service tier that wraps session mutation.
+**Why wrong:** impersonation is a session management concern, not a domain business rule.
+`SessionService` already owns the session lifecycle. Adding another service creates an unnecessary
+DI coupling level.
+**Instead:** the REST-layer impersonate handlers call `SessionService::start_impersonate` /
+`stop_impersonate` directly. The backend is already structured this way — do not refactor it.
+
+---
+
+## Data Flow Diagrams
+
+### Impersonation session resolution (existing, confirmed correct)
+
+```
+Admin browser          Axum REST layer                 Service layer
+     │                      │                               │
+     │ POST /admin/impers./{user} ──────────────────────────│
+     │                      │  session.user_id (REAL admin) │
+     │                      │  check_permission("admin", …) │ ← REAL user checked
+     │                      │  SessionService::start_impers.│
+     │                      │  session.impersonate_user_id = target
+     │  200 OK              │                               │
+     │ ─────────────────────│                               │
+     │ GET /booking-inform. │                               │
+     │                      │ context_extractor:            │
+     │                      │  resolve_session_user_id      │
+     │                      │  → impersonate_user_id (target) ─────────────────────┐
+     │                      │ Extension<Context> = target   │                       │
+     │                      │  ─────────────────────────────│                       │
+     │                      │                    BookingInformationService          │
+     │                      │                    check_permission(…, target_ctx)    │
+     │                      │                    ← target's privileges used         │
+     │  response for target │                               │                       │
+     │ ─────────────────────│                               │                       │
+     │                                                                              │
+     NOTE: REAL admin identity never appears in service calls after this point ─────┘
+```
+
+### Absence → discourage weekday join (new, FE-only)
+
+```
+shiftplan.rs coroutine (on person change)
+    ├─ existing: GET /sales-person-unavailable → unavailable_days → weekday set
+    └─ NEW:      GET /absence-period?person_id=... → person_absences
+                     │
+                     └─ absence_periods_to_discourage_days(absences, year, week)
+                              │  for each weekday Mon-Sun:
+                              │    compute concrete date from (year, week, weekday)
+                              │    check if any absence.from <= date <= absence.to
+                              └─ returns Vec<DayOfWeek>
+
+WeekView { discourage_weekdays: unavailable_weekdays ∪ absence_weekdays, … }
+```
+
+### Week-race guard (new)
+
+```
+User clicks week button
+    └─ cr.send(WeeklySummaryAction::LoadWeek(year=2026, week=25))
+         └─ load_summary_for_week(2026, 25)
+              ├─ WRITE store: { data_loaded: false, loaded_year: 2026, loaded_week: 25 }
+              ├─ await loader::load_summary_for_week(…)   ← user may click again here
+              │    User clicks: LoadWeek(2026, 26)
+              │      └─ WRITE store: { data_loaded: false, loaded_year: 2026, loaded_week: 26 }
+              │      └─ await loader (in queue, runs after 25 completes)
+              └─ READ store: loaded_week == 26 ≠ 25 → DISCARD (stale)
+              
+              LoadWeek(2026, 26) completes:
+              └─ READ store: loaded_week == 26 == 26 → WRITE summary, data_loaded = true
+              
+Render: weekly_summary.loaded_week == *week.read() → show data (no stale flash)
+```
+
+---
 
 ## Sources
 
-- This repo, read 2026-06-22: the 14 files listed above (line numbers verified by `grep`/`Read`).
-- `CLAUDE.md` § Layered Architecture, § Service-Tier-Konventionen, § Billing Period Snapshot Schema Versioning.
-- `.planning/PROJECT.md` (v1.4 milestone), `.planning/todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md` (D-01 + reqs 1–5).
-- MEMORY: sqlx reset-is-destructive / `migrate run` additive, `nix develop`, jj-only commits, Dioxus date-input test caveat.
+- `rest/src/impersonate.rs` — read 2026-06-29, all three handler implementations confirmed
+- `rest/src/session.rs` — read 2026-06-29, `resolve_session_user_id` and `context_extractor` confirmed
+- `service/src/permission.rs` — read 2026-06-29, `Authentication<Context>` enum + `check_permission` logic
+- `service_impl/src/permission.rs` — read 2026-06-29, real-user substitution confirmed absent (processes effective context only)
+- `service_impl/src/booking_information.rs` — read 2026-06-29, `period_overlaps_week` helper (line 77), absence loading pattern (line 198)
+- `shifty-dioxus/src/service/weekly_summary.rs` — read 2026-06-29, unconditional store write confirmed (line 37-42)
+- `shifty-dioxus/src/service/booking_conflict.rs` — read 2026-06-29, same pattern confirmed
+- `shifty-dioxus/src/page/shiftplan.rs:1120-1123` — read 2026-06-29, `discourage_weekdays` source confirmed
+- `shifty-dioxus/src/page/shiftplan.rs:350-368` — read 2026-06-29, `reload_unavailable_days` pattern
+- `shifty-dioxus/src/page/absences.rs:866-871` — read 2026-06-29, bar computation confirmed `used_days` only
+- `shifty-dioxus/src/state/vacation_balance.rs` — read 2026-06-29, all balance fields confirmed present
+- `.planning/todos/pending/2026-06-29-wochen-summary-karten-gegen-stale-daten-bei-schnellem-wochen.md` — root cause analysis
+- `.planning/todos/pending/2026-06-29-eigener-urlaub-markiert-nicht-als-nicht-verfuegbar-im-schich.md` — root cause analysis
+- `.planning/PROJECT.md` — v1.9 milestone scope
 
 ---
-*Architecture / integration research for: v1.4 Committed Voluntary Capacity*
-*Researched: 2026-06-22 — Confidence HIGH*
+*Architecture / integration research for: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation*
+*Researched: 2026-06-29 — Confidence HIGH*

@@ -1,250 +1,329 @@
-# Feature Research — Committed Voluntary Capacity (v1.4)
+# Feature Landscape — v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
 
-**Domain:** HR / shift-planning reporting — pre-committed voluntary hours capacity
-**Researched:** 2026-06-22
-**Confidence:** HIGH (formula + side-effects verified directly against `reporting.rs` and `booking_information.rs`; line areas cited)
-
----
-
-## TL;DR for the requirements step
-
-1. **The no-double-count formula in the todo is stated against the WRONG data path.** The todo (req 3) describes `available = expected + committed_voluntary`, `surplus = max(0, actual_volunteer − committed_voluntary)` as if the year view reads `reporting.rs`. **It does not.** The Jahresansicht (`weekly_overview`) is fed by `booking_information.rs::get_weekly_summary` → `WeeklySummaryTO`, whose `volunteer_hours` is **already** the *actual booked hours of `is_paid=false` persons* (`booking_information.rs:141-153`), and `paid_hours` is the sum of paid persons' `dynamic_hours` (`:176-178`). The reactive cap-overflow `volunteer_hours` computed in `reporting.rs` **never reaches the year view at all.** This must be resolved before requirements are written. See [The two volunteer axes](#the-two-volunteer-axes-critical).
-2. **Scope gate (`cap_planned_hours_to_expected = true`) is semantically clean but mechanically detached** from the year-view capacity number, because the year view keys voluntary capacity off `is_paid=false`, not off the cap flag. Pin down which gate actually drives display.
-3. **Giving an unpaid volunteer an `EmployeeWorkDetails` record has concrete, enumerable side effects** — it flips them from the "volunteer" branch (`is_paid=false`) into multiple paid-only loops and the HR reporting list. See [Anti-Features](#anti-features-commonly-requested-often-problematic) and [unpaid-record side-effects](#unpaid-volunteer-record-side-effects-enumerated).
-4. **Aggregation granularity is per-ISO-week, summed to year.** `committed_voluntary` is a flat weekly pledge from the time-versioned `EmployeeWorkDetails` record active for that week; it does **not** interact with absence/holiday/vacation. See [req 5 answer](#interaction-with-absence-vacation-flat-weekly-pledge).
+**Domain:** HR + Shift-Planning SaaS (Milestone v1.9)
+**Researched:** 2026-06-29
+**Overall confidence:** MEDIUM (cross-checked across Deputy, When I Work, Dayforce,
+Small Improvements, PropelAuth, yaro-labs; all consistent on core conventions)
 
 ---
 
-## The two volunteer axes (CRITICAL)
+## Scope Note
 
-There are **two completely separate "volunteer_hours" computations** in the backend. Conflating them is the single biggest risk in this milestone.
-
-| Axis | Where | What it means | Reaches year view? |
-|------|-------|---------------|--------------------|
-| **A — reactive cap-overflow** (`auto_volunteer_hours`) | `reporting.rs::apply_weekly_cap` (`:94-107`), folded into `ShortEmployeeReport.volunteer_hours` (`:362-367`, `:854`, `:1121-1126`) | For a **paid** person with `cap_planned_hours_to_expected=true`: bookings above `expected` spill into volunteer instead of overtime. Plus manual `VolunteerWork` extra-hours. | **No** — consumed by `get_report_for_employee` / billing period, not by `get_weekly_summary`. |
-| **B — unpaid-person booked hours** | `booking_information.rs::get_weekly_summary` (`:141-153`) and `:417-431` | Sum of `extract_shiftplan_report_for_week` hours for every sales person with `is_paid=false`. This is the number the Jahresansicht renders as `🤝 volunteer`. | **Yes** — this IS the year view's `volunteer_hours`. |
-
-**Year-view capacity today** (`booking_information.rs:197`, `:309`):
-```
-overall_available_hours = paid_hours + volunteer_hours
-                        = Σ(dynamic_hours of is_paid persons)   // contract capacity
-                        + Σ(booked hours of !is_paid persons)   // reactive volunteer
-```
-
-So the year view's "available capacity" is **reactive on both axes**: paid capacity is contract-driven, volunteer capacity is *whatever unpaid people actually booked*. There is **no forward-looking pledge anywhere today** — which is exactly the gap v1.4 closes.
-
-**Consequence for the formula:** The todo's `available = expected + committed_voluntary` and `surplus = max(0, actual_volunteer − committed_voluntary)` describes a *new* capacity axis that must be **added into `get_weekly_summary`'s `overall_available_hours`**, not retrofitted onto `reporting.rs`. The `reporting.rs` cap path (Axis A) and the year view (Axis B) should be treated as independent. Flag this for the requirements author as **D-FORMULA-PATH**.
+This file covers the four v1.9 features only. Existing features (absence CRUD,
+vacation balance computation, shiftplan booking + warnings, paid-capacity enforcement,
+holidays) are NOT re-researched.
 
 ---
 
-## No-double-count formula — verified semantics
+## Feature A: Urlaub → Nicht-Verfügbar (Absence-as-Grid-Discourage)
 
-The intended forward-looking capacity model, expressed so it slots into `get_weekly_summary`:
+### Background
 
-```
-committed_voluntary  := pledged weekly voluntary hours (new field on EmployeeWorkDetails, time-versioned)
-actual_volunteer     := booked hours this person already has (Axis B, per week)
+Current state: Absence dates only surface as a `BookingOnAbsenceDay` warning when a
+shift is actually booked. The grid itself does not proactively mark absence days as
+discouraged. The `discourage` mechanism already exists, driven by
+`sales_person_unavailable` (recurring weekday rules). Absence date ranges are a
+separate data path that currently does not feed the discourage signal.
 
-available_capacity   = expected_paid + committed_voluntary            // the pledge counts as available capacity
-surplus              = max(0, actual_volunteer − committed_voluntary) // only bookings BEYOND the pledge add on top
-counted_volunteer    = committed_voluntary + surplus
-                     = max(committed_voluntary, actual_volunteer)
-```
+Industry norm: every major scheduling tool (Deputy, When I Work) proactively marks
+absence/leave days in the grid before any booking attempt. Showing only a post-hoc
+warning is below the norm.
 
-The closed form is **`max(committed_voluntary, actual_volunteer)`** — the pledge is a floor, actual bookings only matter once they exceed it. This is the no-double-count rule.
+### Table Stakes
 
-**Worked examples (from todo req 3, verified consistent):**
-
-| committed | actual | counted_volunteer | display | interpretation |
-|-----------|--------|-------------------|---------|----------------|
-| 5 | 3 | `max(5,3)=5` | **5** (covered) | pledge not yet fulfilled; capacity still shown at pledge level, no surplus |
-| 5 | 7 | `max(5,7)=7` → 5 + 2 | **5 + 2 surplus** | pledge fulfilled, 2h booked beyond pledge counts on top |
-| 5 | 0 | 5 | **5** | pure forward pledge, nothing booked yet |
-| 0 | 4 | 4 | **4** | no pledge → identical to today's reactive behaviour |
-
-The `committed=0` row is important: it makes the new field **backward-compatible** — a person with no pledge behaves exactly as today (`counted = actual`).
-
-### Ambiguity flagged: weekly vs period aggregation, partial weeks
-
-- **Granularity is per-ISO-week.** `get_weekly_summary` already loops `for week in 1..=(weeks_in_year + 3)` (`booking_information.rs:126`) and the year view renders one row per week. `committed_voluntary` is read from the `EmployeeWorkDetails` record active for *that* week (same `from_year/from_calendar_week … to_year/to_calendar_week` versioning as `cap_planned_hours_to_expected`, per the cap spec). So the `max()` must be applied **per week, then summed** — never `max(Σcommitted, Σactual)` over the year, which would hide a week where the pledge was unmet behind another week of surplus.
-- **Partial weeks / mid-week version boundaries:** `EmployeeWorkDetails` is week-granular for the cap flag (the spec treats a record as active for whole weeks). `committed_voluntary` should follow the **same week-granular activation** as `cap_planned_hours_to_expected` — do NOT pro-rate the pledge by `weight_for_week` the way `expected_hours` is pro-rated (`reporting.rs:240-254`). A pledge is a flat weekly number; pro-rating it would silently shrink it on a person's first/last partial week. **Flag D-PARTIAL-WEEK:** confirm pledge is flat-per-active-week, not weighted.
-- **`weeks_in_year + 3` overscan:** `get_weekly_summary` deliberately computes 3 weeks into the next year (`:117`, `:126-131`). The committed pledge lookup must tolerate week>weeks_in_year roll-over identically.
-
----
-
-## Feature Landscape
-
-### Table Stakes (Users Expect These)
+Features users expect. Missing = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| `committed_voluntary: f32` on `EmployeeWorkDetails`, time-versioned | The whole point of v1.4 (D-01 / Variante B) | LOW (data model) | Mirror `cap_planned_hours_to_expected` exactly: nullable→default 0.0 migration, same versioning range, Service+DAO+rest-types. `EmployeeWorkDetails` struct at `service/src/employee_work_details.rs:14-41`. |
-| Pledge counts into year-view available capacity, per week | "Available capacity" must reflect committed hours, else feature is invisible | MEDIUM | Add `committed_voluntary` term into `overall_available_hours` in `booking_information.rs:197` and `:309`. This is the real integration point — NOT `reporting.rs`. |
-| No double-count: `counted = max(committed, actual)` per week | Explicit todo req 3; prevents inflated capacity | MEDIUM | The `max()` must be evaluated per person per week before summing into `volunteer_hours`. |
-| Committed capacity shown **separately** from paid & volunteer | Todo req 4 — must not be "vermischt" with `paid`/`volunteer` | LOW–MED (frontend) | Year-view row today shows `💰{paid} \| 🤝{volunteer}` (`weekly_overview.rs:103`, `:108`). Add a third token (e.g. `📌{committed}` / "zugesagt"). New field on `WeeklySummaryTO` + `WeeklySummary` state + i18n key in all 3 locales. |
-| Backward-compat: `committed=0` ⇒ unchanged behaviour | Existing data must not shift | LOW | `max(0, actual)=actual`; guaranteed by formula. Default-0 migration (mirror cap-flag migration scenario in spec). |
-| Snapshot schema version bump | CLAUDE.md mandate — volunteer/capacity computation input changes | LOW | `CURRENT_SNAPSHOT_SCHEMA_VERSION` is currently **7** (`billing_period_report.rs:74`). Bump to 8 **only if** the committed pledge changes a persisted `billing_period_sales_person` `value_type`. **Flag:** if v1.4 only touches the live year-view (`get_weekly_summary`) and NOT the billing snapshot writer, a bump may be unnecessary — verify whether `volunteer_hours` is a persisted snapshot value before bumping. |
+| Approved absence dates appear as visually distinct cells in the scheduling grid before booking | Deputy: solid red; WhenIWork: grey bar — proactive display is universal | Low-Med | Reuse existing `discourage` render path; extend data source to include absence date ranges |
+| Vacation absences are included (minimum required category) | Vacation is the most common; user reported this as missing | Low | Mandatory baseline |
+| SickLeave absences are included | Sick employees also cannot work | Low | Natural extension; no reason to exclude |
+| UnpaidLeave absences are included | Same rationale; absence data model already has the category | Low | Include by default; cost is zero |
+| The visual treatment is identical to the existing `sales_person_unavailable` discourage cell | Consistency — scheduler recognizes the pattern from existing use | Low | Reuse the same Tailwind classes / cell rendering already in `week_view.rs` |
+| Absence-based discourage is date-specific (concrete NaiveDate), not day-of-week | Vacation is a date range, not a recurring weekly pattern | Med | Current `discourage_weekdays` model is weekday-based; extend or add parallel `discourage_dates: HashSet<NaiveDate>` |
 
-### Differentiators (Competitive Advantage)
+### Differentiators
+
+Features that set product apart. Not expected, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Surplus highlighting (committed met + extra booked) | Planner instantly sees who over-delivered vs who only pledged | LOW | `surplus = actual − committed` already computed; render `5 + 2` like the example. Reuse `diff_color_and_sign` token logic (`weekly_overview.rs:22-30`). |
-| Pledge-vs-delivered gap warning (committed but under-booked) | Surfaces unmet pledges early (committed=5, actual=2 ⇒ 3h gap to fill) | MEDIUM | Per project memory, prefer **inline banner, not blocking dialog**. Could reuse the existing absences sub-row pattern (`weekly_overview.rs:115-125`). |
-| Chart inclusion of committed capacity | `WeeklyOverviewChart` consumes the same `weeks` data | MEDIUM | If committed feeds `available_hours`, chart updates for free; if shown as a separate band, chart needs a new series. Confirm with design. |
+| Hover tooltip showing absence type on discourage cell | Zero-click info: scheduler sees "Vacation 2026-07-01..07-05" without navigating away | Low | Small Tailwind tooltip on the discourage cell div |
+| Visually distinguish absence-sourced discourage from recurring-rule discourage | Scheduler immediately knows if it is "every Monday rule" vs a specific vacation | Med | Different color or indicator glyph; adds a second visual variant to the discourage system |
+| Pending (unapproved) absence shown as lighter/striped vs approved (solid) | Deputy/WhenIWork both distinguish pending vs approved | Med | Shifty has no absence-approval workflow today; defer until approval model exists |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### Anti-Features
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Reuse `reporting.rs` cap-overflow path for the year-view number | "It already computes volunteer_hours" | That path (Axis A) is consumed by billing/employee-report, NOT the year view; wiring it in would double-count against Axis B's `is_paid=false` booked hours | Integrate the pledge in `booking_information.rs::get_weekly_summary` (Axis B) only |
-| Give every unpaid volunteer a full paid `EmployeeWorkDetails` with `expected_hours>0` | "They need a work-details record to hold the pledge" | A paid-style record flips them into paid-only code paths: they leave the `is_paid=false` volunteer sum, enter HR reports, get contract paid_hours, get day-distributed capacity. Mass behaviour shift. | Create the record with `expected_hours=0` and keep `is_paid=false`; only `committed_voluntary>0`. Verify each downstream loop tolerates `expected_hours=0`. |
-| Invariant `committed_voluntary >= expected_hours` | "Pledge should be the total" | D-01 explicitly rejected Variante A (committed_total). Adds a subtraction step and a brittle invariant. | Keep `committed_voluntary` as the *additive top-up only* (Variante B). No invariant. |
-| Pro-rate the pledge by partial-week weight | Symmetry with `expected_hours` weighting | Silently shrinks the pledge on first/last partial weeks; a "5h pledge" becomes "2h" | Flat weekly pledge, week-granular activation like the cap flag |
-| Make committed interact with absence/vacation (reduce pledge when on holiday) | "If they're on vacation they can't volunteer" | Adds cross-entity coupling the todo doesn't ask for; absence already handled on the paid/derived axis | Keep pledge a flat capacity number; let actual bookings (Axis B) naturally drop to 0 during absence |
+Features to explicitly NOT build in v1.9.
 
----
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Hard-blocking shift booking on absence days | That is a separate policy toggle analogous to `paid_limit_hard_enforcement`; it is not what the todo asks for | Keep soft discourage; the existing `BookingOnAbsenceDay` warning already fires at booking time |
+| Showing another employee's absence in the grid cell of a different employee | Absence is per-person; cross-person display creates confusion | Each person's own absence dates are discouraged only in their own row |
+| Full absence-approval workflow in v1.9 | Large orthogonal feature | Keep existing absence model; approval is a future milestone |
+| Loading all absences for the whole year upfront | Performance cost for large teams | Load only the absences for the displayed week, same scope as existing data loads |
 
-## Scope gating (req 2) — answer
-
-**Intended scope:** feature applies ONLY to `cap_planned_hours_to_expected = true` persons (PROJECT.md "Scope-Grenze", todo req 2).
-
-**Reality check — two different gates exist and they don't coincide:**
-
-- The **cap flag** (`cap_planned_hours_to_expected`) lives on `EmployeeWorkDetails` and gates Axis A (`reporting.rs:264-267`, `:813-814`, `:1000-1003`).
-- The **year-view volunteer axis** (Axis B) gates on **`is_paid=false`** (`booking_information.rs:123`, `:248`), a `SalesPerson` field (`sales_person.rs:17`), *not* on the cap flag.
-
-A "small paid contract + voluntary top-up" person (the todo's motivating example: 5h paid + 5h pledged) is `is_paid=true` AND `cap_planned_hours_to_expected=true`. But today such a person contributes to `paid_hours` (Axis A), **not** to the year-view `volunteer_hours` (Axis B, which is `is_paid=false` only). So their pledge has nowhere to land in the current year-view math.
-
-**Behaviour to pin down (flag D-SCOPE-GATE):**
-- For a **capped paid person** (`is_paid=true`, `cap=true`, `committed_voluntary=5`): the pledge should add 5 to `overall_available_hours` for that week, shown in the separate committed column. Their booked overflow beyond `expected` is Axis A volunteer in `reporting.rs` but does NOT reach the year view — so the year view needs the committed term added explicitly in `booking_information.rs`.
-- For a **non-capped person** (`cap=false`): `committed_voluntary` is **ignored / not displayed**. The pledge field may physically exist on the record but the year-view integration reads it only when `cap_planned_hours_to_expected=true`. Recommended display: blank/`—` in the committed column, never `0` (so "no pledge" ≠ "pledged zero" is visually distinct). Confirm with design.
-- For a **pure unpaid volunteer** (`is_paid=false`): handled by req 4 below — needs a record to hold the pledge.
-
----
-
-## Year-view display (req 3/4) — table-stakes vs nice-to-have
-
-Current row markup (`weekly_overview.rs:90-128`): three columns — Week, `💰paid \| 🤝volunteer`, `available/required`, `missing`. Plus an optional absences sub-row (`:115-125`).
-
-**Table stakes (must ship):**
-- New `committed_voluntary` field threaded: `WeeklySummaryTO` (`rest-types/src/lib.rs:901-915`) → `WeeklySummary` state (`state/weekly_overview.rs:11-27` + `From` impl `:29-62`) → render.
-- Committed shown **separately** (third token, e.g. `📌{committed}` / a "zugesagt" / "committed" column), per todo req 4. New i18n key in En/De/Cs.
-- `available_hours` (= `overall_available_hours`) includes the committed term so the `available/required` column and the `missing` diff (`weekly_overview.rs:87`) reflect the pledge.
-
-**Nice-to-have (defer if needed):**
-- Surplus rendering (`committed + surplus`, e.g. `5 + 2`).
-- Pledge-unmet inline banner (committed > actual).
-- Per-day distribution of the pledge (`monday_available_hours…`) — today only the day-level `get_summery_for_week` distributes (`:434-440`); the year view leaves day fields `0.0` (`:206-212`). A flat weekly pledge has no natural day split, so **omit from day columns** unless design wants even distribution.
-- Chart band for committed.
-
----
-
-## Unpaid-volunteer record side-effects (enumerated)
-
-Req 4: pure unpaid volunteers need an `EmployeeWorkDetails` record to hold `committed_voluntary`, and must become visible/selectable via the "alle" filter.
-
-**Today, an `is_paid=false` person with NO work-details record** is invisible to every paid loop and visible only as Axis-B booked hours. Giving them a record changes the following — **each must be verified to remain correct**:
-
-| # | Downstream consumer | Today (no record) | After adding a record | Risk |
-|---|---------------------|-------------------|------------------------|------|
-| 1 | `reporting.rs::get_reports_for_all_employees` (HR list) | excluded — filters `is_paid==true` (`:141`) | **still excluded** if `is_paid` stays false | LOW — gate is `is_paid`, not record presence |
-| 2 | `booking_information.rs` volunteer sum (Axis B) | included via `is_paid=false` (`:123`) | still included **iff** `is_paid` stays false | MED — if a record is mistakenly created with `is_paid=true`, they LEAVE the volunteer sum and ENTER paid_hours |
-| 3 | `booking_information.rs` paid day-distribution loop (`:341-408`) | excluded — filters `is_paid=true` (`:326`) | excluded if `is_paid` stays false | LOW |
-| 4 | `reporting.rs::get_week` (per-week report) | iterates over **everyone with work-details** (`:719`), keyed by work-details map, NOT `is_paid` | **now included** — a new `ShortEmployeeReport` row appears for this person | **HIGH — this is the main surprise.** `get_week` is called by `get_weekly_summary` (`:133`), so the new record makes the unpaid volunteer appear in `working_hours_per_sales_person` / absence sub-rows even though they were never there before |
-| 5 | `paid_hours` accumulation (`booking_information.rs:176-178`) sums `report.dynamic_hours` over ALL `get_week` rows | the volunteer had no row | new row with `dynamic_hours` from `expected_hours` | **HIGH if `expected_hours>0`** — their contract hours would leak into `paid_hours`. **Mitigation: create record with `expected_hours=0`** so `dynamic_hours≈0`. |
-| 6 | Billing period snapshot | excluded (no work-details / `is_paid=false`) | depends on whether billing keys off `is_paid` or work-details — **verify** | MED — possible snapshot drift ⇒ relates to the version-bump decision |
-
-**Net recommendation for requirements:** the unpaid-volunteer record must be created with **`is_paid=false` preserved** and **`expected_hours=0`**, carrying only `committed_voluntary>0` (and likely `cap_planned_hours_to_expected=true` so the scope gate lets the pledge through). Then verify side-effect #4/#5: that a zero-expected record produces a benign `get_week` row (dynamic_hours 0, no spurious paid_hours, no absence noise). This is the highest-risk integration test in the milestone.
-
----
-
-## Interaction with absence/vacation (req 5) — flat weekly pledge
-
-**Answer: `committed_voluntary` does NOT interact with absence periods, holidays, or vacation. It is a flat weekly pledge.**
-
-Rationale, verified:
-- Absence/holiday/vacation reduce the **paid expected** axis via `expected = planned − absence − derived` (`reporting.rs:429-430`, `:851`, `:1089`) and the dynamic guard `if planned_hours <= 0.0 { 0.0 }` (`:845-850`).
-- The pledge is a *capacity offer*, not contracted hours, so there is no expected/balance to erode. If the person is absent, their **actual** bookings (Axis B) naturally fall, and `counted = max(committed, actual)` keeps the pledge visible as offered-but-unfilled capacity — which is the correct planner signal.
-- Adding absence interaction would re-introduce the cross-entity coupling D-01 was designed to avoid and pull `AbsenceService` into the pledge path (a Business-Logic dependency the cap flag deliberately avoids).
-
-**One edge to flag (D-ABSENCE-DISPLAY):** if design later wants "don't show pledged capacity for a week the person is fully on holiday," that's a *display filter*, not a math change — keep it out of the core formula.
-
----
-
-## Feature Dependencies
+### Feature Dependencies
 
 ```
-committed_voluntary field (EmployeeWorkDetails: Service + DAO + rest-types + migration)
-    └──requires──> SQLite migration (default 0.0, mirror cap-flag migration)
-    └──enables──> year-view capacity integration (booking_information::get_weekly_summary)
-                       └──requires──> WeeklySummaryTO new field
-                                          └──requires──> WeeklySummary state + From impl
-                                                             └──enables──> separate committed column + i18n (En/De/Cs)
-    └──enables──> "alle"-filter + unpaid-volunteer record (is_paid=false, expected_hours=0)
-                       └──conflicts──> reporting::get_week including the new row (side-effect #4)
+Absence CRUD API (v1.0, done)
+  └──provides──> absence date ranges per person per year
 
-snapshot version bump ──depends-on──> whether volunteer_hours is a PERSISTED billing value_type (verify first)
-Axis A (reporting cap-overflow) ──independent-of──> Axis B (year-view) — DO NOT merge
+booking_information.rs::get_weekly_summary (done, v1.7)
+  └──already returns──> absence data per week per person
+  └──check──> whether absence dates are already in BookingInformationTO / week payload
+              reachable by the frontend for the displayed week
+
+Existing discourage_weekdays render (week_view.rs:975-1065)
+  └──extend to──> also check discourage_dates set for the specific NaiveDate of each cell
+
+shiftplan.rs:1120-1123 (discourage_weekdays construction site)
+  └──extend to──> add discourage_dates: HashSet<NaiveDate> built from loaded absence ranges
 ```
 
-### Dependency notes
-- **Field before everything:** the migration + struct field is the foundation; mirror `cap_planned_hours_to_expected` end-to-end (it already proves the time-versioned-flag pattern).
-- **`booking_information.rs` is the real integration site**, not `reporting.rs`. Get this wrong and capacity double-counts.
-- **The unpaid-record path conflicts with `get_week`'s record-keyed iteration** — the dependency that needs an explicit integration test.
+**Key question to resolve in discuss-phase:** Does the current frontend weekly data
+load already include the absence date ranges for the viewed week, or does an additional
+fetch / field in the API payload need to be added? `booking_information.rs:70-99` is
+the candidate; if absence dates already flow through `BookingInformationTO` this is a
+frontend-only change.
 
 ---
 
-## MVP Definition
+## Feature B: Urlaubs-Balken-Konsistenz (Vacation Bar Consistency)
 
-### Launch With (v1.4)
-- [ ] `committed_voluntary: f32` on `EmployeeWorkDetails` — time-versioned, default 0.0 migration (Service/DAO/rest-types). *Foundation.*
-- [ ] Year-view capacity integration in `booking_information.rs::get_weekly_summary` with per-week `counted = max(committed, actual)`, gated on `cap_planned_hours_to_expected`. *The feature.*
-- [ ] Separate committed column in `weekly_overview` + i18n (En/De/Cs). *Visibility (todo req 4).*
-- [ ] "alle"-filter + unpaid-volunteer record path with `is_paid=false`, `expected_hours=0`, verified side-effects #4/#5. *Todo req 5.*
-- [ ] Snapshot version decision (bump iff `volunteer_hours` is a persisted billing value_type).
+### Background
 
-### Add After Validation (v1.5)
-- [ ] Surplus display (`committed + surplus`) and pledge-unmet inline banner.
-- [ ] Committed capacity in `WeeklyOverviewChart`.
+Current state: the bar in `PersonVacationCard` (absences page) shows
+`used_days / (entitled + carryover)`, clamped 0-100%. The number next to it shows
+`remaining = entitled + carryover − used − planned`. They measure different things.
+Example: entitled+carryover=18, used=6 → bar=33%; planned=13 → remaining=−1. A user
+sees "−1 remaining" next to a "33% full" bar. This is actively misleading.
 
-### Future Consideration (v2+)
-- [ ] Approval workflow for pledges (explicitly out per PROJECT.md SC-01).
-- [ ] Min-paid-capacity / skill matching (SC-02).
-- [ ] Average-attendance evaluation (related todo, deferred).
+Industry norm (Dayforce, WhenIWork, UX case studies): bar and number must measure the
+same quantity. Overdraft must be visible, not silently clamped.
 
-## Feature Prioritization Matrix
+### Table Stakes
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| `committed_voluntary` field + migration | HIGH | LOW | P1 |
-| Year-view capacity integration (`max` per week) | HIGH | MEDIUM | P1 |
-| Separate committed column + i18n | HIGH | LOW | P1 |
-| Unpaid-volunteer record + side-effect guards | HIGH | MEDIUM | P1 |
-| Snapshot version bump (conditional) | MEDIUM | LOW | P1 |
-| Surplus display / unmet-pledge banner | MEDIUM | LOW | P2 |
-| Chart band for committed | LOW | MEDIUM | P3 |
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Bar and number measure the same quantity | Every HR tool surveyed follows this rule; mismatched indicators break trust | Low | Pure formula change; all data already in `VacationBalance` frontend state |
+| Bar shows `(used + planned) / (entitled + carryover)` | This matches `remaining = total − used − planned`; consistent with the displayed number | Low | One-line formula change in `absences.rs:865-871` |
+| Overdraft (remaining < 0) is visible in the bar, not hidden by a 100% clamp | Dayforce uses an "Exceeded" column; tools use warning color + full bar; clamping hides a real problem | Low | Remove the `f64::min(1.0)` clamp; when `used + planned > total`, render bar full in `bg-warn`/`bg-error` |
+| Warning color fires on overdraft | Already fires when `remaining_days <= 3.0`; will naturally fire for negative values if clamp is removed | Low | No change needed if clamp is removed; verify the condition covers negative values |
 
-## Open questions for requirements author (decision flags)
+### Differentiators
 
-- **D-FORMULA-PATH:** Confirm integration is in `booking_information.rs::get_weekly_summary` (Axis B), NOT `reporting.rs` (Axis A). The todo's formula wording implies reporting.rs and is misleading.
-- **D-SCOPE-GATE:** For capped **paid** persons (`is_paid=true`, `cap=true`), where does the pledge add — the `paid_hours` term, the `volunteer_hours` term, or a new third term? Recommend a new third term `committed_hours` on `WeeklySummary` so it is genuinely "separate" (todo req 4) and never double-counts against Axis B.
-- **D-PARTIAL-WEEK:** Confirm flat-per-active-week (no `weight_for_week` pro-rating).
-- **D-UNPAID-RECORD:** Confirm `is_paid=false` + `expected_hours=0` for unpaid-volunteer records, and add an integration test for the `get_week` side-effect (#4/#5).
-- **D-SNAPSHOT:** Verify whether `volunteer_hours` / capacity is a persisted `billing_period_sales_person` value_type before bumping `CURRENT_SNAPSHOT_SCHEMA_VERSION` (currently 7).
-- **D-ABSENCE-DISPLAY:** Confirm pledge is flat (no absence interaction); any "hide on full-holiday week" is display-only.
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Two-segment bar: used (solid) + planned (lighter / distinct color) | Immediately shows how much is confirmed taken vs upcoming scheduled — more information per pixel | Med | Two adjacent `div` elements with `used_pct` and `planned_pct` widths; total width still `(used+planned)/total` |
+| Overdraft overflow overflow visual: bar continues past 100% mark in warning color | Visually striking for HR scanning many people; makes overdraft unmissable | Med | CSS trick: `overflow: visible` on container + absolute-positioned overflow segment |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Separate bars for used and planned side-by-side | Clutters the tight `PersonVacationCard` row layout | Single bar with two segments via adjacent divs |
+| Adding pending-vs-approved distinction within planned_days | Shifty has no absence approval workflow; `planned_days` is a single figure from the backend | Use backend's single `planned_days` figure; no subdivision needed |
+| Bar animation on load | Distracting in a list of many people | Static fill |
+| Changing the backend API | All fields are already present in `VacationBalance` (`used_days`, `planned_days`, `remaining_days`, `entitled_days`, `carryover_days`) | Frontend-only change |
+
+### Feature Dependencies
+
+```
+Vacation balance API (v1.5, done)
+  └──provides──> used_days, planned_days, remaining_days, entitled_days, carryover_days
+
+VacationBalance frontend state (done)
+  └──already holds──> all needed fields
+
+PersonVacationCard component (absences.rs:843-898)
+  └──change──> formula + remove clamp + conditional warning color
+```
+
+**This is a pure frontend change. No backend work needed.**
+
+---
+
+## Feature C: Stale-Daten-Race (Week-Summary Stale Guard)
+
+### Background
+
+Current state: rapid week-switching can show stale data because an earlier async
+response for week N-1 arrives after the user has navigated to week N, overwriting the
+correct week-N data. The visible symptom is summary cards showing last week's numbers
+under this week's header.
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Summary cards always show data for the currently-selected week | Basic correctness; any async UI framework handles this with a generation counter or cancel-on-stale | Low-Med | Dioxus 0.6 async model does not expose HTTP abort cleanly; generation token is the correct approach |
+| Rapid navigation does not produce partial/mixed state (last week's N + this week's M) | Mixed state is worse than a loading state | Low | Generation token: discard response if `(year, week)` no longer matches current signal at response-write time |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Debounced week navigation: wait ~100-200ms after last click before firing the fetch | Prevents N requests for N rapid arrow-key presses | Low | `use_signal` + timeout-based debounce in the event handler |
+| Keep previous week's data visible (reduced opacity) while next week is loading | Avoids blank flash; data is stale but visually present | Low | Don't clear state on navigation; only update on response commit |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Canceling in-flight HTTP requests (AbortController equivalent) | Dioxus 0.6 async coroutine model does not expose this pattern cleanly; request still runs server-side anyway | Generation token: discard stale responses on the receive side |
+| Loading spinner on every week change | Flickers on fast navigation; hurts perceived performance | Show spinner only after a timeout threshold (e.g. 300ms); or just discard stale silently |
+| Re-architecting the data loading pattern for all pages | Out of scope; fix the week-summary path only | Surgical fix in the affected coroutine / signal |
+
+### Feature Dependencies
+
+```
+Existing week-selector signal (done)
+  └──wrap with──> generation token Signal<(year, week)>
+
+Existing summary card data-fetch coroutine
+  └──add guard──> capture (year, week) at dispatch; compare at response-write; discard if mismatch
+```
+
+**This is a pure frontend change. No backend work needed.**
+
+---
+
+## Feature D: Admin-Impersonation (Read + Write)
+
+### Background
+
+Current state: no impersonation exists. Admins must log in as another user (sharing
+credentials) to reproduce a bug or see another employee's view. The todo asks for a
+proper impersonation feature: admin acts as user, writes are allowed, audit trail
+preserved, and the admin sees a banner with an exit button.
+
+Industry norm (PropelAuth, Small Improvements, Deskera, Yaro Labs): impersonation is
+standard in HR SaaS support/admin tooling. All surveyed tools use a persistent top
+banner, full read+write, no privilege escalation, and audit logs carrying real identity.
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Persistent "Acting as [Name] — Stop Impersonation" banner on every page during impersonation | Industry-standard; every tool surveyed has this. Non-dismissible. Yellow/amber color convention. | Med | Global Dioxus component in app root layout; reads impersonation state signal |
+| Banner has a one-click exit mechanism | Canonical exit pattern across all tools; no multi-step confirmation needed | Low | Button fires DELETE /impersonation or clears the impersonation context signal |
+| Start impersonation from the admin/HR person list | Canonical entry point ("Manage → Impersonate" on person row/card) | Low | Add action item to existing person list in admin/HR view |
+| Privilege escalation prevention: impersonated user's permissions apply, not admin's | Core security invariant. PropelAuth + Small Improvements: admin privileges do NOT bleed through | Med | PermissionService must resolve roles of the impersonated user, not real caller; check fires on every request, not only at session start |
+| Real admin identity preserved in audit log for all impersonated actions | Industry norm: other admins can see who really acted. Tag every mutating request with `impersonation_context { real_admin_id }` | Med | Axum request extension or `Authentication<Context>` carries dual identity; logging layer reads real actor |
+| Admin-only gate on start/stop impersonation endpoints | No other role can enter impersonation mode | Low | `require_privilege(admin)` check on both endpoints |
+| i18n de/en/cs for banner text and start/stop labels | Project convention; Shifty supports three locales | Low | ~6 new locale strings |
+| Cannot impersonate oneself | Trivial correctness guard | Low | `target_id != real_admin_id` check at start |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Visual "impersonation mode" color tint or border on page (beyond banner) | Makes the mode unmistakable even when scrolled past the banner | Med | CSS body class or Tailwind ring on main container; optional |
+| Impersonation session auto-timeout (15-60 min) | Security best practice in enterprise tools; yaro-labs recommends 15-60 min | Med | Defer to v2.0+; manual exit sufficient for v1.9 |
+| Audit log UI visible to other admins (searchable list of past sessions) | Compliance feature for regulated industries | High | Defer; backend logging in structured logs is sufficient for v1.9 |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Read-only impersonation as the v1.9 default | The todo explicitly states read + write; read-only would not cover the "support reproduces and fixes an issue" use case | Full read+write; restrict only irreversible destructive actions if desired |
+| Blocking ALL write operations during impersonation | Defeats the stated purpose | Allow all normal writes; consider blocking only account deletion or password change if those endpoints exist |
+| Token-swapping / JWT re-issuance for impersonation | Loses the real admin identity for audit purposes; hard to revoke; complex in OIDC production context | Server-side impersonation context: extend `Authentication<Context>` with `impersonated_sales_person_id: Option<Uuid>` set in a backend session/endpoint, not in the token |
+| Impersonating another admin | Admins acting as admins is an escalation risk and typically disallowed | Gate: can only impersonate non-admin users; or require a separate confirmation |
+| Real-time notification to the impersonated user | No tool surveyed notifies the target; it would cause support friction and confusion | Audit log visible to other admins; no user notification |
+| Separate "view as user" (read) and "act as user" (write) endpoints | Unnecessary complexity for v1.9; the unified approach with a clear banner is sufficient | Single impersonation mode that allows both reads and writes, controlled by the normal role-based permission check of the impersonated user |
+
+### Security Invariants (non-negotiable)
+
+1. The impersonated user's privilege set governs all permission checks during the session — admin privileges do NOT carry through.
+2. Every mutating request during impersonation is logged with the REAL admin identity as the actor, not the impersonated user's identity.
+3. Cannot impersonate a user with higher effective privileges than the impersonated user's own role would grant.
+4. Permission check on impersonation start AND on each subsequent request (privilege revocation must take effect immediately, not only at session start).
+5. Impersonation state is server-side (not in a JWT/cookie the browser controls alone), so the admin cannot self-escalate by manipulating client state.
+
+### Feature Dependencies
+
+```
+Authentication<Context> (exists: service/src/permission.rs)
+  └──extend with──> impersonated_sales_person_id: Option<Uuid>
+                    (set only when real caller has admin privilege)
+
+PermissionService (exists: service_impl/src/permission.rs)
+  └──change──> when impersonation active, resolve roles from impersonated user
+  └──keep──> real caller identity for audit/logging path
+
+REST auth layer (exists: rest/src/lib.rs)
+  └──add──> read impersonation context from server-side store
+  └──build──> Authentication<Context> with dual identity
+
+New backend endpoints:
+  POST /impersonation  { target_sales_person_id: Uuid }
+    └──gate: require admin privilege on real caller
+    └──store: session-scoped impersonation state (in-memory or DB row)
+    └──return: updated session token or session cookie
+  DELETE /impersonation
+    └──gate: require active impersonation session
+    └──clear: impersonation state
+
+Admin/HR person list page (Dioxus, exists)
+  └──add──> "Impersonate" action item per person row (admin-only, hidden for others)
+
+App root layout (Dioxus)
+  └──add──> impersonation banner component
+  └──reads──> global impersonation signal (set from API response on start/stop)
+  └──renders──> banner only when impersonated_sales_person != None
+```
+
+---
+
+## MVP Recommendation for v1.9
+
+Ship in this order (dependency-free → dependent, simple → complex):
+
+1. **Feature B — Urlaubs-Balken-Konsistenz**: pure frontend, formula + clamp removal.
+   Delivers a visible correctness fix fastest. 1-2 hours.
+2. **Feature C — Stale-Daten-Race**: pure frontend, generation-token guard.
+   Small, low-risk, self-contained. 2-4 hours.
+3. **Feature A — Urlaub → Nicht-Verfügbar**: frontend-primary (+ possible light
+   backend check). Medium complexity. Vacation mandatory; SickLeave/Unpaid natural
+   inclusions at zero extra cost.
+4. **Feature D — Admin-Impersonation**: largest scope; backend auth changes + new
+   endpoints + frontend banner. Build last so simpler fixes ship independently.
+
+**Defer from v1.9 (confirmed anti-features / scope traps):**
+- Absence approval workflow (pending vs approved distinction in grid)
+- Impersonation session auto-timeout
+- Audit log UI for admins
+- Two-segment bar (build single corrected bar first; upgrade to split as follow-on)
+- Overflow visual for overdraft bar (implement if single-segment bar looks insufficient)
+
+---
+
+## Confidence Assessment
+
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Impersonation UX conventions (banner, audit, privilege) | MEDIUM | Consistent across 4+ sources; specifics of Shifty's auth model require code-level verify |
+| Vacation bar conventions (formula, overdraft) | MEDIUM | Dayforce + WhenIWork + case study all agree; implementation is frontend-only |
+| Absence-as-grid-discourage conventions | MEDIUM | Deputy + WhenIWork both confirm proactive grid marking; frontend integration path needs code verify |
+| Stale-race guard pattern | MEDIUM | Standard async UI pattern; Dioxus 0.6 specifics need code verify for generation-token placement |
+
+---
 
 ## Sources
 
-- `service_impl/src/reporting.rs` — `apply_weekly_cap` (`:94-107`); all-employees fold (`:222-446`, `is_paid` filter `:141`); `get_week` (`:686-879`, record-keyed iteration `:719`); per-week detail (`:980-1129`). HIGH (read directly).
-- `service_impl/src/booking_information.rs` — `get_weekly_summary` Axis B (`:95-218`, volunteer sum `:141-153`, paid_hours `:176-178`, `overall_available_hours` `:197`); day-level `get_summery_for_week` (`:220-481`, paid filter `:326`, volunteer-by-day `:417-440`). HIGH.
-- `rest-types/src/lib.rs` — `WeeklySummaryTO` (`:901-915`), `From` (`:919-940`). HIGH.
-- `shifty-dioxus/src/page/weekly_overview.rs` (`:90-128` row markup) and `src/state/weekly_overview.rs` (`:11-62` TO mapping). HIGH.
-- `service/src/employee_work_details.rs` (`:14-41` struct, `:26` cap flag) ; `service/src/sales_person.rs` (`:17` `is_paid`). HIGH.
-- `service_impl/src/billing_period_report.rs:74` — `CURRENT_SNAPSHOT_SCHEMA_VERSION = 7`. HIGH.
-- `openspec/specs/weekly-planned-hours-cap/spec.md` — cap flag semantics, time-versioning, migration default. HIGH.
-- `.planning/todos/pending/2026-06-22-committed-voluntary-capacity-jahresansicht.md` — D-01 / Variante B, reqs 1–5, worked examples. HIGH.
+- [Yaro Labs — Building a Safe User Impersonation Tool for SaaS](https://yaro-labs.com/blog/user-impersonation-tool-saas)
+- [Small Improvements — User Impersonation](https://intercomdocs.small-improvements.com/en/articles/9146194-user-impersonation)
+- [PropelAuth — User Impersonation Docs](https://docs.propelauth.com/overview/user-management/user-impersonation)
+- [Zarana Solanki — Secure User Impersonation in Multi-Tenant Apps](https://medium.com/@codebyzarana/building-a-secure-user-impersonation-feature-for-multi-tenant-enterprise-applications-21e79476240c)
+- [When I Work — Interpreting Availability on the Schedule](https://help.wheniwork.com/articles/interpreting-availability-on-the-schedule-computer/)
+- [Deputy — Leave Management Software](https://www.deputy.com/features/leave-management)
+- [Deputy — Manager Awareness of Leave](https://help.deputy.com/hc/en-au/articles/4658289483023-Manager-s-awareness-of-leave)
+- [Dayforce — Your Balances (Leave balance visualization)](https://help.dayforce.com/r/documents/Employee-Guide/Your-Balances)
+- [Paul Naylor — UX Case Study: Time Off Management App](https://medium.com/@pnaylor09/a-ux-case-study-on-designing-a-time-off-management-web-app-8b3151fa397d)
+- OWASP CD-SEC-02: Account Impersonation — privilege escalation prevention
 
 ---
-*Feature research for: committed voluntary capacity (v1.4 subsequent milestone)*
-*Researched: 2026-06-22*
+*Feature research for: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation*
+*Researched: 2026-06-29*

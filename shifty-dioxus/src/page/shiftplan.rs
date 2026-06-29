@@ -35,11 +35,14 @@ use crate::service::text_template::{
 };
 use crate::service::ui_prefs;
 use crate::service::ui_prefs::WorkingHoursLayout;
+use crate::service::week_guard::{is_current_selection, set_selected_week, SELECTED_WEEK};
 use crate::service::weekly_summary::WeeklySummaryAction;
 use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::service::working_hours_mini::WorkingHoursMiniAction;
 use crate::service::working_hours_mini::WORKING_HOURS_MINI;
 use crate::state;
+use crate::service::absence_marker;
+use crate::state::absence_period::AbsencePeriod;
 use crate::state::dropdown::DropdownEntry;
 use crate::state::sales_person_available::SalesPersonUnavailable;
 use crate::state::shiftplan::SalesPerson;
@@ -197,6 +200,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let current_sales_person: Signal<Option<SalesPerson>> = use_signal(|| None);
     let unavailable_days: Signal<Rc<[SalesPersonUnavailable]>> = use_signal(|| [].into());
+    let person_absences: Signal<Rc<[AbsencePeriod]>> = use_signal(|| [].into());
     let mut change_structure_mode: Signal<bool> = use_signal(|| false);
 
     // Booking warning banner state (non-blocking, dismissible)
@@ -270,6 +274,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 week,
                 current_sales_person,
                 unavailable_days,
+                person_absences,
                 config,
                 week_message,
                 week_message_draft,
@@ -324,6 +329,10 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     }
                 };
 
+                // D-30-01: set the guard truth synchronously BEFORE dispatching any loader
+                // so the loaders' post-await comparisons are against the correct week.
+                set_selected_week(*year.read(), *week.read());
+
                 // Initial load of weekly summary
                 if is_shiftplanner {
                     weekly_summary_service
@@ -351,21 +360,62 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                     to_owned![current_sales_person, unavailable_days];
                     move |config: Config| async move {
                         if let Some(sales_person) = &*current_sales_person.read() {
+                            // Capture year and week BEFORE the await so the guard comparison
+                            // uses the week this request was made for, not the week after a
+                            // possible switch (D-30-01).
+                            let req_year = *year.read();
+                            let req_week = *week.read();
                             let result = result_handler(
                                 loader::load_unavailable_sales_person_days_for_week(
                                     config.clone(),
                                     sales_person.id,
-                                    *year.read(),
-                                    *week.read(),
+                                    req_year,
+                                    req_week,
                                 )
                                 .await,
                             )
                             .unwrap_or(Rc::new([]));
-                            *unavailable_days.write() = result;
+                            // SC3: silently drop the result if the user has already
+                            // switched to a different week while this request was in flight.
+                            if is_current_selection((req_year, req_week), *SELECTED_WEEK.read()) {
+                                *unavailable_days.write() = result;
+                            }
                         }
                     }
                 };
                 reload_unavailable_days(config.clone()).await;
+
+                let reload_absence_days = {
+                    to_owned![current_sales_person, person_absences];
+                    move |config: Config| async move {
+                        if let Some(sales_person) = &*current_sales_person.read() {
+                            // Capture year and week BEFORE the await so the guard comparison
+                            // uses the week this request was made for, not the week after a
+                            // possible switch (D-31-06 / SC3).
+                            let req_year = *year.read();
+                            let req_week = *week.read();
+                            let result = result_handler(
+                                loader::load_absence_periods_by_sales_person(
+                                    config.clone(),
+                                    sales_person.id,
+                                )
+                                .await
+                                .map(|(absences, _markers)| absences),
+                            )
+                            .unwrap_or_else(|| [].into());
+                            // SC3 / D-31-06: silently drop the result if the user has already
+                            // switched to a different week while this request was in flight.
+                            // NB (review IN-01): the loader returns the person's full,
+                            // week-independent absence list, so this guard is for consistency
+                            // with the Phase-30 loader pattern — the actual per-week filtering
+                            // happens in `absence_periods_to_discourage_days` at render time.
+                            if is_current_selection((req_year, req_week), *SELECTED_WEEK.read()) {
+                                *person_absences.write() = result;
+                            }
+                        }
+                    }
+                };
+                reload_absence_days(config.clone()).await;
                 working_hours_mini_service.send(WorkingHoursMiniAction::LoadWorkingHoursMini(
                     *year.read(),
                     *week.read(),
@@ -458,8 +508,11 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             week.set(next_weeks_week);
                             booking_warnings.set(WarningsList::empty());
                             block_error.set(None); // CR-03: clear stale 409 banner on week navigation
+                            // D-30-01: update guard truth synchronously BEFORE dispatching loaders
+                            set_selected_week(next_weeks_year, next_weeks_week);
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
+                            reload_absence_days(config.clone()).await;
 
                             // Load week message for new week
                             if let Ok(Some(message)) = loader::load_week_message(
@@ -491,8 +544,11 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             week.set(previous_weeks_week);
                             booking_warnings.set(WarningsList::empty());
                             block_error.set(None); // CR-03: clear stale 409 banner on week navigation
+                            // D-30-01: update guard truth synchronously BEFORE dispatching loaders
+                            set_selected_week(previous_weeks_year, previous_weeks_week);
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
+                            reload_absence_days(config.clone()).await;
 
                             // Load week message for new week
                             if let Ok(Some(message)) = loader::load_week_message(
@@ -521,6 +577,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 }
                             }
                             reload_unavailable_days(config.clone()).await;
+                            reload_absence_days(config.clone()).await;
                         }
                         ShiftPlanAction::ToggleAvailability(weekday) => {
                             if let Some(available_day) = unavailable_days
@@ -1109,7 +1166,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 // Week view (existing)
                 match &*shift_plan_context.read_unchecked() {
                     Some(Ok(shift_plan)) => {
-                        to_owned![current_sales_person, unavailable_days];
+                        to_owned![current_sales_person, unavailable_days, person_absences];
                         rsx! {
                             div { class: "m-4",
                                 SlotEdit {}
@@ -1117,14 +1174,35 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     shiftplan_data: shift_plan.clone(),
                                     date_of_monday: date,
                                     highlight_item_id: current_sales_person.read().as_ref().map(|sp| sp.id),
-                                    discourage_weekdays: unavailable_days
-                                        .read()
-                                        .iter()
-                                        .map(|unavailable_day| unavailable_day.day_of_week)
-                                        .collect(),
+                                    discourage_weekdays: {
+                                        // D-31-05: union-merge unavailable_days weekdays with
+                                        // absence-derived weekdays (Phase 31).
+                                        let mut discourage: Vec<Weekday> = unavailable_days
+                                            .read()
+                                            .iter()
+                                            .map(|unavailable_day| unavailable_day.day_of_week)
+                                            .collect();
+                                        discourage.extend(
+                                            absence_marker::absence_periods_to_discourage_days(
+                                                person_absences.read().as_ref(),
+                                                date,
+                                            ),
+                                        );
+                                        discourage.into()
+                                    },
                                     button_types: button_mode,
                                     dropdown_entries: field_dropdown_entries,
-                                    weekday_headers: if weekly_summary.data_loaded && weekly_summary.weekly_summary.len() > 0 { vec![
+                                    // D-30-03 render-guard: show populated headers only when the
+                                    // stored week-key matches the currently selected week.  On
+                                    // mismatch (stale write that slipped through, or year data),
+                                    // fall through to the existing empty state (`else { vec![] }`).
+                                    weekday_headers: if weekly_summary.data_loaded
+                                        && weekly_summary.weekly_summary.len() > 0
+                                        && matches!(
+                                            weekly_summary.loaded_week,
+                                            Some(yw) if is_current_selection(yw, (*year.read(), *week.read()))
+                                        )
+                                    { vec![
                                         (
                                             Weekday::Monday,
                                             format!("{:.1}h", weekly_summary.weekly_summary[0].monday_available_hours)

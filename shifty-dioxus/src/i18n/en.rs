@@ -1000,4 +1000,14 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::NavToEmployeeAbsences, "{name}'s absences");
     i18n.add_text(Locale::En, Key::NavToMyTimeAccount, "My time account");
     i18n.add_text(Locale::En, Key::NavToEmployeeReport, "{name}'s time account");
+
+    // Phase 32 — Impersonation UI (D-32-08).
+    i18n.add_text(Locale::En, Key::ImpersonateActAs, "Act as this person");
+    i18n.add_text(Locale::En, Key::ImpersonateBanner, "You are acting as {user}.");
+    i18n.add_text(Locale::En, Key::ImpersonateStop, "Stop impersonation");
+    i18n.add_text(
+        Locale::En,
+        Key::ImpersonateP10Hint,
+        "Admin-only functions are disabled while acting as a non-admin; you can stop at any time.",
+    );
 }

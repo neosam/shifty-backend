@@ -8,6 +8,7 @@ use crate::{loader, state::employee_work_details::WorkingHoursMini};
 use super::{
     config::CONFIG,
     error::{ErrorStore, ERROR_STORE},
+    week_guard::{is_current_selection, SELECTED_WEEK},
 };
 
 pub static WORKING_HOURS_MINI: GlobalSignal<Rc<[WorkingHoursMini]>> = Signal::global(|| [].into());
@@ -29,7 +30,13 @@ pub async fn working_hours_mini_service(mut rx: UnboundedReceiver<WorkingHoursMi
                 .await;
                 match working_hours {
                     Ok(working_hours) => {
-                        *WORKING_HOURS_MINI.write() = working_hours;
+                        // SC2/D-30-02: the mini working-hours bars are a fourth summary
+                        // loader under the shiftplan dispatched on every week switch.
+                        // Drop the result if the user has already navigated to another
+                        // week while this request was in flight (silent drop, SC3).
+                        if is_current_selection((year, week), *SELECTED_WEEK.read()) {
+                            *WORKING_HOURS_MINI.write() = working_hours;
+                        }
                     }
                     Err(err) => {
                         *ERROR_STORE.write() = ErrorStore {

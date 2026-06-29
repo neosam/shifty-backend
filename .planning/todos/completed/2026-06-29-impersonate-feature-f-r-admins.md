@@ -2,6 +2,7 @@
 created: 2026-06-29T12:48:02.144Z
 title: Impersonate-Feature für Admins
 area: auth
+resolves_phase: 32
 files:
   - service/src/permission.rs
   - service_impl/src/permission.rs
