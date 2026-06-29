@@ -5,7 +5,8 @@
 //! for the whole week (D-26-03 whole-week-out). Both are exercised for the same volunteer in
 //! one test context to make the asymmetry explicit and regression-proof.
 //!
-//! Also asserts D-26-02: `CURRENT_SNAPSHOT_SCHEMA_VERSION` remains 11 — VFA-01/VFA-02 change
+//! Also asserts D-26-02: VFA-01/VFA-02 do NOT bump `CURRENT_SNAPSHOT_SCHEMA_VERSION`
+//! (pinned literal is 12 since Phase 28 VAC-OFFSET-01) — VFA-01/VFA-02 change
 //! only the live, non-persisted year-view; no persisted `BillingPeriodValueType` is added or
 //! changed, so no schema bump is required or expected.
 //!
@@ -326,25 +327,33 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
 
 /// Phase-26 snapshot-schema regression guard (D-26-02).
 ///
-/// `CURRENT_SNAPSHOT_SCHEMA_VERSION` MUST remain 11 after VFA-01/VFA-02.
+/// VFA-01/VFA-02 themselves MUST NOT bump `CURRENT_SNAPSHOT_SCHEMA_VERSION`.
+///
+/// The absolute value pinned here is the CURRENT constant (12 since Phase 28
+/// VAC-OFFSET-01 bumped it 11→12 for the unrelated vacation-entitlement off-by-one
+/// fix). The guard's purpose is unchanged: it fails if a *Phase-26 VFA* change
+/// accidentally moves the constant. When a later phase legitimately bumps the
+/// constant, update this literal to the new value (as Phase 28 did 11→12).
 ///
 /// Rationale (CLAUDE.md bump rule): a bump is required when a new persisted
 /// `BillingPeriodValueType` is added, removed, or renamed, OR when the computation that
 /// produces an existing value_type changes. VFA-01/VFA-02 affect only `get_weekly_summary`,
 /// which is a live, non-persisted year-view (Achse-B). No `BillingPeriodValueType` row is
-/// added or changed → no bump.
+/// added or changed → no bump from Phase 26.
 ///
 /// This assertion is independent of `snapshot_schema_version_pinned_at_10` in
-/// `test/booking_information.rs` — that test covers the Phase-15..25 history; this one is a
+/// `test/booking_information.rs` — that test covers the Phase-15..28 history; this one is a
 /// dedicated Phase-26 CI guard that will catch any accidental bump introduced by VFA work.
 #[test]
 fn phase26_vfa_no_snapshot_bump() {
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        11,
+        12,
         "D-26-02: VFA (Phase 26) must NOT bump CURRENT_SNAPSHOT_SCHEMA_VERSION. \
          get_weekly_summary changes are live-view-only (Achse-B, not persisted). \
-         If this fails, a Phase-26 change accidentally added/changed a persisted \
-         BillingPeriodValueType and the version must be justified and bumped intentionally."
+         The pinned value is 12 since Phase 28 (VAC-OFFSET-01) bumped it for the \
+         unrelated vacation-entitlement off-by-one fix. \
+         If this fails after a Phase-26 change, that change accidentally added/changed a \
+         persisted BillingPeriodValueType and the version must be justified and bumped intentionally."
     );
 }

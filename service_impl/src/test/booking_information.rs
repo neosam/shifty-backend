@@ -6,7 +6,7 @@
 //!   Band 2 = Σ_person max(actual_p − committed_p, 0)
 //!   No-double-count invariant: committed + surplus(actual, committed) = max(committed, actual)
 //!
-//! Also contains a regression test asserting CURRENT_SNAPSHOT_SCHEMA_VERSION is 8
+//! Also contains a regression test pinning CURRENT_SNAPSHOT_SCHEMA_VERSION (currently 12)
 //! (D-01 / CVC-05: Phase 15/17 touch no persisted BillingPeriodValueType; the v8 bump
 //! comes from the separate report-ehrenamt-gesamtstunden cap-leak bugfix).
 
@@ -472,9 +472,13 @@ fn snapshot_schema_version_pinned_at_10() {
     // hours_per_week now returns derived holiday_hours and raises absense_hours when the
     // holiday_auto_credit toggle is configured. BillingPeriodValueType::HolidayHours
     // (and transitively Balance, ExpectedHours) change for affected employees.
+    //
+    // v12 bump (Phase 28 VAC-OFFSET-01 / D-28-05): off-by-one fix in
+    // EmployeeWorkDetails::vacation_days_for_year changes the persisted
+    // BillingPeriodValueType::VacationEntitlement (VacationDays is unaffected).
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        11
+        12
     );
 }
 

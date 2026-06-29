@@ -4,9 +4,9 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 11 (Phase 25 HOL-01/02 —
-//!   derive-on-read holiday auto-credit changes holiday_hours and absense_hours
-//!   in the snapshot when the holiday_auto_credit toggle is configured).
+//! - `test_snapshot_schema_version_pinned`: erwartet 12 (Phase 28 VAC-OFFSET-01 /
+//!   D-28-05 — off-by-one fix in `vacation_days_for_year` changes the persisted
+//!   `BillingPeriodValueType::VacationEntitlement`; `VacationDays` is unaffected).
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -25,14 +25,15 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 11,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 11 sein nach Phase 25 (HOL-01/02, HCFG-01): \
-         derive-on-read holiday auto-credit — hours_per_week liefert jetzt holiday_hours \
-         und erhoehte absense_hours wenn der holiday_auto_credit-Toggle gesetzt ist. \
-         Damit aendern sich BillingPeriodValueType::HolidayHours (und transitiv Balance, \
-         ExpectedHours) fuer betroffene Mitarbeiter. \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 12,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 12 sein nach Phase 28 (VAC-OFFSET-01 / D-28-05): \
+         off-by-one fix in EmployeeWorkDetails::vacation_days_for_year — die Jahres-START- \
+         Proration zieht jetzt nur die Tage STRIKT vor dem Vertragsstart ab (ein 1.1.-Start \
+         zieht 0 ab statt ~1/365 des Jahresanspruchs). Das aendert den persistierten \
+         BillingPeriodValueType::VacationEntitlement (reporting.rs:853 <- :803). \
          Laut CLAUDE.md (Snapshot Schema Versioning: 'Change the computation that produces \
          an existing value_type') ist ein Bump Pflicht. \
+         HINWEIS: VacationDays (genommener Urlaub) ist NICHT betroffen — nur VacationEntitlement. \
          Siehe service_impl/src/billing_period_report.rs § CURRENT_SNAPSHOT_SCHEMA_VERSION."
     );
 }

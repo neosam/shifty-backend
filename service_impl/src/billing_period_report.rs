@@ -105,7 +105,16 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   `Balance`, `ExpectedHours`) for employees whose contracts cover configured holiday
 ///   dates. Validators MUST treat v10 snapshots as "older schema" and skip holiday-hours
 ///   re-validation for those entries.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 11;
+/// - v12: Phase 28 (VAC-OFFSET-01 / D-28-05) — off-by-one fix in
+///   `EmployeeWorkDetails::vacation_days_for_year`. The year-START proration no longer
+///   over-subtracts ~1/365 of the annual entitlement at a 1.1. contract start (it now
+///   subtracts the days STRICTLY before the start, so a 1.1. start subtracts 0). Because
+///   this value feeds the persisted `BillingPeriodValueType::VacationEntitlement`
+///   (reporting.rs:853 <- :803), the computed entitlement changes for partial-year and
+///   full-year contracts. Validators MUST treat v11 snapshots as "older schema" and skip
+///   vacation-entitlement re-validation for those entries. NOTE: `VacationDays` (taken
+///   vacation) is UNAFFECTED — only `VacationEntitlement` (contract aliquot) changes.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 12;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {
