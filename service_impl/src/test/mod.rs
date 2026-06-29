@@ -67,4 +67,6 @@ pub mod extra_hours;
 #[cfg(test)]
 pub mod vacation_balance;
 #[cfg(test)]
+pub mod vacation_entitlement_offset;
+#[cfg(test)]
 pub mod reporting_avg_weekly;
