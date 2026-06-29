@@ -751,6 +751,8 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::AbsenceFilterCategoryAll, "Alle");
     i18n.add_text(Locale::De, Key::AbsenceFilterPersonLabel, "Person");
     i18n.add_text(Locale::De, Key::AbsenceFilterPersonAll, "Alle Personen");
+    i18n.add_text(Locale::De, Key::AbsenceGroupEmployees, "Angestellte");
+    i18n.add_text(Locale::De, Key::AbsenceGroupVolunteers, "Freiwillige");
     i18n.add_text(Locale::De, Key::AbsenceFilterStatusLabel, "Status");
     i18n.add_text(Locale::De, Key::AbsenceFilterStatusAll, "Alle");
     i18n.add_text(Locale::De, Key::AbsenceStatusActive, "Aktiv");

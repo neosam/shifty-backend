@@ -733,6 +733,8 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::AbsenceFilterCategoryAll, "Všechny");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterPersonLabel, "Osoba");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterPersonAll, "Všichni lidé");
+    i18n.add_text(Locale::Cs, Key::AbsenceGroupEmployees, "Zaměstnanci");
+    i18n.add_text(Locale::Cs, Key::AbsenceGroupVolunteers, "Dobrovolníci");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterStatusLabel, "Stav");
     i18n.add_text(Locale::Cs, Key::AbsenceFilterStatusAll, "Všechny");
     i18n.add_text(Locale::Cs, Key::AbsenceStatusActive, "Aktivní");

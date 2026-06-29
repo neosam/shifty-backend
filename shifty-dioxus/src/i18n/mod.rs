@@ -444,6 +444,8 @@ pub enum Key {
     AbsenceFilterCategoryAll,
     AbsenceFilterPersonLabel,
     AbsenceFilterPersonAll,
+    AbsenceGroupEmployees,
+    AbsenceGroupVolunteers,
     AbsenceFilterStatusLabel,
     AbsenceFilterStatusAll,
     // Status
@@ -826,6 +828,8 @@ mod tests {
                 Key::AbsenceDeleteConfirmTitle,
                 Key::AbsenceWarningAcknowledgeBtn,
                 Key::AbsenceFilterShowPast,
+                Key::AbsenceGroupEmployees,
+                Key::AbsenceGroupVolunteers,
             ] {
                 let value = i18n.t(key);
                 assert!(
