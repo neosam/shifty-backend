@@ -1,45 +1,49 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.8
-milestone_name: Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
-current_phase: 28
-current_phase_name: Urlaubsanspruch-Korrektur via Offset (BE+FE)
-status: verified
-last_updated: "2026-06-29T11:25:00.000Z"
+milestone: none
+milestone_name: "(kein aktiver Milestone — v1.7 + v1.8 geschlossen 2026-06-29)"
+current_phase: null
+current_phase_name: "(Planung des nächsten Milestones offen)"
+status: milestone_complete
+last_updated: "2026-06-29T12:30:00.000Z"
 last_activity: 2026-06-29
-last_activity_desc: "Beide v1.8-Phasen VERIFIED (Automatik-Gates + Live-HR-Browser-Smokes). Phase 27: HR-Selektoren splitten Angestellte/Freiwillige korrekt (Modal + FilterBar). Phase 28: HR-Offset-Roundtrip live bestätigt (Offset 3 → effektiv 18, remaining 33, persistiert). Smoke fand + fixte 1 Dev-Bug: /vacation-entitlement-offset fehlte im Dioxus.toml-Proxy (FE-Save 405) → fix(28) committet. Test-Mutationen (HR-Rolle, Offset-Zeile) revertiert. Offen: Milestone-Close (v1.7 + v1.8: audit/complete/cleanup) — wartet auf User."
+last_activity_desc: "v1.7 + v1.8 Milestone-Close (manuell, jj-nativ). Beide Milestones archiviert: milestones/v1.7-{ROADMAP,REQUIREMENTS}.md + milestones/v1.8-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md; MILESTONES.md + ROADMAP.md (collapsed) + PROJECT.md + RETROSPECTIVE.md nachgezogen; REQUIREMENTS.md entfernt (Inhalt war v1.7 → archiviert). override_closeout: Carry-over Deferred Items acknowledged. Snapshot-Schema-Version jetzt 12. Offen: User committet via jj + setzt Tags v1.7/v1.8; danach /gsd-new-milestone."
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (Phase 27 aktiv / v1.8; Phasen 25–26 v1.7 complete; v1.0–v1.6 archived)
+- **Roadmap**: `.planning/ROADMAP.md` (kein aktiver Milestone; v1.0–v1.8 alle archiviert/collapsed)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.6-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.8-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped + archiviert 2026-06-27/28, Phase 24, 5 Pläne, 7/7 must-haves, override_closeout)
-- **Current milestone**: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
-- **Current focus**: Phase 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) (`/gsd-plan-phase 27`); danach Phase 28 (`/gsd-plan-phase 28`)
+- **Last shipped/closed**: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (shipped + archiviert 2026-06-29, Phasen 27–28, 5 Pläne, 2/2 Requirements, Audit `passed`, override_closeout); zeitgleich v1.7 (Phasen 25–26, 10/10 Requirements) nachgeholt
+- **Current milestone**: keiner — Planung des nächsten offen
+- **Current focus**: `/gsd-new-milestone` (oder off-theme Backlog-Phase 999.1 via `/gsd-plan-phase 999.1`)
+- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12)
 
 ## Current Position
 
-Phase: 27 + 28 BEIDE VERIFIED (Automatik-Gates + Live-HR-Smokes). v1.8-Milestone-Close (audit/complete/cleanup) wartet auf User; v1.7-Close ebenfalls offen.
-Plan: 27 → 1/1 complete (verified); 28 → 4/4 complete (verified) + fix(28) Dioxus.toml-Proxy
-Status: v1.8 (2 Phasen, autonom) — beide ausgeführt, alle Automatik-Gates grün, jj-nativ pro Task committet. Phase 27 (FE): gruppierter Freiwilligen-Selector (`grouped_selectable`/`PersonGroup`/`grouped_person_options`, Modal+FilterBar), `is_selectable_employee` NICHT gelockert (D-27-02). Phase 28 (BE+FE): signed Urlaubsanspruch-Offset (Delta, neue Tabelle `vacation_entitlement_offset` + Basic-Service + HR-gated REST CRUD + DI; `entitled_effective=round(base)+offset` mit API-level Hiding; FE-Inline-Editor HR-only) + Off-by-one-Proration-Fix + Snapshot-Bump 11→12 (VacationEntitlement). Integrated-Gates: cargo test --workspace ✓, clippy --workspace -D warnings ✓, WASM-Build ✓, 678 FE-Tests ✓. 2 Browser-Smokes deferred (Human-UAT). v1.7 (25–26) bleibt complete & verified — auch dort Milestone-Close offen.
-Last activity: 2026-06-29 — Phase 28 (4 Pläne) ausgeführt + jj-nativ committet; integrierter Backend+FE-Gate grün. **2 vorbestehende Bugs während des Live-Smokes gefunden + gefixt (jj-committet):** (1) `fix(28)` Dioxus.toml-Dev-Proxy für `/vacation-entitlement-offset` (FE-Save 405); (2) `fix:` AbsenceModal schloss nach sauberem (warnungsfreiem) Create/Update nicht — `on_close` im No-Warnings-Erfolgszweig nachgezogen (user-live bestätigt). Beide außerhalb VOL-SEL-01/VAC-OFFSET-01-Scope, aber im v1.8-Stream geliefert.
+Phase: keiner aktiv. v1.7 + v1.8 **geschlossen** am 2026-06-29 (manueller Close, jj-nativ — `milestone.complete`-CLI bewusst umgangen wg. Junk-Einträgen).
+Status: Beide Milestones archiviert. v1.8 (Phasen 27–28, 5 Pläne) — Phase 27 (FE): gruppierter Freiwilligen-Selector (`grouped_selectable`/`PersonGroup`/`grouped_person_options`, Modal+FilterBar), `is_selectable_employee` NICHT gelockert (D-27-02). Phase 28 (BE+FE): signed Urlaubsanspruch-Offset (Delta, Tabelle `vacation_entitlement_offset` + Basic-Service + HR-gated REST CRUD + DI; `entitled_effective=round(base)+offset` mit API-level Hiding; FE-Inline-Editor HR-only) + Off-by-one-Proration-Fix + Snapshot-Bump 11→12. v1.7 (Phasen 25–26): Feiertags-Auto-Anrechnung derive-on-read + Stichtag-Toggle + VFA-Reduktion + Cross-Navigation, Snapshot-Bump 10→11. Alle Automatik-Gates grün (cargo test/clippy -D warnings, WASM-Build, 678 FE-Tests); v1.8 zusätzlich Live-HR-Browser-Smokes (`behavior_unverified: 0`).
+Closeout: **override_closeout** für beide — Carry-over Deferred Items acknowledged (siehe unten). v1.8 hatte zusätzlich formalen Milestone-Audit (`passed`).
+Last activity: 2026-06-29 — Milestone-Close v1.7 + v1.8: Archive geschrieben, ROADMAP collapsed, MILESTONES/PROJECT/RETROSPECTIVE nachgezogen, REQUIREMENTS.md entfernt. **Offen: User committet via jj + setzt Git-Tags v1.7/v1.8.**
 
-Progress: [██████████] 100% (beide v1.8-Phasen verified inkl. Live-HR-Smokes; nur Milestone-Close offen)
+Progress: [          ] kein aktiver Milestone — nächster via `/gsd-new-milestone`
 
 ## Deferred Items
 
-Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User-Entscheidung override_closeout). Carry-over aus v1.5/v1.4:
+Erneut acknowledged + deferred beim **v1.7 + v1.8 Milestone-Close am 2026-06-29**
+(User-Entscheidung override_closeout — Pre-Close-Audit meldete 15 offene Items, alle
+bereits vorab-deferred Carry-over, keines v1.7/v1.8-spezifisch). Davor beim v1.6-Close
+am 2026-06-28; Ursprung v1.5/v1.4:
 
 | Kategorie | Item | Status | Notiz |
 |-----------|------|--------|-------|
@@ -55,6 +59,22 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 | human_uat | Phase 28: Browser-Smoke HR-Offset-Roundtrip (v1.8) | ✅ resolved 2026-06-29 | Live-HR-Smoke bestätigt: HR-StatBox „calculated 15 + Offset [n]"; Offset 3 gesetzt → effektiv 18, remaining 33, persistiert (Backend offset_days=3). Smoke fand+fixte Dev-Proxy-Gap (Dioxus.toml fehlte /vacation-entitlement-offset → FE-Save 405) via fix(28). |
 
 ## Shipped Milestones
+
+### v1.8 — Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (shipped 2026-06-29)
+
+- **Geliefert:** Phasen 27–28 (5 Pläne). Freiwillige in Abwesenheits-Selektoren auswählbar (gruppiert Modal+FilterBar, gemeinsamer Helfer, VOL-SEL-01); signed Urlaubsanspruch-Offset pro Person+Jahr (Delta, HR-gated CRUD, API-level Hiding, FE-Inline-Editor, VAC-OFFSET-01) + Off-by-one-Fix.
+- **Snapshot-Bump 11→12** (`BillingPeriodValueType::VacationEntitlement`-Computation geändert).
+- **Verifikation:** beide Phasen VERIFIED inkl. Live-HR-Browser-Smokes (`behavior_unverified: 0`); Audit `passed` (2/2 Requirements, 100% Integration, 2/2 Flows). 2 Bonus-Bugfixes im Smoke (Dioxus.toml-Proxy, AbsenceModal-Close).
+- **Closeout:** override_closeout (formaler Audit `passed`; Carry-over Deferred Items acknowledged).
+- **Archiv:** `milestones/v1.8-ROADMAP.md`, `milestones/v1.8-REQUIREMENTS.md`, `milestones/v1.8-MILESTONE-AUDIT.md`.
+
+### v1.7 — Automatische Feiertage & Freiwilligen-Abwesenheit (shipped 2026-06-29; verified 2026-06-28)
+
+- **Geliefert:** Phasen 25–26 (7 Pläne). Feiertags-Auto-Anrechnung derive-on-read (identisch zu manuellem ExtraHours(Holiday)) ab konfigurierbarem Stichtag; Freiwilligen-Abwesenheit reduziert committed-Zusage in der Jahresansicht (Feiertage nicht — Asymmetrie); bidirektionale Deep-Links /absences ↔ Report. 10/10 Requirements (HOL/VFA/HCFG/HSNAP/NAV).
+- **Snapshot-Bump 10→11** (Holiday-Computation/Input-Set geändert).
+- **Verifikation:** beide Phasen complete & verified (Automatik-Gates grün); Browser-Verifikation der NAV-Links als Carry-over deferred.
+- **Closeout:** override_closeout — Close war nach „verified 2026-06-28" liegengeblieben, am 2026-06-29 gemeinsam mit v1.8 nachgeholt.
+- **Archiv:** `milestones/v1.7-ROADMAP.md`, `milestones/v1.7-REQUIREMENTS.md`.
 
 ### v1.6 — Paid-Capacity-Durchsetzung & Konfiguration (shipped 2026-06-27)
 
@@ -88,12 +108,14 @@ Erneut acknowledged + deferred beim **v1.6-Milestone-Close am 2026-06-28** (User
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (Phasen 25–26 aktiv)
-3. Read `.planning/REQUIREMENTS.md` (v1.7-Scope, REQ-IDs, Coverage 10/10)
-4. Read `.planning/PROJECT.md` (v1.7 Key Context + Referenz-Logik-Koordinaten)
+2. Read `.planning/ROADMAP.md` (kein aktiver Milestone; v1.0–v1.8 archiviert; Backlog 999.1)
+3. Read `.planning/PROJECT.md` (Charter + Current State; **keine aktive REQUIREMENTS.md** — wird beim nächsten Milestone via `/gsd-new-milestone` neu erstellt)
+4. Read `.planning/MILESTONES.md` (Index inkl. v1.7 + v1.8)
 
-**Next command**: `/gsd-plan-phase 27` (FE, kleiner) bzw. `/gsd-plan-phase 28` (BE+FE, größer) — optional vorher `/gsd-new-milestone` für v1.8-Charter, und/oder v1.7-Milestone-Close (audit → complete → cleanup).
+**Offene Aktion (User):** Working-Copy via `jj` committen + Git-Tags `v1.7` / `v1.8` setzen (siehe Close-Zusammenfassung). Danach:
+
+**Next command**: `/gsd-new-milestone` (nächsten Milestone-Charter aufsetzen) — oder off-theme Backlog-Phase 999.1 via `/gsd-plan-phase 999.1`.
 
 ---
 
-*State updated: 2026-06-29 — Milestone v1.8 mit Phase 27 (VOL-SEL-01, FE) + Phase 28 (VAC-OFFSET-01, BE+FE) angelegt. Konzepte + UX-Entscheidungen in ROADMAP.md + SEED.md erfasst. Phase 28: Offset-Mechanismus (Delta) für HR-Urlaubsanspruch-Korrektur, HR-gekennzeichnet/User-unsichtbar.*
+*State updated: 2026-06-29 — **v1.7 + v1.8 Milestone-Close** (manuell, jj-nativ). Beide Milestones archiviert (milestones/v1.7-* + milestones/v1.8-*), ROADMAP collapsed, MILESTONES/PROJECT/RETROSPECTIVE nachgezogen, REQUIREMENTS.md entfernt. Snapshot-Schema-Version 12. Kein aktiver Milestone.*

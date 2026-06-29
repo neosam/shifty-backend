@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-06-28
-last_milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped 2026-06-27, Phase 24, override_closeout)
-current_milestone: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Planung — Phasen ab 25; Backlog-Phase 999.1 weiterhin off-theme offen)
+last_updated: 2026-06-29
+last_milestone: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (shipped 2026-06-29, Phasen 27–28, override_closeout, Audit passed)
+current_milestone: none (v1.7 + v1.8 geschlossen 2026-06-29; nächster via /gsd-new-milestone; Backlog-Phase 999.1 weiterhin off-theme offen)
 ---
 
 # Shifty — Project Charter
@@ -133,43 +133,62 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Aktueller Milestone: v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit
+## Aktueller Milestone: keiner
 
-**Goal:** Feiertage werden automatisch (statt manuell pro Mitarbeiter) in den
-Mitarbeiterreport eingerechnet, und Urlaub/Abwesenheit von Freiwilligen reduziert
-ihre zugesagte Verfügbarkeit in der Jahresansicht.
+**v1.7 + v1.8 geschlossen am 2026-06-29.** Aktuell ist **kein** Milestone aktiv.
+Nächster Schritt: `/gsd-new-milestone` (oder die off-theme Backlog-Phase 999.1 direkt
+via `/gsd-plan-phase 999.1`).
 
-**Target features:**
-- **Feiertags-Automatik (HOL, Achse A):** Pro `Holiday` aus `special_day` wird je
-  Mitarbeiter automatisch das Holiday-Stundenäquivalent angerechnet — Wirkung
-  **identisch** zu manuellem `ExtraHours(Holiday)` (expected runter, Balance hoch,
-  `holiday_hours`-Spalte, Snapshot-`Holiday`). Keine eigenständige
-  `committed_voluntary`-Reduktion.
-- **Freiwilligen-Abwesenheit (VFA, Achse B):** Urlaub/Abwesenheit eines Freiwilligen
-  (`is_paid=false`, `committed_voluntary>0`) reduziert seine committed-Zusage 🎯 in
-  der Jahresansicht für die betroffenen Arbeitstage. Feiertage tun das bewusst
-  **nicht** (Asymmetrie).
-- **Konfigurierbarer Stichtag (HCFG):** Global konfigurierbares „aktiv ab"-Datum für
-  die Feiertags-Automatik (schützt Vergangenheit & verhindert Doppelzählung), mit
-  admin-gated Settings-UI (analog v1.6), i18n de/en/cs.
-- **Cross-Navigation (NAV, Frontend):** Abwesenheitsansicht (`/absences`) und
-  Mitarbeiterreport/Jahresansicht verlinken gegenseitig pro Mitarbeiter (Deep-Link).
+## Zuletzt geshipt: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (2026-06-29)
 
-**Key context:**
-- Nur **Holiday**; **ShortDay** = separate Future-Story.
-- **Snapshot-Bump 10 → 11 erwartet** (Holiday-Computation/Input-Set ändert sich) —
-  final in der Phase zu bestätigen.
-- Referenz-Logik vollständig kartiert: Holiday-`ExtraHours` wirkt in `reporting.rs`
-  (`:921`/`:932`/`:1137`), Display in `booking_information.rs:253`, Snapshot in
-  `billing_period_report.rs:241`. committed_voluntary-Lücke (VFA): `booking_information.rs:219-226`.
-- Requirements: `.planning/REQUIREMENTS.md` (HOL-01..03, VFA-01/02, HCFG-01..03, HSNAP-01).
+<details>
+<summary>✅ v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) — SHIPPED 2026-06-29 (Phasen 27–28)</summary>
 
-**Status:** Planung — Roadmap wird erstellt (Phasen ab 25).
+**Geliefert (as built):** Freiwillige (`is_paid=false`) sind in den Abwesenheits-
+Selektoren auswählbar — gruppiert (native `optgroup` Angestellte/Freiwillige) in
+**beiden** Call-Sites (AbsenceModal + AbsenceFilterBar) über einen gemeinsamen Helfer,
+inaktive ausgeblendet, leere Gruppen ausgelassen, i18n de/en/cs (VOL-SEL-01). HR kann den
+berechneten Jahres-Urlaubsanspruch per signed **Offset (Korrektur-Delta)** anpassen:
+`entitled_effective = round(berechnet) + offset`, pro Person+Jahr persistiert, überlebt
+Vertragsänderungen (Delta statt Override), HR-gated CRUD + immer sichtbares Inline-Editor-
+Feld; für normale User unsichtbar via **API-level** Hiding (Self-View bekommt
+`offset`/`computed == None`). Begleitend: Off-by-one-Proration-Fix
+(`vacation_days_for_year` year-START) + Snapshot-Schema-Version-Bump 11→12
+(`BillingPeriodValueType::VacationEntitlement`) (VAC-OFFSET-01).
 
-## Letzter Milestone: v1.6 Paid-Capacity-Durchsetzung & Konfiguration (shipped 2026-06-27)
+**Validierte Requirements:** VOL-SEL-01, VAC-OFFSET-01 (2/2) — siehe
+`milestones/v1.8-REQUIREMENTS.md`, Archiv `milestones/v1.8-ROADMAP.md`, Audit
+`milestones/v1.8-MILESTONE-AUDIT.md` (`passed`, 100% Integration, 2/2 Flows).
 
-Aktuell ist **kein** Milestone aktiv. Nächster Schritt: `/gsd-new-milestone`
-(oder die off-theme Backlog-Phase 999.1 direkt via `/gsd-plan-phase 999.1`).
+**Verifikation:** beide Phasen VERIFIED inkl. **Live-HR-Browser-Smokes**
+(`behavior_unverified: 0`); Backend `cargo test --workspace` + `clippy -D warnings` grün,
+Frontend WASM-Build + 678 FE-Tests grün. 2 Bugs im Live-Smoke gefunden+gefixt
+(`Dioxus.toml`-Dev-Proxy `/vacation-entitlement-offset`; AbsenceModal-Close).
+
+**Closeout:** override_closeout — formaler Milestone-Audit `passed`; Carry-over Deferred
+Items acknowledged (STATE.md).
+
+</details>
+
+<details>
+<summary>✅ v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit — SHIPPED 2026-06-29 (Phasen 25–26)</summary>
+
+**Geliefert (as built):** Feiertage werden automatisch im Mitarbeiterreport angerechnet —
+**derive-on-read** (Toggle-`value`-Cutoff + `SpecialDay`, keine `ExtraHours`-Rows), Wirkung
+identisch zu manuellem `ExtraHours(Holiday)` (Dual-Write `holiday_hours`+`absense_hours`),
+ab admin-konfigurierbarem „aktiv ab"-Stichtag (schützt Vergangenheit + verhindert
+Doppelzählung). Urlaub/Abwesenheit eines Freiwilligen reduziert seine committed-Zusage 🎯
+in der Jahresansicht (whole-week-out in `get_weekly_summary`); Feiertage bewusst **nicht**
+(Asymmetrie, per CI-Guard gepinnt). Bidirektionale Deep-Links `/absences/:employee_id` ↔
+Mitarbeiterreport. Snapshot-Bump 10→11. i18n de/en/cs.
+
+**Validierte Requirements:** HOL-01..03, VFA-01/02, HCFG-01..03, HSNAP-01, NAV-01 (10/10) —
+siehe `milestones/v1.7-REQUIREMENTS.md`, Archiv `milestones/v1.7-ROADMAP.md`.
+
+**Closeout:** override_closeout — Carry-over Deferred Items acknowledged (gemeinsam mit
+v1.8 am 2026-06-29 geschlossen; Close war nach „verified 2026-06-28" liegengeblieben).
+
+</details>
 
 <details>
 <summary>✅ v1.6 Paid-Capacity-Durchsetzung & Konfiguration — SHIPPED 2026-06-27 (Phase 24)</summary>
@@ -225,11 +244,15 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**Kein aktiver Milestone.** Zuletzt geshipt + archiviert:
-**v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (2026-06-27, Phase 24,
-override_closeout, 7/7 must-haves) — Details siehe collapsed Block oben + `milestones/v1.6-ROADMAP.md`.
-Davor: **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung** (2026-06-27, 12/12 Requirements)
-und **v1.4 Committed Voluntary Capacity** (2026-06-25, Audit `passed`, 10/10).
+**Kein aktiver Milestone.** Zuletzt geshipt + archiviert (beide am 2026-06-29 geschlossen):
+**v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** (Phasen 27–28,
+override_closeout, Audit `passed`, 2/2 Requirements) und **v1.7 Automatische Feiertage &
+Freiwilligen-Abwesenheit** (Phasen 25–26, override_closeout, 10/10 Requirements) — Details
+siehe collapsed Blöcke oben + `milestones/v1.8-ROADMAP.md` / `milestones/v1.7-ROADMAP.md`.
+Davor: **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** (2026-06-27, 7/7 must-haves).
+
+**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11 Holiday-Computation; v1.8 Bump
+11→12 `VacationEntitlement`-Computation).
 
 Nächster Schritt: neuen Milestone via `/gsd-new-milestone` aufsetzen, oder die
 off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** direkt
@@ -289,6 +312,10 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v1.5-ROADMAP.md`, `milestones/v1.5-REQUIREMENTS.md`.
 - v1.6 Paid-Capacity-Durchsetzung & Konfiguration — shipped 2026-06-27 (Phase 24).
   Archiv: `milestones/v1.6-ROADMAP.md`.
+- v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit — shipped 2026-06-29 (Phasen 25–26).
+  Archiv: `milestones/v1.7-ROADMAP.md`, `milestones/v1.7-REQUIREMENTS.md`.
+- v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) — shipped 2026-06-29 (Phasen 27–28).
+  Archiv: `milestones/v1.8-ROADMAP.md`, `milestones/v1.8-REQUIREMENTS.md`, `milestones/v1.8-MILESTONE-AUDIT.md`.
 
 Aktiv: **keiner** — Planung des nächsten Milestones offen (`/gsd-new-milestone`).
 

@@ -110,6 +110,75 @@
 
 ---
 
+## Milestone: v1.7 — Automatische Feiertage & Freiwilligen-Abwesenheit
+
+**Shipped:** 2026-06-29 (Phasen complete & verified 2026-06-28)
+**Phases:** 2 (25–26) | **Plans:** 7
+
+### What Was Built
+- Feiertags-Auto-Anrechnung **derive-on-read** (`build_derived_holiday_map` aus Toggle-`value`-Cutoff + `SpecialDay`), Wirkung identisch zu manuellem `ExtraHours(Holiday)`; Dual-Write `holiday_hours`+`absense_hours`; Snapshot-Bump 10→11.
+- Konfigurierbarer „aktiv ab"-Stichtag über die `ToggleService`-`value`-Spalte (nullable `TEXT`, value-Presence treibt `enabled`) + admin-gated Settings-Date-Input, i18n de/en/cs.
+- VFA-01 whole-week-out in `get_weekly_summary`: Abwesenheit eines Freiwilligen reduziert seine committed-Zusage 🎯 (beide Bänder); Feiertags-vs-Abwesenheits-Asymmetrie als CI-Guard gepinnt.
+- Bidirektionale Deep-Links `/absences/:employee_id` ↔ Mitarbeiterreport (GlobalSignal-Preselect + 4 Ghost-Button-Cross-Links), i18n de/en/cs.
+
+### What Worked
+- **v1.6-Infrastruktur wiederverwendet:** die `ToggleService`-/Settings-Seite aus v1.6 trug Stichtag-Konfiguration + Date-Input fast unverändert — Phase 25 blieb dadurch kompakt.
+- **derive-on-read statt materialize** hielt die Feiertags-Automatik reversibel und schrieb keine Bestands-Rows — der Stichtag schützt die Vergangenheit ohne Migration.
+- **Asymmetrie als executable Guard** (`vfa02_holiday_vs_absence_asymmetry` + `phase26_vfa_no_snapshot_bump`): die bewusste Holiday-≠-Absence-Regel ist gegen versehentliche Kopplung CI-verriegelt.
+
+### What Was Inefficient
+- **Milestone-Close blieb liegen:** v1.7 wurde am 2026-06-28 complete & verified, aber der Close (Archiv/Tag/MILESTONES) wurde erst beim v1.8-Close 2026-06-29 nachgeholt — die `REQUIREMENTS.md` blieb in der Zwischenzeit auf v1.7 eingefroren und driftete gegen v1.8.
+- **REQUIREMENTS.md-Body-Checkboxen** (HCFG-02/HSNAP-01/NAV-01) wurden nach Ausführung nicht abgehakt, obwohl verifiziert — reine Doc-Drift, beim Close korrigiert.
+
+### Patterns Established
+- **Toggle-`value`-Spalte für skalare Admin-Konfiguration:** boolean-`enabled` + optionaler `value TEXT` im selben Toggle-Record; value-Presence = aktiviert. Erweitert das v1.6-Toggle-Pattern um konfigurierbare Werte (z.B. ISO-Datum) ohne neue Tabelle.
+- **whole-week-out statt pro-rata** für Abwesenheits-Reduktion der committed-Zusage: jede Überlappung in [Mo,So] nullt die Woche (category-agnostisch) — bewusst grob, deterministisch testbar.
+
+### Key Lessons
+1. Milestone-Close zeitnah nach „complete & verified" fahren — sonst friert die aktive `REQUIREMENTS.md` den alten Stand ein und driftet gegen den nächsten Milestone (hier: zwei offene Closes gleichzeitig).
+2. derive-on-read mit Cutoff ist das saubere Mittel für „ab Stichtag, Vergangenheit unberührt" — keine Bestands-Migration, voll reproduzierbare historische Snapshots.
+
+### Cost Observations
+- Model mix: Planner opus, Executor sonnet (GSD-Config), autonom über beide Phasen.
+- Notable: Snapshot-Bump 10→11 sauber an die Holiday-Computation gekoppelt; No-Bump-Guard für die VFA-Phase verhinderte versehentliche Drift.
+
+---
+
+## Milestone: v1.8 — Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
+
+**Shipped:** 2026-06-29 (beide Phasen VERIFIED inkl. Live-HR-Browser-Smokes)
+**Phases:** 2 (27–28) | **Plans:** 5
+
+### What Was Built
+- Gruppierter Personen-Selector (native `optgroup` Angestellte/Freiwillige) in **beiden** Call-Sites (AbsenceModal + AbsenceFilterBar) über einen gemeinsamen Pure-Helfer + RSX-Passthrough; inaktive ausgeblendet, leere Gruppen ausgelassen; i18n de/en/cs.
+- Signed Urlaubsanspruch-**Offset** pro Person+Jahr (eigene Tabelle + Basic HR-gated Service + HR-gated REST CRUD): `entitled_effective = round(berechnet) + offset`, Delta überlebt Vertragsänderungen, fließt in `remaining_days`.
+- **API-level Hiding:** `offset_days`/`computed_entitled_days` nur `Some` für HR; Self-View bekommt `None` und re-derived nichts. FE-Inline-Editor „berechnet {n} + Offset [x]" (signed, on-blur/Enter, year-scoped), User-Seite effective-only.
+- Off-by-one-Proration-Fix (`vacation_days_for_year` year-START) + Snapshot-Bump 11→12 (`BillingPeriodValueType::VacationEntitlement`).
+
+### What Worked
+- **Service-Tier-Disziplin:** der Offset-Service ist Basic (nur DAO/Permission/Clock/Uuid/Transaction), `VacationBalanceService` (Business-Logic) konsumiert ihn — kein Cycle, DI-Order Basic-vor-Business deterministisch.
+- **API-level statt UI-only Hiding:** die HR-only-Breakdown-Felder werden serverseitig auf `None` gesetzt (`is_hr` vor `hr.or(sp)?` gecaptured) — der Self-Pfad leakt den Offset gar nicht erst, sauberer als clientseitiges Ausblenden.
+- **Ein Helfer für zwei Call-Sites** (D-27-01/03): Pure-Grouping + dünner RSX-Passthrough verhinderten Copy-Paste zwischen Modal und Filter; `is_selectable_employee` bewusst NICHT gelockert (D-27-02) hielt die HR-Urlaubsübersicht paid-only.
+
+### What Was Inefficient
+- **Zwei Bugs erst im Live-Smoke gefunden** (nicht im Plan/Test): (a) `/vacation-entitlement-offset` fehlte im `Dioxus.toml`-Dev-Proxy → FE-Save lief auf HTTP 405; (b) AbsenceModal schloss nach sauberem (warnungsfreiem) Create/Update nicht. Exakt das wiederkehrende „grüner Unit-Test deckt den e2e-/Proxy-Pfad nicht ab"-Muster (vgl. v1.6, Memory „Backend-Roundtrip e2e prüfen").
+- **REQUIREMENTS.md-Drift:** v1.8 lief ganz ohne eigene aktive REQUIREMENTS.md — VOL-SEL-01/VAC-OFFSET-01 existierten nur in der ROADMAP; der Audit musste 3-Quellen-Cross-Reference statt Traceability-Tabelle nutzen. Beim Close in `v1.8-REQUIREMENTS.md` nachgetragen.
+
+### Patterns Established
+- **API-level field hiding für rollen-sensitive Breakdowns:** `Option`-Felder im TO, serverseitig nur für die privilegierte Rolle `Some`; der Client leitet nichts ab. Robuster gegen Leaks als UI-Gating.
+- **Offset/Delta statt absolutem Override** für korrigierbare berechnete Werte: die Korrektur überlebt Neuberechnungen der Basis (hier Vertragsänderungen) — Integer-Korrektur **nach** `.round()`, nicht in die Summe.
+
+### Key Lessons
+1. Neue Backend-Pfad-Familien brauchen **am selben Tag** den `Dioxus.toml`-Dev-Proxy-Eintrag — zum dritten Mal in Folge (v1.6 `/toggle`, jetzt `/vacation-entitlement-offset`) im Live-Smoke aufgeschlagen; Kandidat für eine Plan-Checkliste „neuer REST-Pfad → Proxy-Eintrag".
+2. Ein Milestone ohne eigene REQUIREMENTS.md ist verifizierbar (Decision-/ROADMAP-getrieben + Audit), erzeugt aber Doc-Schulden — entweder bewusst Decision-getrieben fahren (wie v1.6) oder REQUIREMENTS.md am Milestone-Start anlegen.
+3. Pflicht-Snapshot-Bump greift auch bei reinen Korrektheits-Fixes: der Off-by-one änderte `VacationEntitlement`-Computation → Bump 11→12 zwingend (CLAUDE.md-Regel korrekt befolgt).
+
+### Cost Observations
+- Model mix: Planner opus, Executor sonnet (GSD-Config), autonom über beide Phasen + Live-HR-Browser-Smokes.
+- Notable: kompakte 5-Plan-/Zwei-Phasen-Lieferung an einem Tag inkl. formalem Milestone-Audit (`passed`); der Aufwand lag im Live-Smoke-Bugfixing, nicht im Plan.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -119,6 +188,8 @@
 | v1.4 | 4 | Erster Milestone mit dediziertem Pre-Close-Integration-Check + formalem Milestone-Audit vor dem Abschluss; no-bump-Justification-Pattern etabliert. |
 | v1.5 | 6 | Backend-rechnet-vor-Pattern für sonst-nur-im-Browser-prüfbare Logik; override_closeout für code-fertige, human-unverifizierte Debug-Sessions; Close ohne formalen Milestone-Audit (Phasen-UAT genügte). |
 | v1.6 | 1 | Kompakter Ein-Phasen-Milestone auf bestehender Infrastruktur (`ToggleService`); override_closeout mit deferred Human-UAT-Item; Decision-getrieben (D-24-XX) statt formaler REQ-IDs (keine REQUIREMENTS.md). |
+| v1.7 | 2 | derive-on-read + Cutoff-Stichtag-Pattern; Asymmetrie als executable CI-Guard; Milestone-Close verzögert (gemeinsam mit v1.8 nachgeholt) → REQUIREMENTS.md-Drift. |
+| v1.8 | 2 | Formaler Milestone-Audit (`passed`) trotz fehlender aktiver REQUIREMENTS.md (3-Quellen-Cross-Reference); API-level Hiding + Offset/Delta-Pattern; Live-HR-Browser-Smokes als Verifikation. |
 
 ### Cumulative Quality
 
@@ -127,8 +198,12 @@
 | v1.4 | service_impl 451 + rest-types 3 / 628 | 9 (unverändert durch v1.4) |
 | v1.5 | workspace grün (+ Regressionstests UV-04/UV-05/A-22-1) / WASM-Build grün | 10 (Bump 9→10 in Phase 18, `vacation_days`-Computation) |
 | v1.6 | workspace grün (+ 4 Hard-Block-Tests + `test_current_paid_count_correct_for_non_hr_caller`) / WASM-Build grün | 10 (unverändert durch v1.6 — kein persistierter `value_type` berührt) |
+| v1.7 | workspace grün (+ Holiday-Acceptance-Tests + VFA-01/02-Guards) / WASM-Build grün | 11 (Bump 10→11 in Phase 25, Holiday-Computation/Input-Set) |
+| v1.8 | workspace grün (+ Offset/Balance/Off-by-one/Snapshot-Guard) / WASM-Build + 678 FE-Tests grün | 12 (Bump 11→12 in Phase 28, `VacationEntitlement`-Computation) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Achse-A-vs-Achse-B-Trennung (Reporting-Persistenz vs. Jahresansicht-Read-Pfad) ist die wiederkehrende Doppelzählungs-Falle in Shifty — jede Kapazitäts-/Stunden-Änderung muss explizit benennen, welche Achse sie berührt.
 2. End-to-end-Feld-Threading braucht Per-Boundary-Tests; Round-Trip-Tests mit fraktionalen Werten (2.5) fangen stille `0.0`-Drops zuverlässig.
+3. **Neue REST-Pfad-Familien brauchen am selben Tag den `Dioxus.toml`-Dev-Proxy-Eintrag** — in v1.6 (`/toggle`) und v1.8 (`/vacation-entitlement-offset`) je erst im Live-Smoke (HTTP 405/funktionslos) aufgeschlagen, obwohl alle Tests grün waren. Backend-Pfad ≠ im Dev erreichbar.
+4. **Snapshot-Bump-Pflicht gilt auch für Korrektheits-Fixes:** sobald die Computation eines persistierten `value_type` sich ändert (v1.8 Off-by-one → `VacationEntitlement`), ist der Bump zwingend — unabhängig davon, ob es ein „Feature" oder ein „Bugfix" ist.

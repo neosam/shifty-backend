@@ -168,3 +168,82 @@ Die Paid-Capacity-Grenze (`max_paid_employees` pro Slot/Woche) wurde von einem r
 - **Carry-over Deferred Items aus v1.4/v1.5** (historischer Quick-Task-/Todo-Ballast, Nyquist-VALIDATION-Lücken) — weiterhin deferred, siehe STATE.md → Deferred Items.
 
 ---
+
+## v1.7 — Automatische Feiertage & Freiwilligen-Abwesenheit
+
+**Shipped:** 2026-06-29 (Phasen complete & verified 2026-06-28; Milestone-Close 2026-06-29)
+**Phases:** 25–26 (2 phases, 7 plans)
+**Closeout:** override_closeout (Carry-over Deferred Items acknowledged; kein neuer Blocker)
+**Archive:** [`milestones/v1.7-ROADMAP.md`](milestones/v1.7-ROADMAP.md) · [`milestones/v1.7-REQUIREMENTS.md`](milestones/v1.7-REQUIREMENTS.md)
+
+**Delivered:**
+Feiertage werden automatisch (statt manuell pro Mitarbeiter) im Mitarbeiterreport
+angerechnet — mit **identischer** Wirkung zu einem manuellen `ExtraHours(Holiday)`
+(reduziert `expected_hours`, erhöht Balance, `holiday_hours`-Spalte) und einem
+admin-konfigurierbaren „aktiv ab"-Stichtag, der Vergangenheit (Snapshots, manuelle
+Einträge) schützt und Doppelzählung verhindert. Berechnung **derive-on-read** (Toggle-
+`value`-Spalte mit ISO-Cutoff + `SpecialDay`-Tabelle, keine `ExtraHours`-Rows). Urlaub/
+Abwesenheit eines Freiwilligen (`is_paid=false`, `committed_voluntary>0`) reduziert seine
+committed-Zusage 🎯 in der Jahresansicht (whole-week-out in `get_weekly_summary`);
+Feiertage tun das bewusst **nicht** (Asymmetrie, per CI-Guard gepinnt). Bidirektionale
+Deep-Links zwischen `/absences` und Mitarbeiterreport/Jahresansicht. Snapshot-Schema-
+Version 10 → 11.
+
+**Key accomplishments:**
+
+1. **Phase 25-01** — Toggle-`value`-Spalte (nullable `TEXT`) end-to-end durch DAO/Service/REST + `holiday_auto_credit`-Seed; `GET/PUT/DELETE /toggle/{name}/value` toggle_admin-gated + ISO-Date-validiert; value-Presence treibt `enabled` (D-25-05).
+2. **Phase 25-02** — derive-on-read Holiday-Auto-Credit in `ReportingService` (`build_derived_holiday_map`, 3 Injektionspunkte), Dual-Write `holiday_hours`+`absense_hours`, Snapshot-Bump 10→11, main.rs-DI.
+3. **Phase 25-03/04** — admin-gated Settings-Date-Input (Save/Clear/Inline-Feedback) + 5 i18n-Keys de/en/cs; behaviorale Acceptance-Tests inkl. derived-vs-manuell-Vergleich + HOL-03-Regressions-Guard.
+4. **Phase 26-01** — `AbsenceService`-DI in `BookingInformationService` + `period_overlaps_week`-Pure-Helper + whole-week-out-Reduktion (beide Bänder) in `get_weekly_summary`; 8 VFA-01-Tests.
+5. **Phase 26-02/03** — VFA-02-Asymmetrie als full-service-Regressionstest + No-Snapshot-Bump-Guard (`==11`); Route `/absences/:employee_id` + `AbsencesFor`-Preselect (GlobalSignal) + 4 Ghost-Button-Cross-Links + 4 i18n-Keys de/en/cs.
+
+**Test verification:** Backend `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün; Frontend WASM-Build grün. Beide Phasen `passed` (complete & verified 2026-06-28).
+
+**Known deferred items (acknowledged at close, 2026-06-29):**
+
+- **NAV-01-Deep-Links + Feiertags-Anzeige** — zum Phasen-Abschluss automatik-grün, aber nicht separat human-bestätigt (Carry-over im Deferred-Items-Pool).
+- **REQUIREMENTS.md-Body-Checkboxen** (HCFG-02/HSNAP-01/NAV-01) blieben optisch `[ ]` trotz Verifikation — beim Close auf `[x]` nachgezogen (Doc-Drift).
+- **Carry-over Deferred Items aus v1.4–v1.6** — weiterhin deferred, siehe STATE.md → Deferred Items.
+
+---
+
+## v1.8 — Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)
+
+**Shipped:** 2026-06-29 (beide Phasen VERIFIED inkl. Live-HR-Browser-Smokes)
+**Phases:** 27–28 (2 phases, 5 plans)
+**Closeout:** override_closeout (Milestone-Audit `passed`; Carry-over Deferred Items acknowledged)
+**Audit:** ✅ passed (2/2 Requirements, 100% Integration, 2/2 Flows)
+**Archive:** [`milestones/v1.8-ROADMAP.md`](milestones/v1.8-ROADMAP.md) · [`milestones/v1.8-REQUIREMENTS.md`](milestones/v1.8-REQUIREMENTS.md) · [`milestones/v1.8-MILESTONE-AUDIT.md`](milestones/v1.8-MILESTONE-AUDIT.md)
+
+**Delivered:**
+HR-UX rund um Abwesenheiten/Urlaub. Freiwillige (`is_paid=false`) sind in den
+Abwesenheits-Selektoren auswählbar — gruppiert (native `optgroup` Angestellte/
+Freiwillige) in **beiden** Call-Sites (AbsenceModal + AbsenceFilterBar) über einen
+gemeinsamen Helfer, inaktive ausgeblendet, leere Gruppen ausgelassen, de/en/cs.
+HR kann den berechneten Jahres-Urlaubsanspruch per signed **Offset (Korrektur-Delta)**
+anpassen: `entitled_effective = round(berechnet) + offset`, pro Person+Jahr persistiert,
+überlebt Vertragsänderungen (Delta statt Override), HR-gated CRUD + immer sichtbares
+Inline-Editor-Feld („berechnet {n} + Offset [x]"); für normale User unsichtbar
+(**API-level** Hiding — Self-View bekommt `offset`/`computed == None`). Begleitend:
+Off-by-one-Proration-Fix (`vacation_days_for_year` year-START) + Snapshot-Schema-
+Version-Bump 11 → 12 (`BillingPeriodValueType::VacationEntitlement`).
+
+**Key accomplishments:**
+
+1. **Phase 27-01** — Pure `grouped_selectable` + `PersonGroup` (Employees|Volunteers) + RSX-Helfer `grouped_person_options` (zwei `<optgroup>`s), beide Call-Sites umgestellt (kein Copy-Paste); 2 i18n-Keys de/en/cs; 5 Pure-Function-Tests. `is_selectable_employee` NICHT gelockert (D-27-02), Gruppierung nutzt eigenes `!inactive`-Predicate.
+2. **Phase 28-01** — additive Migration + Tabelle `vacation_entitlement_offset` (partial unique index `WHERE deleted IS NULL`) + DAO + Basic HR-gated `VacationEntitlementOffsetService` (HR_PRIVILEGE auf jeder Methode) + CRUD/HR-gate-Tests.
+3. **Phase 28-02** — Offset nach `.round()` addiert (Integer-Day-Korrektur, fließt in `remaining_days`); API-level Hiding (HR-only breakdown); `VacationBalanceTO`-Felder; HR-gated REST CRUD + ApiDoc; DI BL→Basic (kein Cycle).
+4. **Phase 28-03** — Off-by-one year-START-Fix (`ordinal-1`) + Pflicht-Snapshot-Bump 11→12 + Guard-/Regressions-Tests.
+5. **Phase 28-04** — FE Inline-HR-Offset-Editor (signed, on-blur/Enter, year-scoped) + User-Seite effective-only + `SaveOffset`-Action + i18n de/en/cs.
+
+**Bonus-Bugfixes (Live-Smoke, committet):** `fix(28)` `/vacation-entitlement-offset` im `Dioxus.toml`-Dev-Proxy ergänzt (FE-Save lief auf 405); `fix` AbsenceModal schloss nach sauberem Create/Update nicht (`on_close` im No-Warnings-Zweig nachgezogen).
+
+**Test verification:** Backend `cargo test --workspace` (inkl. neuer Offset/Balance/Off-by-one/Snapshot-Guard-Tests) + `cargo clippy --workspace -- -D warnings` grün; Frontend WASM-Build + 678 FE-Tests grün; `.sqlx`-Offline-Cache regeneriert; Migration additiv. Beide Live-HR-Browser-Smokes bestätigt (`behavior_unverified: 0`).
+
+**Known deferred items (acknowledged at close, 2026-06-29):**
+
+- **Phase-28-SUMMARY-Frontmatter** ohne `requirements-completed: [VAC-OFFSET-01]` (kosmetisch; voll durch 28-VERIFICATION abgedeckt).
+- **DAO `find_by_id`** auf `VacationEntitlementOffsetDao` unkonsumiert — Forward-Hook für künftiges `DELETE /{id}`.
+- **Carry-over Deferred Items aus v1.4–v1.6** (carryover-absence-vs-report awaiting_human_verify, Phase-24-Human-UAT #1, historischer Quick-Task-/Todo-Ballast, Nyquist-Lücken) — weiterhin deferred, siehe STATE.md → Deferred Items.
+
+---
