@@ -1140,6 +1140,9 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
     // Subscribe to ABSENCE_MODAL_EVENT side-channel; the service writes the
     // outcome of Create/Update there. We acknowledge by writing `None`.
     let modal_event = ABSENCE_MODAL_EVENT.read().clone();
+    // Captured here (before the effect) so the no-warnings success path can
+    // dismiss the modal. The cancel/dialog/warn-ack paths re-capture on_close below.
+    let on_close_for_event = props.on_close;
     use_effect(move || {
         let event = ABSENCE_MODAL_EVENT.read().clone();
         if let Some(ev) = event {
@@ -1152,8 +1155,12 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                         validation_payload.set(None);
                         // Acknowledge.
                         *ABSENCE_MODAL_EVENT.write() = None;
-                        // Trigger close via on_close.
-                        // (Stored as captured handler below.)
+                        // Dismiss the modal: a clean Create/Update with no
+                        // warnings must close the dialog. Previously this branch
+                        // only cleared state, so the modal stayed open (the only
+                        // close path was the warnings "Verstanden" ack below,
+                        // which never fires when there are no warnings).
+                        on_close_for_event.call(());
                     } else {
                         let rc: Rc<[WarningTO]> = Rc::from(result.warnings.as_slice());
                         warnings_state.set(WarningsList(rc));
