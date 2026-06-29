@@ -186,11 +186,14 @@ Plans:
   2. Off-by-one in der Proration (`employee_work_details.rs:173`, `ordinal()` statt `ordinal()-1`) als Begleit-Fix mitnehmen oder bewusst draußen lassen?
   3. Snapshot-Bump prüfen: Urlaub ist vermutlich kein billing `value_type` → kein Bump; bei Planung verifizieren.
 
-**Plans**: 0 plans
+**Plans**: 4 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 28 to break down)
+- [ ] 28-01-PLAN.md — Backend data layer: additive migration + `vacation_entitlement_offset` table + DAO trait/sqlite impl + Basic HR-gated `VacationEntitlementOffsetService` + CRUD/HR-gate tests (D-28-01, D-28-06, D-28-06b) [Wave 1]
+- [ ] 28-02-PLAN.md — VacationBalance integration: offset-after-`.round()`, API-level hiding (HR-only breakdown), `VacationBalanceTO` + domain fields, HR-gated REST CRUD endpoint, DI wiring, offset/delta/hiding tests (D-28-02, D-28-03, D-28-06b, D-28-09) [Wave 2]
+- [ ] 28-03-PLAN.md — Off-by-one proration fix (`vacation_days_for_year`, year-start only) + snapshot bump 11→12 (VacationEntitlement) + guard/regression tests (D-28-04, D-28-05) [Wave 1]
+- [ ] 28-04-PLAN.md — Frontend inline signed offset editor in HR person-detail StatBox (“berechnet {n} + Offset [x]”), user-side effective-only, i18n de/en/cs, FE state/api/service plumbing (D-28-07, D-28-03, D-28-08, D-28-09) [Wave 3]
 
 ## Progress
 
