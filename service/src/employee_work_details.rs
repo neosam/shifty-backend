@@ -170,11 +170,14 @@ impl EmployeeWorkDetails {
         }
         if from_year == year {
             if let Ok(from_date) = self.from_date() {
-                let relation = from_date.to_date().ordinal() as f32
+                // Phase 28 (VAC-OFFSET-01 / D-28-04): subtract the fraction of
+                // days STRICTLY before the contract start. A 1.1. start has
+                // `ordinal() == 1` → 0 prior days → 0 subtraction. The previous
+                // `ordinal()/days_in_year` over-subtracted ~1/365 of the annual
+                // entitlement, occasionally tipping `.round()` from 18 to 17.
+                let relation = (from_date.to_date().ordinal() as f32 - 1.0)
                     / time::util::days_in_year(year as i32) as f32;
-                days -= self.vacation_days as f32 * relation as f32;
-                //let month: u8 = from_date.month().into();
-                //days -= self.vacation_days as f32 / 12.0 * (month - 1) as f32;
+                days -= self.vacation_days as f32 * relation;
             }
         }
         if to_year == year {
@@ -278,4 +281,129 @@ pub trait EmployeeWorkDetailsService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWorkDetails, ServiceError>;
+}
+
+#[cfg(test)]
+mod vacation_days_for_year_tests {
+    //! Phase 28 (VAC-OFFSET-01 / D-28-04) regression tests for
+    //! [`EmployeeWorkDetails::vacation_days_for_year`].
+    //!
+    //! The year-START proration must subtract the fraction of days STRICTLY
+    //! before the contract start. A 1.1. start therefore subtracts 0 (no prior
+    //! days) — the old code subtracted `ordinal()/days_in_year` (~1/365 of the
+    //! annual entitlement) which occasionally tipped `.round()` from 18 to 17.
+    //! The year-END branch (`1.0 - ordinal/days_in_year`) is already correct and
+    //! is pinned here so a future "symmetry" refactor cannot re-introduce a bug.
+    use super::*;
+    use shifty_utils::ShiftyDate;
+
+    /// Build an [`EmployeeWorkDetails`] fixture whose contract spans the explicit
+    /// `from`/`to` dates so the proration is fully deterministic.
+    fn contract_with_dates(from: ShiftyDate, to: ShiftyDate, vacation_days: u8) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::nil(),
+            sales_person_id: Uuid::nil(),
+            expected_hours: 40.0,
+            from_day_of_week: from.day_of_week(),
+            from_calendar_week: from.week(),
+            from_year: from.year(),
+            to_day_of_week: to.day_of_week(),
+            to_calendar_week: to.week(),
+            to_year: to.year(),
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            committed_voluntary: 0.0,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        }
+    }
+
+    /// Full-year contract (1.1.–31.12.) must return the full entitlement with NO
+    /// proration. This is the core off-by-one regression (D-28-04): before the
+    /// fix a 1.1. start over-subtracted ~1/365 of `vacation_days`.
+    #[test]
+    fn vacation_days_for_year_full_year_contract_no_proration() {
+        let wd = contract_with_dates(
+            ShiftyDate::first_day_in_year(2025),
+            ShiftyDate::last_day_in_year(2025),
+            18,
+        );
+        assert_eq!(
+            wd.vacation_days_for_year(2025),
+            18.0,
+            "full-year contract must not be prorated (Phase 28 off-by-one fix)"
+        );
+    }
+
+    /// A mid-year start (1.7.2025) subtracts the fraction of days STRICTLY before
+    /// the start: `vacation_days * (ordinal_of_start - 1) / days_in_year`.
+    #[test]
+    fn vacation_days_for_year_mid_year_start_subtracts_prior_days() {
+        let from = ShiftyDate::from_ymd(2025, 7, 1).unwrap();
+        let wd = contract_with_dates(from, ShiftyDate::last_day_in_year(2025), 18);
+        let ordinal = from.to_date().ordinal(); // 182 in 2025 (non-leap)
+        let days_in_year = time::util::days_in_year(2025) as f32;
+        let expected = 18.0 - 18.0 * (ordinal as f32 - 1.0) / days_in_year;
+        let actual = wd.vacation_days_for_year(2025);
+        assert!(
+            (actual - expected).abs() < 1e-4,
+            "mid-year start must subtract days strictly before start: expected {expected}, got {actual}"
+        );
+    }
+
+    /// A 31.12. end subtracts 0 — the year-END branch is already correct and must
+    /// stay untouched (Pitfall 4: do NOT "symmetrize" it).
+    #[test]
+    fn vacation_days_for_year_year_end_on_dec_31_subtracts_zero() {
+        let wd = contract_with_dates(
+            ShiftyDate::first_day_in_year(2025),
+            ShiftyDate::from_ymd(2025, 12, 31).unwrap(),
+            18,
+        );
+        assert_eq!(
+            wd.vacation_days_for_year(2025),
+            18.0,
+            "a 31.12. end must subtract nothing"
+        );
+    }
+
+    /// A year fully outside `[from_year, to_year]` returns 0.0 (unchanged).
+    #[test]
+    fn vacation_days_for_year_out_of_range_returns_zero() {
+        let wd = contract_with_dates(
+            ShiftyDate::first_day_in_year(2025),
+            ShiftyDate::last_day_in_year(2025),
+            18,
+        );
+        assert_eq!(wd.vacation_days_for_year(2024), 0.0);
+        assert_eq!(wd.vacation_days_for_year(2026), 0.0);
+    }
+
+    /// Mid-year start AND mid-year end in the same year both prorate correctly
+    /// (start subtracts prior days, end subtracts trailing days).
+    #[test]
+    fn vacation_days_for_year_single_year_both_bounds_prorate() {
+        let from = ShiftyDate::from_ymd(2025, 4, 1).unwrap();
+        let to = ShiftyDate::from_ymd(2025, 9, 30).unwrap();
+        let wd = contract_with_dates(from, to, 24);
+        let days_in_year = time::util::days_in_year(2025) as f32;
+        let start_cut = 24.0 * (from.to_date().ordinal() as f32 - 1.0) / days_in_year;
+        let end_cut = 24.0 * (1.0 - to.to_date().ordinal() as f32 / days_in_year);
+        let expected = 24.0 - start_cut - end_cut;
+        let actual = wd.vacation_days_for_year(2025);
+        assert!(
+            (actual - expected).abs() < 1e-4,
+            "both-bounds proration mismatch: expected {expected}, got {actual}"
+        );
+    }
 }
