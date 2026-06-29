@@ -3,10 +3,16 @@
 set -euo pipefail
 
 # Usage:
-#   cli-update-version.sh                            # auto-derive YEAR.DAY.COUNTER from date + Cargo.toml
-#   cli-update-version.sh <RELEASE> <NEXT> [BRANCH]  # explicit (legacy mode)
+#   cli-update-version.sh [-m tag-message] [-b branch]              # auto-derive YEAR.DAY.COUNTER from date + Cargo.toml
+#   cli-update-version.sh [-m tag-message] <RELEASE> <NEXT> [BRANCH] # explicit (legacy mode)
 #
-# Auto-derive rules (no args):
+# Options:
+#   -m tag-message  Annotated-tag message (e.g. release notes). Without it, `git tag -a`
+#                   would open an interactive editor and block non-interactive runs.
+#   -b branch       Branch to tag and push the -dev bump onto (default "main").
+#                   A positional BRANCH (legacy mode) takes precedence over -b.
+#
+# Auto-derive rules (no positional args):
 #   YEAR = current year
 #   DAY  = day-of-year (1..366, leading zeros stripped)
 #   COUNTER is read from the current version in Cargo.toml:
@@ -14,6 +20,18 @@ set -euo pipefail
 #     - current matches YYYY.DDD.X     and YYYY.DDD == today -> release X+1,  next X+2-dev
 #     - otherwise                                            -> release 0,    next 1-dev
 # The release is tagged on $BRANCH (default "main"); the -dev bump lands on $BRANCH afterwards.
+
+TAG_MESSAGE=""
+BRANCH_OPT=""
+
+while getopts "m:b:" opt; do
+    case $opt in
+        m) TAG_MESSAGE="$OPTARG" ;;
+        b) BRANCH_OPT="$OPTARG" ;;
+        *) echo "Usage: $0 [-m tag-message] [-b branch] [<RELEASE> <NEXT> [BRANCH]]" >&2; exit 1 ;;
+    esac
+done
+shift $((OPTIND - 1))
 
 if [ $# -eq 0 ]; then
     YEAR=$(date +%Y)
@@ -53,7 +71,7 @@ if [ $# -eq 0 ]; then
     NEXT_COUNTER=$((COUNTER + 1))
     NEW_VERSION="${YEAR}.${DAY}.${COUNTER}"
     FOLLOWING_BASE="${YEAR}.${DAY}.${NEXT_COUNTER}"
-    BRANCH="main"
+    BRANCH="${BRANCH_OPT:-main}"
 
     echo "Auto-derived release version: $NEW_VERSION"
     echo "Auto-derived next dev version: ${FOLLOWING_BASE}-dev"
@@ -61,24 +79,39 @@ if [ $# -eq 0 ]; then
 else
     NEW_VERSION="$1"
     FOLLOWING_BASE="${2}"
-    BRANCH="${3:-main}"
+    BRANCH="${3:-${BRANCH_OPT:-main}}"
 fi
 
 FOLLOWING_VERSION="${FOLLOWING_BASE}-dev"
+
+# Build gate: backend workspace + the (excluded) frontend WASM crate.
+# `cargo build` at the root only covers the backend workspace because
+# shifty-dioxus is `exclude`d; the frontend's documented build gate is a
+# wasm32 build, so run it explicitly whenever the frontend crate is present.
+build_all() {
+    cargo build
+    if [ -f shifty-dioxus/Cargo.toml ]; then
+        ( cd shifty-dioxus && cargo build --target wasm32-unknown-unknown )
+    fi
+}
 
 # Show subsequent commands being executed
 set -x
 
 ./update_versions.sh "$NEW_VERSION"
-cargo build
+build_all
 jj commit -m "Set version to $NEW_VERSION"
 jj b m "$BRANCH" --to @-
 jj git push
-git tag -a "v$NEW_VERSION" "$BRANCH"
+if [ -n "$TAG_MESSAGE" ]; then
+    git tag -a "v$NEW_VERSION" -m "$TAG_MESSAGE" "$BRANCH"
+else
+    git tag -a "v$NEW_VERSION" "$BRANCH"
+fi
 git push --tags
 
 ./update_versions.sh "$FOLLOWING_VERSION"
-cargo build
+build_all
 jj commit -m "Set version to $FOLLOWING_VERSION"
 jj b m "$BRANCH" --to @-
 jj git push
