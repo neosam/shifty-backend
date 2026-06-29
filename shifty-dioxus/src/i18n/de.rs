@@ -797,6 +797,8 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::VacationStatUsed, "Genommen");
     i18n.add_text(Locale::De, Key::VacationStatPending, "Beantragt");
     i18n.add_text(Locale::De, Key::VacationStatRemaining, "Verbleibend");
+    i18n.add_text(Locale::De, Key::VacationOffsetComputedLabel, "berechnet");
+    i18n.add_text(Locale::De, Key::VacationOffsetLabel, "Offset");
     i18n.add_text(
         Locale::De,
         Key::VacationPerPersonHeader,

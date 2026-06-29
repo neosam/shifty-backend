@@ -783,6 +783,8 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::VacationStatUsed, "Vyčerpáno");
     i18n.add_text(Locale::Cs, Key::VacationStatPending, "Čeká");
     i18n.add_text(Locale::Cs, Key::VacationStatRemaining, "Zbývá");
+    i18n.add_text(Locale::Cs, Key::VacationOffsetComputedLabel, "vypočteno");
+    i18n.add_text(Locale::Cs, Key::VacationOffsetLabel, "Offset");
     i18n.add_text(
         Locale::Cs,
         Key::VacationPerPersonHeader,

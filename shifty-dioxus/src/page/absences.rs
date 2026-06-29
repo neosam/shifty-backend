@@ -458,6 +458,9 @@ pub fn VacationEntitlementCard(props: VacationEntitlementCardProps) -> Element {
             }
             if show_self {
                 VacationEntitlementSelfBody {
+                    // D-28-07: only HR (on the forced_self detail path) sees the
+                    // inline offset editor; the employee self-view never does.
+                    is_hr: props.is_hr,
                     year: props.year,
                     year_str: year_str.clone(),
                     prev_year_str: prev_year_str.clone(),
@@ -480,6 +483,10 @@ pub fn VacationEntitlementCard(props: VacationEntitlementCardProps) -> Element {
 
 #[derive(Props, Clone, PartialEq)]
 struct VacationEntitlementSelfBodyProps {
+    /// D-28-07: gates the inline offset editor. `true` only on the HR
+    /// person-detail (`forced_self`) path; the employee self-view passes
+    /// `false` and therefore renders only the effective value (D-28-03).
+    is_hr: bool,
     year: u32,
     year_str: String,
     prev_year_str: String,
@@ -532,9 +539,20 @@ fn VacationEntitlementSelfBody(props: VacationEntitlementSelfBodyProps) -> Eleme
             // ab sm 2-col (paarweise), ab md alle 5 nebeneinander für das
             // Desktop-Hero-Layout neben der Hero-Zahl.
             div { class: "p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5",
-                StatBox {
-                    label: ImStr::from(i18n.t(Key::VacationStatContract).as_ref()),
-                    value: ImStr::from(entitled_contract_str.as_str()),
+                VacationContractCell {
+                    effective: ImStr::from(entitled_contract_str.as_str()),
+                    // HR breakdown only on the HR detail path AND when the
+                    // backend supplied the pre-offset value (D-28-07/D-28-03).
+                    computed: if props.is_hr {
+                        balance
+                            .computed_entitled_days
+                            .map(|c| ImStr::from(format_decimal(c).as_str()))
+                    } else {
+                        None
+                    },
+                    offset_init: balance.offset_days.unwrap_or(0),
+                    sales_person_id: balance.sales_person_id,
+                    year: props.year,
                 }
                 StatBox {
                     label: ImStr::from(carryover_label.as_str()),
@@ -639,6 +657,82 @@ fn StatBox(props: StatBoxProps) -> Element {
         div { class: "bg-surface border border-border rounded-md p-3 flex flex-col gap-1",
             div { class: "text-micro uppercase text-ink-muted", "{props.label}" }
             div { class: "text-h1 font-mono text-ink", "{props.value}" }
+        }
+    }
+}
+
+/// Phase 28 (VAC-OFFSET-01, D-28-07/D-28-03): the "Vertragsanspruch" cell.
+///
+/// When `computed` is `Some` (HR person-detail path only — the backend hides
+/// the breakdown for self-only callers, D-28-03), this renders the effective
+/// entitlement as the big box number plus an always-visible signed inline
+/// offset editor ("berechnet {computed} + Offset [x]"). Editing saves
+/// HR-gated (server-side) on blur/Enter via `SaveOffset`, year-scoped per
+/// D-28-09. When `computed` is `None` it is byte-for-byte the plain effective
+/// `StatBox` the employee self-view shows (no field, no breakdown line).
+#[derive(Props, Clone, PartialEq)]
+struct VacationContractCellProps {
+    /// Effective entitlement (`round(base) + offset`) — the big box number.
+    effective: ImStr,
+    /// HR-only pre-offset contract entitlement. `Some` => render the editor.
+    #[props(!optional, default = None)]
+    computed: Option<ImStr>,
+    /// Seed for the signed offset `<input>` (current applied offset).
+    offset_init: i32,
+    sales_person_id: Uuid,
+    year: u32,
+}
+
+#[component]
+fn VacationContractCell(props: VacationContractCellProps) -> Element {
+    let i18n = I18N.read().clone();
+    let vacation_service = use_coroutine_handle::<VacationBalanceAction>();
+    let mut offset_str = use_signal(|| props.offset_init.to_string());
+    let label = i18n.t(Key::VacationStatContract);
+
+    // Employee self-view (or fields absent): exactly the plain effective box —
+    // no breakdown line, no input (D-28-03 / ROADMAP SC5).
+    let Some(computed) = props.computed.clone() else {
+        return rsx! {
+            StatBox {
+                label: ImStr::from(label.as_ref()),
+                value: props.effective.clone(),
+            }
+        };
+    };
+
+    let computed_label = i18n.t(Key::VacationOffsetComputedLabel).as_ref().to_string();
+    let offset_label = i18n.t(Key::VacationOffsetLabel).as_ref().to_string();
+    let sp_id = props.sales_person_id;
+    let year = props.year;
+
+    // Parse the signed integer and persist (year-scoped, D-28-09). HR-gating is
+    // enforced server-side (T-28-09); the editor visibility is convenience.
+    let commit = move || {
+        if let Ok(parsed) = offset_str.read().trim().parse::<i32>() {
+            vacation_service.send(VacationBalanceAction::SaveOffset(sp_id, year, parsed));
+        }
+    };
+
+    rsx! {
+        div { class: "bg-surface border border-border rounded-md p-3 flex flex-col gap-1",
+            div { class: "text-micro uppercase text-ink-muted", "{label}" }
+            div { class: "text-h1 font-mono text-ink", "{props.effective}" }
+            div { class: "text-micro text-ink-muted flex items-center gap-1 flex-wrap",
+                "{computed_label} {computed} + {offset_label}"
+                input {
+                    r#type: "number",
+                    class: "w-14 px-1 py-0.5 border border-border rounded text-ink bg-surface font-mono text-micro",
+                    value: "{offset_str}",
+                    oninput: move |e| offset_str.set(e.value()),
+                    onkeydown: move |e| {
+                        if e.key().to_string() == "Enter" {
+                            commit();
+                        }
+                    },
+                    onfocusout: move |_| commit(),
+                }
+            }
         }
     }
 }

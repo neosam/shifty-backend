@@ -476,6 +476,9 @@ pub enum Key {
     VacationPerPersonHeader,
     VacationPerPersonShowAll,
     VacationPerPersonShowLess,
+    // Phase 28 (VAC-OFFSET-01, D-28-07/D-28-08): HR inline offset editor labels.
+    VacationOffsetComputedLabel,
+    VacationOffsetLabel,
     // Statistik-Cards
     AbsenceStatSickLeaveDays,
     AbsenceStatUnpaidDays,
@@ -825,6 +828,8 @@ mod tests {
                 Key::VacationStatUsed,
                 Key::VacationStatPending,
                 Key::VacationStatRemaining,
+                Key::VacationOffsetComputedLabel,
+                Key::VacationOffsetLabel,
                 Key::AbsenceDeleteConfirmTitle,
                 Key::AbsenceWarningAcknowledgeBtn,
                 Key::AbsenceFilterShowPast,
