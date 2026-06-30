@@ -1,9 +1,10 @@
 ---
 phase: 35-slot-einzelwoche-aenderung
 verified: 2026-06-30T19:00:00Z
-status: human_needed
-score: 3/4 must-haves verified
-behavior_unverified: 1
+status: passed
+score: 4/4 must-haves verified
+behavior_unverified: 0
+human_smoke_passed: 2026-06-30
 overrides_applied: 0
 behavior_unverified_items:
   - truth: "SWO-01: Im Slot-Editor kann ein Shiftplanner explizit zwischen 'nur diese Woche' und 'ab dieser Woche' waehlen; 'nur diese Woche' wirkt ausschliesslich in der gewaaehlten KW."
@@ -21,8 +22,26 @@ human_verification:
 **Phasen-Ziel:** Ein Shiftplanner kann die Werte eines Slots (Kapazitaet/Zeiten) fuer genau eine Kalenderwoche als einmalige Ausnahme aendern, ohne die wiederkehrende Struktur ab dieser KW dauerhaft zu veraendern — atomar (alles in einer Transaktion, Rollback bei Fehler) und ohne Doppelzaehlung in Reports/Balance.
 
 **Verifiziert:** 2026-06-30T19:00:00Z
-**Status:** human_needed
+**Status:** passed
 **Re-Verification:** Nein — initiale Verifikation
+
+## Human Verification (SWO-01) — PASSED (Browser-Smoke 2026-06-30)
+
+Live-Smoke im Chrome gegen lokales Backend+Frontend (mock_auth, DEVUSER) durchgefuehrt:
+Slot-Editor im Edit-Modus geoeffnet → Scope-Radio-Gruppe sichtbar (Default „From this week on",
+Option „This week only") → „This week only" gewaehlt → konditionaler Hinweis erschien mit
+korrekter `{week}/{year}`-Interpolation („calendar week 27/2026") → REQUIRED PERSONS 4→5 →
+Save. Ergebnis (UI + DB `localdb.sqlite3` verifiziert):
+
+| Woche | Montag 09:00 (`min_resources`) | Erwartung |
+|-------|-------------------------------|-----------|
+| KW 26 (Seg 1, valid_to 2026-06-28) | 4 | Original unveraendert ✓ |
+| KW 27 (Seg 2, 2026-06-29..07-05) | 5 | Ausnahme-Wert nur diese KW ✓ |
+| KW 28+ (Seg 3, ab 2026-07-06, unbegrenzt) | 4 | Original wiederhergestellt ✓ |
+
+Damit ist der End-to-End-Pfad bestaetigt: Radio-Klick → `single_week`-Signal (D-25-06-Risiko
+ausgeraeumt) → `/single-week`-Route → `modify_slot_single_week` → exakt 3 Slot-Segmente (4/5/4),
+keine Doppelzaehlung, keine Auswirkung auf andere Wochen. SWO-01 verifiziert.
 
 ---
 
