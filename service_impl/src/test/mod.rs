@@ -70,3 +70,5 @@ pub mod vacation_balance;
 pub mod vacation_entitlement_offset;
 #[cfg(test)]
 pub mod reporting_avg_weekly;
+#[cfg(test)]
+pub mod special_days;

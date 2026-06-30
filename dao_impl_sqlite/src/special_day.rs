@@ -105,6 +105,9 @@ impl SpecialDayDao for SpecialDayDaoImpl {
         .map(SpecialDayEntity::try_from)
         .collect::<Result<_, _>>()?)
     }
+    async fn find_by_year(&self, _year: u32) -> Result<Arc<[SpecialDayEntity]>, DaoError> {
+        todo!()
+    }
     async fn create(&self, entity: &SpecialDayEntity, process: &str) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();

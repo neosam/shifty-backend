@@ -69,6 +69,13 @@ impl<
             .map(SpecialDay::from)
             .collect())
     }
+    async fn get_by_year(
+        &self,
+        _year: u32,
+        _context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SpecialDay]>, ServiceError> {
+        todo!()
+    }
     async fn create(
         &self,
         special_day: &SpecialDay,

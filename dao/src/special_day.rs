@@ -33,6 +33,7 @@ pub trait SpecialDayDao {
         year: u32,
         calendar_week: u8,
     ) -> Result<Arc<[SpecialDayEntity]>, DaoError>;
+    async fn find_by_year(&self, year: u32) -> Result<Arc<[SpecialDayEntity]>, DaoError>;
     async fn create(&self, entity: &SpecialDayEntity, process: &str) -> Result<(), DaoError>;
     async fn update(&self, entity: &SpecialDayEntity, process: &str) -> Result<(), DaoError>;
 }

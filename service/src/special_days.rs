@@ -88,6 +88,11 @@ pub trait SpecialDayService {
         calendar_week: u8,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[SpecialDay]>, ServiceError>;
+    async fn get_by_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SpecialDay]>, ServiceError>;
     async fn create(
         &self,
         special_day: &SpecialDay,
