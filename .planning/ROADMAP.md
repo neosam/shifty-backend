@@ -20,7 +20,7 @@
 
 - [x] **Phase 33: Special-Days-UI in den Einstellungen** - Shiftplanner pflegt Special Days (Holiday/ShortDay) auf zwei Flächen (Schichtplan-Wochenraster + Settings-Sektion) gegen die bestehende REST-CRUD + neuen Range/Jahr-Read — SPD-01..04 ✅ (e2e-verifiziert; create-Pfad-Bug gefixt; visuelle Smokes deferred)
 - [x] **Phase 34: Feiertags-Soll im Schichtplan** - Automatisch angerechneter Feiertag reduziert das angezeigte Soll in der Wochentabelle (`get_week` derive-on-read); Kapazitätsbänder unangetastet — HSP-01..04 ✅ 2026-06-30
-- [ ] **Phase 35: Slot-Werte nur für eine Woche ändern** - Einmalige Slot-Ausnahme für genau eine KW via Split+Re-Merge (3 Versionen, atomar, Buchungs-Re-Point ohne Doppelzählung) + UI-Wahl „nur diese Woche" vs „ab dieser Woche" — SWO-01..04
+- [x] **Phase 35: Slot-Werte nur für eine Woche ändern** - Einmalige Slot-Ausnahme für genau eine KW via Split+Re-Merge (3 Versionen, atomar, Buchungs-Re-Point ohne Doppelzählung) + UI-Wahl „nur diese Woche" vs „ab dieser Woche" — SWO-01..04 (completed 2026-06-30)
 
 <details>
 <summary>✅ v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (Phasen 29–32) — SHIPPED 2026-06-29</summary>
@@ -220,7 +220,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 32 — Admin-Impersonation Frontend + Audit-Schicht (FE+BE) | v1.9 | 3/3 | Complete    | 2026-06-29 |
 | 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 4/4 | Complete   | 2026-06-30 |
 | 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 1/1 | Complete    | 2026-06-30 |
-| 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 3/3 | Complete   | 2026-06-30 |
+| 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 3/3 | Complete    | 2026-06-30 |
 
 ## Backlog
 
@@ -246,6 +246,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   - jj-Repo: User committet manuell, keine git-Fallbacks.
 
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
-  **Plans:** 1/1 plans complete
+  **Plans:** 3/3 plans complete
 
 *Last updated: 2026-06-30 — **Phase 35 hinzugefügt** (Slot-Werte nur für eine Woche ändern, SWO-01..04; Mechanik B Split+Re-Merge, atomar, diskutiert). v1.10 jetzt Phasen 33–35, 12/12 Requirements gemappt. Phase 35 ist bewusst Schichtplan-Struktur (leicht off-theme zum Feiertags-Fokus, User-Entscheidung in v1.10 statt Backlog).*
