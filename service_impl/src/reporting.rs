@@ -1069,7 +1069,42 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             } else {
                 absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours
             };
-            let expected_hours = planned_hours - abense_hours_for_balance - absence_derived_balance_total;
+            // ── 4th injection point (Phase 34 / HSP-01/02, D-34-01) ──────────────────
+            // Build derived-holiday map for this employee + this single week.
+            // Reuses build_derived_holiday_map (same logic as injection points 1a/1b).
+            // Stichtag gate + manual-wins conflict check are built into the helper (D-25-03/05).
+            //
+            // Type note: `extra_hours` in get_week is collected via .iter() which yields
+            // &ExtraHours references, so the per-employee bucket is Arc<[&ExtraHours]>.
+            // build_derived_holiday_map expects &[ExtraHours] (owned items), so we clone
+            // each &ExtraHours into ExtraHours. ExtraHours: Clone.
+            let employee_extra_hours_owned: Vec<ExtraHours> = employee_extra_hours
+                .map(|arc| arc.iter().map(|r| (*r).clone()).collect())
+                .unwrap_or_default();
+            let derived_holiday_map = self
+                .build_derived_holiday_map(
+                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday),
+                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday),
+                    &working_hours,
+                    &employee_extra_hours_owned,
+                    context.clone(),
+                )
+                .await?;
+            let derived_holiday_for_week: f32 = derived_holiday_map.values().sum();
+            // Dynamic-week guard (same pattern as absence_derived_balance_total):
+            // If planned_hours <= 0.0, the week is dynamic → holiday credit must not
+            // reduce expected further (no negative expected, no inflated balance, Pitfall 2).
+            let holiday_derived_gated =
+                if !has_contract_row || planned_hours <= 0.0 { 0.0f32 } else { derived_holiday_for_week };
+            // HSP-02: Update holiday_hours to include derived contribution (additive to manual).
+            // Manual-wins is already handled inside build_derived_holiday_map (D-25-03).
+            let holiday_hours = holiday_hours + holiday_derived_gated;
+            // ── End 4th injection point ───────────────────────────────────────────────
+            // HSP-01: expected_hours reduced by derived holiday term.
+            // CRITICAL (HSP-03 band guard): holiday_derived_gated is ONLY subtracted here,
+            // NOT from dynamic_hours (line below). Folding it into abense_hours_for_balance
+            // would reduce dynamic_hours → paid_hours band in booking_information would drop.
+            let expected_hours = planned_hours - abense_hours_for_balance - absence_derived_balance_total - holiday_derived_gated;
             let (shiftplan_hours, auto_volunteer_hours) =
                 apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
             // no-contract (quick-260624-ujk): Falls has_contract_row false waere, gehen Shiftplan-
