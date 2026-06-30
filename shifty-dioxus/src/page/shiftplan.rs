@@ -941,8 +941,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         let time_str = shortday_time.read().clone();
                                         let cfg2 = cfg_sd.clone();
                                         let err2 = err_sd.clone();
+                                        // WR-06: accept both HH:MM and HH:MM:SS
+                                        // (some browsers emit seconds for
+                                        // <input type=time>), and surface an
+                                        // error instead of returning silently.
                                         let fmt_hm = format_description!("[hour]:[minute]");
-                                        let Ok(parsed_time) = time::Time::parse(&time_str, fmt_hm) else {
+                                        let fmt_hms = format_description!("[hour]:[minute]:[second]");
+                                        let parsed = time::Time::parse(&time_str, fmt_hms)
+                                            .or_else(|_| time::Time::parse(&time_str, fmt_hm));
+                                        let Ok(parsed_time) = parsed else {
+                                            special_day_error.set(Some((day, err2.clone())));
                                             return;
                                         };
                                         let body = SpecialDayTO {
