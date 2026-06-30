@@ -421,59 +421,47 @@ async fn seed_special_days<RestState: RestStateDef>(
     let now = time::OffsetDateTime::now_utc();
     let year = now.year() as u32;
 
-    // Karfreitag: KW 14, Friday, Holiday
-    service
-        .create(
-            &SpecialDay {
-                id: Uuid::nil(),
-                year,
-                calendar_week: 14,
-                day_of_week: DayOfWeek::Friday,
-                day_type: SpecialDayType::Holiday,
-                time_of_day: None,
-                created: None,
-                deleted: None,
-                version: Uuid::nil(),
-            },
-            auth.clone(),
-        )
-        .await?;
+    // Karfreitag (KW 14 Fri, Holiday), Ostermontag (KW 14 Mon, Holiday),
+    // Heiligabend (KW 52 Wed, ShortDay 12:00).
+    let days = [
+        (14, DayOfWeek::Friday, SpecialDayType::Holiday, None),
+        (14, DayOfWeek::Monday, SpecialDayType::Holiday, None),
+        (
+            52,
+            DayOfWeek::Wednesday,
+            SpecialDayType::ShortDay,
+            Some(time::Time::from_hms(12, 0, 0).unwrap()),
+        ),
+    ];
 
-    // Ostermontag: KW 14, Monday, Holiday
-    service
-        .create(
-            &SpecialDay {
-                id: Uuid::nil(),
-                year,
-                calendar_week: 14,
-                day_of_week: DayOfWeek::Monday,
-                day_type: SpecialDayType::Holiday,
-                time_of_day: None,
-                created: None,
-                deleted: None,
-                version: Uuid::nil(),
-            },
-            auth.clone(),
-        )
-        .await?;
-
-    // Heiligabend: KW 52, Wednesday, ShortDay at 12:00
-    service
-        .create(
-            &SpecialDay {
-                id: Uuid::nil(),
-                year,
-                calendar_week: 52,
-                day_of_week: DayOfWeek::Wednesday,
-                day_type: SpecialDayType::ShortDay,
-                time_of_day: Some(time::Time::from_hms(12, 0, 0).unwrap()),
-                created: None,
-                deleted: None,
-                version: Uuid::nil(),
-            },
-            auth,
-        )
-        .await?;
+    for (calendar_week, day_of_week, day_type, time_of_day) in days {
+        // Dev seed must be re-runnable: tolerate the special-day duplicate guard
+        // (D-33-07) so seeding twice does not error on already-present entries.
+        match service
+            .create(
+                &SpecialDay {
+                    id: Uuid::nil(),
+                    year,
+                    calendar_week,
+                    day_of_week,
+                    day_type,
+                    time_of_day,
+                    created: None,
+                    deleted: None,
+                    version: Uuid::nil(),
+                },
+                auth.clone(),
+            )
+            .await
+        {
+            Ok(_) => {}
+            Err(ServiceError::ValidationError(items))
+                if items
+                    .iter()
+                    .any(|i| matches!(i, service::ValidationFailureItem::Duplicate)) => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
 
     Ok(())
 }
