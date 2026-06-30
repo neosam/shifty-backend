@@ -5,15 +5,15 @@ milestone_name: — aktiv)
 current_phase: 33
 current_phase_name: Special-Days-UI in den Einstellungen
 status: roadmap_ready
-last_updated: "2026-06-30T12:28:53.392Z"
+last_updated: "2026-06-30T14:39:00.000Z"
 last_activity: 2026-06-30
-last_activity_desc: "Phase 33 Plan 01 executed (TDD: DAO→Service→REST for-year chain + 5 mockall tests)"
+last_activity_desc: "Phase 34 Plan 01 executed (TDD: HOL-03 rebuild + 2 HSP-04 subtests + get_week 4th injection point)"
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 33
+  total_plans: 5
+  completed_plans: 5
+  percent: 67
 ---
 
 # Project State: Shifty Backend
@@ -32,10 +32,10 @@ progress:
 
 ## Current Position
 
-Phase: 33 (Special-Days-UI in den Einstellungen) — **Plan 01 complete** (Backend for-year endpoint + tests)
-Plan: 01 done — Plan 02 next (FE api.rs + Settings Card-3)
-Status: Phase 33 in progress (1/4 plans complete); Plans 02-04 pending (FE wiring, Settings Card, Shiftplan dropdown, i18n)
-Last activity: 2026-06-30 — Phase 33 Plan 01 executed (TDD: DAO→Service→REST for-year chain + 5 mockall tests)
+Phase: 34 (Feiertags-Soll im Schichtplan) — **Plan 01 complete** (get_week 4th injection + HOL-03 rebuild + 2 HSP-04 tests)
+Plan: 01 done — Phase 34 complete (1/1 plans done)
+Status: Phase 34 complete; Phase 33 in progress (1/4 plans complete, Plans 02-04 pending); Phase 35 pending
+Last activity: 2026-06-30 — Phase 34 Plan 01 executed (TDD: HOL-03 rebuild + 2 HSP-04 subtests + get_week 4th injection point; 7/7 reporting_holiday tests green; SNAPSHOT stays 12)
 
 ## Deferred Items
 

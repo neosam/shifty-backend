@@ -51,26 +51,25 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 
 ### Feiertags-Soll im Schichtplan (HSP)
 
-- [ ] **HSP-01**: In der Wochentabelle unter dem Schichtplan reduziert ein automatisch
+- [x] **HSP-01**: In der Wochentabelle unter dem Schichtplan reduziert ein automatisch
   angerechneter Feiertag das angezeigte **Soll** (`available_hours`/`expected_hours`) pro
   Mitarbeiter — **konsistent zum Stundenkonto**. Umsetzung: `get_week`
   (`service_impl/src/reporting.rs:884`) erhält den derived-Holiday-Beitrag (vierter
-  Injektionspunkt analog 1a/1b/1c).
+  Injektionspunkt analog 1a/1b/1c). ✅ Phase 34-01 (2026-06-30)
 
-- [ ] **HSP-02**: Die abgeleiteten Feiertags-Stunden (`holiday_hours`) erscheinen in der
+- [x] **HSP-02**: Die abgeleiteten Feiertags-Stunden (`holiday_hours`) erscheinen in der
   Schichtplan-Tabelle (`booking_information` `WorkingHoursPerSalesPerson.holiday_hours`).
+  ✅ Phase 34-01 (2026-06-30)
 
-- [ ] **HSP-03**: Die Kapazitätsbänder (`paid_hours`/`dynamic_hours`/`committed_voluntary`/
+- [x] **HSP-03**: Die Kapazitätsbänder (`paid_hours`/`dynamic_hours`/`committed_voluntary`/
   `volunteer`) bleiben **unverändert** — Regressions-Guard für die Bänder; der durch
   D-25-08 geschützte Kern (`dynamic_hours` → `paid_hours`) wird nicht angetastet.
+  ✅ Phase 34-01 (2026-06-30) — `holiday_derived_gated` nur in `expected_hours` subtrahiert
 
-- [ ] **HSP-04**: **Stichtag-Gate** und **Konfliktregel** (manueller `ExtraHours(Holiday)`
+- [x] **HSP-04**: **Stichtag-Gate** und **Konfliktregel** (manueller `ExtraHours(Holiday)`
   gewinnt, keine Doppelzählung) wirken in der Schichtplan-Tabelle **identisch** zum
   Stundenkonto — durch Wiederverwendung von `build_derived_holiday_map`.
-  *Offene Decision (discuss-phase, D-NN):* Anpassung/Neuformulierung des HOL-03-
-  Regressionstests `test_holiday_auto_credit_no_year_view_impact`, der den `get_week`-
-  Holiday-Aufruf aktuell ausdrücklich verbietet — künftig: Bänder unverändert, aber
-  expected/available reduziert.
+  ✅ Phase 34-01 (2026-06-30) — HOL-03 rebuild + `test_hsp04_before_cutoff` + `test_hsp04_manual_wins`
 
 ### Slot-Werte nur für eine Woche ändern (SWO)
 
@@ -120,10 +119,10 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 | SPD-02 | Phase 33 | 📋 planned |
 | SPD-03 | Phase 33 | 📋 planned |
 | SPD-04 | Phase 33 | 📋 planned |
-| HSP-01 | Phase 34 | 📋 planned |
-| HSP-02 | Phase 34 | 📋 planned |
-| HSP-03 | Phase 34 | 📋 planned |
-| HSP-04 | Phase 34 | 📋 planned |
+| HSP-01 | Phase 34-01 | ✅ complete |
+| HSP-02 | Phase 34-01 | ✅ complete |
+| HSP-03 | Phase 34-01 | ✅ complete |
+| HSP-04 | Phase 34-01 | ✅ complete |
 | SWO-01 | Phase 35 | 📋 planned |
 | SWO-02 | Phase 35 | 📋 planned |
 | SWO-03 | Phase 35 | 📋 planned |

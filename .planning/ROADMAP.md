@@ -19,7 +19,7 @@
 **🚧 Aktiver Milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35)**
 
 - [x] **Phase 33: Special-Days-UI in den Einstellungen** - Shiftplanner pflegt Special Days (Holiday/ShortDay) auf zwei Flächen (Schichtplan-Wochenraster + Settings-Sektion) gegen die bestehende REST-CRUD + neuen Range/Jahr-Read — SPD-01..04 ✅ (e2e-verifiziert; create-Pfad-Bug gefixt; visuelle Smokes deferred)
-- [ ] **Phase 34: Feiertags-Soll im Schichtplan** - Automatisch angerechneter Feiertag reduziert das angezeigte Soll in der Wochentabelle (`get_week` derive-on-read); Kapazitätsbänder unangetastet — HSP-01..04
+- [x] **Phase 34: Feiertags-Soll im Schichtplan** - Automatisch angerechneter Feiertag reduziert das angezeigte Soll in der Wochentabelle (`get_week` derive-on-read); Kapazitätsbänder unangetastet — HSP-01..04 ✅ 2026-06-30
 - [ ] **Phase 35: Slot-Werte nur für eine Woche ändern** - Einmalige Slot-Ausnahme für genau eine KW via Split+Re-Merge (3 Versionen, atomar, Buchungs-Re-Point ohne Doppelzählung) + UI-Wahl „nur diese Woche" vs „ab dieser Woche" — SWO-01..04
 
 <details>
@@ -163,7 +163,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 
 **Wave 1**
 
-- [ ] 34-01-PLAN.md — `get_week` 4. Injektionspunkt (`holiday_derived_gated` reduziert nur `expected_hours`/`holiday_hours`, Bänder unangetastet) + HOL-03-Test-Rebuild + 2 HSP-04-Subtests + Snapshot-Verifikation (TDD; HSP-01..04, D-34-01..04) [Wave 1]
+- [x] 34-01-PLAN.md — `get_week` 4. Injektionspunkt (`holiday_derived_gated` reduziert nur `expected_hours`/`holiday_hours`, Bänder unangetastet) + HOL-03-Test-Rebuild + 2 HSP-04-Subtests + Snapshot-Verifikation (TDD; HSP-01..04, D-34-01..04) [Wave 1] ✅ 2026-06-30
 
 **Phase-Note (Snapshot & HOL-03):** Snapshot-Schema-Version voraussichtlich **kein Bump** — `billing_period`-Snapshots speisen sich aus dem `reporting.rs`-`holiday_hours`-Pfad, nicht aus `get_week`/`booking_information`. In der Phase verifizieren (Default: kein Bump). Der HOL-03-Regressionstest `test_holiday_auto_credit_no_year_view_impact` wird bewusst neu formuliert: Kapazitätsbänder bleiben unverändert, aber `expected_hours`/`available_hours` werden um den derived-Holiday reduziert. *(Offene Decision für discuss-phase, D-NN.)*
 
