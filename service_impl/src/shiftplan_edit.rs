@@ -204,9 +204,125 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError> {
-        let _ = (slot, change_year, change_week);
-        let _ = (context, tx);
-        todo!("GREEN: Task 2")
+        // D-35-04: EINE Transaktion — alle Schritte innerhalb dieser tx
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // D-35-06: Permission-Gate als erster Aufruf (vor jeder Mutation)
+        self.permission_service
+            .check_permission("shiftplan.edit", context)
+            .await?;
+
+        let mut stored_slot = self
+            .slot_service
+            .get_slot(&slot.id, Authentication::Full, tx.clone().into())
+            .await?;
+
+        // Versionskonflikt-Check (T-35-04)
+        if stored_slot.version != slot.version {
+            return Err(ServiceError::EntityConflicts(
+                slot.id,
+                stored_slot.version,
+                slot.version,
+            ));
+        }
+
+        // Datumsgrenzen (ISO-Woche)
+        let new_slot_valid_from =
+            time::Date::from_iso_week_date(change_year as i32, change_week, time::Weekday::Monday)?;
+        let old_slot_valid_to = new_slot_valid_from - time::Duration::days(1); // Sonntag KW-1
+        let seg2_valid_to = new_slot_valid_from + time::Duration::days(6); // Sonntag KW
+        let seg3_valid_from = new_slot_valid_from + time::Duration::days(7); // Montag KW+1
+
+        // Buchungen ab change_week abrufen (werden in Rust-Code partitioniert, D-35-03)
+        let bookings = self
+            .booking_service
+            .get_for_slot_id_since(
+                slot.id,
+                change_year,
+                change_week,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+
+        let original_valid_to = stored_slot.valid_to;
+
+        // Pitfall 2: Snapshot VOR jeder Mutation aufnehmen (für Segment 3)
+        let original_snapshot = stored_slot.clone();
+
+        // Segment 1: Original-Slot auf valid_to = Sonntag KW-1 verkürzen
+        stored_slot.valid_to = Some(old_slot_valid_to);
+        if stored_slot.valid_to.unwrap() < stored_slot.valid_from {
+            // Erste-KW-Edge: Segment 1 wäre leer → delete_slot (Pitfall 5)
+            self.slot_service
+                .delete_slot(&stored_slot.id, Authentication::Full, tx.clone().into())
+                .await?;
+        } else {
+            self.slot_service
+                .update_slot(&stored_slot, Authentication::Full, tx.clone().into())
+                .await?;
+        }
+
+        // Segment 2: Ausnahme-Woche (Mon KW → Son KW) mit neuen Werten aus `slot`
+        // Pitfall 1: valid_to = Some(seg2_valid_to) statt original_valid_to (geschlossen!)
+        let mut seg2 = stored_slot;
+        seg2.valid_from = new_slot_valid_from;
+        seg2.valid_to = Some(seg2_valid_to); // geschlossen bei Sonntag KW
+        seg2.id = Uuid::nil();
+        seg2.version = Uuid::nil();
+        seg2.min_resources = slot.min_resources;
+        seg2.max_paid_employees = slot.max_paid_employees;
+        seg2.from = slot.from;
+        seg2.to = slot.to;
+        let seg2_slot = self
+            .slot_service
+            .create_slot(&seg2, Authentication::Full, tx.clone().into())
+            .await?;
+
+        // Segment 3: Wiederherstellung ab Montag KW+1 mit Original-Werten (NEU)
+        let mut seg3 = original_snapshot;
+        seg3.valid_from = seg3_valid_from;
+        seg3.valid_to = original_valid_to; // None = unbegrenzt bleibt None
+        seg3.id = Uuid::nil();
+        seg3.version = Uuid::nil();
+        // min_resources, max_paid_employees, from, to = Original (aus snapshot, nicht überschrieben)
+        let seg3_slot = self
+            .slot_service
+            .create_slot(&seg3, Authentication::Full, tx.clone().into())
+            .await?;
+
+        // Booking-Re-Point: partitioniert nach Ausnahme-KW (D-35-03, Pitfall 3/4)
+        for booking in bookings.iter() {
+            self.booking_service
+                .delete(booking.id, Authentication::Full, tx.clone().into())
+                .await?;
+
+            // Pitfall 3: calendar_week ist i32, change_week ist u8 → expliziter Cast
+            let target_slot_id =
+                if booking.year == change_year && booking.calendar_week == change_week as i32 {
+                    seg2_slot.id // Buchung ist IN der Ausnahme-KW → Segment 2
+                } else {
+                    seg3_slot.id // Buchung ist NACH der Ausnahme-KW → Segment 3
+                };
+
+            let mut new_booking = booking.clone();
+            new_booking.id = Uuid::nil();
+            new_booking.version = Uuid::nil();
+            new_booking.slot_id = target_slot_id;
+            new_booking.year = booking.year;
+            new_booking.calendar_week = booking.calendar_week;
+            new_booking.created = None;
+            // created_by = None → ursprünglicher Ersteller bleibt in soft-deleted Vorgänger-Row
+            new_booking.created_by = None;
+
+            self.booking_service
+                .create(&new_booking, Authentication::Full, tx.clone().into())
+                .await?;
+        }
+
+        // D-35-04: GENAU EIN commit am Ende (kein Zwischen-commit)
+        self.transaction_dao.commit(tx).await?;
+        Ok(seg2_slot) // Ausnahme-Slot zurückgeben (Edit-Ziel)
     }
 
     async fn update_carryover(
