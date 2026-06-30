@@ -182,7 +182,7 @@ impl<
         }
 
         entity.deleted = Some(self.clock_service.date_time_now());
-        entity.version = self.uuid_service.new_uuid("booking-version");
+        entity.version = self.uuid_service.new_uuid("special-day-service::delete version");
 
         self.special_day_dao
             .update(&entity, "special-days-service::delete")

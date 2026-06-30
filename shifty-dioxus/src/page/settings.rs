@@ -355,6 +355,7 @@ pub fn SettingsPage() -> Element {
     let sd_time_val = sd_time_str.read().clone();
     let sd_type_val = sd_type.read().clone();
     let sd_form_valid = !sd_date_val.is_empty()
+        && sd_type_val.is_some()
         && (sd_type_val != Some(SpecialDayTypeTO::ShortDay) || !sd_time_val.is_empty());
 
     // Live duplicate check (D-33-07)
