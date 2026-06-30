@@ -20,6 +20,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             "/for-week/{year}/{calendar_week}",
             get(get_special_days_for_week::<RestState>),
         )
+        .route(
+            "/for-year/{year}",
+            get(get_special_days_for_year::<RestState>),
+        )
         .route("/", post(create_special_days::<RestState>))
         .route("/{id}", delete(delete_special_day::<RestState>))
 }
@@ -48,6 +52,42 @@ pub async fn get_special_days_for_week<RestState: RestStateDef>(
             let special_days: Arc<[SpecialDayTO]> = rest_state
                 .special_day_service()
                 .get_by_week(year, week, context.into())
+                .await?
+                .iter()
+                .map(SpecialDayTO::from)
+                .collect();
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&special_days).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/for-year/{year}",
+    tags = ["Special Days"],
+    params(
+        ("year" = u32, Path, description = "The year")
+    ),
+    responses(
+        (status = 200, description = "Get special days for a year", body = [SpecialDayTO], content_type = "application/json"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_special_days_for_year<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path(year): Path<u32>,
+) -> Response {
+    error_handler(
+        (async {
+            let special_days: Arc<[SpecialDayTO]> = rest_state
+                .special_day_service()
+                .get_by_year(year, context.into())
                 .await?
                 .iter()
                 .map(SpecialDayTO::from)
@@ -131,6 +171,7 @@ pub async fn delete_special_day<RestState: RestStateDef>(
     ),
     paths(
         get_special_days_for_week,
+        get_special_days_for_year,
         create_special_days,
         delete_special_day
     ),
