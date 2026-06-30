@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use dao::special_day::SpecialDayEntity;
 use service::{
     permission::{Authentication, SHIFTPLANNER_PRIVILEGE},
-    special_days::SpecialDay,
-    ServiceError,
+    special_days::{SpecialDay, SpecialDayType},
+    ServiceError, ValidationFailureItem,
 };
 use uuid::Uuid;
 
@@ -90,7 +90,41 @@ impl<
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
             .await?;
+
+        // Server-side input validation (D-33-06 / D-33-07). The backend is the
+        // real trust boundary for this shiftplanner-gated mutation; the type/time
+        // coupling and calendar_week bounds are otherwise only enforced in the
+        // two front-ends (WR-03).
+        let mut validation: Vec<ValidationFailureItem> = Vec::new();
+        match special_day.day_type {
+            // A ShortDay requires a time_of_day.
+            SpecialDayType::ShortDay if special_day.time_of_day.is_none() => {
+                validation.push(ValidationFailureItem::InvalidValue(
+                    "time_of_day is required for a ShortDay".into(),
+                ));
+            }
+            _ => {}
+        }
+        let max_week = time::util::weeks_in_year(special_day.year as i32);
+        if special_day.calendar_week < 1 || special_day.calendar_week > max_week {
+            validation.push(ValidationFailureItem::InvalidValue(
+                format!(
+                    "calendar_week {} out of range 1..={} for year {}",
+                    special_day.calendar_week, max_week, special_day.year
+                )
+                .into(),
+            ));
+        }
+        if !validation.is_empty() {
+            return Err(ServiceError::ValidationError(validation.into()));
+        }
+
         let mut special_day = special_day.clone();
+        // A Holiday never carries a time_of_day — normalize so the persisted row
+        // matches the type/time invariant regardless of what the client sent.
+        if special_day.day_type == SpecialDayType::Holiday {
+            special_day.time_of_day = None;
+        }
         special_day.created = Some(self.clock_service.date_time_now());
         let mut entity: SpecialDayEntity = (&special_day).try_into()?;
 
@@ -100,6 +134,24 @@ impl<
         if !entity.version.is_nil() {
             return Err(ServiceError::VersionSetOnCreate);
         }
+
+        // Duplicate guard (D-33-07): reject a second special day for the same
+        // (year, calendar_week, day_of_week). Reporting is keyed by date so a
+        // duplicate would not double-credit hours, but it cannot be cleared in
+        // one action from the Shiftplan UI and leaves a stale indicator (WR-02).
+        let existing = self
+            .special_day_dao
+            .find_by_week(entity.year, entity.calendar_week)
+            .await?;
+        if existing
+            .iter()
+            .any(|e| e.day_of_week == entity.day_of_week)
+        {
+            return Err(ServiceError::ValidationError(Arc::from([
+                ValidationFailureItem::Duplicate,
+            ])));
+        }
+
         entity.id = self.uuid_service.new_uuid("special-day-service::create id");
         entity.version = self
             .uuid_service
