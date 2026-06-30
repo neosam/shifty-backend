@@ -73,7 +73,7 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 
 ### Slot-Werte nur für eine Woche ändern (SWO)
 
-- [ ] **SWO-01**: Im Slot-Editor wählt ein Shiftplanner explizit zwischen **„nur diese
+- [x] **SWO-01**: Im Slot-Editor wählt ein Shiftplanner explizit zwischen **„nur diese
   Woche"** und **„ab dieser Woche"**. „nur diese Woche" ändert die Slot-Werte als einmalige
   Ausnahme **ausschließlich** in der gewählten KW; die wiederkehrende Struktur bleibt
   davor und danach unverändert.

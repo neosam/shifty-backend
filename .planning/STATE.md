@@ -5,14 +5,14 @@ milestone_name: — aktiv)
 current_phase: 35
 current_phase_name: slot-einzelwoche-aenderung
 status: executing
-last_updated: "2026-06-30T18:07:17.661Z"
+last_updated: "2026-06-30T18:24:14.369Z"
 last_activity: 2026-06-30
 last_activity_desc: Phase 35 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 67
 ---
 
@@ -33,7 +33,7 @@ progress:
 ## Current Position
 
 Phase: 35 (slot-einzelwoche-aenderung) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-30 — Phase 35 execution started
 
@@ -146,9 +146,12 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: Rule 3 deviation: reqwest switched from native-tls to rustls-tls for host test compilation without openssl
 - [Phase ?]: weekday_sub_headers Vec on WeekView; spawn wrapper for Signal::set in DropdownEntry Fn closures
 - [Phase ?]: D-35-01: modify_slot_single_week als separate Methode (Option B), 3-Segment-Split, atomar, Permission-Gate shiftplan.edit
+- [Phase ?]: [D-35-02] single_week: bool Default false — 100% Backward-Compat; bestehender save_slot-Pfad bleibt unverändert erreichbar
+- [Phase ?]: [D-35-02] borrow-sicheres Auslesen von store-Feldern vor await in save_slot_edit verhindert Borrow-Konflikte
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
 | Phase 35 P01 | 25 | - tasks | - files |
+| Phase 35 P02 | 14 | 3 tasks | 8 files |
