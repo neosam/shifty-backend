@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-06-29
-last_milestone: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (shipped 2026-06-29, Phasen 29–32, 6 Pläne, 7/7 Requirements, override_closeout, Audit passed) — Code uncommitted (jj manuell)
-current_milestone: none — v1.9 abgeschlossen; nächster via /gsd-new-milestone (internes GSD-Planungs-Label, reale Release-Version datumsbasiert via cli-update-version)
+last_updated: 2026-06-30
+last_milestone: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (shipped 2026-06-29, Phasen 29–32, 7/7 Requirements, Audit passed)
+current_milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (gestartet 2026-06-30; internes GSD-Planungs-Label, reale Release-Version datumsbasiert via cli-update-version) — Requirements + Roadmap in Aufbau
 ---
 
 # Shifty — Project Charter
@@ -133,41 +133,36 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Aktueller Milestone: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
+## Aktueller Milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz
 
-> **Versions-Hinweis:** `v1.9` ist das **interne GSD-Planungs-Label** (Fortführung
-> der Sequenz v1.0–v1.8 für Roadmap, Phasen-Nummerierung und Archiv-Handles). Die
+> **Versions-Hinweis:** `v1.10` ist das **interne GSD-Planungs-Label** (Fortführung
+> der Sequenz v1.0–v1.9 für Roadmap, Phasen-Nummerierung und Archiv-Handles). Die
 > **reale Release-Version** vergibt der User datumsbasiert via `./cli-update-version`
-> (z. B. `2026.180.0`) zum Release-Zeitpunkt — entkoppelt vom Planungs-Label.
+> (z. B. `2026.181.0`) zum Release-Zeitpunkt — entkoppelt vom Planungs-Label.
 
-**Goal:** Drei betrieblich aufgefallene UX-/Korrektheits-Lücken im Schichtplan-/
-Urlaubs-Bereich schließen und Admins eine vollwertige (lesend **und** schreibend)
-Impersonation anderer Benutzer geben.
+**Goal:** Feiertage durchgängig korrekt machen — Special Days über die UI pflegbar
+**und** ihre Soll-Wirkung auch in der Schichtplan-Tabelle sichtbar.
 
 **Target features:**
-- **Urlaub → Nicht-Verfügbar:** Eigene Absence-Zeiträume (Vacation, ggf. weitere
-  Kategorien) markieren die betroffenen Tage im Schichtplan-Grid als „Nicht Verfügbar"
-  (discourage), nicht nur als Buchungs-Warnung (Todo
-  `2026-06-29-eigener-urlaub-markiert-nicht-als-nicht-verfuegbar-im-schich.md`).
-- **Urlaubs-Balken-Konsistenz:** Der Pro-Person-Balken auf der Abwesenheiten-Seite
-  stimmt mit der Resturlaub-Zahl überein (`used` + `planned`, Überzug sichtbar) (Todo
-  `2026-06-29-urlaubs-balken-pro-person-konsistent-zu-resturlaub-zahl.md`).
-- **Stale-Daten-Race:** Wochen-Summary-Karten zeigen beim schnellen Wochenwechsel
-  immer nur die Daten der aktuell gewählten Woche (Generation-Token / `(year,week)`-Guard)
-  (Todo `2026-06-29-wochen-summary-karten-gegen-stale-daten-bei-schnellem-wochen.md`).
-- **Admin-Impersonation (Read + Write):** Admin kann temporär als anderer User agieren
-  (inkl. schreibender Aktionen), strikt `admin`-gated, mit Banner im Frontend + Audit,
-  das die echte Admin-Identität mitführt, ohne Privilege-Eskalation (Todo
-  `2026-06-29-impersonate-feature-f-r-admins.md`).
+- **Special-Days-UI:** Neue admin-gated Settings-Sektion zum Anlegen/Löschen von
+  Special Days (Holiday/ShortDay). Eingabe per Kalenderdatum, Anzeige
+  `15.08.2026 (Samstag, KW 33, 2026)`; Frontend-`create`/`delete` gegen die bereits
+  existierende REST-CRUD (`GET/POST/DELETE /special-days`) verdrahten; i18n de/en/cs.
+  (Todo `2026-06-30-special-days-ui-bearbeiten-einstellungen.md`)
+- **Feiertags-Soll im Schichtplan:** Der automatische Feiertagsabzug (Phase 25,
+  derive-on-read) wirkt auch in der Tabelle unter dem Schichtplan — `get_week` um den
+  derived-Holiday erweitern (`expected_hours`/`holiday_hours`/`available_hours`),
+  während `dynamic_hours`/`paid_hours`/Kapazitätsbänder **unangetastet** bleiben
+  (D-25-08-Grenze); HOL-03-Regressionstest bewusst anpassen.
+  (Todo `2026-06-30-feiertag-soll-abzug-schichtplan-tabelle.md`)
 
-**Bewusst NICHT in v1.9:**
-- **End-to-End-Browser-Integrationstests** (Todo
-  `2026-06-29-end-to-end-integrationstests-mit-ferngesteuertem-browser.md`) — eigenes
-  Infra-/Tooling-Thema, vertagt auf einen späteren Milestone.
+**Bewusst NICHT in v1.10:**
+- ShortDay/Kurztage-Automatik (separate Future-Story, schon in Phase 25 außer Scope).
 - Off-theme **Backlog-Phase 999.1** (Breaking/Major Dependency-Migration) bleibt separat.
 
-**Snapshot-Schema-Version:** voraussichtlich **nicht** betroffen — kein Bump erwartet
-(UX-Fixes + Auth-Feature berühren keine persistierte `BillingPeriodValueType`-Computation).
+**Snapshot-Schema-Version:** voraussichtlich **nicht** betroffen — Feature 2 speist
+sich aus demselben derive-on-read-Pfad; Snapshots laufen über `reporting.rs`, nicht
+über `get_week`/`booking_information`. Bump in der Phase verifizieren (Default: kein Bump).
 
 ## Zuletzt geshipt: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (2026-06-29)
 
@@ -274,7 +269,7 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**Kein aktiver Milestone — v1.9 abgeschlossen + archiviert am 2026-06-29.**
+**Aktiver Milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (gestartet 2026-06-30; Requirements + Roadmap in Aufbau). Davor v1.9 abgeschlossen + archiviert am 2026-06-29.
 
 Zuletzt geshipt + archiviert: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen &
 Admin-Impersonation** (Phasen 29–32, 6 Pläne, 7/7 Requirements, override_closeout, Audit
@@ -353,7 +348,10 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
 - v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) — shipped 2026-06-29 (Phasen 27–28).
   Archiv: `milestones/v1.8-ROADMAP.md`, `milestones/v1.8-REQUIREMENTS.md`, `milestones/v1.8-MILESTONE-AUDIT.md`.
 
-Aktiv: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** (gestartet 2026-06-29) —
+- v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation — shipped 2026-06-29 (Phasen 29–32).
+  Archiv: `milestones/v1.9-ROADMAP.md`, `milestones/v1.9-REQUIREMENTS.md`, `milestones/v1.9-MILESTONE-AUDIT.md`.
+
+Aktiv: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (gestartet 2026-06-30) —
 Requirements + Roadmap in Aufbau.
 
 ## Evolution

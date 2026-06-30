@@ -1,41 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.9
-milestone_name: "— Aktiv: Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation"
-current_phase: 9
-status: Awaiting next milestone
-last_updated: "2026-06-29T20:46:58.860Z"
-last_activity: 2026-06-29
-last_activity_desc: Milestone v1.9 completed and archived
+milestone: v1.10
+milestone_name: Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz
+status: roadmap_ready
+last_updated: "2026-06-30T08:30:00.000Z"
+last_activity: 2026-06-30
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
-current_phase_name: Admin-Impersonation Frontend + Audit-Schicht (FE+BE)
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v1.0–v1.9 alle archiviert/collapsed; **kein aktiver Milestone** — bereit für `/gsd-new-milestone`; Backlog 999.1 erhalten)
-- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` (v1.9 archiviert nach `milestones/v1.9-REQUIREMENTS.md`; frische via `/gsd-new-milestone`)
+- **Roadmap**: `.planning/ROADMAP.md` (v1.10 **aktiv**, Phasen 33–35 expanded; v1.0–v1.9 archiviert/collapsed; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` (v1.10, 12/12 Requirements SPD-01..04 + HSP-01..04 + SWO-01..04, Traceability befüllt)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v1.9-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** (shipped + archiviert 2026-06-29, Phasen 29–32, 6 Pläne, 7/7 Requirements, Audit `passed`, override_closeout) — gesamter v1.9-Code **uncommitted** im Arbeitsbaum (jj manueller Commit durch User)
-- **Current milestone**: keiner aktiv — v1.9 abgeschlossen. Nächster via `/gsd-new-milestone` (interne Planungs-Labels; reale Release-Version datumsbasiert via `cli-update-version`)
-- **Current focus**: v1.9 abgeschlossen + archiviert (7/7 Requirements, Audit `passed`). Offen: User committet den v1.9-Code mit jj (+ optional 2 deferred Browser-Smokes P30 schnelles Wochen-Klicken / P32 Impersonation-Roundtrip). Danach `/gsd-new-milestone`.
-- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9 **kein** Bump (Baseline bleibt 12)
+- **Current milestone**: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (Roadmap erstellt 2026-06-30; interne Planungs-Labels, reale Release-Version datumsbasiert via `cli-update-version`)
+- **Current focus**: Phase 33 (Special-Days-UI) **diskutiert** — CONTEXT.md mit 8 Decisions geschrieben. Kern: shiftplanner-Gate (NICHT admin, D-33-01/02), **zwei Flächen voll-CRUD** (Schichtplan-Wochenraster Per-Tag-Dropdown + Settings-Seite Datepicker, D-33-03/04), **neuer Range/Jahr-Read-Endpoint** im Backend (D-33-05). Nächster Schritt: `/gsd-plan-phase 33`. Danach Phase 34 (`/gsd-discuss-phase 34`).
+- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9 **kein** Bump; v1.10 voraussichtlich **kein** Bump (in Phase 34 verifizieren)
 
 ## Current Position
 
-Phase: Milestone v1.9 complete
+Phase: 33 (Special-Days-UI in den Einstellungen) — **Kontext erfasst** (CONTEXT.md geschrieben), noch nicht geplant
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-29 — Milestone v1.9 completed and archived
+Status: Context ready — nächster Schritt `/gsd-plan-phase 33`
+Last activity: 2026-06-30 — Phase 33 discuss-phase abgeschlossen (8 Decisions D-33-01..08)
 
 ## Deferred Items
 
@@ -99,38 +96,42 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 - **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`). KEINE `git commit`/`git add` aus Agents heraus.
 - **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`.
-- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` (aktuell 10) MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. v1.7 erwartet Bump 10→11 (Holiday-Computation/Input-Set ändert sich durch HOL-01).
+- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` (aktuell **12**) MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. **v1.10 erwartet KEINEN Bump** (Feature HSP speist sich aus `get_week`/`booking_information`, nicht aus dem `reporting.rs`-Snapshot-Pfad) — in Phase 34 verifizieren.
 - **Clippy-Gate**: `cargo clippy --workspace -- -D warnings` ist Pflicht-Gate bei jedem Commit — `cargo test` allein reicht nicht.
-- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. HOL-Logik gehört in `ReportingService` / Business-Logic-Tier.
-- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. HCFG-02 (Settings-UI) + NAV-01 (Cross-Links) betreffen neue Texte.
-- **Offene Design-Fragen (v1.7, vor discuss-phase zu klären)**: materialize vs. derive-on-read für Feiertags-Anrechnung; VFA-Absence-Kategorien (nur Vacation oder auch SickLeave/UnpaidLeave); ob Stichtag auch VFA steuert; Konfliktregel HCFG-03; NAV-01 Deep-Link-Parameter.
+- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. HSP-Logik gehört in `ReportingService` / Business-Logic-Tier.
+- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. SPD-01..04 (Special-Days-UI) betreffen neue Texte.
+- **D-25-08-Grenze (für HSP zentral)**: Die Feiertags-Automatik darf in `get_week`/`booking_information` **nur** `expected_hours`/`holiday_hours`/`available_hours` reduzieren — `dynamic_hours`/`paid_hours`/`committed_voluntary_hours`/`volunteer_hours` bleiben unangetastet. HOL-03-Regressionstest `test_holiday_auto_credit_no_year_view_impact` wird in Phase 34 bewusst neu formuliert (Bänder unverändert, aber expected/available reduziert) — Decision in discuss-phase festhalten.
+- **WASM-Datepicker-Caveat (D-25-06)**: Programmatisches Setzen von `<input type=date>` triggert Dioxus-Signale nicht zuverlässig → Persistenz-/Anzeige-Loop von SPD-01 im echten Browser verifizieren.
 
 ### Roadmap Evolution
 
-- Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme zu v1.6, eskaliert aus Quick-Task 260627-vgo (stable cargo 1.95.0 kann kein `--breaking`; kein cargo-edit/nightly). Erster Task = Toolchain-Enabler. Seed: `.planning/phases/999.1-breaking-dependency-migration/SEED.md`.
-- Milestone v1.7 + Phasen 25–26 angelegt (2026-06-28): 10 Requirements (HOL-01..03, VFA-01/02, HCFG-01..03, HSNAP-01, NAV-01) → 2 Phasen. Phase 25 = Axis-A (Reporting) + Settings-UI. Phase 26 = Axis-B (VFA) + Cross-Navigation.
-- Milestone v1.8 + Phase 27 angelegt (2026-06-29): VOL-SEL-01 — Freiwillige (`is_paid=false`) in Abwesenheits-Selektoren auswählbar, gruppiert (optgroup Angestellte/Freiwillige) in AbsenceModal + AbsenceFilterBar. Reines Frontend; `is_selectable_employee` von `is_paid && !inactive` → `!inactive` lockern, `is_paid` wird Gruppierung. 2 neue i18n-Keys (de/en/cs). Offen für Planung: Kategorie-Set für Freiwillige. Dir: `.planning/phases/27-freiwillige-abwesenheitsliste-selector/`.
-- Phase 28 angelegt (2026-06-29): VAC-OFFSET-01 — HR-Korrektur des Jahres-Urlaubsanspruchs via signed **Offset** (Delta, KEIN absoluter Override → überlebt Vertragsänderungen), pro Person+Jahr. `entitled_effective = round(berechnet) + offset`, wirkt auf `remaining_days` durch. HR-gekennzeichnet+editierbar in der Urlaubsübersicht, für User unsichtbar. Neue Tabelle `vacation_entitlement_offset` + HR-gated CRUD + Edit/Marker (`absences.rs:602–727`). Offen: User-Hiding UI-only vs API-level; Off-by-one-Begleit-Fix (`employee_work_details.rs:173`); Snapshot-Bump-Check (vermutlich nein). Dir: `.planning/phases/28-urlaubsanspruch-korrektur-offset/`.
-- Milestone v1.9 + Phasen 29–32 angelegt (2026-06-29): 7 Requirements (VAC-01, SHP-01, SHP-02, IMP-01..04) → 4 Phasen. Phase 29 = Vacation bar formula fix (FE-only). Phase 30 = Stale-week race guard, atomar über 3 Loader (FE-only). Phase 31 = Absence discourage marker im Shiftplan-Grid (FE-primary, needs discuss SHP-01 category whitelist). Phase 32 = Admin-Impersonation FE + Audit-Schicht (FE+kleines BE, needs discuss IMP audit design + admin-gate two-path contract).
+- Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme, eskaliert aus Quick-Task 260627-vgo. Bleibt separat verfügbar via `/gsd-plan-phase 999.1`.
+- Milestone v1.9 + Phasen 29–32 (2026-06-29): 7 Requirements → 4 Phasen. Geshipt + archiviert.
+- **Milestone v1.10 + Phasen 33–34 angelegt (2026-06-30):** 8 Requirements (SPD-01..04, HSP-01..04) → 2 Phasen, abgeleitet aus den zwei sauber trennbaren Features.
+  - **Phase 33 = Special-Days-UI** (Backend-CRUD `POST/DELETE /special-days` + `for-week`-Read existiert seit v1.7). **Korrektur in discuss-phase (D-33-01..05):** **shiftplanner**-gated (nicht admin), **zwei Flächen** voll-CRUD (Schichtplan-Wochenraster Per-Tag-Dropdown + Settings-Sektion Kalenderdatum-Picker), **neuer Range/Jahr-Read-Endpoint** (Multi-Wochen-Item aus „deferred" gezogen). Kalenderdatum → `(year, iso_week, weekday)`-Mapping, Liste mit abgeleitetem Kontext (`15.08.2026 (Samstag, KW 33, 2026)`). Frontend-API `create_special_day`/`delete_special_day`/`get_special_days_for_year`. i18n de/en/cs. WASM-Datepicker-Caveat (D-25-06) auf der Settings-Fläche. Dir: `.planning/phases/33-special-days-ui-einstellungen/`.
+  - **Phase 34 = Feiertags-Soll im Schichtplan** (Backend-zentriert; Frontend-Tabelle rendert `report.expected_hours`/`holiday_hours` bereits — **keine neue API**). `get_week` (`reporting.rs:884`) bekommt einen vierten Injektionspunkt für den derived-Holiday via `build_derived_holiday_map`, reduziert nur `expected_hours`/`holiday_hours`/`available_hours`; Kapazitätsbänder per Regressions-Guard geschützt; HOL-03-Test neu formulieren; Snapshot-Bump in der Phase verifizieren (Default: kein Bump). Dir: `.planning/phases/34-feiertags-soll-schichtplan/`.
+  - Beide Features sind fachlich unabhängig; sequenzielle Reihenfolge 33→34 ist sinnvoll (SPD erzeugt die Einträge, die HSP in der Tabelle sichtbar macht), aber nicht hart erzwungen.
+- **Phase 35 hinzugefügt (2026-06-30):** „Slot-Werte nur für eine Woche ändern" (SWO-01..04, aus Todo `2026-06-26-einzelnen-slot-nur-fuer-eine-kw-aendern`). Bewusst in v1.10 aufgenommen (User-Entscheidung, statt Backlog), obwohl thematisch Schichtplan-**Struktur** (leicht off-theme zum Feiertags-Fokus). Mechanik **diskutiert + gewählt**: Ansatz **B (Split+Re-Merge)** — `modify_slot` um drittes Restore-Segment (3 Slot-Versionen) erweitern + UI-Wahl „nur diese Woche"/„ab dieser Woche"; Ansatz A (Override-Datenmodell) verworfen. Harte Constraints: **eine Transaktion/Rollback** + **harte Re-Point-Tests gegen Doppelzählung**. CONTEXT.md geschrieben (D-35-01..06). Gate `shiftplan.edit`. v1.10 jetzt 12/12 Requirements, Phasen 33–35.
 
 ## Session Continuity
 
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (v1.9 aktiv, Phasen 29–32 expanded; v1.0–v1.8 archiviert/collapsed; Backlog 999.1)
-3. Read `.planning/REQUIREMENTS.md` (v1.9, 7/7 Requirements, Traceability befüllt)
-4. Read `.planning/PROJECT.md` (Charter + Current State: v1.9 aktiv)
-5. Read `.planning/MILESTONES.md` (Index inkl. v1.7 + v1.8)
+2. Read `.planning/ROADMAP.md` (v1.10 aktiv, Phasen 33–34 expanded; v1.0–v1.9 archiviert/collapsed; Backlog 999.1)
+3. Read `.planning/REQUIREMENTS.md` (v1.10, 8/8 Requirements, Traceability befüllt)
+4. Read `.planning/PROJECT.md` (Charter + Current State: v1.10 aktiv)
+5. Read `.planning/MILESTONES.md` (Index inkl. v1.7–v1.9)
 
-**Aktueller Stand:** v1.9 Roadmap fertig — 7/7 Requirements gemappt (VAC-01→P29, SHP-02→P30, SHP-01→P31, IMP-01..04→P32). Phasen 29 + 30 können direkt geplant werden. Phasen 31 + 32 benötigen vorher je einen `/gsd-discuss-phase`-Aufruf.
+**Aktueller Stand:** v1.10-Roadmap fertig — 8/8 Requirements gemappt (SPD-01..04 → Phase 33, HSP-01..04 → Phase 34). Phasen-Verzeichnisse angelegt.
 
-**Next command**: `/gsd-plan-phase 29` (VAC-01, FE-only, no discuss needed) — oder `/gsd-discuss-phase 31` für SHP-01 (Kategorie-Whitelist-Decision).
+**Next command**: `/gsd-plan-phase 33` (Phase 33 Kontext erfasst — shiftplanner-Gate, zwei Flächen voll-CRUD, neuer Range/Jahr-Read-Endpoint). Danach `/gsd-discuss-phase 34` (HSP: HOL-03-Test-Neuformulierung, vierter Injektionspunkt, Snapshot-Bump-Check).
 
 ---
 
-*State updated: 2026-06-29 — **v1.9 Roadmap created** (manuell). Phasen 29–32 angelegt, 7/7 Requirements gemappt, Progress-Counters auf total_phases=4 gesetzt.*
+*State updated: 2026-06-30 — **v1.10 Roadmap created** (manuell). Phasen 33–34 angelegt, 8/8 Requirements gemappt, Progress-Counters auf total_phases=2 gesetzt.*
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- `/gsd-discuss-phase 33` oder `/gsd-discuss-phase 34`, dann `/gsd-plan-phase`.
+- Optional vorab: v1.9-Code mit jj committen (Carry-over aus dem vorigen Milestone).

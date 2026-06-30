@@ -1,7 +1,21 @@
 {
   "mode": "yolo",
-  "commit_docs": false,
+  "commit_docs": true,
   "workflow": {
-    "use_worktrees": false
+    "use_worktrees": false,
+    "plan_check": true,
+    "verifier": true,
+    "auto_advance": true,
+    "skip_discuss": false,
+    "research": true,
+    "code_review": true,
+    "tdd_mode": true
+  },
+  "model_profile": "adaptive",
+  "git": {
+    "branching_strategy": "none"
+  },
+  "hooks": {
+    "context_warnings": true
   }
 }
