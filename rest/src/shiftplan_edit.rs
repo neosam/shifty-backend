@@ -21,6 +21,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
         .route("/slot/{year}/{week}", put(edit_slot::<RestState>))
         .route(
+            "/slot/{year}/{week}/single-week",
+            put(edit_slot_single_week::<RestState>),
+        )
+        .route(
             "/slot/{slot_id}/{year}/{week}",
             delete(delete_slot::<RestState>),
         )
@@ -52,6 +56,33 @@ pub async fn edit_slot<RestState: RestStateDef>(
                 &rest_state
                     .shiftplan_edit_service()
                     .modify_slot(&(&slot).into(), year, week, context.into(), None)
+                    .await?,
+            );
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::new(serde_json::to_string(&slot).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
+/// Analog zu `edit_slot`, aber ruft `modify_slot_single_week` auf:
+/// Ändert Slot-Werte nur für eine einzige Kalenderwoche (3-Segment-Split, D-35-01).
+/// Kein `#[utoipa::path]` — konsistent mit edit_slot (ebenfalls ohne Annotation).
+#[instrument(skip(rest_state))]
+pub async fn edit_slot_single_week<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    Extension(context): Extension<Context>,
+    Path((year, week)): Path<(u32, u8)>,
+    Json(slot): Json<SlotTO>,
+) -> Response {
+    error_handler(
+        (async {
+            let slot = SlotTO::from(
+                &rest_state
+                    .shiftplan_edit_service()
+                    .modify_slot_single_week(&(&slot).into(), year, week, context.into(), None)
                     .await?,
             );
             Ok(Response::builder()
