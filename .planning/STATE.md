@@ -5,15 +5,15 @@ milestone_name: — aktiv)
 current_phase: 33
 current_phase_name: Special-Days-UI in den Einstellungen
 status: roadmap_ready
-last_updated: "2026-06-30T11:47:02.164Z"
+last_updated: "2026-06-30T12:28:53.392Z"
 last_activity: 2026-06-30
 last_activity_desc: "Phase 33 Plan 01 executed (TDD: DAO→Service→REST for-year chain + 5 mockall tests)"
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 33
 ---
 
 # Project State: Shifty Backend
@@ -143,3 +143,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 - [Phase ?]: D-33-02 enforced: Card-3 shiftplanner-gated with inner has_privilege guard, page admin gate unchanged
 - [Phase ?]: Rule 3 deviation: reqwest switched from native-tls to rustls-tls for host test compilation without openssl
+- [Phase ?]: weekday_sub_headers Vec on WeekView; spawn wrapper for Signal::set in DropdownEntry Fn closures
