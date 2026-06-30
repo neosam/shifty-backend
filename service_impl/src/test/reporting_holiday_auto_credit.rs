@@ -5,12 +5,14 @@
 //!         balance as an equivalent manual ExtraHours(Holiday).
 //! HCFG-01: Cutoff gate boundary — holiday BEFORE cutoff → 0h; ON cutoff → 8h.
 //! HCFG-03: Manual ExtraHours(Holiday) on the same day → credited once, not twice.
-//! HOL-03: booking_information year-view (paid_hours/committed_voluntary/volunteer)
-//!         is unaffected by holiday auto-credit (get_week() has no derive-on-read).
+//! HOL-03 (Phase 34): get_week() applies the holiday auto-credit to expected_hours and
+//!         holiday_hours, while the capacity bands (dynamic_hours / volunteer_hours /
+//!         paid_hours) stay unaffected — including the cap-active edge case (HSP-03 / CR-01,
+//!         test_hsp03_cap_active_holiday_no_band_leak).
 //!
 //! Structural template: service_impl/src/test/reporting_additive_merge.rs.
 //! Implementation under test: service_impl/src/reporting.rs (build_derived_holiday_map +
-//! three injection points via hours_per_week / get_report_for_employee_range / get_week).
+//! four injection points via hours_per_week / get_report_for_employee_range / get_week).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -541,7 +543,7 @@ async fn test_holiday_manual_wins() {
 /// SpecialDay: Holiday on KW23/2024 Monday.
 /// No manual ExtraHours.
 #[tokio::test]
-async fn test_holiday_auto_credit_no_year_view_impact() {
+async fn test_holiday_auto_credit_get_week_reduces_soll_bands_unchanged() {
     let mut mocks = ReportingMocks::new();
 
     // get_week() mock setup (different API than get_report_for_employee_range).

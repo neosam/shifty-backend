@@ -1100,13 +1100,26 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             // Manual-wins is already handled inside build_derived_holiday_map (D-25-03).
             let holiday_hours = holiday_hours + holiday_derived_gated;
             // ── End 4th injection point ───────────────────────────────────────────────
-            // HSP-01: expected_hours reduced by derived holiday term.
-            // CRITICAL (HSP-03 band guard): holiday_derived_gated is ONLY subtracted here,
-            // NOT from dynamic_hours (line below). Folding it into abense_hours_for_balance
-            // would reduce dynamic_hours → paid_hours band in booking_information would drop.
-            let expected_hours = planned_hours - abense_hours_for_balance - absence_derived_balance_total - holiday_derived_gated;
+            // HSP-03 band guard / CR-01: the derived holiday must NOT enter the
+            // apply_weekly_cap baseline. The authoritative year-view
+            // (get_reports_for_all_employees, see the apply_weekly_cap call ~Z.428) caps
+            // against the RAW expected and applies the holiday to the balance separately.
+            // If we fed the holiday-reduced expected into the cap here, a binding cap would
+            // convert the holiday delta into auto_volunteer_hours — leaking the holiday into
+            // the volunteer_hours/paid bands (violating D-25-08, HSP-03) AND swallowing the
+            // balance credit (violating HSP-01, "konsistent zum Stundenkonto"). The cap
+            // baseline keeps the absence reduction (pre-existing Phase 8.4 behavior) but
+            // excludes holiday_derived_gated.
+            let expected_hours_for_cap =
+                planned_hours - abense_hours_for_balance - absence_derived_balance_total;
             let (shiftplan_hours, auto_volunteer_hours) =
-                apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours);
+                apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours_for_cap);
+            // HSP-01: the displayed/balance expected is the cap baseline minus the derived
+            // holiday credit. CRITICAL (HSP-03 band guard): holiday_derived_gated is ONLY
+            // subtracted here, NOT from dynamic_hours (line below). Folding it into
+            // abense_hours_for_balance would reduce dynamic_hours → the paid_hours band in
+            // booking_information would drop.
+            let expected_hours = expected_hours_for_cap - holiday_derived_gated;
             // no-contract (quick-260624-ujk): Falls has_contract_row false waere, gehen Shiftplan-
             // Stunden als Ehrenamt. In get_week ist has_contract_row implizit immer true (s.o.),
             // aber der Guard bleibt als Absicherung konsistent mit den anderen Report-Pfaden.
