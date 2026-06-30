@@ -333,6 +333,7 @@ pub fn SettingsPage() -> Element {
     let mut sd_time_str: Signal<String> = use_signal(String::new);
     let mut sd_save_result: Signal<Option<bool>> = use_signal(|| None);
     let mut sd_saving = use_signal(|| false);
+    let mut sd_delete_error = use_signal(|| false);
 
     // Load year list (restarted after create/delete)
     let config_for_sd = config.clone();
@@ -658,6 +659,102 @@ pub fn SettingsPage() -> Element {
                         },
                         None => rsx! { },
                     }}
+
+                    // Row E: Chronological year list (SPD-02 / D-33-08)
+                    if sd_list.is_empty() {
+                        // Empty state
+                        div { class: "py-6 text-center",
+                            p { class: "text-body text-ink-muted",
+                                {i18n.t(Key::SettingsSpecialDaysEmptyBody)
+                                    .replace("{year}", &sd_year.read().to_string())}
+                            }
+                        }
+                    } else {
+                        // List of entries — backend already orders ascending by (calendar_week, day_of_week)
+                        div {
+                            for entry in sd_list.iter() {
+                                {
+                                    let entry_id = entry.id;
+                                    let config_for_delete = config.clone();
+                                    let date_display = special_day_iso_date(entry)
+                                        .map(|d| {
+                                            let cw_abbr = i18n.t(Key::SettingsSpecialDaysCalendarWeekAbbr);
+                                            let weekday_name = i18n.t(weekday_key(entry.day_of_week));
+                                            format!(
+                                                "{} ({}, {} {}, {})",
+                                                i18n.format_date(&d),
+                                                weekday_name,
+                                                cw_abbr,
+                                                entry.calendar_week,
+                                                entry.year
+                                            )
+                                        })
+                                        .unwrap_or_default();
+                                    let time_display = entry.time_of_day
+                                        .map(|t| format!("{:02}:{:02}", t.hour(), t.minute()))
+                                        .unwrap_or_default();
+                                    let entry_type = entry.day_type.clone();
+
+                                    rsx! {
+                                        div { class: "flex items-center justify-between py-2 border-b border-border",
+                                            div { class: "flex items-center gap-2",
+                                                span { class: "text-body text-ink",
+                                                    "{date_display}"
+                                                }
+                                                match entry_type {
+                                                    SpecialDayTypeTO::Holiday => rsx! {
+                                                        span { class: "px-2 py-1 bg-accent-soft text-accent text-micro uppercase rounded-full",
+                                                            "{i18n.t(Key::SettingsSpecialDaysTypeHoliday)}"
+                                                        }
+                                                    },
+                                                    SpecialDayTypeTO::ShortDay => rsx! {
+                                                        span { class: "px-2 py-1 bg-warn-soft text-warn text-micro uppercase rounded-full",
+                                                            "{i18n.t(Key::SettingsSpecialDaysTypeShortDay)}"
+                                                        }
+                                                        if !time_display.is_empty() {
+                                                            span { class: "text-small text-ink-muted",
+                                                                "{time_display}"
+                                                            }
+                                                        }
+                                                    },
+                                                }
+                                            }
+                                            Btn {
+                                                variant: BtnVariant::Danger,
+                                                disabled: *sd_saving.read(),
+                                                on_click: move |_| {
+                                                    if *sd_saving.read() {
+                                                        return;
+                                                    }
+                                                    sd_delete_error.set(false);
+                                                    let cfg = config_for_delete.clone();
+                                                    sd_saving.set(true);
+                                                    spawn(async move {
+                                                        match api::delete_special_day(cfg, entry_id).await {
+                                                            Ok(_) => {
+                                                                sd_resource.restart();
+                                                            }
+                                                            Err(_) => {
+                                                                sd_delete_error.set(true);
+                                                            }
+                                                        }
+                                                        sd_saving.set(false);
+                                                    });
+                                                },
+                                                "{i18n.t(Key::SettingsSpecialDaysDeleteBtn)}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // Delete error shown inline below the list (SPD-03)
+                            if *sd_delete_error.read() {
+                                span { class: "text-small text-bad",
+                                    "{i18n.t(Key::SettingsSpecialDaysDeleteError)}"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
