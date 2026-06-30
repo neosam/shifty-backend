@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: — aktiv)
 current_phase: 35
-current_phase_name: Slot-Werte nur für eine Woche ändern
+current_phase_name: slot-einzelwoche-aenderung
 status: executing
-last_updated: "2026-06-30T15:48:01.672Z"
+last_updated: "2026-06-30T18:07:17.661Z"
 last_activity: 2026-06-30
-last_activity_desc: Phase 34 complete, transitioned to Phase 35
+last_activity_desc: Phase 35 execution started
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
   percent: 67
 ---
 
@@ -32,10 +32,10 @@ progress:
 
 ## Current Position
 
-Phase: 35 — Slot-Werte nur für eine Woche ändern
-Plan: Not started
-Status: Phase 34 complete; Phase 33 in progress (1/4 plans complete, Plans 02-04 pending); Phase 35 pending
-Last activity: 2026-06-30 — Phase 34 complete, transitioned to Phase 35
+Phase: 35 (slot-einzelwoche-aenderung) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-30 — Phase 35 execution started
 
 ## Deferred Items
 
@@ -145,3 +145,10 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: D-33-02 enforced: Card-3 shiftplanner-gated with inner has_privilege guard, page admin gate unchanged
 - [Phase ?]: Rule 3 deviation: reqwest switched from native-tls to rustls-tls for host test compilation without openssl
 - [Phase ?]: weekday_sub_headers Vec on WeekView; spawn wrapper for Signal::set in DropdownEntry Fn closures
+- [Phase ?]: D-35-01: modify_slot_single_week als separate Methode (Option B), 3-Segment-Split, atomar, Permission-Gate shiftplan.edit
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase 35 P01 | 25 | - tasks | - files |

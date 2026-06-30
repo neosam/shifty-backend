@@ -78,7 +78,7 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
   Ausnahme **ausschließlich** in der gewählten KW; die wiederkehrende Struktur bleibt
   davor und danach unverändert.
 
-- [ ] **SWO-02**: Mechanik = **Split + Re-Merge** auf Basis von `ShiftplanEditService::modify_slot`
+- [x] **SWO-02**: Mechanik = **Split + Re-Merge** auf Basis von `ShiftplanEditService::modify_slot`
   (`service_impl/src/shiftplan_edit.rs:51`): drei Slot-Versionen — Segment 1 (Original bis
   `KW-1`), Segment 2 (`valid_from = Montag KW`, `valid_to = Sonntag KW`, neue Werte), Segment 3
   (`valid_from = KW+1`, Original-Werte bis ursprüngliches `valid_to`). Buchungen der KW werden
@@ -86,12 +86,12 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
   Logik wie heute). Editierbare Werte wie bei „ab KW": `min_resources`, `max_paid_employees`,
   `from`, `to`.
 
-- [ ] **SWO-03**: Der gesamte Vorgang (alle Slot-Schnitte + alle Booking-Re-Points) läuft in
+- [x] **SWO-03**: Der gesamte Vorgang (alle Slot-Schnitte + alle Booking-Re-Points) läuft in
   **einer einzigen Transaktion**. Bei jedem Fehler erfolgt ein vollständiger Rollback — der
   Zustand ist exakt wie vorher. (`modify_slot` ist bereits atomar; die Erweiterung bleibt in
   derselben `tx`, ein `commit` am Ende.)
 
-- [ ] **SWO-04**: Die Booking-Neuzuweisungen sind durch **harte Tests** abgesichert — keine
+- [x] **SWO-04**: Die Booking-Neuzuweisungen sind durch **harte Tests** abgesichert — keine
   doppelten oder verwaisten Buchungen, **nichts** doppelt in Reports/Balance. Gate =
   `shiftplan.edit` (konsistent zu `modify_slot`). Neue UI-Texte (Modus-Wahl) i18n de/en/cs.
 
