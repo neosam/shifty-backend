@@ -26,7 +26,7 @@ use service::extra_hours::{ExtraHours, ExtraHoursCategory, MockExtraHoursService
 use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
-use service::shiftplan_report::MockShiftplanReportService;
+use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
 use service::special_days::{MockSpecialDayService, SpecialDay, SpecialDayType};
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
@@ -791,5 +791,137 @@ async fn test_hsp04_manual_wins() {
         (report.holiday_hours - 8.0).abs() < 0.01,
         "HSP-04b: holiday_hours must be 8.0 (manual wins), not 16.0; got {}",
         report.holiday_hours
+    );
+}
+
+// ─── HSP-03 (CR-01): cap-active — holiday must not leak into the bands ─────────
+
+/// HSP-03 / CR-01 (Phase 34 gap-closure): With `cap_planned_hours_to_expected`
+/// active AND a shiftplan that exceeds the holiday-reduced expected, the derived
+/// holiday must NOT be folded into the `apply_weekly_cap` baseline. Otherwise the
+/// cap converts the holiday delta into `auto_volunteer_hours` — leaking the holiday
+/// into the `volunteer_hours`/`paid` bands (violating the D-25-08 boundary, HSP-03)
+/// AND swallowing the balance credit (violating HSP-01: "konsistent zum Stundenkonto").
+///
+/// The authoritative year-view (`get_reports_for_all_employees`) caps against the RAW
+/// expected and applies the holiday to the balance separately; `get_week` must match.
+///
+/// Setup: Mon-Fri 40h contract with cap ON, 40h shiftplan booked (> 32h reduced soll),
+/// Holiday 8h on KW23/2024 Monday, toggle active.
+///
+/// Expected (holiday is a pure balance credit, bands untouched):
+///   volunteer_hours == 0.0   (band guard — holiday must NOT create auto-volunteer)
+///   dynamic_hours   == 40.0  (band guard)
+///   expected_hours  == 32.0  (HSP-01: soll reduced by holiday)
+///   holiday_hours   == 8.0   (HSP-02)
+///   balance_hours   == 8.0   (HSP-01: holiday credit reaches the balance: 40 worked − 32 soll)
+#[tokio::test]
+async fn test_hsp03_cap_active_holiday_no_band_leak() {
+    let mut mocks = ReportingMocks::new();
+
+    // Work details: 8h Mon-Fri (40h), cap_planned_hours_to_expected = TRUE.
+    let cap_work_details = service::employee_work_details::EmployeeWorkDetails {
+        cap_planned_hours_to_expected: true,
+        ..fixture_work_details_8h_mon_fri()
+    };
+    mocks
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(move |_, _, _, _| Ok(Arc::from(vec![cap_work_details.clone()])));
+
+    // Shiftplan: 40h booked in KW23/2024 — exceeds the holiday-reduced soll (32h),
+    // so the cap binds. Without the fix this would push 8h into auto_volunteer.
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(vec![ShiftplanReportDay {
+                sales_person_id: fixture_sales_person_id(),
+                hours: 40.0,
+                year: 2024,
+                calendar_week: 23,
+                day_of_week: DayOfWeek::Monday,
+            }]))
+        });
+
+    // No manual holiday ExtraHours.
+    mocks
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(|_, _, _, _| Ok(Arc::from(Vec::<ExtraHours>::new())));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    // SpecialDay: Holiday on KW23/2024 Monday (2024-06-03).
+    mocks.special_day_service = MockSpecialDayService::new();
+    mocks
+        .special_day_service
+        .expect_get_by_week()
+        .returning(|_, wk, _| {
+            if wk == 23 {
+                Ok(Arc::from(vec![make_holiday(2024, 23, DayOfWeek::Monday)]))
+            } else {
+                Ok(Arc::from(vec![]))
+            }
+        });
+
+    // Active toggle cutoff (before holiday date → auto-credit fires).
+    mocks.toggle_service = MockToggleService::new();
+    mocks
+        .toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2024-01-01"))));
+
+    let service = mocks.build();
+    let reports = service
+        .get_week(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_week must succeed");
+
+    assert_eq!(reports.len(), 1, "HSP-03/CR-01: 1 report expected");
+    let report = &reports[0];
+
+    // Band guard (HSP-03 / D-25-08): the holiday must NOT create auto-volunteer.
+    assert!(
+        report.volunteer_hours.abs() < 0.01,
+        "HSP-03/CR-01: volunteer_hours must stay 0 (holiday must not leak into the band via the cap), got {}",
+        report.volunteer_hours
+    );
+    assert!(
+        (report.dynamic_hours - 40.0).abs() < 0.01,
+        "HSP-03/CR-01: dynamic_hours must remain 40h (band invariant), got {}",
+        report.dynamic_hours
+    );
+
+    // HSP-01: soll reduced by holiday.
+    assert!(
+        (report.expected_hours - 32.0).abs() < 0.01,
+        "HSP-01: expected_hours must be 32h (40 - 8 holiday), got {}",
+        report.expected_hours
+    );
+
+    // HSP-02: holiday_hours filled with derived contribution.
+    assert!(
+        (report.holiday_hours - 8.0).abs() < 0.01,
+        "HSP-02: holiday_hours must be 8h (derived auto-credit), got {}",
+        report.holiday_hours
+    );
+
+    // HSP-01 (Stundenkonto consistency): the holiday credit must reach the balance.
+    // overall worked = 40 (capped at raw expected), soll = 32 → balance = +8.
+    assert!(
+        (report.balance_hours - 8.0).abs() < 0.01,
+        "HSP-01: balance_hours must be 8h (holiday credit reaches balance), got {}",
+        report.balance_hours
     );
 }
