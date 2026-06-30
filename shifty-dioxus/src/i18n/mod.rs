@@ -634,6 +634,44 @@ pub enum Key {
     NavToMyTimeAccount,
     /// Navigation link label: Absences page (HR, person selected) → EmployeeDetails report (Phase 26 NAV-01).
     NavToEmployeeReport,
+
+    // Phase 33 — Special Days Settings Card-3 + Shiftplan dropdown (SPD-04).
+    /// Card-3 section heading label ("Sondertage" / "Special Days" / "Zvláštní dny").
+    SettingsSpecialDaysSectionLabel,
+    /// Card-3 section description below the heading.
+    SettingsSpecialDaysSectionDescription,
+    /// Year picker label in Card-3 ("Jahr" / "Year" / "Rok").
+    SettingsSpecialDaysYearLabel,
+    /// Date input label in the Card-3 create form ("Datum" / "Date" / "Datum").
+    SettingsSpecialDaysDateLabel,
+    /// Type selector label in the Card-3 create form ("Typ" / "Type" / "Typ").
+    SettingsSpecialDaysTypeLabel,
+    /// Type selector option: holiday ("Feiertag" / "Holiday" / "Svátek").
+    SettingsSpecialDaysTypeHoliday,
+    /// Type selector option: short day ("Kurzer Tag" / "Short Day" / "Zkrácený den").
+    SettingsSpecialDaysTypeShortDay,
+    /// Time-of-day input label (conditional, shown for ShortDay).
+    SettingsSpecialDaysTimeLabel,
+    /// Submit button label in the Card-3 create form ("Sondertag anlegen" / "Add Special Day" / "Přidat zvláštní den").
+    SettingsSpecialDaysAddBtn,
+    /// Empty state body in the Card-3 list; `{year}` placeholder for the selected year.
+    SettingsSpecialDaysEmptyBody,
+    /// Inline hint in Row D when the chosen date already has a special day entry.
+    SettingsSpecialDaysDuplicateHint,
+    /// Delete button label in the Card-3 list row ("Löschen" / "Delete" / "Smazat").
+    SettingsSpecialDaysDeleteBtn,
+    /// Inline error shown below the list after a failed delete.
+    SettingsSpecialDaysDeleteError,
+    /// Calendar-week abbreviation used in the date context string ("KW" / "W" / "KT").
+    SettingsSpecialDaysCalendarWeekAbbr,
+    /// Shiftplan per-day dropdown label: holiday type ("Feiertag" / "Holiday" / "Svátek").
+    ShiftplanDayTypeHoliday,
+    /// Shiftplan per-day dropdown label: short day type ("Kurzer Tag" / "Short Day" / "Zkrácený den").
+    ShiftplanDayTypeShortDay,
+    /// Shiftplan per-day dropdown label: no special day ("Nichts" / "None" / "Nic").
+    ShiftplanDayTypeNone,
+    /// Shiftplan inline ShortDay time-prompt confirm button ("Uhrzeit speichern" / "Save time" / "Uložit čas").
+    ShiftplanDayShortDayConfirm,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

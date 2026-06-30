@@ -1010,4 +1010,52 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::ImpersonateP10Hint,
         "Admin-only functions are disabled while acting as a non-admin; you can stop at any time.",
     );
+
+    // Phase 33 — Special Days Settings Card-3 + Shiftplan dropdown (SPD-04).
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysSectionLabel,
+        "Special Days",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysSectionDescription,
+        "Manage holidays and short days for the shift plan.",
+    );
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysYearLabel, "Year");
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysDateLabel, "Date");
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysTypeLabel, "Type");
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysTypeHoliday, "Holiday");
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysTypeShortDay, "Short Day");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysTimeLabel,
+        "Short day end time",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysAddBtn,
+        "Add Special Day",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysEmptyBody,
+        "No special days in {year}. Pick a date above to add the first one.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysDuplicateHint,
+        "A special day already exists for this date.",
+    );
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysDeleteBtn, "Delete");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsSpecialDaysDeleteError,
+        "Delete failed.",
+    );
+    i18n.add_text(Locale::En, Key::SettingsSpecialDaysCalendarWeekAbbr, "W");
+    i18n.add_text(Locale::En, Key::ShiftplanDayTypeHoliday, "Holiday");
+    i18n.add_text(Locale::En, Key::ShiftplanDayTypeShortDay, "Short Day");
+    i18n.add_text(Locale::En, Key::ShiftplanDayTypeNone, "None");
+    i18n.add_text(Locale::En, Key::ShiftplanDayShortDayConfirm, "Save time");
 }

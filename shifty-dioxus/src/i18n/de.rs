@@ -1097,4 +1097,64 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::ImpersonateP10Hint,
         "Admin-only-Funktionen sind deaktiviert, solange du als Nicht-Admin agierst; Beenden ist jederzeit möglich.",
     );
+
+    // Phase 33 — Sondertage Einstellungen Card-3 + Schichtplan-Dropdown (SPD-04).
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysSectionLabel,
+        "Sondertage",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysSectionDescription,
+        "Feiertage und Kurztage für den Schichtplan verwalten.",
+    );
+    i18n.add_text(Locale::De, Key::SettingsSpecialDaysYearLabel, "Jahr");
+    i18n.add_text(Locale::De, Key::SettingsSpecialDaysDateLabel, "Datum");
+    i18n.add_text(Locale::De, Key::SettingsSpecialDaysTypeLabel, "Typ");
+    i18n.add_text(Locale::De, Key::SettingsSpecialDaysTypeHoliday, "Feiertag");
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysTypeShortDay,
+        "Kurzer Tag",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysTimeLabel,
+        "Kurztagende (Uhrzeit)",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysAddBtn,
+        "Sondertag anlegen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysEmptyBody,
+        "Keine Sondertage in {year}. Wähle oben ein Datum, um den ersten anzulegen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysDuplicateHint,
+        "An diesem Tag ist bereits ein Sondertag eingetragen.",
+    );
+    i18n.add_text(Locale::De, Key::SettingsSpecialDaysDeleteBtn, "Löschen");
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysDeleteError,
+        "Löschen fehlgeschlagen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsSpecialDaysCalendarWeekAbbr,
+        "KW",
+    );
+    i18n.add_text(Locale::De, Key::ShiftplanDayTypeHoliday, "Feiertag");
+    i18n.add_text(Locale::De, Key::ShiftplanDayTypeShortDay, "Kurzer Tag");
+    i18n.add_text(Locale::De, Key::ShiftplanDayTypeNone, "Nichts");
+    i18n.add_text(
+        Locale::De,
+        Key::ShiftplanDayShortDayConfirm,
+        "Uhrzeit speichern",
+    );
 }

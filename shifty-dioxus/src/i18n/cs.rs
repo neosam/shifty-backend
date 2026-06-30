@@ -1083,4 +1083,60 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::ImpersonateP10Hint,
         "Funkce pouze pro administrátory jsou deaktivovány při jednání jako ne-admin; ukončení je kdykoli dostupné.",
     );
+
+    // Phase 33 — Zvláštní dny Nastavení Card-3 + rozbalovací nabídka v plánu směn (SPD-04).
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysSectionLabel,
+        "Zvláštní dny",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysSectionDescription,
+        "Správa svátků a zkrácených dnů pro plán směn.",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysYearLabel, "Rok");
+    i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysDateLabel, "Datum");
+    i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysTypeLabel, "Typ");
+    i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysTypeHoliday, "Svátek");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysTypeShortDay,
+        "Zkrácený den",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysTimeLabel,
+        "Konec zkráceného dne (čas)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysAddBtn,
+        "Přidat zvláštní den",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysEmptyBody,
+        "Žádné zvláštní dny v roce {year}. Vyberte výše datum pro přidání prvního.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysDuplicateHint,
+        "Pro toto datum již existuje zvláštní den.",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysDeleteBtn, "Smazat");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsSpecialDaysDeleteError,
+        "Smazání se nezdařilo.",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysCalendarWeekAbbr, "KT");
+    i18n.add_text(Locale::Cs, Key::ShiftplanDayTypeHoliday, "Svátek");
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanDayTypeShortDay,
+        "Zkrácený den",
+    );
+    i18n.add_text(Locale::Cs, Key::ShiftplanDayTypeNone, "Nic");
+    i18n.add_text(Locale::Cs, Key::ShiftplanDayShortDayConfirm, "Uložit čas");
 }
