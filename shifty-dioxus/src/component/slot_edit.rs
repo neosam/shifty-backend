@@ -31,10 +31,13 @@ pub struct SlotEditProps {
     /// Display-only live count of paid bookings for this slot's view-week.
     /// Drives the non-blocking overage banner (D-23-02); never written back.
     pub current_paid_count: u8,
+    /// Whether "nur diese Woche" mode is active (SWO-01).  Default false = "ab dieser Woche".
+    pub single_week: bool,
 
     pub on_save: EventHandler<()>,
     pub on_cancel: EventHandler<()>,
     pub on_update_slot: EventHandler<SlotEditItem>,
+    pub on_set_single_week: EventHandler<bool>,
 }
 
 fn parse_time_input(value: &str) -> Option<time::Time> {
@@ -94,6 +97,18 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
     let cancel_str = i18n.t(Key::CancelLabel).to_string();
     let error_str = i18n.t(Key::SlotEditSaveError).to_string();
 
+    let scope_label = i18n.t(Key::SlotEditModeScopeLabel).to_string();
+    let from_this_week_label = i18n.t(Key::SlotEditModeFromThisWeek).to_string();
+    let this_week_only_label = i18n.t(Key::SlotEditModeThisWeekOnly).to_string();
+    let single_week_hint = i18n.t_m_rc(
+        Key::SlotEditModeThisWeekOnlyHint,
+        [
+            ("week", props.week.to_string().into()),
+            ("year", props.year.to_string().into()),
+        ]
+        .into(),
+    );
+
     let explanation_str = i18n.t_m_rc(
         Key::SlotEditExplanation,
         [
@@ -148,6 +163,39 @@ pub fn SlotEditInner(props: SlotEditProps) -> Element {
                     li { "ℹ️ {explanation_str}" }
                     if props.slot.valid_to.is_some() {
                         li { class: "text-warn", "⚠️ {explanation_valid_to_str}" }
+                    }
+                }
+
+                if props.slot_edit_type == SlotEditType::Edit {
+                    div { class: "flex flex-col gap-2",
+                        span { class: "text-small font-medium text-ink-muted", "{scope_label}" }
+                        div { class: "flex gap-4",
+                            label { class: "inline-flex items-center gap-2 cursor-pointer text-body text-ink",
+                                input {
+                                    r#type: "radio",
+                                    name: "slot_edit_mode",
+                                    class: "h-4 w-4 border border-border-strong accent-accent form-input",
+                                    checked: !props.single_week,
+                                    onchange: move |_| props.on_set_single_week.call(false),
+                                }
+                                "{from_this_week_label}"
+                            }
+                            label { class: "inline-flex items-center gap-2 cursor-pointer text-body text-ink",
+                                input {
+                                    r#type: "radio",
+                                    name: "slot_edit_mode",
+                                    class: "h-4 w-4 border border-border-strong accent-accent form-input",
+                                    checked: props.single_week,
+                                    onchange: move |_| props.on_set_single_week.call(true),
+                                }
+                                "{this_week_only_label}"
+                            }
+                        }
+                        if props.single_week {
+                            p { class: "text-small font-normal text-ink-muted mt-1",
+                                "{single_week_hint}"
+                            }
+                        }
                     }
                 }
 
@@ -282,9 +330,11 @@ pub fn SlotEdit() -> Element {
             week: slot_edit.week,
             has_errors: slot_edit.has_errors,
             current_paid_count: slot_edit.current_paid_count,
+            single_week: slot_edit.single_week,
             on_save: move |_| slot_service.send(SlotEditAction::SaveSlot),
             on_cancel: move |_| slot_service.send(SlotEditAction::Cancel),
             on_update_slot: move |slot| slot_service.send(SlotEditAction::UpdateSlot(slot)),
+            on_set_single_week: move |val| slot_service.send(SlotEditAction::SetSingleWeek(val)),
         }
     }
 }
