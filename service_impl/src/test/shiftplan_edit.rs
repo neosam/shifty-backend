@@ -1916,3 +1916,69 @@ async fn test_msw_forbidden() {
 
     test_forbidden(&result);
 }
+
+// WR-01 Gap-Closure: Bounded Slot, Ausnahme-KW = letzte KW → Segment 3 darf NICHT erstellt werden
+//
+// Szenario: Slot mit valid_to=2026-06-28 (Sonntag der Ausnahme-KW 26).
+// seg3_valid_from wäre 2026-06-29 > valid_to 2026-06-28 → create_slot für Seg3
+// würde im echten Service DateOrderWrong melden (die gesamte Methode bricht ab).
+//
+// Dieses Test belegt, dass (a) create_slot NUR EINMAL aufgerufen wird (nur Seg2)
+// und (b) modify_slot_single_week trotzdem erfolgreich abschließt.
+//
+// RED-State: Der aktuelle Code ruft create_slot zweimal auf → zweiter Aufruf
+// überschreitet .times(1) → mockall-Panic → Test schlägt fehl. ✓ (absichtlich)
+#[tokio::test]
+async fn test_msw_last_week_of_bounded_slot_no_date_order_error() {
+    let mut deps = build_dependencies(true, true);
+
+    // Begrenzte Slot: gültig bis Sonntag der Ausnahme-KW (2026-06-28).
+    // Segment-3-Span wäre 2026-06-29 … 2026-06-28 = leer → Seg3 ist illegal.
+    let bounded_slot = Slot {
+        valid_to: Some(date!(2026 - 06 - 28)),
+        ..monday_slot()
+    };
+
+    // Override get_slot: bounded_slot statt monday_slot()
+    deps.slot_service.checkpoint();
+    let bs = bounded_slot.clone();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(move |_, _, _| Ok(bs.clone()));
+
+    // Segment 1: update_slot (valid_from=2024-01-01 ≤ old_slot_valid_to=2026-06-21 → update)
+    deps.slot_service
+        .expect_update_slot()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    // create_slot darf NUR EINMAL aufgerufen werden (nur Segment 2, nicht Segment 3).
+    // Aktueller Code (WR-01-Bug) ruft create_slot zweimal auf → zweiter Aufruf
+    // überschreitet .times(1) → mockall-Panic → RED-Test schlägt fehl.
+    deps.slot_service
+        .expect_create_slot()
+        .times(1)
+        .returning(|slot, _, _| Ok(Slot { id: msw_seg2_id(), ..slot.clone() }));
+
+    // Keine Buchungen (Szenario ohne Booking-Re-Point, vereinfacht)
+    msw_no_bookings(&mut deps);
+
+    let service = deps.build_service();
+    let input = Slot {
+        valid_to: Some(date!(2026 - 06 - 28)),
+        ..monday_slot()
+    };
+
+    let result = service
+        .modify_slot_single_week(&input, 2026, 26, ().auth(), None)
+        .await
+        .expect(
+            "WR-01: Bounded last-week Slot muss gelingen — Segment 3 darf nicht erstellt werden",
+        );
+
+    assert_eq!(
+        result.id,
+        msw_seg2_id(),
+        "Rückgabe muss Segment-2-Slot sein"
+    );
+}
