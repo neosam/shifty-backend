@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-06-30
+revised: 2026-06-30
 ---
 
 # Phase 33 — UI Design Contract: Special-Days-UI in den Einstellungen
@@ -68,6 +69,27 @@ must not be substituted with Tailwind default sizes.
 | Body | `text-body` | 14px / 20px | 400 | Card descriptions, list date strings, form field values, dropdown options |
 | Section heading | `text-body font-semibold` | 14px / 20px | 600 | Card feature label row (top of each card) — matches Card-1/Card-2 pattern |
 | Page heading | `text-h2 font-semibold` | 18px / 24px | 600 | Existing `<h1>` on Settings page — no change |
+
+**Inherited three-weight exception (400 / 500 / 600):**
+
+This phase uses three font weights, which exceeds the generic two-weight guideline.
+This is an explicit, justified exception: all three weights are **inherited verbatim from
+the existing project-wide design system** — they are not introduced by this phase and
+reducing them would break app-wide visual consistency.
+
+- **Weight 400** — baked into `text-body` in `tailwind.config.js` (`fontWeight: '400'`).
+- **Weight 500** — baked into `text-small` in `tailwind.config.js` (`fontWeight: '500'`).
+  Verified in `settings.rs`: Card-1 and Card-2 both use `text-small text-ink-soft` and
+  `text-small text-ink-muted`, so 500 is the existing app baseline for secondary/hint text.
+  Card-3 must use `text-small` in the same positions to stay consistent.
+- **Weight 600** — used by `font-semibold` on card feature labels and `text-micro`/`text-h2`.
+  Verified in `settings.rs`: both Card-1 and Card-2 use `text-body text-ink font-semibold`
+  for their section label rows.
+
+**Conclusion:** Implementing Card-3 with only 2 weights would require either (a) removing
+`text-small` from secondary labels (breaking Card-1/Card-2 consistency) or (b) overriding
+`text-small`'s baked-in weight with `font-normal` everywhere it appears (non-standard and
+fragile). Neither is acceptable. The three weights are the project's canonical type scale.
 
 **Rules:**
 - Card feature label: ALWAYS `text-body text-ink font-semibold`.
@@ -183,7 +205,7 @@ This keeps the grid compact without wide persistent badges.
 When the user selects "Kurzer Tag...", the `DropdownBase` closes and a compact inline
 form appears in that day's column (replacing the trigger button area) showing:
 - `input[type=time].form-input.max-w-[140px]` — time-of-day field
-- `Btn { variant: Primary }` with label `i18n.t(Key::ShiftplanDayShortDayConfirm)` = "Bestätigen" / "Confirm" / "Potvrdit"
+- `Btn { variant: Primary }` with label `i18n.t(Key::ShiftplanDayShortDayConfirm)` = "Uhrzeit speichern" / "Save time" / "Uložit čas"
 - `Btn { variant: Ghost }` with label `i18n.t(Key::CancelLabel)` = "Abbrechen" / "Cancel" / "Zrušit"
 
 Submit is disabled until the time field is non-empty. On confirm:
@@ -356,7 +378,7 @@ All copy must exist in de/en/cs. Keys below are NEW — add to `Key` enum in
 | `ShiftplanDayTypeHoliday` | "Feiertag" | "Holiday" | "Svátek" |
 | `ShiftplanDayTypeShortDay` | "Kurzer Tag" | "Short Day" | "Zkrácený den" |
 | `ShiftplanDayTypeNone` | "Nichts" | "None" | "Nic" |
-| `ShiftplanDayShortDayConfirm` | "Bestätigen" | "Confirm" | "Potvrdit" |
+| `ShiftplanDayShortDayConfirm` | "Uhrzeit speichern" | "Save time" | "Uložit čas" |
 
 **Reused existing keys (do NOT create new):**
 
@@ -369,15 +391,15 @@ All copy must exist in de/en/cs. Keys below are NEW — add to `Key` enum in
 
 ### Copywriting contract summary
 
-| Element | Copy |
-|---------|------|
-| Primary CTA (Settings) | "Sondertag anlegen" (de) / "Add Special Day" (en) / "Přidat zvláštní den" (cs) |
-| Empty state (Settings list) | "Keine Sondertage in {year}. Wähle oben ein Datum, um den ersten anzulegen." |
-| Duplicate hint | "An diesem Tag ist bereits ein Sondertag eingetragen." — `text-small text-bad`, appears in Row D |
-| Error state | "Speichern fehlgeschlagen." (`SettingsSaveError`, existing) — inline, no modal |
-| Delete error | "Löschen fehlgeschlagen." (`SettingsSpecialDaysDeleteError`) — inline below list |
-| Destructive action | Delete button in list row — label "Löschen", NO confirmation dialog (immediate, reversible by recreating) |
-| Shiftplan ShortDay confirm | "Bestätigen" — compact Primary Btn below time input in day column |
+| Element | Copy | Rationale |
+|---------|------|-----------|
+| Primary CTA (Settings) | "Sondertag anlegen" (de) / "Add Special Day" (en) / "Přidat zvláštní den" (cs) | Verb + noun, specific to the action |
+| Empty state (Settings list) | "Keine Sondertage in {year}. Wähle oben ein Datum, um den ersten anzulegen." | Describes absence + directs to next step |
+| Duplicate hint | "An diesem Tag ist bereits ein Sondertag eingetragen." — `text-small text-bad`, appears in Row D | Problem description in Row D |
+| Error state | "Speichern fehlgeschlagen." (`SettingsSaveError`, existing) — inline, no modal | Reused existing key |
+| Delete error | "Löschen fehlgeschlagen." (`SettingsSpecialDaysDeleteError`) — inline below list | Problem + implicit retry by trying again |
+| Destructive action (list row) | "Löschen" / "Delete" / "Smazat" — `Btn { variant: Danger }`, NO confirmation dialog | Single-word is intentional: the button sits immediately next to its entry, making context unambiguous. Consistent with Card-2's "Clear" button (same pattern: inline button beside a single value). Immediate delete with no dialog matches D-33-08. |
+| Shiftplan ShortDay confirm | "Uhrzeit speichern" (de) / "Save time" (en) / "Uložit čas" (cs) | Specific: tells the user exactly what is being confirmed (the time-of-day). "Bestätigen"/"Confirm" was too generic for this context. |
 
 ---
 
@@ -406,7 +428,7 @@ All copy must exist in de/en/cs. Keys below are NEW — add to `Key` enum in
 2. Click trigger → `DropdownBase` opens with entries.
 3. "Feiertag" → immediate `create_special_day` (no time needed) → reload `for-week`.
 4. "Kurzer Tag..." → dropdown closes, inline time prompt appears in that day column.
-5. User enters time → "Bestätigen" → `create_special_day(ShortDay, time_of_day)` → reload.
+5. User enters time → "Uhrzeit speichern" → `create_special_day(ShortDay, time_of_day)` → reload.
 6. "Nichts" (enabled only when entry exists) → `delete_special_day(id)` → reload.
 7. On any API error: show `span.text-small.text-bad` inline in that day column.
 
@@ -428,7 +450,7 @@ No shadcn, no third-party registries. This is a Dioxus/Rust project.
 - [ ] Dimension 1 Copywriting: PASS
 - [ ] Dimension 2 Visuals: PASS
 - [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
+- [ ] Dimension 4 Typography: PASS (3-weight inherited exception — see Typography section)
 - [ ] Dimension 5 Spacing: PASS
 - [ ] Dimension 6 Registry Safety: PASS
 
