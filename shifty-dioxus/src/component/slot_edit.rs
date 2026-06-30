@@ -372,9 +372,11 @@ mod tests {
             week: 26,
             has_errors: false,
             current_paid_count,
+            single_week: false,
             on_save: EventHandler::new(|_| {}),
             on_cancel: EventHandler::new(|_| {}),
             on_update_slot: EventHandler::new(|_| {}),
+            on_set_single_week: EventHandler::new(|_| {}),
         }
     }
 
@@ -469,6 +471,93 @@ mod tests {
     #[test]
     fn parse_time_rejects_garbage() {
         assert!(parse_time_input("not a time").is_none());
+    }
+
+    // ---- Mode radio group SSR tests (SWO-01 / Plan 35-03) ----
+
+    #[test]
+    fn slot_edit_edit_mode_shows_radio_group_both_labels_no_hint() {
+        fn app() -> Element {
+            pin_de_locale();
+            rsx! {
+                SlotEditInner { ..props_with(None, 0) }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Ab dieser Woche"),
+            "Edit mode should show 'Ab dieser Woche' label: {html}"
+        );
+        assert!(
+            html.contains("Nur diese Woche"),
+            "Edit mode should show 'Nur diese Woche' label: {html}"
+        );
+        assert!(
+            html.contains("slot_edit_mode"),
+            "Edit mode should contain radio name 'slot_edit_mode': {html}"
+        );
+        // Hint paragraph must NOT be present when single_week=false (default).
+        // "ausschließlich" is unique to the hint text; the existing explanation bullet does not contain it.
+        assert!(
+            !html.contains("ausschließlich"),
+            "Hint paragraph must be absent when single_week=false: {html}"
+        );
+    }
+
+    #[test]
+    fn slot_edit_edit_mode_single_week_shows_hint() {
+        fn app() -> Element {
+            pin_de_locale();
+            let p = SlotEditProps {
+                single_week: true,
+                ..props_with(None, 0)
+            };
+            rsx! {
+                SlotEditInner { ..p }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("Nur diese Woche"),
+            "Edit+single_week mode should show 'Nur diese Woche': {html}"
+        );
+        // Interpolated hint must contain the week and year values.
+        assert!(
+            html.contains("26/2026") || (html.contains("26") && html.contains("2026")),
+            "Hint should contain week 26 and year 2026: {html}"
+        );
+        assert!(
+            html.contains("Folgewoche"),
+            "Hint should contain 'Folgewoche': {html}"
+        );
+    }
+
+    #[test]
+    fn slot_edit_new_mode_hides_radio_group() {
+        fn app() -> Element {
+            pin_de_locale();
+            let p = SlotEditProps {
+                slot_edit_type: SlotEditType::New,
+                visible: true,
+                ..props_with(None, 0)
+            };
+            rsx! {
+                SlotEditInner { ..p }
+            }
+        }
+        let html = render(app);
+        assert!(
+            !html.contains("slot_edit_mode"),
+            "New mode must NOT render radio group (no radio name 'slot_edit_mode'): {html}"
+        );
+        assert!(
+            !html.contains("Ab dieser Woche"),
+            "New mode must NOT render 'Ab dieser Woche' label: {html}"
+        );
+        assert!(
+            !html.contains("Geltungsbereich"),
+            "New mode must NOT render scope label 'Geltungsbereich': {html}"
+        );
     }
 
     #[test]
