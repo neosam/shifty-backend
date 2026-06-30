@@ -9,6 +9,7 @@ use time::macros::format_description;
 
 use dioxus::prelude::*;
 use rest_types::{DayOfWeekTO, SpecialDayTO, SpecialDayTypeTO};
+use uuid::Uuid;
 
 use crate::{
     api,
@@ -79,7 +80,6 @@ pub fn is_duplicate_special_day(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
 
     fn make_special_day(year: u32, calendar_week: u8, day_of_week: DayOfWeekTO) -> SpecialDayTO {
         SpecialDayTO {
@@ -316,6 +316,115 @@ pub fn SettingsPage() -> Element {
     let date_value = ImStr::from(date_string.as_str());
     let date_empty = date_string.is_empty();
 
+    // ── Card 3: Special-Days management (Phase 33, shiftplanner-gated) ────────
+    // D-33-02: inner shiftplanner guard — NOT the page-level admin gate.
+
+    let is_shiftplanner = AUTH
+        .read()
+        .auth_info
+        .as_ref()
+        .map(|a| a.has_privilege("shiftplanner"))
+        .unwrap_or(false);
+
+    // Card-3 signals
+    let mut sd_year: Signal<u32> = use_signal(js::get_current_year);
+    let mut sd_date_str: Signal<String> = use_signal(String::new);
+    let mut sd_type: Signal<Option<SpecialDayTypeTO>> = use_signal(|| None);
+    let mut sd_time_str: Signal<String> = use_signal(String::new);
+    let mut sd_save_result: Signal<Option<bool>> = use_signal(|| None);
+    let mut sd_saving = use_signal(|| false);
+
+    // Load year list (restarted after create/delete)
+    let config_for_sd = config.clone();
+    let mut sd_resource = use_resource(move || {
+        let year = *sd_year.read();
+        api::get_special_days_for_year(config_for_sd.clone(), year)
+    });
+
+    // Snapshot loaded list for duplicate check and list rendering
+    let sd_list: Vec<SpecialDayTO> = sd_resource
+        .read()
+        .as_ref()
+        .and_then(|r| r.as_ref().ok())
+        .map(|rc| rc.iter().cloned().collect())
+        .unwrap_or_default();
+
+    // Form validity (D-33-06): date non-empty AND (type≠ShortDay OR time non-empty)
+    let sd_date_val = sd_date_str.read().clone();
+    let sd_time_val = sd_time_str.read().clone();
+    let sd_type_val = sd_type.read().clone();
+    let sd_form_valid = !sd_date_val.is_empty()
+        && (sd_type_val != Some(SpecialDayTypeTO::ShortDay) || !sd_time_val.is_empty());
+
+    // Live duplicate check (D-33-07)
+    let sd_is_duplicate = parse_date_to_iso_parts(&sd_date_val)
+        .map(|parts| is_duplicate_special_day(parts, &sd_list))
+        .unwrap_or(false);
+
+    // Create handler
+    let config_for_sd_create = config.clone();
+    let on_add_special_day = move |_| {
+        if *sd_saving.read() {
+            return;
+        }
+        let date_s = sd_date_str.read().clone();
+        let time_s = sd_time_str.read().clone();
+        let ty = sd_type.read().clone();
+
+        let Some((iso_year, iso_week, weekday)) = parse_date_to_iso_parts(&date_s) else {
+            sd_save_result.set(Some(false));
+            return;
+        };
+        let Some(day_type) = ty else {
+            sd_save_result.set(Some(false));
+            return;
+        };
+
+        // Parse time for ShortDay (D-33-06)
+        let time_of_day = if day_type == SpecialDayTypeTO::ShortDay {
+            let fmt_hm = format_description!("[hour]:[minute]");
+            let fmt_hms = format_description!("[hour]:[minute]:[second]");
+            let parsed = time::Time::parse(&time_s, fmt_hms)
+                .or_else(|_| time::Time::parse(&time_s, fmt_hm))
+                .ok();
+            if parsed.is_none() {
+                sd_save_result.set(Some(false));
+                return;
+            }
+            parsed
+        } else {
+            None
+        };
+
+        let body = SpecialDayTO {
+            id: Uuid::nil(),
+            year: iso_year,
+            calendar_week: iso_week,
+            day_of_week: weekday,
+            day_type,
+            time_of_day,
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+
+        sd_saving.set(true);
+        sd_save_result.set(None);
+        let cfg = config_for_sd_create.clone();
+        spawn(async move {
+            match api::create_special_day(cfg, body).await {
+                Ok(_) => {
+                    sd_save_result.set(Some(true));
+                    sd_resource.restart();
+                }
+                Err(_) => {
+                    sd_save_result.set(Some(false));
+                }
+            }
+            sd_saving.set(false);
+        });
+    };
+
     rsx! {
         TopBar {}
 
@@ -424,6 +533,131 @@ pub fn SettingsPage() -> Element {
                     span { class: "text-small text-ink-muted",
                         "{i18n.t(Key::SettingsHolidayAutoCreditUnsetHint)}"
                     }
+                }
+            }
+
+            // Card 3 — Special-Days management (Phase 33, D-33-02 shiftplanner gate)
+            if is_shiftplanner {
+                div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3 mt-4",
+
+                    // Row A: Feature label + description
+                    div { class: "flex flex-col gap-1",
+                        span { class: "text-body text-ink font-semibold",
+                            "{i18n.t(Key::SettingsSpecialDaysSectionLabel)}"
+                        }
+                        span { class: "text-small text-ink-soft",
+                            "{i18n.t(Key::SettingsSpecialDaysSectionDescription)}"
+                        }
+                    }
+
+                    // Row B: Year picker
+                    div { class: "flex flex-row items-center gap-2",
+                        label { class: "text-small text-ink-muted",
+                            "{i18n.t(Key::SettingsSpecialDaysYearLabel)}"
+                        }
+                        div { class: "w-24",
+                            TextInput {
+                                input_type: ImStr::from("number"),
+                                value: ImStr::from(sd_year.read().to_string().as_str()),
+                                step: Some(ImStr::from("1")),
+                                on_change: move |v: ImStr| {
+                                    if let Ok(y) = v.as_str().parse::<u32>() {
+                                        if y >= 2020 && y <= 2099 {
+                                            sd_year.set(y);
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
+
+                    // Row C: Create form (date + type + optional time + submit)
+                    div { class: "flex flex-row items-end gap-2 flex-wrap",
+                        // Date input
+                        div { class: "flex flex-col gap-1",
+                            label { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsSpecialDaysDateLabel)}"
+                            }
+                            div { class: "max-w-[200px]",
+                                TextInput {
+                                    input_type: ImStr::from("date"),
+                                    value: ImStr::from(sd_date_val.as_str()),
+                                    on_change: move |v: ImStr| {
+                                        sd_date_str.set(v.as_str().to_string());
+                                        sd_save_result.set(None);
+                                    },
+                                }
+                            }
+                        }
+
+                        // Type selector
+                        div { class: "flex flex-col gap-1",
+                            label { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsSpecialDaysTypeLabel)}"
+                            }
+                            SelectInput {
+                                on_change: move |v: ImStr| {
+                                    let ty = match v.as_str() {
+                                        "holiday" => Some(SpecialDayTypeTO::Holiday),
+                                        "short_day" => Some(SpecialDayTypeTO::ShortDay),
+                                        _ => None,
+                                    };
+                                    sd_type.set(ty);
+                                    sd_save_result.set(None);
+                                },
+                                option { value: "", "" }
+                                option { value: "holiday", "{i18n.t(Key::SettingsSpecialDaysTypeHoliday)}" }
+                                option { value: "short_day", "{i18n.t(Key::SettingsSpecialDaysTypeShortDay)}" }
+                            }
+                        }
+
+                        // Conditional time input (D-33-06: only for ShortDay)
+                        if sd_type_val == Some(SpecialDayTypeTO::ShortDay) {
+                            div { class: "flex flex-col gap-1",
+                                label { class: "text-small text-ink-muted",
+                                    "{i18n.t(Key::SettingsSpecialDaysTimeLabel)}"
+                                }
+                                div { class: "max-w-[140px]",
+                                    TextInput {
+                                        input_type: ImStr::from("time"),
+                                        value: ImStr::from(sd_time_val.as_str()),
+                                        on_change: move |v: ImStr| {
+                                            sd_time_str.set(v.as_str().to_string());
+                                            sd_save_result.set(None);
+                                        },
+                                    }
+                                }
+                            }
+                        }
+
+                        // Add button
+                        Btn {
+                            variant: BtnVariant::Primary,
+                            disabled: !sd_form_valid || *sd_saving.read(),
+                            on_click: on_add_special_day,
+                            "{i18n.t(Key::SettingsSpecialDaysAddBtn)}"
+                        }
+                    }
+
+                    // Row D: Inline hints and errors
+                    if sd_is_duplicate {
+                        span { class: "text-small text-bad",
+                            "{i18n.t(Key::SettingsSpecialDaysDuplicateHint)}"
+                        }
+                    }
+                    {match *sd_save_result.read() {
+                        Some(true) => rsx! {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsSaved)}"
+                            }
+                        },
+                        Some(false) => rsx! {
+                            span { class: "text-small text-bad",
+                                "{i18n.t(Key::SettingsSaveError)}"
+                            }
+                        },
+                        None => rsx! { },
+                    }}
                 }
             }
         }
