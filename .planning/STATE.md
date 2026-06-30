@@ -24,15 +24,15 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** (shipped + archiviert 2026-06-29, Phasen 29–32, 6 Pläne, 7/7 Requirements, Audit `passed`, override_closeout) — gesamter v1.9-Code **uncommitted** im Arbeitsbaum (jj manueller Commit durch User)
 - **Current milestone**: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (Roadmap erstellt 2026-06-30; interne Planungs-Labels, reale Release-Version datumsbasiert via `cli-update-version`)
-- **Current focus**: Phase 33 (Special-Days-UI) **diskutiert** — CONTEXT.md mit 8 Decisions geschrieben. Kern: shiftplanner-Gate (NICHT admin, D-33-01/02), **zwei Flächen voll-CRUD** (Schichtplan-Wochenraster Per-Tag-Dropdown + Settings-Seite Datepicker, D-33-03/04), **neuer Range/Jahr-Read-Endpoint** im Backend (D-33-05). Nächster Schritt: `/gsd-plan-phase 33`. Danach Phase 34 (`/gsd-discuss-phase 34`).
+- **Current focus**: Phasen 33, 34, 35 alle **diskutiert** (CONTEXT.md je vorhanden). **Phase 34 (Feiertags-Soll im Schichtplan)** zuletzt diskutiert — 4 Decisions D-34-01..04. Kern: gezielter Konsistenz-Fix der versehentlichen Auslassung in `get_week` (4. Injektionspunkt von `build_derived_holiday_map` analog 1a/1b/1c, D-34-01 nur per-Mitarbeiter expected_hours/holiday_hours, NICHT per-Tag-Zeile); **BE-only** (D-34-02, keine FE-Spalte); HOL-03-Test umbauen (Band-Guard dynamic_hours==40 + expected 32 + holiday 8, D-34-03); **kein Snapshot-Bump**, im Plan grep-verifizieren (D-34-04). Nächster Schritt: `/gsd-plan-phase 33` (oder 34/35) — alle drei sind plan-ready.
 - **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9 **kein** Bump; v1.10 voraussichtlich **kein** Bump (in Phase 34 verifizieren)
 
 ## Current Position
 
-Phase: 33 (Special-Days-UI in den Einstellungen) — **Kontext erfasst** (CONTEXT.md geschrieben), noch nicht geplant
+Phase: 34 (Feiertags-Soll im Schichtplan) — **Kontext erfasst** (CONTEXT.md geschrieben), noch nicht geplant. (Phasen 33 + 35 ebenfalls diskutiert.)
 Plan: —
-Status: Context ready — nächster Schritt `/gsd-plan-phase 33`
-Last activity: 2026-06-30 — Phase 33 discuss-phase abgeschlossen (8 Decisions D-33-01..08)
+Status: Context ready — alle v1.10-Phasen (33/34/35) plan-ready; nächster Schritt z.B. `/gsd-plan-phase 33`
+Last activity: 2026-06-30 — Phase 34 discuss-phase abgeschlossen (4 Decisions D-34-01..04)
 
 ## Deferred Items
 
