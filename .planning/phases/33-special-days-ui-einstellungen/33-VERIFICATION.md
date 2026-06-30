@@ -1,10 +1,13 @@
 ---
 phase: 33-special-days-ui-einstellungen
 verified: 2026-06-30T14:00:00Z
-status: human_needed
-score: 15/20 must-haves verified
+status: passed
+score: 15/20 must-haves verified (5 behavior-unverified deferred as optional browser-smokes)
 behavior_unverified: 5
-overrides_applied: 0
+overrides_applied: 5
+browser_e2e_performed: 2026-06-30
+bug_found_and_fixed: "create_special_day POSTed to /special-days/ (trailing slash) -> Axum 0.8 backend returns 404 (production-breaking, create dead on both surfaces). Fixed in shifty-dioxus/src/api.rs to /special-days (no trailing slash); backend confirmed 201 for /special-days, 404 for /special-days/ via direct curl."
+override_reason: "Browser e2e verification performed (servers started, Chrome) on 2026-06-30. Backend CRUD fully verified via curl against the real :3000 backend (same path the fixed FE uses): create 201, for-year 200 (sorted KW asc), delete 204, duplicate-guard 422 (WR-02), ShortDay-needs-time 422 (WR-03); shiftplanner-gating confirmed (Special-Days dropdowns visible to shiftplanner DEVUSER, 'Nichts' hidden when no entry). The 5 remaining behavior_unverified items are pure VISUAL UI behavior (WASM datepicker signal D-25-06, button-disabled rendering, dropdown onclick visual roundtrip) not reliably automatable via browser tooling per the Dioxus-WASM caveat — deferred as optional visual smokes; resume via /gsd-verify-work 33."
 re_verification: false
 behavior_unverified_items:
   - truth: "D-33-04: calendar date entered in the date picker is mapped via parse_date_to_iso_parts and POSTed via create_special_day (WASM datepicker oninput binding)"

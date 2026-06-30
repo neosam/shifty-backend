@@ -996,15 +996,17 @@ pub async fn get_special_days_for_year(
     Ok(res)
 }
 
-/// POST `/special-days/`. Forces `id` and `version` to `Uuid::nil()` before sending
+/// POST `/special-days`. Forces `id` and `version` to `Uuid::nil()` before sending
 /// to prevent backend rejections (IdSetOnCreate / VersionSetOnCreate — T-33-04).
+/// NOTE: no trailing slash — the Axum 0.8 nested route is registered at `/special-days`
+/// (POST `/special-days/` with a trailing slash returns 404 on the real backend).
 pub async fn create_special_day(
     config: Config,
     mut body: SpecialDayTO,
 ) -> Result<SpecialDayTO, reqwest::Error> {
     body.id = Uuid::nil();
     body.version = Uuid::nil();
-    let url = format!("{}/special-days/", config.backend);
+    let url = format!("{}/special-days", config.backend);
     let client = reqwest::Client::new();
     let response = client.post(url).json(&body).send().await?;
     response.error_for_status_ref()?;
