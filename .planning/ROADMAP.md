@@ -159,7 +159,11 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
   3. Die Kapazitätsbänder (`paid_hours`/`dynamic_hours`/`committed_voluntary`/`volunteer`) sind in derselben Woche vor und nach der Änderung identisch (Regressions-Guard). (HSP-03)
   4. Ein Feiertag vor dem konfigurierten Stichtag bleibt wirkungslos, und ein manueller `ExtraHours(Holiday)` wird nicht doppelt gezählt — identisch zum Stundenkonto (Wiederverwendung von `build_derived_holiday_map`). (HSP-04)
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+**Wave 1**
+
+- [ ] 34-01-PLAN.md — `get_week` 4. Injektionspunkt (`holiday_derived_gated` reduziert nur `expected_hours`/`holiday_hours`, Bänder unangetastet) + HOL-03-Test-Rebuild + 2 HSP-04-Subtests + Snapshot-Verifikation (TDD; HSP-01..04, D-34-01..04) [Wave 1]
 
 **Phase-Note (Snapshot & HOL-03):** Snapshot-Schema-Version voraussichtlich **kein Bump** — `billing_period`-Snapshots speisen sich aus dem `reporting.rs`-`holiday_hours`-Pfad, nicht aus `get_week`/`booking_information`. In der Phase verifizieren (Default: kein Bump). Der HOL-03-Regressionstest `test_holiday_auto_credit_no_year_view_impact` wird bewusst neu formuliert: Kapazitätsbänder bleiben unverändert, aber `expected_hours`/`available_hours` werden um den derived-Holiday reduziert. *(Offene Decision für discuss-phase, D-NN.)*
 
@@ -210,7 +214,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 31 — Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
 | 32 — Admin-Impersonation Frontend + Audit-Schicht (FE+BE) | v1.9 | 3/3 | Complete    | 2026-06-29 |
 | 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 4/4 | Complete   | 2026-06-30 |
-| 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 0/TBD | Not started | - |
+| 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 0/1 | Planned | - |
 | 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 0/TBD | Not started | - |
 
 ## Backlog

@@ -582,7 +582,7 @@ the caller's `context`, consistent with existing auth propagation.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`abense_hours` display field vs. balance field**
    - What we know: `abense_hours` in `get_week` is used only for `abense_hours_for_balance`, not surfaced in `ShortEmployeeReport`
