@@ -983,6 +983,44 @@ pub async fn get_special_days_for_week(
     Ok(res)
 }
 
+/// GET `/special-days/for-year/{year}`. Returns all special days for the given year,
+/// sorted ascending by calendar_week and day_of_week (SPD-01 / D-33-05).
+pub async fn get_special_days_for_year(
+    config: Config,
+    year: u32,
+) -> Result<Rc<[SpecialDayTO]>, reqwest::Error> {
+    let url = format!("{}/special-days/for-year/{}", config.backend, year);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    Ok(res)
+}
+
+/// POST `/special-days/`. Forces `id` and `version` to `Uuid::nil()` before sending
+/// to prevent backend rejections (IdSetOnCreate / VersionSetOnCreate — T-33-04).
+pub async fn create_special_day(
+    config: Config,
+    mut body: SpecialDayTO,
+) -> Result<SpecialDayTO, reqwest::Error> {
+    body.id = Uuid::nil();
+    body.version = Uuid::nil();
+    let url = format!("{}/special-days/", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    response.error_for_status_ref()?;
+    let result: SpecialDayTO = response.json().await?;
+    Ok(result)
+}
+
+/// DELETE `/special-days/{id}`. Errors on non-2xx (SPD-03).
+pub async fn delete_special_day(config: Config, id: Uuid) -> Result<(), reqwest::Error> {
+    let url = format!("{}/special-days/{}", config.backend, id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    Ok(())
+}
+
 pub async fn get_employee_work_details_for_sales_person(
     config: Config,
     sales_person_id: Uuid,
