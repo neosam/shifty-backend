@@ -416,6 +416,17 @@ pub fn SettingsPage() -> Element {
             match api::create_special_day(cfg, body).await {
                 Ok(_) => {
                     sd_save_result.set(Some(true));
+                    // WR-04: the stored entry lives under its ISO-week-year, which
+                    // can differ from the picker year near year boundaries (e.g.
+                    // 2027-01-01 is ISO week 53 of 2026). Switch the picker to the
+                    // entry's ISO year so the just-created entry stays visible
+                    // instead of silently vanishing from the reloaded list.
+                    sd_year.set(iso_year);
+                    // Reset the form so re-clicking Add cannot immediately resubmit
+                    // an exact duplicate (WR-02).
+                    sd_date_str.set(String::new());
+                    sd_type.set(None);
+                    sd_time_str.set(String::new());
                     sd_resource.restart();
                 }
                 Err(_) => {
