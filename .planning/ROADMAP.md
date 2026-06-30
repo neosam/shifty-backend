@@ -18,7 +18,7 @@
 
 **🚧 Aktiver Milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35)**
 
-- [ ] **Phase 33: Special-Days-UI in den Einstellungen** - Shiftplanner pflegt Special Days (Holiday/ShortDay) auf zwei Flächen (Schichtplan-Wochenraster + Settings-Sektion) gegen die bestehende REST-CRUD + neuen Range/Jahr-Read — SPD-01..04
+- [x] **Phase 33: Special-Days-UI in den Einstellungen** - Shiftplanner pflegt Special Days (Holiday/ShortDay) auf zwei Flächen (Schichtplan-Wochenraster + Settings-Sektion) gegen die bestehende REST-CRUD + neuen Range/Jahr-Read — SPD-01..04 ✅ (e2e-verifiziert; create-Pfad-Bug gefixt; visuelle Smokes deferred)
 - [ ] **Phase 34: Feiertags-Soll im Schichtplan** - Automatisch angerechneter Feiertag reduziert das angezeigte Soll in der Wochentabelle (`get_week` derive-on-read); Kapazitätsbänder unangetastet — HSP-01..04
 - [ ] **Phase 35: Slot-Werte nur für eine Woche ändern** - Einmalige Slot-Ausnahme für genau eine KW via Split+Re-Merge (3 Versionen, atomar, Buchungs-Re-Point ohne Doppelzählung) + UI-Wahl „nur diese Woche" vs „ab dieser Woche" — SWO-01..04
 
