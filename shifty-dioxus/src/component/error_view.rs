@@ -4,6 +4,15 @@ use crate::i18n::Key;
 use crate::service::error::{ErrorStore, ERROR_STORE};
 use crate::service::i18n::I18N;
 
+/// Global error banner (e.g. a failed API call).
+///
+/// Styled with the project's `bad` design tokens to match the other banners
+/// (rounded, soft background, left accent border) instead of the old flat
+/// hard-red bar, and dismissible via the `×` button which clears the global
+/// `ERROR_STORE`.
+///
+/// Pitfall 5: all Tailwind classes are plain string literals (no interpolation),
+/// so the content scan keeps them.
 #[component]
 pub fn ErrorView() -> Element {
     let error = ERROR_STORE.read();
@@ -11,13 +20,14 @@ pub fn ErrorView() -> Element {
         let dismiss_label = I18N.read().t(Key::ErrorBannerDismiss).to_string();
         rsx! {
             div {
-                class: "error-view",
-                div {
-                    class: "error-message",
-                    "{error}"
+                class: "border-l-[3px] border-bad bg-bad-soft rounded-md p-3 flex items-start justify-between gap-3",
+                role: "alert",
+                div { class: "flex items-start gap-2 min-w-0",
+                    span { class: "text-bad font-bold leading-none flex-shrink-0", "⚠" }
+                    div { class: "text-body text-ink min-w-0", "{error}" }
                 }
                 button {
-                    class: "error-dismiss",
+                    class: "text-bad hover:text-ink flex-shrink-0 text-lg leading-none font-bold px-1 transition-colors",
                     r#type: "button",
                     "aria-label": "{dismiss_label}",
                     title: "{dismiss_label}",
