@@ -98,6 +98,9 @@ pub struct SlotEdit {
     /// overage banner (D-23-02). NEVER written back — not part of the
     /// `SlotEditItem` server payload (Pitfall 2).
     pub current_paid_count: u8,
+    /// When true the save action targets PUT /shiftplan-edit/slot/{year}/{week}/single-week
+    /// instead of the regular multi-week path. Default false = "ab dieser Woche" (D-35-02).
+    pub single_week: bool,
 }
 impl SlotEdit {
     pub fn new_edit() -> Self {
@@ -109,6 +112,7 @@ impl SlotEdit {
             week: 0,
             has_errors: false,
             current_paid_count: 0,
+            single_week: false,
         }
     }
 }

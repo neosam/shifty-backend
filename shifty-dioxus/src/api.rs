@@ -164,6 +164,23 @@ pub async fn update_slot(
     Ok(())
 }
 
+pub async fn update_slot_single_week(
+    config: Config,
+    slot: SlotTO,
+    year: u32,
+    week: u8,
+) -> Result<(), reqwest::Error> {
+    let url = format!(
+        "{}/shiftplan-edit/slot/{}/{}/single-week",
+        config.backend, year, week
+    );
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&slot).send().await?;
+    response.error_for_status_ref()?;
+    info!("Updated slot (single week)");
+    Ok(())
+}
+
 pub async fn post_slot(config: Config, slot: SlotTO) -> Result<bool, reqwest::Error> {
     info!("Adding slot");
     let url = format!("{}/slot", config.backend);
