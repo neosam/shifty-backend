@@ -225,6 +225,10 @@ pub enum Key {
     SaveLabel,
     CancelLabel,
     SlotEditSaveError,
+    SlotEditModeScopeLabel,
+    SlotEditModeFromThisWeek,
+    SlotEditModeThisWeekOnly,
+    SlotEditModeThisWeekOnlyHint,
 
     // Custom extra hours management
     CustomExtraHoursManagement,
@@ -1493,5 +1497,44 @@ mod tests {
             i18n.t(Key::ImpersonateStop).as_ref(),
             "Impersonation beenden"
         );
+    }
+
+    #[test]
+    fn i18n_slot_edit_mode_keys_present_in_all_locales() {
+        // Phase 35 (D-35-02): every slot edit mode key has a translation in
+        // every locale and never falls back to "??". The hint key must also
+        // carry {week} and {year} interpolation tokens.
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SlotEditModeScopeLabel,
+                Key::SlotEditModeFromThisWeek,
+                Key::SlotEditModeThisWeekOnly,
+                Key::SlotEditModeThisWeekOnlyHint,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+            // Hint must carry both interpolation placeholders
+            let hint = i18n.t(Key::SlotEditModeThisWeekOnlyHint);
+            assert!(
+                hint.contains("{week}"),
+                "SlotEditModeThisWeekOnlyHint for {:?} must contain {{week}}, got: `{}`",
+                locale,
+                hint
+            );
+            assert!(
+                hint.contains("{year}"),
+                "SlotEditModeThisWeekOnlyHint for {:?} must contain {{year}}, got: `{}`",
+                locale,
+                hint
+            );
+        }
     }
 }

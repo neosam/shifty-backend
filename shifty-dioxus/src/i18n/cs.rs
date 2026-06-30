@@ -320,6 +320,22 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::SlotEditSaveError,
         "Chyba při ukládání směny",
     );
+    i18n.add_text(Locale::Cs, Key::SlotEditModeScopeLabel, "Rozsah platnosti");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SlotEditModeFromThisWeek,
+        "Od tohoto týdne (výchozí)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SlotEditModeThisWeekOnly,
+        "Pouze tento týden",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SlotEditModeThisWeekOnlyHint,
+        "Změny platí výhradně pro kalendářní týden {week}/{year}. Od následujícího týdne jsou původní hodnoty slotu automaticky obnoveny.",
+    );
 
     // Custom extra hours management
     i18n.add_text(

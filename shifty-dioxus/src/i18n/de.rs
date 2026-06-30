@@ -336,6 +336,18 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::SaveLabel, "Speichern");
     i18n.add_text(Locale::De, Key::CancelLabel, "Abbrechen");
     i18n.add_text(Locale::De, Key::SlotEditSaveError, "Fehler beim Speichern");
+    i18n.add_text(Locale::De, Key::SlotEditModeScopeLabel, "Geltungsbereich");
+    i18n.add_text(
+        Locale::De,
+        Key::SlotEditModeFromThisWeek,
+        "Ab dieser Woche (Standard)",
+    );
+    i18n.add_text(Locale::De, Key::SlotEditModeThisWeekOnly, "Nur diese Woche");
+    i18n.add_text(
+        Locale::De,
+        Key::SlotEditModeThisWeekOnlyHint,
+        "Die Änderungen gelten ausschließlich für Kalenderwoche {week}/{year}. Ab der Folgewoche werden die ursprünglichen Slot-Werte automatisch wiederhergestellt.",
+    );
 
     // Custom extra hours management
     i18n.add_text(

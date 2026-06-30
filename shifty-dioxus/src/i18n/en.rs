@@ -289,6 +289,22 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::SaveLabel, "Save");
     i18n.add_text(Locale::En, Key::CancelLabel, "Cancel");
     i18n.add_text(Locale::En, Key::SlotEditSaveError, "Error saving slot");
+    i18n.add_text(Locale::En, Key::SlotEditModeScopeLabel, "Scope");
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditModeFromThisWeek,
+        "From this week on (default)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditModeThisWeekOnly,
+        "This week only",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SlotEditModeThisWeekOnlyHint,
+        "Changes apply exclusively to calendar week {week}/{year}. From the following week, the original slot values are automatically restored.",
+    );
 
     // Custom extra hours management
     i18n.add_text(
