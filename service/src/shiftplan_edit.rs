@@ -46,6 +46,28 @@ pub trait ShiftplanEditService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Slot, ServiceError>;
+
+    /// Ändert die Werte eines Slots als einmalige Ausnahme für **genau eine Kalenderwoche**
+    /// (D-35-01 Approach B: 3-Segment-Split + Re-Merge).
+    ///
+    /// Erzeugt drei Slot-Versionen:
+    /// - Segment 1: Original mit valid_to = Sonntag KW-1 (oder delete_slot wenn erste KW)
+    /// - Segment 2: Ausnahme-Woche (Mon KW → Son KW) mit neuen Werten aus `slot`
+    /// - Segment 3: Wiederherstellung ab Montag KW+1 mit Original-Werten
+    ///
+    /// Buchungen ab change_week werden partitioniert:
+    /// `calendar_week == change_week` → Segment 2; sonst → Segment 3 (D-35-03).
+    ///
+    /// Permission: `shiftplan.edit` (D-35-06). Alles in EINER Transaktion (D-35-04).
+    async fn modify_slot_single_week(
+        &self,
+        slot: &Slot,
+        change_year: u32,
+        change_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Slot, ServiceError>;
+
     async fn remove_slot(
         &self,
         slot: Uuid,

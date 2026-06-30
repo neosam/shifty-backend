@@ -18,7 +18,7 @@
 //! Mock-DI-Setup analog `service_impl/src/test/booking.rs:113-192` und
 //! `service_impl/src/test/absence.rs:147-260`.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use dao::{MockTransaction, MockTransactionDao};
 use mockall::predicate::{always, eq};
@@ -1569,4 +1569,350 @@ async fn test_hard_block_unpaid_never_blocked() {
         "D-24-Grenzregel: unpaid booking MUST NOT trigger PaidLimitExceeded warning; got {:?}",
         result.warnings
     );
+}
+
+// ---------- Phase 35 (Plan 01): modify_slot_single_week — D-35-05 TDD-Tests ----------
+//
+// Szenario: change_year=2026, change_week=26
+//   Montag KW26 = 2026-06-22; Sonntag KW25 (Seg1-valid_to) = 2026-06-21
+//   Segment 2: valid_from=2026-06-22, valid_to=Some(2026-06-28) (Sonntag KW26)
+//   Segment 3: valid_from=2026-06-29 (Montag KW27), valid_to=None (Original unbegrenzt)
+
+fn msw_seg2_id() -> Uuid {
+    uuid!("35350002-0000-0000-0000-000000000002")
+}
+
+fn msw_seg3_id() -> Uuid {
+    uuid!("35350003-0000-0000-0000-000000000003")
+}
+
+/// Setzt create_slot-Mock: Seg2 (valid_from=2026-06-22) → msw_seg2_id(),
+/// Seg3 (valid_from=2026-06-29) → msw_seg3_id(). Erwartet genau 2 Aufrufe.
+fn msw_setup_create_slot_2x(deps: &mut ShiftplanEditDependencies) {
+    deps.slot_service
+        .expect_create_slot()
+        .times(2)
+        .returning(|slot, _, _| {
+            let id = if slot.valid_from == date!(2026 - 06 - 22) {
+                msw_seg2_id()
+            } else {
+                msw_seg3_id()
+            };
+            Ok(Slot { id, ..slot.clone() })
+        });
+}
+
+/// Setzt get_for_slot_id_since-Mock auf leere Buchungsliste.
+fn msw_no_bookings(deps: &mut ShiftplanEditDependencies) {
+    deps.booking_service
+        .expect_get_for_slot_id_since()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<Booking>::new())));
+}
+
+// Test 1: 3-Segment-Struktur mit korrekten Datumsgrenzen
+#[tokio::test]
+#[allow(clippy::type_complexity)]
+async fn test_msw_three_segment_structure() {
+    let mut deps = build_dependencies(true, true);
+
+    let seg1_valid_to: Arc<Mutex<Option<Option<time::Date>>>> = Arc::new(Mutex::new(None));
+    let seg1_vt_c = seg1_valid_to.clone();
+    deps.slot_service
+        .expect_update_slot()
+        .times(1)
+        .returning(move |slot, _, _| {
+            *seg1_vt_c.lock().unwrap() = Some(slot.valid_to);
+            Ok(())
+        });
+    msw_no_bookings(&mut deps);
+
+    let created: Arc<Mutex<Vec<(time::Date, Option<time::Date>)>>> =
+        Arc::new(Mutex::new(Vec::new()));
+    let created_c = created.clone();
+    deps.slot_service
+        .expect_create_slot()
+        .times(2)
+        .returning(move |slot, _, _| {
+            created_c
+                .lock()
+                .unwrap()
+                .push((slot.valid_from, slot.valid_to));
+            let id = if slot.valid_from == date!(2026 - 06 - 22) {
+                msw_seg2_id()
+            } else {
+                msw_seg3_id()
+            };
+            Ok(Slot { id, ..slot.clone() })
+        });
+
+    let service = deps.build_service();
+    let result = service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await
+        .expect("3-Segment-Split muss gelingen");
+
+    // Rückgabe = Segment 2 (Ausnahme-Slot)
+    assert_eq!(
+        result.id,
+        msw_seg2_id(),
+        "modify_slot_single_week muss Segment 2 zurückgeben"
+    );
+
+    // Segment 1: valid_to = Sonntag KW25
+    let vt = seg1_valid_to
+        .lock()
+        .unwrap()
+        .expect("update_slot muss aufgerufen worden sein");
+    assert_eq!(
+        vt,
+        Some(date!(2026 - 06 - 21)),
+        "Seg1 valid_to = Sonntag KW25 (2026-06-21)"
+    );
+
+    // Segmente 2 + 3
+    let segs = created.lock().unwrap();
+    assert_eq!(segs.len(), 2, "genau 2 neue Slots erstellt");
+    let seg2 = segs
+        .iter()
+        .find(|(vf, _)| *vf == date!(2026 - 06 - 22))
+        .expect("Segment 2 mit valid_from=2026-06-22 muss existieren");
+    assert_eq!(
+        seg2.1,
+        Some(date!(2026 - 06 - 28)),
+        "Seg2 valid_to = Sonntag KW26 (2026-06-28)"
+    );
+    let seg3 = segs
+        .iter()
+        .find(|(vf, _)| *vf == date!(2026 - 06 - 29))
+        .expect("Segment 3 mit valid_from=2026-06-29 muss existieren");
+    assert_eq!(seg3.1, None, "Seg3 valid_to = None (original unbegrenzt)");
+}
+
+// Test 2+3+4: Booking-Partition (KW26→Seg2, KW27→Seg3, je-genau-einmal, kein Doppel-/Waisen-Row)
+#[tokio::test]
+async fn test_msw_booking_partition_and_each_exactly_once() {
+    let mut deps = build_dependencies(true, true);
+
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+    msw_setup_create_slot_2x(&mut deps);
+
+    let kw26 = Booking {
+        id: uuid!("B0260000-0000-0000-0000-000000000001"),
+        calendar_week: 26,
+        year: 2026,
+        version: uuid!("B0260000-0000-0000-0000-000000000010"),
+        ..default_booking()
+    };
+    let kw27 = Booking {
+        id: uuid!("B0270000-0000-0000-0000-000000000001"),
+        calendar_week: 27,
+        year: 2026,
+        version: uuid!("B0270000-0000-0000-0000-000000000010"),
+        ..default_booking()
+    };
+
+    // Checkpoint: Default-Booking-Expectations entfernen, eigene setzen
+    deps.booking_service.checkpoint();
+    let kw26_c = kw26.clone();
+    let kw27_c = kw27.clone();
+    deps.booking_service
+        .expect_get_for_slot_id_since()
+        .returning(move |_, _, _, _, _| Ok(Arc::from(vec![kw26_c.clone(), kw27_c.clone()])));
+
+    deps.booking_service
+        .expect_delete()
+        .times(2)
+        .returning(|_, _, _| Ok(()));
+
+    // Sammle (calendar_week, new_slot_id) pro create-Aufruf
+    let repoints: Arc<Mutex<Vec<(i32, Uuid)>>> = Arc::new(Mutex::new(Vec::new()));
+    let repoints_c = repoints.clone();
+    deps.booking_service
+        .expect_create()
+        .times(2)
+        .returning(move |booking, _, _| {
+            repoints_c
+                .lock()
+                .unwrap()
+                .push((booking.calendar_week, booking.slot_id));
+            Ok(persisted_booking())
+        });
+
+    let service = deps.build_service();
+    service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await
+        .expect("Booking-Partition muss gelingen");
+
+    let pairs = repoints.lock().unwrap();
+    assert_eq!(pairs.len(), 2, "genau 2 Buchungen re-gepointed (je-genau-einmal)");
+
+    let kw26_target = pairs
+        .iter()
+        .find(|(cw, _)| *cw == 26)
+        .map(|(_, id)| *id)
+        .expect("KW26-Buchung muss re-gepointed worden sein");
+    let kw27_target = pairs
+        .iter()
+        .find(|(cw, _)| *cw == 27)
+        .map(|(_, id)| *id)
+        .expect("KW27-Buchung muss re-gepointed worden sein");
+
+    assert_eq!(kw26_target, msw_seg2_id(), "KW26-Buchung muss auf Segment 2 landen");
+    assert_eq!(kw27_target, msw_seg3_id(), "KW27-Buchung muss auf Segment 3 landen");
+}
+
+// Test 5: Rollback — kein commit bei Fehler mitten im Vorgang
+#[tokio::test]
+async fn test_msw_rollback_no_commit_on_error() {
+    let mut deps = build_dependencies(true, true);
+
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+    msw_no_bookings(&mut deps);
+
+    // Zweites create_slot (Segment 3) schlägt fehl
+    let call_n = Arc::new(Mutex::new(0u32));
+    let call_n_c = call_n.clone();
+    deps.slot_service
+        .expect_create_slot()
+        .returning(move |slot, _, _| {
+            let mut n = call_n_c.lock().unwrap();
+            *n += 1;
+            if *n == 1 {
+                Ok(Slot {
+                    id: msw_seg2_id(),
+                    ..slot.clone()
+                })
+            } else {
+                Err(ServiceError::Forbidden) // simulierter Fehler → Rollback
+            }
+        });
+
+    // Commit darf NICHT aufgerufen werden: checkpoint → kein expect_commit gesetzt
+    // → unerwarteter commit-Aufruf würde Panic auslösen
+    deps.transaction_dao.checkpoint();
+    deps.transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(MockTransaction));
+
+    let service = deps.build_service();
+    let result = service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Fehler im Seg3-Create muss propagiert werden (kein commit)"
+    );
+}
+
+// Test 6: Erste-KW-Edge — delete_slot statt update_slot für Segment 1
+#[tokio::test]
+async fn test_msw_first_kw_edge_delete_slot() {
+    let mut deps = build_dependencies(true, true);
+
+    // Slot mit valid_from = Montag KW26 → Seg1 hätte valid_to < valid_from → delete_slot
+    deps.slot_service.checkpoint();
+    deps.slot_service
+        .expect_get_slot()
+        .returning(|_, _, _| Ok(Slot { valid_from: date!(2026 - 06 - 22), ..monday_slot() }));
+    deps.slot_service
+        .expect_delete_slot()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+    // KEIN expect_update_slot → unerwarteter Aufruf würde Panic auslösen
+    msw_setup_create_slot_2x(&mut deps);
+    msw_no_bookings(&mut deps);
+
+    let service = deps.build_service();
+    let input = Slot { valid_from: date!(2026 - 06 - 22), ..monday_slot() };
+    let result = service
+        .modify_slot_single_week(&input, 2026, 26, ().auth(), None)
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "Erste-KW-Edge muss gelingen (delete_slot statt update_slot): {result:?}"
+    );
+}
+
+// Test 7: Unbegrenztes valid_to → Segment 3 erbt None (bleibt unbegrenzt)
+#[tokio::test]
+async fn test_msw_unbounded_valid_to_seg3() {
+    let mut deps = build_dependencies(true, true);
+
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+    msw_no_bookings(&mut deps);
+
+    // monday_slot() hat valid_to = None → original_valid_to = None → Seg3 valid_to = None
+    let seg3_valid_to: Arc<Mutex<Option<Option<time::Date>>>> = Arc::new(Mutex::new(None));
+    let seg3_vt_c = seg3_valid_to.clone();
+    deps.slot_service
+        .expect_create_slot()
+        .times(2)
+        .returning(move |slot, _, _| {
+            let id = if slot.valid_from == date!(2026 - 06 - 22) {
+                msw_seg2_id()
+            } else {
+                *seg3_vt_c.lock().unwrap() = Some(slot.valid_to);
+                msw_seg3_id()
+            };
+            Ok(Slot { id, ..slot.clone() })
+        });
+
+    let service = deps.build_service();
+    service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await
+        .expect("unbegrenztes valid_to muss gelingen");
+
+    assert_eq!(
+        *seg3_valid_to.lock().unwrap(),
+        Some(None),
+        "Seg3 valid_to muss None sein (original unbegrenzt)"
+    );
+}
+
+// Test 8: Keine Buchungen → keine booking.delete / booking.create-Aufrufe
+#[tokio::test]
+async fn test_msw_no_bookings_no_booking_mutations() {
+    let mut deps = build_dependencies(true, true);
+
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+    msw_setup_create_slot_2x(&mut deps);
+
+    // Checkpoint: nur get_for_slot_id_since erlaubt; delete/create → panic bei unerwartetem Aufruf
+    deps.booking_service.checkpoint();
+    deps.booking_service
+        .expect_get_for_slot_id_since()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<Booking>::new())));
+
+    let service = deps.build_service();
+    let result = service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await;
+
+    assert!(result.is_ok(), "ohne Buchungen muss 3-Segment-Split gelingen: {result:?}");
+}
+
+// Test 9: Forbidden — check_permission schlägt fehl → kein Slot-/Booking-Mutation
+#[tokio::test]
+async fn test_msw_forbidden() {
+    let deps = build_dependencies(false, false);
+    // Keine Slot-/Booking-Expectations → unerw. Aufrufe würden Panic auslösen
+
+    let service = deps.build_service();
+    let result = service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await;
+
+    test_forbidden(&result);
 }

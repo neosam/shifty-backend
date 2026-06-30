@@ -196,6 +196,19 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         Ok(())
     }
 
+    async fn modify_slot_single_week(
+        &self,
+        slot: &Slot,
+        change_year: u32,
+        change_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Slot, ServiceError> {
+        let _ = (slot, change_year, change_week);
+        let _ = (context, tx);
+        todo!("GREEN: Task 2")
+    }
+
     async fn update_carryover(
         &self,
         sales_person_id: Uuid,
