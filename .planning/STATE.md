@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: — aktiv)
-current_phase: 33
-current_phase_name: Special-Days-UI in den Einstellungen
-status: roadmap_ready
-last_updated: "2026-06-30T14:39:00.000Z"
+current_phase: 35
+current_phase_name: Slot-Werte nur für eine Woche ändern
+status: executing
+last_updated: "2026-06-30T15:48:01.672Z"
 last_activity: 2026-06-30
-last_activity_desc: "Phase 34 Plan 01 executed (TDD: HOL-03 rebuild + 2 HSP-04 subtests + get_week 4th injection point)"
+last_activity_desc: Phase 34 complete, transitioned to Phase 35
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
   completed_plans: 5
   percent: 67
@@ -32,10 +32,10 @@ progress:
 
 ## Current Position
 
-Phase: 34 (Feiertags-Soll im Schichtplan) — **Plan 01 complete** (get_week 4th injection + HOL-03 rebuild + 2 HSP-04 tests)
-Plan: 01 done — Phase 34 complete (1/1 plans done)
+Phase: 35 — Slot-Werte nur für eine Woche ändern
+Plan: Not started
 Status: Phase 34 complete; Phase 33 in progress (1/4 plans complete, Plans 02-04 pending); Phase 35 pending
-Last activity: 2026-06-30 — Phase 34 Plan 01 executed (TDD: HOL-03 rebuild + 2 HSP-04 subtests + get_week 4th injection point; 7/7 reporting_holiday tests green; SNAPSHOT stays 12)
+Last activity: 2026-06-30 — Phase 34 complete, transitioned to Phase 35
 
 ## Deferred Items
 
@@ -98,7 +98,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 ### Constraints In Force
 
-- **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet — Commits manuell durch User. GSD-Auto-Commit ist deaktiviert (`commit_docs: false`). KEINE `git commit`/`git add` aus Agents heraus.
+- **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet. GSD-Auto-Commit ist **aktiv** (`commit_docs: true`, yolo-Mode) — GSD committet Phasen-Arbeit automatisch (Executor/Docs via git, von jj im co-located Repo automatisch importiert). Verifiziert 2026-06-30: Phasen 33+34 wurden so committet, Arbeitskopie sauber.
 - **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`.
 - **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` (aktuell **12**) MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. **v1.10 erwartet KEINEN Bump** (Feature HSP speist sich aus `get_week`/`booking_information`, nicht aus dem `reporting.rs`-Snapshot-Pfad) — in Phase 34 verifizieren.
 - **Clippy-Gate**: `cargo clippy --workspace -- -D warnings` ist Pflicht-Gate bei jedem Commit — `cargo test` allein reicht nicht.

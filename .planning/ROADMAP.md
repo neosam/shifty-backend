@@ -214,7 +214,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 31 — Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
 | 32 — Admin-Impersonation Frontend + Audit-Schicht (FE+BE) | v1.9 | 3/3 | Complete    | 2026-06-29 |
 | 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 4/4 | Complete   | 2026-06-30 |
-| 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 0/1 | Planned | - |
+| 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 1/1 | Complete    | 2026-06-30 |
 | 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 0/TBD | Not started | - |
 
 ## Backlog
@@ -241,6 +241,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   - jj-Repo: User committet manuell, keine git-Fallbacks.
 
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
-  **Plans:** 3/3 plans complete
+  **Plans:** 1/1 plans complete
 
 *Last updated: 2026-06-30 — **Phase 35 hinzugefügt** (Slot-Werte nur für eine Woche ändern, SWO-01..04; Mechanik B Split+Re-Merge, atomar, diskutiert). v1.10 jetzt Phasen 33–35, 12/12 Requirements gemappt. Phase 35 ist bewusst Schichtplan-Struktur (leicht off-theme zum Feiertags-Fokus, User-Entscheidung in v1.10 statt Backlog).*
