@@ -23,6 +23,7 @@ pub enum SlotEditAction {
     Cancel,
     DeleteSlot(Uuid, u32, u8),
     LoadSlot(Uuid, u32, u8, u8),
+    SetSingleWeek(bool),
 }
 
 pub fn trigger_shiftplan_refresh() {
@@ -40,6 +41,7 @@ pub fn new_slot_edit(year: u32, week: u8, shiftplan_id: Option<Uuid>) -> Result<
     store.visible = true;
     store.has_errors = false;
     store.current_paid_count = 0;
+    store.single_week = false;
     Ok(())
 }
 
@@ -53,13 +55,17 @@ pub async fn save_slot_edit() -> Result<(), ShiftyError> {
     let mut store = SLOT_EDIT_STORE.write();
     match store.slot_edit_type {
         SlotEditType::Edit => {
-            loader::save_slot(
-                CONFIG.read().clone(),
-                store.slot.clone(),
-                store.year,
-                store.week,
-            )
-            .await?;
+            // Read single_week before the await to avoid holding the write borrow
+            let single_week = store.single_week;
+            let config = CONFIG.read().clone();
+            let slot = store.slot.clone();
+            let year = store.year;
+            let week = store.week;
+            if single_week {
+                loader::save_slot_single_week(config, slot, year, week).await?;
+            } else {
+                loader::save_slot(config, slot, year, week).await?;
+            }
         }
         SlotEditType::New => {
             if !loader::create_slot(CONFIG.read().clone(), store.slot.clone()).await? {
@@ -100,6 +106,12 @@ pub async fn load_slot_edit(
     store.visible = true;
     store.has_errors = false;
     store.current_paid_count = current_paid_count;
+    store.single_week = false;
+    Ok(())
+}
+
+pub fn set_single_week(val: bool) -> Result<(), ShiftyError> {
+    SLOT_EDIT_STORE.write().single_week = val;
     Ok(())
 }
 
@@ -116,6 +128,7 @@ pub async fn slot_edit_service(mut rx: UnboundedReceiver<SlotEditAction>) {
             SlotEditAction::LoadSlot(id, year, week, count) => {
                 load_slot_edit(id, year, week, count).await
             }
+            SlotEditAction::SetSingleWeek(val) => set_single_week(val),
         } {
             Ok(_) => {}
             Err(err) => {
