@@ -179,7 +179,10 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
   3. Der gesamte Vorgang (alle Segment-Schnitte + alle Booking-Re-Points) läuft in **einer Transaktion**; bei jedem Fehler ist der Zustand exakt wie vorher. (SWO-03)
   4. Die Booking-Neuzuweisungen sind durch harte Tests abgesichert — **nichts** doppelt oder verwaist in Reports/Balance. Gate = `shiftplan.edit` (konsistent zu `modify_slot`). (SWO-04)
 
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 35-01-PLAN.md — Backend-Mechanik `modify_slot_single_week` (TDD: 3-Segment-Split + Booking-Partition + Atomarität + Gate) + REST-Route (SWO-02/03/04)
+- [ ] 35-02-PLAN.md — Frontend-Plumbing: single_week-State, api/loader single-week-Pfad, SetSingleWeek-Routing, 4 i18n-Keys de/en/cs (SWO-01/04)
+- [ ] 35-03-PLAN.md — Frontend-Komponente: Modus-Radiogruppe + Hinweis im Slot-Editor + SSR-Tests (SWO-01)
 **UI hint**: yes
 
 ## Progress
