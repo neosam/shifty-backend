@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, year, calendar_week, day_of_week, day_type, time_of_day, created, deleted, update_version\n            FROM special_day\n            WHERE year = ? AND deleted IS NULL\n            ORDER BY calendar_week ASC, day_of_week ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "year",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "day_of_week",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "day_type",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "time_of_day",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 8,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "83ed6a7dd7e711c3b7af7fcf5fd5ff12c364fdae9b9958a38cecb291f7483d57"
+}
