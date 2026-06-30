@@ -132,10 +132,10 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
   4. Die Special-Days-Pflege ist **shiftplanner-gated** (deckungsgleich zur bestehenden Special-Day-CRUD und Slot-Struktur-CRUD; FE-Gate `has_privilege("shiftplanner")`, kein 403-Mismatch). (SPD-04)
   5. Alle neuen benutzersichtbaren Texte sind in de/en/cs vorhanden. (SPD-04)
 
-**Plans**: 4 plans (2 waves)
+**Plans**: 1/4 plans executed
 **Wave 1**
 
-- [ ] 33-01-PLAN.md — Backend Range/Jahr-Read-Endpoint (`GET /special-days/for-year/{year}`) + Service-Test-Modul (TDD; D-33-05/01) [Wave 1]
+- [x] 33-01-PLAN.md — Backend Range/Jahr-Read-Endpoint (`GET /special-days/for-year/{year}`) + Service-Test-Modul (TDD; D-33-05/01) [Wave 1]
 - [ ] 33-02-PLAN.md — FE-Foundation: api.rs (create/delete/for-year) + 18 i18n-Keys de/en/cs (SPD-04) [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -209,7 +209,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 30 — Stale-Daten-Race Guard (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
 | 31 — Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
 | 32 — Admin-Impersonation Frontend + Audit-Schicht (FE+BE) | v1.9 | 3/3 | Complete    | 2026-06-29 |
-| 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 0/TBD | Not started | - |
+| 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 1/4 | In Progress|  |
 | 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 0/TBD | Not started | - |
 | 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 0/TBD | Not started | - |
 

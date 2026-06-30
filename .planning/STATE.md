@@ -29,10 +29,10 @@ progress:
 
 ## Current Position
 
-Phase: 34 (Feiertags-Soll im Schichtplan) — **Kontext erfasst** (CONTEXT.md geschrieben), noch nicht geplant. (Phasen 33 + 35 ebenfalls diskutiert.)
-Plan: —
-Status: Context ready — alle v1.10-Phasen (33/34/35) plan-ready; nächster Schritt z.B. `/gsd-plan-phase 33`
-Last activity: 2026-06-30 — Phase 34 discuss-phase abgeschlossen (4 Decisions D-34-01..04)
+Phase: 33 (Special-Days-UI in den Einstellungen) — **Plan 01 complete** (Backend for-year endpoint + tests)
+Plan: 01 done — Plan 02 next (FE api.rs + Settings Card-3)
+Status: Phase 33 in progress (1/4 plans complete); Plans 02-04 pending (FE wiring, Settings Card, Shiftplan dropdown, i18n)
+Last activity: 2026-06-30 — Phase 33 Plan 01 executed (TDD: DAO→Service→REST for-year chain + 5 mockall tests)
 
 ## Deferred Items
 

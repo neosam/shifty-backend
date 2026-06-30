@@ -12,9 +12,11 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 (`special-days-ui-bearbeiten-einstellungen`, `feiertag-soll-abzug-schichtplan-tabelle`).
 
 **Ausgangslage (code-verifiziert):**
+
 - Backend-CRUD für `special_day` existiert bereits: `GET /special-days/for-week/{year}/{week}`,
   `POST /special-days/`, `DELETE /special-days/{id}` (`rest/src/special_day.rs`). Das
   Frontend kann sie heute nur **lesen** (`get_special_days_for_week`).
+
 - Die Feiertags-Automatik (`build_derived_holiday_map`, `service_impl/src/reporting.rs:151`)
   läuft heute in `get_reports_for_all_employees`/`get_report_for_employee_range`/`hours_per_week`,
   **nicht** in `get_week` — daher fehlt der Soll-Abzug in der Schichtplan-Tabelle
@@ -26,21 +28,21 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 
 ### Special-Days-UI (SPD)
 
-- [ ] **SPD-01**: Shiftplanner kann einen Special Day per **Kalenderdatum** anlegen (Typ
+- [x] **SPD-01**: Shiftplanner kann einen Special Day per **Kalenderdatum** anlegen (Typ
   `Holiday` oder `ShortDay`; bei `ShortDay` mit Uhrzeit). Persistiert als
   `(year, calendar_week, day_of_week)` über die bestehende `POST /special-days/`-CRUD;
   Datum→ISO-Woche/Wochentag-Mapping im Frontend (`time::Date::from_iso_week_date` /
   `as_shifty_week`). WASM-Datepicker-Caveat (D-25-06) beim Submit beachten.
 
-- [ ] **SPD-02**: Shiftplanner sieht die vorhandenen Special Days als **Liste** mit Datum im
+- [x] **SPD-02**: Shiftplanner sieht die vorhandenen Special Days als **Liste** mit Datum im
   locale-üblichen Format **plus abgeleitetem Kontext** in Klammern, z. B.
   `15.08.2026 (Samstag, KW 33, 2026)`. Wochentag/KW/Jahr werden aus dem Datum berechnet
   und mitübersetzt.
 
-- [ ] **SPD-03**: Shiftplanner kann einen vorhandenen Special Day **löschen** (Frontend gegen
+- [x] **SPD-03**: Shiftplanner kann einen vorhandenen Special Day **löschen** (Frontend gegen
   `DELETE /special-days/{id}` verdrahtet; Liste aktualisiert sich).
 
-- [ ] **SPD-04**: Die Special-Days-Pflege ist **shiftplanner-gated** auf beiden Flächen
+- [x] **SPD-04**: Die Special-Days-Pflege ist **shiftplanner-gated** auf beiden Flächen
   (deckungsgleich zur bestehenden Special-Day-CRUD und Slot-Struktur-CRUD, die beide auf
   `SHIFTPLANNER_PRIVILEGE` gaten; FE-Gate `has_privilege("shiftplanner")`, kein 403-Mismatch);
   **alle Texte i18n de/en/cs**. *(Korrektur in discuss-phase: ursprünglich „admin-gated (Muster
@@ -107,6 +109,7 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 - **Snapshot-Schema-Version-Bump:** voraussichtlich **nicht** nötig — `billing_period`-
   Snapshots speisen sich aus dem `reporting.rs`-`holiday_hours`-Pfad, nicht aus
   `get_week`/`booking_information`. In der HSP-Phase verifizieren (Default: kein Bump).
+
 - **Backlog-Phase 999.1** (Breaking/Major Dependency-Migration) — bleibt separat.
 
 ## Traceability
