@@ -290,3 +290,64 @@ Session-Identität (kein Privilege-Leak).
 **Hinweis:** v1.9 ist das interne Planungs-Label; der gesamte Code liegt uncommitted im Arbeitsbaum (jj manueller Commit durch User). Reale Release-Version datumsbasiert via `cli-update-version`.
 
 ---
+
+## v1.10 — Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz
+
+**Shipped:** 2026-06-30 (autonomer Run; alle 3 Phasen VERIFIED, SWO-01 live-browser-bestätigt)
+**Phases:** 33–35 (3 phases, 8 plans)
+**Closeout:** override_closeout (Milestone-Audit `passed`; Carry-over Deferred Items acknowledged)
+**Audit:** ✅ passed (12/12 Requirements, Integration clean, 2/2 E2E-Flows)
+**Archive:** [`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md) · [`milestones/v1.10-REQUIREMENTS.md`](milestones/v1.10-REQUIREMENTS.md) · [`v1.10-MILESTONE-AUDIT.md`](v1.10-MILESTONE-AUDIT.md)
+
+**Delivered:**
+Feiertage durchgängig korrekt gemacht — Special Days über die UI pflegbar **und** ihre
+Soll-Wirkung auch in der Schichtplan-Wochentabelle sichtbar — plus eine Einzelwochen-Slot-
+Ausnahme. Special Days (Holiday/ShortDay) sind **shiftplanner-gated** auf zwei Flächen voll-CRUD
+pflegbar (Schichtplan-Wochenraster Per-Tag-Dropdown + Settings-Kalenderdatum-Picker + nach Jahr
+gruppierte Liste mit abgeleitetem Kontext `15.08.2026 (Samstag, KW 33, 2026)`) gegen die
+bestehende REST-CRUD plus einem neuen `for-year`-Read-Endpoint. Ein automatisch angerechneter
+Feiertag reduziert das angezeigte Soll (`expected_hours`/`available_hours`/`holiday_hours`) auch
+in der Wochentabelle unter dem Schichtplan — `get_week` bekommt einen 4. Injektionspunkt via
+`build_derived_holiday_map` (derive-on-read, identisch zum Stundenkonto), während die
+Kapazitätsbänder (`paid_hours`/`dynamic_hours`/`committed_voluntary`/`volunteer`) unangetastet
+bleiben (D-25-08-Grenze). Slot-Werte (Kapazität/Zeiten) lassen sich für **genau eine KW** als
+einmalige Ausnahme ändern via 3-Segment-Split+Re-Merge (atomar, eine Transaktion/Rollback,
+Buchungs-Re-Point ohne Doppelzählung) mit UI-Wahl „nur diese Woche"/„ab dieser Woche".
+**Kein Snapshot-Bump** (bleibt 12), **keine** Migration, **keine** neuen Dependencies.
+
+**Key accomplishments:**
+
+1. **Phase 33 (SPD-01..04)** — FE-Special-Days-Pflege auf zwei Flächen (Settings-Card-3
+   Datepicker-Create + Jahres-Liste + Delete; Schichtplan Per-Tag-Dropdown Feiertag/Kurzer
+   Tag/Nichts + ShortDay-Inline-Prompt), neuer Backend-`GET /special-days/for-year/{year}`-Read,
+   18 i18n-Keys de/en/cs, shiftplanner-gated. **create-Pfad-Bug gefunden+gefixt** (FE POSTete
+   `/special-days/` → Axum-0.8-404 → fix `/special-days`).
+2. **Phase 34 (HSP-01..04)** — `get_week` 4. Injektionspunkt `holiday_derived_gated` reduziert
+   nur `expected_hours`/`holiday_hours`, Bänder per Regressions-Guard geschützt; HOL-03-Test
+   neu formuliert; HSP-04-Subtests (Stichtag-Gate + manueller-Holiday-gewinnt); Snapshot bleibt
+   12 (grep-verifiziert). Re-verified nach CR-01-Gap-Closure (Cap-aktiver Band-Leak gefixt).
+3. **Phase 35 (SWO-01..04)** — Backend `modify_slot_single_week` (3-Segment-Split + Booking-
+   Partition + Atomarität + Gate `shiftplan.edit`) + REST-Route; FE single_week-State + api/loader-
+   Pfad + Modus-Radiogruppe + 4 i18n-Keys de/en/cs. SWO-01 live-browser-bestätigt (3-Segment
+   4/5/4, nur KW 27 geändert).
+
+**Test verification:** Backend `cargo test --workspace` grün (526 Tests) + `cargo clippy
+--workspace -- -D warnings` sauber; FE `cargo test -p shifty-dioxus` + `cargo build --target
+wasm32-unknown-unknown` grün. **Regression-Gate während Phase 34 fand+fixte einen committeten
+Cross-Phase-Blocker aus Phase 33** (`find_by_year`-Query fehlte im `.sqlx`-Offline-Cache → CI
+wäre rot gewesen).
+
+**Known deferred items (acknowledged at close, 2026-06-30):**
+
+- **5 rein-visuelle Phase-33-Smokes** (WASM-Datepicker-Signal D-25-06, Add-Button-Disabled-
+  Rendering, Jahres-Liste-Badges, Dropdown-onclick-Roundtrip, ShortDay-Inline-Prompt) — Backend-
+  CRUD voll verifiziert, Dioxus-Interaktion nicht zuverlässig automatisierbar.
+- **WR-02** (Code-Review WARNING, pre-existing) — `save_slot_edit` hält Write-Borrow über
+  `.await`; nicht von Phase 35 eingeführt, als deferred FE-Borrow-Todo erfasst.
+- **Carry-over Deferred Items aus v1.4–v1.9** — weiterhin deferred, siehe STATE.md. Keines
+  v1.10-spezifisch.
+
+**Hinweis:** v1.10 ist das interne Planungs-Label. Reale Release-Version datumsbasiert via
+`cli-update-version` (kein v1.x git tag).
+
+---

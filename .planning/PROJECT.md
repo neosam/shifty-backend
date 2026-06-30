@@ -1,8 +1,8 @@
 ---
 type: project_charter
 last_updated: 2026-06-30
-last_milestone: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (shipped 2026-06-29, Phasen 29–32, 7/7 Requirements, Audit passed)
-current_milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (gestartet 2026-06-30; internes GSD-Planungs-Label, reale Release-Version datumsbasiert via cli-update-version) — Requirements + Roadmap in Aufbau
+last_milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (shipped 2026-06-30, Phasen 33–35, 12/12 Requirements, Audit passed)
+current_milestone: none (zwischen Milestones; nächste Iteration via /gsd-new-milestone)
 ---
 
 # Shifty — Project Charter
@@ -269,14 +269,21 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**Aktiver Milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (gestartet 2026-06-30; Requirements + Roadmap in Aufbau). Davor v1.9 abgeschlossen + archiviert am 2026-06-29.
+**v1.10 shipped 2026-06-30** (Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`).
+Geliefert: Special Days (Holiday/ShortDay) shiftplanner-gated über die UI pflegbar (zwei
+Flächen: Schichtplan-Wochenraster + Settings-Picker/Jahres-Liste) + automatisch angerechneter
+Feiertag reduziert das Soll auch in der Schichtplan-Wochentabelle (konsistent zum
+Stundenkonto, Kapazitätsbänder unangetastet) + Slot-Werte für genau eine KW als einmalige
+Ausnahme via 3-Segment-Split+Re-Merge (atomar, ohne Doppelzählung). Kein Snapshot-Bump
+(bleibt 12), keine Migration, keine neuen Deps. Zwischen Milestones — nächste Iteration via
+`/gsd-new-milestone`. Details: `milestones/v1.10-ROADMAP.md` / `-REQUIREMENTS.md` /
+`v1.10-MILESTONE-AUDIT.md`.
 
-Zuletzt geshipt + archiviert: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen &
+Zuvor geshipt + archiviert: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen &
 Admin-Impersonation** (Phasen 29–32, 6 Pläne, 7/7 Requirements, override_closeout, Audit
 `passed`; autonomer Run). Geliefert: VAC-01 Urlaubsbalken-Konsistenz, SHP-02 Stale-Daten-
 Race-Guard, SHP-01 proaktive Abwesenheits-Markierung, IMP-01..04 Admin-Impersonation-FE +
-zentrale Audit-Schicht. Kein Snapshot-Bump, keine Migration, keine neuen Deps. **Gesamter
-v1.9-Code liegt uncommitted im Arbeitsbaum** (jj manueller Commit durch User). Details:
+zentrale Audit-Schicht. Kein Snapshot-Bump, keine Migration, keine neuen Deps. Details:
 `milestones/v1.9-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`.
 Davor: **v1.8 HR-UX** (Phasen 27–28) und **v1.7 Feiertage/VFA** (Phasen 25–26), beide
 2026-06-29 geschlossen; **v1.6 Paid-Capacity** (2026-06-27).
@@ -350,9 +357,10 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
 
 - v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation — shipped 2026-06-29 (Phasen 29–32).
   Archiv: `milestones/v1.9-ROADMAP.md`, `milestones/v1.9-REQUIREMENTS.md`, `milestones/v1.9-MILESTONE-AUDIT.md`.
+- v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz — shipped 2026-06-30 (Phasen 33–35).
+  Archiv: `milestones/v1.10-ROADMAP.md`, `milestones/v1.10-REQUIREMENTS.md`, `v1.10-MILESTONE-AUDIT.md`.
 
-Aktiv: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (gestartet 2026-06-30) —
-Requirements + Roadmap in Aufbau.
+Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
 
 ## Evolution
 
