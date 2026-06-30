@@ -49,7 +49,7 @@ impl TryFrom<&SpecialDayDb> for SpecialDayEntity {
                 .as_ref()
                 .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
                 .transpose()?,
-            version: Uuid::from_slice(&entity.update_version).unwrap(),
+            version: Uuid::from_slice(&entity.update_version)?,
         })
     }
 }
