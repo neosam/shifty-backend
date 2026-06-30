@@ -525,20 +525,21 @@ async fn test_holiday_manual_wins() {
     );
 }
 
-// ─── HOL-03: Year-view (booking_information path) unaffected ─────────────────
+// ─── HOL-03: get_week applies derived holiday credit (Phase 34) ──────────────
 
-/// HOL-03: booking_information.paid_hours (= sum of get_week().dynamic_hours) is NOT
-/// reduced by holiday auto-credit. The get_week() code path has NO derive-on-read
-/// logic for holidays (no build_derived_holiday_map call), so the booking_information
-/// year-view is immune.
+/// HOL-03 (Phase 34 rebuild): An employee with a Mon-Fri 40h contract gets 8h
+/// derived holiday credit in `get_week` for a SpecialDay(Holiday) on the contracted
+/// Monday of KW23/2024 (2024-06-03), when the toggle cutoff is active (before the
+/// holiday date).
 ///
-/// This test acts as a REGRESSION GUARD: if someone adds special_day_service or
-/// toggle_service calls to get_week(), the mock will panic on "unexpected call"
-/// (neither mock has any expectations here), immediately revealing the regression.
+/// HSP-01: expected_hours is reduced from 40h to 32h (40 − 8 holiday).
+/// HSP-02: holiday_hours is filled with the 8h derived contribution.
+/// HSP-03: dynamic_hours (= booking_information.paid_hours band) remains 40h
+///         unchanged — the derived holiday term is NOT subtracted from dynamic_hours.
 ///
-/// The special_day_service mock has NO expectations — any call panics.
-/// Expected: dynamic_hours (= booking_information.paid_hours) == 40.0 (full contract,
-/// not reduced by any holiday credit).
+/// Toggle cutoff: "2024-01-01" (before holiday 2024-06-03 → credit applies).
+/// SpecialDay: Holiday on KW23/2024 Monday.
+/// No manual ExtraHours.
 #[tokio::test]
 async fn test_holiday_auto_credit_no_year_view_impact() {
     let mut mocks = ReportingMocks::new();
@@ -571,50 +572,224 @@ async fn test_holiday_auto_credit_no_year_view_impact() {
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
 
-    // special_day_service: NO expectations set intentionally.
-    // If get_week() ever calls it → mockall panics → regression caught.
-    // (booking_information year-view must NOT apply holiday auto-credit.)
+    // NEW (Phase 34): provide SpecialDay mock — 1 Holiday on KW23/2024 Monday (2024-06-03).
+    // Expectations without .times() accept 0..n calls — before the fix, get_week does not
+    // call this service; the test fails only on the expected_hours == 32 assertion (RED state).
+    mocks.special_day_service = MockSpecialDayService::new();
+    mocks
+        .special_day_service
+        .expect_get_by_week()
+        .returning(|_, wk, _| {
+            if wk == 23 {
+                Ok(Arc::from(vec![make_holiday(2024, 23, DayOfWeek::Monday)]))
+            } else {
+                Ok(Arc::from(vec![]))
+            }
+        });
 
-    // toggle_service: already set to Ok(None) in new(); also not called by get_week().
+    // NEW (Phase 34): provide active toggle cutoff "2024-01-01" (before holiday date).
+    mocks.toggle_service = MockToggleService::new();
+    mocks
+        .toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2024-01-01"))));
 
     let service = mocks.build();
     let reports = service
         .get_week(2024, 23, Authentication::Full, None)
         .await
-        .expect("get_week must succeed (no holiday auto-credit in this path)");
+        .expect("get_week must succeed");
 
-    assert_eq!(
-        reports.len(),
-        1,
-        "HOL-03: get_week must return 1 report for the paid employee"
-    );
+    assert_eq!(reports.len(), 1, "HOL-03: 1 report expected");
     let report = &reports[0];
 
-    // booking_information.paid_hours = sum(report.dynamic_hours) from get_week().
-    // With 40h/week Mon-Fri contract and no shiftplan/absence:
-    //   weight_for_week → expected_hours=40, dynamic_hours=40
-    //   get_week(): dynamic_hours = 40 - 0 (abense) - 0 (derived) = 40
-    // This must NOT be reduced by any holiday credit (since get_week has none).
+    // HSP-03: dynamic_hours (= booking_information.paid_hours band) MUST NOT be reduced
+    // by holiday auto-credit. Only expected_hours carries the holiday term.
     assert!(
         (report.dynamic_hours - 40.0).abs() < 0.01,
-        "HOL-03: dynamic_hours (= booking_information.paid_hours) must be 40h, \
-         not reduced by holiday auto-credit; got {}",
+        "HSP-03: dynamic_hours must remain 40h (band invariant), got {}",
         report.dynamic_hours
     );
 
-    // holiday_hours in get_week() is sourced only from manual ExtraHours (0 here).
-    // Auto-credit is NOT applied → holiday_hours must be 0.
+    // HSP-01: expected_hours reduced by 8h derived holiday (40 - 8 = 32).
     assert!(
-        report.holiday_hours.abs() < 0.01,
-        "HOL-03: holiday_hours in get_week() must be 0 (no manual holiday, \
-         no auto-credit in this path); got {}",
-        report.holiday_hours
+        (report.expected_hours - 32.0).abs() < 0.01,
+        "HSP-01: expected_hours must be 32h (40 - 8 holiday), got {}",
+        report.expected_hours
     );
 
-    // vacation_hours and volunteer_hours are also 0 (no holiday ≠ vacation).
+    // HSP-02: holiday_hours filled with derived contribution.
     assert!(
-        report.vacation_hours.abs() < 0.01,
-        "HOL-03: vacation_hours must be 0 (holiday != vacation); got {}",
-        report.vacation_hours
+        (report.holiday_hours - 8.0).abs() < 0.01,
+        "HSP-02: holiday_hours must be 8h (derived auto-credit), got {}",
+        report.holiday_hours
+    );
+}
+
+// ─── HSP-04a: Stichtag gate — holiday before cutoff → no effect ──────────────
+
+/// HSP-04a: When the holiday date falls BEFORE the cutoff (holiday_date < cutoff),
+/// `build_derived_holiday_map` skips the auto-credit. The `get_week` result is
+/// identical to no-holiday baseline: expected_hours == 40h, holiday_hours == 0.0.
+///
+/// Toggle cutoff: "2024-12-31" (after holiday 2024-06-03 → gate fires: 2024-06-03 < 2024-12-31).
+/// SpecialDay: Holiday on KW23/2024 Monday (2024-06-03) — same as HOL-03.
+/// No manual ExtraHours.
+#[tokio::test]
+async fn test_hsp04_before_cutoff() {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![fixture_work_details_8h_mon_fri()])));
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    mocks
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(|_, _, _, _| Ok(Arc::from(Vec::<ExtraHours>::new())));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    // Same SpecialDay as HOL-03.
+    mocks.special_day_service = MockSpecialDayService::new();
+    mocks
+        .special_day_service
+        .expect_get_by_week()
+        .returning(|_, wk, _| {
+            if wk == 23 {
+                Ok(Arc::from(vec![make_holiday(2024, 23, DayOfWeek::Monday)]))
+            } else {
+                Ok(Arc::from(vec![]))
+            }
+        });
+
+    // Cutoff AFTER the holiday date (2024-12-31 > 2024-06-03) → gate fires → no credit.
+    mocks.toggle_service = MockToggleService::new();
+    mocks
+        .toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2024-12-31"))));
+
+    let service = mocks.build();
+    let reports = service
+        .get_week(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_week must succeed");
+
+    assert_eq!(reports.len(), 1, "HSP-04a: 1 report expected");
+    let report = &reports[0];
+
+    // Stichtag gate fired (holiday before cutoff) → no credit.
+    assert!(
+        (report.expected_hours - 40.0).abs() < 0.01,
+        "HSP-04a: expected_hours must be 40h (holiday before cutoff → no effect), got {}",
+        report.expected_hours
+    );
+    assert!(
+        report.holiday_hours.abs() < 0.01,
+        "HSP-04a: holiday_hours must be 0 (before cutoff → no auto-credit), got {}",
+        report.holiday_hours
+    );
+    assert!(
+        (report.dynamic_hours - 40.0).abs() < 0.01,
+        "HSP-04a: dynamic_hours must be 40h (band invariant), got {}",
+        report.dynamic_hours
+    );
+}
+
+// ─── HSP-04b: Manual wins — no double-count ───────────────────────────────────
+
+/// HSP-04b: When a manual ExtraHours(Holiday, 8.0) exists for the same day as a
+/// SpecialDay(Holiday), `build_derived_holiday_map` skips the auto-credit for that
+/// date (manual wins, D-25-03). `holiday_hours` is 8.0 (manual only), NOT 16.0.
+///
+/// Toggle cutoff: "2024-01-01" (before holiday → auto-credit would fire without manual).
+/// SpecialDay: Holiday on KW23/2024 Monday (2024-06-03).
+/// Manual ExtraHours(Holiday, 8.0) on 2024-06-03 — same day as SpecialDay.
+#[tokio::test]
+async fn test_hsp04_manual_wins() {
+    let mut mocks = ReportingMocks::new();
+
+    mocks
+        .employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![fixture_work_details_8h_mon_fri()])));
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+
+    // Manual ExtraHours(Holiday, 8.0) on 2024-06-03 — passed to build_derived_holiday_map
+    // via the per-employee extra_hours slice; manual-wins check skips auto-credit for
+    // the same date, preventing double-count.
+    let manual_holiday = make_holiday_extra_hours(8.0, date!(2024 - 06 - 03));
+    let extras: Arc<[ExtraHours]> = Arc::from(vec![manual_holiday]);
+    mocks.extra_hours_service = MockExtraHoursService::new();
+    mocks
+        .extra_hours_service
+        .expect_find_by_week()
+        .returning(move |_, _, _, _| Ok(extras.clone()));
+
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks
+        .transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    // Same SpecialDay as HOL-03.
+    mocks.special_day_service = MockSpecialDayService::new();
+    mocks
+        .special_day_service
+        .expect_get_by_week()
+        .returning(|_, wk, _| {
+            if wk == 23 {
+                Ok(Arc::from(vec![make_holiday(2024, 23, DayOfWeek::Monday)]))
+            } else {
+                Ok(Arc::from(vec![]))
+            }
+        });
+
+    // Active toggle: cutoff before holiday date → auto-credit WOULD fire without manual.
+    mocks.toggle_service = MockToggleService::new();
+    mocks
+        .toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2024-01-01"))));
+
+    let service = mocks.build();
+    let reports = service
+        .get_week(2024, 23, Authentication::Full, None)
+        .await
+        .expect("get_week must succeed");
+
+    assert_eq!(reports.len(), 1, "HSP-04b: 1 report expected");
+    let report = &reports[0];
+
+    // Manual wins: holiday_hours == 8.0 (manual entry), NOT 16.0 (double-count).
+    assert!(
+        (report.holiday_hours - 8.0).abs() < 0.01,
+        "HSP-04b: holiday_hours must be 8.0 (manual wins), not 16.0; got {}",
+        report.holiday_hours
     );
 }
