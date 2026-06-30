@@ -265,9 +265,14 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 
         // Segment 2: Ausnahme-Woche (Mon KW → Son KW) mit neuen Werten aus `slot`
         // Pitfall 1: valid_to = Some(seg2_valid_to) statt original_valid_to (geschlossen!)
+        // WR-01: Klemme seg2_valid_to auf original_valid_to, falls der Slot begrenzt ist —
+        // damit überschreitet Seg2 nie das ursprüngliche Slot-Ende.
         let mut seg2 = stored_slot;
         seg2.valid_from = new_slot_valid_from;
-        seg2.valid_to = Some(seg2_valid_to); // geschlossen bei Sonntag KW
+        seg2.valid_to = Some(match original_valid_to {
+            Some(vt) => seg2_valid_to.min(vt),
+            None => seg2_valid_to,
+        }); // geschlossen bei Sonntag KW (oder früherem Slot-Ende bei bounded)
         seg2.id = Uuid::nil();
         seg2.version = Uuid::nil();
         seg2.min_resources = slot.min_resources;
@@ -280,16 +285,27 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .await?;
 
         // Segment 3: Wiederherstellung ab Montag KW+1 mit Original-Werten (NEU)
-        let mut seg3 = original_snapshot;
-        seg3.valid_from = seg3_valid_from;
-        seg3.valid_to = original_valid_to; // None = unbegrenzt bleibt None
-        seg3.id = Uuid::nil();
-        seg3.version = Uuid::nil();
-        // min_resources, max_paid_employees, from, to = Original (aus snapshot, nicht überschrieben)
-        let seg3_slot = self
-            .slot_service
-            .create_slot(&seg3, Authentication::Full, tx.clone().into())
-            .await?;
+        // WR-01: Nur anlegen wenn noch eine nicht-leere Restspanne existiert.
+        // Bei bounded Slots, deren valid_to in der Ausnahme-KW liegt, wäre
+        // seg3_valid_from > original_valid_to → create_slot würde DateOrderWrong
+        // melden und die gesamte Methode würde fehlschlagen.
+        let seg3_slot_id: Option<Uuid> =
+            if original_valid_to.is_none_or(|vt| seg3_valid_from <= vt) {
+                let mut seg3 = original_snapshot;
+                seg3.valid_from = seg3_valid_from;
+                seg3.valid_to = original_valid_to; // None = unbegrenzt bleibt None
+                seg3.id = Uuid::nil();
+                seg3.version = Uuid::nil();
+                // min_resources, max_paid_employees, from, to = Original (aus snapshot)
+                let seg3_slot = self
+                    .slot_service
+                    .create_slot(&seg3, Authentication::Full, tx.clone().into())
+                    .await?;
+                Some(seg3_slot.id)
+            } else {
+                // Ausnahme-KW ist die letzte Woche des Slots → keine Restspanne
+                None
+            };
 
         // Booking-Re-Point: partitioniert nach Ausnahme-KW (D-35-03, Pitfall 3/4)
         for booking in bookings.iter() {
@@ -302,7 +318,11 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                 if booking.year == change_year && booking.calendar_week == change_week as i32 {
                     seg2_slot.id // Buchung ist IN der Ausnahme-KW → Segment 2
                 } else {
-                    seg3_slot.id // Buchung ist NACH der Ausnahme-KW → Segment 3
+                    // Buchung ist NACH der Ausnahme-KW → Segment 3.
+                    // Invariante: post-exception Buchungen implizieren, dass der Slot
+                    // über die Ausnahme-KW hinausgeht → seg3_slot_id ist Some(_).
+                    seg3_slot_id
+                        .expect("post-exception Buchung impliziert, dass Segment 3 existiert")
                 };
 
             let mut new_booking = booking.clone();
