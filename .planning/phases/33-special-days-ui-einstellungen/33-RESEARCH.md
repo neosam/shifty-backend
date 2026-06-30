@@ -741,7 +741,7 @@ ShiftplanDayShortDayConfirm,
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **DayOfWeekTO-Konvertierung in Date-Kontext-String**
    - Was wir wissen: `DayOfWeekTO` ist in rest-types definiert; `DayOfWeek` in shifty-utils hat `From<time::Weekday>`

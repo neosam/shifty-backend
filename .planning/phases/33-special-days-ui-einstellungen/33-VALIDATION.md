@@ -1,8 +1,8 @@
 ---
 phase: 33
 slug: special-days-ui-einstellungen
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-30
 ---
@@ -74,4 +74,4 @@ created: 2026-06-30
 - [ ] Feedback latency < 90s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** ready (plan-time validation passed; wave_0_complete flips true once execute writes the Wave-0 test stubs)

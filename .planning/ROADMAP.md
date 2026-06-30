@@ -120,42 +120,61 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 ## Phase Details (v1.10 — aktiv)
 
 ### Phase 33: Special-Days-UI in den Einstellungen
+
 **Goal**: Ein Shiftplanner kann Special Days (Feiertage / Kurztage) auf **zwei Flächen** voll-CRUD pflegen — interaktiv im Schichtplan-Wochenraster (Per-Tag-Dropdown) **und** über eine Sektion in den Einstellungen (Kalenderdatum-Picker + Jahres-Liste) — verdrahtet gegen die bestehende REST-CRUD (`POST/DELETE /special-days`, `for-week`-Read) plus einen **neuen Range/Jahr-Read-Endpoint**.
 **Depends on**: Nothing (Backend-CRUD existiert seit v1.7; fachlich unabhängig von Phase 34 — kann sequenziell zuerst laufen, weil es die Einträge erzeugt, die Phase 34 sichtbar macht)
 **Requirements**: SPD-01, SPD-02, SPD-03, SPD-04
 **Success Criteria** (what must be TRUE):
+
   1. Als Shiftplanner kann ich einen Special Day anlegen — auf der Settings-Seite per Kalenderdatum **und** im Schichtplan-Wochenraster per Per-Tag-Dropdown (Typ `Holiday` oder `ShortDay`; bei `ShortDay` mit Pflicht-Uhrzeit; Duplikat am selben Tag wird geblockt); nach dem Speichern erscheint er in Liste/Raster. (SPD-01)
   2. Die Settings-Liste zeigt jedes Datum im locale-üblichen Format plus abgeleitetem Kontext in Klammern, z. B. `15.08.2026 (Samstag, KW 33, 2026)` — chronologisch nach Jahr gruppiert (Jahr-Picker), gespeist aus dem neuen Range/Jahr-Read-Endpoint. (SPD-02)
   3. Als Shiftplanner kann ich einen vorhandenen Special Day löschen (Settings-Liste oder Wochenraster-Dropdown „Nichts"); die Ansicht aktualisiert sich sofort. (SPD-03)
   4. Die Special-Days-Pflege ist **shiftplanner-gated** (deckungsgleich zur bestehenden Special-Day-CRUD und Slot-Struktur-CRUD; FE-Gate `has_privilege("shiftplanner")`, kein 403-Mismatch). (SPD-04)
   5. Alle neuen benutzersichtbaren Texte sind in de/en/cs vorhanden. (SPD-04)
-**Plans**: TBD
+
+**Plans**: 4 plans (2 waves)
+**Wave 1**
+
+- [ ] 33-01-PLAN.md — Backend Range/Jahr-Read-Endpoint (`GET /special-days/for-year/{year}`) + Service-Test-Modul (TDD; D-33-05/01) [Wave 1]
+- [ ] 33-02-PLAN.md — FE-Foundation: api.rs (create/delete/for-year) + 18 i18n-Keys de/en/cs (SPD-04) [Wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 33-03-PLAN.md — Settings Card-3 (shiftplanner-gated): Datepicker-Create + Jahres-Liste + Delete (D-33-02/04/06/07/08) [Wave 2]
+- [ ] 33-04-PLAN.md — Schichtplan Per-Tag-Dropdown (Feiertag/Kurzer Tag/Nichts) + ShortDay-Inline-Prompt (D-33-01/03/06/07) [Wave 2]
+
 **UI hint**: yes
 
 **Phase-Note (Gate-Korrektur & Endpoint):** SPD-04 sprach ursprünglich von „admin-gated (Muster Phase 24/25)". In der discuss-phase code-verifiziert korrigiert auf **`shiftplanner`** (Special Days = Schichtplan-Struktur; Slot-CRUD + Special-Day-CRUD gaten bereits auf `shiftplanner`). Der zuvor als „deferred" geführte **Multi-Wochen-Read-Endpoint** wird per D-33-05 bewusst **in diese Phase** gehoben (Settings-Übersicht). Details: `phases/33-special-days-ui-einstellungen/33-CONTEXT.md`.
 
 ### Phase 34: Feiertags-Soll im Schichtplan
+
 **Goal**: Ein automatisch angerechneter Feiertag reduziert das angezeigte Soll in der Wochentabelle unter dem Schichtplan — konsistent zum Stundenkonto —, während die Kapazitätsbänder (`paid_hours`/`dynamic_hours`/`committed_voluntary`/`volunteer`) unverändert bleiben (D-25-08-Grenze).
 **Depends on**: Nothing (fachlich unabhängig von Phase 33; wiederverwendet den bestehenden `build_derived_holiday_map`-Pfad aus Phase 25)
 **Requirements**: HSP-01, HSP-02, HSP-03, HSP-04
 **Success Criteria** (what must be TRUE):
+
   1. In der Wochentabelle unter dem Schichtplan reduziert ein automatisch angerechneter Feiertag das angezeigte Soll (`available_hours`/`expected_hours`) eines Mitarbeiters; der Wert stimmt mit dem Stundenkonto überein. (HSP-01)
   2. Die abgeleiteten Feiertags-Stunden (`holiday_hours`) erscheinen pro Mitarbeiter in der Schichtplan-Tabelle. (HSP-02)
   3. Die Kapazitätsbänder (`paid_hours`/`dynamic_hours`/`committed_voluntary`/`volunteer`) sind in derselben Woche vor und nach der Änderung identisch (Regressions-Guard). (HSP-03)
   4. Ein Feiertag vor dem konfigurierten Stichtag bleibt wirkungslos, und ein manueller `ExtraHours(Holiday)` wird nicht doppelt gezählt — identisch zum Stundenkonto (Wiederverwendung von `build_derived_holiday_map`). (HSP-04)
+
 **Plans**: TBD
 
 **Phase-Note (Snapshot & HOL-03):** Snapshot-Schema-Version voraussichtlich **kein Bump** — `billing_period`-Snapshots speisen sich aus dem `reporting.rs`-`holiday_hours`-Pfad, nicht aus `get_week`/`booking_information`. In der Phase verifizieren (Default: kein Bump). Der HOL-03-Regressionstest `test_holiday_auto_credit_no_year_view_impact` wird bewusst neu formuliert: Kapazitätsbänder bleiben unverändert, aber `expected_hours`/`available_hours` werden um den derived-Holiday reduziert. *(Offene Decision für discuss-phase, D-NN.)*
 
 ### Phase 35: Slot-Werte nur für eine Woche ändern
+
 **Goal**: Ein Shiftplanner kann die Werte eines Slots (Kapazität/Zeiten) für **genau eine Kalenderwoche** als einmalige Ausnahme ändern, ohne die wiederkehrende Struktur ab dieser KW dauerhaft zu verändern — **atomar** (alles in einer Transaktion, Rollback bei Fehler) und **ohne Doppelzählung** in Reports/Balance.
 **Depends on**: Nothing (baut auf der bestehenden `ShiftplanEditService::modify_slot`-Mechanik auf; fachlich unabhängig von Phase 33/34)
 **Requirements**: SWO-01, SWO-02, SWO-03, SWO-04
 **Success Criteria** (what must be TRUE):
+
   1. Im Slot-Editor kann ein Shiftplanner explizit zwischen **„nur diese Woche"** und **„ab dieser Woche"** wählen; „nur diese Woche" wirkt ausschließlich in der gewählten KW. (SWO-01)
   2. Mechanik = **Split+Re-Merge**: 3 Slot-Versionen (alt bis KW-1 / nur diese KW mit neuen Werten / Original-Werte ab KW+1); Buchungen der KW → Segment 2, Buchungen ab KW+1 → Segment 3. (SWO-02)
   3. Der gesamte Vorgang (alle Segment-Schnitte + alle Booking-Re-Points) läuft in **einer Transaktion**; bei jedem Fehler ist der Zustand exakt wie vorher. (SWO-03)
   4. Die Booking-Neuzuweisungen sind durch harte Tests abgesichert — **nichts** doppelt oder verwaist in Reports/Balance. Gate = `shiftplan.edit` (konsistent zu `modify_slot`). (SWO-04)
+
 **Plans**: TBD
 **UI hint**: yes
 
