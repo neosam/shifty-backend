@@ -115,18 +115,18 @@ auf, keine neue Tech/Library. Grundlage sind die beiden Analyse-Todos vom 2026-0
 
 | Requirement | Phase | Status |
 |---|---|---|
-| SPD-01 | Phase 33 | 📋 planned |
-| SPD-02 | Phase 33 | 📋 planned |
-| SPD-03 | Phase 33 | 📋 planned |
-| SPD-04 | Phase 33 | 📋 planned |
+| SPD-01 | Phase 33 | ✅ complete |
+| SPD-02 | Phase 33 | ✅ complete |
+| SPD-03 | Phase 33 | ✅ complete |
+| SPD-04 | Phase 33 | ✅ complete |
 | HSP-01 | Phase 34-01 | ✅ complete |
 | HSP-02 | Phase 34-01 | ✅ complete |
 | HSP-03 | Phase 34-01 | ✅ complete |
 | HSP-04 | Phase 34-01 | ✅ complete |
-| SWO-01 | Phase 35 | 📋 planned |
-| SWO-02 | Phase 35 | 📋 planned |
-| SWO-03 | Phase 35 | 📋 planned |
-| SWO-04 | Phase 35 | 📋 planned |
+| SWO-01 | Phase 35 | ✅ complete |
+| SWO-02 | Phase 35 | ✅ complete |
+| SWO-03 | Phase 35 | ✅ complete |
+| SWO-04 | Phase 35 | ✅ complete |
 
 **Coverage:** 12/12 v1.10 Requirements gemappt (keine Orphans, keine Doppelzuordnung).
 Phase 33 = Special-Days-UI (Frontend-zentriert, Backend-CRUD existiert + neuer Range/Jahr-Read).
