@@ -71,10 +71,16 @@ impl<
     }
     async fn get_by_year(
         &self,
-        _year: u32,
+        year: u32,
         _context: Authentication<Self::Context>,
     ) -> Result<Arc<[SpecialDay]>, ServiceError> {
-        todo!()
+        Ok(self
+            .special_day_dao
+            .find_by_year(year)
+            .await?
+            .iter()
+            .map(SpecialDay::from)
+            .collect())
     }
     async fn create(
         &self,
