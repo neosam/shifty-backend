@@ -1075,7 +1075,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::NavToEmployeeReport, "Časové konto – {name}");
 
     // Phase 32 — Personifikace UI (D-32-08).
-    i18n.add_text(Locale::Cs, Key::ImpersonateActAs, "Jednat jako tato osoba");
+    i18n.add_text(Locale::Cs, Key::ImpersonateActAs, "🥸 Jednat");
     i18n.add_text(Locale::Cs, Key::ImpersonateBanner, "Jednáš jako {user}.");
     i18n.add_text(Locale::Cs, Key::ImpersonateStop, "Ukončit personifikaci");
     i18n.add_text(

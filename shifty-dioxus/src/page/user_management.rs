@@ -457,7 +457,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                                     }
                                 }
                                 td { class: "py-2 px-3 w-[1%]",
-                                    div { class: "flex gap-2",
+                                    div { class: "flex gap-2 whitespace-nowrap",
                                         // D-32-07 / IMP-01: "Act as this person" — starts
                                         // impersonation with the row's username (the auth
                                         // identity the POST /admin/impersonate/{username}
@@ -748,10 +748,11 @@ mod tests {
             username: ImStr::from("alice"),
         }]);
         let html = render_users_with(store, "");
-        // The English i18n text for Key::ImpersonateActAs (default locale).
+        // The English i18n text for Key::ImpersonateActAs (default locale) — compact
+        // emoji + short label ("🥸 Act as") so the action column stays narrow.
         assert!(
-            html.contains("Act as this person"),
-            "users tab must render 'Act as this person' for the row, got: {html}"
+            html.contains("Act as"),
+            "users tab must render the 'Act as' impersonation action for the row, got: {html}"
         );
         // The username appears in the row (username column).
         assert!(html.contains("alice"), "username must be present in row, got: {html}");

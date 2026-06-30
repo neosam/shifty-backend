@@ -1089,7 +1089,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::NavToEmployeeReport, "Zeitkonto von {name}");
 
     // Phase 32 — Impersonierung UI (D-32-08).
-    i18n.add_text(Locale::De, Key::ImpersonateActAs, "Als diese Person agieren");
+    i18n.add_text(Locale::De, Key::ImpersonateActAs, "🥸 Agieren");
     i18n.add_text(Locale::De, Key::ImpersonateBanner, "Du agierst als {user}.");
     i18n.add_text(Locale::De, Key::ImpersonateStop, "Impersonation beenden");
     i18n.add_text(
