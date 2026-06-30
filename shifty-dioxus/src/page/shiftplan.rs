@@ -2,6 +2,8 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
+use rest_types::{DayOfWeekTO, SpecialDayTO, SpecialDayTypeTO};
+use time::macros::format_description;
 use tracing::info;
 use uuid::Uuid;
 
@@ -233,6 +235,24 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut booking_log_status_filter = use_signal(|| "all".to_string());
     let mut booking_log_created_by_filter = use_signal(|| "all".to_string());
 
+    // Plan 33-04: per-weekday special-day dropdown (shiftplanner only)
+    let mut special_days_for_week = {
+        let config = config.clone();
+        use_resource(move || {
+            let config = config.clone();
+            let year_val = *year.read();
+            let week_val = *week.read();
+            async move {
+                crate::api::get_special_days_for_week(config, year_val, week_val).await
+            }
+        })
+    };
+    let mut shortday_prompt_day: Signal<Option<Weekday>> = use_signal(|| None);
+    let mut shortday_time: Signal<String> = use_signal(String::new);
+    let mut special_day_error: Signal<Option<(Weekday, ImStr)>> = use_signal(|| None);
+    // Clone config for weekday_sub_headers building code (coroutine later moves config)
+    let config_week = config.clone();
+
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
     } else if js::current_datetime().date() - date > time::Duration::weeks(2) && !is_hr {
@@ -265,6 +285,11 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
         // Clear booking log data to prevent showing stale data
         *BOOKING_LOG_STORE.write() = [].into();
+
+        // Plan 33-04: clear special-day prompt and error on week/year navigation
+        shortday_prompt_day.set(None);
+        shortday_time.set(String::new());
+        special_day_error.set(None);
     });
 
     let cr = use_coroutine({
@@ -745,6 +770,265 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let toggle_inactive_class =
         "px-3 py-1 text-body font-medium rounded-[4px] text-ink-muted hover:text-ink";
     let nav_btn_class = "w-7 h-7 inline-flex items-center justify-center border border-border-strong rounded-md font-mono text-ink-soft bg-surface hover:bg-surface-alt print:hidden";
+
+    // Plan 33-04: Build per-weekday special-day sub-header elements for the WeekView
+    // grid. Only built when is_shiftplanner (D-33-01 / T-33-08 elevation-of-privilege guard).
+    let loaded_special_days: Rc<[SpecialDayTO]> = match &*special_days_for_week.read_unchecked() {
+        Some(Ok(days)) => days.clone(),
+        _ => [].into(),
+    };
+    let cur_year = *year.read();
+    let cur_week = *week.read();
+    let weekday_sub_headers: Vec<(Weekday, Element)> = if is_shiftplanner {
+        [
+            Weekday::Monday,
+            Weekday::Tuesday,
+            Weekday::Wednesday,
+            Weekday::Thursday,
+            Weekday::Friday,
+            Weekday::Saturday,
+            Weekday::Sunday,
+        ]
+        .iter()
+        .map(|&day| {
+            let existing_sd = loaded_special_days
+                .iter()
+                .find(|sd| Weekday::from(sd.day_of_week) == day)
+                .cloned();
+            let has_entry = existing_sd.is_some();
+            let existing_id = existing_sd.as_ref().map(|sd| sd.id);
+            let is_holiday = existing_sd
+                .as_ref()
+                .map(|sd| sd.day_type == SpecialDayTypeTO::Holiday)
+                .unwrap_or(false);
+            let is_shortday = existing_sd
+                .as_ref()
+                .map(|sd| sd.day_type == SpecialDayTypeTO::ShortDay)
+                .unwrap_or(false);
+
+            let holiday_str: ImStr = i18n.t(Key::ShiftplanDayTypeHoliday).into();
+            let shortday_str: ImStr = i18n.t(Key::ShiftplanDayTypeShortDay).into();
+            let none_str: ImStr = i18n.t(Key::ShiftplanDayTypeNone).into();
+            let confirm_str: ImStr = i18n.t(Key::ShiftplanDayShortDayConfirm).into();
+            let cancel_str: ImStr = i18n.t(Key::CancelLabel).into();
+            let error_str: ImStr = i18n.t(Key::SettingsSaveError).into();
+
+            let trigger_label: ImStr = if is_holiday {
+                holiday_str.clone()
+            } else if is_shortday {
+                shortday_str.clone()
+            } else {
+                none_str.clone()
+            };
+
+            // --- Holiday entry ---
+            let holiday_entry: DropdownEntry = {
+                let cfg = config_week.clone();
+                let err = error_str.clone();
+                let h_str = holiday_str.clone();
+                (
+                    h_str,
+                    move |_: Option<Rc<str>>| {
+                        let cfg2 = cfg.clone();
+                        let err2 = err.clone();
+                        let body = SpecialDayTO {
+                            id: Uuid::nil(),
+                            year: cur_year,
+                            calendar_week: cur_week,
+                            day_of_week: DayOfWeekTO::from(&day),
+                            day_type: SpecialDayTypeTO::Holiday,
+                            time_of_day: None,
+                            created: None,
+                            deleted: None,
+                            version: Uuid::nil(),
+                        };
+                        spawn(async move {
+                            match crate::api::create_special_day(cfg2, body).await {
+                                Ok(_) => {
+                                    special_days_for_week.restart();
+                                    shift_plan_context.restart();
+                                    special_day_error.set(None);
+                                }
+                                Err(_) => {
+                                    special_day_error.set(Some((day, err2.clone())));
+                                }
+                            }
+                        });
+                    },
+                    false,
+                )
+                    .into()
+            };
+
+            // --- ShortDay entry: opens inline time prompt ---
+            // spawn() avoids FnMut (Signal::set is &mut self, which would make the closure FnMut
+            // and incompatible with DropdownEntry's Fn bound).
+            let shortday_entry: DropdownEntry = {
+                let sd_str = shortday_str.clone();
+                (
+                    sd_str,
+                    move |_: Option<Rc<str>>| {
+                        spawn(async move {
+                            shortday_prompt_day.set(Some(day));
+                            shortday_time.set(String::new());
+                        });
+                    },
+                    false,
+                )
+                    .into()
+            };
+
+            // --- Nichts (delete) entry: disabled when no entry exists (Pitfall 3) ---
+            let none_entry: DropdownEntry = {
+                let cfg = config_week.clone();
+                let err = error_str.clone();
+                let n_str = none_str.clone();
+                (
+                    n_str,
+                    move |_: Option<Rc<str>>| {
+                        if let Some(id) = existing_id {
+                            let cfg2 = cfg.clone();
+                            let err2 = err.clone();
+                            spawn(async move {
+                                match crate::api::delete_special_day(cfg2, id).await {
+                                    Ok(_) => {
+                                        special_days_for_week.restart();
+                                        shift_plan_context.restart();
+                                        special_day_error.set(None);
+                                    }
+                                    Err(_) => {
+                                        special_day_error.set(Some((day, err2.clone())));
+                                    }
+                                }
+                            });
+                        }
+                    },
+                    !has_entry, // disabled=true → hidden by DropdownBase (Pitfall 3)
+                )
+                    .into()
+            };
+
+            let entries: Rc<[DropdownEntry]> =
+                vec![holiday_entry, shortday_entry, none_entry].into();
+
+            // --- Build the element for this weekday column ---
+            let el: Element = if *shortday_prompt_day.read() == Some(day) {
+                // ShortDay inline time prompt (Task 2)
+                let cfg_sd = config_week.clone();
+                let err_sd = error_str.clone();
+                let confirm_label = confirm_str.clone();
+                let cancel_label = cancel_str.clone();
+                {
+                    let sd_day_err = special_day_error
+                        .read()
+                        .as_ref()
+                        .filter(|(d, _)| *d == day)
+                        .map(|(_, msg)| msg.clone());
+                    rsx! {
+                        div { class: "flex flex-col gap-1 p-1",
+                            input {
+                                r#type: "time",
+                                class: "form-input max-w-[140px] text-small",
+                                value: "{shortday_time}",
+                                oninput: move |e| shortday_time.set(e.value()),
+                            }
+                            div { class: "flex gap-1",
+                                button {
+                                    r#type: "button",
+                                    class: "px-2 py-0.5 text-small rounded border border-accent bg-accent-soft text-accent hover:bg-accent hover:text-ink",
+                                    disabled: shortday_time.read().is_empty(),
+                                    onclick: move |_| {
+                                        let time_str = shortday_time.read().clone();
+                                        let cfg2 = cfg_sd.clone();
+                                        let err2 = err_sd.clone();
+                                        let fmt_hm = format_description!("[hour]:[minute]");
+                                        let Ok(parsed_time) = time::Time::parse(&time_str, fmt_hm) else {
+                                            return;
+                                        };
+                                        let body = SpecialDayTO {
+                                            id: Uuid::nil(),
+                                            year: cur_year,
+                                            calendar_week: cur_week,
+                                            day_of_week: DayOfWeekTO::from(&day),
+                                            day_type: SpecialDayTypeTO::ShortDay,
+                                            time_of_day: Some(parsed_time),
+                                            created: None,
+                                            deleted: None,
+                                            version: Uuid::nil(),
+                                        };
+                                        spawn(async move {
+                                            match crate::api::create_special_day(cfg2, body).await {
+                                                Ok(_) => {
+                                                    shortday_prompt_day.set(None);
+                                                    shortday_time.set(String::new());
+                                                    special_days_for_week.restart();
+                                                    shift_plan_context.restart();
+                                                    special_day_error.set(None);
+                                                }
+                                                Err(_) => {
+                                                    special_day_error.set(Some((day, err2.clone())));
+                                                }
+                                            }
+                                        });
+                                    },
+                                    "{confirm_label}"
+                                }
+                                button {
+                                    r#type: "button",
+                                    class: "px-2 py-0.5 text-small rounded border border-border text-ink-muted hover:bg-surface-alt",
+                                    onclick: move |_| {
+                                        shortday_prompt_day.set(None);
+                                        shortday_time.set(String::new());
+                                    },
+                                    "{cancel_label}"
+                                }
+                            }
+                            if let Some(err_msg) = sd_day_err {
+                                span { class: "text-small text-bad", "{err_msg}" }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Normal state: dropdown trigger with colored dot indicator
+                let dot_class: Option<&'static str> = if is_holiday {
+                    Some("inline-block w-2 h-2 rounded-full bg-accent mr-1.5 flex-shrink-0")
+                } else if is_shortday {
+                    Some("inline-block w-2 h-2 rounded-full bg-warn mr-1.5 flex-shrink-0")
+                } else {
+                    None
+                };
+                let day_err = special_day_error
+                    .read()
+                    .as_ref()
+                    .filter(|(d, _)| *d == day)
+                    .map(|(_, msg)| msg.clone());
+                let trig_label = trigger_label.clone();
+                rsx! {
+                    div { class: "flex flex-col gap-0.5 px-1 py-0.5",
+                        DropdownTrigger {
+                            entries,
+                            div {
+                                class: "flex items-center text-small text-ink-soft hover:text-ink cursor-pointer select-none",
+                                if let Some(dot) = dot_class {
+                                    span { class: dot }
+                                }
+                                span { "{trig_label}" }
+                            }
+                        }
+                        if let Some(err_msg) = day_err {
+                            span { class: "text-small text-bad", "{err_msg}" }
+                        }
+                    }
+                }
+            };
+
+            (day, el)
+        })
+        .collect()
+    } else {
+        vec![]
+    };
 
     rsx! {
         TopBar {}
@@ -1274,6 +1558,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         }
                                     },
                                     is_shiftplanner,
+                                    weekday_sub_headers,
                                 }
 
                             div { class: "mt-4 print:hidden flex flex-col gap-2",

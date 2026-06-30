@@ -818,6 +818,13 @@ pub struct WeekViewProps {
     #[props(default = Vec::new())]
     pub weekday_headers: Vec<(Weekday, Rc<str>)>,
 
+    /// Per-weekday sub-header elements rendered as a second header row below
+    /// the day-name row and above the slot body. Used by shiftplanners to show
+    /// per-day special-day dropdowns (Plan 33-04). WeekView renders only the
+    /// elements whose Weekday matches the visible_days of the current plan.
+    #[props(default = vec![])]
+    pub weekday_sub_headers: Vec<(Weekday, Element)>,
+
     #[props(default = false)]
     pub is_shiftplanner: bool,
 }
@@ -1291,6 +1298,32 @@ pub fn WeekView(props: WeekViewProps) -> Element {
                             weekday: *weekday,
                             date: props.date_of_monday.map(|date| date + time::Duration::days(*weekday as i64)),
                             title_double_clicked: props.title_double_clicked,
+                        }
+                    }
+
+                    // Sub-header row: optional per-weekday controls (e.g., special-day
+                    // dropdowns for shiftplanners). Only rendered when the caller
+                    // provides weekday_sub_headers entries (Plan 33-04).
+                    if !props.weekday_sub_headers.is_empty() {
+                        div {
+                            class: "bg-surface-alt border-b border-r border-border",
+                            style: "position: sticky; left: 0; z-index: 2;",
+                        }
+                        for weekday in visible_days.iter() {
+                            {
+                                let day = *weekday;
+                                let content: Element = props.weekday_sub_headers
+                                    .iter()
+                                    .find(|(d, _)| *d == day)
+                                    .map(|(_, el)| el.clone())
+                                    .unwrap_or_else(|| rsx! {});
+                                rsx! {
+                                    div {
+                                        class: "bg-surface-alt border-b border-r border-border",
+                                        {content}
+                                    }
+                                }
+                            }
                         }
                     }
 
