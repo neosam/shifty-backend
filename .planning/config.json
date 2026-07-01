@@ -18,5 +18,8 @@
   },
   "hooks": {
     "context_warnings": true
+  },
+  "model_overrides": {
+    "gsd-executor": "opus"
   }
 }
