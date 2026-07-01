@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
-current_phase: 38
-status: verifying
-last_updated: "2026-07-01T17:37:43.435Z"
+current_phase: 11
+status: Awaiting next milestone
+last_updated: "2026-07-01T17:47:50.031Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 38 complete
+last_activity_desc: Milestone v1.11 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
@@ -20,22 +20,22 @@ current_phase_name: frontend-build-hygiene
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v1.11 **aktiv** — Requirements/Roadmap in Arbeit; v1.0–v1.10 archiviert/collapsed; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` (v1.11 — wird in diesem Milestone-Start erzeugt)
+- **Roadmap**: `.planning/ROADMAP.md` (v1.0–v1.11 archiviert/collapsed; **kein aktiver Milestone** — zwischen Milestones; Backlog 999.1 erhalten)
+- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` (v1.11 archiviert; neue wird bei `/gsd-new-milestone` erzeugt)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.10-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.11-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (shipped + archiviert 2026-06-30, Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`, override_closeout)
-- **Current milestone**: **v1.11 Stabilisierung & UX-Politur** (gestartet 2026-07-01; interne Planungs-Labels, reale Release-Version datumsbasiert via `cli-update-version`). 5 Bugfix-/Hygiene-Items, aufgeteilt aus einem 8-Item-Wunsch → 3 Meilensteine (v1.11 Stabilisierung, v1.12 Schichtplan/Reporting, v1.13 PDF-Export).
-- **Current focus**: Milestone-Goals gesetzt + PROJECT.md aktualisiert. Nächster Schritt: Requirements (REQ-IDs) definieren + Roadmapper für Phasen-Struktur. Themen: Special-Days-Bugfixes (Feiertag→Kurzer-Tag update-vs-insert; Anlegen-Button controlled-select-Desync), Modal-UX (dialog.rs Drag-Fix; Vertrags-Modal Help-Texte), Frontend-Warnungen aufräumen.
+- **Last shipped/closed**: **v1.11 Stabilisierung & UX-Politur** (shipped + archiviert 2026-07-01, Phasen 36–38, 6 Pläne, 6/6 Requirements, Audit `passed`, override_closeout)
+- **Current milestone**: keiner — **zwischen Milestones**. Nächster Schritt: `/gsd-new-milestone` (v1.12 Schichtplan/Reporting oder v1.13 PDF-Export laut PROJECT.md-Roadmap).
+- **Current focus**: v1.11 abgeschlossen (Special-Days-Bugfixes, Modal-UX, Frontend-Build-Hygiene). Reale Release-Version datumsbasiert via `/release-version` erwägen; danach nächsten Milestone starten.
 - **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9/v1.10 **kein** Bump; v1.11 erwartet **keinen** Bump (reine Bugfixes + Build-Hygiene).
 
 ## Current Position
 
-Phase: 38
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-01 — Phase 38 complete
+Phase: Milestone v1.11 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-01 — Milestone v1.11 completed and archived
 
 ## Deferred Items
 
@@ -68,6 +68,14 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | tech_debt | Phase 37: WR-01 Panel-`stop_propagation` blockt document-level Outside-Click (v1.11) | deferred | Code-Review WARNING: das für den MOD-01-Fix nötige Panel-`onmousedown`-`stop_propagation` verhindert, dass künftige generische Dialog-Kinder document-level Outside-Click-Detection nutzen. Inhärent zum gelockten D-01-Ansatz, aktuell kein Opfer. |
 
 ## Shipped Milestones
+
+### v1.11 — Stabilisierung & UX-Politur (shipped 2026-07-01)
+
+- **Geliefert:** Phasen 36–38 (6 Pläne). SDF-01/02 Special-Days-Bugfixes (atomarer in-place Special-Day-Replace Feiertag↔Kurzer-Tag statt HTTP-422-Duplicate; controlled `SelectInput`-`value`-Prop + Settings-Card-3-Bindung → „Anlegen"-Button re-enabled). MOD-01/02 Modal-UX (zentrale drag-sichere `BackdropPress`-Backdrop-Logik in `dialog.rs` + `absence_convert_modal.rs`; pro-Feld-Help-Texte im Arbeitsvertrag-Modal, 6 neue `*Help`-Keys de/en/cs). HYG-01/02 Frontend-Build-Hygiene (`shifty-dioxus` `cargo build` warnungsfrei — 14 auto-fix, 2 deprecated→`parse_borrowed`, ~34 Dead-Code gelöscht / 11 begründete `#[allow]`; Backend-Clippy-Gate grün).
+- **Kein Snapshot-Bump** (bleibt 12), **keine** Migration, **keine** neuen Deps.
+- **Verifikation:** alle 3 Phasen VERIFIED passed (36: 14/15, 1 optionaler Browser-Smoke deferred; 37: 14/14; 38: 9/9, 4 Gates live grün); Milestone-Audit `passed` (6/6 Requirements, Integration clean, 4/4 Flows). Pro Phase Code-Review (0 Blocker). Gates: Backend `cargo test --workspace` (528+64) + clippy grün; FE `cargo build` 0 Warnings + `cargo test -p shifty-dioxus` (727) + WASM grün.
+- **Closeout:** override_closeout (Audit `passed`; 13 historische Carry-over-Items acknowledged). Deferred: SDF-02/MOD-01 Browser-Smokes (D-25-06, strukturell verifiziert), WR-01/36 (Migration out-of-scope), WR-02/36 + WR-02/37 (i18n-Copy out-of-scope), pre-existing Impersonation-Test + dioxus-Clippy.
+- **Archiv:** `milestones/v1.11-ROADMAP.md`, `milestones/v1.11-REQUIREMENTS.md`, `milestones/v1.11-MILESTONE-AUDIT.md`.
 
 ### v1.10 — Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (shipped 2026-06-30)
 
@@ -152,8 +160,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 ## Operator Next Steps
 
-- `/gsd-discuss-phase 33` oder `/gsd-discuss-phase 34`, dann `/gsd-plan-phase`.
-- Optional vorab: v1.9-Code mit jj committen (Carry-over aus dem vorigen Milestone).
+- Start the next milestone with /gsd-new-milestone
 
 ## Decisions
 

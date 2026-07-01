@@ -322,10 +322,12 @@ Buchungs-Re-Point ohne Doppelzählung) mit UI-Wahl „nur diese Woche"/„ab die
    Tag/Nichts + ShortDay-Inline-Prompt), neuer Backend-`GET /special-days/for-year/{year}`-Read,
    18 i18n-Keys de/en/cs, shiftplanner-gated. **create-Pfad-Bug gefunden+gefixt** (FE POSTete
    `/special-days/` → Axum-0.8-404 → fix `/special-days`).
+
 2. **Phase 34 (HSP-01..04)** — `get_week` 4. Injektionspunkt `holiday_derived_gated` reduziert
    nur `expected_hours`/`holiday_hours`, Bänder per Regressions-Guard geschützt; HOL-03-Test
    neu formuliert; HSP-04-Subtests (Stichtag-Gate + manueller-Holiday-gewinnt); Snapshot bleibt
    12 (grep-verifiziert). Re-verified nach CR-01-Gap-Closure (Cap-aktiver Band-Leak gefixt).
+
 3. **Phase 35 (SWO-01..04)** — Backend `modify_slot_single_week` (3-Segment-Split + Booking-
    Partition + Atomarität + Gate `shiftplan.edit`) + REST-Route; FE single_week-State + api/loader-
    Pfad + Modus-Radiogruppe + 4 i18n-Keys de/en/cs. SWO-01 live-browser-bestätigt (3-Segment
@@ -342,12 +344,42 @@ wäre rot gewesen).
 - **5 rein-visuelle Phase-33-Smokes** (WASM-Datepicker-Signal D-25-06, Add-Button-Disabled-
   Rendering, Jahres-Liste-Badges, Dropdown-onclick-Roundtrip, ShortDay-Inline-Prompt) — Backend-
   CRUD voll verifiziert, Dioxus-Interaktion nicht zuverlässig automatisierbar.
+
 - **WR-02** (Code-Review WARNING, pre-existing) — `save_slot_edit` hält Write-Borrow über
   `.await`; nicht von Phase 35 eingeführt, als deferred FE-Borrow-Todo erfasst.
+
 - **Carry-over Deferred Items aus v1.4–v1.9** — weiterhin deferred, siehe STATE.md. Keines
   v1.10-spezifisch.
 
 **Hinweis:** v1.10 ist das interne Planungs-Label. Reale Release-Version datumsbasiert via
 `cli-update-version` (kein v1.x git tag).
+
+---
+
+## v1.11 — Stabilisierung & UX-Politur
+
+**Shipped:** 2026-07-01
+**Phases:** 36–38 (3 phases, 6 plans)
+**Archive:** [`milestones/v1.11-ROADMAP.md`](milestones/v1.11-ROADMAP.md) · [`milestones/v1.11-REQUIREMENTS.md`](milestones/v1.11-REQUIREMENTS.md) · [`milestones/v1.11-MILESTONE-AUDIT.md`](milestones/v1.11-MILESTONE-AUDIT.md)
+
+**Delivered:**
+Konsolidierung nach der v1.7–v1.10-Feature-Welle: vier gemeldete Bugs abgeräumt und der Frontend-Build warnungsfrei gemacht. Keine neuen Fähigkeiten, kein Snapshot-Bump (bleibt 12), keine Migration, keine neuen Deps.
+
+**Key accomplishments:**
+
+1. **Phase 36 (SDF-01/02)** — Special-Days-Bugfixes: der `create`-Service-Pfad ersetzt einen bestehenden gleich-datierten Special-Day-Eintrag jetzt atomar per in-place UPDATE (statt `ValidationError(Duplicate)`/HTTP 422), sodass der Feiertag↔Kurzer-Tag-Wechsel im Schichtplan fehlerfrei durchläuft (TDD, beide Richtungen). Settings-`SelectInput` bekam einen optionalen controlled `value`-Prop + Card-3-`sd_type`-Bindung, sodass der „Anlegen"-Button nach jedem Create wieder aktiv ist.
+2. **Phase 37 (MOD-01/02)** — Modal-UX: zentrale drag-sichere Backdrop-Schließ-Logik in `dialog.rs` (`BackdropPress`-Signal-Flag-State-Machine, deckt alle 9 Dialog-Nutzer ab) + identischer Inline-Fix im eigenen Backdrop von `absence_convert_modal.rs`; ein innen begonnener, außen losgelassener Drag schließt nicht mehr. Arbeitsvertrag-Modal bekam pro Feld (außer Von/Bis) einen Erklärungssatz über 6 neue `*Help`-i18n-Keys in de/en/cs.
+3. **Phase 38 (HYG-01/02)** — Frontend-Build-Hygiene: `shifty-dioxus` ist `cargo build`-warnungsfrei (14 auto-fix, 2 deprecated `time::parse` → `parse_borrowed::<2>`, ~34 Dead-Code gelöscht / 11 begründete `#[allow(dead_code)]`); Backend bleibt `cargo clippy --workspace -- -D warnings` grün. dioxus-Clippy bewusst out-of-scope.
+
+**Test verification:** Backend `cargo test --workspace` (528 unit + 64 integration) + `cargo clippy --workspace -- -D warnings` grün; FE `cargo build` 0 Warnings + `cargo test -p shifty-dioxus` (727 pass; 1 pre-existing OOS) + WASM-Build grün. Milestone-Audit `passed` (6/6 Requirements, Integration clean, 4/4 Flows). Pro Phase Code-Review (0 Blocker).
+
+**Known deferred items (acknowledged at close, 2026-07-01, override_closeout):**
+
+- **SDF-02 + MOD-01 Browser-Smokes** (D-25-06-Klasse) — strukturell per SSR/Unit-Tests verifiziert; live-WASM-Interaktion optional deferred (User akzeptierte strukturelle Verifikation).
+- **WR-01/36** (special-day replace nicht transaktional / kein UNIQUE-Index) — Fix bräuchte Migration → out-of-scope. **WR-02/36** (stale „already exists"-Hinweis) + **WR-02/37** (pre-existing `cancel_label`-Conditional) — Fix bräuchte i18n-Copy → out-of-scope; Folge-Fix-Kandidaten.
+- **Pre-existing** FE-Test `i18n_impersonation_keys_match_german_reference` + ~198 dioxus-Clippy-Lints (dioxus aus CI-Clippy-Gate) — weiterhin deferred.
+- **Carry-over Deferred Items aus v1.4–v1.10** — weiterhin deferred, siehe STATE.md. Keines v1.11-spezifisch.
+
+**Hinweis:** v1.11 ist das interne Planungs-Label. Reale Release-Version datumsbasiert via `cli-update-version`/`/release-version` (kein v1.x git tag).
 
 ---

@@ -179,6 +179,56 @@
 
 ---
 
+## Milestone: v1.11 — Stabilisierung & UX-Politur
+
+**Shipped:** 2026-07-01
+**Phases:** 3 (36–38) | **Plans:** 6
+
+### What Was Built
+Konsolidierungs-Milestone nach der v1.7–v1.10-Feature-Welle: SDF-01/02 Special-Days-Bugfixes
+(atomarer in-place Special-Day-Replace + controlled SelectInput), MOD-01/02 Modal-UX (zentrale
+`BackdropPress`-Backdrop-Logik + Arbeitsvertrag-Help-Texte), HYG-01/02 Frontend-Build-Hygiene
+(`shifty-dioxus` cargo-build-warnungsfrei, Backend-Clippy-Gate grün). Keine neuen Fähigkeiten,
+kein Snapshot-Bump, keine Migration, keine neuen Deps.
+
+### What Worked
+- **Vollständig autonomer Run** (discuss war vorab erledigt): pro Phase planner→checker→executor(s)
+  →code-review→verifier, sequenziell (use_worktrees=false). Alle drei Phasen beim ersten Anlauf grün.
+- **Detaillierte CONTEXT.md mit gelockten Decisions (D-01…D-11)** machte Research/Pattern-Mapper
+  überflüssig — der Planner konnte direkt aus CONTEXT + Code-Untersuchung planen.
+- **Adversarialer Code-Review fand echte, verifizierte Punkte** (WR-01 Nicht-Atomarität, WR-02
+  stale Hint, Phase-38 Cascade-Sicherheit durch Doppel-Target-Compile bestätigt).
+- **Re-Baseline-First bei der Build-Hygiene** verhinderte blindes Löschen der (durch Phasen 36/37
+  potenziell veralteten) CONTEXT-Warning-Liste.
+
+### What Was Inefficient
+- **ROADMAP war zu Beginn malformed** (v1.11-Phasen nur als Summary-Bullets, keine `### Phase N:`-
+  Detail-Sektionen) → Phasen-Discovery lieferte leeres Array; musste erst repariert werden.
+- **Wiederkehrende Tooling-Quirks manuell nachgezogen:** `phase.complete` befüllt die Progress-
+  Tabelle für neue Phasen nicht; `state.planned-phase` mis-parst `current_phase_name` („FE");
+  `milestone.complete` erzeugt Junk-Accomplishments + platziert den MILESTONES.md-Eintrag falsch.
+- **Plan-Checker fand einen `type: execute`-vs-`tdd`-Mismatch** (37-02) — der Planner hatte TDD-Tasks
+  unter execute-Plan gehängt; trivialer Ein-Zeilen-Fix, aber vom Checker korrekt geblockt.
+
+### Patterns Established
+- **D-25-06-Klasse Browser-Smokes** (WASM-Signal-getriebene UI) werden strukturell per SSR/Unit-Test
+  verifiziert und der Live-Browser-Smoke optional deferred — User-Präzedenz einmal gesetzt (Phase 36),
+  dann konsistent ohne erneutes Nachfragen angewandt (Phase 37).
+- **Code-Review-Findings, deren Fix ein Phasen-Constraint verletzt** (Migration bei „keine Migration";
+  i18n-Copy bei „i18n unberührt"), werden bewusst deferred statt blind auto-gefixt.
+
+### Key Lessons
+- Vor Discovery ROADMAP-Detail-Sektionen sicherstellen (`roadmap.get-phase` braucht `### Phase N:`).
+- Bei reinen Lösch-Phasen den Reviewer beide Targets (native + wasm32) kompilieren lassen — native
+  Build allein versteckt wasm-gated Nutzung gelöschter Symbole.
+
+### Cost Observations
+- Model mix: Planung/Verifikation-Kern opus (planner) + sonnet (executor/verifier/integration) + haiku (plan-checker).
+- Sessions: 1 (autonomer `/gsd-autonomous`-Lauf über alle 3 Phasen + Lifecycle).
+- Notable: Aufwand lag im Code-Review/Verifikations-Zyklus und den manuellen Tooling-Nachzügen, nicht in der Implementierung selbst.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution

@@ -1,7 +1,7 @@
 ---
 type: project_charter
 last_updated: 2026-06-30
-last_milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (shipped 2026-06-30, Phasen 33–35, 12/12 Requirements, Audit passed)
+last_milestone: v1.11 Stabilisierung & UX-Politur (shipped 2026-07-01, Phasen 36–38, 6/6 Requirements, Audit passed)
 current_milestone: none (zwischen Milestones; nächste Iteration via /gsd-new-milestone)
 ---
 
@@ -286,15 +286,21 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current State
 
-**v1.10 shipped 2026-06-30** (Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`).
-Geliefert: Special Days (Holiday/ShortDay) shiftplanner-gated über die UI pflegbar (zwei
-Flächen: Schichtplan-Wochenraster + Settings-Picker/Jahres-Liste) + automatisch angerechneter
-Feiertag reduziert das Soll auch in der Schichtplan-Wochentabelle (konsistent zum
-Stundenkonto, Kapazitätsbänder unangetastet) + Slot-Werte für genau eine KW als einmalige
-Ausnahme via 3-Segment-Split+Re-Merge (atomar, ohne Doppelzählung). Kein Snapshot-Bump
-(bleibt 12), keine Migration, keine neuen Deps. Zwischen Milestones — nächste Iteration via
-`/gsd-new-milestone`. Details: `milestones/v1.10-ROADMAP.md` / `-REQUIREMENTS.md` /
-`v1.10-MILESTONE-AUDIT.md`.
+**v1.11 shipped 2026-07-01** (Phasen 36–38, 6 Pläne, 6/6 Requirements, Audit `passed`,
+override_closeout; autonomer Run). Geliefert: SDF-01/02 Special-Days-Bugfixes (atomarer
+in-place Special-Day-Replace Feiertag↔Kurzer-Tag statt HTTP-422-Duplicate; controlled
+`SelectInput` + Settings-Card-3-Bindung → „Anlegen"-Button re-enabled), MOD-01/02 Modal-UX
+(zentrale drag-sichere `BackdropPress`-Backdrop-Logik für alle Dialoge + pro-Feld-Help-Texte
+im Arbeitsvertrag-Modal, 6 neue `*Help`-Keys de/en/cs), HYG-01/02 Frontend-Build-Hygiene
+(`shifty-dioxus` `cargo build` warnungsfrei; Backend-Clippy-Gate grün). Keine neuen
+Fähigkeiten, kein Snapshot-Bump (bleibt 12), keine Migration, keine neuen Deps. **Zwischen
+Milestones** — nächste Iteration via `/gsd-new-milestone`. Details:
+`milestones/v1.11-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`.
+
+Zuvor: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (shipped 2026-06-30,
+Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`). Special Days shiftplanner-gated
+über zwei UI-Flächen pflegbar + Feiertags-Soll im Schichtplan + Slot-Werte für genau eine KW.
+Details: `milestones/v1.10-ROADMAP.md` / `-REQUIREMENTS.md` / `v1.10-MILESTONE-AUDIT.md`.
 
 Zuvor geshipt + archiviert: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen &
 Admin-Impersonation** (Phasen 29–32, 6 Pläne, 7/7 Requirements, override_closeout, Audit
@@ -306,12 +312,11 @@ Davor: **v1.8 HR-UX** (Phasen 27–28) und **v1.7 Feiertage/VFA** (Phasen 25–2
 2026-06-29 geschlossen; **v1.6 Paid-Capacity** (2026-06-27).
 
 **Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11 Holiday-Computation; v1.8 Bump
-11→12 `VacationEntitlement`-Computation; v1.9/v1.10 kein Bump; v1.11 erwartet keinen Bump).
+11→12 `VacationEntitlement`-Computation; v1.9/v1.10/v1.11 kein Bump — für v1.11 verifiziert).
 
-**v1.11 gestartet 2026-07-01** (Stabilisierung & UX-Politur) — 5 Bugfix-/Hygiene-Items aus
-dem Todo-Backlog, aufgeteilt aus einem größeren 8-Item-Wunsch (User-Entscheidung 3 Meilensteine:
-v1.11 Stabilisierung, v1.12 Schichtplan/Reporting, v1.13 PDF-Export). Nächster Schritt:
-Requirements + Roadmap für v1.11, dann `/gsd-plan-phase`. Die off-theme **Backlog-Phase
+**Nächste Milestones (aus dem 3er-Split, laut Roadmap):** v1.12 Schichtplan-/Reporting-
+Erweiterungen (WST-01 KW-Status, AVG-01 Durchschnitts-Anwesenheit) und v1.13 PDF-Export →
+Nextcloud/WebDAV (EXP-01). Start via `/gsd-new-milestone`. Die off-theme **Backlog-Phase
 999.1 (Breaking/Major Dependency-Migration)** bleibt separat verfügbar via
 `/gsd-plan-phase 999.1`.
 
