@@ -66,8 +66,9 @@ Konkret: den Reset-Block `settings.rs:458-459` (und einen etwaigen Zeit-Reset) e
 mehr auf `None`/leer setzen. SSR-/Komponenten-Test: mehrfaches Anlegen ohne Dropdown-Toggle,
 Daten bleiben nach jedem Create erhalten.
 
-**Ziel-Milestone:** v2.1 (Schichtplan- & Reporting-Erweiterungen) — thematisch passend, Bugfix
-reitet mit.
+**Ziel:** **eigenständiger `v2.0.x`-Hotfix**, NICHT v2.1. v2.1 (Schichtplan/Reporting) ist ein
+scoped Feature-Meilenstein und schon gut gefüllt; dieser isolierte Settings-Bugfix gehört als
+Patch-Release raus (klein: Reset-Block entfernen + Test). Passt genau zur neuen SemVer-Patch-Stelle.
 
 Verwandt: [[2026-06-30-special-days-ui-bearbeiten-einstellungen]] (anderes Thema: Edit), und
 der WASM-Datepicker-Caveat D-25-06.
