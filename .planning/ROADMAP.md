@@ -119,7 +119,12 @@ Plans:
   3. Verbleibende bewusst behaltene dioxus-Lints sind dokumentiert. (HYG-02)
   4. Frontend-Gates grün: `cargo test -p shifty-dioxus` und der WASM-Build (`cargo build --target wasm32-unknown-unknown`). (HYG-01, HYG-02)
 
-**Plans**: 0/0 plans complete
+**Plans**: 2 plans (0/2 complete)
+
+Plans:
+
+- [ ] 38-01-PLAN.md — Re-baseline live warnings, then `cargo fix` the auto-fixable bucket + migrate the 2 deprecated `time::parse` sites to `parse_borrowed`
+- [ ] 38-02-PLAN.md — Manual dead-code removal (delete-by-default, `#[allow]`+reason as exception) + full four-gate verification (build/clippy/tests/wasm)
 
 <details>
 <summary>✅ v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35) — SHIPPED 2026-06-30</summary>
