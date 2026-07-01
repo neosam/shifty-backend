@@ -36,7 +36,7 @@ in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 
   - **Success:** Beide Bugs reproduziert-und-behoben, Regressionstests grün, Backend-Roundtrip
     (create- vs. edit-Pfad) verifiziert. i18n unberührt (keine neuen Texte).
 
-- [ ] **Phase 37: Modal-UX-Politur (FE)** — MOD-01, MOD-02
+- [x] **Phase 37: Modal-UX-Politur (FE)** — MOD-01, MOD-02 (completed 2026-07-01)
   - **MOD-01**: Zentraler `dialog.rs`-Fix — Backdrop schließt nur, wenn mousedown UND mouseup
     auf dem Backdrop selbst (mousedown-Ursprung als Flag tracken). Kommt allen Modals zugute.
     Strukturell über Predikat-/Handler-Logik testen (Maus-Drag ist D-25-06-Klasse, schwer
@@ -273,6 +273,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 1/1 | Complete    | 2026-06-30 |
 | 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 3/3 | Complete    | 2026-06-30 |
 | 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
+| 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 
 ## Backlog
 
