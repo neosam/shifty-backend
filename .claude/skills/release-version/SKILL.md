@@ -3,8 +3,9 @@ name: release-version
 description: >
   Release a new version of shifty. Derives the SemVer version from the GSD milestone
   (.planning/STATE.md) plus existing git tags, confirms it, generates release notes from
-  changes since the last tag, and runs cli-update-version.sh with the notes as the
-  annotated-tag message. Use when the user says "release", "neue Version", "Version releasen",
+  changes since the last tag, runs cli-update-version.sh with the notes as the
+  annotated-tag message, and updates + tags the deployment pin in ../shifty-nix (deploy stays
+  manual). Use when the user says "release", "neue Version", "Version releasen",
   "Release bauen", or "/release-version".
 ---
 
@@ -134,7 +135,33 @@ IMPORTANT:
   installs (see CLAUDE.local.md).
 - Wait for the script to complete.
 
-### 6. Report the Result
+### 6. Update & tag the deployment pin (shifty-nix)
 
-The script prints `New release version: X.Y.Z` at the end. Report this version number
-to the user.
+After the backend release is pushed and tagged, bump the deployment pin in the sibling
+`../shifty-nix` repo so it points at the freshly released tag:
+
+```bash
+( cd ../shifty-nix && ./cli-release.sh "$RELEASE" )
+```
+
+`cli-release.sh` (mirrors `cli-update-version.sh`) takes the plain `X.Y.Z` and:
+- runs `gen-backend.sh vX.Y.Z` → renders `shifty-backend.nix` + `shifty-frontend.nix` from
+  the templates, builds both locally via nix to verify the pin resolves, writes
+  `backend-version.txt`;
+- commits via **jj** (message `X.Y.Z`), moves `main`, pushes **only** `main` (shifty-nix has
+  stray bookmarks that must not be pushed), tags `vX.Y.Z`, pushes tags.
+
+Notes:
+- Run this AFTER step 5 — `gen-backend.sh` fetches
+  `https://github.com/neosam/shifty-backend/archive/vX.Y.Z.zip`, so the backend tag must
+  already be on GitHub. If the verify build 404s, the tag push may not have propagated yet;
+  retry after a moment.
+- The verify build (`nix-build`) is heavy and needs network — expect it to take a while.
+- **Deployment stays manual** — do NOT run `deploy-binaries.sh` / `build-and-deploy.sh`.
+  The user deploys themselves when they choose.
+
+### 7. Report the Result
+
+The backend script prints `New release version: X.Y.Z`. Report this to the user, and
+confirm the shifty-nix pin was regenerated + tagged (`vX.Y.Z`) — and that deployment is
+left to them.
