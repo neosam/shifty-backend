@@ -18,6 +18,7 @@ use dioxus::prelude::*;
 use rest_types::AbsenceCategoryTO;
 use uuid::Uuid;
 
+use crate::component::dialog::BackdropPress;
 use crate::i18n::Key;
 use crate::service::i18n::I18N;
 
@@ -84,10 +85,25 @@ pub fn AbsenceConvertModal(
         AbsenceCategoryTO::UnpaidLeave => i18n.t(Key::AbsenceCategoryUnpaidLeave),
     };
 
+    // MOD-01: drag-safe backdrop close (D-03) — same signal-flag pattern as
+    // dialog.rs, applied inline to this component's own custom backdrop.
+    let mut backdrop_press = use_signal(BackdropPress::default);
+
     rsx! {
         div { class: "fixed inset-0 bg-modal-veil flex items-center justify-center z-50",
-            onclick: move |_| { on_cancel.call(()); },
+            onmousedown: move |_| {
+                backdrop_press.write().press_backdrop();
+            },
+            onclick: move |_| {
+                if backdrop_press.write().release() {
+                    on_cancel.call(());
+                }
+            },
             div { class: "bg-surface rounded-lg p-6 flex flex-col gap-4 min-w-md max-w-lg border border-border",
+                onmousedown: move |ev| {
+                    ev.stop_propagation();
+                    backdrop_press.write().press_panel();
+                },
                 onclick: move |ev| { ev.stop_propagation(); },
                 h3 { class: "text-lg font-semibold text-ink", "{title}" }
                 p { class: "text-small text-ink-muted", "{help_text}" }
