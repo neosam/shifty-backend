@@ -8,8 +8,9 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::base_types::ImStr;
-use crate::component::atoms::{Btn, BtnVariant, PersonChip};
-use crate::component::{WarningList, WarningsList};
+use crate::component::atoms::week_status_badge::should_show_badge;
+use crate::component::atoms::{Btn, BtnVariant, PersonChip, WeekStatusBadge};
+use crate::component::{WarningList, WarningsList, WeekStatusDropdown};
 use crate::component::booking_log_table::BookingLogTable;
 use crate::component::day_aggregate_view::{DayAggregateView, DayButtonBar};
 use crate::component::dropdown_base::DropdownTrigger;
@@ -38,6 +39,8 @@ use crate::service::text_template::{
 use crate::service::ui_prefs;
 use crate::service::ui_prefs::WorkingHoursLayout;
 use crate::service::week_guard::{is_current_selection, set_selected_week, SELECTED_WEEK};
+use crate::service::week_status::{WeekStatusAction, WEEK_STATUS_STORE};
+use crate::state::week_status::WeekStatus;
 use crate::service::weekly_summary::WeeklySummaryAction;
 use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::service::working_hours_mini::WorkingHoursMiniAction;
@@ -100,6 +103,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let weekly_summary_service = use_coroutine_handle::<WeeklySummaryAction>();
     let weekly_summary = WEEKLY_SUMMARY_STORE.read().clone();
     let slot_edit_service = use_coroutine_handle::<SlotEditAction>();
+    let week_status_service = use_coroutine_handle::<WeekStatusAction>();
+    let week_status = WEEK_STATUS_STORE.read().status.clone();
     let is_shiftplanner = auth_info
         .as_ref()
         .map(|auth_info| auth_info.has_privilege("shiftplanner"))
@@ -357,6 +362,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 // so the loaders' post-await comparisons are against the correct week.
                 set_selected_week(*year.read(), *week.read());
 
+                // KW-Status: fresh status for the initially rendered week (D-39-06).
+                week_status_service.send(WeekStatusAction::Load {
+                    year: *year.read(),
+                    week: *week.read(),
+                });
+
                 // Initial load of weekly summary
                 if is_shiftplanner {
                     weekly_summary_service
@@ -534,6 +545,11 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             block_error.set(None); // CR-03: clear stale 409 banner on week navigation
                             // D-30-01: update guard truth synchronously BEFORE dispatching loaders
                             set_selected_week(next_weeks_year, next_weeks_week);
+                            // KW-Status: fresh status per week (D-39-06).
+                            week_status_service.send(WeekStatusAction::Load {
+                                year: next_weeks_year,
+                                week: next_weeks_week,
+                            });
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
                             reload_absence_days(config.clone()).await;
@@ -570,6 +586,11 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             block_error.set(None); // CR-03: clear stale 409 banner on week navigation
                             // D-30-01: update guard truth synchronously BEFORE dispatching loaders
                             set_selected_week(previous_weeks_year, previous_weeks_week);
+                            // KW-Status: fresh status per week (D-39-06).
+                            week_status_service.send(WeekStatusAction::Load {
+                                year: previous_weeks_year,
+                                week: previous_weeks_week,
+                            });
                             update_shiftplan();
                             reload_unavailable_days(config.clone()).await;
                             reload_absence_days(config.clone()).await;
@@ -1448,6 +1469,26 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                         rsx! {
                             div { class: "m-4",
                                 SlotEdit {}
+                                // KW-Status strip (D-39-05 visibility matrix; print:hidden).
+                                // Shiftplaner -> dropdown; else badge only when set; else nothing.
+                                div { class: "mb-3 flex items-center gap-2 print:hidden",
+                                    if is_shiftplanner {
+                                        WeekStatusDropdown {
+                                            current_status: week_status.clone(),
+                                            year: *year.read(),
+                                            week: *week.read(),
+                                            on_change: move |new_status: WeekStatus| {
+                                                week_status_service.send(WeekStatusAction::Set {
+                                                    year: *year.read(),
+                                                    week: *week.read(),
+                                                    status: new_status,
+                                                });
+                                            },
+                                        }
+                                    } else if should_show_badge(&week_status) {
+                                        WeekStatusBadge { status: week_status.clone() }
+                                    }
+                                }
                                 WeekView {
                                     shiftplan_data: shift_plan.clone(),
                                     date_of_monday: date,
