@@ -257,17 +257,42 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::WorkdaysLabel, "Workdays");
     i18n.add_text(
         Locale::En,
+        Key::WorkdaysHelp,
+        "The days the person usually works.",
+    );
+    i18n.add_text(
+        Locale::En,
         Key::ExpectedHoursPerWeekLabel,
         "Expected hours per week",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::ExpectedHoursPerWeekHelp,
+        "How many target hours per week.",
     );
     i18n.add_text(Locale::En, Key::ExpectedHours, "Expected Hours");
     i18n.add_text(Locale::En, Key::DaysPerWeekLabel, "Days per week");
     i18n.add_text(
         Locale::En,
+        Key::DaysPerWeekHelp,
+        "How many days per week the person usually comes in.",
+    );
+    i18n.add_text(
+        Locale::En,
         Key::VacationEntitlementsPerYearLabel,
         "Vacation days",
     );
+    i18n.add_text(
+        Locale::En,
+        Key::VacationEntitlementsPerYearHelp,
+        "The total annual leave per year as per contract.",
+    );
     i18n.add_text(Locale::En, Key::DynamicHourLabel, "Dynamic hours");
+    i18n.add_text(
+        Locale::En,
+        Key::DynamicHourHelp,
+        "The target always matches the hours worked \u{2014} ideal when the person is paid by the hour.",
+    );
     i18n.add_text(Locale::En, Key::HolidaysInHoursLabel, "Holidays in hours");
     i18n.add_text(Locale::En, Key::WorkdaysInHoursLabel, "Workdays in hours");
 
@@ -386,6 +411,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ShowPaid, "Paid");
     i18n.add_text(Locale::En, Key::ShowUnpaid, "Show Unpaid");
     i18n.add_text(Locale::En, Key::CommittedVoluntaryLabel, "Voluntary Commitment (h)");
+    i18n.add_text(
+        Locale::En,
+        Key::CommittedVoluntaryHelp,
+        "Committed voluntary hours.",
+    );
     i18n.add_text(Locale::En, Key::EmployeesShowAll, "all");
     i18n.add_text(Locale::En, Key::Values, "Values");
     i18n.add_text(Locale::En, Key::Delta, "Delta");

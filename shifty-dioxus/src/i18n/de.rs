@@ -300,17 +300,42 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::WorkdaysLabel, "Wochentage");
     i18n.add_text(
         Locale::De,
+        Key::WorkdaysHelp,
+        "Die Tage, an denen die Person in der Regel arbeitet.",
+    );
+    i18n.add_text(
+        Locale::De,
         Key::ExpectedHoursPerWeekLabel,
         "Wochenarbeitsstunden",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::ExpectedHoursPerWeekHelp,
+        "Wie viele Sollstunden pro Woche.",
     );
     i18n.add_text(Locale::De, Key::ExpectedHours, "Sollstunden");
     i18n.add_text(Locale::De, Key::DaysPerWeekLabel, "Arbeitstage pro Woche");
     i18n.add_text(
         Locale::De,
+        Key::DaysPerWeekHelp,
+        "An wie vielen Tagen die Person in der Regel reinkommt.",
+    );
+    i18n.add_text(
+        Locale::De,
         Key::VacationEntitlementsPerYearLabel,
         "Urlaubsanspruch im Jahr",
     );
+    i18n.add_text(
+        Locale::De,
+        Key::VacationEntitlementsPerYearHelp,
+        "Der gesamte Jahresurlaub laut Vertrag im Jahr.",
+    );
     i18n.add_text(Locale::De, Key::DynamicHourLabel, "Dynamische Stunden");
+    i18n.add_text(
+        Locale::De,
+        Key::DynamicHourHelp,
+        "Das Soll entspricht immer den geleisteten Stunden \u{2014} ideal, wenn die Person nach Stunden bezahlt wird.",
+    );
     i18n.add_text(Locale::De, Key::HolidaysInHoursLabel, "Feiertag in Stunden");
     i18n.add_text(
         Locale::De,
@@ -429,6 +454,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::ShowPaid, "Bezahlt");
     i18n.add_text(Locale::De, Key::ShowUnpaid, "Unbezahlte anzeigen");
     i18n.add_text(Locale::De, Key::CommittedVoluntaryLabel, "Freiwillige Zusage (h)");
+    i18n.add_text(
+        Locale::De,
+        Key::CommittedVoluntaryHelp,
+        "Zugesagte freiwillige Stunden.",
+    );
     i18n.add_text(Locale::De, Key::EmployeesShowAll, "alle");
     i18n.add_text(Locale::De, Key::Values, "Werte");
     i18n.add_text(Locale::De, Key::Delta, "Unterschied");

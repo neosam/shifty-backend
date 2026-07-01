@@ -281,15 +281,40 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::WorkdaysLabel, "Pracovní dny");
     i18n.add_text(
         Locale::Cs,
+        Key::WorkdaysHelp,
+        "Dny, kdy osoba obvykle pracuje.",
+    );
+    i18n.add_text(
+        Locale::Cs,
         Key::ExpectedHoursPerWeekLabel,
         "Očekávané hodiny týdně",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ExpectedHoursPerWeekHelp,
+        "Kolik cílových hodin týdně.",
     );
     i18n.add_text(Locale::Cs, Key::ExpectedHours, "Očekávané hodiny");
     i18n.add_text(Locale::Cs, Key::DaysPerWeekLabel, "Dny týdně");
     i18n.add_text(
         Locale::Cs,
+        Key::DaysPerWeekHelp,
+        "Kolik dní v týdnu osoba obvykle dochází.",
+    );
+    i18n.add_text(
+        Locale::Cs,
         Key::VacationEntitlementsPerYearLabel,
         "Dny dovolené",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::VacationEntitlementsPerYearHelp,
+        "Celková roční dovolená podle smlouvy.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::DynamicHourHelp,
+        "Cíl vždy odpovídá odpracovaným hodinám \u{2014} ideální, když je osoba placena od hodiny.",
     );
     i18n.add_text(Locale::Cs, Key::HolidaysInHoursLabel, "Svátky v hodinách");
     i18n.add_text(
@@ -417,6 +442,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::Cs, Key::ShowPaid, "Placené");
     i18n.add_text(Locale::Cs, Key::ShowUnpaid, "Zobrazit neplacené");
     i18n.add_text(Locale::Cs, Key::CommittedVoluntaryLabel, "Dobrovolný závazek (h)");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CommittedVoluntaryHelp,
+        "Přislíbené dobrovolné hodiny.",
+    );
     i18n.add_text(Locale::Cs, Key::EmployeesShowAll, "vše");
     i18n.add_text(Locale::Cs, Key::Values, "Hodnoty");
     i18n.add_text(Locale::Cs, Key::Delta, "Delta");
