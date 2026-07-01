@@ -1199,4 +1199,20 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::ShiftplanDayShortDayConfirm,
         "Uhrzeit speichern",
     );
+
+    // Week status (KW-Status) — D-39-09
+    i18n.add_text(Locale::De, Key::WeekStatusUnset, "Kein");
+    i18n.add_text(Locale::De, Key::WeekStatusInPlanning, "In Planung");
+    i18n.add_text(Locale::De, Key::WeekStatusPlanned, "Geplant");
+    i18n.add_text(Locale::De, Key::WeekStatusLocked, "Gesperrt");
+    i18n.add_text(
+        Locale::De,
+        Key::WeekStatusSetError,
+        "Status konnte nicht gespeichert werden.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::WeekStatusChangeAriaLabel,
+        "Wochenstatus ändern",
+    );
 }

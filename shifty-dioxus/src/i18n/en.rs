@@ -1104,4 +1104,20 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ShiftplanDayTypeShortDay, "Short Day");
     i18n.add_text(Locale::En, Key::ShiftplanDayTypeNone, "None");
     i18n.add_text(Locale::En, Key::ShiftplanDayShortDayConfirm, "Save time");
+
+    // Week status (KW-Status) — D-39-09
+    i18n.add_text(Locale::En, Key::WeekStatusUnset, "None");
+    i18n.add_text(Locale::En, Key::WeekStatusInPlanning, "In planning");
+    i18n.add_text(Locale::En, Key::WeekStatusPlanned, "Planned");
+    i18n.add_text(Locale::En, Key::WeekStatusLocked, "Locked");
+    i18n.add_text(
+        Locale::En,
+        Key::WeekStatusSetError,
+        "Failed to save week status.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::WeekStatusChangeAriaLabel,
+        "Change week status",
+    );
 }

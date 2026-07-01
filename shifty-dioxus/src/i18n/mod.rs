@@ -682,6 +682,20 @@ pub enum Key {
     ShiftplanDayTypeNone,
     /// Shiftplan inline ShortDay time-prompt confirm button ("Uhrzeit speichern" / "Save time" / "Uložit čas").
     ShiftplanDayShortDayConfirm,
+
+    // Week status (KW-Status) — WST-05 / D-39-09
+    /// KW-Status label: Unset ("Kein" / "None" / "Žádný").
+    WeekStatusUnset,
+    /// KW-Status label: InPlanning ("In Planung" / "In planning" / "V plánování").
+    WeekStatusInPlanning,
+    /// KW-Status label: Planned ("Geplant" / "Planned" / "Naplánováno").
+    WeekStatusPlanned,
+    /// KW-Status label: Locked ("Gesperrt" / "Locked" / "Uzamčeno").
+    WeekStatusLocked,
+    /// Error banner shown when saving the KW-Status failed.
+    WeekStatusSetError,
+    /// Aria-label for the KW-Status change control (dropdown trigger).
+    WeekStatusChangeAriaLabel,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -856,6 +870,44 @@ mod tests {
                 result
             );
         }
+    }
+
+    /// WST-05 / D-39-09: proves the 4×3 matrix — every one of the four
+    /// WeekStatus labels resolves to a non-empty, non-"??" string in de/en/cs.
+    /// Also covers the error + aria-label keys.
+    #[test]
+    fn i18n_week_status_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::WeekStatusUnset,
+                Key::WeekStatusInPlanning,
+                Key::WeekStatusPlanned,
+                Key::WeekStatusLocked,
+                Key::WeekStatusSetError,
+                Key::WeekStatusChangeAriaLabel,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    /// Pitfall-2 guard: ensures the de.rs block routes German copy (not English)
+    /// through `generate(Locale::De)` for the four status labels.
+    #[test]
+    fn i18n_week_status_labels_match_german_reference() {
+        let de = generate(Locale::De);
+        assert_eq!(de.t(Key::WeekStatusUnset).as_ref(), "Kein");
+        assert_eq!(de.t(Key::WeekStatusInPlanning).as_ref(), "In Planung");
+        assert_eq!(de.t(Key::WeekStatusPlanned).as_ref(), "Geplant");
+        assert_eq!(de.t(Key::WeekStatusLocked).as_ref(), "Gesperrt");
     }
 
     #[test]

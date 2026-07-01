@@ -14,6 +14,7 @@ pub mod tooltip;
 pub mod user_management;
 pub mod vacation_balance;
 pub mod week;
+pub mod week_status;
 pub mod weekly_overview;
 
 pub use auth_info::AuthInfo;

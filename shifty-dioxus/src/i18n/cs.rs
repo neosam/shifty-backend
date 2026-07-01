@@ -1185,4 +1185,20 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::Cs, Key::ShiftplanDayTypeNone, "Nic");
     i18n.add_text(Locale::Cs, Key::ShiftplanDayShortDayConfirm, "Uložit čas");
+
+    // Week status (KW-Status) — D-39-09
+    i18n.add_text(Locale::Cs, Key::WeekStatusUnset, "Žádný");
+    i18n.add_text(Locale::Cs, Key::WeekStatusInPlanning, "V plánování");
+    i18n.add_text(Locale::Cs, Key::WeekStatusPlanned, "Naplánováno");
+    i18n.add_text(Locale::Cs, Key::WeekStatusLocked, "Uzamčeno");
+    i18n.add_text(
+        Locale::Cs,
+        Key::WeekStatusSetError,
+        "Nepodařilo se uložit stav týdne.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::WeekStatusChangeAriaLabel,
+        "Změnit stav týdne",
+    );
 }
