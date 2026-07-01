@@ -128,7 +128,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 38-02-PLAN.md — Manual dead-code removal (delete-by-default, `#[allow]`+reason as exception) + full four-gate verification (build/clippy/tests/wasm)
+- [x] 38-02-PLAN.md — Manual dead-code removal (delete-by-default, `#[allow]`+reason as exception) + full four-gate verification (build/clippy/tests/wasm)
 
 <details>
 <summary>✅ v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35) — SHIPPED 2026-06-30</summary>
