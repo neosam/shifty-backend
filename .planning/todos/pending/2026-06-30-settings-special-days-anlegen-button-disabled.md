@@ -2,6 +2,7 @@
 created: 2026-06-30T20:40:41.560Z
 title: Settings Special-Days — Anlegen-Button bleibt nach erstem Feiertag disabled (Typ-Dropdown-Desync)
 area: frontend
+resolves_phase: 42
 files:
   - shifty-dioxus/src/page/settings.rs:332
   - shifty-dioxus/src/page/settings.rs:359

@@ -2,6 +2,7 @@
 created: 2026-06-30T18:25:27.061Z
 title: Status für Kalenderwochen (None / In Planung / Geplant / Gesperrt)
 area: shiftplan
+resolves_phase: 39
 files:
   - service/ (ShiftplanService / SlotService)
   - rest/
