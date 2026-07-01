@@ -96,7 +96,11 @@ Plans:
   3. Das Arbeitsvertrag-Modal zeigt unter jedem relevanten Feld einen kurzen Erklärungssatz (Muster `CapPlannedHoursHelp`, `text-small text-ink-muted`), Von/Bis ausgenommen. (MOD-02)
   4. Die neuen `*Help`-Keys existieren in de/en/cs; ein SSR-Test bestätigt, dass die Help-Texte unter den Feldern gerendert werden. (MOD-02)
 
-**Plans**: 0/0 plans complete
+**Plans**: 2 plans (0/2 complete)
+
+Plans:
+- [ ] 37-01-PLAN.md — MOD-01: zentraler drag-safe Backdrop-Close in `dialog.rs` (Signal-Flag) + `absence_convert_modal.rs`-Duplikat inline mitgefixt (TDD)
+- [ ] 37-02-PLAN.md — MOD-02: sechs `*Help`-i18n-Keys (de/en/cs) + Sibling-Help-Spans pro Feld im Arbeitsvertrag-Modal (Von/Bis ausgenommen)
 
 ### Phase 38: Frontend-Build-Hygiene
 
