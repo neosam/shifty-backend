@@ -39,7 +39,7 @@ Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 
 
 ### Build-Hygiene (HYG)
 
-- [ ] **HYG-01**: Der Frontend-Build (`shifty-dioxus`) ist **warnungsfrei** — die ~45
+- [x] **HYG-01**: Der Frontend-Build (`shifty-dioxus`) ist **warnungsfrei** — die ~45
   rustc-Warnings (14 via `cargo fix`, Rest manuell: ungenutzte Methoden/Imports/Variablen
   entfernen oder mit begründetem `#[allow(dead_code)]` behalten) sind beseitigt.
   (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
@@ -88,7 +88,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 | SDF-02 | Phase 36 | Complete |
 | MOD-01 | Phase 37 | Complete |
 | MOD-02 | Phase 37 | Complete |
-| HYG-01 | Phase 38 | Pending |
+| HYG-01 | Phase 38 | Complete |
 | HYG-02 | Phase 38 | Pending |
 
 **Coverage:**

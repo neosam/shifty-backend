@@ -124,7 +124,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 38-01-PLAN.md — Re-baseline live warnings, then `cargo fix` the auto-fixable bucket + migrate the 2 deprecated `time::parse` sites to `parse_borrowed`
+- [x] 38-01-PLAN.md — Re-baseline live warnings, then `cargo fix` the auto-fixable bucket + migrate the 2 deprecated `time::parse` sites to `parse_borrowed`
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
