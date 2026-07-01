@@ -24,7 +24,7 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v1.11 Stabilisierung & UX-Politur** (shipped + archiviert 2026-07-01, Phasen 36–38, 6 Pläne, 6/6 Requirements, Audit `passed`, override_closeout)
 - **Current milestone**: **v2.1 Schichtplan- & Reporting-Erweiterungen** (gestartet 2026-07-01, autonomer Nacht-Run) — 4 Phasen (39–42), 9 Requirements (WST-01..05, AVG-01..03, SDF-01). Reihenfolge WST (39→40) vor AVG (41), SDF (42) zuletzt (isoliert, niedrigstes Risiko).
-- **Current focus**: v2.1-Roadmap fertig (4 Phasen, 9/9 gemappt). Nächster Schritt: `/gsd-discuss-phase 39` (KW-Status Grundlage — Wer setzt Status + erlaubte Übergänge, Badge+Button-UI).
+- **Current focus**: Phase 42 Kontext erfasst (Special-Days-„Anlegen"-Button-Bugfix, FE-only). Entscheidungen D-42-01..06: Option-2-Reset entfernen (nur die 3 Feld-Resets, `sd_year.set`+`sd_resource.restart()` bleiben), Duplikat akzeptieren (Backend in-place Replace), „Gespeichert" bleibt bis nächstem Klick, Test = Pure-Unit-Prädikat (Pflicht) + SSR best-effort. Nächster Schritt: `/gsd-plan-phase 42`.
 - **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9–v1.11 **kein** Bump. **v2.1 erwartet KEINEN Bump** (WST-01 berührt keinen persistierten `BillingPeriodValueType`; AVG-01 = reines Read-Aggregat) — in Phase 41 verifizieren. **Migration erwartet für Phase 39** (neue `week_status`-Tabelle). Keine neuen Deps erwartet.
 
 ## Current Position
