@@ -14,6 +14,7 @@ use crate::{
     state::employee::{CustomExtraHoursDefinition, WorkingHoursCategory},
 };
 
+#[allow(dead_code)] // reason: used internally by AddExtraHoursForm component coroutine; component is unrendered legacy code pending formal removal
 pub enum AddExtraHoursFormAction {
     Submit,
     LoadCustomExtraHours,

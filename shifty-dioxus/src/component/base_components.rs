@@ -242,6 +242,7 @@ pub struct TimeInputProps {
     pub on_change: Option<EventHandler<time::Time>>,
 }
 
+#[allow(dead_code)] // reason: called from TimeInput rsx! oninput handler; rustc cannot trace rsx! macro closure captures; also has unit tests in cfg(test)
 fn parse_time_input(value: &str) -> Option<time::Time> {
     let format_hm = format_description!("[hour]:[minute]");
     let format_hms = format_description!("[hour]:[minute]:[second]");

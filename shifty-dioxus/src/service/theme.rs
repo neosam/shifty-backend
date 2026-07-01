@@ -5,7 +5,9 @@ use wasm_bindgen::closure::Closure;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 
+#[cfg(target_arch = "wasm32")]
 const STORAGE_KEY: &str = "shifty-theme";
+#[cfg(target_arch = "wasm32")]
 const DARK_MEDIA_QUERY: &str = "(prefers-color-scheme: dark)";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -30,6 +32,7 @@ impl ThemeMode {
         }
     }
 
+    #[allow(dead_code)] // reason: called from wasm32-gated load_stored_mode and has unit test coverage; dead in non-wasm32 build
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "light" => Some(ThemeMode::Light),
@@ -41,6 +44,7 @@ impl ThemeMode {
 }
 
 impl ResolvedTheme {
+    #[allow(dead_code)] // reason: called from wasm32-gated apply_resolved_to_dom; dead in non-wasm32 build
     pub fn as_str(self) -> &'static str {
         match self {
             ResolvedTheme::Light => "light",
@@ -51,7 +55,6 @@ impl ResolvedTheme {
 
 pub enum ThemeAction {
     SetMode(ThemeMode),
-    SystemThemeChanged(ResolvedTheme),
 }
 
 pub static THEME_MODE: GlobalSignal<ThemeMode> = Signal::global(|| ThemeMode::System);
@@ -169,6 +172,7 @@ pub fn apply_set_mode(mode: ThemeMode) {
 
 /// Apply a system-theme mediaquery change. Only effective while the current
 /// `THEME_MODE` is `System`; other modes ignore OS-level theme switches.
+#[allow(dead_code)] // reason: called from wasm32-gated subscribe_system_theme closure; rustc cannot trace callers inside cfg(target_arch) blocks in non-wasm32 builds
 pub fn handle_system_theme_change(resolved: ResolvedTheme) {
     if *THEME_MODE.read() != ThemeMode::System {
         return;
@@ -191,7 +195,6 @@ pub async fn theme_service(mut rx: UnboundedReceiver<ThemeAction>) {
     while let Some(action) = rx.next().await {
         match action {
             ThemeAction::SetMode(mode) => apply_set_mode(mode),
-            ThemeAction::SystemThemeChanged(resolved) => handle_system_theme_change(resolved),
         }
     }
 }

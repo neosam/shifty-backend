@@ -336,16 +336,6 @@ fn marker_matches_filters(
     true
 }
 
-// ─── Modal mode ────────────────────────────────────────────────────────────
-
-// Kein `Eq` — enthält `AbsencePeriod`, das wegen `derived_days: f32` nur
-// `PartialEq` implementiert.
-#[derive(Clone, Debug, PartialEq)]
-enum ModalMode {
-    Create,
-    Edit(AbsencePeriod),
-}
-
 // ─── CategoryBadge (Pitfall 5 — STATIC Tailwind match arms) ────────────────
 
 #[derive(Props, Clone, PartialEq)]
@@ -1072,15 +1062,6 @@ pub enum AbsenceModalMode {
     Edit(AbsencePeriod),
 }
 
-impl From<AbsenceModalMode> for ModalMode {
-    fn from(m: AbsenceModalMode) -> Self {
-        match m {
-            AbsenceModalMode::Create => ModalMode::Create,
-            AbsenceModalMode::Edit(a) => ModalMode::Edit(a),
-        }
-    }
-}
-
 #[component]
 pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
     if !props.open {
@@ -1198,7 +1179,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
                     warnings_state.set(WarningsList::empty());
                     *ABSENCE_MODAL_EVENT.write() = None;
                 }
-                AbsenceModalEvent::Network(_) => {
+                AbsenceModalEvent::Network => {
                     *ABSENCE_MODAL_EVENT.write() = None;
                 }
                 AbsenceModalEvent::Deleted => {

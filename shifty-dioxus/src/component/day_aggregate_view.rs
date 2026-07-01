@@ -191,6 +191,7 @@ pub fn prev_day(current: Weekday, has_sunday: bool) -> (Weekday, i8) {
 
 /// Check if any plan in the catalog has Sunday slots.
 /// This is a simple heuristic - for day aggregate, we check the loaded data.
+#[allow(dead_code)] // reason: tested helper (cfg(test) covers its behavior); no production caller yet, kept as documented API for future use
 pub fn has_sunday_slots(day_aggregate: &Option<DayAggregate>) -> bool {
     day_aggregate
         .as_ref()

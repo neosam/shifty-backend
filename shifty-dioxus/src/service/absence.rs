@@ -57,7 +57,7 @@ pub(crate) fn bump_absence_refresh() {
 ///   `result.warnings` is non-empty, otherwise close.
 /// - `VersionConflict` — render the version-conflict banner (D-08).
 /// - `Validation(text)` — render the self-overlap banner (D-11).
-/// - `Network(msg)` — generic error fallback.
+/// - `Network` — generic error fallback.
 /// - `None` — idle / consumed.
 #[derive(Clone, Debug)]
 pub enum AbsenceModalEvent {
@@ -65,7 +65,7 @@ pub enum AbsenceModalEvent {
     Updated(AbsencePeriodCreateResultTO),
     VersionConflict,
     Validation(String),
-    Network(String),
+    Network,
     Deleted,
 }
 
@@ -97,8 +97,6 @@ pub enum AbsenceAction {
         end: time::Date,
         day_fraction: rest_types::DayFractionTO,
     },
-    /// Bump the refresh token without an API call.
-    Refresh,
 }
 
 pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
@@ -141,8 +139,7 @@ pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
                     *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Validation(text));
                 }
                 Err(other) => {
-                    let msg = format!("{}", &other);
-                    *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network(msg));
+                    *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network);
                     *ERROR_STORE.write() = ErrorStore { error: Some(other) };
                 }
             },
@@ -163,8 +160,7 @@ pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
                             Some(AbsenceModalEvent::Validation(text));
                     }
                     Err(other) => {
-                        let msg = format!("{}", &other);
-                        *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network(msg));
+                        *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network);
                         *ERROR_STORE.write() = ErrorStore { error: Some(other) };
                     }
                 }
@@ -200,14 +196,10 @@ pub async fn absence_service(mut rx: UnboundedReceiver<AbsenceAction>) {
                         *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Validation(text));
                     }
                     Err(other) => {
-                        let msg = format!("{}", &other);
-                        *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network(msg));
+                        *ABSENCE_MODAL_EVENT.write() = Some(AbsenceModalEvent::Network);
                         *ERROR_STORE.write() = ErrorStore { error: Some(other) };
                     }
                 }
-            }
-            AbsenceAction::Refresh => {
-                bump_absence_refresh();
             }
         }
     }

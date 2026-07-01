@@ -71,7 +71,6 @@ pub enum ShiftPlanAction {
     UpdateSalesPerson(Uuid),
     ToggleAvailability(Weekday),
     ToggleChangeStructureMode,
-    LoadWeekMessage,
     SaveWeekMessage(String),
     LoadDayAggregate,
 }
@@ -637,19 +636,6 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             block_error.set(None); // WR-04: clear stale 409 banner when entering structure mode
                             let new_change_structure_mode = !*change_structure_mode.read();
                             change_structure_mode.set(new_change_structure_mode);
-                        }
-                        ShiftPlanAction::LoadWeekMessage => {
-                            if let Ok(message) = loader::load_week_message(
-                                config.clone(),
-                                *year.read(),
-                                *week.read(),
-                            )
-                            .await
-                            {
-                                let message = message.unwrap_or_default();
-                                week_message.set(message.clone());
-                                week_message_draft.set(message);
-                            }
                         }
                         ShiftPlanAction::SaveWeekMessage(message) => {
                             if let Err(e) = loader::save_week_message(

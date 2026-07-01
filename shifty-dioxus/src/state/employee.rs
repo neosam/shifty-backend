@@ -14,14 +14,6 @@ use crate::i18n;
 
 use super::shiftplan::SalesPerson;
 
-/// The expected amount of time an employee should work in a given time period.
-#[derive(Debug, Clone, PartialEq)]
-pub struct WorkingSchedule {
-    pub required_hours_amount: f32,
-    pub valid_from: time::Date,
-    pub valid_to: time::Date,
-}
-
 /// The category of working hours.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WorkingHoursCategory {

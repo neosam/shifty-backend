@@ -1,6 +1,6 @@
 use rest_types::{
     BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO,
-    SpecialDayTypeTO, UserRole, UserTO, WeekMessageTO,
+    UserRole, UserTO, WeekMessageTO,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -74,74 +74,6 @@ pub async fn remove_user_from_sales_person(
 ) -> Result<(), ShiftyError> {
     api::delete_user_from_sales_person(config, sales_person_id).await?;
     Ok(())
-}
-
-pub async fn load_bookings(
-    config: Config,
-    sales_persons: Rc<[SalesPerson]>,
-    week: u8,
-    year: u32,
-) -> Result<Rc<[Booking]>, ShiftyError> {
-    let booking_tos = api::get_bookings_for_week(config, week, year).await?;
-    let bookings: Rc<[Booking]> = booking_tos
-        .iter()
-        .map(|booking_to| booking_to.into())
-        .map(|booking: Booking| {
-            let sales_person = sales_persons
-                .iter()
-                .find(|sales_person| sales_person.id == booking.sales_person_id);
-            if let Some(sales_person) = sales_person {
-                Booking {
-                    label: sales_person.name.clone(),
-                    background_color: sales_person.background_color.clone(),
-                    ..booking
-                }
-            } else {
-                booking
-            }
-        })
-        .collect();
-    Ok(bookings)
-}
-
-pub async fn load_slots(
-    config: Config,
-    year: u32,
-    week: u8,
-    shiftplan_id: Uuid,
-    bookings: Rc<[Booking]>,
-) -> Result<Rc<[Slot]>, ShiftyError> {
-    let slot_tos = api::get_slots(config.clone(), year, week, shiftplan_id).await?;
-    let special_days = api::get_special_days_for_week(config.clone(), year, week).await?;
-    let slots: Rc<[Slot]> = slot_tos
-        .iter()
-        .filter(|slot_to| {
-            if slot_to.shiftplan_id.is_none() {
-                tracing::warn!("Slot {} has no shiftplan_id, ignoring", slot_to.id);
-                return false;
-            }
-            true
-        })
-        .filter(|slot_to| {
-            !special_days.iter().any(|special_day| {
-                special_day.day_of_week == slot_to.day_of_week
-                    && (special_day.day_type == SpecialDayTypeTO::Holiday
-                        || special_day.day_type == SpecialDayTypeTO::ShortDay
-                            && special_day.time_of_day.is_some()
-                            && slot_to.to > special_day.time_of_day.unwrap())
-            })
-        })
-        .map(|slot_to| slot_to.into())
-        .map(|slot: Slot| Slot {
-            bookings: bookings
-                .iter()
-                .filter(|booking| booking.slot_id == slot.id)
-                .map(|booking| booking.clone())
-                .collect(),
-            ..slot
-        })
-        .collect();
-    Ok(slots)
 }
 
 pub async fn load_shiftplan_catalog(
@@ -281,18 +213,6 @@ pub async fn save_sales_person(
         api::put_sales_person(config, SalesPersonTO::from(&sales_person)).await?;
         Ok(sales_person.id)
     }
-}
-
-pub async fn register_user_to_slot(
-    config: Config,
-    slot_id: uuid::Uuid,
-    user_id: uuid::Uuid,
-    week: u8,
-    year: u32,
-) -> Result<(), ShiftyError> {
-    info!("Add booking");
-    api::add_booking(config, user_id, slot_id, week, year).await?;
-    Ok(())
 }
 
 /// Book a slot via the conflict-aware endpoint and return the new booking ID
@@ -797,14 +717,6 @@ pub async fn load_text_templates_by_type(
     let template_tos = api::get_text_templates_by_type(config, template_type).await?;
     let templates: Vec<TextTemplate> = template_tos.iter().map(TextTemplate::from).collect();
     Ok(templates.into())
-}
-
-pub async fn load_text_template(
-    config: Config,
-    template_id: Uuid,
-) -> Result<TextTemplate, ShiftyError> {
-    let template_to = api::get_text_template(config, template_id).await?;
-    Ok(TextTemplate::from(&template_to))
 }
 
 pub async fn save_text_template(

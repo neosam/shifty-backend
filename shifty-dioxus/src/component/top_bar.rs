@@ -154,13 +154,7 @@ pub(crate) fn is_admin_target_with_context(
     is_admin_target(target)
 }
 
-pub(crate) fn partition_nav_items<T: Clone>(
-    items: &[(NavTarget, T, String)],
-) -> (Vec<(NavTarget, T, String)>, Vec<(NavTarget, T, String)>) {
-    partition_nav_items_with_context(items, false)
-}
-
-/// Variante von [`partition_nav_items`] für den HR-Modus (Plan 08-07
+/// Variante von [`partition_nav_items_with_context`] für den HR-Modus (Plan 08-07
 /// Task 4). Bei `absences_under_admin = true` landet `NavTarget::Absences`
 /// in der admin-Group; sonst bleibt es Top-Level (kompatibel mit dem
 /// bisherigen D-10-Verhalten).
@@ -1041,7 +1035,7 @@ mod tests {
             nav_entry(NavTarget::UserManagement, "Benutzerverwaltung"),
             nav_entry(NavTarget::Templates, "Textvorlagen"),
         ];
-        let (top_level, admin) = partition_nav_items(&items);
+        let (top_level, admin) = partition_nav_items_with_context(&items, false);
 
         let top_level_targets: Vec<NavTarget> = top_level.iter().map(|e| e.0).collect();
         assert_eq!(
@@ -1073,7 +1067,7 @@ mod tests {
             nav_entry(NavTarget::Shiftplan, "Schichtplan"),
             nav_entry(NavTarget::MyShifts, "Meine Schichten"),
         ];
-        let (top_level, admin) = partition_nav_items(&items);
+        let (top_level, admin) = partition_nav_items_with_context(&items, false);
         assert_eq!(top_level.len(), 2);
         assert!(admin.is_empty());
     }
@@ -1084,7 +1078,7 @@ mod tests {
             nav_entry(NavTarget::Employees, "Mitarbeiter"),
             nav_entry(NavTarget::Templates, "Textvorlagen"),
         ];
-        let (top_level, admin) = partition_nav_items(&items);
+        let (top_level, admin) = partition_nav_items_with_context(&items, false);
         assert!(top_level.is_empty());
         assert_eq!(admin.len(), 2);
     }
@@ -1092,7 +1086,7 @@ mod tests {
     #[test]
     fn partition_nav_items_empty_input() {
         let items: Vec<(NavTarget, Route, String)> = Vec::new();
-        let (top_level, admin) = partition_nav_items(&items);
+        let (top_level, admin) = partition_nav_items_with_context(&items, false);
         assert!(top_level.is_empty());
         assert!(admin.is_empty());
     }
@@ -1241,7 +1235,7 @@ mod tests {
         let items = nav_items_for_visibility(v);
         // Statische Form (HR-Promote off): nur die klassischen Admin-Targets
         // landen in der Admin-Group; Absences bleibt top-level.
-        let (top_level, _admin) = partition_nav_items(&items);
+        let (top_level, _admin) = partition_nav_items_with_context(&items, false);
         for entry in top_level.iter() {
             assert!(
                 !is_admin_target(entry.0),

@@ -118,7 +118,6 @@ pub enum EmployeeWorkDetailsAction {
     UpdateWorkingHours(EmployeeWorkDetails),
     Save,
     Update,
-    Delete(Uuid),
     Load(Uuid),
 }
 
@@ -149,7 +148,6 @@ pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWor
                     .clone();
                 update_employee_work_details(employee_work_details).await
             }
-            EmployeeWorkDetailsAction::Delete(id) => delete_employee_work_details(id).await,
             EmployeeWorkDetailsAction::Load(employee_work_details_id) => {
                 find_and_activate_employee_work_details(employee_work_details_id).await
             }

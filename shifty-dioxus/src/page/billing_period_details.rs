@@ -1,5 +1,3 @@
-use futures_util::StreamExt;
-
 use crate::{
     base_types::{format_hours, ImStr},
     component::{
@@ -17,10 +15,6 @@ use crate::{
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
-
-pub enum BillingPeriodDetailsAction {
-    LoadBillingPeriod,
-}
 
 #[derive(Clone, PartialEq, Props)]
 pub struct BillingPeriodDetailsProps {
@@ -70,21 +64,8 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
         });
     });
 
-    let _billing_period_loader = use_coroutine({
-        to_owned![billing_period_id];
-        move |mut rx: UnboundedReceiver<BillingPeriodDetailsAction>| async move {
-            // Load the specific billing period when page loads
-            billing_period_service.send(BillingPeriodAction::LoadBillingPeriod(billing_period_id));
-
-            while let Some(action) = rx.next().await {
-                match action {
-                    BillingPeriodDetailsAction::LoadBillingPeriod => {
-                        billing_period_service
-                            .send(BillingPeriodAction::LoadBillingPeriod(billing_period_id));
-                    }
-                }
-            }
-        }
+    use_effect(move || {
+        billing_period_service.send(BillingPeriodAction::LoadBillingPeriod(billing_period_id));
     });
 
     let selected_billing_period = billing_periods.selected_billing_period.as_ref();

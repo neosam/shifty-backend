@@ -34,12 +34,9 @@ pub static TEXT_TEMPLATE_STORE: GlobalSignal<TextTemplateStore> =
 pub enum TextTemplateAction {
     LoadTemplates,
     LoadTemplatesByType(String),
-    LoadTemplate(Uuid),
     SaveTemplate(TextTemplate),
     UpdateTemplate(Uuid, TextTemplate),
     DeleteTemplate(Uuid),
-    ClearSelection,
-    ClearFilter,
 }
 
 pub async fn load_text_templates() -> Result<(), ShiftyError> {
@@ -62,14 +59,6 @@ pub async fn load_text_templates_by_type(template_type: &str) -> Result<(), Shif
     TEXT_TEMPLATE_STORE.write().filtered_templates = templates;
     TEXT_TEMPLATE_STORE.write().current_filter_type = Some(template_type.into());
     info!("Loaded text templates by type");
-    Ok(())
-}
-
-pub async fn load_text_template(template_id: Uuid) -> Result<(), ShiftyError> {
-    info!("Loading text template: {}", template_id);
-    let template = loader::load_text_template(CONFIG.read().clone(), template_id).await?;
-    TEXT_TEMPLATE_STORE.write().selected_template = Some(template);
-    info!("Loaded text template");
     Ok(())
 }
 
@@ -164,55 +153,17 @@ pub async fn delete_text_template(template_id: Uuid) -> Result<(), ShiftyError> 
     Ok(())
 }
 
-pub fn clear_selection() {
-    TEXT_TEMPLATE_STORE.write().selected_template = None;
-}
-
-pub fn clear_filter() {
-    let store = TEXT_TEMPLATE_STORE.read();
-    let templates = store.templates.clone();
-    drop(store);
-
-    let mut store = TEXT_TEMPLATE_STORE.write();
-    store.filtered_templates = templates;
-    store.current_filter_type = None;
-}
-
-pub async fn generate_custom_report(
-    billing_period_id: Uuid,
-    template_id: Uuid,
-) -> Result<String, ShiftyError> {
-    info!(
-        "Generating custom report for billing period {} with template {}",
-        billing_period_id, template_id
-    );
-    let report =
-        loader::generate_custom_report(CONFIG.read().clone(), billing_period_id, template_id)
-            .await?;
-    info!("Generated custom report");
-    Ok(report)
-}
-
 pub async fn handle_text_template_action(action: TextTemplateAction) {
     let result = match action {
         TextTemplateAction::LoadTemplates => load_text_templates().await,
         TextTemplateAction::LoadTemplatesByType(template_type) => {
             load_text_templates_by_type(&template_type).await
         }
-        TextTemplateAction::LoadTemplate(template_id) => load_text_template(template_id).await,
         TextTemplateAction::SaveTemplate(template) => save_text_template(&template).await,
         TextTemplateAction::UpdateTemplate(template_id, template) => {
             update_text_template(template_id, &template).await
         }
         TextTemplateAction::DeleteTemplate(template_id) => delete_text_template(template_id).await,
-        TextTemplateAction::ClearSelection => {
-            clear_selection();
-            Ok(())
-        }
-        TextTemplateAction::ClearFilter => {
-            clear_filter();
-            Ok(())
-        }
     };
 
     if let Err(error) = result {

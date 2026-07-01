@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use crate::component::atoms::PersonChip;
 use crate::i18n::Key;
-use crate::service::weekly_summary::WEEKLY_SUMMARY_STORE;
 use crate::state::shiftplan::Identifiable;
 use crate::{
     base_types::ImStr,
@@ -74,6 +73,7 @@ where
     pub show_dropdown: bool,
 }
 
+#[allow(dead_code)] // reason: Dioxus RSX component — invoked via ColumnView rsx! macro call sites; rustc dead-code analysis cannot trace through rsx! macro-generated component calls
 pub fn ColumnViewSlot<CustomData>(props: ColumnViewSlotProps<CustomData>) -> Element
 where
     CustomData: Identifiable + PartialEq + Clone + 'static,
@@ -354,6 +354,7 @@ impl From<Slot> for ColumnViewItem<Slot> {
 }
 
 /// Convert a Slot to a ColumnViewItem with tooltip support for shiftplanners
+#[allow(dead_code)] // reason: called from DayView rsx! closure at line 561; rustc dead-code analysis cannot trace function references inside rsx! macro closures
 fn slot_to_column_view_item_with_tooltips(
     slot: Slot,
     is_shiftplanner: bool,
@@ -833,27 +834,6 @@ enum Zoom {
     Full,
     Half,
     Quarter,
-}
-
-/// Returns the day-total label string (e.g. `"5.0h"`) for a weekday using
-/// the loaded weekly summary, or an empty string if the summary has not
-/// loaded yet. Pure helper so the lookup is testable.
-pub(crate) fn day_total_label(weekday: Weekday) -> String {
-    let store = WEEKLY_SUMMARY_STORE.read();
-    if !store.data_loaded || store.weekly_summary.is_empty() {
-        return String::new();
-    }
-    let row = &store.weekly_summary[0];
-    let hours = match weekday {
-        Weekday::Monday => row.monday_available_hours,
-        Weekday::Tuesday => row.tuesday_available_hours,
-        Weekday::Wednesday => row.wednesday_available_hours,
-        Weekday::Thursday => row.thursday_available_hours,
-        Weekday::Friday => row.friday_available_hours,
-        Weekday::Saturday => row.saturday_available_hours,
-        Weekday::Sunday => row.sunday_available_hours,
-    };
-    format!("{:.1}h", hours)
 }
 
 /// Renders one cell-internal person chip with the existing 500-ms-delay

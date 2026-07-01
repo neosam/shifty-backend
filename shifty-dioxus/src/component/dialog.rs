@@ -25,6 +25,7 @@ use wasm_bindgen::{closure::Closure, JsCast};
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DialogVariant {
     Center,
+    #[allow(dead_code)] // reason: planned layout variant with complete implementation and test coverage; removing would also delete its tests (out of hygiene scope)
     Sheet,
     Bottom,
     Auto,
@@ -106,6 +107,7 @@ pub(crate) fn panel_style(variant: DialogVariant, width: u32) -> String {
 }
 
 /// Returns `true` when the keyboard event represents an Escape press.
+#[allow(dead_code)] // reason: called from #[cfg(target_arch = "wasm32")] install_escape_listener; rustc cannot see wasm32-gated callers in non-wasm32 builds; also tested in cfg(test)
 pub(crate) fn is_escape_key(key: &str) -> bool {
     key == "Escape"
 }

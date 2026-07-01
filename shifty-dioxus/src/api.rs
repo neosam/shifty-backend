@@ -69,21 +69,6 @@ fn normalize_backend(backend: &str) -> Rc<str> {
     Rc::from(backend.strip_suffix('/').unwrap_or(backend))
 }
 
-pub async fn get_slots(
-    config: Config,
-    year: u32,
-    week: u8,
-    shiftplan_id: Uuid,
-) -> Result<Rc<[SlotTO]>, reqwest::Error> {
-    info!("Fetching slots");
-    let url = format!("{}/slot/week/{year}/{week}/{shiftplan_id}", config.backend);
-    let response = reqwest::get(url).await?;
-    response.error_for_status_ref()?;
-    let res = response.json().await?;
-    info!("Fetched");
-    Ok(res)
-}
-
 pub async fn get_all_shiftplans(config: Config) -> Result<Rc<[ShiftplanTO]>, reqwest::Error> {
     info!("Fetching shiftplan catalog");
     let url = format!("{}/shiftplan-catalog", config.backend);
@@ -209,50 +194,6 @@ pub async fn delete_slot_from(
     let response = client.delete(url).send().await?;
     response.error_for_status_ref()?;
     info!("Deleted");
-    Ok(())
-}
-
-pub async fn get_bookings_for_week(
-    config: Config,
-    week: u8,
-    year: u32,
-) -> Result<Rc<[BookingTO]>, reqwest::Error> {
-    info!("Fetching bookings for week {week} in year {year}");
-    let url = format!("{}/booking/week/{year}/{week}", config.backend);
-    let response = reqwest::get(url).await?;
-    response.error_for_status_ref()?;
-    let res = response.json().await?;
-    info!("Fetched");
-    Ok(res)
-}
-
-pub async fn add_booking(
-    config: Config,
-    sales_person_id: Uuid,
-    slot_id: Uuid,
-    week: u8,
-    year: u32,
-) -> Result<(), reqwest::Error> {
-    info!(
-        "Adding booking for user {sales_person_id} to slot {slot_id} in week {week} of year {year}"
-    );
-    let url: String = format!("{}/booking", config.backend,);
-    let booking_to = BookingTO {
-        id: Uuid::nil(),
-        sales_person_id,
-        slot_id,
-        calendar_week: week as i32,
-        year,
-        created: None,
-        deleted: None,
-        created_by: None,
-        deleted_by: None,
-        version: Uuid::nil(),
-    };
-    let client = reqwest::Client::new();
-    let response = client.post(url).json(&booking_to).send().await?;
-    response.error_for_status_ref()?;
-    info!("Added");
     Ok(())
 }
 
@@ -602,19 +543,6 @@ pub async fn convert_extra_hours_to_absence(
     let result: AbsencePeriodTO = response.json().await?;
     info!("Converted");
     Ok(result)
-}
-
-pub async fn get_absence_period(
-    config: Config,
-    id: Uuid,
-) -> Result<AbsencePeriodTO, reqwest::Error> {
-    info!("Fetching absence period {id}");
-    let url = format!("{}/absence-period/{}", config.backend, id);
-    let response = reqwest::get(url).await?;
-    response.error_for_status_ref()?;
-    let res = response.json().await?;
-    info!("Fetched");
-    Ok(res)
 }
 
 /// POST `/absence-period`. The backend rejects non-nil ids and versions on
@@ -1360,19 +1288,6 @@ pub async fn get_text_templates_by_type(
     response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched text templates by type");
-    Ok(res)
-}
-
-pub async fn get_text_template(
-    config: Config,
-    template_id: Uuid,
-) -> Result<TextTemplateTO, reqwest::Error> {
-    info!("Fetching text template {template_id}");
-    let url = format!("{}/text-templates/{}", config.backend, template_id);
-    let response = reqwest::get(url).await?;
-    response.error_for_status_ref()?;
-    let res = response.json().await?;
-    info!("Fetched text template");
     Ok(res)
 }
 

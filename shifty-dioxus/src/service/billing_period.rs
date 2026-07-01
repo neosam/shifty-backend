@@ -37,7 +37,6 @@ pub enum BillingPeriodAction {
     LoadBillingPeriods,
     LoadBillingPeriod(Uuid),
     CreateBillingPeriod(time::Date),
-    ClearSelection,
 }
 
 pub async fn load_billing_periods() -> Result<(), ShiftyError> {
@@ -64,10 +63,6 @@ pub async fn create_billing_period(end_date: time::Date) -> Result<(), ShiftyErr
     Ok(())
 }
 
-pub fn clear_selected_billing_period() {
-    BILLING_PERIOD_STORE.write().selected_billing_period = None;
-}
-
 pub async fn billing_period_service(mut rx: UnboundedReceiver<BillingPeriodAction>) {
     while let Some(action) = rx.next().await {
         info!("BillingPeriodAction: {:?}", &action);
@@ -78,10 +73,6 @@ pub async fn billing_period_service(mut rx: UnboundedReceiver<BillingPeriodActio
             }
             BillingPeriodAction::CreateBillingPeriod(end_date) => {
                 create_billing_period(end_date).await
-            }
-            BillingPeriodAction::ClearSelection => {
-                clear_selected_billing_period();
-                Ok(())
             }
         } {
             Ok(_) => {}

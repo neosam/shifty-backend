@@ -155,6 +155,7 @@ impl From<&SalesPerson> for SalesPersonTO {
     }
 }
 
+#[allow(dead_code)] // reason: trait method required for Identifiable implementors; rustc flags trait methods as dead when no production code calls through the trait object
 pub trait Identifiable {
     fn id(&self) -> Rc<str>;
 }
@@ -312,11 +313,6 @@ impl DayAggregate {
             .fold(f32::NEG_INFINITY, f32::max)
     }
 
-    pub fn has_sunday_slots(&self) -> bool {
-        self.plans
-            .iter()
-            .any(|p| p.slots.iter().any(|s| s.day_of_week == Weekday::Sunday))
-    }
 }
 
 impl From<&BookingConflictTO> for BookingConflict {

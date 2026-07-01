@@ -407,7 +407,6 @@ pub enum UserManagementAction {
     UpdateSalesPerson(SalesPerson),
     UpdateSalesPersonUser(ImStr),
     RemoveSalesPersonUser,
-    SaveSalesPerson,
     SaveSalesPersonAndNavigate,
     ClearSaveSuccess,
     CreateNewSalesPerson,
@@ -423,9 +422,6 @@ pub enum UserManagementAction {
     LoadShiftplanCatalog,
     LoadShiftplanAssignments(Uuid),
     UpdateShiftplanAssignments(Vec<ShiftplanAssignment>),
-    LoadAllSalesPersonUserLinks,
-    LoadAllUserSalesPersonLinks,
-    LoadAllUserRoles,
 }
 
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
@@ -478,10 +474,6 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                     .user_id = None;
                 Ok(())
             }
-            UserManagementAction::SaveSalesPerson => match save_sales_person().await {
-                Ok(_) => Ok(()),
-                Err(err) => Err(err),
-            },
             UserManagementAction::SaveSalesPersonAndNavigate => {
                 match save_sales_person().await {
                     Ok(_) => {
@@ -576,18 +568,6 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                 if let Some(sp) = USER_MANAGEMENT_STORE.write().sales_person.as_mut() {
                     sp.shiftplan_assignments = assignments;
                 }
-                Ok(())
-            }
-            UserManagementAction::LoadAllSalesPersonUserLinks => {
-                load_all_sales_person_user_links().await;
-                Ok(())
-            }
-            UserManagementAction::LoadAllUserSalesPersonLinks => {
-                load_all_user_sales_person_links().await;
-                Ok(())
-            }
-            UserManagementAction::LoadAllUserRoles => {
-                load_all_user_roles().await;
                 Ok(())
             }
         } {
