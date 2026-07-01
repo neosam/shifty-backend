@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
-current_phase: "37"
+current_phase: "38"
 status: planning
-last_updated: "2026-07-01T14:30:00.000Z"
+last_updated: "2026-07-01T15:00:00.000Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 37 Context gathered (MOD-01 zentraler dialog.rs Signal-Flag + absence_convert; MOD-02 Contract-Help-Texte)
+last_activity_desc: Phase 38 Context gathered (HYG-01/02 Frontend-Build-Hygiene; 50 rustc-Warnings, delete-as-default, parse_borrowed-Migration, dioxus bleibt aus CI-Clippy-Gate)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: Modal-UX-Politur (FE)
+current_phase_name: Frontend-Build-Hygiene
 ---
 
 # Project State: Shifty Backend
@@ -32,10 +32,10 @@ current_phase_name: Modal-UX-Politur (FE)
 
 ## Current Position
 
-Phase: 37 — Modal-UX-Politur (FE)
-Plan: — (Context gathered, bereit für `/gsd-plan-phase 37`)
-Status: Context gathered (Phase 36 ebenfalls Context-ready, noch ungeplant)
-Last activity: 2026-07-01 — Phase 37 CONTEXT.md geschrieben (MOD-01 zentraler Signal-Flag-Backdrop-Fix + absence_convert; MOD-02 Contract-Modal Help-Texte, CommittedVoluntary „Zugesagte freiwillige Stunden.")
+Phase: 38 — Frontend-Build-Hygiene
+Plan: — (Context gathered, bereit für `/gsd-plan-phase 38`)
+Status: Context gathered (Phasen 36 + 37 ebenfalls Context-ready, noch ungeplant)
+Last activity: 2026-07-01 — Phase 38 CONTEXT.md geschrieben (HYG-01/02: 50 rustc-Warnings in shifty-dioxus; delete-as-default für ~34 Dead-Code, 14 via cargo fix, 2× time::parse→parse_borrowed; #[allow]+reason inline nur als Ausnahme; dioxus bleibt aus CI-Clippy-Gate, strikt nur rustc-Warnings; dx-serve-Smoke-Check als Absicherung, kein Gate)
 
 ## Deferred Items
 
