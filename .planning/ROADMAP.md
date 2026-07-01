@@ -49,7 +49,7 @@ in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 
   - **Success:** Drag-innen→mouseup-außen lässt Modal offen (Handler-Logik-Test); alle
     Vertragsfelder (außer Von/Bis) tragen Erklärungssätze in allen drei Locales.
 
-- [ ] **Phase 38: Frontend-Build-Hygiene** — HYG-01, HYG-02
+- [x] **Phase 38: Frontend-Build-Hygiene** — HYG-01, HYG-02 (completed 2026-07-01)
   - **HYG-01**: `shifty-dioxus` warnungsfrei — ~45 rustc-Warnings (14 via `cargo fix`, Rest
     manuell: ungenutzte Methoden/Imports/Variablen entfernen oder begründetes
     `#[allow(dead_code)]`, z. B. `has_sunday_slots` `state/shiftplan.rs:315`).
@@ -283,6 +283,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 3/3 | Complete    | 2026-06-30 |
 | 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
+| 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
 
 ## Backlog
 

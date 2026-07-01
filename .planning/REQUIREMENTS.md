@@ -44,7 +44,7 @@ Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 
   entfernen oder mit begründetem `#[allow(dead_code)]` behalten) sind beseitigt.
   (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
 
-- [ ] **HYG-02**: Das Backend bleibt weiterhin `cargo clippy --workspace -- -D warnings`-sauber
+- [x] **HYG-02**: Das Backend bleibt weiterhin `cargo clippy --workspace -- -D warnings`-sauber
   (Regressions-Gate); der dioxus-Clippy-Lauf erfolgt bewusst aus der Backend-nix-Shell (E0514
   im dioxus-Shell). Verbleibende bewusst behaltene dioxus-Lints sind dokumentiert.
   (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
@@ -89,7 +89,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 | MOD-01 | Phase 37 | Complete |
 | MOD-02 | Phase 37 | Complete |
 | HYG-01 | Phase 38 | Complete |
-| HYG-02 | Phase 38 | Pending |
+| HYG-02 | Phase 38 | Complete |
 
 **Coverage:**
 
