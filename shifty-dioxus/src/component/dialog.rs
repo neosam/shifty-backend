@@ -110,6 +110,47 @@ pub(crate) fn is_escape_key(key: &str) -> bool {
     key == "Escape"
 }
 
+/// Pure decision helper for the backdrop-close drag-safety fix (MOD-01).
+///
+/// Tracks whether the most-recent mousedown occurred on the backdrop (outside
+/// the panel) or on the panel itself.  The backdrop close handler consults
+/// `release()` and only calls `on_close` when the mousedown was also on the
+/// backdrop — this prevents a panel-originated drag (e.g. text selection)
+/// released on the backdrop from closing the modal.
+///
+/// # State machine
+/// ```text
+/// press_backdrop() → pressed_on_backdrop = true
+/// press_panel()    → pressed_on_backdrop = false   (stale-clear)
+/// release()        → returns current flag, then resets to false
+/// ```
+#[derive(Clone, Copy, PartialEq, Default)]
+pub(crate) struct BackdropPress {
+    pressed_on_backdrop: bool,
+}
+
+impl BackdropPress {
+    /// Called from the backdrop `onmousedown` handler.
+    pub(crate) fn press_backdrop(&mut self) {
+        self.pressed_on_backdrop = true;
+    }
+
+    /// Called from the panel `onmousedown` handler (with `stop_propagation`).
+    /// Clears any stale backdrop flag so that a panel-originated gesture can
+    /// never trigger a close.
+    pub(crate) fn press_panel(&mut self) {
+        self.pressed_on_backdrop = false;
+    }
+
+    /// Called from the backdrop `onclick` handler.  Returns `true` when the
+    /// preceding mousedown was on the backdrop (genuine outside click), then
+    /// unconditionally resets the flag.
+    pub(crate) fn release(&mut self) -> bool {
+        // stub — not yet implemented; always returns false so test 3 fails (RED)
+        false
+    }
+}
+
 #[derive(Props, Clone, PartialEq)]
 pub struct DialogProps {
     pub open: bool,
@@ -683,5 +724,60 @@ mod tests {
     #[test]
     fn default_variant_is_auto() {
         assert_eq!(DialogVariant::default(), DialogVariant::Auto);
+    }
+
+    // ─── BackdropPress unit tests (MOD-01 drag-safety, D-10) ───────────
+
+    /// New state: no press registered → release returns false (do not close).
+    #[test]
+    fn backdrop_press_new_release_returns_false() {
+        let mut bp = BackdropPress::default();
+        assert!(!bp.release(), "expected false: no press was registered");
+    }
+
+    /// Drag started inside panel (press_panel), released on backdrop → modal
+    /// STAYS OPEN (the core MOD-01 case).
+    #[test]
+    fn backdrop_press_panel_then_release_returns_false() {
+        let mut bp = BackdropPress::default();
+        bp.press_panel();
+        assert!(
+            !bp.release(),
+            "drag from panel + release on backdrop must NOT close modal"
+        );
+    }
+
+    /// Genuine outside click: mousedown AND mouseup on backdrop → close (true).
+    #[test]
+    fn backdrop_press_backdrop_then_release_returns_true() {
+        let mut bp = BackdropPress::default();
+        bp.press_backdrop();
+        assert!(
+            bp.release(),
+            "genuine backdrop click (down+up) must close modal"
+        );
+    }
+
+    /// Stale-clear: backdrop pressed first, then panel pressed before release →
+    /// panel press must clear the stale flag, so release returns false.
+    #[test]
+    fn backdrop_press_backdrop_then_panel_clears_flag() {
+        let mut bp = BackdropPress::default();
+        bp.press_backdrop();
+        bp.press_panel(); // a subsequent panel mousedown clears the stale flag
+        assert!(
+            !bp.release(),
+            "panel press after backdrop press must clear the flag"
+        );
+    }
+
+    /// Release resets: after a true release, an immediate second release returns
+    /// false (flag was consumed).
+    #[test]
+    fn backdrop_press_release_resets_flag() {
+        let mut bp = BackdropPress::default();
+        bp.press_backdrop();
+        assert!(bp.release(), "first release should return true");
+        assert!(!bp.release(), "flag must be reset after a true release");
     }
 }
