@@ -87,10 +87,12 @@ echo "Last tag: $LAST_TAG"
 jj log -r "tags(exact:\"$LAST_TAG\")..@" --no-graph -T 'description.first_line() ++ "\n"'
 ```
 
-From the commit subjects, write structured release notes. Categorize into sections like
-Features, Bug Fixes, Improvements, etc. Only include sections that have entries. Skip pure
-planning/docs/chore churn (e.g. `docs(NN):`, `chore: archive ...`, STATE/ROADMAP
-bookkeeping) unless it represents user-visible change. Use bullet points. Example:
+From the commit subjects, write structured release notes **in English** (always English,
+regardless of the language used in commit messages or this conversation — the tag message is
+a public artifact). Categorize into sections like Features, Bug Fixes, Improvements, etc. Only
+include sections that have entries. Skip pure planning/docs/chore churn (e.g. `docs(NN):`,
+`chore: archive ...`, STATE/ROADMAP bookkeeping) unless it represents user-visible change. Use
+bullet points. Example:
 
 ```
 Features:
