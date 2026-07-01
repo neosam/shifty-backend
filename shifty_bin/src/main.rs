@@ -44,6 +44,7 @@ type MigrationSourceDao = dao_impl_sqlite::migration_source::MigrationSourceDaoI
 type CarryoverDao = CarryoverDaoImpl;
 type EmployeeWorkDetailsDao = EmployeeWorkDetailsDaoImpl;
 type WeekMessageDao = dao_impl_sqlite::week_message::WeekMessageDaoImpl;
+type WeekStatusDao = dao_impl_sqlite::week_status::WeekStatusDaoImpl;
 type BillingPeriodDao = BillingPeriodDaoImpl;
 type BillingPeriodSalesPersonDao = BillingPeriodSalesPersonDaoImpl;
 type TextTemplateDao = dao_impl_sqlite::text_template::TextTemplateDaoImpl;
@@ -419,6 +420,22 @@ impl service_impl::week_message::WeekMessageServiceDeps for WeekMessageServiceDe
 type WeekMessageService =
     service_impl::week_message::WeekMessageServiceImpl<WeekMessageServiceDependencies>;
 
+// Basic-tier KW status service (D-39-12): DAO + Permission + Clock + Uuid +
+// Transaction only, no domain-service dependency. Wired next to week_message,
+// before the business-logic layer.
+pub struct WeekStatusServiceDependencies;
+impl service_impl::week_status::WeekStatusServiceDeps for WeekStatusServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type WeekStatusDao = WeekStatusDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type WeekStatusService =
+    service_impl::week_status::WeekStatusServiceImpl<WeekStatusServiceDependencies>;
+
 pub struct ShiftplanEditServiceDependencies;
 impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditServiceDependencies {
     type Context = Context;
@@ -586,6 +603,7 @@ pub struct RestStateImpl {
     shiftplan_service: Arc<ShiftplanCatalogService>,
     shiftplan_view_service: Arc<ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>>,
     week_message_service: Arc<WeekMessageService>,
+    week_status_service: Arc<WeekStatusService>,
     billing_period_service: Arc<BillingPeriodService>,
     billing_period_report_service: Arc<BillingPeriodReportService>,
     block_report_service: Arc<BlockReportService>,
@@ -625,6 +643,7 @@ impl rest::RestStateDef for RestStateImpl {
     type ShiftplanService = ShiftplanCatalogService;
     type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
     type WeekMessageService = WeekMessageService;
+    type WeekStatusService = WeekStatusService;
     type BillingPeriodService = BillingPeriodService;
     type BillingPeriodReportService = BillingPeriodReportService;
     type BlockReportService = BlockReportService;
@@ -704,6 +723,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn week_message_service(&self) -> Arc<Self::WeekMessageService> {
         self.week_message_service.clone()
+    }
+    fn week_status_service(&self) -> Arc<Self::WeekStatusService> {
+        self.week_status_service.clone()
     }
     fn billing_period_service(&self) -> Arc<Self::BillingPeriodService> {
         self.billing_period_service.clone()
@@ -1039,6 +1061,14 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
         });
 
+        let week_status_service = Arc::new(WeekStatusService {
+            week_status_dao: Arc::new(WeekStatusDao::new(pool.clone())),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let billing_period_service = Arc::new(BillingPeriodService {
             sales_person_service: sales_person_service.clone(),
             permission_service: permission_service.clone(),
@@ -1134,6 +1164,7 @@ impl RestStateImpl {
             shiftplan_service,
             shiftplan_view_service,
             week_message_service,
+            week_status_service,
             billing_period_service,
             billing_period_report_service,
             block_report_service,
