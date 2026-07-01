@@ -41,6 +41,7 @@ pub mod uuid_service;
 pub mod vacation_balance;
 pub mod vacation_entitlement_offset;
 pub mod week_message;
+pub mod week_status;
 
 pub use permission::PermissionServiceImpl;
 

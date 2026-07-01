@@ -44,6 +44,7 @@ pub mod vacation_balance;
 pub mod vacation_entitlement_offset;
 pub mod warning;
 pub mod week_message;
+pub mod week_status;
 
 pub use permission::MockPermissionService;
 pub use permission::PermissionService;
