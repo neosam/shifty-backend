@@ -72,6 +72,15 @@ pub struct SelectInputProps {
 
     #[props(!optional, default = None)]
     pub on_change: Option<EventHandler<ImStr>>,
+
+    /// Optional controlled value for the select element (D-05/D-07).
+    ///
+    /// When `Some`, the underlying `<select>` `value` attribute is set so the DOM
+    /// selection always tracks the driving signal (controlled mode).  When `None`
+    /// (the default), the attribute is omitted and the element behaves as it did
+    /// before — uncontrolled — keeping every existing caller backward-compatible.
+    #[props(!optional, default = None)]
+    pub value: Option<ImStr>,
 }
 
 const SELECT_EXTRA_STYLE: &str =
@@ -84,6 +93,10 @@ pub fn SelectInput(props: SelectInputProps) -> Element {
     let on_change = props.on_change.clone();
     let disabled = props.disabled;
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
+    // When `value` is `Some`, pass it as the controlled value attribute so the
+    // DOM selection always tracks the driving signal.  When `None`, omit the
+    // attribute entirely so the element stays uncontrolled (D-07 backward-compat).
+    let value_attr = props.value.as_ref().map(|v| v.to_string());
 
     rsx! {
         select {
@@ -91,6 +104,7 @@ pub fn SelectInput(props: SelectInputProps) -> Element {
             style: "{SELECT_EXTRA_STYLE}",
             disabled,
             "data-placeholder": placeholder_attr,
+            value: value_attr,
             onchange: move |event| {
                 if let Some(handler) = &on_change {
                     handler.call(ImStr::from(event.data.value()));
