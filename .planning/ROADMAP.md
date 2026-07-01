@@ -122,8 +122,12 @@ Plans:
 **Plans**: 2 plans (0/2 complete)
 
 Plans:
+**Wave 1**
 
 - [ ] 38-01-PLAN.md — Re-baseline live warnings, then `cargo fix` the auto-fixable bucket + migrate the 2 deprecated `time::parse` sites to `parse_borrowed`
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 38-02-PLAN.md — Manual dead-code removal (delete-by-default, `#[allow]`+reason as exception) + full four-gate verification (build/clippy/tests/wasm)
 
 <details>
