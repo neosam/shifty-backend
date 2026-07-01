@@ -4,16 +4,16 @@ milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
 current_phase: 36
 current_phase_name: special-days-bugfixes
-status: executing
-last_updated: "2026-07-01T14:42:37.451Z"
+status: verifying
+last_updated: "2026-07-01T14:59:31.051Z"
 last_activity: 2026-07-01
 last_activity_desc: Phase 36 execution started
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State: Shifty Backend
@@ -34,7 +34,7 @@ progress:
 
 Phase: 36 (special-days-bugfixes) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-01 — Phase 36 execution started
 
 ## Deferred Items
@@ -157,6 +157,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: D-35-01: modify_slot_single_week als separate Methode (Option B), 3-Segment-Split, atomar, Permission-Gate shiftplan.edit
 - [Phase ?]: [D-35-02] single_week: bool Default false — 100% Backward-Compat; bestehender save_slot-Pfad bleibt unverändert erreichbar
 - [Phase ?]: [D-35-02] borrow-sicheres Auslesen von store-Feldern vor await in save_slot_edit verhindert Borrow-Konflikte
+- [Phase ?]: Controlled SelectInput value prop fix
 
 ## Performance Metrics
 
@@ -164,3 +165,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 |-------|------|----------|-------|
 | Phase 35 P01 | 25 | - tasks | - files |
 | Phase 35 P02 | 14 | 3 tasks | 8 files |
+| Phase 36 P02 | 10 | 3 tasks | 2 files |

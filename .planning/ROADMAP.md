@@ -82,7 +82,7 @@ planbar). Nächster Schritt: `/gsd-plan-phase 36` (oder `/gsd-discuss-phase 36`)
 Plans:
 
 - [x] 36-01-PLAN.md — SDF-01 backend fix: create replaces an existing same-date special_day (atomic in-place update) instead of throwing Duplicate
-- [ ] 36-02-PLAN.md — SDF-02 frontend fix: controlled SelectInput `value` prop + Settings Card-3 sd_type binding so the Anlegen button re-enables after each create
+- [x] 36-02-PLAN.md — SDF-02 frontend fix: controlled SelectInput `value` prop + Settings Card-3 sd_type binding so the Anlegen button re-enables after each create
 
 ### Phase 37: Modal-UX-Politur (FE)
 

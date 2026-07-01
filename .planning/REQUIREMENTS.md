@@ -18,7 +18,7 @@ Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 
   (update statt zweitem insert) — **keine Fehlermeldung**, der neue Typ ist danach persistiert.
   (Todo `2026-07-01-schichtplan-feiertag-auf-kurzer-tag-wirft-fehler.md`)
 
-- [ ] **SDF-02**: In der Settings-Special-Days-Karte lassen sich **mehrere Feiertage
+- [x] **SDF-02**: In der Settings-Special-Days-Karte lassen sich **mehrere Feiertage
   nacheinander** anlegen, ohne dass der „Anlegen"-Button hängen bleibt. Nach erfolgreichem
   Create ist der Button für den nächsten Eintrag sofort wieder korrekt aktiviert (kein
   Controlled-vs-Uncontrolled-Desync zwischen `sd_type`-Signal und `<select>`).
@@ -85,7 +85,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SDF-01 | Phase 36 | Complete |
-| SDF-02 | Phase 36 | Pending |
+| SDF-02 | Phase 36 | Complete |
 | MOD-01 | Phase 37 | Pending |
 | MOD-02 | Phase 37 | Pending |
 | HYG-01 | Phase 38 | Pending |
