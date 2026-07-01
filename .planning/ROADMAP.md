@@ -24,7 +24,7 @@ Frontend-Build warnungsfrei machen. **Keine neuen Fähigkeiten.** Kein Snapshot-
 keine Migration, keine neuen Deps. Herkunft: Todo-Backlog. Aufgeteilt aus einem 8-Item-Wunsch
 in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 PDF-Export).
 
-- [ ] **Phase 36: Special-Days-Bugfixes (BE+FE)** — SDF-01, SDF-02
+- [x] **Phase 36: Special-Days-Bugfixes (BE+FE)** — SDF-01, SDF-02 (completed 2026-07-01)
   - **SDF-01**: Umstellen eines Tages Feiertag ↔ „Kurzer Tag" aktualisiert den bestehenden
     Special-Day-Eintrag (update statt zweitem insert) — keine Fehlermeldung, neuer Typ
     persistiert. Update-vs-insert-Pfad prüfen (ggf. Backend), Reproduktion + Statuscode erfassen.
@@ -263,6 +263,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 4/4 | Complete   | 2026-06-30 |
 | 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 1/1 | Complete    | 2026-06-30 |
 | 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 3/3 | Complete    | 2026-06-30 |
+| 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 
 ## Backlog
 
@@ -288,6 +289,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   - jj-Repo: User committet manuell, keine git-Fallbacks.
 
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
-  **Plans:** 3/3 plans complete
+  **Plans:** 2/2 plans complete
 
 *Last updated: 2026-06-30 — **v1.10 geshipt + archiviert** (Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`). Phase-Details nach [`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md) ausgelagert + im Milestones-Block collapsed; Progress-Zeilen 33/35 bleiben Complete (2026-06-30). Backlog 999.1 unverändert.*
