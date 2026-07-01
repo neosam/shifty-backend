@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
 status: planning
-last_updated: "2026-07-01T21:30:00.000Z"
-last_activity: 2026-07-01
+last_updated: "2026-07-02T00:00:00.000Z"
+last_activity: 2026-07-02
 progress:
   total_phases: 4
   completed_phases: 0
@@ -31,8 +31,8 @@ progress:
 
 Phase: 39 (erste von 4 v2.1-Phasen, 39–42) — KW-Status Grundlage (BE+FE) — not started
 Plan: — (Plan-Anzahl TBD, wird in plan-phase festgelegt)
-Status: Planning (Roadmap erstellt; discuss-phase 39 + 40 abgeschlossen — CONTEXT.md vorhanden; plan-phase ausstehend)
-Last activity: 2026-07-01 — discuss-phase 40 abgeschlossen (Wochen-Sperre: 423-Code, +/- Buttons ausblenden, harte Sperre inkl. Ausbuchen, kein Banner)
+Status: Planning (Roadmap erstellt; discuss-phase 39 + 40 + 41 abgeschlossen — CONTEXT.md vorhanden; plan-phase ausstehend)
+Last activity: 2026-07-02 — discuss-phase 41 abgeschlossen (Ø-Anwesenheit flexible: Kennzahl = Ø Std pro Anwesenheitstag über Report-Zeitraum; nur echte Arbeitstage im Nenner ⇒ Absence per Konstruktion raus; im bestehenden HR-Statistik-Bereich; Schwelle ≥2 Anwesenheitstage; Read-Aggregat, kein Snapshot-Bump/Version bleibt 12, A-22-1 unberührt)
 
 Progress: [░░░░░░░░░░] 0%
 
