@@ -207,11 +207,16 @@ pub enum Key {
     FromLabel,
     ToLabel,
     WorkdaysLabel,
+    WorkdaysHelp,
     ExpectedHoursPerWeekLabel,
+    ExpectedHoursPerWeekHelp,
     ExpectedHours,
     DaysPerWeekLabel,
+    DaysPerWeekHelp,
     VacationEntitlementsPerYearLabel,
+    VacationEntitlementsPerYearHelp,
     DynamicHourLabel,
+    DynamicHourHelp,
     HolidaysInHoursLabel,
     WorkdaysInHoursLabel,
 
@@ -270,6 +275,7 @@ pub enum Key {
     ShowPaid,
     ShowUnpaid,
     CommittedVoluntaryLabel,
+    CommittedVoluntaryHelp,
     EmployeesShowAll,
     Values,
     Delta,
@@ -1497,6 +1503,75 @@ mod tests {
             i18n.t(Key::ImpersonateStop).as_ref(),
             "Impersonation beenden"
         );
+    }
+
+    // ===== Phase 37, Plan 02 — Contract-modal help-text i18n tests =====
+
+    /// D-06/D-10: German verbatim resolution for every new *Help key.
+    /// These guards fail fast if any add_text is missing or misspelled.
+    #[test]
+    fn i18n_contract_help_keys_match_german_reference() {
+        let de = generate(Locale::De);
+        assert_eq!(
+            de.t(Key::WorkdaysHelp).as_ref(),
+            "Die Tage, an denen die Person in der Regel arbeitet."
+        );
+        assert_eq!(
+            de.t(Key::ExpectedHoursPerWeekHelp).as_ref(),
+            "Wie viele Sollstunden pro Woche."
+        );
+        assert_eq!(
+            de.t(Key::DaysPerWeekHelp).as_ref(),
+            "An wie vielen Tagen die Person in der Regel reinkommt."
+        );
+        assert_eq!(
+            de.t(Key::VacationEntitlementsPerYearHelp).as_ref(),
+            "Der gesamte Jahresurlaub laut Vertrag im Jahr."
+        );
+        assert_eq!(
+            de.t(Key::DynamicHourHelp).as_ref(),
+            "Das Soll entspricht immer den geleisteten Stunden \u{2014} ideal, wenn die Person nach Stunden bezahlt wird."
+        );
+        assert_eq!(
+            de.t(Key::CommittedVoluntaryHelp).as_ref(),
+            "Zugesagte freiwillige Stunden."
+        );
+    }
+
+    /// D-10 locale-coverage guard: en and cs must be non-empty and differ from
+    /// the German copy, so a forgotten add_text cannot silently fall back.
+    #[test]
+    fn i18n_contract_help_keys_present_in_en_and_cs() {
+        let de = generate(Locale::De);
+        for locale in [Locale::En, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::WorkdaysHelp,
+                Key::ExpectedHoursPerWeekHelp,
+                Key::DaysPerWeekHelp,
+                Key::VacationEntitlementsPerYearHelp,
+                Key::DynamicHourHelp,
+                Key::CommittedVoluntaryHelp,
+            ] {
+                let value = i18n.t(key);
+                let de_value = de.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+                assert_ne!(
+                    value.as_ref(),
+                    de_value.as_ref(),
+                    "locale {:?} for {:?} silently falls back to German: `{}`",
+                    locale,
+                    key,
+                    value
+                );
+            }
+        }
     }
 
     #[test]
