@@ -285,6 +285,69 @@ mod tests {
 
     // ─── SelectInput ────────────────────────────────────────────────
 
+    /// D-05: SelectInput with `value: Some("holiday")` renders the value attribute on
+    /// the `<select>` element so the DOM selection follows the signal (controlled).
+    #[test]
+    fn select_input_controlled_value_non_empty_reflected() {
+        fn app() -> Element {
+            rsx! {
+                SelectInput {
+                    value: Some(ImStr::from("holiday")),
+                    option { value: "a", "A" }
+                    option { value: "b", "B" }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains(r#"value="holiday""#),
+            "controlled value 'holiday' not reflected on <select>: {html}"
+        );
+    }
+
+    /// D-05: SelectInput with `value: Some("")` reflects the empty/placeholder
+    /// selection — this is the post-reset state that re-enables the Anlegen button.
+    #[test]
+    fn select_input_controlled_empty_value_reflected() {
+        fn app() -> Element {
+            rsx! {
+                SelectInput {
+                    value: Some(ImStr::from("")),
+                    option { value: "one", "One" }
+                    option { value: "two", "Two" }
+                }
+            }
+        }
+        let html = render(app);
+        // value="" appears on the <select> (children have "one"/"two", not "")
+        assert!(
+            html.contains(r#"value="""#),
+            "empty controlled value not reflected on <select>: {html}"
+        );
+    }
+
+    /// D-07: Without the `value` prop the `<select>` stays uncontrolled — no value
+    /// attribute is emitted, preserving backward compatibility for all existing callers.
+    #[test]
+    fn select_input_uncontrolled_when_no_value_prop() {
+        fn app() -> Element {
+            rsx! {
+                SelectInput {
+                    option { value: "x", "X" }
+                }
+            }
+        }
+        let html = render(app);
+        // Inspect the <select ...> opening tag (before first <option>) to confirm
+        // no value= attribute was added by the component.
+        let before_first_option = html.find("<option").unwrap_or(html.len());
+        let select_tag = &html[..before_first_option];
+        assert!(
+            !select_tag.contains("value="),
+            "select must not carry value= attr in uncontrolled mode: {select_tag}"
+        );
+    }
+
     #[test]
     fn select_input_renders_select_with_form_input_class() {
         fn app() -> Element {
