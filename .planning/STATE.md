@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
-current_phase: Not started
+current_phase: "36"
 status: planning
-last_updated: "2026-07-01T00:00:00.000Z"
+last_updated: "2026-07-01T14:00:00.000Z"
 last_activity: 2026-07-01
-last_activity_desc: v1.11 gestartet (Milestone-Goals + PROJECT.md gesetzt)
+last_activity_desc: Phase 36 Context gathered (SDF-01 Backend-Upsert, SDF-02 controlled SelectInput)
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: —
+current_phase_name: Special-Days-Bugfixes (BE+FE)
 ---
 
 # Project State: Shifty Backend
@@ -32,10 +32,10 @@ current_phase_name: —
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-01 — Milestone v1.11 gestartet
+Phase: 36 — Special-Days-Bugfixes (BE+FE)
+Plan: — (Context gathered, bereit für `/gsd-plan-phase 36`)
+Status: Context gathered
+Last activity: 2026-07-01 — Phase 36 CONTEXT.md geschrieben (SDF-01 Backend-Upsert atomar; SDF-02 SelectInput controlled)
 
 ## Deferred Items
 
