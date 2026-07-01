@@ -61,6 +61,21 @@ pub fn weekday_key(day: DayOfWeekTO) -> Key {
     }
 }
 
+/// Map `Option<SpecialDayTypeTO>` to the HTML select `value` string (D-06).
+///
+/// Mirrors the inverse of the `onchange` match in the Card-3 SelectInput handler.
+/// Used to derive a controlled `value` prop from the `sd_type` signal so that
+/// `sd_type.set(None)` after a successful create visibly clears the dropdown and
+/// re-enables the Anlegen button (D-08: the date field is already controlled via
+/// `value: ImStr::from(sd_date_val.as_str())` so no change is needed there).
+pub(crate) fn sd_type_to_select_value(ty: Option<SpecialDayTypeTO>) -> &'static str {
+    match ty {
+        None => "",
+        Some(SpecialDayTypeTO::Holiday) => "holiday",
+        Some(SpecialDayTypeTO::ShortDay) => "short_day",
+    }
+}
+
 /// Returns `true` if a special day with the same `(year, calendar_week, day_of_week)` already
 /// exists in `list`.
 ///
@@ -624,6 +639,11 @@ pub fn SettingsPage() -> Element {
                                 "{i18n.t(Key::SettingsSpecialDaysTypeLabel)}"
                             }
                             SelectInput {
+                                // D-06: controlled binding — the select value tracks
+                                // sd_type so sd_type.set(None) after a successful
+                                // create visibly clears the dropdown and re-enables
+                                // the Anlegen button (no desync between signal and DOM).
+                                value: Some(ImStr::from(sd_type_to_select_value(sd_type_val.clone()))),
                                 on_change: move |v: ImStr| {
                                     let ty = match v.as_str() {
                                         "holiday" => Some(SpecialDayTypeTO::Holiday),
