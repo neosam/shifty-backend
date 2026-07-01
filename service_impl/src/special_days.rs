@@ -135,21 +135,31 @@ impl<
             return Err(ServiceError::VersionSetOnCreate);
         }
 
-        // Duplicate guard (D-33-07): reject a second special day for the same
-        // (year, calendar_week, day_of_week). Reporting is keyed by date so a
-        // duplicate would not double-credit hours, but it cannot be cleared in
-        // one action from the Shiftplan UI and leaves a stale indicator (WR-02).
-        let existing = self
+        // Same-date replacement (SDF-01, D-01): if an active (deleted IS NULL) row
+        // already exists for this (year, calendar_week, day_of_week), replace it in
+        // place via a single atomic UPDATE instead of returning a Duplicate error.
+        // This makes switching Holiday ↔ ShortDay work without a frontend delete-then-
+        // create dance and without a new PUT endpoint (D-02, D-04).
+        let existing_week = self
             .special_day_dao
             .find_by_week(entity.year, entity.calendar_week)
             .await?;
-        if existing
+        if let Some(existing_entry) = existing_week
             .iter()
-            .any(|e| e.day_of_week == entity.day_of_week)
+            .find(|e| e.day_of_week == entity.day_of_week && e.deleted.is_none())
         {
-            return Err(ServiceError::ValidationError(Arc::from([
-                ValidationFailureItem::Duplicate,
-            ])));
+            // Preserve the existing row's id and created timestamp; update only
+            // day_type, time_of_day, and version so the replacement is atomic (D-01).
+            let mut updated = existing_entry.clone();
+            updated.day_type = entity.day_type;
+            updated.time_of_day = entity.time_of_day;
+            updated.version = self
+                .uuid_service
+                .new_uuid("special-day-service::replace version");
+            self.special_day_dao
+                .update(&updated, "special-days-service::replace")
+                .await?;
+            return Ok(SpecialDay::from(&updated));
         }
 
         entity.id = self.uuid_service.new_uuid("special-day-service::create id");

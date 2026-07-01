@@ -170,16 +170,29 @@ impl SpecialDayDao for SpecialDayDaoImpl {
             .as_ref()
             .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
             .transpose()?;
+        let day_type = match entity.day_type {
+            SpecialDayTypeEntity::Holiday => "Holiday",
+            SpecialDayTypeEntity::ShortDay => "ShortDay",
+        }
+        .to_string();
+        let time_format = format_description!("[hour]:[minute]:[second]");
+        let time_of_day = entity
+            .time_of_day
+            .as_ref()
+            .map(|time_of_day| time_of_day.format(&time_format))
+            .transpose()?;
         query_as!(
             SpecialDayDb,
             r#"
             UPDATE special_day
-            SET deleted = ?, update_version = ?, update_process = ?
+            SET deleted = ?, update_version = ?, update_process = ?, day_type = ?, time_of_day = ?
             WHERE id = ?
             "#,
             deleted,
             version,
             process,
+            day_type,
+            time_of_day,
             id,
         )
         .execute(&*self.pool)
