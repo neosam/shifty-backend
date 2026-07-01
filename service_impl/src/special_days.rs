@@ -125,13 +125,12 @@ impl<
         if special_day.day_type == SpecialDayType::Holiday {
             special_day.time_of_day = None;
         }
-        special_day.created = Some(self.clock_service.date_time_now());
-        let mut entity: SpecialDayEntity = (&special_day).try_into()?;
 
-        if !entity.id.is_nil() {
+        // Guard: client must not supply id/version on create.
+        if !special_day.id.is_nil() {
             return Err(ServiceError::IdSetOnCreate);
         }
-        if !entity.version.is_nil() {
+        if !special_day.version.is_nil() {
             return Err(ServiceError::VersionSetOnCreate);
         }
 
@@ -140,19 +139,20 @@ impl<
         // place via a single atomic UPDATE instead of returning a Duplicate error.
         // This makes switching Holiday ↔ ShortDay work without a frontend delete-then-
         // create dance and without a new PUT endpoint (D-02, D-04).
+        // `find_by_week` already filters WHERE deleted IS NULL, so no second check here.
         let existing_week = self
             .special_day_dao
-            .find_by_week(entity.year, entity.calendar_week)
+            .find_by_week(special_day.year, special_day.calendar_week)
             .await?;
         if let Some(existing_entry) = existing_week
             .iter()
-            .find(|e| e.day_of_week == entity.day_of_week && e.deleted.is_none())
+            .find(|e| e.day_of_week == special_day.day_of_week)
         {
             // Preserve the existing row's id and created timestamp; update only
             // day_type, time_of_day, and version so the replacement is atomic (D-01).
             let mut updated = existing_entry.clone();
-            updated.day_type = entity.day_type;
-            updated.time_of_day = entity.time_of_day;
+            updated.day_type = (&special_day.day_type).into();
+            updated.time_of_day = special_day.time_of_day;
             updated.version = self
                 .uuid_service
                 .new_uuid("special-day-service::replace version");
@@ -162,6 +162,10 @@ impl<
             return Ok(SpecialDay::from(&updated));
         }
 
+        // Create path: stamp `created` from the clock only when actually inserting
+        // a new row — the replace path above keeps the existing row's `created`.
+        special_day.created = Some(self.clock_service.date_time_now());
+        let mut entity: SpecialDayEntity = (&special_day).try_into()?;
         entity.id = self.uuid_service.new_uuid("special-day-service::create id");
         entity.version = self
             .uuid_service

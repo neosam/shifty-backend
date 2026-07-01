@@ -313,15 +313,22 @@ async fn test_create_replaces_same_date_entry() {
         .times(1)
         .returning(|_| replace_version());
     let mut dao = MockSpecialDayDao::new();
-    // An existing Monday/2026/W1 Holiday entry (same date as minimal_special_day()).
+    // An existing Monday/2026/W1 Holiday entry with a real non-nil id so that the
+    // "keeps existing id" assertion below is meaningful (distinct from Uuid::nil()).
     dao.expect_find_by_week()
         .with(eq(2026u32), eq(1u8))
         .times(1)
-        .returning(|_, _| Ok(Arc::from([make_entity()])));
+        .returning(|_, _| {
+            Ok(Arc::from([make_existing_entity(
+                existing_id(),
+                SpecialDayTypeEntity::Holiday,
+                None,
+            )]))
+        });
     // Replacement: update is called once with the existing entity's id; create is never called.
     dao.expect_update()
         .withf(|entity, process| {
-            entity.id == Uuid::nil()
+            entity.id == existing_id()
                 && entity.day_type == SpecialDayTypeEntity::Holiday
                 && entity.time_of_day.is_none()
                 && entity.deleted.is_none()
@@ -341,6 +348,12 @@ async fn test_create_replaces_same_date_entry() {
         result.is_ok(),
         "same-date entry must be replaced, not rejected: {:?}",
         result
+    );
+    let replaced = result.unwrap();
+    assert_eq!(
+        replaced.id,
+        existing_id(),
+        "replaced entry must preserve the existing row's id (SDF-01 guarantee)"
     );
 }
 
