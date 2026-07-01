@@ -34,34 +34,55 @@
 - [ ] **Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE)** — SDF-01
 
 ### Phase 39: KW-Status Grundlage (BE+FE)
+
 **Goal**: Ein Schichtplaner kann jeder Kalenderwoche einen Status (Kein / In Planung / Geplant / Gesperrt) geben, der für alle Rollen als Badge in der Schichtplan-Wochenansicht sichtbar ist.
 **Depends on**: Nichts Neues (erste v2.1-Phase; baut auf v1.11 / Phase 38 auf)
 **Requirements**: WST-01, WST-02, WST-05
 **Success Criteria** (what must be TRUE):
+
   1. Ein Schichtplaner kann in der Wochenansicht den Status der Woche über einen Aktions-Button setzen/ändern; der Status wird pro ISO-(Jahr, Woche) persistiert und bleibt nach Reload erhalten.
   2. Alle Rollen sehen den aktuellen Wochenstatus als farbkodiertes Badge im Wochen-Header; Nicht-Schichtplaner können ihn nicht ändern (nur Anzeige).
   3. Der Status wird an der ISO-Wochen-Jahresgrenze korrekt zugeordnet (KW-53-/Jahreswechsel-Tage landen in der richtigen (Jahr, Woche)-Zeile) — durch Unit-Tests belegt.
   4. Alle vier Status-Labels erscheinen lokalisiert in de/en/cs.
+
 **Plans**: 5 plans
+**Wave 1**
+
 - [ ] 39-01-PLAN.md — Migration + DAO (week_status-Tabelle, WeekStatusDao, TEXT-Diskriminant, .sqlx)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 39-02-PLAN.md — WeekStatusService (Basic-Tier, TDD: Permission-Gate, Upsert/Soft-Delete, KW-53)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 39-03-PLAN.md — rest-types WeekStatusTO + REST-Handler/ApiDoc + DI-Wiring in main.rs
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 39-04-PLAN.md — FE-Foundation: WeekStatus-Enum, i18n de/en/cs, API-Client, Fresh-Fetch-Store
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 39-05-PLAN.md — FE-Komponenten: WeekStatusBadge + WeekStatusDropdown + Schichtplan-Integration
+
 **UI hint**: yes
 
 **Offene Entscheidungen (discuss-phase 39):** Wer den Status setzen darf + welche Status-Übergänge erlaubt sind (Default: Schichtplaner, alle Übergänge). UI-Muster Badge + Aktions-Button (kein controlled `<select>`, um D-25-06-Desync zu vermeiden). None-Variante NICHT `None` nennen (Clippy/`Option`-Shadowing → z.B. `Unset`/`Open`).
 **Scope (BE+FE):** neue `week_status`-Tabelle + Migration (TEXT-Enum analog `special_day`, ISO-(year, week)-Composite-Key analog `week_message`, partial UNIQUE `WHERE deleted IS NULL`); `WeekStatusService` (Basic-Tier: nur DAO/Permission/Transaction); Status-CRUD-REST (`#[utoipa::path]`, `ToSchema`-DTO); DI-Wiring in `main.rs` (Basic-Tier vor Business-Logic); Frontend Status-Badge + Set-Button (nur Schichtplaner), Status-Reload vom Server nach jeder Änderung. ISO-Jahr immer aus `to_iso_week_date().0` ableiten (nie `date.year()`).
 
 ### Phase 40: Wochen-Sperre durchsetzen (BE+FE)
+
 **Goal**: In einer Gesperrt-Woche sind Buchungs- und Slot-Schreibaktionen für Nicht-Schichtplaner auf allen Schreibpfaden server-seitig blockiert; Schichtplaner behalten Vollzugriff.
 **Depends on**: Phase 39 (Status-Datenmodell + `WeekStatusService`)
 **Requirements**: WST-03, WST-04
 **Success Criteria** (what must be TRUE):
+
   1. Versucht ein Nicht-Schichtplaner in einer Gesperrt-Woche eine Buchung/Slot-Änderung, wird sie abgelehnt (`ServiceError::WeekLocked` → HTTP 423 Default) mit lokalisierter Rückmeldung; das Frontend zeigt die Woche read-only + nicht-blockierendes Inline-Banner bei 423.
   2. Ein Schichtplaner kann in derselben Gesperrt-Woche weiterhin alle Schreibaktionen ausführen.
   3. Die Sperre greift auf allen sechs Schreibpfaden ohne Bypass (`book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`, `copy_week_with_conflict_check`, neu `delete_booking` inkl. Re-Routing von `DELETE /booking/{id}`) — belegt durch Test-Matrix 6 Pfade × {gesperrt, offen}.
   4. Der Sperr-Check läuft in derselben Transaktion wie der Write (kein TOCTOU) — durch Test/Review belegt.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -69,14 +90,17 @@
 **Scope (BE+FE):** geteilter `assert_week_not_locked(year, week, context, tx)`-Helper, aufgerufen am Kopf aller sechs Schreibmethoden im Business-Logic-Tier (`ShiftplanEditService`); **neue** `ShiftplanEditService::delete_booking`-Methode + Re-Routing des `DELETE /booking/{id}`-Handlers weg von `BookingService::delete` (schließt den einzigen echten Nicht-Schichtplaner-Bypass); `ServiceError::WeekLocked { year, week }` → HTTP-Code in `rest/src/lib.rs` (+ OpenAPI-Annotation); Frontend read-only-Woche + Inline-423-Banner; i18n de/en/cs der Write-Block-Meldung.
 
 ### Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE)
+
 **Goal**: HR kann die durchschnittliche tatsächliche Anwesenheit flexibler Mitarbeiter über einen Zeitraum einsehen, wobei Urlaub aus dem Nenner herausgerechnet ist.
 **Depends on**: Nichts Hartes (fachlich unabhängig von WST; nach Phase 40 sequenziert, da WST höheres Regressionsrisiko trägt und zuerst stabil sein soll)
 **Requirements**: AVG-01, AVG-02, AVG-03
 **Success Criteria** (what must be TRUE):
+
   1. HR kann pro flexiblem Mitarbeiter (`EmployeeWorkDetails.is_dynamic == true`) die durchschnittliche tatsächliche Anwesenheit über einen Zeitraum einsehen; Urlaub ist aus dem Nenner herausgerechnet.
   2. Nicht-flexible Mitarbeiter erscheinen nicht in der Auswertung (server-seitiger `is_dynamic`-Filter); Nicht-HR-Rollen haben keinen Zugriff.
   3. Die Auswertung ist im Frontend als Report-/Auswertungs-Sicht sichtbar inkl. Leerzustand; Labels/Tooltips in de/en/cs.
   4. Die Auswertung ist ein reines Read-Aggregat — kein Snapshot-Bump, keine neue Persistenz, kein neuer `BillingPeriodValueType` (`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12) — grep-/test-verifiziert.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -84,13 +108,16 @@
 **Scope (BE+FE):** neue Read-Aggregat-Methode im `ReportingService` (Business-Logic-Tier) — A-22-1 NICHT blind wiederverwenden, ggf. eigene Funktion (A-22-1 selbst nie ändern); HR-gated REST-Endpoint (`#[utoipa::path]`); Frontend-Report-Sicht; i18n de/en/cs. Kein neuer `BillingPeriodValueType`, keine Migration.
 
 ### Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE)
+
 **Goal**: Nach dem Anlegen eines Special-Day bleibt der „Anlegen"-Button aktiv; mehrfaches Anlegen hintereinander ist ohne Dropdown-Toggle möglich.
 **Depends on**: Nichts (isoliert, FE-only, niedrigstes Risiko — bewusst zuletzt platziert)
 **Requirements**: SDF-01
 **Success Criteria** (what must be TRUE):
+
   1. Nach erfolgreichem Special-Day-Anlegen bleibt der „Anlegen"-Button aktiv und Typ/Datum stehen unverändert (Option 2 — nach Create nichts zurücksetzen).
   2. Ein User kann mehrere Special-Days hintereinander anlegen, ohne das Dropdown neu zu togglen.
   3. Ein SSR-/Komponenten-Test deckt das mehrfache Anlegen ab (Formulardaten bleiben erhalten).
+
 **Plans**: TBD
 **UI hint**: yes
 
