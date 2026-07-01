@@ -31,8 +31,8 @@ progress:
 
 Phase: 39 (erste von 4 v2.1-Phasen, 39–42) — KW-Status Grundlage (BE+FE) — not started
 Plan: — (Plan-Anzahl TBD, wird in plan-phase festgelegt)
-Status: Planning (Roadmap erstellt; discuss-phase 39 ausstehend)
-Last activity: 2026-07-01 — v2.1-Roadmap erstellt (4 Phasen 39–42, 9/9 Requirements gemappt, Coverage ✓)
+Status: Planning (Roadmap erstellt; discuss-phase 39 + 40 abgeschlossen — CONTEXT.md vorhanden; plan-phase ausstehend)
+Last activity: 2026-07-01 — discuss-phase 40 abgeschlossen (Wochen-Sperre: 423-Code, +/- Buttons ausblenden, harte Sperre inkl. Ausbuchen, kein Banner)
 
 Progress: [░░░░░░░░░░] 0%
 
