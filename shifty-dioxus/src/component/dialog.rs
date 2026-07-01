@@ -146,8 +146,9 @@ impl BackdropPress {
     /// preceding mousedown was on the backdrop (genuine outside click), then
     /// unconditionally resets the flag.
     pub(crate) fn release(&mut self) -> bool {
-        // stub — not yet implemented; always returns false so test 3 fails (RED)
-        false
+        let was_pressed = self.pressed_on_backdrop;
+        self.pressed_on_backdrop = false;
+        was_pressed
     }
 }
 
@@ -228,12 +229,24 @@ fn DialogContent(props: DialogContentProps) -> Element {
     let on_close = props.on_close;
     let on_close_for_x = props.on_close;
 
+    // MOD-01: drag-safe backdrop close (D-01/D-02).
+    // The flag is set by the backdrop onmousedown and cleared by the panel
+    // onmousedown (via stop_propagation + explicit press_panel call).
+    // The backdrop onclick fires on_close ONLY when the flag is set (i.e. both
+    // mousedown AND mouseup occurred on the backdrop — a genuine outside click).
+    let mut backdrop_press = use_signal(BackdropPress::default);
+
     rsx! {
         div {
             role: "presentation",
             style: "{backdrop}",
+            onmousedown: move |_| {
+                backdrop_press.write().press_backdrop();
+            },
             onclick: move |_| {
-                on_close.call(());
+                if backdrop_press.write().release() {
+                    on_close.call(());
+                }
             },
 
             div {
@@ -241,6 +254,10 @@ fn DialogContent(props: DialogContentProps) -> Element {
                 "aria-modal": "true",
                 "aria-labelledby": "shifty-dialog-title",
                 style: "{panel}",
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    backdrop_press.write().press_panel();
+                },
                 onclick: move |evt| {
                     evt.stop_propagation();
                 },
