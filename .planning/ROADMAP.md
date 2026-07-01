@@ -14,8 +14,82 @@
 - ✅ **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** — Phasen 29–32 (shipped 2026-06-29) — siehe [`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md)
 - ✅ **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** — Phasen 33–35 (shipped 2026-06-30) — siehe [`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md)
 - ✅ **v1.11 Stabilisierung & UX-Politur** — Phasen 36–38 (shipped 2026-07-01) — siehe [`milestones/v1.11-ROADMAP.md`](milestones/v1.11-ROADMAP.md)
+- 🚧 **v2.1 Schichtplan- & Reporting-Erweiterungen** — Phasen 39–42 (aktiv, gestartet 2026-07-01) — KW-Status & Sperre (WST), Ø-Anwesenheit flexible Stunden (AVG), Special-Days-Button-Bugfix (SDF)
 
 ## Phases
+
+> **🚧 Aktiver Milestone: v2.1 Schichtplan- & Reporting-Erweiterungen** (gestartet 2026-07-01, autonomer Nacht-Run) — 4 Phasen (39–42), 9/9 Requirements gemappt.
+>
+> **Milestone-Ziel:** Zwei neue Steuerungs-/Auswertungs-Fähigkeiten für die Schichtplanung — Kalenderwochen-Status mit Sperr-Gate (WST) und eine Durchschnitts-Anwesenheits-Auswertung für flexible Stunden (AVG) — plus ein isolierter mitreitender Settings-Bugfix (SDF). Jede Phase umfasst Backend UND Frontend (GSD-Scope-Regel), außer der isolierte FE-only-Bugfix (Phase 42).
+>
+> **Versions-Hinweis:** `v2.1` ist das GSD-Planungs-Label (MAJOR.MINOR). Reale Release-Version via `/release-version` → `./cli-update-version.sh` (PATCH aus Git-Tags). Releases aus diesem Milestone = v2.1.0 ff.
+>
+> **Querschnittliche Gates (jede Phase, autonomer Run):** nach jeder neuen `query!`/`query_as!` → `cargo sqlx prepare --workspace` (in `nix develop`) + `.sqlx` committen; `cargo clippy --workspace -- -D warnings` (Pflicht-Gate, `cargo test` reicht nicht); Backend `cargo test --workspace`; Frontend `cargo build --target wasm32-unknown-unknown` + `cargo test -p shifty-dioxus`. i18n de/en/cs für alle neuen benutzersichtbaren Texte.
+
+**v2.1 Phasen-Checkliste:**
+
+- [ ] **Phase 39: KW-Status Grundlage (BE+FE)** — WST-01, WST-02, WST-05
+- [ ] **Phase 40: Wochen-Sperre durchsetzen (BE+FE)** — WST-03, WST-04
+- [ ] **Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE)** — AVG-01, AVG-02, AVG-03
+- [ ] **Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE)** — SDF-01
+
+### Phase 39: KW-Status Grundlage (BE+FE)
+**Goal**: Ein Schichtplaner kann jeder Kalenderwoche einen Status (Kein / In Planung / Geplant / Gesperrt) geben, der für alle Rollen als Badge in der Schichtplan-Wochenansicht sichtbar ist.
+**Depends on**: Nichts Neues (erste v2.1-Phase; baut auf v1.11 / Phase 38 auf)
+**Requirements**: WST-01, WST-02, WST-05
+**Success Criteria** (what must be TRUE):
+  1. Ein Schichtplaner kann in der Wochenansicht den Status der Woche über einen Aktions-Button setzen/ändern; der Status wird pro ISO-(Jahr, Woche) persistiert und bleibt nach Reload erhalten.
+  2. Alle Rollen sehen den aktuellen Wochenstatus als farbkodiertes Badge im Wochen-Header; Nicht-Schichtplaner können ihn nicht ändern (nur Anzeige).
+  3. Der Status wird an der ISO-Wochen-Jahresgrenze korrekt zugeordnet (KW-53-/Jahreswechsel-Tage landen in der richtigen (Jahr, Woche)-Zeile) — durch Unit-Tests belegt.
+  4. Alle vier Status-Labels erscheinen lokalisiert in de/en/cs.
+**Plans**: TBD
+**UI hint**: yes
+
+**Offene Entscheidungen (discuss-phase 39):** Wer den Status setzen darf + welche Status-Übergänge erlaubt sind (Default: Schichtplaner, alle Übergänge). UI-Muster Badge + Aktions-Button (kein controlled `<select>`, um D-25-06-Desync zu vermeiden). None-Variante NICHT `None` nennen (Clippy/`Option`-Shadowing → z.B. `Unset`/`Open`).
+**Scope (BE+FE):** neue `week_status`-Tabelle + Migration (TEXT-Enum analog `special_day`, ISO-(year, week)-Composite-Key analog `week_message`, partial UNIQUE `WHERE deleted IS NULL`); `WeekStatusService` (Basic-Tier: nur DAO/Permission/Transaction); Status-CRUD-REST (`#[utoipa::path]`, `ToSchema`-DTO); DI-Wiring in `main.rs` (Basic-Tier vor Business-Logic); Frontend Status-Badge + Set-Button (nur Schichtplaner), Status-Reload vom Server nach jeder Änderung. ISO-Jahr immer aus `to_iso_week_date().0` ableiten (nie `date.year()`).
+
+### Phase 40: Wochen-Sperre durchsetzen (BE+FE)
+**Goal**: In einer Gesperrt-Woche sind Buchungs- und Slot-Schreibaktionen für Nicht-Schichtplaner auf allen Schreibpfaden server-seitig blockiert; Schichtplaner behalten Vollzugriff.
+**Depends on**: Phase 39 (Status-Datenmodell + `WeekStatusService`)
+**Requirements**: WST-03, WST-04
+**Success Criteria** (what must be TRUE):
+  1. Versucht ein Nicht-Schichtplaner in einer Gesperrt-Woche eine Buchung/Slot-Änderung, wird sie abgelehnt (`ServiceError::WeekLocked` → HTTP 423 Default) mit lokalisierter Rückmeldung; das Frontend zeigt die Woche read-only + nicht-blockierendes Inline-Banner bei 423.
+  2. Ein Schichtplaner kann in derselben Gesperrt-Woche weiterhin alle Schreibaktionen ausführen.
+  3. Die Sperre greift auf allen sechs Schreibpfaden ohne Bypass (`book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`, `copy_week_with_conflict_check`, neu `delete_booking` inkl. Re-Routing von `DELETE /booking/{id}`) — belegt durch Test-Matrix 6 Pfade × {gesperrt, offen}.
+  4. Der Sperr-Check läuft in derselben Transaktion wie der Write (kein TOCTOU) — durch Test/Review belegt.
+**Plans**: TBD
+**UI hint**: yes
+
+**Offene Entscheidungen (discuss-phase 40):** HTTP-Code für Locked-Write (Default **423 Locked**; 409-Alternative geprüft — Konsistenz mit `PaidLimitExceeded`-409-Präzedenz abwägen).
+**Scope (BE+FE):** geteilter `assert_week_not_locked(year, week, context, tx)`-Helper, aufgerufen am Kopf aller sechs Schreibmethoden im Business-Logic-Tier (`ShiftplanEditService`); **neue** `ShiftplanEditService::delete_booking`-Methode + Re-Routing des `DELETE /booking/{id}`-Handlers weg von `BookingService::delete` (schließt den einzigen echten Nicht-Schichtplaner-Bypass); `ServiceError::WeekLocked { year, week }` → HTTP-Code in `rest/src/lib.rs` (+ OpenAPI-Annotation); Frontend read-only-Woche + Inline-423-Banner; i18n de/en/cs der Write-Block-Meldung.
+
+### Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE)
+**Goal**: HR kann die durchschnittliche tatsächliche Anwesenheit flexibler Mitarbeiter über einen Zeitraum einsehen, wobei Urlaub aus dem Nenner herausgerechnet ist.
+**Depends on**: Nichts Hartes (fachlich unabhängig von WST; nach Phase 40 sequenziert, da WST höheres Regressionsrisiko trägt und zuerst stabil sein soll)
+**Requirements**: AVG-01, AVG-02, AVG-03
+**Success Criteria** (what must be TRUE):
+  1. HR kann pro flexiblem Mitarbeiter (`EmployeeWorkDetails.is_dynamic == true`) die durchschnittliche tatsächliche Anwesenheit über einen Zeitraum einsehen; Urlaub ist aus dem Nenner herausgerechnet.
+  2. Nicht-flexible Mitarbeiter erscheinen nicht in der Auswertung (server-seitiger `is_dynamic`-Filter); Nicht-HR-Rollen haben keinen Zugriff.
+  3. Die Auswertung ist im Frontend als Report-/Auswertungs-Sicht sichtbar inkl. Leerzustand; Labels/Tooltips in de/en/cs.
+  4. Die Auswertung ist ein reines Read-Aggregat — kein Snapshot-Bump, keine neue Persistenz, kein neuer `BillingPeriodValueType` (`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12) — grep-/test-verifiziert.
+**Plans**: TBD
+**UI hint**: yes
+
+**Offene Entscheidungen (discuss-phase 41, D-AVG-01..08):** Bezugsgröße (Woche/Monat/Abrechnungsperiode); Zähler (geleistete Stunden vs. Anwesenheitstage); exaktes Exclusion-Set (nur Urlaub vs. auch Krankheit/unbezahlt/Feiertag — **A-22-1 schließt ALLE Absence-Kategorien aus und ist NICHT identisch**); Mitarbeiter-Scope (`is_dynamic == true` bestätigen); Anzeige-Ort (Abrechnungsperioden-Report vs. eigenständige Sicht); Mindest-Datenschwelle; No-Persist-Bestätigung.
+**Scope (BE+FE):** neue Read-Aggregat-Methode im `ReportingService` (Business-Logic-Tier) — A-22-1 NICHT blind wiederverwenden, ggf. eigene Funktion (A-22-1 selbst nie ändern); HR-gated REST-Endpoint (`#[utoipa::path]`); Frontend-Report-Sicht; i18n de/en/cs. Kein neuer `BillingPeriodValueType`, keine Migration.
+
+### Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE)
+**Goal**: Nach dem Anlegen eines Special-Day bleibt der „Anlegen"-Button aktiv; mehrfaches Anlegen hintereinander ist ohne Dropdown-Toggle möglich.
+**Depends on**: Nichts (isoliert, FE-only, niedrigstes Risiko — bewusst zuletzt platziert)
+**Requirements**: SDF-01
+**Success Criteria** (what must be TRUE):
+  1. Nach erfolgreichem Special-Day-Anlegen bleibt der „Anlegen"-Button aktiv und Typ/Datum stehen unverändert (Option 2 — nach Create nichts zurücksetzen).
+  2. Ein User kann mehrere Special-Days hintereinander anlegen, ohne das Dropdown neu zu togglen.
+  3. Ein SSR-/Komponenten-Test deckt das mehrfache Anlegen ab (Formulardaten bleiben erhalten).
+**Plans**: TBD
+**UI hint**: yes
+
+**Scope (FE-only):** Reset-Block `settings.rs:458-459` (und etwaigen Zeit-Reset) entfernen — umgeht den Controlled-Select-Desync (D-25-06-Klasse) komplett. Kein Backend-Anteil (begründete „Backend out of scope"-Notiz: reiner FE-State-Fix ohne API-Wirkung; SDF-Desync ist ein isolierter Settings-Bug, kein neues/geändertes TO).
 
 <details>
 <summary>✅ v1.11 Stabilisierung & UX-Politur (Phasen 36–38) — SHIPPED 2026-07-01</summary>
@@ -191,6 +265,10 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
+| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 0/TBD | Not started | - |
+| 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 0/TBD | Not started | - |
+| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 0/TBD | Not started | - |
+| 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog
 
@@ -218,4 +296,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
   **Plans:** 2/2 plans complete
 
-*Last updated: 2026-06-30 — **v1.10 geshipt + archiviert** (Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`). Phase-Details nach [`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md) ausgelagert + im Milestones-Block collapsed; Progress-Zeilen 33/35 bleiben Complete (2026-06-30). Backlog 999.1 unverändert.*
+*Last updated: 2026-07-01 — **v2.1 Milestone-Roadmap erstellt** (Phasen 39–42, 9/9 Requirements gemappt: WST-01/02/05→39, WST-03/04→40, AVG-01/02/03→41, SDF-01→42). v1.0–v1.11 archiviert/collapsed unverändert; Backlog 999.1 unverändert. Nächster Schritt: `/gsd-discuss-phase 39`.*

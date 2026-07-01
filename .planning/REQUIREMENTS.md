@@ -111,25 +111,25 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
 
 ## Traceability
 
-Wird bei der Roadmap-Erstellung befüllt (jede Requirement → genau eine Phase).
+Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau eine Phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WST-01 | TBD | Pending |
-| WST-02 | TBD | Pending |
-| WST-03 | TBD | Pending |
-| WST-04 | TBD | Pending |
-| WST-05 | TBD | Pending |
-| AVG-01 | TBD | Pending |
-| AVG-02 | TBD | Pending |
-| AVG-03 | TBD | Pending |
-| SDF-01 | TBD | Pending |
+| WST-01 | Phase 39 | Pending |
+| WST-02 | Phase 39 | Pending |
+| WST-05 | Phase 39 | Pending |
+| WST-03 | Phase 40 | Pending |
+| WST-04 | Phase 40 | Pending |
+| AVG-01 | Phase 41 | Pending |
+| AVG-02 | Phase 41 | Pending |
+| AVG-03 | Phase 41 | Pending |
+| SDF-01 | Phase 42 | Pending |
 
 **Coverage:**
 - v2.1 requirements: 9 total
-- Mapped to phases: 0 (Roadmap ausstehend)
-- Unmapped: 9 ⚠️ (wird durch Roadmap geschlossen)
+- Mapped to phases: 9 (Phase 39: WST-01/02/05 · Phase 40: WST-03/04 · Phase 41: AVG-01/02/03 · Phase 42: SDF-01)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-01*
-*Last updated: 2026-07-01 after initial definition (v2.1)*
+*Last updated: 2026-07-01 — Traceability befüllt bei Roadmap-Erstellung (Phasen 39–42), Coverage 9/9 gemappt ✓*
