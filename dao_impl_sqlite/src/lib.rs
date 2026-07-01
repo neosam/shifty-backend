@@ -29,6 +29,7 @@ pub mod toggle;
 pub mod user_invitation;
 pub mod vacation_entitlement_offset;
 pub mod week_message;
+pub mod week_status;
 
 pub trait ResultDbErrorExt<T, E> {
     fn map_db_error(self) -> Result<T, DaoError>;

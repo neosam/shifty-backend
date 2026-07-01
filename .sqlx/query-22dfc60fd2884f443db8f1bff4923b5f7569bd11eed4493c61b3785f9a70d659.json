@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE week_status\n               SET status = ?, update_process = ?, update_version = ?\n               WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "22dfc60fd2884f443db8f1bff4923b5f7569bd11eed4493c61b3785f9a70d659"
+}
