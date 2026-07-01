@@ -101,7 +101,7 @@ Plans:
 Plans:
 
 - [x] 37-01-PLAN.md — MOD-01: zentraler drag-safe Backdrop-Close in `dialog.rs` (Signal-Flag) + `absence_convert_modal.rs`-Duplikat inline mitgefixt (TDD)
-- [ ] 37-02-PLAN.md — MOD-02: sechs `*Help`-i18n-Keys (de/en/cs) + Sibling-Help-Spans pro Feld im Arbeitsvertrag-Modal (Von/Bis ausgenommen)
+- [x] 37-02-PLAN.md — MOD-02: sechs `*Help`-i18n-Keys (de/en/cs) + Sibling-Help-Spans pro Feld im Arbeitsvertrag-Modal (Von/Bis ausgenommen)
 
 **Cross-cutting constraints:**
 

@@ -4,16 +4,16 @@ milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
 current_phase: 37
 current_phase_name: modal-ux-politur
-status: executing
-last_updated: "2026-07-01T15:55:32.022Z"
+status: verifying
+last_updated: "2026-07-01T16:09:16.768Z"
 last_activity: 2026-07-01
 last_activity_desc: Phase 37 execution started
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
-  percent: 33
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State: Shifty Backend
@@ -34,7 +34,7 @@ progress:
 
 Phase: 37 (modal-ux-politur) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-01 — Phase 37 execution started
 
 ## Deferred Items
@@ -162,6 +162,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: [D-35-02] borrow-sicheres Auslesen von store-Feldern vor await in save_slot_edit verhindert Borrow-Konflikte
 - [Phase ?]: Controlled SelectInput value prop fix
 - [Phase ?]: BackdropPress Copy struct with press_backdrop/press_panel/release encodes MOD-01 drag-safe close rule as a pure unit-tested state machine
+- [Phase ?]: 37-02: Help sibling-span pattern (text-small font-normal text-ink-muted); From/To excluded; CommittedVoluntaryHelp scoped to if show_committed block
 
 ## Performance Metrics
 
@@ -171,3 +172,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 35 P02 | 14 | 3 tasks | 8 files |
 | Phase 36 P02 | 10 | 3 tasks | 2 files |
 | Phase 37 P01 | 7m | 2 tasks | 2 files |
+| Phase 37-modal-ux-politur P02 | 35 | 2 tasks | 5 files |

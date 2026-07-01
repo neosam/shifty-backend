@@ -32,7 +32,7 @@ Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 
   Modals profitieren.
   (Todo `2026-06-30-modal-schliesst-bei-mouseup-ausserhalb-nach-drag.md`)
 
-- [ ] **MOD-02**: Das Arbeitsvertrag-Modal zeigt unter jedem relevanten Feld einen kurzen
+- [x] **MOD-02**: Das Arbeitsvertrag-Modal zeigt unter jedem relevanten Feld einen kurzen
   **Erklärungssatz** (Muster `CapPlannedHoursHelp`, `text-small text-ink-muted`) — Von/Bis
   ausgenommen (selbsterklärend). Alle neuen Texte in **de/en/cs**.
   (Todo `2026-06-30-arbeitsvertrag-modal-erklaerungssatz-pro-feld.md`)
@@ -87,7 +87,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 | SDF-01 | Phase 36 | Complete |
 | SDF-02 | Phase 36 | Complete |
 | MOD-01 | Phase 37 | Complete |
-| MOD-02 | Phase 37 | Pending |
+| MOD-02 | Phase 37 | Complete |
 | HYG-01 | Phase 38 | Pending |
 | HYG-02 | Phase 38 | Pending |
 
