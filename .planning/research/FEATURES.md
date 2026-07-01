@@ -1,329 +1,323 @@
-# Feature Landscape — v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
+# Feature Research
 
-**Domain:** HR + Shift-Planning SaaS (Milestone v1.9)
-**Researched:** 2026-06-29
-**Overall confidence:** MEDIUM (cross-checked across Deputy, When I Work, Dayforce,
-Small Improvements, PropelAuth, yaro-labs; all consistent on core conventions)
-
----
-
-## Scope Note
-
-This file covers the four v1.9 features only. Existing features (absence CRUD,
-vacation balance computation, shiftplan booking + warnings, paid-capacity enforcement,
-holidays) are NOT re-researched.
+**Domain:** Shift-planning / Workforce Management — v2.1 new features only
+**Researched:** 2026-07-01
+**Confidence:** MEDIUM (industry conventions well-established; tool-specific lock semantics vary; AVG-01 definitional choices are product-owner decisions, not researchable facts)
 
 ---
 
-## Feature A: Urlaub → Nicht-Verfügbar (Absence-as-Grid-Discourage)
+## Scope
 
-### Background
+This document covers only the two new v2.1 features:
 
-Current state: Absence dates only surface as a `BookingOnAbsenceDay` warning when a
-shift is actually booked. The grid itself does not proactively mark absence days as
-discouraged. The `discourage` mechanism already exists, driven by
-`sales_person_unavailable` (recurring weekday rules). Absence date ranges are a
-separate data path that currently does not feed the discourage signal.
+- **WST-01** — Calendar-week workflow status (`None / In Planning / Planned / Locked`)
+- **AVG-01** — Average attendance reporting for flexible-hours employees, vacation excluded
 
-Industry norm: every major scheduling tool (Deputy, When I Work) proactively marks
-absence/leave days in the grid before any booking attempt. Showing only a post-hoc
-warning is below the norm.
+The existing Shifty capabilities (bookings, slots, absence periods, billing-period reports, carryover, volunteer hours, paid-capacity limits) are treated as given dependencies.
+
+---
+
+## WST-01 — Calendar-Week Status / Lifecycle Gate
+
+### Background: How Tools Handle It
+
+Most shift-scheduling products (Planday, When I Work, Deputy, Shiftboard, Workday, Dayforce) follow a two- or three-state model at the schedule level:
+
+| Tool convention | Analogous WST-01 state |
+|---|---|
+| Draft / Unpublished | "In Planning" (only planner sees it) |
+| Published | "Planned" (employees see, can be notified) |
+| Payroll-period locked | "Locked" (no writes except planner) |
+| (no status / unstarted) | "None" |
+
+A **four-state** model (None → In Planning → Planned → Locked) as WST-01 proposes is slightly richer than the typical two-state draft/publish but well within industry convention. Adding an explicit "None" sentinel and a "Planned" state between draft and lock is a natural refinement for a tool that runs a weekly planning cycle.
 
 ### Table Stakes
 
-Features users expect. Missing = product feels incomplete.
+Features users of any scheduling tool expect around a week-status model.
 
 | Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Approved absence dates appear as visually distinct cells in the scheduling grid before booking | Deputy: solid red; WhenIWork: grey bar — proactive display is universal | Low-Med | Reuse existing `discourage` render path; extend data source to include absence date ranges |
-| Vacation absences are included (minimum required category) | Vacation is the most common; user reported this as missing | Low | Mandatory baseline |
-| SickLeave absences are included | Sick employees also cannot work | Low | Natural extension; no reason to exclude |
-| UnpaidLeave absences are included | Same rationale; absence data model already has the category | Low | Include by default; cost is zero |
-| The visual treatment is identical to the existing `sales_person_unavailable` discourage cell | Consistency — scheduler recognizes the pattern from existing use | Low | Reuse the same Tailwind classes / cell rendering already in `week_view.rs` |
-| Absence-based discourage is date-specific (concrete NaiveDate), not day-of-week | Vacation is a date range, not a recurring weekly pattern | Med | Current `discourage_weekdays` model is weekday-based; extend or add parallel `discourage_dates: HashSet<NaiveDate>` |
+|---|---|---|---|
+| Visual week badge | Users need to know which week is in what state at a glance | LOW | Color-coded badge on week header: gray=None, blue/yellow=In Planning, green=Planned, red/orange=Locked. One badge per week in the week-selector or plan header. |
+| Status transition by planner role | The shift planner drives the lifecycle; other roles are consumers | LOW | Only Shiftplanner role sets the status. Triggered manually, not automatically. |
+| Locked week blocks booking/slot writes for non-planner roles | Core value of the lock: "this week is final for everyone else" | MEDIUM | Booking-create, booking-delete, slot-create, slot-edit paths check lock status pre-persist. Returns a distinct error (HTTP 409 or 403) with localized message. |
+| Locked week still readable by all roles | Employees must still see the schedule they are locked into | LOW | Read paths unaffected by lock. |
+| Planner can still write to Locked week | Planner needs to correct errors after lock | LOW | Permission gate: `is_locked AND role != Shiftplanner` → block. |
+| Retroactive edits by planner remain possible | Real operations require post-lock corrections | LOW | No auto-expiry; planner manually moves state if needed. |
+| i18n labels for all four states | Existing Shifty convention for all user-facing strings | LOW | de/en/cs translation keys needed. |
 
 ### Differentiators
 
-Features that set product apart. Not expected, but valued.
+Features that add value beyond baseline but are not expected by default.
 
 | Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Hover tooltip showing absence type on discourage cell | Zero-click info: scheduler sees "Vacation 2026-07-01..07-05" without navigating away | Low | Small Tailwind tooltip on the discourage cell div |
-| Visually distinguish absence-sourced discourage from recurring-rule discourage | Scheduler immediately knows if it is "every Monday rule" vs a specific vacation | Med | Different color or indicator glyph; adds a second visual variant to the discourage system |
-| Pending (unapproved) absence shown as lighter/striped vs approved (solid) | Deputy/WhenIWork both distinguish pending vs approved | Med | Shifty has no absence-approval workflow today; defer until approval model exists |
+|---|---|---|---|
+| Explicit "In Planning" state visible to planner (not employees) | Mirrors the actual planning workflow; planner can work freely before committing to "Planned" | LOW | Industry tools call this "Draft". Employees see nothing in this state, but planner has full edit rights — same as today's behavior before publish. |
+| Unlock to lower state | Allows correction: e.g., move Locked → Planned to allow employee changes, then re-lock | LOW | Reverse transitions must be permitted (any state to any lower state by planner). |
+| Warning on booking-edit when week is Planned (not yet Locked) | Soft "this week is published; your change will be visible immediately" UX nudge | MEDIUM | Not a hard block — just a visual warning. Skip for MVP; add if user feedback calls for it. |
+| State shown in week-selector dropdown | At-a-glance overview when navigating weeks | LOW | Useful for planners scanning multiple future/past weeks. |
 
 ### Anti-Features
 
-Features to explicitly NOT build in v1.9.
+| Feature | Why Requested | Why Problematic | Alternative |
+|---|---|---|---|
+| Auto-lock after billing-period close | "Payroll periods should lock automatically" | Timing varies, data corrections still needed post-close; removes planner control | Planner locks explicitly; billing-period close is independent |
+| Require explicit unlock to edit Locked week as planner | "Safety net" | Adds friction for correction flows; planner role already signals authority | Role-based gate is sufficient; no extra confirmation step needed |
+| Employee-facing status label (expose "Planned" to employees) | Transparency | Confusing to employees who cannot act on planning status | Employees see shifts or not — publication of individual shifts is enough |
+| Multi-step approval chain for lock | Enterprise governance | Out of scope for a small-team tool; Shifty has a single Shiftplanner role | Single-role lock is the right model for current scope |
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Hard-blocking shift booking on absence days | That is a separate policy toggle analogous to `paid_limit_hard_enforcement`; it is not what the todo asks for | Keep soft discourage; the existing `BookingOnAbsenceDay` warning already fires at booking time |
-| Showing another employee's absence in the grid cell of a different employee | Absence is per-person; cross-person display creates confusion | Each person's own absence dates are discouraged only in their own row |
-| Full absence-approval workflow in v1.9 | Large orthogonal feature | Keep existing absence model; approval is a future milestone |
-| Loading all absences for the whole year upfront | Performance cost for large teams | Load only the absences for the displayed week, same scope as existing data loads |
-
-### Feature Dependencies
+### State-Transition Map
 
 ```
-Absence CRUD API (v1.0, done)
-  └──provides──> absence date ranges per person per year
-
-booking_information.rs::get_weekly_summary (done, v1.7)
-  └──already returns──> absence data per week per person
-  └──check──> whether absence dates are already in BookingInformationTO / week payload
-              reachable by the frontend for the displayed week
-
-Existing discourage_weekdays render (week_view.rs:975-1065)
-  └──extend to──> also check discourage_dates set for the specific NaiveDate of each cell
-
-shiftplan.rs:1120-1123 (discourage_weekdays construction site)
-  └──extend to──> add discourage_dates: HashSet<NaiveDate> built from loaded absence ranges
+None ──────────────────────────────────────────────────┐
+  │ planner sets                                        │
+  ▼                                                     │
+In Planning ──────────────────────────────────────────►─┤ (any state can go back
+  │ planner sets                                        │  to any lower state
+  ▼                                                     │  by planner only)
+Planned ──────────────────────────────────────────────►─┤
+  │ planner sets                                        │
+  ▼                                                     │
+Locked ◄──────────────────────────────────────────────-┘
 ```
 
-**Key question to resolve in discuss-phase:** Does the current frontend weekly data
-load already include the absence date ranges for the viewed week, or does an additional
-fetch / field in the API payload need to be added? `booking_information.rs:70-99` is
-the candidate; if absence dates already flow through `BookingInformationTO` this is a
-frontend-only change.
+**Permission rules:**
+- Any role: read in any state
+- Shiftplanner: write in any state; set any state transition
+- Non-Shiftplanner: write only when state is None, In Planning, or Planned
+- Non-Shiftplanner attempting write on Locked week → error (HTTP 409 with localized message)
+
+### Complexity Summary
+
+| Area | Estimate | Notes |
+|---|---|---|
+| Data model | LOW | New table `week_status(year, week, status_enum)` with upsert |
+| Migration | LOW | Single new SQLite table |
+| DAO + Service | LOW | CRUD on a simple keyed record; no join complexity |
+| Permission gate | MEDIUM | Must inject into all booking/slot write paths — identify all write endpoints |
+| REST + OpenAPI | LOW | Two endpoints: GET status for week, PUT/POST status |
+| Frontend badge | LOW | Inline badge in week header; no complex interaction |
+| Frontend permission guard | MEDIUM | Frontend must also reflect lock (disable booking buttons) and show badge state |
+| i18n | LOW | 4 state labels × 3 locales |
+
+### Dependencies on Existing Shifty Features
+
+- Booking create/delete paths (`ShiftplanEditService`, `BookingService`) — must add lock check
+- Slot create/edit paths (`SlotService`, `ShiftplanEditService`) — must add lock check
+- Shiftplanner role permission constant (already exists) — gate reuses existing RBAC
+- Week-navigation component in frontend — hosts the new status badge + selector
 
 ---
 
-## Feature B: Urlaubs-Balken-Konsistenz (Vacation Bar Consistency)
+## AVG-01 — Average Attendance for Flexible-Hours Employees
 
-### Background
+### Background: How Tools Handle It
 
-Current state: the bar in `PersonVacationCard` (absences page) shows
-`used_days / (entitled + carryover)`, clamped 0-100%. The number next to it shows
-`remaining = entitled + carryover − used − planned`. They measure different things.
-Example: entitled+carryover=18, used=6 → bar=33%; planned=13 → remaining=−1. A user
-sees "−1 remaining" next to a "33% full" bar. This is actively misleading.
+"Average hours worked per week" or "average utilization" for variable-hours staff is a standard reporting metric in workforce analytics, but the **exact definition is not standardized** across tools. The key axes are:
 
-Industry norm (Dayforce, WhenIWork, UX case studies): bar and number must measure the
-same quantity. Overdraft must be visible, not silently clamped.
+1. What is the **reference period** (denominator's time unit)?
+2. What goes in the **numerator** (hours booked, hours present, days present)?
+3. What is the **denominator** (total weeks in period, total weeks minus vacation weeks, total scheduled hours minus vacation hours)?
+4. Which **absence categories** are excluded?
+5. Which **employees** are in scope (only flexible-hours employees, or all)?
 
-### Table Stakes
+The existing Shifty v1.5 feature "HR-only Ø-Stunden/Woche-Statistik pro Person (urlaubsbereinigt, Regel A-22-1)" is the direct predecessor. AVG-01 extends or formalizes this into a proper reporting view.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Bar and number measure the same quantity | Every HR tool surveyed follows this rule; mismatched indicators break trust | Low | Pure formula change; all data already in `VacationBalance` frontend state |
-| Bar shows `(used + planned) / (entitled + carryover)` | This matches `remaining = total − used − planned`; consistent with the displayed number | Low | One-line formula change in `absences.rs:865-871` |
-| Overdraft (remaining < 0) is visible in the bar, not hidden by a 100% clamp | Dayforce uses an "Exceeded" column; tools use warning color + full bar; clamping hides a real problem | Low | Remove the `f64::min(1.0)` clamp; when `used + planned > total`, render bar full in `bg-warn`/`bg-error` |
-| Warning color fires on overdraft | Already fires when `remaining_days <= 3.0`; will naturally fire for negative values if clamp is removed | Low | No change needed if clamp is removed; verify the condition covers negative values |
+Industry standard for flexible/variable-hour workers: most WFM tools compute a **per-week rolling average** over a measurement window (typically 4 weeks, 12 weeks, or a billing period), using actual worked/booked hours as the numerator, and excluding authorized leave from the denominator to avoid diluting the metric.
 
-### Differentiators
+### Open Definitional Decision Points (Product-Owner Decisions)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Two-segment bar: used (solid) + planned (lighter / distinct color) | Immediately shows how much is confirmed taken vs upcoming scheduled — more information per pixel | Med | Two adjacent `div` elements with `used_pct` and `planned_pct` widths; total width still `(used+planned)/total` |
-| Overdraft overflow overflow visual: bar continues past 100% mark in warning color | Visually striking for HR scanning many people; makes overdraft unmissable | Med | CSS trick: `overflow: visible` on container + absolute-positioned overflow segment |
+These are not researchable — the product owner must decide. They are listed here to drive the discuss-phase.
 
-### Anti-Features
+**D-AVG-01: Reference period**
+Options:
+- A. Per billing period (most natural fit with existing Shifty billing structure)
+- B. Per calendar month (common in HR reporting)
+- C. Rolling N weeks (e.g., last 12 weeks)
+- D. Per calendar year (too coarse for operational decisions)
+*Recommendation: A (billing period) — aligns with existing `ReportingService` data already computed per billing period.*
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Separate bars for used and planned side-by-side | Clutters the tight `PersonVacationCard` row layout | Single bar with two segments via adjacent divs |
-| Adding pending-vs-approved distinction within planned_days | Shifty has no absence approval workflow; `planned_days` is a single figure from the backend | Use backend's single `planned_days` figure; no subdivision needed |
-| Bar animation on load | Distracting in a list of many people | Static fill |
-| Changing the backend API | All fields are already present in `VacationBalance` (`used_days`, `planned_days`, `remaining_days`, `entitled_days`, `carryover_days`) | Frontend-only change |
+**D-AVG-02: Numerator definition**
+Options:
+- A. Sum of booked hours in the period (hours from `Booking` records linked to slots in paid weeks)
+- B. Count of days present
+- C. Sum of actual clocked hours (Shifty has no clock-in; N/A unless using bookings as proxy)
+*Recommendation: A — booked hours are already computed in Shifty; consistent with existing balance reporting.*
 
-### Feature Dependencies
+**D-AVG-03: Denominator — what counts as a "present week"**
+Options:
+- A. All calendar weeks in the period (vacation drags the average down — the problem AVG-01 solves against)
+- B. All calendar weeks minus weeks where the employee had any vacation day
+- C. All calendar weeks minus weeks where the employee had a full-week vacation
+- D. Per-week denominator = (contracted expected hours) − (vacation hours that week); summed over period
+*Recommendation: B — simplest to explain and implement; most natural match to "exclude weeks you were on vacation".*
 
-```
-Vacation balance API (v1.5, done)
-  └──provides──> used_days, planned_days, remaining_days, entitled_days, carryover_days
+**D-AVG-04: Which absence categories are excluded from the denominator**
+Options:
+- A. Vacation (Urlaub) only
+- B. Vacation + sick leave
+- C. Vacation + sick leave + public holidays
+- D. All authorized absence types (Vacation, Sick, Holiday, Unpaid Leave)
+*Recommendation: A (Vacation only) — this is the stated feature intent ("Urlaub aus dem Nenner gerechnet"). Sick leave, holidays, and unpaid leave are edge cases the product owner must decide; default to A unless stated otherwise. Including sick leave in exclusion has a "rewards absence" perception risk.*
 
-VacationBalance frontend state (done)
-  └──already holds──> all needed fields
+**D-AVG-05: Employee scope**
+Options:
+- A. Only employees with `expected_hours = 0` (pure flexible / no fixed contract)
+- B. Only employees with a "flexible hours" flag (if such a flag exists)
+- C. All employees (fixed + flexible) — show avg for everyone, filter in UI
+- D. All employees with `is_paid = true`
+*Recommendation: C — show for all employees but allow filtering by contract type. Avoids a separate scope concept; flexible employees just have more meaningful numbers.*
 
-PersonVacationCard component (absences.rs:843-898)
-  └──change──> formula + remove clamp + conditional warning color
-```
+**D-AVG-06: Display location**
+Options:
+- A. Inside the billing period report per employee (existing reporting view)
+- B. New standalone "Attendance" view
+- C. In the employee year view alongside existing balance
+- D. In multiple of the above
+*Recommendation: A — least new surface area; billing period report already aggregates per-employee per-period data in `ReportingService`.*
 
-**This is a pure frontend change. No backend work needed.**
+**D-AVG-07: Minimum data threshold**
+How many non-vacation weeks are required before showing the average? (A zero-weeks denominator would be division-by-zero; a 1-week average is not meaningful.)
+*Recommendation: Show average only when ≥ 2 non-vacation weeks present in the period. Show "—" or "n/a" otherwise.*
 
----
-
-## Feature C: Stale-Daten-Race (Week-Summary Stale Guard)
-
-### Background
-
-Current state: rapid week-switching can show stale data because an earlier async
-response for week N-1 arrives after the user has navigated to week N, overwriting the
-correct week-N data. The visible symptom is summary cards showing last week's numbers
-under this week's header.
-
-### Table Stakes
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Summary cards always show data for the currently-selected week | Basic correctness; any async UI framework handles this with a generation counter or cancel-on-stale | Low-Med | Dioxus 0.6 async model does not expose HTTP abort cleanly; generation token is the correct approach |
-| Rapid navigation does not produce partial/mixed state (last week's N + this week's M) | Mixed state is worse than a loading state | Low | Generation token: discard response if `(year, week)` no longer matches current signal at response-write time |
-
-### Differentiators
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Debounced week navigation: wait ~100-200ms after last click before firing the fetch | Prevents N requests for N rapid arrow-key presses | Low | `use_signal` + timeout-based debounce in the event handler |
-| Keep previous week's data visible (reduced opacity) while next week is loading | Avoids blank flash; data is stale but visually present | Low | Don't clear state on navigation; only update on response commit |
-
-### Anti-Features
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Canceling in-flight HTTP requests (AbortController equivalent) | Dioxus 0.6 async coroutine model does not expose this pattern cleanly; request still runs server-side anyway | Generation token: discard stale responses on the receive side |
-| Loading spinner on every week change | Flickers on fast navigation; hurts perceived performance | Show spinner only after a timeout threshold (e.g. 300ms); or just discard stale silently |
-| Re-architecting the data loading pattern for all pages | Out of scope; fix the week-summary path only | Surgical fix in the affected coroutine / signal |
-
-### Feature Dependencies
-
-```
-Existing week-selector signal (done)
-  └──wrap with──> generation token Signal<(year, week)>
-
-Existing summary card data-fetch coroutine
-  └──add guard──> capture (year, week) at dispatch; compare at response-write; discard if mismatch
-```
-
-**This is a pure frontend change. No backend work needed.**
-
----
-
-## Feature D: Admin-Impersonation (Read + Write)
-
-### Background
-
-Current state: no impersonation exists. Admins must log in as another user (sharing
-credentials) to reproduce a bug or see another employee's view. The todo asks for a
-proper impersonation feature: admin acts as user, writes are allowed, audit trail
-preserved, and the admin sees a banner with an exit button.
-
-Industry norm (PropelAuth, Small Improvements, Deskera, Yaro Labs): impersonation is
-standard in HR SaaS support/admin tooling. All surveyed tools use a persistent top
-banner, full read+write, no privilege escalation, and audit logs carrying real identity.
+**D-AVG-08: Snapshot persistence**
+If the average attendance result is added to the billing period snapshot (`BillingPeriodValueType`), the `CURRENT_SNAPSHOT_SCHEMA_VERSION` must be bumped. If it is computed read-only (derive-on-read), no bump is needed.
+*Decision: Derive-on-read preferred for first implementation; avoids snapshot versioning complexity. Revisit if performance becomes an issue.*
 
 ### Table Stakes
 
 | Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Persistent "Acting as [Name] — Stop Impersonation" banner on every page during impersonation | Industry-standard; every tool surveyed has this. Non-dismissible. Yellow/amber color convention. | Med | Global Dioxus component in app root layout; reads impersonation state signal |
-| Banner has a one-click exit mechanism | Canonical exit pattern across all tools; no multi-step confirmation needed | Low | Button fires DELETE /impersonation or clears the impersonation context signal |
-| Start impersonation from the admin/HR person list | Canonical entry point ("Manage → Impersonate" on person row/card) | Low | Add action item to existing person list in admin/HR view |
-| Privilege escalation prevention: impersonated user's permissions apply, not admin's | Core security invariant. PropelAuth + Small Improvements: admin privileges do NOT bleed through | Med | PermissionService must resolve roles of the impersonated user, not real caller; check fires on every request, not only at session start |
-| Real admin identity preserved in audit log for all impersonated actions | Industry norm: other admins can see who really acted. Tag every mutating request with `impersonation_context { real_admin_id }` | Med | Axum request extension or `Authentication<Context>` carries dual identity; logging layer reads real actor |
-| Admin-only gate on start/stop impersonation endpoints | No other role can enter impersonation mode | Low | `require_privilege(admin)` check on both endpoints |
-| i18n de/en/cs for banner text and start/stop labels | Project convention; Shifty supports three locales | Low | ~6 new locale strings |
-| Cannot impersonate oneself | Trivial correctness guard | Low | `target_id != real_admin_id` check at start |
+|---|---|---|---|
+| Average hours per week (vacation weeks excluded) per employee per period | Core stated feature; Shifty v1.5 already has precursor (Regel A-22-1) | MEDIUM | `sum(booked_hours_in_non_vacation_weeks) / count(non_vacation_weeks_in_period)` |
+| HR-only access gate | Attendance analytics are sensitive; existing Shifty convention is HR-gated | LOW | Reuse existing `PermissionService` HR role check |
+| Display in billing period report | Natural home; avoids new surface | LOW | Add one new row/column to existing per-employee billing period table |
+| i18n labels | Shifty convention | LOW | de/en/cs translation keys |
+| Handle no-data case gracefully | Employee may have only vacation in the period | LOW | Return `null` / display "—" when ≤ 1 non-vacation week |
 
 ### Differentiators
 
 | Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Visual "impersonation mode" color tint or border on page (beyond banner) | Makes the mode unmistakable even when scrolled past the banner | Med | CSS body class or Tailwind ring on main container; optional |
-| Impersonation session auto-timeout (15-60 min) | Security best practice in enterprise tools; yaro-labs recommends 15-60 min | Med | Defer to v2.0+; manual exit sufficient for v1.9 |
-| Audit log UI visible to other admins (searchable list of past sessions) | Compliance feature for regulated industries | High | Defer; backend logging in structured logs is sufficient for v1.9 |
+|---|---|---|---|
+| Side-by-side comparison: average vs. committed voluntary hours | Shows "promised" vs. "actual" attendance for flexible volunteers | MEDIUM | Committed voluntary is already in `EmployeeWorkDetails`; comparing gives gap visibility |
+| Trend over multiple billing periods | Shows if a flexible employee is attending more or less over time | HIGH | Requires multi-period query; defer to later milestone |
+| Configurable exclusion categories | Allow HR to choose whether sick leave is also excluded | MEDIUM | UI complexity high; hardcode for v2.1 per decision D-AVG-04 |
 
 ### Anti-Features
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Read-only impersonation as the v1.9 default | The todo explicitly states read + write; read-only would not cover the "support reproduces and fixes an issue" use case | Full read+write; restrict only irreversible destructive actions if desired |
-| Blocking ALL write operations during impersonation | Defeats the stated purpose | Allow all normal writes; consider blocking only account deletion or password change if those endpoints exist |
-| Token-swapping / JWT re-issuance for impersonation | Loses the real admin identity for audit purposes; hard to revoke; complex in OIDC production context | Server-side impersonation context: extend `Authentication<Context>` with `impersonated_sales_person_id: Option<Uuid>` set in a backend session/endpoint, not in the token |
-| Impersonating another admin | Admins acting as admins is an escalation risk and typically disallowed | Gate: can only impersonate non-admin users; or require a separate confirmation |
-| Real-time notification to the impersonated user | No tool surveyed notifies the target; it would cause support friction and confusion | Audit log visible to other admins; no user notification |
-| Separate "view as user" (read) and "act as user" (write) endpoints | Unnecessary complexity for v1.9; the unified approach with a clear banner is sufficient | Single impersonation mode that allows both reads and writes, controlled by the normal role-based permission check of the impersonated user |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---|---|---|---|
+| Show average attendance for all employees regardless of contract | "Consistency" | Meaningless for fixed-hours employees whose expected hours are contractually defined | Filter/badge flexible employees; fixed employees already have balance hours metric |
+| Count attendance as binary present/absent days | "Simpler" | Loses information for employees who book fewer hours some days | Use booked hours as numerator (more accurate for shift workers) |
+| Include sick leave weeks in exclusion by default | "Fairness — employee can't control illness" | Creates a "bonus" effect that hides patterns; HR should see sick weeks in the denominator by default | Offer as a toggle (future enhancement); default to vacation-only exclusion per D-AVG-04 |
+| Persist as new BillingPeriodValueType in snapshot | "Consistency with other report metrics" | Triggers mandatory snapshot-schema-version bump + backward-compat concerns | Derive-on-read for v2.1; add to snapshot if needed later |
 
-### Security Invariants (non-negotiable)
-
-1. The impersonated user's privilege set governs all permission checks during the session — admin privileges do NOT carry through.
-2. Every mutating request during impersonation is logged with the REAL admin identity as the actor, not the impersonated user's identity.
-3. Cannot impersonate a user with higher effective privileges than the impersonated user's own role would grant.
-4. Permission check on impersonation start AND on each subsequent request (privilege revocation must take effect immediately, not only at session start).
-5. Impersonation state is server-side (not in a JWT/cookie the browser controls alone), so the admin cannot self-escalate by manipulating client state.
-
-### Feature Dependencies
+### Computation Sketch (for requirements/planning reference)
 
 ```
-Authentication<Context> (exists: service/src/permission.rs)
-  └──extend with──> impersonated_sales_person_id: Option<Uuid>
-                    (set only when real caller has admin privilege)
+For each employee E in billing period P:
 
-PermissionService (exists: service_impl/src/permission.rs)
-  └──change──> when impersonation active, resolve roles from impersonated user
-  └──keep──> real caller identity for audit/logging path
+  weeks_in_period = all ISO calendar weeks overlapping P
 
-REST auth layer (exists: rest/src/lib.rs)
-  └──add──> read impersonation context from server-side store
-  └──build──> Authentication<Context> with dual identity
+  for each week W in weeks_in_period:
+    vacation_hours_W = sum of AbsencePeriod hours of type Vacation
+                       that overlap week W for employee E
+    booked_hours_W   = sum of Booking hours for employee E in week W
 
-New backend endpoints:
-  POST /impersonation  { target_sales_person_id: Uuid }
-    └──gate: require admin privilege on real caller
-    └──store: session-scoped impersonation state (in-memory or DB row)
-    └──return: updated session token or session cookie
-  DELETE /impersonation
-    └──gate: require active impersonation session
-    └──clear: impersonation state
+  non_vacation_weeks = { W : vacation_hours_W == 0 }
+  // (or: < full_week_threshold — per D-AVG-03 decision B)
 
-Admin/HR person list page (Dioxus, exists)
-  └──add──> "Impersonate" action item per person row (admin-only, hidden for others)
+  avg_attendance = sum(booked_hours_W for W in non_vacation_weeks)
+                  / count(non_vacation_weeks)
+                  when count(non_vacation_weeks) >= 2, else null
+```
 
-App root layout (Dioxus)
-  └──add──> impersonation banner component
-  └──reads──> global impersonation signal (set from API response on start/stop)
-  └──renders──> banner only when impersonated_sales_person != None
+**Dependencies on existing Shifty services:**
+- `AbsencePeriod` data (already in DAO layer) — to identify vacation weeks
+- `Booking` data per employee per week (already in `BookingInformationService`)
+- Billing period date range (already in `ReportingService`)
+- `ReportingService` (Business-Logic tier) — natural home for new computation
+- Snapshot schema version: no bump if derive-on-read (see D-AVG-08)
+
+### Complexity Summary
+
+| Area | Estimate | Notes |
+|---|---|---|
+| Data model | NONE | No new tables if derive-on-read |
+| Business logic | MEDIUM | New computation in `ReportingService`; requires joining booking + absence data per week |
+| REST | LOW | New field on existing billing-period-report response DTO |
+| Frontend display | LOW | New cell in existing billing-period-per-employee table |
+| Definitional decisions | HIGH (discussion) | Seven open decision points (D-AVG-01 through D-AVG-08) must be resolved in discuss-phase |
+
+---
+
+## Feature Dependencies (on Existing Shifty Capabilities)
+
+```
+WST-01 week status
+    └── requires ──> Booking write paths (ShiftplanEditService, BookingService)
+    └── requires ──> Slot write paths (SlotService, ShiftplanEditService)
+    └── requires ──> Shiftplanner RBAC role (exists)
+    └── requires ──> Week-navigation frontend component (exists)
+
+AVG-01 average attendance
+    └── requires ──> AbsencePeriod DAO (exists, v1.0+)
+    └── requires ──> Booking data per employee per week (exists, BookingInformationService)
+    └── requires ──> Billing period date ranges (exists, ReportingService)
+    └── enhances ──> Billing period report frontend (existing view, add new column)
+    └── relates to ──> v1.5 Regel A-22-1 "Ø-Stunden/Woche-Statistik" (precursor; check for reuse)
 ```
 
 ---
 
-## MVP Recommendation for v1.9
+## MVP Recommendation for v2.1
 
-Ship in this order (dependency-free → dependent, simple → complex):
+### WST-01 — Build in full (low risk, clear scope)
+- Four states with simple badge
+- Planner-only state transitions
+- Lock gate on all booking/slot write paths for non-planner roles
+- i18n de/en/cs
 
-1. **Feature B — Urlaubs-Balken-Konsistenz**: pure frontend, formula + clamp removal.
-   Delivers a visible correctness fix fastest. 1-2 hours.
-2. **Feature C — Stale-Daten-Race**: pure frontend, generation-token guard.
-   Small, low-risk, self-contained. 2-4 hours.
-3. **Feature A — Urlaub → Nicht-Verfügbar**: frontend-primary (+ possible light
-   backend check). Medium complexity. Vacation mandatory; SickLeave/Unpaid natural
-   inclusions at zero extra cost.
-4. **Feature D — Admin-Impersonation**: largest scope; backend auth changes + new
-   endpoints + frontend banner. Build last so simpler fixes ship independently.
+### AVG-01 — Resolve decisions first, then implement minimum viable version
+- Resolve D-AVG-01 through D-AVG-08 in discuss-phase
+- Implement derive-on-read computation in `ReportingService`
+- Display in billing period report, HR-gated
+- Vacation-only exclusion (D-AVG-04 option A)
+- Defer: trend view, configurable exclusion, snapshot persistence
 
-**Defer from v1.9 (confirmed anti-features / scope traps):**
-- Absence approval workflow (pending vs approved distinction in grid)
-- Impersonation session auto-timeout
-- Audit log UI for admins
-- Two-segment bar (build single corrected bar first; upgrade to split as follow-on)
-- Overflow visual for overdraft bar (implement if single-segment bar looks insufficient)
+### Defer (not v2.1)
+- Publish-notification system for week status changes (employees notified when week moves to Planned)
+- Week-status bulk operations (lock all past weeks at once)
+- AVG-01 snapshot persistence
+- Side-by-side avg vs. committed hours trend
 
 ---
 
-## Confidence Assessment
+## Competitor Feature Analysis
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Impersonation UX conventions (banner, audit, privilege) | MEDIUM | Consistent across 4+ sources; specifics of Shifty's auth model require code-level verify |
-| Vacation bar conventions (formula, overdraft) | MEDIUM | Dayforce + WhenIWork + case study all agree; implementation is frontend-only |
-| Absence-as-grid-discourage conventions | MEDIUM | Deputy + WhenIWork both confirm proactive grid marking; frontend integration path needs code verify |
-| Stale-race guard pattern | MEDIUM | Standard async UI pattern; Dioxus 0.6 specifics need code verify for generation-token placement |
+| Feature | Planday | When I Work | Dayforce | Shifty v2.1 approach |
+|---|---|---|---|---|
+| Week/schedule states | Draft → Published → (Payroll Locked) | Draft → Published | Timesheet lock per pay period | Four states + explicit planner lock |
+| Who owns the lock | Admin only | Manager | Payroll admin | Shiftplanner (existing role) |
+| Retroactive planner edit after lock | No (requires support) | N/A | Via retroactive adjustment flow | Yes, Shiftplanner can always write |
+| Average attendance metric | Not found in documentation | Not found | Via workforce analytics module | New in v2.1, HR-gated |
+| Vacation excluded from avg denominator | Partial (PTO subtracted from utilization) | N/A | Configurable | Vacation weeks excluded from denominator |
 
 ---
 
 ## Sources
 
-- [Yaro Labs — Building a Safe User Impersonation Tool for SaaS](https://yaro-labs.com/blog/user-impersonation-tool-saas)
-- [Small Improvements — User Impersonation](https://intercomdocs.small-improvements.com/en/articles/9146194-user-impersonation)
-- [PropelAuth — User Impersonation Docs](https://docs.propelauth.com/overview/user-management/user-impersonation)
-- [Zarana Solanki — Secure User Impersonation in Multi-Tenant Apps](https://medium.com/@codebyzarana/building-a-secure-user-impersonation-feature-for-multi-tenant-enterprise-applications-21e79476240c)
-- [When I Work — Interpreting Availability on the Schedule](https://help.wheniwork.com/articles/interpreting-availability-on-the-schedule-computer/)
-- [Deputy — Leave Management Software](https://www.deputy.com/features/leave-management)
-- [Deputy — Manager Awareness of Leave](https://help.deputy.com/hc/en-au/articles/4658289483023-Manager-s-awareness-of-leave)
-- [Dayforce — Your Balances (Leave balance visualization)](https://help.dayforce.com/r/documents/Employee-Guide/Your-Balances)
-- [Paul Naylor — UX Case Study: Time Off Management App](https://medium.com/@pnaylor09/a-ux-case-study-on-designing-a-time-off-management-web-app-8b3151fa397d)
-- OWASP CD-SEC-02: Account Impersonation — privilege escalation prevention
+- [Planday Draft Shifts documentation](https://help.planday.com/en/articles/30569-how-to-use-draft-shifts-in-planday) — schedule lifecycle states
+- [Planday Payroll Period Lock](https://help.planday.com/en/articles/30525-how-to-lock-a-payroll-period) — lock semantics, admin-only, visual lock icon
+- [When I Work Scheduling Basics](https://help.wheniwork.com/articles/scheduling-basics/) — draft vs. published states, diagonal-line visual for drafts
+- [Shiftboard Permission Levels](https://support.shiftboard.com/l/en/article/af94aqf3yk-permission-levels-overview) — coordinator/manager draft vs. publish permissions
+- [Dayforce Retroactive Adjustments](https://help.dayforce.com/r/manager-guide/Retroactive-Adjustments) — locked period retroactive edit access patterns
+- [Oyster HR — Absence Rate](https://www.oysterhr.com/glossary/absence-rate) — numerator/denominator definitions for attendance metrics
+- [Patriot Software — Absenteeism Rate](https://www.patriotsoftware.com/blog/payroll/how-to-calculate-absenteeism-rate/) — vacation exclusion from authorized leave calculations
+- [BASUSA — Variable Hour Employee Measurement Periods](https://www.basusa.com/blog/measurement-period-best-practices-for-variable-hour-employees) — 3–12 month measurement windows, ACA compliance lens
+- [Hubstaff — Utilization Rate](https://hubstaff.com/workforce-analytics/utilization-rate) — utilization = worked hours / available hours; vacation subtracted from denominator
+- [Zendesk — Workforce Management Metrics](https://www.zendesk.com/blog/workforce-management-metrics/) — standard WFM metrics catalogue
 
 ---
-*Feature research for: v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation*
-*Researched: 2026-06-29*
+
+*Feature research for: Shifty v2.1 — WST-01 and AVG-01*
+*Researched: 2026-07-01*

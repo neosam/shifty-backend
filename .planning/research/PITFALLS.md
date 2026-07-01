@@ -1,537 +1,289 @@
 # Pitfalls Research
 
-**Domain:** Shifty v1.9 — Axum/SQLite RBAC backend + Dioxus/WASM frontend, adding
-impersonation (read+write), Dioxus async race fix, vacation-bar math, and
-Urlaub-Nicht-Verfuegbar discourage marker.
-**Researched:** 2026-06-29
-**Confidence:** HIGH (based on direct codebase inspection of all relevant call sites:
-`rest/src/session.rs`, `rest/src/impersonate.rs`, `service_impl/src/permission.rs`,
-`shifty-dioxus/src/service/weekly_summary.rs`, `shifty-dioxus/src/page/shiftplan.rs`,
-`shifty-dioxus/src/page/absences.rs` `PersonVacationCard`, the two todo files,
-and `CLAUDE.md` service-tier conventions)
-
-> Orchestrator note: Pitfalls 1-2 are load-bearing security design decisions for
-> impersonation. They MUST be resolved before any write path is wired up. Pitfalls
-> 4-5 are a confirmed bug class (stale-week race) that must be fixed atomically across
-> all three affected loaders. Read P1, P2, P4 first.
+**Domain:** Adding week-locking (WST-01) and attendance-averaging (AVG-01) to an existing Rust/Axum/SQLite shift-planning system (Shifty v2.1)
+**Researched:** 2026-07-01
+**Confidence:** HIGH — derived from direct code inspection of the live codebase, known CI failure patterns from MEMORY.md, and established v2.1 project constraints from PROJECT.md and CLAUDE.md.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Audit Trail Loss — Admin Identity Erased on Every Write
+### Pitfall 1: ISO-Week Year vs. Calendar Year Confusion in the Lock Key
 
 **What goes wrong:**
-`context_extractor` (both `oidc` and `mock_auth` variants in `rest/src/session.rs`)
-calls `resolve_session_user_id` which returns `impersonate_user_id` when set:
-
-```rust
-fn resolve_session_user_id(session: &service::session::Session) -> Option<Arc<str>> {
-    if let Some(ref impersonate_user_id) = session.impersonate_user_id {
-        Some(impersonate_user_id.clone())   // real admin ID is dropped here
-    } else {
-        Some(session.user_id.clone())
-    }
-}
-```
-
-This `Option<Arc<str>>` is inserted into Axum request extensions. Downstream, every
-`Authentication::Context(user_id)` in every service only ever sees the impersonated
-user ID. When a write happens — create booking, create absence, modify working
-hours — the service's `process`/`created_by`/actor field records the impersonated
-user. The real admin's identity is nowhere in the service call stack. Post-hoc
-forensics cannot distinguish "Alice did this" from "Admin Bob did this acting as
-Alice."
-
-`Context = Option<Arc<str>>` is a single-field type. The impersonation layer
-collapses both identities into one at the HTTP boundary. The service layer was never
-designed to carry both.
+The `(year, calendar_week)` key used across the codebase — `BookingEntity.year: u32`, `WeekMessageEntity.year: u32 / calendar_week: u8`, and the new week-status table — must store the **ISO week year**, not the Gregorian calendar year. Jan 1 of any year can fall in ISO week 52 or 53 of the *previous* ISO year. If week-status rows are keyed by Gregorian year, then:
+- Dec 29–31, 2025 (which are in ISO week 1, **2026**) would be keyed `(2025, 53)` by one code path and `(2026, 1)` by another.
+- The lock gate would fail to find the lock row for those days, silently allowing writes to a "locked" week.
+- Queries on "week 53" in a year with only 52 ISO weeks will return zero rows rather than an error, masking bugs.
 
 **Why it happens:**
-The type alias `pub type Context = Option<Arc<str>>` in `rest/src/session.rs` has one
-slot. The impersonation mechanism was designed for read-only before v1.9. For
-read-only use, losing the real actor is acceptable (no write audit needed). For
-write-capable impersonation it is a correctness violation.
+`ShiftyDate::from_ymd` correctly calls `time::Date::to_iso_week_date()` which returns the ISO week year. But the raw `(year: u32, week: u8)` fields on REST DTOs and DAO entities are ambiguous — any caller that supplies `time::now().year()` (the Gregorian year) instead of the ISO week year when constructing the key will silently insert a wrong row. The existing `week_message` DAO uses the same `(year, calendar_week)` pattern, and that was the model WST-01 will follow. Week 53 only exists in some years (e.g., 2026 has 53 ISO weeks); a query for `(2027, 53)` against a 52-week year returns silently empty.
 
 **How to avoid:**
-Before wiring the write path, change `Context` from `Option<Arc<str>>` to a struct:
-
-```rust
-pub struct SessionContext {
-    pub effective_user_id: Arc<str>,   // what PermissionService checks
-    pub real_user_id: Arc<str>,        // what audit records use
-    pub is_impersonating: bool,
-}
-pub type Context = Option<SessionContext>;
-```
-
-Update `resolve_session_user_id` to populate both fields. Update
-`PermissionService::check_permission` and `check_user` to use `effective_user_id`.
-Update audit/DAO call sites (any `process` or `created_by` string) to use
-`real_user_id`. The impersonate endpoints already read the raw session to get
-`session.user_id` (real user) — that pattern is the model.
-
-If the struct change is judged too invasive for v1.9, the minimum safe alternative
-is: store `(real_user_id, impersonate_user_id)` as a two-tuple in the session's
-in-memory extension, and thread `real_user_id` through to every DAO write as the
-`process` string. Do not proceed to write-capable impersonation without one of these
-two approaches in the phase plan.
+- Derive the year field **exclusively** from `ShiftyDate::from_ymd(...).year()` or `ShiftyWeek::new(...)`, never from `date.year()` (Gregorian).
+- Add a DB-level CHECK constraint on the migration: `CHECK (calendar_week >= 1 AND calendar_week <= 53)`, plus a SQLite trigger or application-level validation that rejects `calendar_week = 53` when `year` does not have 53 ISO weeks (`time::util::weeks_in_year(year) < 53`).
+- Add a unit test: create status for (2020, 53) — a year with 53 weeks — and verify that `ShiftyWeek::new(2020, 53)` does not wrap to (2021, 1). Also test that `(2021, 53)` is rejected (2021 has only 52 ISO weeks).
+- In the REST DTO, document that `year` is the ISO week year.
 
 **Warning signs:**
-- `created_by` / `process` fields in the DAO contain the impersonated user ID for
-  admin-initiated writes. No record says "admin=Bob acting-as=Alice".
-- `permission_service.current_user_id(context)` returns the impersonated user in
-  ALL service call sites (confirmed by tracing the `Authentication::Context` path in
-  `service_impl/src/permission.rs`).
-- `check_user("alice", context)` passes for admin Bob impersonating Alice — correct
-  for impersonation, but all audit records say Alice, never Bob.
+- Lock gate passes for Dec 29–31 even though the week is locked.
+- Unit tests with `year = 2025, week = 53` succeed even though 2025 has only 52 ISO weeks (the SQLite query returns 0 rows).
+- Clippy or compiler does not catch this — it is a semantic, not syntactic, error.
 
 **Phase to address:**
-Impersonation backend design phase. The audit contract must be locked before any
-write-path handler is implemented; retrofitting the Context type post-write is
-expensive.
+WST-01 data-model + migration phase (first WST-01 phase). Verification gate must test week-53 and year-boundary weeks explicitly.
 
 ---
 
-### Pitfall 2: Admin-Gate on New Endpoints Checks Impersonated User, Not Real Admin
+### Pitfall 2: Lock Gate Check Outside the Write Transaction (Read-Check-Then-Write Race)
 
 **What goes wrong:**
-The three existing impersonate endpoints (`start_impersonate`, `stop_impersonate`,
-`get_impersonate_status` in `rest/src/impersonate.rs`) correctly read the raw
-session from the cookie and check `session.user_id` (real user) against "admin":
+If the lock-status check is a separate DB read that happens *before* `BookingService::create` or `ShiftplanEditService::book_slot_with_conflict_check` opens/uses its transaction, two concurrent requests can both pass the lock check and both proceed to write — defeating the lock.
 
-```rust
-let real_user_context: Authentication<Option<Arc<str>>> =
-    Authentication::Context(Some(session.user_id.clone()));
-rest_state.permission_service()
-    .check_permission("admin", real_user_context).await?;
-```
-
-Any NEW admin-only endpoint written during v1.9 that uses the `context_extractor`-
-injected identity instead will check the IMPERSONATED user's privileges. An admin
-impersonating a non-admin employee will get 403 on their own admin tools.
-
-Concrete scenario: a new "admin audit log" or "impersonation history" endpoint guards
-via `permission_service.check_permission("admin", context)` where `context` comes
-from `Extension::<Option<Arc<str>>>` (the `context_extractor` path). During
-impersonation this checks the non-admin impersonated user — 403.
+SQLite with the project's async pool (sqlx) serializes writes but only within a single connection. Two concurrent HTTP requests using separate pooled connections can interleave: both read `status = Planned`, both proceed, both write their bookings.
 
 **Why it happens:**
-Two code paths diverge silently:
-1. `context_extractor` middleware: resolves effective identity (impersonated user).
-2. Raw session read from cookie: resolves real identity.
-
-All regular handlers use path 1. The three impersonate handlers use path 2. New
-developers copy "regular handler" boilerplate without knowing about the divergence.
-There is no compile-time guard distinguishing the two.
+The existing write paths pass `Option<Self::Transaction>` through all layers. A callee that does `self.lock_service.get_status(week, tx.clone().into()).await?` *before* passing `tx` to the actual write is safe — but only if the lock is read inside the *same* transaction that will do the write, using `BEGIN IMMEDIATE` or `BEGIN EXCLUSIVE` so SQLite serializes at the lock boundary. SQLite WAL mode (`BEGIN IMMEDIATE`) is the default for sqlx-sqlite; a plain `BEGIN` (deferred) still allows a TOCTOU window.
 
 **How to avoid:**
-Add a typed extractor `RealUserAuth` that extracts `session.user_id` from the cookie,
-independent of impersonation. All admin-management endpoints must use this extractor.
-Add a clippy lint or a doc comment in `rest/src/lib.rs` above `context_extractor`
-explicitly stating: "All permission gates for admin-management operations must use
-the real session user, not the effective user resolved here. See impersonate.rs for
-the pattern."
-
-Alternatively, if the Context struct from Pitfall 1 is adopted, `check_permission`
-for admin gates can accept a flag that uses `real_user_id` instead of
-`effective_user_id`.
+- Enforce the lock check **inside** the business-logic service method, after `use_transaction(tx)` has been called, before any write — not in the REST layer before calling the service.
+- For SQLite, use `BEGIN IMMEDIATE` (not `BEGIN DEFERRED`) for any transaction that includes a lock-gate check + write. Confirm the sqlx pool is configured with `PRAGMA journal_mode=WAL` and that transactions are opened with `BEGIN IMMEDIATE`.
+- Alternatively, encode the lock as a DB-level constraint: a `week_status` row with `status = 'Locked'` could gate bookings via a SQLite trigger that raises an error if a booking insert targets a locked week and the actor is not shiftplanner. This moves atomicity to the DB engine.
+- Add an integration test: lock week, fire two concurrent booking creates for the same employee/slot/week, assert exactly one succeeds (or that both fail if the week is locked for non-shiftplanners).
 
 **Warning signs:**
-- New admin endpoint returns 403 when admin is in an impersonation session.
-- The test suite does not include: "admin while impersonating a non-admin can still
-  call this admin-only endpoint."
-- Any handler added in v1.9 that uses `Extension::<Option<Arc<str>>>` and calls
-  `check_permission("admin", ...)` on that value is a candidate for this bug.
+- Lock check is implemented in the REST handler (`rest/src/`) rather than in `service_impl/src/shiftplan_edit.rs`.
+- Transaction passed as `None` to the lock-status lookup while the booking write opens its own transaction.
+- No `BEGIN IMMEDIATE` in the sqlx pool config.
 
 **Phase to address:**
-Impersonation design phase. The two-path contract must be documented before any
-new handler is added.
+WST-01 service implementation phase. Must be part of the service-tier discussion (discuss-phase) decision log.
 
 ---
 
-### Pitfall 3: Frontend Stores Retain Impersonated Data After Session Ends
+### Pitfall 3: Incomplete Write-Path Audit — `modify_slot_single_week` Bypass
 
 **What goes wrong:**
-Dioxus global stores (`VACATION_BALANCE_STORE`, `VACATION_TEAM_STORE`,
-`WEEKLY_SUMMARY_STORE`, absence list, `current_sales_person`, etc.) are populated
-from API calls made while the admin is impersonating Alice. When the admin calls
-`DELETE /impersonate` and the backend clears `session.impersonate_user_id`, the
-frontend stores still contain Alice's data. The admin now sees the correct identity
-in the banner (gone), but all the cached data reflects Alice until each coroutine
-fires a reload action.
+The lock gate is added to `ShiftplanEditService::book_slot_with_conflict_check` and `modify_slot`, but `modify_slot_single_week`, `remove_slot`, and `copy_week_with_conflict_check` are left ungated. A non-shiftplanner can then modify a slot for one week (single-week override), delete a slot, or copy a week's bookings into a locked week without hitting the gate.
 
-Depending on store invalidation logic, this stale state may persist for the entire
-page lifetime. The admin books a slot thinking they are booking for themselves but
-the `current_sales_person` store still holds Alice's `SalesPerson` record.
+This exact class of bypass was previously flagged for the paid-capacity gate (Phase 24 found that `modify_slot` propagated `max_paid_employees` incorrectly for the single-week path), demonstrating that multi-path coverage is a genuine Shifty failure mode.
 
 **Why it happens:**
-Global Dioxus stores have no invalidation budget tied to "which user is active." A
-store load is triggered by explicit `Action` sends. When impersonation ends, nothing
-broadcasts "clear all user-scoped stores and reload for the real user."
+Developers naturally gate the most obvious write path (`book_slot_with_conflict_check`) and forget secondary paths. `modify_slot_single_week` is architecturally distinct from `modify_slot` (it creates three slot segments), so it can be independently missed. `copy_week_with_conflict_check` already requires `shiftplan.edit` but the lock gate for the *destination* week is a separate concern.
 
 **How to avoid:**
-On successful `stop_impersonate` API response, broadcast reset/reload actions to
-every store that holds user-scoped data. Centralize this in an `ImpersonationService`
-coroutine that handles `StopImpersonation` by:
-1. Sending `LoadSelf(real_sales_person_id, year)` to `VacationBalanceAction`.
-2. Sending `LoadCurrentSalesPerson` (or equivalent reset) to the sales person store.
-3. Sending `WeeklySummaryAction::LoadWeek(current_year, current_week)`.
-4. Clearing the `current_sales_person` signal and allowing it to re-resolve from the
-   new `/my/sales-person` call.
-
-Write a test: render as impersonated Alice, stop impersonation, assert stores show
-real admin's data (or the admin's own `None` if they have no SalesPerson record).
+- During the discuss-phase, enumerate every write path that touches booking or slot data for a given `(year, week)`:
+  1. `book_slot_with_conflict_check` — adds a booking
+  2. `remove_slot` — affects all bookings on that slot
+  3. `modify_slot` — splits a slot from a given week
+  4. `modify_slot_single_week` — creates a week-specific override
+  5. `copy_week_with_conflict_check` — adds bookings to the destination week
+  6. `add_vacation` / extra-hours writes that touch the week indirectly
+- Implement a shared internal helper `assert_week_not_locked(year, week, context, tx)` in `ShiftplanEditServiceImpl`, called at the top of every write method, so it cannot be forgotten on new paths.
+- Write a test matrix: one test per write path, one locked / one unlocked case per path.
 
 **Warning signs:**
-- After stopping impersonation, the vacation-balance card still shows Alice's numbers
-  until manual page reload.
-- The shift-plan "add me to slot" action books the WRONG person (Alice's sales person
-  ID still in `current_sales_person`).
-- The impersonation banner disappears but the page title still says Alice's name.
+- `modify_slot_single_week` does not call any lock-status service.
+- The REST handler for slot modification (which calls `modify_slot` or `modify_slot_single_week`) skips a `week_status` lookup.
+- Integration test coverage exists for booking creates but not for slot modifications on locked weeks.
 
 **Phase to address:**
-Impersonation frontend phase. The `ImpersonateTO` global state and stop flow must
-be designed with explicit store tear-down.
+WST-01 service implementation phase. The "Looks Done But Isn't" checklist must enumerate all six write paths above.
 
 ---
 
-### Pitfall 4: Unconditional Store Overwrite After `await` — Stale-Week Race
+### Pitfall 4: Permission Model Ambiguity — Who Locks, Who Unlocks, Who Bypasses
 
 **What goes wrong:**
-`load_summary_for_week(year, week)` in
-`shifty-dioxus/src/service/weekly_summary.rs` does:
+Three distinct permission questions are conflated:
+1. Who can **change** week status (None → InPlanning → Planned → Locked)?
+2. Who can **write booking/slot data to a locked week**?
+3. Who can **unlock** a previously locked week?
 
-```rust
-async fn load_summary_for_week(year: u32, week: u8) -> Result<(), ShiftyError> {
-    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = false;
-    let weekly_summary =
-        loader::load_summary_for_week(CONFIG.read().clone(), year, week).await?;
-    (*WEEKLY_SUMMARY_STORE.write()).weekly_summary = Rc::new([weekly_summary]);
-    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = true;
-    Ok(())
-}
-```
+If all three are answered with "shiftplanner," the model is consistent. But if, for example, HR can change status to Locked but cannot write to a locked week, or if the status setter role is undefined, then the discuss-phase decision is incomplete and the executor will guess — likely incorrectly.
 
-The coroutine `weekly_summary_service` processes `LoadWeek` actions sequentially
-(one `rx.next().await` at a time), but within each action the `loader::...await`
-suspends the coroutine. If the user switches weeks again before the HTTP response
-arrives, a second `LoadWeek(new_year, new_week)` action is queued. The first
-response arrives, the store is written with stale data, and the second response
-either overwrites it correctly (race win) or the first wins (race loss). The todo
-confirms this is a visible bug in production.
+There is also a secondary risk: "Gesperrt-Wochen nur noch vom Schichtplaner änderbar" (from PROJECT.md) implies shiftplanner CAN write to locked weeks. But the gate must not block the shiftplanner's own lock-management write (status change). If the gate checks `status = Locked → reject unless shiftplanner` and the status-change endpoint itself requires the same check, a shiftplanner trying to unlock a week would hit their own gate — a logic loop.
 
 **Why it happens:**
-The store carries no `(year, week)` identity key. After `await` resumes, there is no
-check "is this result still for the week currently selected?" The global signal is
-written unconditionally.
+RBAC gates are added incrementally. Each write path's gate is designed independently. The status-mutation path (setting `status = Locked`) and the data-mutation path (adding bookings to the week) share the same `(year, week)` but have different actors and different gate logic.
 
 **How to avoid:**
-Add a `generation: u64` counter to `WeeklySummaryStore`. Before the `await`, read
-and capture the current generation. After the `await`, compare: if the current
-generation differs from the captured value, discard the result without writing.
-Increment the counter atomically when `LoadWeek` is received.
-
-Alternatively, store the `(requested_year, requested_week)` in the store and compare
-after the `await`. The generation counter is preferred because it handles the A-B-A
-case (navigate week 3 → week 4 → week 3 again: same `(year, week)`, different
-logical load intent — generation counter correctly discards the middle result).
+- Decide in the discuss-phase and record in the decision log: (a) status changes require `SHIFTPLANNER_PRIVILEGE`; (b) writes to locked weeks are rejected unless caller has `SHIFTPLANNER_PRIVILEGE`; (c) the status-mutation path is gated by shiftplanner but is NOT subject to the "locked week" data-write gate (since it is a status change, not a booking/slot write).
+- Use two separate gate functions: `check_week_writable(year, week, context)` (rejected for locked + non-shiftplanner) and `check_permission(SHIFTPLANNER_PRIVILEGE, context)` (for status mutation). Never apply `check_week_writable` to the status-change endpoint itself.
 
 **Warning signs:**
-- Week headers show data for a week other than the selected one.
-- Fast keyboard navigation through weeks leaves the summary cards in an intermediate
-  state that does not match the week shown in the plan grid.
-- Any `GlobalSignal` loader that does `.write()` unconditionally after an async call
-  is a candidate for this bug (use `grep -n "write().*data_loaded\|weekly_summary"
-  shifty-dioxus/src/service/*.rs` to find them).
+- The discuss-phase CONTEXT block has no explicit decision on who sets status vs. who bypasses locks.
+- `check_week_writable` is applied to the `update_week_status` service method.
+- An integration test for "shiftplanner locks a week then edits a booking in it" fails because the shiftplanner is also blocked.
 
 **Phase to address:**
-Stale-Daten-Race fix phase. Fix atomically in this phase; do not defer.
+WST-01 discuss-phase must produce explicit decision log entries for all three permission questions.
 
 ---
 
-### Pitfall 5: Same Race in Sibling Loaders — BookingConflict and UnavailableDays
+### Pitfall 5: Stale Lock State in the WASM Frontend — SelectInput D-25-06 Class
 
 **What goes wrong:**
-The unconditional-write-after-await pattern documented in Pitfall 4 is present in at
-least two sibling loaders, as called out in the todo file:
+The week-status selector (None / In Planung / Geplant / Gesperrt) is a controlled `<select>` driven by a Dioxus signal. Two failure modes of the D-25-06 class apply here:
 
-- `BookingConflictAction::LoadWeek` (see `shiftplan.rs` lines 304-305) feeds a
-  separate store for conflict highlighting.
-- `reload_unavailable_days` closure (see `shiftplan.rs` lines 350-368) writes to the
-  `unavailable_days` signal that drives the grey-out of Nicht-Verfuegbar days.
+(a) **Stale cached status on navigation:** The user navigates away from the week view and back. If the status signal is not reloaded from the server on re-entry, the badge shows the old status while the server state has changed (e.g., another user locked the week).
 
-Fixing only `WEEKLY_SUMMARY_STORE` leaves booking-conflict highlights and unavailable
-markers still subject to the race.
+(b) **Controlled-select desync after failed write:** A non-shiftplanner tries to edit a booking on a locked week. The server returns 403. The frontend signal rolls back, but the `<select>` DOM element does not, leaving the displayed status out of sync. The SDF-Desync fix pattern (Option 2: don't reset the form after create) avoids this in the Special-Days case by *not* resetting. But for week status, if the status selector resets its signal on success and the DOM has already moved to a new value, the controlled value attribute may not re-render because Dioxus diffing sees the same virtual DOM node.
 
 **Why it happens:**
-The store-write pattern was the idiomatic Dioxus approach before the race was
-noticed. Each service was written independently; there is no shared abstraction that
-enforces the generation-guard.
+Dioxus's VDOM diffing does not always re-apply `value=` attribute to `<select>` if the attribute value is unchanged from the previous render cycle, even if the DOM has drifted. This is the documented D-25-06 constraint. Setting a `SelectInput value=Some(current_status_string)` on re-render works only if the signal value actually changes to trigger a diff.
 
 **How to avoid:**
-When fixing the weekly-summary race, audit EVERY loader that follows the pattern
-"fire coroutine action, await HTTP, write GlobalSignal" within the shiftplan page
-and its services. Run:
-
-```
-grep -n "write()" shifty-dioxus/src/service/*.rs shifty-dioxus/src/page/shiftplan.rs
-```
-
-Confirm each write site is guarded. Fix all instances in the same phase as Pitfall 4
-so the three fixes ship atomically. Do not partial-fix.
+- Do not use `SelectInput` in controlled mode for the week-status selector if the status is only changed by a server call. Instead: display the status as a read-only badge + a separate action button (e.g., "Lock week") that fires a POST and on success reloads the week from the server. This avoids the desync entirely.
+- If a dropdown is required: on every successful status change (and on every failed booking attempt), force a signal refresh that changes the status signal to a placeholder (`""`) then back to the correct value in two consecutive render cycles, to guarantee DOM re-application. This is fragile; the badge+button approach is safer.
+- The SDF-Desync pattern from v2.1 (SDF item) applies: the safest fix is to never reset the controlled select — instead let the server response drive the next displayed value via a reload.
+- Add a frontend component test (cargo test on `shifty-dioxus`) that verifies the status badge renders the server-returned value after a round-trip, not the last user selection.
 
 **Warning signs:**
-- After fixing the weekly-summary race, booking-conflict highlights or unavailable-day
-  markers still lag or show previous-week data.
-- The week-change handler fires three `LoadWeek`-type sends (lines 304-307 in
-  `shiftplan.rs`) — all three must be guarded.
+- The status selector is `SelectInput { value: Some(week_status_signal.read().to_string()) ... }` with a local signal that is mutated on user change before the server confirms.
+- No explicit reload of week status from server on booking 403.
+- No frontend component test for the lock badge.
 
 **Phase to address:**
-Same Stale-Daten-Race fix phase as Pitfall 4. All three stores, one phase.
+WST-01 frontend phase. Discuss-phase should explicitly decide: read-only badge + action button vs. controlled dropdown.
 
 ---
 
-### Pitfall 6: Vacation Bar Counts Only `used_days`; Number Shows `used + planned` Subtracted
+### Pitfall 6: AVG-01 Denominator Definition — Vacation vs. All Absence Categories
 
 **What goes wrong:**
-`PersonVacationCard` in `absences.rs` renders the bar as:
+PROJECT.md specifies "Urlaub aus dem Nenner" (vacation excluded from denominator). The existing A-22-1 formula in `service/src/reporting.rs` excludes a week where `worked == 0.0 && (vacation + sick_leave + unpaid_leave + holiday) > 0.0`. These are different:
 
-```rust
-let total = props.balance.entitled_days + (props.balance.carryover_days as f32);
-let used_pct: u32 = if total > 0.01 {
-    ((props.balance.used_days / total) * 100.0).clamp(0.0, 100.0) as u32
-} else { 0 };
-let bar_style = format!("width:{}%", used_pct);
-```
+- A-22-1 (current): excludes fully-absent weeks for **any** category.
+- AVG-01 (specified): excludes weeks with **vacation** only.
 
-The bar shows `used_days / total`, clamped to 100%. The number displayed next to the
-bar is `balance.remaining_days`, which the backend computes as
-`entitled + carryover - used - planned`.
-
-Example: entitled=20, used=5, planned=10 days.
-- Bar: 5/20 = 25% — "quarter used."
-- Number: 20-5-10 = 5 remaining.
-An HR user reading both together would mentally infer "75% left, but only 5 days
-remaining." The bar does not account for the 10 planned days already committed, so
-it always understates how consumed the vacation budget is. At 100% bar the balance
-can still be negative (overdraft hidden by clamp).
+If AVG-01 reuses the existing `average_worked_hours_per_week` function directly, a week of sick leave where the employee worked 0 hours is excluded from the denominator — inflating the average. If the intent is "only vacation weeks are excluded from the denominator," sick leave weeks (where 0 hours were worked) would still count as 0 in the denominator, pulling the average down, which may be correct for attendance tracking but was not explicitly decided.
 
 **Why it happens:**
-The bar was written before `planned_days` was tracked. `remaining_days` was added
-later to account for planned absences; the bar percentage was not updated to match.
+The discuss-phase for AVG-01 was explicitly deferred ("viele offene Definitionsfragen"). An autonomous executor that finds an existing formula that "looks right" will use it without checking whether it matches the specification. The existing `average_worked_hours_per_week` is already in the service trait and already tested — the temptation to call it directly is high.
 
 **How to avoid:**
-Change the percentage to:
-```rust
-let committed_pct = ((props.balance.used_days + props.balance.planned_days) / total)
-    * 100.0;
-let bar_pct = committed_pct.clamp(0.0, 100.0) as u32;
-```
-Use `bar_pct` for the CSS `width` to avoid negative widths. Add a separate overdraft
-indicator — a red badge or overflow element — when `committed_pct > 100.0` (i.e.,
-`used + planned > entitled + carryover`). Do NOT silently clamp and suppress the
-overdraft; HR needs to see it at a glance.
+- The discuss-phase MUST produce a decision on the exact exclusion rule: which absence categories exclude a week from the denominator, and whether the exclusion applies only when worked=0 or always.
+- If the rule differs from A-22-1, implement a *separate* function rather than modifying `average_worked_hours_per_week` (modifying it would break STAT-01 behavior and could require a snapshot version bump).
+- Write a parametric unit test covering: (1) pure vacation week excluded, (2) sick leave week — included or excluded per decision, (3) week with partial vacation + some hours worked — denominator inclusion rule, (4) empty weeks (no bookings, no absences) — always included as 0.
 
 **Warning signs:**
-- Employee with 0 used days but 15 planned days (out of 20 entitled) sees a bar at
-  0% but a number of 5 remaining — bar and number are visually contradictory.
-- An employee in overdraft sees a bar at 100% with a negative remaining number — the
-  bar does not signal the problem.
-- The `low` threshold logic (`remaining_days <= 3.0`) correctly uses `text-warn` for
-  the number, but the bar does not show overdraft for a different visual reason.
+- AVG-01 calls `average_worked_hours_per_week` without a new function or without verifying the exclusion set.
+- No unit test distinguishes vacation-only exclusion from all-absence exclusion.
+- The discuss-phase CONTEXT decisions block has no explicit statement on sick-leave week denominator treatment.
 
 **Phase to address:**
-Urlaubs-Balken-Konsistenz phase. The change is isolated to `PersonVacationCard` in
-`absences.rs`. Regression: test `planned_days == 0` (bar unchanged), `total == 0`
-(no division), and `used + planned > total` (overdraft indicator).
+AVG-01 discuss-phase (must produce explicit decision); AVG-01 service implementation phase (tests must cover all four scenarios above).
 
 ---
 
-## High-Impact Pitfalls
-
-### Pitfall 7: Absence Category Mismatch — Urlaub-Nicht-Verfuegbar Fires for Wrong Types
+### Pitfall 7: AVG-01 Snapshot Version Bump — Silently Skipped for a Persisted Computation
 
 **What goes wrong:**
-The Urlaub-Nicht-Verfuegbar feature marks days as "discouraged" in the shiftplan
-grid based on the employee's own absence ranges. If the implementation filters by
-`AbsenceCategory::Vacation` only, it misses absence types that should also block
-scheduling (e.g. `SickLeave`). Conversely, if it uses ALL absence categories without
-an explicit whitelist, it may mark days the planner wants to leave schedulable. The
-feature description says "Vacation, ggf. weitere Kategorien" — the set is explicitly
-TBD and must be settled before implementation.
+If AVG-01 is implemented as a new `BillingPeriodValueType` (e.g., `AverageAttendanceHours`) written into billing-period snapshots, `CURRENT_SNAPSHOT_SCHEMA_VERSION` must be bumped from 12 to 13. If the executor skips the bump, old snapshots (written at version 12) will be compared by the billing-period validator against new live computations that include the new value type. The validator will see mismatches and flag drift for every historical billing period — but silently, since the schema version check is the guard that prevents the validator from running on mismatched snapshots.
+
+Worse: the bumped constant is the *only* mechanism that tells the system "re-validate these snapshots under the new rules." Without the bump, old snapshots appear valid (same version) even though the computation has changed, defeating the validator's purpose entirely.
+
+PROJECT.md already calls this out: "AVG-01 in discuss-phase prüfen (falls neue **persistierte** Berechnung → Bump nötig; reines Read-Aggregat → kein Bump)."
 
 **Why it happens:**
-Feature descriptions prototype on "vacation" as the primary case. The Rust
-`AbsenceCategory` enum has multiple variants. A catch-all `filter(|a| true)` silently
-catches variants that were not evaluated in the design. A too-narrow
-`filter(|a| a.category == AbsenceCategory::Vacation)` silently misses others.
+The bump discipline requires the developer to recognize that adding a new `BillingPeriodValueType` variant is a persisted-computation change. An autonomous executor that implements AVG-01 as a live-compute REST endpoint with no new snapshot row correctly skips the bump. But if any refactoring also touches the billing-period report builder to write a new row, the bump becomes mandatory — and the two changes can happen in different commits without either commit triggering the bump.
 
 **How to avoid:**
-Define the allowed categories as an explicit `const` whitelist (not an inline
-closure). Write a unit test that for each `AbsenceCategory` variant asserts whether
-it produces a discourage marker. Gate the implementation on the DECISION being
-recorded in the phase CONTEXT doc as `D-NN`. If the set may grow, make it a
-runtime config rather than a const — but lock that decision in the phase plan.
+- The discuss-phase must explicitly decide: is AVG-01 a read-only aggregated REST endpoint (no new `BillingPeriodValueType`) or a persisted snapshot value? Record this as a decision in the CONTEXT block.
+- If persisted: the plan phase must include a task "bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` from 12 to 13" as a non-optional checklist item, with a companion integration test that verifies the constant is > 12.
+- If not persisted: the plan phase must explicitly state "no bump" with rationale, and the executor must not add any new `BillingPeriodValueType` variant.
+- CI cannot auto-detect a missing bump — it is a semantic rule, not a compiler rule. The only automated guard is a test that compares computed values for a known billing period against a snapshot written at the current constant.
 
 **Warning signs:**
-- SickLeave days are marked as Nicht-Verfuegbar without an explicit design decision.
-- A new `AbsenceCategory` variant added in a future milestone silently does (or does
-  not) produce discourage markers depending on whether the filter uses `match` with
-  exhaustive arms or a predicate that defaults one way.
+- A new `BillingPeriodValueType::AverageAttendance` or similar variant appears in `billing_period_report.rs` but `CURRENT_SNAPSHOT_SCHEMA_VERSION` is still 12.
+- The billing-period snapshot builder's `build_and_persist_billing_period_report` writes rows with the new type but the comment "KEIN value_type-Change → KEIN CURRENT_SNAPSHOT_SCHEMA_VERSION-Bump" is left unchanged.
+- No test asserts the constant's current value.
 
 **Phase to address:**
-Urlaub-Nicht-Verfuegbar phase. The category whitelist must be in the DISCUSS/CONTEXT
-before planning starts.
+AVG-01 discuss-phase (decision); AVG-01 service implementation phase (bump or explicit no-bump in plan).
 
 ---
 
-### Pitfall 8: Impersonation Session Survives Browser Close — Indefinite Impersonation
+### Pitfall 8: Missing `.sqlx` Offline Cache After Adding New Queries — CI Breaks Silently
 
 **What goes wrong:**
-The `app_session` cookie has a 1-year expiry. The session row persists
-`impersonate_user_id` until `DELETE /impersonate` is called. If the admin closes
-the browser tab while impersonating and reopens the application the next day, they
-are still impersonating Alice. All reads and writes silently occur as Alice until
-the admin notices the banner (if they see it — Pitfall 9).
+WST-01 requires a new `week_status` table and new `query!` / `query_as!` macros in `dao_impl_sqlite/src/`. SQLx compile-time checking requires a local database during `cargo build`. CI uses `SQLX_OFFLINE=true` and relies on `.sqlx/` metadata files committed to the repo. If the executor adds new `query!` macros but does not run `cargo sqlx prepare --workspace` and commit the generated `.sqlx/` files, the CI clean build fails even though `cargo test` on the developer's machine (with a live DB) is green. The overnight autonomous run cannot run `cargo sqlx prepare` without a live DB being available in CI.
+
+This is a documented pattern in MEMORY.md: "nach jeder neuen query!/query_as! cargo sqlx prepare --workspace + .sqlx committen."
 
 **Why it happens:**
-Session management was designed for login persistence. Impersonation piggybacks on
-the same session row without a separate expiry field.
+`cargo sqlx prepare` requires both a running database and the `sqlx-cli` tool, neither of which is available in CI. The executor can run the full test suite locally against the test DB, which uses in-memory SQLite and does not go through SQLX_OFFLINE mode, so local tests pass but CI fails. The `.sqlx/` directory is checked in, but only contains entries for previously-prepared queries.
 
 **How to avoid:**
-Add `impersonate_expires_at: Option<OffsetDateTime>` to the session DAO table.
-`start_impersonate` writes `now + 4h` (or a configurable timeout). `context_extractor`
-calls `verify_user_session` which should clear (or report as expired) an impersonation
-whose `impersonate_expires_at` is in the past. If a timestamp column is out of v1.9
-scope, at minimum log a structured warning when `context_extractor` finds an
-`impersonate_user_id` that was set more than N hours ago.
+- Every phase plan that adds any `query!` / `query_as!` / `query_scalar!` macro in `dao_impl_sqlite/` MUST include as the final step: "run `cargo sqlx prepare --workspace` in a nix-shell with sqlx-cli available, commit the updated `.sqlx/` directory."
+- The phase's pre-commit checklist must verify: `git status .sqlx/` shows the new query entries.
+- The gate command sequence for autonomous phases must be: `cargo test --workspace && cargo clippy --workspace -- -D warnings && (check .sqlx/ was updated)`.
+- In practice: use `nix develop` (not `nix-shell`, see MEMORY.md), then run `cargo sqlx prepare --workspace` before committing.
 
 **Warning signs:**
-- Admin reloads the app the next day and the impersonation banner appears with no
-  recent `start_impersonate` call in the logs.
-- Session rows in the DB have non-null `impersonate_user_id` with no associated
-  `stop` event.
+- New files in `dao_impl_sqlite/src/` contain `query!` or `query_as!` macros but `.sqlx/` directory was not modified in the same commit.
+- CI fails with error: `error: failed to find data for query` or `error: offline mode is active but no offline data was found for the query`.
+- `cargo build` succeeds locally but CI fails.
 
 **Phase to address:**
-Impersonation backend design phase. Session row schema change can be a migration
-alongside the main impersonation tables if those do not yet exist.
+WST-01 DAO implementation phase. Must be the last step before the commit. AVG-01 if it adds new DB queries.
 
 ---
 
-### Pitfall 9: Impersonation Banner Missing After Page Reload — Silent Admin Actions
+### Pitfall 9: `cargo clippy --workspace -- -D warnings` Failures From Status Enum Patterns
 
 **What goes wrong:**
-The frontend shows the "Du agierst als X — Impersonation beenden" banner only if
-the Dioxus store holding `ImpersonateTO` reflects `impersonating: true`. If this
-store is initialized to `ImpersonateTO { impersonating: false, user_id: None }` on
-app mount (default) and is only updated by the `start_impersonate` success callback,
-then after a page reload the store reverts to the default. The admin performs actions
-thinking they are themselves but the session still has Alice's identity active.
+Adding a new `WeekStatus` enum (None/InPlanning/Planned/Locked) introduces exhaustive match requirements. If existing match arms anywhere in the codebase pattern-match on a related enum or use `_` wildcards in ways that Clippy flags as unreachable or redundant after the new variant is added, the build fails with `-D warnings`. Common Clippy failures in this scenario:
+- `unreachable_patterns` if existing match arms cover a superset after new variant addition.
+- `dead_code` if the status DAO module is added but a public function is never called from tests.
+- `clippy::match_wildcard_for_single_variants` if `_` covers only one remaining variant.
+- Naming: `None` as a variant name shadows `Option::None`; Clippy may warn about `clippy::enum_variant_names` if the variant names don't follow a consistent prefix.
+
+Note: The `shifty-dioxus` Clippy gate is broken (E0514 cross-compilation issue documented in MEMORY.md) and is not CI-gated. Only `cargo clippy --workspace -- -D warnings` in the backend workspace matters for CI.
 
 **Why it happens:**
-Dioxus global stores start from their `Signal::global(|| ...)` default. A page
-reload reinitializes the WASM module and all stores. The impersonation state lives in
-the backend session, not in the frontend signal.
+The backend workspace runs a strict Clippy gate via `nix build`. The executor runs `cargo test` and `cargo build` as verification gates but may skip the explicit `cargo clippy --workspace -- -D warnings` step — which is the only way to catch these warnings before CI.
 
 **How to avoid:**
-On application mount, call `GET /impersonate` to fetch current impersonation status
-before any user-facing data load. Store the result in the global impersonation signal.
-Render the banner when `impersonating == true`, regardless of how that state was set.
-This call must execute before the first data loads (booking, absence, vacation) so the
-admin always knows their identity when they see the data.
+- Every phase gate MUST include `cargo clippy --workspace -- -D warnings` as a required step, not optional. This is stated in CLAUDE.md.
+- Name the enum `WeekStatus` with variants `None` spelled as `Unset` or `Open` to avoid shadowing `Option::None` and triggering Clippy name warnings.
+- After adding the enum, run a grep for all match arms that could be affected: `grep -r "WeekStatus\|week_status" --include="*.rs"`.
+- Verify the test suite and `main.rs` DI wiring both reference the new service, so `dead_code` warnings are avoided.
 
 **Warning signs:**
-- Hard-refresh while impersonating shows no banner and no indication of the
-  impersonation state.
-- The `ImpersonateTO` signal defaults to `{ impersonating: false }` without an initial
-  HTTP check.
+- Phase commit message says "cargo test green" but does not mention `cargo clippy`.
+- The new `WeekStatus` enum has a variant named `None`.
+- New DAO module functions that are only called from tests are `pub` but not referenced in the service layer yet (dead_code warning).
 
 **Phase to address:**
-Impersonation frontend phase. The `GET /impersonate` call must be in the app init
-sequence, not triggered only by user action.
+All WST-01 and AVG-01 implementation phases. Clippy must be the last gate before every commit.
 
 ---
 
-### Pitfall 10: Admin Locked Out of Admin Endpoints While Impersonating
+### Pitfall 10: AVG-01 Employee Scope Leak — Flexible vs. Fixed Employees
 
 **What goes wrong:**
-While impersonating a non-admin, `context_extractor` sets effective context to the
-impersonated user. Every service call gated by `check_permission("admin", context)`
-via the middleware-resolved context will return 403. The admin cannot use the
-permission-management page, cannot view all-users list, cannot assign roles — all
-while they are impersonating. This is actually CORRECT behavior (admin acts as the
-user, not as admin), but it will surprise the admin and look like a bug.
+AVG-01 is described as "Durchschnitts-Anwesenheit bei flexiblen Stunden Mitarbeitern" (average attendance for flexible-hours employees). If the computation runs over all employees but the result is displayed only for flexible employees in the UI, a backend endpoint that returns aggregated averages across all employees exposes fixed-contract employees' data in a context they should not appear in. Conversely, if the filtering happens in the frontend but the backend returns all employees, a UI bug or future API consumer could show wrong data.
+
+Additionally, the definition of "flexible" employee in the data model is ambiguous: is it `expected_hours = 0.0`? Is it a flag? Is it the absence of a fixed contract? If different code paths use different definitions, some employees will be double-counted or excluded incorrectly.
 
 **Why it happens:**
-Single-identity context cannot simultaneously express both roles. The design choice
-was made when impersonation was read-only. The admin who needs to do admin work
-while impersonating has no path.
+The discuss-phase for AVG-01 was deliberately deferred. An executor implementing AVG-01 without a finalized definition will pick the most obvious heuristic (`expected_hours == 0.0` or `is_paid = false`), which may not match the intended semantics. The `SalesPersonService` does not currently have a "is_flexible" flag.
 
 **How to avoid:**
-For v1.9: document this as an explicit known limitation in the phase DISCUSS. The
-banner should say "While impersonating, your admin privileges are suspended. Stop
-impersonation to use admin tools." Do NOT resolve this by granting admin privilege
-bleed-through to the impersonated session. If future milestones need "admin tools
-while impersonating" (e.g. to fix a permission for the impersonated user live), that
-requires the dual-identity Context struct from Pitfall 1.
+- The discuss-phase must define: (a) exactly which field or combination of fields identifies a "flexible" employee; (b) whether the filtering is server-side (only those employees are returned in the AVG-01 endpoint) or client-side (endpoint returns all, UI filters).
+- Server-side filtering is strongly preferred for access control: a HR-only average should not be computable by any non-HR client from raw per-employee data.
+- If a new "is_flexible" flag is needed, it belongs in `EmployeeWorkDetails` (already time-versioned), not as a separate table. Add it there to keep the data model consistent.
+- Unit tests must explicitly verify that a fixed-contract employee's weeks do not appear in the AVG-01 denominator or numerator.
 
 **Warning signs:**
-- Admin impersonating Alice tries to assign a role to Alice and gets 403.
-- The UAT scenario "admin fixes a permission issue while looking at the user's view"
-  is impossible without stopping impersonation.
+- AVG-01 REST endpoint returns data for all employees without filtering.
+- The service implementation checks `expected_hours == 0.0` as the flexibility predicate without a recorded decision log entry.
+- No unit test asserts that a fixed-contract employee is excluded from the aggregate.
 
 **Phase to address:**
-Impersonation design phase — document as known limitation, not a bug to fix.
-
----
-
-### Pitfall 11: Urlaub Data Fetched for Stale Sales Person Before `current_sales_person` Resolves
-
-**What goes wrong:**
-The `reload_unavailable_days` closure in `shiftplan.rs` reads `*current_sales_person.read()`
-to decide whose absence periods to fetch:
-
-```rust
-if let Some(sales_person) = &*current_sales_person.read() {
-    loader::load_unavailable_sales_person_days_for_week(..., sales_person.id, ...).await
-}
-```
-
-`current_sales_person` is loaded by `loader::load_current_sales_person` inside the
-coroutine init block. On first page load, if the week-change signal fires before the
-coroutine init completes, `current_sales_person` is still `None` and the
-absence-based discourage lookup is skipped silently. The Nicht-Verfuegbar markers do
-not appear on first load.
-
-The same issue exists for the new absence-range API call that the
-Urlaub-Nicht-Verfuegbar feature will add: if the feature fetches absence ranges for
-the current week, it must wait for `current_sales_person` to be non-None.
-
-**Why it happens:**
-The shiftplan coroutine initializes `current_sales_person` mid-stream after other
-async calls. The week-change handler does not know whether `current_sales_person` has
-been resolved yet.
-
-**How to avoid:**
-Ensure the absence-range fetch for the new feature is either:
-(a) placed after the `current_sales_person` assignment in the coroutine init sequence,
-    or
-(b) triggered reactively by a signal that only fires when `current_sales_person`
-    becomes non-None.
-
-Add a test: simulate first page load with a mock that delays `current_sales_person`
-resolution — verify the absence markers appear once the person loads, not missing
-permanently.
-
-**Warning signs:**
-- Urlaub-Nicht-Verfuegbar markers do not appear on the first page load; appear only
-  after a manual week switch.
-- `reload_unavailable_days` is called while `current_sales_person` is `None` — the
-  call is silently skipped with no error, no retry.
-
-**Phase to address:**
-Urlaub-Nicht-Verfuegbar phase.
+AVG-01 discuss-phase (define "flexible"); AVG-01 service implementation phase (tests must include a mixed-employee set).
 
 ---
 
@@ -539,11 +291,12 @@ Urlaub-Nicht-Verfuegbar phase.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Impersonation via cookie session without dual-identity Context struct | Avoids Context type refactor across all service call sites | Audit trail gap: all writes attributed to impersonated user; real admin identity invisible in DB records | Never for write-capable impersonation; acceptable for read-only only |
-| Vacation bar `clamp(0, 100)` without overdraft indicator | No negative CSS width bug | HR cannot detect overdraft from card at a glance; bar and remaining number are visually contradictory | Never — the Balken-Konsistenz phase requires an overdraft indicator |
-| Fetch absence data for Urlaub-Nicht-Verfuegbar via a new independent HTTP call per week change | Simpler, no backend batch change needed | One extra HTTP round-trip per week navigation; absence data slightly out of sync with the week payload batch | Acceptable for v1.9 if latency is unnoticeable; revisit in a later cleanup phase |
-| Fix generation guard only on WEEKLY_SUMMARY_STORE, skip sibling loaders | Minimal diff for the stated bug | BookingConflict and unavailable-days loaders remain racy | Never — fix all three in the same phase |
-| Impersonation banner state set only in start-success callback, not fetched on mount | No extra API call on startup | Silent impersonation after page reload; admin acts as wrong user | Never for write-capable impersonation |
+| Reuse `average_worked_hours_per_week` for AVG-01 without reviewing exclusion logic | No new code | Wrong denominator if vacation-only exclusion differs from all-absence exclusion | Never — review first, then decide |
+| Skip `cargo sqlx prepare` and commit without updated `.sqlx/` | Faster commit | CI breaks on clean build; autonomous run has no human to fix it | Never for autonomous overnight runs |
+| Gate lock check in REST layer instead of service layer | Simpler service code | Bypassable if another client calls the service directly; violates layered-arch contract | Never |
+| Add `WeekStatus::None` variant name | Obvious naming | Shadows `Option::None`; Clippy `-D warnings` fails CI | Never |
+| Display lock badge without server reload on navigation | Simpler frontend state | Shows stale lock state; non-shiftplanner sees unlocked badge and attempts writes that fail with 403 | Never for production |
+| Omit week-53 test | Faster test implementation | Silent year-boundary bug that manifests only once per 5-6 years | Never — add the test |
 
 ---
 
@@ -551,12 +304,20 @@ Urlaub-Nicht-Verfuegbar phase.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| `context_extractor` + new admin endpoint | Reading user from `Extension::<Option<Arc<str>>>` and calling `check_permission("admin", ...)` — this checks the impersonated user during impersonation | Read the raw session from the cookie directly and extract `session.user_id` (the real user), as done in all three handlers in `rest/src/impersonate.rs` |
-| `session_service.start_impersonate` + permission check | Passing `context` from `context_extractor` to `check_permission("admin", ...)` — this uses the effective identity, not the real admin | Construct `Authentication::Context(Some(session.user_id.clone()))` from the raw session; this is already the correct pattern in `start_impersonate` |
-| Dioxus GlobalSignal + async coroutine | Writing to signal unconditionally after `await` with no staleness check | Capture generation token before `await`; compare after `await`; discard result if generation changed |
-| Vacation bar percentage + overdraft | `clamp(0, 100)` on `used_days/total` | Use `(used_days + planned_days) / total`; clamp width to 100 for CSS; render separate overdraft badge when `committed > total` |
-| Absence fetch for current user + week change | Fetching absence ranges before `current_sales_person` has resolved | Gate absence fetch on `current_sales_person` being `Some`; retry when the signal fires non-None |
-| Stop impersonation + Dioxus stores | Calling `DELETE /impersonate` then assuming stores auto-refresh | Explicitly send reload actions to every user-scoped store in the stop-impersonation success handler |
+| SQLite lock gate | Read lock status before opening transaction, write booking in separate transaction | Read lock status and write booking inside one `BEGIN IMMEDIATE` transaction |
+| `cargo sqlx prepare` in NixOS | Run from default shell (sqlx not on PATH) | Run inside `nix develop` (not `nix-shell`, shell.nix is broken per MEMORY.md) |
+| Dioxus `SelectInput` for status | Drive with local signal mutated on user change, confirmed by server later | Drive with server-returned value; refresh signal after server confirms |
+| Billing period snapshot validator | Add new `BillingPeriodValueType` without bumping `CURRENT_SNAPSHOT_SCHEMA_VERSION` | Bump constant and record in plan; test that constant > previous known value |
+| `ShiftyWeek::new(year, week)` | Pass Gregorian year instead of ISO week year | Always derive year from `ShiftyDate::from_ymd(...).year()` or `date.to_iso_week_date().0` |
+
+---
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Loading all bookings for all weeks to check lock status | Slow week-view load when many historical bookings exist | Keep week-status as a separate lightweight table; look up status by `(year, week)` only | At ~10k+ bookings per year |
+| AVG-01 scanning all weeks for all employees in one query | Slow billing-period report generation | Compute average on the already-loaded per-week slice (as A-22-1 does); do not add a new cross-week DB aggregation query | At ~50+ employees |
 
 ---
 
@@ -564,41 +325,35 @@ Urlaub-Nicht-Verfuegbar phase.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Using `context_extractor` identity for admin gate on impersonation-adjacent endpoints | Admin blocked by 403 on their own tools while impersonating, or worse: impersonated user gains admin access if check logic is inverted | Always use `session.user_id` (raw session read) for admin gates. Encapsulate in a `RealUserAuth` extractor |
-| Not expiring impersonation server-side | Session with stale `impersonate_user_id` persists indefinitely; reads/writes silently attributed to wrong user across sessions | Add `impersonate_expires_at` to session table; enforce on `verify_user_session` or in `context_extractor` |
-| Allowing admin to impersonate another admin | Admin A writes appear as Admin B; audit poisoning; if B has *more* privileges than A in some domain, escalation possible | In `start_impersonate`, verify target user does NOT have `admin` privilege; return 403 if they do |
-| Impersonation state sourced only from frontend memory | Page reload loses banner; admin acts as impersonated user without visible indicator | Fetch `GET /impersonate` on every app mount; banner driven by backend state |
-| Write path under impersonation not tested for audit attribution | Ships with no test coverage for the audit gap; audit trail is silently wrong in production | Add integration test: perform a write while impersonating; assert the `process`/`created_by` field contains the real admin ID (or the impersonated ID + a separate audit column for real actor, depending on chosen design) |
+| Lock gate enforced only in frontend (badge/disabled button) | Any HTTP client bypasses the gate and writes to locked weeks | Gate must be enforced in the service layer; frontend enforcement is only UX sugar |
+| `check_week_writable` skips `Authentication::Full` requests | Internal service-to-service calls bypass the lock gate | The lock gate should only apply to `Authentication::Context` calls; `Authentication::Full` is used for internal system operations and should not be blocked by week locks |
+| Week-status mutation endpoint lacks `SHIFTPLANNER_PRIVILEGE` check | Any authenticated user can lock or unlock any week | `check_permission(SHIFTPLANNER_PRIVILEGE, context)` required on all status-mutation paths |
+
+---
+
+## UX Pitfalls
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| No visual distinction between "locked by shiftplanner" and "planned (not locked)" | Non-shiftplanners attempt booking and receive opaque 403 error | Show clear locked badge; disable booking controls proactively when status is Locked and user is not shiftplanner |
+| Status change confirmation requires page reload | Badge shows old status after shiftplanner locks a week; next booking from another tab succeeds (server-side blocked, but confusing) | After status change: immediately update local signal from server response, no full reload needed |
+| AVG-01 displayed alongside fixed-contract employees without a label | HR cannot distinguish flexible vs. fixed averages | Display AVG-01 only in the flexible-employee section; add "flexible employees only" label |
+| Week-53 displayed in the UI as a selectable week when the year has only 52 ISO weeks | Shiftplanner selects week 53 in a 52-week year; the status is saved to a nonexistent week key | Validate week numbers in the UI against `weeks_in_year(selected_year)` before allowing selection |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Impersonation write-path audit:** `created_by` / `process` in DAO writes performed
-  under impersonation contains the real admin user ID, not the impersonated user ID.
-  Verify in `booking_dao`, `absence_dao`, any other write DAO exercised in the
-  impersonation phase.
-- [ ] **Stop-impersonation store reload:** After `DELETE /impersonate` succeeds, ALL
-  user-scoped Dioxus stores (vacation balance, weekly summary, `current_sales_person`,
-  absence list) refresh to show the real admin's data. Not just the banner disappearing.
-- [ ] **Banner on hard reload:** Reload the browser while impersonating — banner is
-  visible without any user interaction. Requires `GET /impersonate` call on app mount.
-- [ ] **Admin gate while impersonating:** Admin impersonating a non-admin calls a
-  admin-only endpoint via the `context_extractor` path — correctly gets 403. Admin
-  calls `DELETE /impersonate` — correctly gets 200. Both via the same session.
-- [ ] **Vacation bar overdraft:** Create a scenario where `used_days + planned_days >
-  entitled_days + carryover_days`. Verify an overdraft indicator appears (not just
-  a bar at 100% with a negative number).
-- [ ] **Week-race fix covers all three loaders:** After the generation-guard fix,
-  rapid multi-week navigation shows correct data in (1) WEEKLY_SUMMARY_STORE headers,
-  (2) booking-conflict highlights, (3) unavailable-day markers. All three, not just (1).
-- [ ] **Absence category gate:** Unit test lists every `AbsenceCategory` variant and
-  asserts whether it produces a discourage marker. No untested variant.
-- [ ] **Urlaub marker on first load:** Navigate to shiftplan with an active vacation
-  absence — markers appear on first render, not only after a week switch.
-- [ ] **i18n for new text:** Impersonation banner, stop-impersonation button, overdraft
-  label — all three locales (de/en/cs). The `Locale::De`/`Locale::En`-in-`de.rs` bug
-  is a recurring issue (memory note); add per-locale reference tests for new keys.
+- [ ] **WST-01 lock gate:** Verify gate is applied to ALL six write paths: `book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`, `copy_week_with_conflict_check`, and any future slot-creating path. Not just the most obvious one.
+- [ ] **WST-01 ISO week year:** Confirm the `year` field in the migration, DAO entity, and REST DTO is the ISO week year, not the Gregorian year. Test with Dec 29–31 of a year that belongs to ISO week 1 of the next year.
+- [ ] **WST-01 week-53 validation:** Confirm the system rejects `(year, 53)` for years with only 52 ISO weeks.
+- [ ] **WST-01 `.sqlx/` cache:** Confirm `cargo sqlx prepare --workspace` was run and `.sqlx/` was updated after new queries were added.
+- [ ] **WST-01 Clippy:** Confirm `cargo clippy --workspace -- -D warnings` passes after all enum and match additions.
+- [ ] **WST-01 i18n:** Confirm all four status values (None, InPlanning, Planned, Locked) have translations in `de.rs`, `en.rs`, and `cs.rs`. Missing Czech translation is a common omission.
+- [ ] **AVG-01 denominator decision:** Confirm the discuss-phase produced an explicit decision on which absence categories exclude a week from the denominator.
+- [ ] **AVG-01 employee filter:** Confirm "flexible employee" is defined with a recorded decision and that the filter is server-side, not only client-side.
+- [ ] **AVG-01 snapshot version:** Confirm either (a) no new `BillingPeriodValueType` was added and `CURRENT_SNAPSHOT_SCHEMA_VERSION` is unchanged at 12, or (b) a new persisted type was added and the constant was bumped to 13.
+- [ ] **AVG-01 unit tests:** Confirm tests cover pure-vacation week excluded, sick-leave week (whatever was decided), partial-vacation week with hours, and empty week.
 
 ---
 
@@ -606,13 +361,11 @@ Urlaub-Nicht-Verfuegbar phase.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Audit trail loss shipped (P1) | HIGH | Context type refactor across all services + DAO audit-column backfill. Cannot be patched at REST layer only. Historical write records under impersonation are permanently mis-attributed. |
-| Admin-gate wrong identity (P2) | MEDIUM | Narrow fix to affected handlers; add `RealUserAuth` extractor; no DB migration needed. Regression-test immediately. |
-| Frontend stores stale after stop (P3) | LOW | Broadcast reload actions on stop. Page reload is a manual workaround until fix ships. |
-| Stale-week race in sibling loaders (P5, if P4 fixed but P5 missed) | LOW | Isolated generation-guard fix per loader; no API change. |
-| Vacation bar overdraft hidden (P6) | LOW | CSS + percentage formula change only; no backend change; no migration. |
-| Wrong absence categories for Nicht-Verfuegbar (P7) | LOW | Change the whitelist constant; FE redeploy only. |
-| Impersonation session indefinitely persists (P8) | MEDIUM | Add `impersonate_expires_at` migration; deploy; existing stale sessions need a one-time cleanup query. |
+| Wrong ISO year in lock key (data already written) | HIGH | Write a migration that re-keys affected rows by converting Gregorian year to ISO week year; verify with known boundary dates; test before running on prod DB |
+| Missing `.sqlx/` cache breaks CI | LOW | Run `cargo sqlx prepare --workspace` in nix develop, commit updated `.sqlx/` — CI recovers on next push |
+| Snapshot version not bumped (AVG-01 persisted) | MEDIUM | Bump constant, add a migration that marks existing billing-period rows as stale (force re-validation), re-run billing-period validator for all affected periods |
+| Lock bypass via ungated write path | MEDIUM | Add missing gate call to the bypassed service method; add regression test for that specific path |
+| Stale lock badge in frontend | LOW | Force re-fetch of week status on mount/navigation; no data migration needed |
 
 ---
 
@@ -620,36 +373,31 @@ Urlaub-Nicht-Verfuegbar phase.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Audit trail loss (P1) | Impersonation backend design phase | Integration test: write booking/absence while impersonating; assert `process`/`created_by` contains real admin ID |
-| Admin gate wrong identity (P2) | Impersonation backend design phase | Test: admin impersonating non-admin calls admin endpoint via middleware context — expect 403; calls `DELETE /impersonate` — expect 200 |
-| FE stores stale after stop (P3) | Impersonation frontend phase | Test: start impersonation, assert store shows Alice's data; stop, assert stores show admin's data |
-| Stale-week race — weekly summary (P4) | Stale-Daten-Race fix phase | Rapid `LoadWeek` sequences; assert store always holds last-requested week data |
-| Stale-week race — sibling loaders (P5) | Stale-Daten-Race fix phase (same) | Same test class applied to `BookingConflictStore` and `unavailable_days` signal |
-| Vacation bar vs number mismatch (P6) | Urlaubs-Balken-Konsistenz phase | Unit test `PersonVacationCard`: used=5, planned=10, entitled=20 — bar width >= 75%; overdraft case (used+planned=25, entitled=20) — overdraft indicator visible |
-| Absence category mismatch (P7) | Urlaub-Nicht-Verfuegbar phase | Unit test: all `AbsenceCategory` variants enumerated with expected discourage=true/false mapping |
-| Impersonation session lifetime (P8) | Impersonation backend design phase | Test: session with `impersonate_expires_at` in the past — `context_extractor` treats as no impersonation |
-| Banner missing on reload (P9) | Impersonation frontend phase | Browser test: reload while impersonating — banner visible without user interaction |
-| Admin locked out while impersonating (P10) | Impersonation design phase | Document as known limitation in DISCUSS; confirm in UAT |
-| Stale `current_sales_person` for absence fetch (P11) | Urlaub-Nicht-Verfuegbar phase | Test: `current_sales_person = None` on mount — absence markers appear once person resolves, not missing permanently |
+| ISO-week year confusion (P1) | WST-01 data model + migration | Unit test for (2020, 53), (2021, 53 rejected), Dec 31 boundary |
+| Race condition on lock gate (P2) | WST-01 service implementation | Integration test: concurrent booking creates on locked week |
+| Incomplete write-path audit (P3) | WST-01 discuss-phase + service implementation | Test matrix: 6 write paths × locked/unlocked |
+| Permission model ambiguity (P4) | WST-01 discuss-phase | Decision log entries for 3 permission questions; shiftplanner-locks-then-edits test |
+| Stale lock state / SelectInput desync (P5) | WST-01 frontend phase | Component test: status badge after round-trip; reload after 403 |
+| AVG-01 denominator trap (P6) | AVG-01 discuss-phase + service implementation | Unit test with vacation-only and sick-only absent weeks |
+| Snapshot version bump (P7) | AVG-01 discuss-phase (decision) + service implementation | Assert `CURRENT_SNAPSHOT_SCHEMA_VERSION >= 12`; add test if bumped |
+| Missing `.sqlx` cache (P8) | WST-01 DAO implementation (last step) | `git diff --name-only .sqlx/` must show new entries |
+| Clippy failures from enum patterns (P9) | Every implementation phase | `cargo clippy --workspace -- -D warnings` in gate command |
+| Flexible employee scope leak (P10) | AVG-01 discuss-phase + service implementation | Unit test with mixed flexible/fixed employee set |
 
 ---
 
 ## Sources
 
-- Direct read: `rest/src/session.rs` (`resolve_session_user_id`, `context_extractor` both variants)
-- Direct read: `rest/src/impersonate.rs` (admin gate uses `session.user_id`, not effective context)
-- Direct read: `service_impl/src/permission.rs` (`check_permission`, `check_user` — all paths through effective-user context)
-- Direct read: `service/src/permission.rs` (`Authentication<Context>` type definition, `Context = Option<Arc<str>>`)
-- Direct read: `shifty-dioxus/src/service/weekly_summary.rs` (unconditional write-after-await confirmed)
-- Direct read: `shifty-dioxus/src/page/shiftplan.rs` lines 295-378 (sibling loader sends; `reload_unavailable_days` pattern)
-- Direct read: `shifty-dioxus/src/page/absences.rs` `PersonVacationCard` (bar math: `used_days/total` clamped; number: `remaining_days` which includes planned)
-- Direct read: `shifty-dioxus/src/state/vacation_balance.rs` (`used_days`, `planned_days`, `remaining_days` field definitions)
-- Direct read: `shifty-dioxus/src/service/vacation_balance.rs` (store structure; no (year,week) key on VACATION_BALANCE_STORE)
-- `.planning/todos/pending/2026-06-29-impersonate-feature-f-r-admins.md` (feature intent, security requirements, preferred mechanism)
-- `.planning/todos/pending/2026-06-29-wochen-summary-karten-gegen-stale-daten-bei-schnellem-wochen.md` (confirmed root cause, sibling-loader warning, generation-counter suggestion)
-- `CLAUDE.md` (service tier convention, clippy gate, audit trail context)
-- `.planning/PROJECT.md` (v1.9 milestone scope; banner-not-dialog convention from v1.9 context)
+- Direct code inspection: `shifty-backend/shifty-utils/src/date_utils.rs` (ShiftyDate, ShiftyWeek ISO-week handling)
+- Direct code inspection: `shifty-backend/service/src/shiftplan_edit.rs` and `service_impl/src/shiftplan_edit.rs` (existing write paths and permission gates)
+- Direct code inspection: `shifty-backend/service/src/reporting.rs` (A-22-1 formula, EmployeeWeeklyStatistics)
+- Direct code inspection: `shifty-backend/service_impl/src/billing_period_report.rs` (`CURRENT_SNAPSHOT_SCHEMA_VERSION = 12`, `BillingPeriodValueType` variants)
+- Direct code inspection: `shifty-backend/shifty-dioxus/src/component/form/inputs.rs` (`SelectInput` controlled-mode implementation, D-05/D-07 props)
+- Project charter: `shifty-backend/.planning/PROJECT.md` (v2.1 scope, snapshot version discipline, SDF-Desync decision, WST-01 / AVG-01 requirements)
+- Project conventions: `shifty-backend/CLAUDE.md` (clippy hard gate, SQLx offline cache requirement, snapshot version bump rules)
+- Known issues memory: MEMORY.md entries on SQLx prepare, Clippy gate, SDF-Desync, D-25-06 class, service tier conventions
+- Prior milestone learnings: Phase 23 `modify_slot`/`max_paid_employees` single-week bypass; Phase 24 paid-capacity gate per-path discipline
 
 ---
-*Pitfalls research for: Shifty v1.9 — impersonation RBAC write-path, Dioxus async race, vacation-bar math, absence discourage marker*
-*Researched: 2026-06-29*
+*Pitfalls research for: Shifty v2.1 — WST-01 week locking + AVG-01 attendance averaging*
+*Researched: 2026-07-01*

@@ -1,183 +1,218 @@
 # Project Research Summary
 
-**Project:** Shifty v1.9 — Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation
-**Domain:** Brownfield HR/shift-planning SaaS — four targeted feature additions to existing Axum + SQLite + Dioxus/WASM stack
-**Researched:** 2026-06-29
-**Confidence:** HIGH
+**Project:** Shifty v2.1 — Schichtplan- & Reporting-Erweiterungen
+**Domain:** Rust/Axum/SQLite/Dioxus shift-planning app — feature additions to an existing monorepo
+**Researched:** 2026-07-01
+**Confidence:** HIGH (all research derived from direct codebase inspection; no speculative web-research findings)
 
 ## Executive Summary
 
-Shifty v1.9 delivers four independent UX and admin improvements to a production Rust application. Three of the four features are pure frontend changes requiring no backend modifications: the vacation bar percentage formula fix (1-line change), the stale week-summary race guard (generation token in three sibling Dioxus stores), and the absence-to-discourage-marker join in the shiftplan grid. All data these features need is already loaded; no new HTTP endpoints are required for any of them. The recommended approach is to ship these three in order from lowest to highest risk before tackling Admin-Impersonation.
+Shifty v2.1 adds two new backend-driven features (WST-01 calendar-week status/locking and AVG-01 average attendance for flexible employees) plus one isolated frontend bugfix (SDF-Desync: "Anlegen" button stays disabled after special-day create). All four research streams independently confirm that **zero new crate dependencies are needed** — every pattern required by both features is already proven in the codebase across 38+ prior phases. The implementation is entirely additive: new migration, new DAO/service/REST modules for WST-01; new method on an existing service + new REST endpoint for AVG-01; a one-line signal-reset removal for SDF-Desync.
 
-The Admin-Impersonation feature is the most nuanced. The headline distinction that MUST be understood: the impersonation MECHANISM is already complete in the backend. `Session.impersonate_user_id`, `start_impersonate`/`stop_impersonate` service methods, three REST endpoints at `/admin/impersonate`, and the `context_extractor` middleware that substitutes the effective identity — all of this exists and works. Write operations transparently run as the impersonated user. What is NOT yet built is (a) the AUDIT layer (real admin identity is silently dropped; a second Axum `Extension<RealUser>` must be inserted in `context_extractor` when impersonation is active, so write sites can log `real_user + impersonating`), and (b) the entire frontend (banner, status polling on mount, start/stop UI, and explicit store tear-down on stop).
+The central architectural decision for WST-01 is correct tier placement of the lock gate: the new `WeekStatusService` is a Basic-tier entity manager, but the lock gate itself belongs in `ShiftplanEditService` (business-logic tier) because it is a cross-entity invariant. A new `ShiftplanEditService::delete_booking` method is required to close the only genuine non-shiftplanner write bypass (`DELETE /booking/{id}` currently routes directly to `BookingService::delete`, bypassing all business-logic gates). The gate must execute inside the same transaction as the write to prevent TOCTOU races.
 
-The key risks are all in the impersonation feature: audit trail loss if the audit layer is deferred (cannot be retrofitted cheaply), silent impersonation after page reload if the frontend banner only sets state from the start-callback rather than fetching `GET /admin/impersonate` on mount, and stale frontend stores after stop-impersonation if each user-scoped store is not explicitly reloaded. All other three features carry low implementation risk — they are mechanical formula and signal-guard changes on code whose root causes have been confirmed by direct source inspection.
-
----
+The central open question for AVG-01 is definitional: the existing A-22-1 formula (`average_worked_hours_per_week`) excludes weeks where any absence category is present and worked hours are zero, but AVG-01's stated intent is vacation-only exclusion. These are not the same formula. The discuss-phase must resolve eight open decision points (D-AVG-01 through D-AVG-08) before implementation begins. AVG-01 is confirmed as a pure read-aggregate (no new `BillingPeriodValueType`), so `CURRENT_SNAPSHOT_SCHEMA_VERSION` stays at 12 — provided the discuss-phase does not reverse this decision.
 
 ## Key Findings
 
 ### Recommended Stack
 
-No new Cargo dependencies are needed for any of the four v1.9 features, backend or frontend. The stack is entirely fixed. All four features are implementable with crates already present: `axum 0.8.7`, `tracing 0.1.41`, `tower-cookies 0.10.0`, `serde_json 1.0.145`, `rest-types` (path dep), `dioxus 0.6.1`, and `reqwest 0.12.15`.
+No new packages. The full Rust workspace (SQLx 0.8.2, Axum 0.8.7, utoipa 5, `time` 0.3.36, Dioxus 0.6.1, serde 1.0, mockall 0.13, uuid 1.8.0, async-trait, thiserror 2.0) already contains every primitive needed. The critical post-implementation gate is `cargo sqlx prepare --workspace` (run in `nix develop`) after any new `query!`/`query_as!` macro — this step must be committed before autonomous phases complete, or CI fails silently.
 
-**Core technologies (unchanged):**
-- `Axum 0.8.7` — REST handlers and middleware; `Extension` type used for the new `RealUser` audit extension
-- `tracing 0.1.41` — structured audit events for impersonation write-path logging; already in `rest/Cargo.toml`
-- `Dioxus 0.6.1` — `GlobalSignal`, coroutines, RSX; `dx-CLI` pinned to 0.6.x in `flake.nix`
-- `rest-types` (path dep) — `ImpersonateTO`, `AbsencePeriodTO`, `VacationBalanceTO` all exist
-- `jj` — VCS; `commit_docs: false` in GSD config; all commits are manual
+**Core technologies (reused, no version changes):**
+- **SQLx 0.8.2** — compile-time SQLite queries; new `week_status` table uses the `week_message` migration as an exact template.
+- **`time` 0.3.36** — ISO week arithmetic (`Date::from_iso_week_date`, `Date::to_iso_week_date`) already used throughout; no `chrono` needed for new features.
+- **Axum 0.8.7 + utoipa 5** — REST layer; new `rest::week_status` module and new endpoint in `rest::report`; all with `#[utoipa::path]` annotations.
+- **Dioxus 0.6.1** — frontend; status badge and AVG-01 display follow existing patterns; no new npm or WASM deps.
+- **mockall 0.13** — new `WeekStatusService` trait gets `#[automock]`; lock-gate unit tests mock it.
 
-**Critical version note:** `dx-CLI` must remain on 0.6.x (nixpkgs has rolled to 0.7.x which breaks the app). Pin is in `flake.nix`. Use `nix develop` (not `nix-shell`).
+**Integration patterns to copy verbatim:**
+
+| Pattern needed | Copy from |
+|---|---|
+| Migration: soft-delete + partial unique on `(year, calendar_week)` | `migrations/sqlite/20260629000000_create-vacation-entitlement-offset.sql` |
+| TEXT enum discriminant + manual `match` in `TryFrom` | `dao_impl_sqlite/src/extra_hours.rs`, `dao_impl_sqlite/src/special_day.rs` |
+| `(year, calendar_week)` composite key + DAO CRUD | `dao_impl_sqlite/src/week_message.rs` |
+| `SHIFTPLANNER_PRIVILEGE` gate in Basic-tier service | `service_impl/src/week_message.rs` |
+| `is_shiftplanner` capture + hard-block in write path | `service_impl/src/shiftplan_edit.rs` |
+| Vacation-week extraction with `to_iso_week_date()` | `service_impl/src/absence.rs` |
+| Week-range worked-hours aggregation | `dao_impl_sqlite/src/shiftplan_report.rs` |
 
 ### Expected Features
 
-**Must have (table stakes) for v1.9:**
-- Vacation bar and remaining-days number measure the same quantity — `(used + planned) / total` — users trust neither when they disagree
-- Stale-week race guard: summary cards always show data for the currently-selected week; three stores must be fixed atomically (WEEKLY_SUMMARY_STORE, BOOKING_CONFLICTS_STORE, reload_unavailable_days)
-- Absence dates (all categories or an explicit whitelist) appear as discouraged cells in the shiftplan grid before booking, not only as a post-hoc warning
-- Impersonation banner: persistent, non-dismissible, amber/yellow, with a one-click stop button — present on every page reload (requires `GET /admin/impersonate` on app mount)
-- Real admin identity preserved in structured logs for all writes under impersonation
-- Frontend stores cleared and reloaded for the real user on stop-impersonation
+**WST-01 — Calendar-Week Status (must have, build in full):**
+- Four-state model: `None → InPlanning → Planned → Locked` (matches industry conventions; Planday/WhenIWork use two/three states; four states is a deliberate refinement for the weekly planning cycle).
+- Visual status badge on week header (color-coded pill: grey/yellow/green/red).
+- Planner-only state transitions (any direction, any state); non-planners read-only on status.
+- Lock gate on all booking/slot write paths for non-shiftplanners; shiftplanner bypasses.
+- i18n: de/en/cs for all four state labels.
+- Explicit "In Planning" state mirrors the pre-publish draft phase already used in practice.
 
-**Should have (competitive differentiators, defer if needed):**
-- Two-segment vacation bar (used solid + planned lighter) — more information per pixel; purely additive
-- Hover tooltip on discouraged shiftplan cell showing absence type and dates
-- Overdraft overflow visual (bar continues past 100% mark in warning color)
+**WST-01 write paths requiring lock gate injection (exhaustive list):**
+1. `ShiftplanEditService::book_slot_with_conflict_check` (booking create)
+2. `ShiftplanEditService::modify_slot` (slot modify, multi-week)
+3. `ShiftplanEditService::modify_slot_single_week` (slot modify, single-week override)
+4. `ShiftplanEditService::remove_slot` (slot delete)
+5. `ShiftplanEditService::copy_week_with_conflict_check` (copy bookings to destination week)
+6. **NEW** `ShiftplanEditService::delete_booking` (booking delete — replaces direct `BookingService::delete` call in `DELETE /booking/{id}` REST handler)
 
-**Defer to v2+:**
-- Impersonation session auto-timeout (server-side `impersonate_expires_at`)
-- Absence approval workflow (pending vs approved distinction)
-- Audit log UI (DB-persisted impersonation history visible to other admins)
-- Impersonating another admin (Pitfall 10 — document as known limitation for v1.9)
+**AVG-01 — Average Attendance (resolve discuss-phase decisions first):**
+- Pure read-aggregate in `ReportingService`; no new tables; no snapshot version bump.
+- "Flexible" = `EmployeeWorkDetails.is_dynamic == true` (confirmed field exists).
+- Predecessor formula A-22-1 (`average_worked_hours_per_week`) is related but NOT identical — must not be reused directly without reviewing denominator exclusion rules.
+- Display location: billing period report (new column/row per employee) or standalone endpoint; discuss-phase decides.
+- Denominator decisions (D-AVG-01 through D-AVG-08) must be explicit before implementation.
+
+**SDF-Desync — Special Days Button Bugfix (low risk, isolated):**
+- After successful special-day create, Option 2: do not reset any form state (avoids controlled-select desync, avoids D-25-06 class bug).
+- Isolated frontend-only fix; no backend changes.
+
+**Defer to v2.2+:**
+- Publish-notification when week moves to Planned.
+- Bulk week-status operations (lock all past weeks at once).
+- AVG-01 snapshot persistence / `BillingPeriodValueType` row.
+- AVG-01 trend over multiple billing periods.
+- Configurable absence-exclusion categories.
 
 ### Architecture Approach
 
-All four features integrate into the existing layered architecture without redesigning it. The backend is REST → Service-trait → DAO-trait → SQLite; the frontend is Dioxus Pages → Components → Coroutine Services → GlobalSignals → loader/API. The impersonation mechanism splits at the `context_extractor` middleware: effective identity flows into `Extension<Context>` for all normal handlers; real identity must be added as a second `Extension<RealUser>` when impersonation is active. This is the ONLY backend change needed for v1.9.
+WST-01 follows the established two-tier service pattern: `WeekStatusServiceImpl` is Basic tier (only DAO + PermissionService + TransactionDao), while the lock gate lives in `ShiftplanEditServiceImpl` (Business-Logic tier), which already aggregates all booking/slot write paths. `ShiftplanEditService` gains `WeekStatusService` as a new dependency wired in `shifty_bin/src/main.rs`. AVG-01 is a pure method extension on the existing `ReportingService` (Business-Logic tier) with no new deps. HTTP 423 (Locked) is the target status code for locked-week write attempts — confirm 423 vs. 409 in discuss-phase.
 
-**Components involved:**
-1. `rest/src/session.rs` `context_extractor` — MODIFIED: insert `Extension<RealUser>` when `impersonate_user_id` is Some; no change to `Authentication<Context>` signatures
-2. `rest/src/impersonate.rs` — MODIFIED: add `tracing::info!` audit events at start/stop; no structural change
-3. `shifty-dioxus/src/service/weekly_summary.rs` and `booking_conflict.rs` — MODIFIED: add `(loaded_year, loaded_week)` guard fields; guard store writes after await
-4. `shifty-dioxus/src/page/shiftplan.rs` — MODIFIED: merge absence-derived weekdays into `discourage_weekdays`; add render guard for stale-week; guard `reload_unavailable_days` closure
-5. `shifty-dioxus/src/page/absences.rs` — MODIFIED: `PersonVacationCard` bar formula to `(used + planned) / total`
-6. `shifty-dioxus/src/service/impersonate.rs` (NEW) — `ImpersonateStore` + coroutine for start/stop/status
-7. `shifty-dioxus/src/component/impersonation_banner.rs` (NEW) — banner component; driven by `ImpersonateStore`
-8. `shifty-dioxus/src/app.rs` — MODIFIED: mount banner + init impersonation coroutine with startup `GET /admin/impersonate` call
+**New and modified components:**
+
+| Component | Status | Tier |
+|---|---|---|
+| `dao::week_status::WeekStatusDao` + `dao_impl_sqlite::WeekStatusDaoImpl` | NEW | DAO |
+| `service::week_status::WeekStatusService` + `ServiceImpl` | NEW | Basic |
+| `service::ServiceError::WeekLocked { year, week }` | MODIFIED | — |
+| `service_impl::shiftplan_edit::ShiftplanEditServiceImpl` | MODIFIED | Business-Logic (adds dep + gate + `delete_booking`) |
+| `service::reporting::ReportingService` + `ReportingServiceImpl` | MODIFIED | Business-Logic (new AVG-01 method) |
+| `rest::week_status` (GET/PUT/DELETE/GET-by-year) | NEW | REST |
+| `rest::booking::delete_booking` handler | MODIFIED | REST (re-routes to `ShiftplanEditService`) |
+| `rest::report` (new attendance-average endpoint) | MODIFIED | REST |
+| `rest-types` | MODIFIED | Shared DTOs |
+| `shifty_bin::main.rs` | MODIFIED | DI wiring |
+| `shifty-dioxus` (api, state, page, i18n) | MODIFIED | Frontend |
+
+**DI construction order in `main.rs`:**
+1. (existing) permission, clock, uuid services
+2. (existing) basic-tier entity managers
+3. **(NEW)** `week_status_dao` → `week_status_service` [basic tier]
+4. (existing) business-logic services
+5. **(MODIFIED)** `shiftplan_edit_service` now receives `week_status_service` as an additional dep
 
 ### Critical Pitfalls
 
-1. **Audit trail loss (P1 — CRITICAL)** — `Context = Option<Arc<str>>` has a single slot; when impersonation is active, the real admin identity is dropped in `context_extractor`. Solution for v1.9: add a `pub struct RealUser(pub Arc<str>)` newtype as a second Axum `Extension`, inserted in `context_extractor` when `impersonate_user_id.is_some()`. REST write-site handlers extract `Extension<RealUser>` and emit `tracing::info!(real_user = %..., impersonating = %..., "write-under-impersonation")`. Do NOT change `Authentication<Context>` signatures — that has a massive blast radius. This must be locked before any write path is wired up.
+1. **ISO-week year vs. Gregorian year in the `(year, calendar_week)` lock key** — Dec 29–31 of a year may belong to ISO week 1 of the next year; storing Gregorian year silently miskeys the lock row and lets writes through on locked weeks. Fix: always derive `year` from `ShiftyDate::from_ymd(...).to_iso_week_date().0`, never from `date.year()`. Add unit tests for week-53 and year-boundary dates explicitly.
 
-2. **Admin gate checks impersonated user (P2 — HIGH)** — Any new admin-only endpoint that gates via the `context_extractor`-injected context will check the IMPERSONATED user's privileges and return 403 while an admin is impersonating a non-admin. Prevention: all admin-management endpoints must read the raw session cookie and construct `Authentication::Context(Some(session.user_id.clone()))` directly, as the three existing impersonate handlers already do.
+2. **Lock gate check outside the write transaction (TOCTOU race)** — checking lock status before opening the write transaction allows two concurrent requests to both pass the check. Fix: read lock status inside the same `BEGIN IMMEDIATE` transaction that performs the write; gate must be in the service layer, not the REST handler.
 
-3. **Frontend stores stale after stop-impersonation (P3 — HIGH)** — Dioxus global stores hold the impersonated user's data. When stop-impersonation succeeds, nothing broadcasts reload to user-scoped stores. Prevention: the `ImpersonationService` `StopImpersonation` handler must explicitly broadcast reload actions to every user-scoped store before returning.
+3. **Incomplete write-path audit — `modify_slot_single_week` and `DELETE /booking/{id}` bypass** — History (Phase 23/24) shows single-week slot paths are independently missed. Fix: implement a shared `assert_week_not_locked(year, week, context, tx)` helper called at the top of all six write methods; add a test matrix (6 paths × locked/unlocked).
 
-4. **Banner missing after page reload (P9 — HIGH)** — If `ImpersonateTO` signal defaults to `{ impersonating: false }` on app mount, a hard reload while impersonating shows no banner. Prevention: `GET /admin/impersonate` must be the FIRST call in the app init sequence, before any user-data loads.
+4. **AVG-01 denominator trap: A-22-1 formula excludes all absences; AVG-01 specified for vacation-only** — directly reusing `average_worked_hours_per_week` will silently produce wrong results for employees with sick leave. Fix: discuss-phase decision D-AVG-04 must be explicit; implement a separate function if the rule differs from A-22-1; never modify A-22-1 itself (would break existing reporting).
 
-5. **Stale-week race in all three loaders (P4+P5 — MEDIUM)** — `load_summary_for_week`, `load_booking_conflict_week`, and `reload_unavailable_days` all perform unconditional writes after `await`. Fix all three in the same phase with the `(loaded_year, loaded_week)` guard pattern.
+5. **Missing `.sqlx/` offline cache after new queries breaks CI** — WST-01 adds new `query!`/`query_as!` macros; CI uses `SQLX_OFFLINE=true` and needs the corresponding `.sqlx/` entries committed. Fix: every WST-01 DAO phase must end with `cargo sqlx prepare --workspace` (in `nix develop`) + commit of updated `.sqlx/`.
 
----
+6. **`cargo clippy --workspace -- -D warnings` failures from new enum patterns** — `nix build` enforces Clippy as a hard gate; `cargo test`/`cargo build` do not run it. Fix: run Clippy explicitly in every phase gate; name the `None` variant `Unset` or `Open` to avoid shadowing `Option::None`.
+
+7. **Stale lock state / `SelectInput` desync (D-25-06 class) for WST-01 frontend** — Dioxus controlled `<select>` does not always re-apply `value=` when the signal value is unchanged. Fix: use read-only badge + action button pattern (not a controlled `SelectInput`); reload status from server after any status change or booking 423 response.
+
+8. **Snapshot version drift if AVG-01 is inadvertently persisted** — `CURRENT_SNAPSHOT_SCHEMA_VERSION` is currently 12; adding a new `BillingPeriodValueType` without bumping it causes validators to run on mismatched schemas. Fix: discuss-phase must record explicit no-persist decision; executor must not add any new `BillingPeriodValueType` variant.
 
 ## Implications for Roadmap
 
-### Phase 1: Urlaubs-Balken-Konsistenz (Vacation Bar Formula Fix)
-**Rationale:** Smallest possible change, zero risk of regressions elsewhere, immediately visible correctness fix.
-**Delivers:** Vacation bar and remaining-days number measure the same quantity; overdraft visually signaled.
-**Addresses:** FEATURES Feature B; Pitfall P6
-**Implements:** Single expression change in `absences.rs:866`; `(used + planned) / total` formula; overdraft warning color via existing `remaining_days <= 3.0` threshold (fires for negative values naturally)
-**Avoids:** Silent overdraft clamped to 100%; bar-number contradiction that breaks HR trust
-**Research flag:** SKIP — confirmed formula bug, confirmed fix, zero design ambiguity
+Based on combined research, the natural phase structure is:
 
-### Phase 2: Stale-Daten-Race Guard (Week-Summary Generation Token)
-**Rationale:** Pure frontend, low risk, self-contained. Must be fixed before Phase 3 adds another async load path to shiftplan. Fix atomically across all three loaders.
-**Delivers:** Summary cards always show data for the currently-selected week; no mixed-state from rapid navigation.
-**Addresses:** FEATURES Feature C; Pitfall P4, P5
-**Implements:** Add `loaded_year: u32`, `loaded_week: u8` to `WeeklySummaryStore` and `BOOKING_CONFLICTS_STORE`; guard writes after await; render guard in shiftplan; guard `reload_unavailable_days` closure
-**Avoids:** Partial-fix antipattern (fixing only WEEKLY_SUMMARY_STORE, leaving sibling loaders racy)
-**Research flag:** SKIP — root cause confirmed from direct source; fix pattern is clear
+### Phase 1: WST-01 Discuss
+**Rationale:** WST-01 has three unresolved permission questions (who sets status, who bypasses lock, allowed transitions + HTTP code) plus the UI approach decision (badge+button to prevent D-25-06 desync). These gate the service design.
+**Delivers:** Explicit decision log: HTTP 423 vs 409, transition rules, permission model, UI approach.
+**Addresses:** Pitfalls P2 (TOCTOU), P3 (write-path audit), P4 (permission ambiguity), P5 (frontend desync).
+**Research flag:** Skip — codebase inspection is sufficient; no external research needed.
 
-### Phase 3: Urlaub → Nicht-Verfügbar (Absence Discourage Marker)
-**Rationale:** Frontend-primary; adds a new async data load. Order after Phase 2 so shiftplan page is already race-guarded before adding more coroutine paths.
-**Delivers:** Absence dates appear as discouraged cells in the shiftplan grid proactively.
-**Addresses:** FEATURES Feature A; Pitfall P7, P11
-**Implements:** `reload_absence_days` closure; `person_absences` signal; `absence_periods_to_discourage_days` pure helper function; merge into `discourage_weekdays` at `shiftplan.rs:1120`
-**Avoids:** P7 (define explicit category whitelist `const`); P11 (gate absence fetch on `current_sales_person` being `Some`)
-**Key decision for discuss-phase:** Which `AbsenceCategory` variants produce a discourage marker? Recommendation: all three (Vacation + SickLeave + UnpaidLeave), matching existing `BookingOnAbsenceDay` behavior.
-**Research flag:** NEEDS DISCUSS — category whitelist must be a D-NN decision in CONTEXT before planning
+### Phase 2: WST-01 Backend (Migration + DAO + Service + REST)
+**Rationale:** Schema must exist before service; service before REST; REST before frontend. All patterns are proven — this is a copy-and-adapt phase.
+**Delivers:** `week_status` table; `WeekStatusService` (Basic tier); lock gate in all 6 write paths including new `delete_booking`; REST CRUD endpoints with OpenAPI.
+**Avoids:** P1 (ISO-week year), P2 (TOCTOU — gate inside transaction), P3 (all 6 paths gated), P8 (`.sqlx/` committed), P9 (Clippy gate).
+**Gates:** `cargo test`, `cargo clippy --workspace -- -D warnings`, `cargo sqlx prepare --workspace`, week-53 unit tests, 6-path × 2-state test matrix.
+**Research flag:** Skip — all patterns verified from codebase.
 
-### Phase 4: Admin-Impersonation Frontend + Audit Layer
-**Rationale:** Largest surface; backend mechanism is already complete. Build last so simpler fixes ship independently.
-**Delivers:** Admin can start/stop impersonation; persistent banner on all pages; audit log entries in structured logs with real admin identity; stores tear down and reload on stop.
-**Addresses:** FEATURES Feature D; Pitfall P1, P2, P3, P8, P9, P10
-**Implements:**
-  - Backend: insert `Extension<RealUser>` in `context_extractor`; `tracing::info!` at start/stop in `impersonate.rs`
-  - Frontend: `service/impersonate.rs` (new), `component/impersonation_banner.rs` (new), `api.rs` (3 new calls), `app.rs` mount + startup status fetch, i18n strings in 3 locales
-**Avoids:** P1 via `RealUser` extension (NOT `Authentication<Context>` change); P9 via startup `GET /admin/impersonate`; P3 via explicit store tear-down on stop
-**Known limitation:** Admin is locked out of admin-only endpoints while impersonating a non-admin (P10) — document in banner text and DISCUSS; correct behavior, not a bug
-**Research flag:** NEEDS DISCUSS — audit design (RealUser extension vs Context struct) must be a D-NN decision before any write-path handler is coded
+### Phase 3: WST-01 Frontend
+**Rationale:** Depends on backend REST endpoints existing and returning correct status codes.
+**Delivers:** Status badge in week header, action button for shiftplanners, disabled booking controls when locked, inline 423 banner (non-blocking), i18n de/en/cs.
+**Avoids:** P5 (badge+button, not controlled SelectInput; reload status from server after each change).
+**Research flag:** Skip — Dioxus frontend patterns are established.
+
+### Phase 4: AVG-01 Discuss
+**Rationale:** AVG-01 has eight open definitional questions (D-AVG-01 through D-AVG-08) that must be decided before any implementation. Attempting to implement without these leads to wrong denominator (P6) or scope leak (P10).
+**Delivers:** Explicit decisions on: reference period, numerator, denominator exclusion rule (vacation-only vs. all absences), employee scope definition (`is_dynamic == true`?), display location, minimum data threshold, no-persist confirmation.
+**Addresses:** Pitfalls P6 (denominator), P7 (snapshot version), P10 (flexible employee definition).
+**Key open question for owner:** Does "vacation weeks excluded from denominator" mean (B) any vacation day in the week, or (C) full-week vacation only? Sick-leave week treatment must be explicit.
+
+### Phase 5: AVG-01 Backend + Frontend
+**Rationale:** Pure additive phase after discuss decisions are recorded. No new DB tables (derive-on-read); no snapshot bump. Lower risk than WST-01 because it only reads data.
+**Delivers:** New `ReportingService::get_attendance_average_for_flexible_employees` method; `GET /report/attendance-average/{year}` endpoint (HR-gated); frontend display; i18n de/en/cs.
+**Avoids:** P6 (correct denominator, not A-22-1 directly), P7 (no new `BillingPeriodValueType`), P10 (server-side `is_dynamic` filter).
+**Gates:** 4-scenario unit test (pure vacation week, sick-leave week, partial vacation + hours, empty week), mixed flexible/fixed employee exclusion test, Clippy gate.
+**Research flag:** Skip — ReportingService extension is straightforward.
+
+### Phase 6: SDF-Desync Frontend Bugfix
+**Rationale:** Isolated, low-risk, no backend changes. Placed last to avoid blocking milestone if other phases are delayed.
+**Delivers:** After successful special-day create, do not reset form state (Option 2); "Anlegen" button re-enables correctly.
+**Avoids:** D-25-06 controlled-select desync class.
+**Research flag:** Skip — one-line fix with established pattern.
 
 ### Phase Ordering Rationale
-- Phases 1-2 have zero network changes and zero inter-phase dependencies; clean baseline first.
-- Phase 3 introduces a new async load path; placing it after Phase 2 means the race guard is already in place.
-- Phase 4's backend work is trivially small but the design decision must precede any code; the frontend is the largest single-phase surface.
-- All four phases can be verified independently: `cargo clippy --workspace -D warnings` + `cargo test --workspace` + WASM build gate + manual smoke.
+
+- WST-01 before AVG-01: WST-01 modifies existing write paths (higher regression risk) and should be verified stable before adding AVG-01's read-only extension.
+- Discuss phases before implement phases: Both WST-01 and AVG-01 have open decisions that cause wrong implementation if skipped.
+- Backend before frontend within each feature: Frontend depends on REST contract being finalized.
+- SDF-Desync last: Isolated; never blocks other phases; trivially reversible.
 
 ### Research Flags
-Phases needing recorded decisions in discuss-phase:
-- **Phase 3:** Absence category whitelist must be D-NN in CONTEXT before planning.
-- **Phase 4:** Audit design (RealUser extension approach) must be D-NN in CONTEXT before any write-path handler code. Admin-gate two-path contract must be documented in `rest/src/lib.rs` before new handlers are added.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** Single expression change; no design ambiguity.
-- **Phase 2:** Generation-guard pattern established; three store locations identified.
+Phases needing `/gsd-plan-phase --research-phase`:
+- **None** — all patterns are verified from the live codebase; no external research is needed for any phase.
 
----
+Phases with standard/established patterns (skip research):
+- **All 6 phases** — research is complete and HIGH confidence. Open items are product-owner decisions (D-AVG-01 through D-AVG-08, permission model questions), not technical unknowns.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All integration points verified by direct file reads at HEAD `905980b`; no new dependencies needed |
-| Features | MEDIUM | Table stakes consistent across 4+ external sources; Shifty-specific integration paths verified by direct source read |
-| Architecture | HIGH | All component boundaries, file paths, and line numbers confirmed by direct source inspection |
-| Pitfalls | HIGH | All pitfalls derived from direct source inspection of affected call sites; root causes confirmed |
+| Stack | HIGH | All verified by direct source inspection; zero ambiguity on dependencies |
+| Features | MEDIUM | WST-01 scope is clear; AVG-01 has 8 definitional decisions that are product-owner choices, not researchable unknowns |
+| Architecture | HIGH | All integration points verified; DI construction order confirmed; tier classification matches CLAUDE.md rules |
+| Pitfalls | HIGH | Derived from direct code inspection + documented project memory (SQLx prepare, Clippy gate, D-25-06, service tier rules) |
 
-**Overall confidence:** HIGH
+**Overall confidence:** HIGH for implementation approach; MEDIUM for AVG-01 feature definition (requires owner decisions before planning).
 
 ### Gaps to Address
-- **Absence category policy (Phase 3):** Which categories produce discourage markers — product decision, not technical. Must be confirmed in discuss-phase.
-- **Audit design choice (Phase 4):** `RealUser` extension approach vs full `Context` struct refactor. Recommend extension approach; must be ratified as D-NN in CONTEXT before code ships.
-- **Impersonation entry point UI (Phase 4):** Where in admin UI to place "Impersonate" action — UX decision for discuss-phase.
-- **Impersonation session lifetime:** `impersonate_expires_at` deferred to v2+; must be explicitly recorded as known limitation in Phase 4 DISCUSS.
 
----
+- **AVG-01 denominator rule (D-AVG-03 / D-AVG-04):** Is "vacation week" defined as any vacation day in the week, or full-week vacation only? Are sick-leave weeks included or excluded from the denominator? Must be decided in discuss-phase before plan-phase.
+- **AVG-01 employee scope (D-AVG-05):** Confirm "flexible" = `EmployeeWorkDetails.is_dynamic == true`. If no such field exists, decide whether to add it or use `expected_hours == 0.0` as the predicate. Server-side filter strongly preferred.
+- **AVG-01 display location (D-AVG-06):** Billing period report (existing view, minimal new surface) vs. standalone attendance page. Owner decision.
+- **WST-01 HTTP status code:** 423 (Locked, semantically correct) vs. 409 (Conflict, used elsewhere in codebase). Decide in discuss-phase and record as a decision.
+- **WST-01 allowed state transitions:** Are all transitions valid in both directions (planner only), or are some transitions forbidden? Decide in discuss-phase.
 
 ## Sources
 
-### Primary — HIGH confidence (direct codebase inspection, HEAD `905980b`)
-- `service/src/session.rs`, `service_impl/src/session.rs` — Session struct, impersonate service methods
-- `rest/src/impersonate.rs` — three REST handlers, admin gate using real `session.user_id`
-- `rest/src/session.rs` — `context_extractor`, `resolve_session_user_id`, `Context` type alias
-- `rest/src/lib.rs` — route wiring
-- `service_impl/src/permission.rs` — `check_permission` effective-context-only confirmed
-- `service_impl/src/booking_information.rs` — `period_overlaps_week` helper
-- `shifty-dioxus/src/service/weekly_summary.rs` — unconditional write-after-await at lines 37-42
-- `shifty-dioxus/src/service/booking_conflict.rs` — same pattern
-- `shifty-dioxus/src/page/shiftplan.rs:1120-1123` — `discourage_weekdays` source; `reload_unavailable_days` at lines 350-368
-- `shifty-dioxus/src/page/absences.rs:866-871` — bar math confirmed `used_days/total` only
-- `shifty-dioxus/src/state/vacation_balance.rs` — all balance fields confirmed present
-- `rest-types/src/lib.rs:1591` — `ImpersonateTO` confirmed
+### Primary (HIGH confidence — direct codebase inspection)
+- `dao_impl_sqlite/src/week_message.rs`, `special_day.rs`, `extra_hours.rs` — composite key + TEXT enum patterns
+- `migrations/sqlite/20250123000000_add-week-message-table.sql`, `20260629000000_create-vacation-entitlement-offset.sql` — migration templates
+- `service/src/permission.rs` — `SHIFTPLANNER_PRIVILEGE` constant
+- `service_impl/src/week_message.rs`, `shiftplan_edit.rs` — permission gate patterns + write path enumeration
+- `service_impl/src/absence.rs`, `dao_impl_sqlite/src/shiftplan_report.rs` — week-range data sources for AVG-01
+- `service/src/reporting.rs` — A-22-1 formula (`average_worked_hours_per_week`) and `EmployeeWeeklyStatistics`
+- `service_impl/src/billing_period_report.rs` — `CURRENT_SNAPSHOT_SCHEMA_VERSION = 12`
+- `shifty-dioxus/src/component/form/inputs.rs` — `SelectInput` D-25-06 controlled-mode behaviour
+- `rest/src/booking.rs`, `rest/src/shiftplan_edit.rs` — current routing for `DELETE /booking/{id}` bypass
+- `shifty-backend/CLAUDE.md` — snapshot version bump rules, Clippy hard gate, SQLx offline cache requirement
 
-### Secondary — MEDIUM confidence
-- [PropelAuth User Impersonation](https://docs.propelauth.com/overview/user-management/user-impersonation) — audit trail + privilege non-escalation conventions
-- [Small Improvements User Impersonation](https://intercomdocs.small-improvements.com/en/articles/9146194-user-impersonation) — banner UX
-- [Yaro Labs Safe Impersonation](https://yaro-labs.com/blog/user-impersonation-tool-saas) — session timeout, security invariants
-- [Deputy Leave Management](https://help.deputy.com/hc/en-au/articles/4658289483023-Manager-s-awareness-of-leave) — proactive grid marking
-- [When I Work Interpreting Availability](https://help.wheniwork.com/articles/interpreting-availability-on-the-schedule-computer/) — discourage cell conventions
-- [Dayforce Your Balances](https://help.dayforce.com/r/documents/Employee-Guide/Your-Balances) — bar consistency, overdraft display
-- OWASP CD-SEC-02 — privilege escalation prevention
+### Secondary (MEDIUM confidence — industry research)
+- Planday, When I Work, Deputy, Shiftboard, Dayforce documentation — week lifecycle state conventions
+- Oyster HR, Patriot Software, BASUSA, Hubstaff — average attendance metric definitions and denominator conventions
 
 ---
-*Research completed: 2026-06-29*
+*Research completed: 2026-07-01*
 *Ready for roadmap: yes*
