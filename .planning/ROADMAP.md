@@ -71,7 +71,11 @@ planbar). Nächster Schritt: `/gsd-plan-phase 36` (oder `/gsd-discuss-phase 36`)
   4. Ein SSR-/Komponenten-Test sichert SDF-02 gegen Re-Regression ab; Regressionstests grün. (SDF-02)
   5. i18n unberührt — keine neuen benutzersichtbaren Texte. (SDF-01, SDF-02)
 
-**Plans**: 0/0 plans complete
+**Plans**: 2 plans
+
+Plans:
+- [ ] 36-01-PLAN.md — SDF-01 backend fix: create replaces an existing same-date special_day (atomic in-place update) instead of throwing Duplicate
+- [ ] 36-02-PLAN.md — SDF-02 frontend fix: controlled SelectInput `value` prop + Settings Card-3 sd_type binding so the Anlegen button re-enables after each create
 
 ### Phase 37: Modal-UX-Politur (FE)
 
