@@ -628,6 +628,69 @@ mod tests {
         );
     }
 
+    /// D-10 / MOD-02: Verify that a sibling help span with the exact cap-help
+    /// classes renders after a Field. This mirrors the committed_visible_when_cap_true
+    /// pattern: we render a minimal Field + sibling span and assert both show up in
+    /// the correct DOM order.
+    #[test]
+    fn help_span_renders_under_field_with_correct_classes() {
+        use crate::component::form::Field;
+        fn app() -> Element {
+            rsx! {
+                div { class: "flex flex-col gap-1",
+                    Field {
+                        label: crate::base_types::ImStr::from("Wochentage"),
+                    }
+                    span { class: "text-small font-normal text-ink-muted",
+                        "Die Tage, an denen die Person in der Regel arbeitet."
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(
+            html.contains("text-small font-normal text-ink-muted"),
+            "help span must carry the correct cap-help classes: {html}"
+        );
+        assert!(
+            html.contains("Die Tage, an denen die Person in der Regel arbeitet."),
+            "help span must contain the help text: {html}"
+        );
+        // Verify DOM order: label appears before help span
+        let label_pos = html.find("Wochentage").expect("field label must appear");
+        let help_pos = html
+            .find("Die Tage, an denen die Person in der Regel arbeitet.")
+            .expect("help text must appear");
+        assert!(
+            label_pos < help_pos,
+            "field label must precede help span in DOM order: label@{label_pos}, help@{help_pos}"
+        );
+    }
+
+    /// D-10 source-guard: all six *Help keys are referenced in contract_modal.rs
+    /// so a forgotten wiring is caught at compile time.
+    #[test]
+    fn all_help_keys_referenced_in_contract_modal_source() {
+        let src = include_str!("contract_modal.rs");
+        let test_module_start = src
+            .find("#[cfg(test)]")
+            .expect("test module marker missing");
+        let prefix = &src[..test_module_start];
+        for key in [
+            "Key::WorkdaysHelp",
+            "Key::ExpectedHoursPerWeekHelp",
+            "Key::DaysPerWeekHelp",
+            "Key::VacationEntitlementsPerYearHelp",
+            "Key::DynamicHourHelp",
+            "Key::CommittedVoluntaryHelp",
+        ] {
+            assert!(
+                prefix.contains(key),
+                "help key `{key}` is not wired into contract_modal.rs (not found before #[cfg(test)])"
+            );
+        }
+    }
+
     /// D-01: committed_voluntary TextInput is NOT rendered when cap=false and expected_hours>0.
     /// show_committed=false → nothing renders.
     #[test]
