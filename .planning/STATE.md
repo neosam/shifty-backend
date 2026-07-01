@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
-current_phase: "36"
+current_phase: "37"
 status: planning
-last_updated: "2026-07-01T14:00:00.000Z"
+last_updated: "2026-07-01T14:30:00.000Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 36 Context gathered (SDF-01 Backend-Upsert, SDF-02 controlled SelectInput)
+last_activity_desc: Phase 37 Context gathered (MOD-01 zentraler dialog.rs Signal-Flag + absence_convert; MOD-02 Contract-Help-Texte)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: Special-Days-Bugfixes (BE+FE)
+current_phase_name: Modal-UX-Politur (FE)
 ---
 
 # Project State: Shifty Backend
@@ -32,10 +32,10 @@ current_phase_name: Special-Days-Bugfixes (BE+FE)
 
 ## Current Position
 
-Phase: 36 — Special-Days-Bugfixes (BE+FE)
-Plan: — (Context gathered, bereit für `/gsd-plan-phase 36`)
-Status: Context gathered
-Last activity: 2026-07-01 — Phase 36 CONTEXT.md geschrieben (SDF-01 Backend-Upsert atomar; SDF-02 SelectInput controlled)
+Phase: 37 — Modal-UX-Politur (FE)
+Plan: — (Context gathered, bereit für `/gsd-plan-phase 37`)
+Status: Context gathered (Phase 36 ebenfalls Context-ready, noch ungeplant)
+Last activity: 2026-07-01 — Phase 37 CONTEXT.md geschrieben (MOD-01 zentraler Signal-Flag-Backdrop-Fix + absence_convert; MOD-02 Contract-Modal Help-Texte, CommittedVoluntary „Zugesagte freiwillige Stunden.")
 
 ## Deferred Items
 
