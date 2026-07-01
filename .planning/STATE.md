@@ -5,15 +5,15 @@ milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 39
 current_phase_name: KW-Status Grundlage
 status: executing
-stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-01T23:37:44.934Z"
-last_activity: 2026-07-01
-last_activity_desc: Phase 39 execution started
+stopped_at: Completed 39-04-PLAN.md
+last_updated: "2026-07-02T00:00:00.000Z"
+last_activity: 2026-07-02
+last_activity_desc: Executed 39-04 (KW-Status FE-Fundament)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -34,11 +34,11 @@ progress:
 ## Current Position
 
 Phase: 39 (KW-Status Grundlage) — EXECUTING
-Plan: 4 of 5
-Status: Ready to execute
-Last activity: 2026-07-01 — Phase 39 execution started
+Plan: 5 of 5
+Status: 39-04 abgeschlossen (FE-Fundament: Enum, i18n 4×3, API-Client, Fresh-Fetch-Store); nächster Plan 39-05 (Badge + Dropdown + Schichtplan-Integration)
+Last activity: 2026-07-02 — Executed 39-04 (KW-Status FE-Fundament)
 
-Progress: [░░░░░░░░░░] 0%
+Progress (Pläne Phase 39): [████████░░] 80% (4/5)
 
 ## Deferred Items
 
@@ -190,6 +190,8 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: 37-02: Help sibling-span pattern (text-small font-normal text-ink-muted); From/To excluded; CommittedVoluntaryHelp scoped to if show_committed block
 - [Phase ?]: WeekStatusService is Basic-tier: DAO+Permission+Clock+Uuid+Transaction only, no domain-service dep (D-39-12)
 - [Phase ?]: Unset == row absence, mapped as 4th WeekStatus variant, never persisted (D-39-04)
+- [Phase ?]: 39-04: FE fresh-fetch KW-Status store (D-39-06) — Set->PUT->GET, kein optimistisches Signal (T-39-05)
+- [Phase ?]: 39-04: WeekStatus FE-Enum 4 Varianten Default=Unset + i18n de/en/cs 4x3 (WST-05)
 
 ## Performance Metrics
 
@@ -201,3 +203,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 37 P01 | 7m | 2 tasks | 2 files |
 | Phase 37-modal-ux-politur P02 | 35 | 2 tasks | 5 files |
 | Phase 39 P02 | 7min | 2 tasks | 6 files |
+| Phase 39 P04 | 12min | 2 tasks | 11 files |

@@ -54,7 +54,7 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
   darf und welche Übergänge erlaubt sind, wird in discuss-phase bestätigt (Default: Schichtplaner,
   alle Übergänge).
 
-- [ ] **WST-02**: Der KW-Status wird in der Schichtplan-Wochenansicht als **Badge** angezeigt
+- [x] **WST-02**: Der KW-Status wird in der Schichtplan-Wochenansicht als **Badge** angezeigt
   (für alle Rollen sichtbar; Setzen/Ändern nur für Schichtplaner). UI als Badge + Aktions-Button
   (kein controlled `<select>`, um D-25-06-Desync zu vermeiden).
 
@@ -69,7 +69,7 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
   `DELETE /booking/{id}` über den Business-Logic-Tier). Geteilter `assert_week_not_locked`-Helper;
   Test-Matrix 6 Pfade × {gesperrt, offen}.
 
-- [ ] **WST-05**: i18n de/en/cs für alle vier Status-Labels und die Sperr-Rückmeldung.
+- [x] **WST-05**: i18n de/en/cs für alle vier Status-Labels und die Sperr-Rückmeldung.
 
 ### Durchschnittliche Anwesenheit bei flexiblen Stunden (AVG)
 
@@ -125,8 +125,8 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | WST-01 | Phase 39 | Complete |
-| WST-02 | Phase 39 | Pending |
-| WST-05 | Phase 39 | Pending |
+| WST-02 | Phase 39 | Complete |
+| WST-05 | Phase 39 | Complete |
 | WST-03 | Phase 40 | Pending |
 | WST-04 | Phase 40 | Pending |
 | AVG-01 | Phase 41 | Pending |
