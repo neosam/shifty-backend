@@ -13,10 +13,11 @@ Jedes Requirement mappt auf eine Roadmap-Phase (siehe Traceability). Herkunft: T
 
 Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 2026-06-30/07-01.
 
-- [ ] **SDF-01**: Wird im Schichtplan ein Tag von „Feiertag" auf „Kurzer Tag" (oder umgekehrt)
+- [x] **SDF-01**: Wird im Schichtplan ein Tag von „Feiertag" auf „Kurzer Tag" (oder umgekehrt)
   umgestellt, aktualisiert der Pfad den **bestehenden** Special-Day-Eintrag für das Datum
   (update statt zweitem insert) — **keine Fehlermeldung**, der neue Typ ist danach persistiert.
   (Todo `2026-07-01-schichtplan-feiertag-auf-kurzer-tag-wirft-fehler.md`)
+
 - [ ] **SDF-02**: In der Settings-Special-Days-Karte lassen sich **mehrere Feiertage
   nacheinander** anlegen, ohne dass der „Anlegen"-Button hängen bleibt. Nach erfolgreichem
   Create ist der Button für den nächsten Eintrag sofort wieder korrekt aktiviert (kein
@@ -30,6 +31,7 @@ Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 
   (mousedown *und* mouseup auf dem Backdrop) schließt. Zentral in `dialog.rs`, sodass **alle**
   Modals profitieren.
   (Todo `2026-06-30-modal-schliesst-bei-mouseup-ausserhalb-nach-drag.md`)
+
 - [ ] **MOD-02**: Das Arbeitsvertrag-Modal zeigt unter jedem relevanten Feld einen kurzen
   **Erklärungssatz** (Muster `CapPlannedHoursHelp`, `text-small text-ink-muted`) — Von/Bis
   ausgenommen (selbsterklärend). Alle neuen Texte in **de/en/cs**.
@@ -41,6 +43,7 @@ Nachlese zu v1.10/Phase 33 (Special-Days-UI). Beide Bugs live vom User gemeldet 
   rustc-Warnings (14 via `cargo fix`, Rest manuell: ungenutzte Methoden/Imports/Variablen
   entfernen oder mit begründetem `#[allow(dead_code)]` behalten) sind beseitigt.
   (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
+
 - [ ] **HYG-02**: Das Backend bleibt weiterhin `cargo clippy --workspace -- -D warnings`-sauber
   (Regressions-Gate); der dioxus-Clippy-Lauf erfolgt bewusst aus der Backend-nix-Shell (E0514
   im dioxus-Shell). Verbleibende bewusst behaltene dioxus-Lints sind dokumentiert.
@@ -55,6 +58,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 - **WST-01**: KW-Status (None / In Planung / Geplant / Gesperrt) pro (year, week), inkl.
   Permission-Gate: gesperrte Wochen nur vom Schichtplaner änderbar. Full-Stack
   (Migration+DAO+Service+REST+FE). (Todo `2026-06-30-kalenderwoche-status-*`)
+
 - **AVG-01**: Auswertung durchschnittliche Anwesenheit bei flexiblen Stunden, Urlaub
   herausgerechnet. Viele offene Definitionsfragen → eigene discuss-Phase.
   (Todo `2026-06-09-auswertung-durchschnittliche-anwesenheit-*`)
@@ -80,7 +84,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SDF-01 | Phase 36 | Pending |
+| SDF-01 | Phase 36 | Complete |
 | SDF-02 | Phase 36 | Pending |
 | MOD-01 | Phase 37 | Pending |
 | MOD-02 | Phase 37 | Pending |
@@ -88,6 +92,7 @@ Bewusst aus v1.11 herausgehalten (siehe PROJECT.md „Bewusst NICHT in v1.11"):
 | HYG-02 | Phase 38 | Pending |
 
 **Coverage:**
+
 - v1.11 requirements: 6 total
 - Mapped to phases: 6
 - Unmapped: 0 ✅

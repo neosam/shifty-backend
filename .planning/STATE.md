@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
-current_phase: 38
-current_phase_name: Frontend-Build-Hygiene
-status: planning
-last_updated: "2026-07-01T14:22:51.019Z"
+current_phase: 36
+current_phase_name: special-days-bugfixes
+status: executing
+last_updated: "2026-07-01T14:42:37.451Z"
 last_activity: 2026-07-01
-last_activity_desc: "Phase 38 CONTEXT.md geschrieben (HYG-01/02: 50 rustc-Warnings in shifty-dioxus; delete-as-default für ~34 Dead-Code, 14 via cargo fix, 2× time::parse→parse_borrowed; #[allow]+reason inline nur als Ausnahme; dioxus bleibt aus CI-Clippy-Gate, strikt nur rustc-Warnings; dx-serve-Smoke-Check als Absicherung, kein Gate)"
+last_activity_desc: Phase 36 execution started
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -32,10 +32,10 @@ progress:
 
 ## Current Position
 
-Phase: 38 — Frontend-Build-Hygiene
-Plan: — (Context gathered, bereit für `/gsd-plan-phase 38`)
-Status: Context gathered (Phasen 36 + 37 ebenfalls Context-ready, noch ungeplant)
-Last activity: 2026-07-01 — Phase 38 CONTEXT.md geschrieben (HYG-01/02: 50 rustc-Warnings in shifty-dioxus; delete-as-default für ~34 Dead-Code, 14 via cargo fix, 2× time::parse→parse_borrowed; #[allow]+reason inline nur als Ausnahme; dioxus bleibt aus CI-Clippy-Gate, strikt nur rustc-Warnings; dx-serve-Smoke-Check als Absicherung, kein Gate)
+Phase: 36 (special-days-bugfixes) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-07-01 — Phase 36 execution started
 
 ## Deferred Items
 

@@ -28,9 +28,11 @@ in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 
   - **SDF-01**: Umstellen eines Tages Feiertag ↔ „Kurzer Tag" aktualisiert den bestehenden
     Special-Day-Eintrag (update statt zweitem insert) — keine Fehlermeldung, neuer Typ
     persistiert. Update-vs-insert-Pfad prüfen (ggf. Backend), Reproduktion + Statuscode erfassen.
+
   - **SDF-02**: Settings „Anlegen"-Button bleibt nach erstem Feiertag aktiv — `<select>`
     controlled an `sd_type`-Signal binden bzw. Typ nach Create beibehalten; D-25-06-Datepicker-
     Reset mitdenken. SSR-/Komponenten-Test gegen Re-Regression.
+
   - **Success:** Beide Bugs reproduziert-und-behoben, Regressionstests grün, Backend-Roundtrip
     (create- vs. edit-Pfad) verifiziert. i18n unberührt (keine neuen Texte).
 
@@ -39,9 +41,11 @@ in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 
     auf dem Backdrop selbst (mousedown-Ursprung als Flag tracken). Kommt allen Modals zugute.
     Strukturell über Predikat-/Handler-Logik testen (Maus-Drag ist D-25-06-Klasse, schwer
     browser-automatisierbar).
+
   - **MOD-02**: Arbeitsvertrag-Modal — pro Feld ein Help-Text analog `CapPlannedHoursHelp`
     (`text-small text-ink-muted`), Von/Bis ausgenommen. Neue `*Help`-Keys in de/en/cs.
     SSR-Test: Help-Texte werden unter den Feldern gerendert.
+
   - **Success:** Drag-innen→mouseup-außen lässt Modal offen (Handler-Logik-Test); alle
     Vertragsfelder (außer Von/Bis) tragen Erklärungssätze in allen drei Locales.
 
@@ -49,9 +53,11 @@ in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 
   - **HYG-01**: `shifty-dioxus` warnungsfrei — ~45 rustc-Warnings (14 via `cargo fix`, Rest
     manuell: ungenutzte Methoden/Imports/Variablen entfernen oder begründetes
     `#[allow(dead_code)]`, z. B. `has_sunday_slots` `state/shiftplan.rs:315`).
+
   - **HYG-02**: Backend bleibt `cargo clippy --workspace -- -D warnings` grün (Regressions-Gate);
     dioxus-Clippy aus der Backend-nix-Shell (E0514 im dioxus-Shell); verbleibende bewusst
     behaltene Lints dokumentiert. (dioxus ins CI-Clippy-Gate aufnehmen ist optional → out of scope.)
+
   - **Success:** `cargo build` (dioxus) ohne Warnungen; `cargo clippy --workspace -- -D warnings`
     (Backend) grün; FE `cargo test -p shifty-dioxus` + WASM-Build grün.
 
@@ -74,7 +80,8 @@ planbar). Nächster Schritt: `/gsd-plan-phase 36` (oder `/gsd-discuss-phase 36`)
 **Plans**: 2 plans
 
 Plans:
-- [ ] 36-01-PLAN.md — SDF-01 backend fix: create replaces an existing same-date special_day (atomic in-place update) instead of throwing Duplicate
+
+- [x] 36-01-PLAN.md — SDF-01 backend fix: create replaces an existing same-date special_day (atomic in-place update) instead of throwing Duplicate
 - [ ] 36-02-PLAN.md — SDF-02 frontend fix: controlled SelectInput `value` prop + Settings Card-3 sd_type binding so the Anlegen button re-enables after each create
 
 ### Phase 37: Modal-UX-Politur (FE)
