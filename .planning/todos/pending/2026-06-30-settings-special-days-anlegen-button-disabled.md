@@ -43,5 +43,31 @@ Dioxus-Signal nach Reset).
 4. SSR-/Komponenten-Test ergänzen (mehrfaches Anlegen ohne Dropdown-Toggle), damit es nicht
    re-regrediert.
 
+## Update 2026-07-01 — v1.11-Fix greift NICHT, entschiedene Lösung = Option 2
+
+**Reproduziert weiterhin** nach dem v2.0.0-Release/Deploy (User live bestätigt, 2026-07-01):
+Nach dem Anlegen zeigt das Typ-Dropdown weiter „Feiertag", aber der Button ist disabled; erst
+Dropdown weg-und-zurück auf „Feiertag" reaktiviert.
+
+**Warum der v1.11-Fix (Phase 36-02, Option 1) nicht wirkt:** Der Code macht das Vorgesehene —
+das `<select>` ist controlled (`settings.rs:646`, `value` aus `sd_type_to_select_value(sd_type)`),
+und nach dem Create wird zurückgesetzt (`settings.rs:458-459`: `sd_date_str.set("")` +
+`sd_type.set(None)`). ABER Dioxus/WASM schiebt den controlled `value` nicht zuverlässig ins
+native `<select>` → Anzeige („Feiertag") und Signal (`None`) laufen auseinander → Button disabled.
+**Gleiche Klasse wie der Datepicker-Caveat D-25-06.** Controlled-Select ist hier praktisch wirkungslos.
+
+**Entschiedene Lösung (User, 2026-07-01) = Option 2, verschärft:** Nach erfolgreichem Create
+**gar nichts zurücksetzen — weder intern noch im View.** Alle Formular-Daten bleiben stehen
+(`sd_type`, `sd_date_str`, ggf. `sd_time`), damit man direkt weitermachen kann (nur ändern, was
+man will). Das umgeht den Desync komplett (keine programmatische Select-Änderung mehr), der
+Button bleibt aktiv, und man sieht das zuletzt eingetragene Datum.
+
+Konkret: den Reset-Block `settings.rs:458-459` (und einen etwaigen Zeit-Reset) entfernen; nichts
+mehr auf `None`/leer setzen. SSR-/Komponenten-Test: mehrfaches Anlegen ohne Dropdown-Toggle,
+Daten bleiben nach jedem Create erhalten.
+
+**Ziel-Milestone:** v2.1 (Schichtplan- & Reporting-Erweiterungen) — thematisch passend, Bugfix
+reitet mit.
+
 Verwandt: [[2026-06-30-special-days-ui-bearbeiten-einstellungen]] (anderes Thema: Edit), und
 der WASM-Datepicker-Caveat D-25-06.
