@@ -21,6 +21,7 @@ pub fn App() -> Element {
     use_coroutine(service::booking_conflict::booking_conflicts_service);
     use_coroutine(service::booking_log::booking_log_service);
     use_coroutine(service::weekly_summary::weekly_summary_service);
+    use_coroutine(service::week_status::week_status_service);
     use_coroutine(service::employee_work_details::employee_work_details_service);
     use_coroutine(service::employee::employee_service);
     use_coroutine(service::slot_edit::slot_edit_service);

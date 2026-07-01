@@ -20,5 +20,6 @@ pub mod ui_prefs;
 pub mod user_management;
 pub mod vacation_balance;
 pub mod week_guard;
+pub mod week_status;
 pub mod weekly_summary;
 pub mod working_hours_mini;
