@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-06-30
+last_updated: 2026-07-01
 last_milestone: v1.11 Stabilisierung & UX-Politur (shipped 2026-07-01, Phasen 36–38, 6/6 Requirements, Audit passed)
-current_milestone: none (zwischen Milestones; nächste Iteration via /gsd-new-milestone)
+current_milestone: v2.1 Schichtplan- & Reporting-Erweiterungen (started 2026-07-01)
 ---
 
 # Shifty — Project Charter
@@ -133,57 +133,51 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Aktueller Milestone: v1.11 Stabilisierung & UX-Politur
+## Aktueller Milestone: v2.1 Schichtplan- & Reporting-Erweiterungen
 
 > **Versions-Hinweis:** Versionierung ist **SemVer** `MAJOR.MINOR.PATCH`. Der
 > **GSD-Milestone-Name** (`vX.Y`) liefert MAJOR.MINOR und ist zugleich Roadmap-/Archiv-Handle;
 > die **PATCH**-Stelle zählt `/release-version` mechanisch aus den Git-Tags (`.0` beim ersten
 > Release eines Milestones, dann `.1`, `.2` … pro Hotfix). Reale Releases erzeugt der User via
-> `/release-version` → `./cli-update-version.sh <RELEASE>`. Nächstes Release = **v2.0.0**.
+> `/release-version` → `./cli-update-version.sh <RELEASE>`. Das v1.11-Release wird als **v2.0.0**
+> ausgeliefert; der nächste GSD-Milestone ist entsprechend **v2.1** (Releases daraus = v2.1.0 ff.).
 > (Die CalVer-Tags `v2026.x`, Mai–Jul 2026, sind eine eingefrorene Historien-Insel.)
 
-**Goal:** Konsolidierung nach der v1.7–v1.10-Feature-Welle — vier gemeldete Bugs abräumen
-und den Frontend-Build warnungsfrei machen. **Keine neuen Fähigkeiten**, reine Stabilisierung
-und UX-Politur.
+**Goal:** Zwei neue Fähigkeiten für Schichtplanung und Reporting — Kalenderwochen-Status
+mit Sperr-Gate und eine Durchschnitts-Anwesenheits-Auswertung für flexible Stunden — plus ein
+kleiner mitreitender Settings-Bugfix. Läuft autonom über Nacht.
 
-**Target features (5 Items, aus dem Todo-Backlog):**
-- **Special-Days-Bugfixes** (thematisch zusammen, Nachlese zu v1.10/Phase 33):
-  - **Feiertag → „Kurzer Tag" wirft Fehler:** Umstellen des Special-Day-Typs auf demselben
-    Datum erzeugt einen Konflikt (update-vs-insert). Umstell-Pfad muss den bestehenden
-    Eintrag aktualisieren statt einen zweiten anzulegen.
-    (Todo `2026-07-01-schichtplan-feiertag-auf-kurzer-tag-wirft-fehler.md`)
-  - **Settings „Anlegen"-Button bleibt disabled:** Nach dem ersten angelegten Feiertag
-    bleibt der Button disabled (controlled-select-Desync: `sd_type`-Reset ↛ `<select>`).
-    Select controlled an Signal binden bzw. Typ nach Create beibehalten.
-    (Todo `2026-06-30-settings-special-days-anlegen-button-disabled.md`)
-- **Modal-UX** (thematisch zusammen):
-  - **Modal schließt nach Drag:** Ein innen begonnener Text-Drag, der außerhalb losgelassen
-    wird, schließt das Modal. Zentraler `dialog.rs`-Fix (mousedown-Ursprung tracken; nur
-    schließen, wenn Druck UND Loslassen auf dem Backdrop) — kommt allen Modals zugute.
-    (Todo `2026-06-30-modal-schliesst-bei-mouseup-ausserhalb-nach-drag.md`)
-  - **Arbeitsvertrag-Modal Erklärungssätze:** Pro Feld ein kurzer Help-Text analog
-    `CapPlannedHoursHelp` (Von/Bis ausgenommen); i18n de/en/cs.
-    (Todo `2026-06-30-arbeitsvertrag-modal-erklaerungssatz-pro-feld.md`)
-- **Build-Hygiene:**
-  - **Sämtliche Frontend-Warnungen fixen:** ~45 rustc-Warnings (14 via `cargo fix`) + Abbau
-    der ~198 pre-existing dioxus-Lints Richtung warnungsfreier Build. Clippy für dioxus nur
-    aus der Backend-nix-Shell lauffähig (E0514). Backend bleibt `-D warnings`-sauber.
-    (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
+**Target features (3 Items, aus dem Todo-Backlog):**
+- **KW-Status (WST-01):** Neuer Status pro Kalenderwoche (`year`+`week`): **None / In Planung /
+  Geplant / Gesperrt**. Datenmodell + Migration (`migrations/sqlite/`) + DAO + Service + REST
+  (`#[utoipa::path]`, `ToSchema`-DTO) + Frontend-Badge/Auswahl in der Wochenansicht.
+  **Permission-Gate:** `Gesperrt`-Wochen nur noch vom **Schichtplaner** änderbar — Booking-/
+  Slot-Schreibpfade (inkl. `single-week`-Edit-Pfad) für andere Rollen blockiert. Wer den Status
+  selbst setzt, in discuss-phase klären (vermutlich Schichtplaner). i18n de/en/cs.
+  (Todo `2026-06-30-kalenderwoche-status-none-planung-geplant-gesperrt.md`)
+- **Ø-Anwesenheit bei flexiblen Stunden (AVG-01):** Reporting-Erweiterung — Schnitt der
+  tatsächlich geleisteten Anwesenheit, **Urlaub aus dem Nenner** gerechnet.
+  ⚠️ **Viele offene Definitionsfragen** (Bezugsgröße Woche/Monat, Definition „Anwesenheit",
+  welche Abwesenheiten zählen, nur flexible MA?) → über `/gsd-discuss-phase` klären. Wahrscheinlich
+  neue Berechnung im `ReportingService` (Business-Logic-Tier) + REST + Frontend-Sicht.
+  (Todo `2026-06-09-auswertung-durchschnittliche-anwesenheit-flexible-stunden.md`)
+- **Special-Days-„Anlegen"-Button-Bugfix (SDF-Desync):** Kleiner isolierter Settings-Fix
+  (reitet in v2.1 mit, da autonomer Nacht-Run). Nach erfolgreichem Create **gar nichts
+  zurücksetzen** (Option 2, User-Entscheidung 2026-07-01) — umgeht den Controlled-Select-Desync
+  (D-25-06-Klasse) komplett. Reset-Block `settings.rs:458-459` entfernen + SSR-/Komponenten-Test
+  fürs mehrfache Anlegen.
+  (Todo `2026-06-30-settings-special-days-anlegen-button-disabled.md`)
 
-**Bewusst NICHT in v1.11 (→ Folgemilestones):**
-- **v2.1 „Schichtplan- & Reporting-Erweiterungen":** KW-Status (None/Planung/Geplant/Gesperrt
-  inkl. Permission-Gate für gesperrte Wochen) + Auswertung durchschnittliche Anwesenheit bei
-  flexiblen Stunden + Bugfix Special-Days-„Anlegen"-Button-Desync (nach Create nichts
-  zurücksetzen). (Todos `2026-06-30-kalenderwoche-status-*`, `2026-06-09-auswertung-*`,
-  `2026-06-30-settings-special-days-anlegen-button-disabled`)
+**Bewusst NICHT in v2.1 (→ Folgemilestone):**
 - **v2.2 „PDF-Export → Nextcloud/WebDAV":** Täglicher automatischer PDF-Export der
   Folgewochen-Schichtpläne per WebDAV — architektonisch eigenständig (interner Scheduler,
   PDF-Lib, WebDAV-Client, neue Deps, Secrets). (Todo `2026-06-09-taeglicher-pdf-export-*`)
 - Off-theme **Backlog-Phase 999.1** (Breaking/Major Dependency-Migration) bleibt separat.
 
-**Snapshot-Schema-Version:** **nicht** betroffen — reine Bugfixes + Build-Hygiene, kein
-persistierter `BillingPeriodValueType`-Pfad berührt. **Kein Bump** (bleibt 12), keine Migration,
-keine neuen Deps erwartet.
+**Snapshot-Schema-Version:** WST-01 berührt keinen persistierten `BillingPeriodValueType` →
+**kein Bump** dafür. AVG-01 in discuss-phase prüfen (falls neue **persistierte** Berechnung →
+Bump nötig; reines Read-Aggregat → kein Bump). **Migration erwartet für WST-01** (neue
+Wochen-Status-Tabelle). Neue Deps nicht erwartet.
 
 ## Zuletzt geshipt: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (2026-06-29)
 
@@ -318,9 +312,11 @@ Davor: **v1.8 HR-UX** (Phasen 27–28) und **v1.7 Feiertage/VFA** (Phasen 25–2
 **Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11 Holiday-Computation; v1.8 Bump
 11→12 `VacationEntitlement`-Computation; v1.9/v1.10/v1.11 kein Bump — für v1.11 verifiziert).
 
-**Nächste Milestones (aus dem 3er-Split, laut Roadmap):** v1.12 Schichtplan-/Reporting-
-Erweiterungen (WST-01 KW-Status, AVG-01 Durchschnitts-Anwesenheit) und v1.13 PDF-Export →
-Nextcloud/WebDAV (EXP-01). Start via `/gsd-new-milestone`. Die off-theme **Backlog-Phase
+**Aktiver Milestone: v2.1 Schichtplan- & Reporting-Erweiterungen** (gestartet 2026-07-01,
+autonomer Nacht-Run) — WST-01 KW-Status (None/Planung/Geplant/Gesperrt inkl. Sperr-Gate),
+AVG-01 Durchschnitts-Anwesenheit bei flexiblen Stunden (ohne Urlaub), SDF-Desync
+Special-Days-„Anlegen"-Button-Bugfix. Requirements + Roadmap in Arbeit via `/gsd-new-milestone`.
+**Danach v2.2 PDF-Export → Nextcloud/WebDAV (EXP-01).** Die off-theme **Backlog-Phase
 999.1 (Breaking/Major Dependency-Migration)** bleibt separat verfügbar via
 `/gsd-plan-phase 999.1`.
 

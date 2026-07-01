@@ -1,19 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.11
-milestone_name: Stabilisierung & UX-Politur
-current_phase: 11
-status: Awaiting next milestone
-last_updated: "2026-07-01T17:47:50.031Z"
+milestone: v2.1
+milestone_name: Schichtplan- & Reporting-Erweiterungen
+status: planning
+last_updated: "2026-07-01T20:57:59.394Z"
 last_activity: 2026-07-01
-last_activity_desc: Milestone v1.11 completed and archived
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
-current_phase_name: frontend-build-hygiene
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
@@ -32,10 +29,10 @@ current_phase_name: frontend-build-hygiene
 
 ## Current Position
 
-Phase: Milestone v1.11 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-01 — Milestone v1.11 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-01 — Milestone v2.1 started
 
 ## Deferred Items
 
