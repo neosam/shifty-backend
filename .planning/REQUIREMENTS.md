@@ -22,13 +22,16 @@ bereits im Codebase erprobt; AVG-01 = reines Read-Aggregat (kein Snapshot-Bump).
   `TryFrom`), `SHIFTPLANNER_PRIVILEGE`-Gate in `week_message`-Service, `is_shiftplanner`-
   Hard-Block in `shiftplan_edit`. Neuer `WeekStatusService` = **Basic-Tier**; das Sperr-Gate
   lebt im **Business-Logic-Tier** (`ShiftplanEditService`).
+
 - **WST-Sperr-Bypass (kritisch):** `DELETE /booking/{id}` routet heute direkt über
   `BookingService::delete` (Basic-Tier) und umgeht damit alle Business-Logic-Gates → braucht
   eine neue `ShiftplanEditService::delete_booking`-Methode + REST-Re-Routing.
+
 - **AVG-01:** Vorläufer-Formel **A-22-1** (`average_worked_hours_per_week`, `service/src/reporting.rs`)
   existiert, ist aber **nicht identisch** (schließt alle Absence-Kategorien aus, nicht nur
   Urlaub) — Nenner-/Exclusion-Regel muss in discuss-phase explizit entschieden werden.
   „Flexibel" = `EmployeeWorkDetails.is_dynamic == true`.
+
 - **SDF-Desync:** `settings.rs:458-459` Reset-Block nach Create → Controlled-Select-Desync
   (D-25-06-Klasse); v1.11-Fix (Option 1, controlled `<select>`) wirkt in WASM nicht
   zuverlässig. Entschiedene Lösung: **Option 2 — nach Create nichts zurücksetzen.**
@@ -45,23 +48,27 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
 
 ### Kalenderwochen-Status & Sperre (WST)
 
-- [ ] **WST-01**: Schichtplaner kann den Status einer Kalenderwoche setzen/ändern —
+- [x] **WST-01**: Schichtplaner kann den Status einer Kalenderwoche setzen/ändern —
   **None / In Planung / Geplant / Gesperrt** — persistiert pro **ISO-(Jahr, Woche)**
   (neue Tabelle + Migration; TEXT-Enum-Muster analog `special_day`). Wer den Status setzen
   darf und welche Übergänge erlaubt sind, wird in discuss-phase bestätigt (Default: Schichtplaner,
   alle Übergänge).
+
 - [ ] **WST-02**: Der KW-Status wird in der Schichtplan-Wochenansicht als **Badge** angezeigt
   (für alle Rollen sichtbar; Setzen/Ändern nur für Schichtplaner). UI als Badge + Aktions-Button
   (kein controlled `<select>`, um D-25-06-Desync zu vermeiden).
+
 - [ ] **WST-03**: In einer **Gesperrt**-Woche werden Buchungs- und Slot-Schreibaktionen für
   **Nicht-Schichtplaner** server-seitig blockiert (`ServiceError::WeekLocked` → HTTP-Code in
   discuss-phase, Default **423 Locked**; 409-Alternative geprüft); Schichtplaner behält
   Vollzugriff. Check läuft **in derselben Transaktion** wie der Write (kein TOCTOU).
+
 - [ ] **WST-04**: Die Sperre greift auf **allen** Schreibpfaden **ohne Bypass** —
   `book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`,
   `copy_week_with_conflict_check` und **neu** `delete_booking` (inkl. Re-Routing von
   `DELETE /booking/{id}` über den Business-Logic-Tier). Geteilter `assert_week_not_locked`-Helper;
   Test-Matrix 6 Pfade × {gesperrt, offen}.
+
 - [ ] **WST-05**: i18n de/en/cs für alle vier Status-Labels und die Sperr-Rückmeldung.
 
 ### Durchschnittliche Anwesenheit bei flexiblen Stunden (AVG)
@@ -72,9 +79,11 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
   Zähler (geleistete Stunden vs. Anwesenheitstage) und das genaue Exclusion-Set (nur Urlaub vs.
   auch Krankheit/unbezahlt/Feiertag) werden in discuss-phase entschieden (D-AVG-01..08). Die
   bestehende A-22-1-Formel wird **nicht** blind wiederverwendet.
+
 - [ ] **AVG-02**: Die Auswertung ist im Frontend sichtbar (Report-/Auswertungs-Sicht). Reines
   **Read-Aggregat** im `ReportingService` (Business-Logic-Tier) — **kein Snapshot-Bump**, keine
   neue Persistenz, kein neuer `BillingPeriodValueType`.
+
 - [ ] **AVG-03**: i18n de/en/cs für die neue Auswertungs-Sicht (Labels, Tooltips, Leerzustand).
 
 ### Special-Days-Settings-Bugfix (SDF)
@@ -115,7 +124,7 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WST-01 | Phase 39 | Pending |
+| WST-01 | Phase 39 | Complete |
 | WST-02 | Phase 39 | Pending |
 | WST-05 | Phase 39 | Pending |
 | WST-03 | Phase 40 | Pending |
@@ -126,6 +135,7 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | SDF-01 | Phase 42 | Pending |
 
 **Coverage:**
+
 - v2.1 requirements: 9 total
 - Mapped to phases: 9 (Phase 39: WST-01/02/05 · Phase 40: WST-03/04 · Phase 41: AVG-01/02/03 · Phase 42: SDF-01)
 - Unmapped: 0 ✓

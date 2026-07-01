@@ -48,7 +48,7 @@
 **Plans**: 5 plans
 **Wave 1**
 
-- [ ] 39-01-PLAN.md — Migration + DAO (week_status-Tabelle, WeekStatusDao, TEXT-Diskriminant, .sqlx)
+- [x] 39-01-PLAN.md — Migration + DAO (week_status-Tabelle, WeekStatusDao, TEXT-Diskriminant, .sqlx)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -297,7 +297,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
-| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 0/TBD | Not started | - |
+| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 1/5 | In Progress|  |
 | 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
