@@ -42,7 +42,12 @@
   2. Alle Rollen sehen den aktuellen Wochenstatus als farbkodiertes Badge im Wochen-Header; Nicht-Schichtplaner können ihn nicht ändern (nur Anzeige).
   3. Der Status wird an der ISO-Wochen-Jahresgrenze korrekt zugeordnet (KW-53-/Jahreswechsel-Tage landen in der richtigen (Jahr, Woche)-Zeile) — durch Unit-Tests belegt.
   4. Alle vier Status-Labels erscheinen lokalisiert in de/en/cs.
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 39-01-PLAN.md — Migration + DAO (week_status-Tabelle, WeekStatusDao, TEXT-Diskriminant, .sqlx)
+- [ ] 39-02-PLAN.md — WeekStatusService (Basic-Tier, TDD: Permission-Gate, Upsert/Soft-Delete, KW-53)
+- [ ] 39-03-PLAN.md — rest-types WeekStatusTO + REST-Handler/ApiDoc + DI-Wiring in main.rs
+- [ ] 39-04-PLAN.md — FE-Foundation: WeekStatus-Enum, i18n de/en/cs, API-Client, Fresh-Fetch-Store
+- [ ] 39-05-PLAN.md — FE-Komponenten: WeekStatusBadge + WeekStatusDropdown + Schichtplan-Integration
 **UI hint**: yes
 
 **Offene Entscheidungen (discuss-phase 39):** Wer den Status setzen darf + welche Status-Übergänge erlaubt sind (Default: Schichtplaner, alle Übergänge). UI-Muster Badge + Aktions-Button (kein controlled `<select>`, um D-25-06-Desync zu vermeiden). None-Variante NICHT `None` nennen (Clippy/`Option`-Shadowing → z.B. `Unset`/`Open`).
