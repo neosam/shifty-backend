@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
 current_phase: 37
-current_phase_name: Modal-UX-Politur
-status: planning
-last_updated: "2026-07-01T15:31:24.679Z"
+current_phase_name: FE
+status: executing
+last_updated: "2026-07-01T15:45:09.883Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 36 complete, transitioned to Phase 37
+last_activity_desc: "Phase 36 (Special-Days-Bugfixes) complete: SDF-01 (atomic in-place replace) + SDF-02 (controlled SelectInput) shipped; verified passed (user accepted structural verification; 1 browser-smoke deferred)"
 progress:
   total_phases: 3
   completed_phases: 1
@@ -34,7 +34,7 @@ progress:
 
 Phase: 37 — Modal-UX-Politur (FE)
 Plan: Not started (ready für `/gsd-plan-phase 37`)
-Status: Phase 36 complete (verified passed) — ready to plan Phase 37
+Status: Ready to execute
 Last activity: 2026-07-01 — Phase 36 (Special-Days-Bugfixes) complete: SDF-01 (atomic in-place replace) + SDF-02 (controlled SelectInput) shipped; verified passed (user accepted structural verification; 1 browser-smoke deferred)
 
 ## Deferred Items
