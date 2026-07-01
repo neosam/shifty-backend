@@ -135,11 +135,17 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
     let from_label = ImStr::from(i18n.t(Key::FromLabel).as_ref());
     let to_label = ImStr::from(i18n.t(Key::ToLabel).as_ref());
     let workdays_label = ImStr::from(i18n.t(Key::WorkdaysLabel).as_ref());
+    let workdays_help = ImStr::from(i18n.t(Key::WorkdaysHelp).as_ref());
     let expected_hours_label = ImStr::from(i18n.t(Key::ExpectedHoursPerWeekLabel).as_ref());
+    let expected_hours_help = ImStr::from(i18n.t(Key::ExpectedHoursPerWeekHelp).as_ref());
     let days_per_week_label = ImStr::from(i18n.t(Key::DaysPerWeekLabel).as_ref());
+    let days_per_week_help = ImStr::from(i18n.t(Key::DaysPerWeekHelp).as_ref());
     let vacation_days_label = ImStr::from(i18n.t(Key::VacationEntitlementsPerYearLabel).as_ref());
+    let vacation_days_help = ImStr::from(i18n.t(Key::VacationEntitlementsPerYearHelp).as_ref());
     let committed_voluntary_label = ImStr::from(i18n.t(Key::CommittedVoluntaryLabel).as_ref());
+    let committed_voluntary_help = ImStr::from(i18n.t(Key::CommittedVoluntaryHelp).as_ref());
     let dynamic_label = ImStr::from(i18n.t(Key::DynamicHourLabel).as_ref());
+    let dynamic_help = ImStr::from(i18n.t(Key::DynamicHourHelp).as_ref());
     let cap_label = ImStr::from(i18n.t(Key::CapPlannedHoursLabel).as_ref());
     let cap_help = ImStr::from(i18n.t(Key::CapPlannedHoursHelp).as_ref());
     let holiday_in_hours_label = i18n.t(Key::HolidaysInHoursLabel);
@@ -221,6 +227,7 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
             }
 
             // Weekday pill buttons
+            div { class: "flex flex-col gap-1",
             Field { label: workdays_label,
                 div { class: "flex flex-wrap gap-1 mt-1",
                     {
@@ -297,115 +304,132 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
                     }
                 }
             }
+            span { class: "text-small font-normal text-ink-muted", "{workdays_help}" }
+            }
 
             // Numeric fields
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-3",
-                Field {
-                    label: expected_hours_label,
-                    TextInput {
-                        value: ImStr::from(details.expected_hours.to_string()),
-                        input_type: ImStr::from("number"),
-                        step: Some(ImStr::from("0.01")),
-                        disabled: read_only,
-                        on_change: {
-                            let details = details.clone();
-                            move |value: ImStr| {
-                                if read_only {
-                                    return;
+                div { class: "flex flex-col gap-1",
+                    Field {
+                        label: expected_hours_label,
+                        TextInput {
+                            value: ImStr::from(details.expected_hours.to_string()),
+                            input_type: ImStr::from("number"),
+                            step: Some(ImStr::from("0.01")),
+                            disabled: read_only,
+                            on_change: {
+                                let details = details.clone();
+                                move |value: ImStr| {
+                                    if read_only {
+                                        return;
+                                    }
+                                    if let Ok(n) = value.as_str().parse::<f32>() {
+                                        let mut next = details.clone();
+                                        next.expected_hours = n;
+                                        dispatch(next);
+                                    }
                                 }
-                                if let Ok(n) = value.as_str().parse::<f32>() {
-                                    let mut next = details.clone();
-                                    next.expected_hours = n;
-                                    dispatch(next);
-                                }
-                            }
-                        },
+                            },
+                        }
                     }
+                    span { class: "text-small font-normal text-ink-muted", "{expected_hours_help}" }
                 }
-                Field {
-                    label: days_per_week_label,
-                    TextInput {
-                        value: ImStr::from(details.workdays_per_week.to_string()),
-                        input_type: ImStr::from("number"),
-                        disabled: read_only,
-                        on_change: {
-                            let details = details.clone();
-                            move |value: ImStr| {
-                                if read_only {
-                                    return;
+                div { class: "flex flex-col gap-1",
+                    Field {
+                        label: days_per_week_label,
+                        TextInput {
+                            value: ImStr::from(details.workdays_per_week.to_string()),
+                            input_type: ImStr::from("number"),
+                            disabled: read_only,
+                            on_change: {
+                                let details = details.clone();
+                                move |value: ImStr| {
+                                    if read_only {
+                                        return;
+                                    }
+                                    if let Ok(n) = value.as_str().parse::<u8>() {
+                                        let mut next = details.clone();
+                                        next.workdays_per_week = n;
+                                        dispatch(next);
+                                    }
                                 }
-                                if let Ok(n) = value.as_str().parse::<u8>() {
-                                    let mut next = details.clone();
-                                    next.workdays_per_week = n;
-                                    dispatch(next);
-                                }
-                            }
-                        },
+                            },
+                        }
                     }
+                    span { class: "text-small font-normal text-ink-muted", "{days_per_week_help}" }
                 }
             }
 
             if !read_only {
-                Field {
-                    label: vacation_days_label,
-                    TextInput {
-                        value: ImStr::from(details.vacation_days.to_string()),
-                        input_type: ImStr::from("number"),
-                        on_change: {
-                            let details = details.clone();
-                            move |value: ImStr| {
-                                if let Ok(n) = value.as_str().parse::<u8>() {
-                                    let mut next = details.clone();
-                                    next.vacation_days = n;
-                                    dispatch(next);
+                div { class: "flex flex-col gap-1",
+                    Field {
+                        label: vacation_days_label,
+                        TextInput {
+                            value: ImStr::from(details.vacation_days.to_string()),
+                            input_type: ImStr::from("number"),
+                            on_change: {
+                                let details = details.clone();
+                                move |value: ImStr| {
+                                    if let Ok(n) = value.as_str().parse::<u8>() {
+                                        let mut next = details.clone();
+                                        next.vacation_days = n;
+                                        dispatch(next);
+                                    }
                                 }
-                            }
-                        },
+                            },
+                        }
                     }
+                    span { class: "text-small font-normal text-ink-muted", "{vacation_days_help}" }
                 }
             }
 
             if show_committed {
-                Field {
-                    label: committed_voluntary_label,
-                    TextInput {
-                        value: ImStr::from(details.committed_voluntary.to_string()),
-                        input_type: ImStr::from("number"),
-                        step: Some(ImStr::from("0.01")),
-                        disabled: read_only,
-                        on_change: {
-                            let details = details.clone();
-                            move |value: ImStr| {
-                                if read_only {
-                                    return;
+                div { class: "flex flex-col gap-1",
+                    Field {
+                        label: committed_voluntary_label,
+                        TextInput {
+                            value: ImStr::from(details.committed_voluntary.to_string()),
+                            input_type: ImStr::from("number"),
+                            step: Some(ImStr::from("0.01")),
+                            disabled: read_only,
+                            on_change: {
+                                let details = details.clone();
+                                move |value: ImStr| {
+                                    if read_only {
+                                        return;
+                                    }
+                                    if let Ok(n) = value.as_str().parse::<f32>() {
+                                        let mut next = details.clone();
+                                        next.committed_voluntary = n;
+                                        dispatch(next);
+                                    }
                                 }
-                                if let Ok(n) = value.as_str().parse::<f32>() {
-                                    let mut next = details.clone();
-                                    next.committed_voluntary = n;
-                                    dispatch(next);
-                                }
-                            }
-                        },
+                            },
+                        }
                     }
+                    span { class: "text-small font-normal text-ink-muted", "{committed_voluntary_help}" }
                 }
             }
 
             // Toggle fields
-            FormCheckbox {
-                value: details.dynamic,
-                disabled: read_only,
-                on_change: {
-                    let details = details.clone();
-                    move |v: bool| {
-                        if read_only {
-                            return;
+            div { class: "flex flex-col gap-1",
+                FormCheckbox {
+                    value: details.dynamic,
+                    disabled: read_only,
+                    on_change: {
+                        let details = details.clone();
+                        move |v: bool| {
+                            if read_only {
+                                return;
+                            }
+                            let mut next = details.clone();
+                            next.dynamic = v;
+                            dispatch(next);
                         }
-                        let mut next = details.clone();
-                        next.dynamic = v;
-                        dispatch(next);
-                    }
-                },
-                label: rsx! { "{dynamic_label}" },
+                    },
+                    label: rsx! { "{dynamic_label}" },
+                }
+                span { class: "text-small font-normal text-ink-muted", "{dynamic_help}" }
             }
             div { class: "flex flex-col gap-1",
                 FormCheckbox {
