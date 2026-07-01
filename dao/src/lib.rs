@@ -29,6 +29,7 @@ pub mod toggle;
 pub mod user_invitation;
 pub mod vacation_entitlement_offset;
 pub mod week_message;
+pub mod week_status;
 
 pub use permission::MockPermissionDao;
 pub use permission::PermissionDao;
