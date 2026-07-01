@@ -1281,6 +1281,51 @@ impl From<&WeekMessageTO> for service::week_message::WeekMessage {
     }
 }
 
+/// Wire-level KW status kind. Mirrors `service::week_status::WeekStatus` including
+/// the fourth `Unset` variant (row-absence, D-39-04). Named `Unset`, never `None`
+/// (D-39-03).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum WeekStatusKindTO {
+    Unset,
+    InPlanning,
+    Planned,
+    Locked,
+}
+
+/// Slim KW status DTO. The frontend always sends year + calendar_week + status;
+/// the service keeps id/version internally (no id-based endpoint, RESEARCH §1).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct WeekStatusTO {
+    pub year: u32,
+    pub calendar_week: u8,
+    pub status: WeekStatusKindTO,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::week_status::WeekStatus> for WeekStatusKindTO {
+    fn from(status: &service::week_status::WeekStatus) -> Self {
+        match status {
+            service::week_status::WeekStatus::Unset => WeekStatusKindTO::Unset,
+            service::week_status::WeekStatus::InPlanning => WeekStatusKindTO::InPlanning,
+            service::week_status::WeekStatus::Planned => WeekStatusKindTO::Planned,
+            service::week_status::WeekStatus::Locked => WeekStatusKindTO::Locked,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&WeekStatusKindTO> for service::week_status::WeekStatus {
+    fn from(status: &WeekStatusKindTO) -> Self {
+        match status {
+            WeekStatusKindTO::Unset => service::week_status::WeekStatus::Unset,
+            WeekStatusKindTO::InPlanning => service::week_status::WeekStatus::InPlanning,
+            WeekStatusKindTO::Planned => service::week_status::WeekStatus::Planned,
+            WeekStatusKindTO::Locked => service::week_status::WeekStatus::Locked,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct BillingPeriodValueTO {
     pub value_delta: f32,
