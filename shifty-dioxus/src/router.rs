@@ -1,7 +1,6 @@
 use dioxus::prelude::*;
 
 pub use crate::page::AbsencesFor;
-pub use crate::page::AbsencesPage;
 // `dioxus_router`'s `#[derive(Routable)]` looks up a component by the exact
 // variant name, so the `Absences {}` route below needs an item called
 // `Absences` in scope. We alias the page component (which is named

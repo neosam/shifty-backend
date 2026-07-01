@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
 use rest_types::{
-    AbsenceCategoryTO, AbsenceListWithProjectionTO, AbsencePeriodCreateResultTO, AbsencePeriodTO,
+    AbsenceListWithProjectionTO, AbsencePeriodCreateResultTO, AbsencePeriodTO,
     BillingPeriodTO, BlockTO, BookingConflictTO, BookingCreateResultTO, BookingLogTO, BookingTO,
     ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
-    CustomExtraHoursTO, DayFractionTO,
+    CustomExtraHoursTO,
     DayOfWeekTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO, EmployeeWorkDetailsTO,
-    ExtraHoursCategoryTO, ExtraHoursMarkerTO,
+    ExtraHoursCategoryTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, ImpersonateTO, InvitationResponse,
     RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
     SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
-    VacationEntitlementOffsetTO, VacationPayloadTO, WarningTO, WeekMessageTO, WeeklySummaryTO,
+    VacationEntitlementOffsetTO, VacationPayloadTO, WeekMessageTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;

@@ -119,7 +119,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let date =
         time::Date::from_iso_week_date(*year.read() as i32, *week.read(), time::Weekday::Monday)
             .unwrap();
-    let formatter = time::format_description::parse("[day].[month]").unwrap();
+    let formatter = time::format_description::parse_borrowed::<2>("[day].[month]").unwrap();
     let date_str = date.format(&formatter).unwrap().to_string();
 
     let backend_url = config.backend.clone();
@@ -209,7 +209,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     let mut booking_warnings: Signal<WarningsList> = use_signal(WarningsList::empty);
     // D-24-05: slot-scoped signal holding the id of the slot whose booking was hard-blocked (409 CONFLICT).
     // None = no block active. Set to Some(slot_id) when 409 is returned; cleared on next success.
-    let mut block_error: Signal<Option<Uuid>> = use_signal(|| None);
+    let block_error: Signal<Option<Uuid>> = use_signal(|| None);
     let week_message = use_signal(|| String::new());
     let mut week_message_draft = use_signal(|| String::new());
 
@@ -1288,7 +1288,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             if slot.current_paid_count > max {
                                 let weekday_str = slot.day_of_week.i18n_string(&i18n);
                                 let time_formatter =
-                                    time::format_description::parse("[hour]:[minute]").unwrap();
+                                    time::format_description::parse_borrowed::<2>("[hour]:[minute]").unwrap();
                                 let from_str = slot.from.format(&time_formatter).unwrap_or_default();
                                 let to_str = slot.to.format(&time_formatter).unwrap_or_default();
                                 let label = format!("{weekday_str} {from_str}–{to_str}");

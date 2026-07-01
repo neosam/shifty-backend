@@ -23,7 +23,7 @@ pub struct UserDetailsProps {
 pub fn UserDetails(props: UserDetailsProps) -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
-    let error_store = ERROR_STORE.read();
+    let _error_store = ERROR_STORE.read();
     let nav = navigator();
     let i18n = I18N.read().clone();
     let mut expiration_hours = use_signal(|| "24".to_string());

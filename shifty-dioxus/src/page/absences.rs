@@ -1266,7 +1266,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
         None
     };
 
-    let on_close = props.on_close;
+    let _on_close = props.on_close;
     let on_close_for_cancel = props.on_close;
     let on_close_for_dialog = props.on_close;
     let on_close_for_warn_ack = props.on_close;
@@ -1343,8 +1343,8 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
         }
     };
 
-    let date_iso_format_clone1 = date_iso_format;
-    let date_iso_format_clone2 = date_iso_format;
+    let _date_iso_format_clone1 = date_iso_format;
+    let _date_iso_format_clone2 = date_iso_format;
 
     let footer = rsx! {
         if is_edit {

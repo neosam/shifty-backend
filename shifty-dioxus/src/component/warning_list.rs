@@ -15,7 +15,7 @@ use dioxus::prelude::*;
 use rest_types::{AbsenceCategoryTO, DayOfWeekTO, WarningTO};
 
 use crate::base_types::ImStr;
-use crate::i18n::{generate, Key, Locale};
+use crate::i18n::Key;
 use crate::service::i18n::I18N;
 
 // ─── WarningsList newtype (PartialEq via Rc::ptr_eq) ──────────────────────────
@@ -172,6 +172,7 @@ pub fn WarningList(props: WarningListProps) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::{generate, Locale};
     use time::macros::date;
     use uuid::Uuid;
 
