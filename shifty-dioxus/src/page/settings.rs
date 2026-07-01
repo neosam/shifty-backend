@@ -146,6 +146,21 @@ mod tests {
             &list
         ));
     }
+
+    /// D-06: pure helper maps Option<SpecialDayTypeTO> to the HTML select value
+    /// string used by the Card-3 controlled SelectInput binding.
+    #[test]
+    fn sd_type_to_select_value_all_variants() {
+        assert_eq!(sd_type_to_select_value(None), "");
+        assert_eq!(
+            sd_type_to_select_value(Some(SpecialDayTypeTO::Holiday)),
+            "holiday"
+        );
+        assert_eq!(
+            sd_type_to_select_value(Some(SpecialDayTypeTO::ShortDay)),
+            "short_day"
+        );
+    }
 }
 
 const TOGGLE_NAME: &str = "paid_limit_hard_enforcement";
