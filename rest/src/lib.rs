@@ -34,6 +34,7 @@ mod user_invitation;
 mod vacation_balance;
 mod vacation_entitlement_offset;
 mod week_message;
+mod week_status;
 
 #[cfg(feature = "mock_auth")]
 pub mod dev;
@@ -351,6 +352,10 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    type WeekStatusService: service::week_status::WeekStatusService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BillingPeriodService: service::billing_period::BillingPeriodService<Context = Context>
         + Send
         + Sync
@@ -424,6 +429,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn shiftplan_service(&self) -> Arc<Self::ShiftplanService>;
     fn shiftplan_view_service(&self) -> Arc<Self::ShiftplanViewService>;
     fn week_message_service(&self) -> Arc<Self::WeekMessageService>;
+    fn week_status_service(&self) -> Arc<Self::WeekStatusService>;
     fn billing_period_service(&self) -> Arc<Self::BillingPeriodService>;
     fn billing_period_report_service(&self) -> Arc<Self::BillingPeriodReportService>;
     fn block_report_service(&self) -> Arc<Self::BlockReportService>;
@@ -537,6 +543,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/shiftplan-edit", api = shiftplan_edit::ShiftplanEditApiDoc),
         (path = "/shiftplan-info", api = shiftplan::ShiftplanApiDoc),
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
+        (path = "/week-status", api = week_status::WeekStatusApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
         (path = "/text-templates", api = TextTemplateApiDoc),
@@ -622,6 +629,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .nest("/shiftplan-info", shiftplan::generate_route())
         .nest("/text-templates", text_template::generate_route())
         .nest("/week-message", week_message::generate_route())
+        .nest("/week-status", week_status::generate_route())
         .nest("/user-invitation", user_invitation::generate_route())
         .nest("/toggle", toggle::generate_route())
         .nest("/toggle-group", toggle::generate_group_route())
