@@ -12,7 +12,68 @@
 //!
 //! Locked = bad (red), Planned = good (green), InPlanning = warn (amber). Only
 //! static Tailwind design-token classes per match arm — no `format!()`, no raw
-//! `bg-red-*/bg-green-*` literals (Tailwind-detect + legacy-class gate).
+//! palette literals (Tailwind-detect + legacy-class gate); the token classes
+//! (`bg-bad-soft`, `bg-good-soft`, `bg-warn-soft`) carry the semantic colors.
+
+use dioxus::prelude::*;
+
+use crate::i18n::Key;
+use crate::service::i18n::I18N;
+use crate::state::week_status::WeekStatus;
+
+/// Whether the badge should be rendered at all. `Unset` renders nothing
+/// (D-39-05, WST-02); every set status is shown.
+pub(crate) fn should_show_badge(status: &WeekStatus) -> bool {
+    !matches!(status, WeekStatus::Unset)
+}
+
+/// Static Tailwind design-token class string for the badge, one per set status
+/// (D-39-08). `Unset` is `unreachable!()` — the badge is never rendered for it
+/// (the caller gates via [`should_show_badge`]).
+pub(crate) fn week_status_badge_class(status: &WeekStatus) -> &'static str {
+    match status {
+        WeekStatus::Locked => {
+            "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium bg-bad-soft border border-bad text-bad"
+        }
+        WeekStatus::Planned => {
+            "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium bg-good-soft border border-good text-good"
+        }
+        WeekStatus::InPlanning => {
+            "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium bg-warn-soft border border-warn text-warn"
+        }
+        WeekStatus::Unset => unreachable!("Badge wird nie fuer Unset gerendert"),
+    }
+}
+
+/// i18n label key for a set status. `Unset` has no badge label.
+pub(crate) fn week_status_label_key(status: &WeekStatus) -> Key {
+    match status {
+        WeekStatus::InPlanning => Key::WeekStatusInPlanning,
+        WeekStatus::Planned => Key::WeekStatusPlanned,
+        WeekStatus::Locked => Key::WeekStatusLocked,
+        WeekStatus::Unset => Key::WeekStatusUnset,
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct WeekStatusBadgeProps {
+    /// The status to display. Only called for a set status; `Unset` must be
+    /// gated out by the caller (D-39-05).
+    pub status: WeekStatus,
+}
+
+/// Read-only color-coded status pill. Renders a `span` with the token class and
+/// the translated label.
+#[component]
+pub fn WeekStatusBadge(props: WeekStatusBadgeProps) -> Element {
+    let label = I18N.read().t(week_status_label_key(&props.status));
+    rsx! {
+        span {
+            class: week_status_badge_class(&props.status),
+            "{label}"
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
