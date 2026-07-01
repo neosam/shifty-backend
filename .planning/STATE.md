@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
 current_phase: 37
-current_phase_name: FE
+current_phase_name: modal-ux-politur
 status: executing
-last_updated: "2026-07-01T15:45:09.883Z"
+last_updated: "2026-07-01T15:55:32.022Z"
 last_activity: 2026-07-01
-last_activity_desc: "Phase 36 (Special-Days-Bugfixes) complete: SDF-01 (atomic in-place replace) + SDF-02 (controlled SelectInput) shipped; verified passed (user accepted structural verification; 1 browser-smoke deferred)"
+last_activity_desc: Phase 37 execution started
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
   percent: 33
 ---
 
@@ -32,10 +32,10 @@ progress:
 
 ## Current Position
 
-Phase: 37 — Modal-UX-Politur (FE)
-Plan: Not started (ready für `/gsd-plan-phase 37`)
+Phase: 37 (modal-ux-politur) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-07-01 — Phase 36 (Special-Days-Bugfixes) complete: SDF-01 (atomic in-place replace) + SDF-02 (controlled SelectInput) shipped; verified passed (user accepted structural verification; 1 browser-smoke deferred)
+Last activity: 2026-07-01 — Phase 37 execution started
 
 ## Deferred Items
 
@@ -161,6 +161,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: [D-35-02] single_week: bool Default false — 100% Backward-Compat; bestehender save_slot-Pfad bleibt unverändert erreichbar
 - [Phase ?]: [D-35-02] borrow-sicheres Auslesen von store-Feldern vor await in save_slot_edit verhindert Borrow-Konflikte
 - [Phase ?]: Controlled SelectInput value prop fix
+- [Phase ?]: BackdropPress Copy struct with press_backdrop/press_panel/release encodes MOD-01 drag-safe close rule as a pure unit-tested state machine
 
 ## Performance Metrics
 
@@ -169,3 +170,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 35 P01 | 25 | - tasks | - files |
 | Phase 35 P02 | 14 | 3 tasks | 8 files |
 | Phase 36 P02 | 10 | 3 tasks | 2 files |
+| Phase 37 P01 | 7m | 2 tasks | 2 files |
