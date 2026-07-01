@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Stabilisierung & UX-Politur
-current_phase: "38"
+current_phase: 38
+current_phase_name: Frontend-Build-Hygiene
 status: planning
-last_updated: "2026-07-01T15:00:00.000Z"
+last_updated: "2026-07-01T14:22:51.019Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 38 Context gathered (HYG-01/02 Frontend-Build-Hygiene; 50 rustc-Warnings, delete-as-default, parse_borrowed-Migration, dioxus bleibt aus CI-Clippy-Gate)
+last_activity_desc: "Phase 38 CONTEXT.md geschrieben (HYG-01/02: 50 rustc-Warnings in shifty-dioxus; delete-as-default für ~34 Dead-Code, 14 via cargo fix, 2× time::parse→parse_borrowed; #[allow]+reason inline nur als Ausnahme; dioxus bleibt aus CI-Clippy-Gate, strikt nur rustc-Warnings; dx-serve-Smoke-Check als Absicherung, kein Gate)"
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: Frontend-Build-Hygiene
 ---
 
 # Project State: Shifty Backend
