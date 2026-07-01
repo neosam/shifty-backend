@@ -1,0 +1,56 @@
+# cargo-audit configuration
+# -------------------------
+# Run with: nix develop --command cargo audit
+#
+# The advisories below are ACKNOWLEDGED and intentionally ignored. Each entry
+# documents why the finding is not exploitable in Shifty's deployment. Revisit
+# whenever the dependency chain changes (see the "Fix path" notes below).
+#
+# Deployment context that makes these non-issues:
+#   * The backend is deployed as `backend-oidc` (features = ["oidc",
+#     "json_logging"], see shifty-nix/build-oidc-backend.sh). Inbound traffic is
+#     plain HTTP behind a reverse proxy; TLS termination happens there.
+#   * The only TLS *client* is the OIDC stack (axum-oidc -> openidconnect ->
+#     reqwest -> rustls -> rustls-webpki), which talks to the TRUSTED, operator-
+#     configured identity provider — never to attacker-controlled endpoints.
+#
+# Blocked fix path: the vulnerable versions are pinned by axum-oidc 0.6.0, which
+# is the latest STABLE release. rustls-webpki 0.101 is API-locked to rustls 0.21,
+# which is pinned by openidconnect 3.5 / reqwest 0.11. The only chain with a
+# patched rustls-webpki (>=0.103) is axum-oidc 1.0.0-dev-* (openidconnect 4.0,
+# reqwest 0.12, rustls 0.23) — a PRERELEASE of a security-critical auth crate
+# with breaking API changes. Not worth adopting for these low-real-risk findings.
+# Re-evaluate once axum-oidc 1.0 ships stable.
+
+[advisories]
+ignore = [
+    # rsa 0.9 — Marvin timing sidechannel (potential private-key recovery).
+    # Not applicable: Shifty only VERIFIES OIDC tokens (RSA public-key ops); it
+    # performs no RSA private-key decryption, which is what the attack targets.
+    # The second pull path (sqlx-mysql -> rsa) is dead code: dao_impl_sqlite
+    # enables only sqlx features ["runtime-tokio", "sqlite"], never "mysql".
+    # No fixed upgrade exists upstream.
+    "RUSTSEC-2023-0071",
+
+    # rustls-webpki 0.101 — name constraints for URI names incorrectly accepted
+    # (CVSS 2.2, low). Cert-validation edge case against the trusted IdP only.
+    "RUSTSEC-2026-0098",
+
+    # rustls-webpki 0.101 — name constraints accepted for wildcard certs
+    # (CVSS 2.2, low). Same trusted-IdP-only exposure as RUSTSEC-2026-0098.
+    "RUSTSEC-2026-0099",
+
+    # rustls-webpki 0.101 — reachable panic in CRL parsing (CVSS 7.5, DoS).
+    # GitHub rates this High, but it is unreachable here: reqwest/rustls do NOT
+    # perform CRL checking by default, so malformed CRLs are never parsed. The
+    # OIDC client also only connects to the trusted, configured IdP.
+    "RUSTSEC-2026-0104",
+
+    # paste 1.0.15 — unmaintained (no vulnerability). Transitive build-time
+    # proc-macro dependency; no runtime exposure.
+    "RUSTSEC-2024-0436",
+
+    # rustls-pemfile 0.2/1.x — unmaintained (no vulnerability). Superseded by
+    # rustls-pki-types; pulled transitively via the OIDC TLS stack.
+    "RUSTSEC-2025-0134",
+]

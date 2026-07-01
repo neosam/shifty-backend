@@ -191,6 +191,7 @@ EOF
             rustc
             cargo
             cargo-watch
+            cargo-audit
             clippy
             rust-analyzer
             sqlx-cli
