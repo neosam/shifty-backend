@@ -105,9 +105,14 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                 {
                     let sales_person_id = working_hour.sales_person_id;
                     let actual = working_hour.actual_hours;
-                    let target = working_hour.dynamic_hours;
+                    // TARGET = expected_hours (das feiertags-/absence-reduzierte Soll), NICHT
+                    // dynamic_hours: der Band-Guard (HSP-03) hält dynamic_hours frei vom automatisch
+                    // angerechneten Feiertag, sodass ein derived Holiday sonst nie im angezeigten
+                    // Soll erschiene. expected_hours reflektiert manuelle UND automatische Feiertage
+                    // gleich — konsistent zum Stundenkonto/Report.
+                    let target = working_hour.expected_hours;
                     let actual_hours_str = format_hours(actual, 1);
-                    let dynamic_hours_str = format_hours(target, 1);
+                    let target_hours_str = format_hours(target, 1);
                     let balance_hours_str = format_hours(working_hour.balance_hours, 1);
                     let show_balance = props.show_balance;
                     let is_selected = Some(sales_person_id) == props.selected_sales_person_id;
@@ -136,7 +141,7 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                                 }
                                 div {
                                     class: "font-mono tabular-nums text-micro {hours_class}",
-                                    "{actual_hours_str} / {dynamic_hours_str}h"
+                                    "{actual_hours_str} / {target_hours_str}h"
                                     if show_balance {
                                         span { class: "text-ink-muted ml-1", "({balance_hours_str})" }
                                     }
@@ -162,7 +167,8 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
 fn TableLayout(props: LayoutInnerProps) -> Element {
     let i18n = I18N.read().clone();
     let total_actual: f32 = props.rows.iter().map(|r| r.actual_hours).sum();
-    let total_target: f32 = props.rows.iter().map(|r| r.dynamic_hours).sum();
+    // TARGET total uses expected_hours (holiday-/absence-reduced Soll) — see the per-row note.
+    let total_target: f32 = props.rows.iter().map(|r| r.expected_hours).sum();
     let total_actual_str = format_hours(total_actual, 1);
     let total_target_str = format_hours(total_target, 1);
 
@@ -202,7 +208,12 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                         {
                             let sales_person_id = working_hour.sales_person_id;
                             let actual = working_hour.actual_hours;
-                            let target = working_hour.dynamic_hours;
+                            // TARGET = expected_hours (das feiertags-/absence-reduzierte Soll), NICHT
+                    // dynamic_hours: der Band-Guard (HSP-03) hält dynamic_hours frei vom automatisch
+                    // angerechneten Feiertag, sodass ein derived Holiday sonst nie im angezeigten
+                    // Soll erschiene. expected_hours reflektiert manuelle UND automatische Feiertage
+                    // gleich — konsistent zum Stundenkonto/Report.
+                    let target = working_hour.expected_hours;
                             let balance = working_hour.balance_hours;
                             let actual_str = format_hours(actual, 1);
                             let target_str = format_hours(target, 1);
