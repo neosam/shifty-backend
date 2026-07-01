@@ -50,6 +50,18 @@ fn fixed_created() -> PrimitiveDateTime {
     )
 }
 
+/// A concrete non-nil id for the "existing" row in replacement tests so that the
+/// "keeps existing id" assertion is meaningful (distinct from the nil id the
+/// client POSTs on create).
+fn existing_id() -> Uuid {
+    uuid!("B0B0B0B0-0000-0000-0000-000000000001")
+}
+
+/// Version uuid assigned by the service on the replacement path.
+fn replace_version() -> Uuid {
+    uuid!("CCCCCCCC-0000-0000-0000-000000000002")
+}
+
 fn make_entity() -> SpecialDayEntity {
     SpecialDayEntity {
         id: Uuid::nil(),
@@ -62,6 +74,26 @@ fn make_entity() -> SpecialDayEntity {
             Date::from_calendar_date(2026, Month::January, 1).unwrap(),
             Time::from_hms(0, 0, 0).unwrap(),
         ),
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
+/// Build an existing active entity for (2026, W1, Monday) with a given id, day_type,
+/// and time_of_day — used in directional switch tests (SDF-01, D-09).
+fn make_existing_entity(
+    id: Uuid,
+    day_type: SpecialDayTypeEntity,
+    time_of_day: Option<Time>,
+) -> SpecialDayEntity {
+    SpecialDayEntity {
+        id,
+        year: 2026,
+        calendar_week: 1,
+        day_of_week: DayOfWeek::Monday,
+        day_type,
+        time_of_day,
+        created: fixed_created(),
         deleted: None,
         version: Uuid::nil(),
     }
@@ -261,9 +293,12 @@ async fn test_create_rejects_nonnil_version() {
     test_zero_version_error(&result);
 }
 
-/// WR-02: create rejects a duplicate (year, calendar_week, day_of_week).
+/// SDF-01, D-01: create replaces an existing same-date entry instead of returning
+/// ValidationError(Duplicate) — the duplicate guard is superseded by replacement semantics.
+/// The replacement path calls dao.update once (keeping the existing id) and never calls
+/// dao.create.
 #[tokio::test]
-async fn test_create_rejects_duplicate() {
+async fn test_create_replaces_same_date_entry() {
     let mut permission = MockPermissionService::new();
     permission
         .expect_check_permission()
@@ -272,20 +307,41 @@ async fn test_create_rejects_duplicate() {
         .returning(|_, _| Ok(()));
     let mut clock = MockClockService::new();
     clock.expect_date_time_now().returning(fixed_created);
+    let mut uuid = MockUuidService::new();
+    uuid.expect_new_uuid()
+        .with(eq("special-day-service::replace version"))
+        .times(1)
+        .returning(|_| replace_version());
     let mut dao = MockSpecialDayDao::new();
-    // An existing Monday/2026/W1 entry collides with minimal_special_day().
+    // An existing Monday/2026/W1 Holiday entry (same date as minimal_special_day()).
     dao.expect_find_by_week()
         .with(eq(2026u32), eq(1u8))
         .times(1)
         .returning(|_, _| Ok(Arc::from([make_entity()])));
+    // Replacement: update is called once with the existing entity's id; create is never called.
+    dao.expect_update()
+        .withf(|entity, process| {
+            entity.id == Uuid::nil()
+                && entity.day_type == SpecialDayTypeEntity::Holiday
+                && entity.time_of_day.is_none()
+                && entity.deleted.is_none()
+                && process == "special-days-service::replace"
+        })
+        .times(1)
+        .returning(|_, _| Ok(()));
+    dao.expect_create().times(0);
     let svc = SpecialDayServiceImpl::new(
         Arc::new(dao),
         Arc::new(permission),
         Arc::new(clock),
-        Arc::new(MockUuidService::new()),
+        Arc::new(uuid),
     );
     let result = svc.create(&minimal_special_day(), ().into()).await;
-    test_validation_error(&result, &ValidationFailureItem::Duplicate, 1);
+    assert!(
+        result.is_ok(),
+        "same-date entry must be replaced, not rejected: {:?}",
+        result
+    );
 }
 
 /// WR-03: create rejects a ShortDay without a time_of_day.
@@ -349,4 +405,148 @@ async fn test_get_by_week_delegates_and_maps() {
     assert_eq!(days[0].calendar_week, 1);
     assert_eq!(days[0].day_of_week, DayOfWeek::Monday);
     assert_eq!(days[0].day_type, SpecialDayType::Holiday);
+}
+
+/// SDF-01, D-01, D-04, D-09: create replaces an existing Holiday at (2026, W1, Monday)
+/// with a ShortDay by calling dao.update once with the existing id and new day_type=ShortDay
+/// and the supplied time_of_day — no ValidationError, no dao.create call.
+#[tokio::test]
+async fn test_create_switches_holiday_to_shortday() {
+    let mut permission = MockPermissionService::new();
+    permission
+        .expect_check_permission()
+        .with(eq(SHIFTPLANNER_PRIVILEGE), always())
+        .times(1)
+        .returning(|_, _| Ok(()));
+    let mut clock = MockClockService::new();
+    clock.expect_date_time_now().returning(fixed_created);
+    let mut uuid = MockUuidService::new();
+    uuid.expect_new_uuid()
+        .with(eq("special-day-service::replace version"))
+        .times(1)
+        .returning(|_| replace_version());
+    let existing = make_existing_entity(existing_id(), SpecialDayTypeEntity::Holiday, None);
+    let time_12 = Time::from_hms(12, 0, 0).unwrap();
+    let expected_updated = SpecialDayEntity {
+        id: existing_id(),
+        year: 2026,
+        calendar_week: 1,
+        day_of_week: DayOfWeek::Monday,
+        day_type: SpecialDayTypeEntity::ShortDay,
+        time_of_day: Some(time_12),
+        created: fixed_created(),
+        deleted: None,
+        version: replace_version(),
+    };
+    let mut dao = MockSpecialDayDao::new();
+    dao.expect_find_by_week()
+        .with(eq(2026u32), eq(1u8))
+        .times(1)
+        .returning(move |_, _| Ok(Arc::from([existing.clone()])));
+    dao.expect_update()
+        .withf(move |entity, process| {
+            *entity == expected_updated && process == "special-days-service::replace"
+        })
+        .times(1)
+        .returning(|_, _| Ok(()));
+    dao.expect_create().times(0);
+    let svc = SpecialDayServiceImpl::new(
+        Arc::new(dao),
+        Arc::new(permission),
+        Arc::new(clock),
+        Arc::new(uuid),
+    );
+    let input = SpecialDay {
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(time_12),
+        ..minimal_special_day()
+    };
+    let result = svc.create(&input, ().into()).await;
+    assert!(
+        result.is_ok(),
+        "Holiday->ShortDay switch must succeed: {:?}",
+        result
+    );
+    let created = result.unwrap();
+    assert_eq!(
+        created.id,
+        existing_id(),
+        "returned id must be the existing entity id"
+    );
+    assert_eq!(created.day_type, SpecialDayType::ShortDay);
+    assert_eq!(created.time_of_day, Some(time_12));
+}
+
+/// SDF-01, D-01, D-04, D-09: create replaces an existing ShortDay at (2026, W1, Monday)
+/// with a Holiday by calling dao.update once with the existing id, day_type=Holiday and
+/// time_of_day normalized to None — no ValidationError, no dao.create call.
+#[tokio::test]
+async fn test_create_switches_shortday_to_holiday() {
+    let mut permission = MockPermissionService::new();
+    permission
+        .expect_check_permission()
+        .with(eq(SHIFTPLANNER_PRIVILEGE), always())
+        .times(1)
+        .returning(|_, _| Ok(()));
+    let mut clock = MockClockService::new();
+    clock.expect_date_time_now().returning(fixed_created);
+    let mut uuid = MockUuidService::new();
+    uuid.expect_new_uuid()
+        .with(eq("special-day-service::replace version"))
+        .times(1)
+        .returning(|_| replace_version());
+    let time_12 = Time::from_hms(12, 0, 0).unwrap();
+    let existing =
+        make_existing_entity(existing_id(), SpecialDayTypeEntity::ShortDay, Some(time_12));
+    let expected_updated = SpecialDayEntity {
+        id: existing_id(),
+        year: 2026,
+        calendar_week: 1,
+        day_of_week: DayOfWeek::Monday,
+        day_type: SpecialDayTypeEntity::Holiday,
+        time_of_day: None,
+        created: fixed_created(),
+        deleted: None,
+        version: replace_version(),
+    };
+    let mut dao = MockSpecialDayDao::new();
+    dao.expect_find_by_week()
+        .with(eq(2026u32), eq(1u8))
+        .times(1)
+        .returning(move |_, _| Ok(Arc::from([existing.clone()])));
+    dao.expect_update()
+        .withf(move |entity, process| {
+            *entity == expected_updated && process == "special-days-service::replace"
+        })
+        .times(1)
+        .returning(|_, _| Ok(()));
+    dao.expect_create().times(0);
+    let svc = SpecialDayServiceImpl::new(
+        Arc::new(dao),
+        Arc::new(permission),
+        Arc::new(clock),
+        Arc::new(uuid),
+    );
+    let input = SpecialDay {
+        day_type: SpecialDayType::Holiday,
+        time_of_day: None,
+        ..minimal_special_day()
+    };
+    let result = svc.create(&input, ().into()).await;
+    assert!(
+        result.is_ok(),
+        "ShortDay->Holiday switch must succeed: {:?}",
+        result
+    );
+    let created = result.unwrap();
+    assert_eq!(
+        created.id,
+        existing_id(),
+        "returned id must be the existing entity id"
+    );
+    assert_eq!(created.day_type, SpecialDayType::Holiday);
+    assert!(
+        created.time_of_day.is_none(),
+        "Holiday must have no time_of_day"
+    );
 }
