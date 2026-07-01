@@ -135,10 +135,12 @@ spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
 ## Aktueller Milestone: v1.11 Stabilisierung & UX-Politur
 
-> **Versions-Hinweis:** `v1.11` ist das **interne GSD-Planungs-Label** (Fortführung
-> der Sequenz v1.0–v1.10 für Roadmap, Phasen-Nummerierung und Archiv-Handles). Die
-> **reale Release-Version** vergibt der User datumsbasiert via `./cli-update-version`
-> (z. B. `2026.182.0`) zum Release-Zeitpunkt — entkoppelt vom Planungs-Label.
+> **Versions-Hinweis:** Versionierung ist **SemVer** `MAJOR.MINOR.PATCH`. Der
+> **GSD-Milestone-Name** (`vX.Y`) liefert MAJOR.MINOR und ist zugleich Roadmap-/Archiv-Handle;
+> die **PATCH**-Stelle zählt `/release-version` mechanisch aus den Git-Tags (`.0` beim ersten
+> Release eines Milestones, dann `.1`, `.2` … pro Hotfix). Reale Releases erzeugt der User via
+> `/release-version` → `./cli-update-version.sh <RELEASE>`. Nächstes Release = **v2.0.0**.
+> (Die CalVer-Tags `v2026.x`, Mai–Jul 2026, sind eine eingefrorene Historien-Insel.)
 
 **Goal:** Konsolidierung nach der v1.7–v1.10-Feature-Welle — vier gemeldete Bugs abräumen
 und den Frontend-Build warnungsfrei machen. **Keine neuen Fähigkeiten**, reine Stabilisierung
@@ -169,10 +171,10 @@ und UX-Politur.
     (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
 
 **Bewusst NICHT in v1.11 (→ Folgemilestones):**
-- **v1.12 „Schichtplan- & Reporting-Erweiterungen":** KW-Status (None/Planung/Geplant/Gesperrt
+- **v2.1 „Schichtplan- & Reporting-Erweiterungen":** KW-Status (None/Planung/Geplant/Gesperrt
   inkl. Permission-Gate für gesperrte Wochen) + Auswertung durchschnittliche Anwesenheit bei
   flexiblen Stunden. (Todos `2026-06-30-kalenderwoche-status-*`, `2026-06-09-auswertung-*`)
-- **v1.13 „PDF-Export → Nextcloud/WebDAV":** Täglicher automatischer PDF-Export der
+- **v2.2 „PDF-Export → Nextcloud/WebDAV":** Täglicher automatischer PDF-Export der
   Folgewochen-Schichtpläne per WebDAV — architektonisch eigenständig (interner Scheduler,
   PDF-Lib, WebDAV-Client, neue Deps, Secrets). (Todo `2026-06-09-taeglicher-pdf-export-*`)
 - Off-theme **Backlog-Phase 999.1** (Breaking/Major Dependency-Migration) bleibt separat.

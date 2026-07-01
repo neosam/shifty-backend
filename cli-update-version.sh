@@ -3,86 +3,74 @@
 set -euo pipefail
 
 # Usage:
-#   cli-update-version.sh [-m tag-message] [-b branch]              # auto-derive YEAR.DAY.COUNTER from date + Cargo.toml
-#   cli-update-version.sh [-m tag-message] <RELEASE> <NEXT> [BRANCH] # explicit (legacy mode)
+#   cli-update-version.sh [-m tag-message] [-b branch] <RELEASE> [NEXT]
+#
+# Mechanical release executor: bumps every crate + nix file to RELEASE, builds,
+# commits, tags v$RELEASE, pushes, then bumps to the next -dev version. It does
+# NOT decide the version number — the caller (e.g. the release-version skill)
+# derives it (from the GSD milestone in .planning/STATE.md + existing tags) and
+# passes it in explicitly.
+#
+# Arguments:
+#   RELEASE  (required)  SemVer version to release, e.g. 2.0.0 (must be X.Y.Z).
+#   NEXT     (optional)  Base for the next in-development version. Defaults to
+#                        RELEASE with the patch incremented (2.0.0 -> 2.0.1).
+#                        A "-dev" suffix is always appended to it.
 #
 # Options:
 #   -m tag-message  Annotated-tag message (e.g. release notes). Without it, `git tag -a`
 #                   would open an interactive editor and block non-interactive runs.
 #   -b branch       Branch to tag and push the -dev bump onto (default "main").
-#                   A positional BRANCH (legacy mode) takes precedence over -b.
 #
-# Auto-derive rules (no positional args):
-#   YEAR = current year
-#   DAY  = day-of-year (1..366, leading zeros stripped)
-#   COUNTER is read from the current version in Cargo.toml:
-#     - current matches YYYY.DDD.X-dev and YYYY.DDD == today -> release X,    next X+1-dev
-#     - current matches YYYY.DDD.X     and YYYY.DDD == today -> release X+1,  next X+2-dev
-#     - otherwise                                            -> release 0,    next 1-dev
-# The release is tagged on $BRANCH (default "main"); the -dev bump lands on $BRANCH afterwards.
+# Examples:
+#   cli-update-version.sh -m "Release notes" 2.0.0        # next dev auto -> 2.0.1-dev
+#   cli-update-version.sh -m "Release notes" 2.0.0 2.1.0  # next dev explicit -> 2.1.0-dev
 
 TAG_MESSAGE=""
 BRANCH_OPT=""
+
+usage() {
+    echo "Usage: $0 [-m tag-message] [-b branch] <RELEASE> [NEXT]" >&2
+    exit 1
+}
 
 while getopts "m:b:" opt; do
     case $opt in
         m) TAG_MESSAGE="$OPTARG" ;;
         b) BRANCH_OPT="$OPTARG" ;;
-        *) echo "Usage: $0 [-m tag-message] [-b branch] [<RELEASE> <NEXT> [BRANCH]]" >&2; exit 1 ;;
+        *) usage ;;
     esac
 done
 shift $((OPTIND - 1))
 
-if [ $# -eq 0 ]; then
-    YEAR=$(date +%Y)
-    DAY=$(date +%j | sed 's/^0*//')
-    [ -z "$DAY" ] && DAY=0
-
-    # Read current version from the workspace's main Cargo.toml.
-    # Backend layout has shifty_bin/Cargo.toml; the frontend has Cargo.toml at script CWD.
-    if [ -f shifty_bin/Cargo.toml ]; then
-        VERSION_FILE="shifty_bin/Cargo.toml"
-    elif [ -f Cargo.toml ]; then
-        VERSION_FILE="Cargo.toml"
-    else
-        echo "ERROR: cannot find a Cargo.toml to read current version from" >&2
-        exit 1
-    fi
-    CURRENT=$(grep -m1 '^version = ' "$VERSION_FILE" | sed -E 's/^version = "(.*)"$/\1/')
-
-    if [[ "$CURRENT" =~ ^([0-9]{4})\.([0-9]+)\.([0-9]+)(-dev)?$ ]]; then
-        CUR_YEAR="${BASH_REMATCH[1]}"
-        CUR_DAY="${BASH_REMATCH[2]}"
-        CUR_COUNTER="${BASH_REMATCH[3]}"
-        HAS_DEV="${BASH_REMATCH[4]:-}"
-        if [ "$CUR_YEAR" = "$YEAR" ] && [ "$CUR_DAY" = "$DAY" ]; then
-            if [ -n "$HAS_DEV" ]; then
-                COUNTER="$CUR_COUNTER"
-            else
-                COUNTER=$((CUR_COUNTER + 1))
-            fi
-        else
-            COUNTER=0
-        fi
-    else
-        COUNTER=0
-    fi
-
-    NEXT_COUNTER=$((COUNTER + 1))
-    NEW_VERSION="${YEAR}.${DAY}.${COUNTER}"
-    FOLLOWING_BASE="${YEAR}.${DAY}.${NEXT_COUNTER}"
-    BRANCH="${BRANCH_OPT:-main}"
-
-    echo "Auto-derived release version: $NEW_VERSION"
-    echo "Auto-derived next dev version: ${FOLLOWING_BASE}-dev"
-    echo "Branch: $BRANCH"
-else
-    NEW_VERSION="$1"
-    FOLLOWING_BASE="${2}"
-    BRANCH="${3:-${BRANCH_OPT:-main}}"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    usage
 fi
 
+NEW_VERSION="$1"
+
+# RELEASE must be a plain X.Y.Z SemVer (no -dev, no build metadata).
+if [[ ! "$NEW_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    echo "ERROR: RELEASE must be a SemVer X.Y.Z (got '$NEW_VERSION')" >&2
+    exit 1
+fi
+MAJOR="${BASH_REMATCH[1]}"
+MINOR="${BASH_REMATCH[2]}"
+PATCH="${BASH_REMATCH[3]}"
+
+# NEXT defaults to RELEASE with the patch incremented.
+if [ $# -eq 2 ]; then
+    FOLLOWING_BASE="$2"
+else
+    FOLLOWING_BASE="${MAJOR}.${MINOR}.$((PATCH + 1))"
+fi
+
+BRANCH="${BRANCH_OPT:-main}"
 FOLLOWING_VERSION="${FOLLOWING_BASE}-dev"
+
+echo "Release version:  $NEW_VERSION"
+echo "Next dev version: $FOLLOWING_VERSION"
+echo "Branch:           $BRANCH"
 
 # Build gate: backend workspace + the (excluded) frontend WASM crate.
 # `cargo build` at the root only covers the backend workspace because

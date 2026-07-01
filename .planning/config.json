@@ -13,7 +13,8 @@
   },
   "model_profile": "adaptive",
   "git": {
-    "branching_strategy": "none"
+    "branching_strategy": "none",
+    "create_tag": false
   },
   "hooks": {
     "context_warnings": true
