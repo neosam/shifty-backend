@@ -5,14 +5,15 @@ milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 39
 current_phase_name: KW-Status Grundlage
 status: executing
-last_updated: "2026-07-01T23:15:13.924Z"
+stopped_at: Completed 39-02-PLAN.md
+last_updated: "2026-07-01T23:27:18.390Z"
 last_activity: 2026-07-01
 last_activity_desc: Phase 39 execution started
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -33,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 39 (KW-Status Grundlage) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-07-01 — Phase 39 execution started
 
@@ -150,6 +151,10 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 ## Session Continuity
 
+**Last session:** 2026-07-01T23:27:18.384Z
+**Stopped at:** Completed 39-02-PLAN.md
+**Resume file:** None
+
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
@@ -183,6 +188,8 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: Controlled SelectInput value prop fix
 - [Phase ?]: BackdropPress Copy struct with press_backdrop/press_panel/release encodes MOD-01 drag-safe close rule as a pure unit-tested state machine
 - [Phase ?]: 37-02: Help sibling-span pattern (text-small font-normal text-ink-muted); From/To excluded; CommittedVoluntaryHelp scoped to if show_committed block
+- [Phase ?]: WeekStatusService is Basic-tier: DAO+Permission+Clock+Uuid+Transaction only, no domain-service dep (D-39-12)
+- [Phase ?]: Unset == row absence, mapped as 4th WeekStatus variant, never persisted (D-39-04)
 
 ## Performance Metrics
 
@@ -193,3 +200,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 36 P02 | 10 | 3 tasks | 2 files |
 | Phase 37 P01 | 7m | 2 tasks | 2 files |
 | Phase 37-modal-ux-politur P02 | 35 | 2 tasks | 5 files |
+| Phase 39 P02 | 7min | 2 tasks | 6 files |
