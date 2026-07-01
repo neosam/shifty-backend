@@ -173,7 +173,9 @@ und UX-Politur.
 **Bewusst NICHT in v1.11 (→ Folgemilestones):**
 - **v2.1 „Schichtplan- & Reporting-Erweiterungen":** KW-Status (None/Planung/Geplant/Gesperrt
   inkl. Permission-Gate für gesperrte Wochen) + Auswertung durchschnittliche Anwesenheit bei
-  flexiblen Stunden. (Todos `2026-06-30-kalenderwoche-status-*`, `2026-06-09-auswertung-*`)
+  flexiblen Stunden + Bugfix Special-Days-„Anlegen"-Button-Desync (nach Create nichts
+  zurücksetzen). (Todos `2026-06-30-kalenderwoche-status-*`, `2026-06-09-auswertung-*`,
+  `2026-06-30-settings-special-days-anlegen-button-disabled`)
 - **v2.2 „PDF-Export → Nextcloud/WebDAV":** Täglicher automatischer PDF-Export der
   Folgewochen-Schichtpläne per WebDAV — architektonisch eigenständig (interner Scheduler,
   PDF-Lib, WebDAV-Client, neue Deps, Secrets). (Todo `2026-06-09-taeglicher-pdf-export-*`)
