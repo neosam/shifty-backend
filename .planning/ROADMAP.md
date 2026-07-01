@@ -58,6 +58,49 @@ in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 
 **Reihenfolge:** 36 → 37 → 38 (Bugs zuerst, Cleanup zuletzt; fachlich unabhängig, parallel
 planbar). Nächster Schritt: `/gsd-plan-phase 36` (oder `/gsd-discuss-phase 36`).
 
+### Phase 36: Special-Days-Bugfixes (BE+FE)
+
+**Goal**: Die beiden live gemeldeten Special-Days-Bugs sind reproduziert und behoben — das Umstellen eines Tages Feiertag ↔ „Kurzer Tag" aktualisiert den bestehenden Eintrag (update statt zweitem insert) ohne Fehlermeldung, und der Settings-„Anlegen"-Button bleibt für aufeinanderfolgende Einträge korrekt aktiv. Backend-Roundtrip (create- vs. edit-Pfad) verifiziert, keine neuen i18n-Texte.
+**Depends on**: Nothing (Nachlese zu v1.10/Phase 33; fachlich unabhängig von Phasen 37/38)
+**Requirements**: SDF-01, SDF-02
+**Success Criteria** (what must be TRUE):
+
+  1. Wird im Schichtplan ein Tag von „Feiertag" auf „Kurzer Tag" (oder umgekehrt) umgestellt, aktualisiert der Pfad den bestehenden Special-Day-Eintrag für das Datum (update statt zweitem insert) — keine Fehlermeldung, der neue Typ ist danach persistiert. (SDF-01)
+  2. Der Update-vs-insert-Pfad (ggf. Backend) ist geprüft, Reproduktion + Statuscode erfasst und der Backend-Roundtrip create- vs. edit-Pfad verifiziert. (SDF-01)
+  3. In der Settings-Special-Days-Karte lassen sich mehrere Feiertage nacheinander anlegen; nach erfolgreichem Create ist der „Anlegen"-Button sofort wieder korrekt aktiviert (kein Controlled-vs-Uncontrolled-Desync zwischen `sd_type`-Signal und `<select>`; D-25-06-Datepicker-Reset mitgedacht). (SDF-02)
+  4. Ein SSR-/Komponenten-Test sichert SDF-02 gegen Re-Regression ab; Regressionstests grün. (SDF-02)
+  5. i18n unberührt — keine neuen benutzersichtbaren Texte. (SDF-01, SDF-02)
+
+**Plans**: 0/0 plans complete
+
+### Phase 37: Modal-UX-Politur (FE)
+
+**Goal**: Ein zentraler `dialog.rs`-Fix verhindert, dass ein innerhalb eines Modals begonnener und außerhalb losgelassener Maus-Drag das Modal schließt (kommt allen Modals zugute), und das Arbeitsvertrag-Modal trägt pro Feld (außer Von/Bis) einen Erklärungssatz in allen drei Locales.
+**Depends on**: Nothing (rein Frontend; fachlich unabhängig von Phasen 36/38)
+**Requirements**: MOD-01, MOD-02
+**Success Criteria** (what must be TRUE):
+
+  1. Ein innerhalb eines Modals begonnener Maus-Drag (Text-Selektion), der außerhalb losgelassen wird, schließt das Modal nicht — nur ein echter Außerhalb-Klick (mousedown UND mouseup auf dem Backdrop) schließt. (MOD-01)
+  2. Der Fix ist zentral in `dialog.rs` umgesetzt (mousedown-Ursprung als Flag getrackt), sodass alle Modals profitieren; die Handler-/Prädikat-Logik ist strukturell getestet (Drag-innen→mouseup-außen lässt das Modal offen). (MOD-01)
+  3. Das Arbeitsvertrag-Modal zeigt unter jedem relevanten Feld einen kurzen Erklärungssatz (Muster `CapPlannedHoursHelp`, `text-small text-ink-muted`), Von/Bis ausgenommen. (MOD-02)
+  4. Die neuen `*Help`-Keys existieren in de/en/cs; ein SSR-Test bestätigt, dass die Help-Texte unter den Feldern gerendert werden. (MOD-02)
+
+**Plans**: 0/0 plans complete
+
+### Phase 38: Frontend-Build-Hygiene
+
+**Goal**: Der Frontend-Build (`shifty-dioxus`) ist warnungsfrei (~45–50 rustc-Warnings beseitigt), das Backend bleibt `cargo clippy --workspace -- -D warnings`-sauber (Regressions-Gate), und verbleibende bewusst behaltene dioxus-Lints sind dokumentiert. Keine Verhaltensänderung.
+**Depends on**: Nothing (reiner Cleanup; bewusst zuletzt in der Reihenfolge)
+**Requirements**: HYG-01, HYG-02
+**Success Criteria** (what must be TRUE):
+
+  1. `cargo build` (shifty-dioxus) läuft ohne Warnungen — die ~45–50 rustc-Warnings sind beseitigt (14 via `cargo fix`, Rest manuell: ungenutzte Methoden/Imports/Variablen entfernt oder mit begründetem `#[allow(dead_code)]` behalten). (HYG-01)
+  2. `cargo clippy --workspace -- -D warnings` (Backend) bleibt grün als Regressions-Gate; der dioxus-Clippy-Lauf erfolgt bewusst aus der Backend-nix-Shell (E0514 im dioxus-Shell). (HYG-02)
+  3. Verbleibende bewusst behaltene dioxus-Lints sind dokumentiert. (HYG-02)
+  4. Frontend-Gates grün: `cargo test -p shifty-dioxus` und der WASM-Build (`cargo build --target wasm32-unknown-unknown`). (HYG-01, HYG-02)
+
+**Plans**: 0/0 plans complete
+
 <details>
 <summary>✅ v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35) — SHIPPED 2026-06-30</summary>
 
