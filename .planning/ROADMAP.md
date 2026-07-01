@@ -13,8 +13,50 @@
 - ✅ **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (shipped 2026-06-29) — siehe [`milestones/v1.8-ROADMAP.md`](milestones/v1.8-ROADMAP.md)
 - ✅ **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** — Phasen 29–32 (shipped 2026-06-29) — siehe [`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md)
 - ✅ **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** — Phasen 33–35 (shipped 2026-06-30) — siehe [`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md)
+- 🚧 **v1.11 Stabilisierung & UX-Politur** — Phasen 36–38 (gestartet 2026-07-01) — 6 Requirements (SDF-01/02, MOD-01/02, HYG-01/02)
 
 ## Phases
+
+### 🚧 v1.11 Stabilisierung & UX-Politur (Phasen 36–38) — AKTIV
+
+Konsolidierung nach der v1.7–v1.10-Feature-Welle: vier gemeldete Bugs abräumen und den
+Frontend-Build warnungsfrei machen. **Keine neuen Fähigkeiten.** Kein Snapshot-Bump (bleibt 12),
+keine Migration, keine neuen Deps. Herkunft: Todo-Backlog. Aufgeteilt aus einem 8-Item-Wunsch
+in 3 Meilensteine (v1.11 Stabilisierung · v1.12 Schichtplan/Reporting · v1.13 PDF-Export).
+
+- [ ] **Phase 36: Special-Days-Bugfixes (BE+FE)** — SDF-01, SDF-02
+  - **SDF-01**: Umstellen eines Tages Feiertag ↔ „Kurzer Tag" aktualisiert den bestehenden
+    Special-Day-Eintrag (update statt zweitem insert) — keine Fehlermeldung, neuer Typ
+    persistiert. Update-vs-insert-Pfad prüfen (ggf. Backend), Reproduktion + Statuscode erfassen.
+  - **SDF-02**: Settings „Anlegen"-Button bleibt nach erstem Feiertag aktiv — `<select>`
+    controlled an `sd_type`-Signal binden bzw. Typ nach Create beibehalten; D-25-06-Datepicker-
+    Reset mitdenken. SSR-/Komponenten-Test gegen Re-Regression.
+  - **Success:** Beide Bugs reproduziert-und-behoben, Regressionstests grün, Backend-Roundtrip
+    (create- vs. edit-Pfad) verifiziert. i18n unberührt (keine neuen Texte).
+
+- [ ] **Phase 37: Modal-UX-Politur (FE)** — MOD-01, MOD-02
+  - **MOD-01**: Zentraler `dialog.rs`-Fix — Backdrop schließt nur, wenn mousedown UND mouseup
+    auf dem Backdrop selbst (mousedown-Ursprung als Flag tracken). Kommt allen Modals zugute.
+    Strukturell über Predikat-/Handler-Logik testen (Maus-Drag ist D-25-06-Klasse, schwer
+    browser-automatisierbar).
+  - **MOD-02**: Arbeitsvertrag-Modal — pro Feld ein Help-Text analog `CapPlannedHoursHelp`
+    (`text-small text-ink-muted`), Von/Bis ausgenommen. Neue `*Help`-Keys in de/en/cs.
+    SSR-Test: Help-Texte werden unter den Feldern gerendert.
+  - **Success:** Drag-innen→mouseup-außen lässt Modal offen (Handler-Logik-Test); alle
+    Vertragsfelder (außer Von/Bis) tragen Erklärungssätze in allen drei Locales.
+
+- [ ] **Phase 38: Frontend-Build-Hygiene** — HYG-01, HYG-02
+  - **HYG-01**: `shifty-dioxus` warnungsfrei — ~45 rustc-Warnings (14 via `cargo fix`, Rest
+    manuell: ungenutzte Methoden/Imports/Variablen entfernen oder begründetes
+    `#[allow(dead_code)]`, z. B. `has_sunday_slots` `state/shiftplan.rs:315`).
+  - **HYG-02**: Backend bleibt `cargo clippy --workspace -- -D warnings` grün (Regressions-Gate);
+    dioxus-Clippy aus der Backend-nix-Shell (E0514 im dioxus-Shell); verbleibende bewusst
+    behaltene Lints dokumentiert. (dioxus ins CI-Clippy-Gate aufnehmen ist optional → out of scope.)
+  - **Success:** `cargo build` (dioxus) ohne Warnungen; `cargo clippy --workspace -- -D warnings`
+    (Backend) grün; FE `cargo test -p shifty-dioxus` + WASM-Build grün.
+
+**Reihenfolge:** 36 → 37 → 38 (Bugs zuerst, Cleanup zuletzt; fachlich unabhängig, parallel
+planbar). Nächster Schritt: `/gsd-plan-phase 36` (oder `/gsd-discuss-phase 36`).
 
 <details>
 <summary>✅ v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35) — SHIPPED 2026-06-30</summary>

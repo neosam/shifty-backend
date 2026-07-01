@@ -1,41 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.10
-milestone_name: Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz
-current_phase: 35
-status: milestone_complete
-last_updated: "2026-06-30T19:15:27.310Z"
-last_activity: 2026-06-30
-last_activity_desc: v1.10 shipped + archived
+milestone: v1.11
+milestone_name: Stabilisierung & UX-Politur
+current_phase: Not started
+status: planning
+last_updated: "2026-07-01T00:00:00.000Z"
+last_activity: 2026-07-01
+last_activity_desc: v1.11 gestartet (Milestone-Goals + PROJECT.md gesetzt)
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
-current_phase_name: slot-einzelwoche-aenderung
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase_name: —
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v1.10 **aktiv**, Phasen 33–35 expanded; v1.0–v1.9 archiviert/collapsed; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` (v1.10, 12/12 Requirements SPD-01..04 + HSP-01..04 + SWO-01..04, Traceability befüllt)
+- **Roadmap**: `.planning/ROADMAP.md` (v1.11 **aktiv** — Requirements/Roadmap in Arbeit; v1.0–v1.10 archiviert/collapsed; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` (v1.11 — wird in diesem Milestone-Start erzeugt)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.9-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v1.10-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** (shipped + archiviert 2026-06-29, Phasen 29–32, 6 Pläne, 7/7 Requirements, Audit `passed`, override_closeout) — gesamter v1.9-Code **uncommitted** im Arbeitsbaum (jj manueller Commit durch User)
-- **Current milestone**: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (Roadmap erstellt 2026-06-30; interne Planungs-Labels, reale Release-Version datumsbasiert via `cli-update-version`)
-- **Current focus**: Phasen 33, 34, 35 alle **diskutiert** (CONTEXT.md je vorhanden). **Phase 34 (Feiertags-Soll im Schichtplan)** zuletzt diskutiert — 4 Decisions D-34-01..04. Kern: gezielter Konsistenz-Fix der versehentlichen Auslassung in `get_week` (4. Injektionspunkt von `build_derived_holiday_map` analog 1a/1b/1c, D-34-01 nur per-Mitarbeiter expected_hours/holiday_hours, NICHT per-Tag-Zeile); **BE-only** (D-34-02, keine FE-Spalte); HOL-03-Test umbauen (Band-Guard dynamic_hours==40 + expected 32 + holiday 8, D-34-03); **kein Snapshot-Bump**, im Plan grep-verifizieren (D-34-04). Nächster Schritt: `/gsd-plan-phase 33` (oder 34/35) — alle drei sind plan-ready.
-- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9 **kein** Bump; v1.10 voraussichtlich **kein** Bump (in Phase 34 verifizieren)
+- **Last shipped/closed**: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (shipped + archiviert 2026-06-30, Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`, override_closeout)
+- **Current milestone**: **v1.11 Stabilisierung & UX-Politur** (gestartet 2026-07-01; interne Planungs-Labels, reale Release-Version datumsbasiert via `cli-update-version`). 5 Bugfix-/Hygiene-Items, aufgeteilt aus einem 8-Item-Wunsch → 3 Meilensteine (v1.11 Stabilisierung, v1.12 Schichtplan/Reporting, v1.13 PDF-Export).
+- **Current focus**: Milestone-Goals gesetzt + PROJECT.md aktualisiert. Nächster Schritt: Requirements (REQ-IDs) definieren + Roadmapper für Phasen-Struktur. Themen: Special-Days-Bugfixes (Feiertag→Kurzer-Tag update-vs-insert; Anlegen-Button controlled-select-Desync), Modal-UX (dialog.rs Drag-Fix; Vertrags-Modal Help-Texte), Frontend-Warnungen aufräumen.
+- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9/v1.10 **kein** Bump; v1.11 erwartet **keinen** Bump (reine Bugfixes + Build-Hygiene).
 
 ## Current Position
 
-Phase: 35
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-30 — Phase 35 complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-01 — Milestone v1.11 gestartet
 
 ## Deferred Items
 

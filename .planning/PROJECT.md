@@ -133,36 +133,53 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Aktueller Milestone: v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz
+## Aktueller Milestone: v1.11 Stabilisierung & UX-Politur
 
-> **Versions-Hinweis:** `v1.10` ist das **interne GSD-Planungs-Label** (Fortführung
-> der Sequenz v1.0–v1.9 für Roadmap, Phasen-Nummerierung und Archiv-Handles). Die
+> **Versions-Hinweis:** `v1.11` ist das **interne GSD-Planungs-Label** (Fortführung
+> der Sequenz v1.0–v1.10 für Roadmap, Phasen-Nummerierung und Archiv-Handles). Die
 > **reale Release-Version** vergibt der User datumsbasiert via `./cli-update-version`
-> (z. B. `2026.181.0`) zum Release-Zeitpunkt — entkoppelt vom Planungs-Label.
+> (z. B. `2026.182.0`) zum Release-Zeitpunkt — entkoppelt vom Planungs-Label.
 
-**Goal:** Feiertage durchgängig korrekt machen — Special Days über die UI pflegbar
-**und** ihre Soll-Wirkung auch in der Schichtplan-Tabelle sichtbar.
+**Goal:** Konsolidierung nach der v1.7–v1.10-Feature-Welle — vier gemeldete Bugs abräumen
+und den Frontend-Build warnungsfrei machen. **Keine neuen Fähigkeiten**, reine Stabilisierung
+und UX-Politur.
 
-**Target features:**
-- **Special-Days-UI:** Neue admin-gated Settings-Sektion zum Anlegen/Löschen von
-  Special Days (Holiday/ShortDay). Eingabe per Kalenderdatum, Anzeige
-  `15.08.2026 (Samstag, KW 33, 2026)`; Frontend-`create`/`delete` gegen die bereits
-  existierende REST-CRUD (`GET/POST/DELETE /special-days`) verdrahten; i18n de/en/cs.
-  (Todo `2026-06-30-special-days-ui-bearbeiten-einstellungen.md`)
-- **Feiertags-Soll im Schichtplan:** Der automatische Feiertagsabzug (Phase 25,
-  derive-on-read) wirkt auch in der Tabelle unter dem Schichtplan — `get_week` um den
-  derived-Holiday erweitern (`expected_hours`/`holiday_hours`/`available_hours`),
-  während `dynamic_hours`/`paid_hours`/Kapazitätsbänder **unangetastet** bleiben
-  (D-25-08-Grenze); HOL-03-Regressionstest bewusst anpassen.
-  (Todo `2026-06-30-feiertag-soll-abzug-schichtplan-tabelle.md`)
+**Target features (5 Items, aus dem Todo-Backlog):**
+- **Special-Days-Bugfixes** (thematisch zusammen, Nachlese zu v1.10/Phase 33):
+  - **Feiertag → „Kurzer Tag" wirft Fehler:** Umstellen des Special-Day-Typs auf demselben
+    Datum erzeugt einen Konflikt (update-vs-insert). Umstell-Pfad muss den bestehenden
+    Eintrag aktualisieren statt einen zweiten anzulegen.
+    (Todo `2026-07-01-schichtplan-feiertag-auf-kurzer-tag-wirft-fehler.md`)
+  - **Settings „Anlegen"-Button bleibt disabled:** Nach dem ersten angelegten Feiertag
+    bleibt der Button disabled (controlled-select-Desync: `sd_type`-Reset ↛ `<select>`).
+    Select controlled an Signal binden bzw. Typ nach Create beibehalten.
+    (Todo `2026-06-30-settings-special-days-anlegen-button-disabled.md`)
+- **Modal-UX** (thematisch zusammen):
+  - **Modal schließt nach Drag:** Ein innen begonnener Text-Drag, der außerhalb losgelassen
+    wird, schließt das Modal. Zentraler `dialog.rs`-Fix (mousedown-Ursprung tracken; nur
+    schließen, wenn Druck UND Loslassen auf dem Backdrop) — kommt allen Modals zugute.
+    (Todo `2026-06-30-modal-schliesst-bei-mouseup-ausserhalb-nach-drag.md`)
+  - **Arbeitsvertrag-Modal Erklärungssätze:** Pro Feld ein kurzer Help-Text analog
+    `CapPlannedHoursHelp` (Von/Bis ausgenommen); i18n de/en/cs.
+    (Todo `2026-06-30-arbeitsvertrag-modal-erklaerungssatz-pro-feld.md`)
+- **Build-Hygiene:**
+  - **Sämtliche Frontend-Warnungen fixen:** ~45 rustc-Warnings (14 via `cargo fix`) + Abbau
+    der ~198 pre-existing dioxus-Lints Richtung warnungsfreier Build. Clippy für dioxus nur
+    aus der Backend-nix-Shell lauffähig (E0514). Backend bleibt `-D warnings`-sauber.
+    (Todo `2026-06-30-saemtliche-warnungen-fixen.md`)
 
-**Bewusst NICHT in v1.10:**
-- ShortDay/Kurztage-Automatik (separate Future-Story, schon in Phase 25 außer Scope).
+**Bewusst NICHT in v1.11 (→ Folgemilestones):**
+- **v1.12 „Schichtplan- & Reporting-Erweiterungen":** KW-Status (None/Planung/Geplant/Gesperrt
+  inkl. Permission-Gate für gesperrte Wochen) + Auswertung durchschnittliche Anwesenheit bei
+  flexiblen Stunden. (Todos `2026-06-30-kalenderwoche-status-*`, `2026-06-09-auswertung-*`)
+- **v1.13 „PDF-Export → Nextcloud/WebDAV":** Täglicher automatischer PDF-Export der
+  Folgewochen-Schichtpläne per WebDAV — architektonisch eigenständig (interner Scheduler,
+  PDF-Lib, WebDAV-Client, neue Deps, Secrets). (Todo `2026-06-09-taeglicher-pdf-export-*`)
 - Off-theme **Backlog-Phase 999.1** (Breaking/Major Dependency-Migration) bleibt separat.
 
-**Snapshot-Schema-Version:** voraussichtlich **nicht** betroffen — Feature 2 speist
-sich aus demselben derive-on-read-Pfad; Snapshots laufen über `reporting.rs`, nicht
-über `get_week`/`booking_information`. Bump in der Phase verifizieren (Default: kein Bump).
+**Snapshot-Schema-Version:** **nicht** betroffen — reine Bugfixes + Build-Hygiene, kein
+persistierter `BillingPeriodValueType`-Pfad berührt. **Kein Bump** (bleibt 12), keine Migration,
+keine neuen Deps erwartet.
 
 ## Zuletzt geshipt: v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (2026-06-29)
 
@@ -289,10 +306,12 @@ Davor: **v1.8 HR-UX** (Phasen 27–28) und **v1.7 Feiertage/VFA** (Phasen 25–2
 2026-06-29 geschlossen; **v1.6 Paid-Capacity** (2026-06-27).
 
 **Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11 Holiday-Computation; v1.8 Bump
-11→12 `VacationEntitlement`-Computation; v1.9 kein Bump).
+11→12 `VacationEntitlement`-Computation; v1.9/v1.10 kein Bump; v1.11 erwartet keinen Bump).
 
-Nächster Schritt: v1.9-Code mit jj committen (+ optional die 2 deferred Browser-Smokes
-P30/P32), dann `/gsd-new-milestone` für die nächste Iteration. Die off-theme **Backlog-Phase
+**v1.11 gestartet 2026-07-01** (Stabilisierung & UX-Politur) — 5 Bugfix-/Hygiene-Items aus
+dem Todo-Backlog, aufgeteilt aus einem größeren 8-Item-Wunsch (User-Entscheidung 3 Meilensteine:
+v1.11 Stabilisierung, v1.12 Schichtplan/Reporting, v1.13 PDF-Export). Nächster Schritt:
+Requirements + Roadmap für v1.11, dann `/gsd-plan-phase`. Die off-theme **Backlog-Phase
 999.1 (Breaking/Major Dependency-Migration)** bleibt separat verfügbar via
 `/gsd-plan-phase 999.1`.
 
