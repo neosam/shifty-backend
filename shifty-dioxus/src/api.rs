@@ -5,7 +5,8 @@ use rest_types::{
     BillingPeriodTO, BlockTO, BookingConflictTO, BookingCreateResultTO, BookingLogTO, BookingTO,
     ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
     CustomExtraHoursTO,
-    DayOfWeekTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO, EmployeeWorkDetailsTO,
+    DayOfWeekTO, EmployeeAttendanceStatisticsTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO,
+    EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, ImpersonateTO, InvitationResponse,
     RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
@@ -398,6 +399,28 @@ pub async fn get_employee_weekly_statistics(
     let res = response.json().await?;
     info!("Fetched weekly statistics");
     Ok(Rc::new(res))
+}
+
+pub async fn get_employee_attendance_statistics(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+    until_week: u8,
+) -> Result<Option<Rc<EmployeeAttendanceStatisticsTO>>, reqwest::Error> {
+    info!("Fetching employee attendance statistics");
+    let url = format!(
+        "{}/report/{}/attendance-statistics?year={}&until_week={}",
+        config.backend, sales_person_id, year, until_week
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    // Server serializes `None` (non-flexible employee / <2 attendance days at
+    // the struct level) as JSON `null`, distinct from an HTTP error above.
+    let opt = response
+        .json::<Option<EmployeeAttendanceStatisticsTO>>()
+        .await?;
+    info!("Fetched attendance statistics");
+    Ok(opt.map(Rc::new))
 }
 
 pub async fn add_extra_hour(

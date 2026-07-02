@@ -5,7 +5,7 @@ use futures_util::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
-use rest_types::{EmployeeWeeklyStatisticsTO, ExtraHoursTO};
+use rest_types::{EmployeeAttendanceStatisticsTO, EmployeeWeeklyStatisticsTO, ExtraHoursTO};
 
 use crate::{
     api,
@@ -33,6 +33,7 @@ pub struct EmployeeStore {
     pub extra_hours: Rc<[ExtraHours]>,
     pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
     pub weekly_statistics: Option<Rc<EmployeeWeeklyStatisticsTO>>,
+    pub attendance_statistics: Option<Rc<EmployeeAttendanceStatisticsTO>>,
 }
 
 /// Bumped from `refresh_employee_data` after every successful per-employee
@@ -71,6 +72,7 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
     extra_hours: Rc::new([]),
     custom_extra_hours_definitions: Rc::new([]),
     weekly_statistics: None,
+    attendance_statistics: None,
 });
 
 #[derive(Debug)]
@@ -117,6 +119,17 @@ pub async fn load_employee_data(
         api::get_employee_weekly_statistics(CONFIG.read().clone(), sales_person_id)
             .await
             .ok();
+    // Always re-set (even None) so stale state is cleared for non-flexible
+    // employees when switching between employees (Pitfall 5 / T-41-09).
+    let attendance_statistics = api::get_employee_attendance_statistics(
+        CONFIG.read().clone(),
+        sales_person_id,
+        year,
+        until_week,
+    )
+    .await
+    .ok()
+    .flatten();
     *EMPLOYEE_STORE.write() = EmployeeStore {
         employee,
         extra_hours,
@@ -124,6 +137,7 @@ pub async fn load_employee_data(
         year,
         until_week,
         weekly_statistics,
+        attendance_statistics,
     };
     Ok(())
 }
