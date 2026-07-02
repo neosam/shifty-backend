@@ -64,7 +64,7 @@
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 39-05-PLAN.md — FE-Komponenten: WeekStatusBadge + WeekStatusDropdown + Schichtplan-Integration
+- [x] 39-05-PLAN.md — FE-Komponenten: WeekStatusBadge + WeekStatusDropdown + Schichtplan-Integration
 
 **UI hint**: yes
 
@@ -297,7 +297,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
-| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 4/5 | In Progress|  |
+| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete   | 2026-07-02 |
 | 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
