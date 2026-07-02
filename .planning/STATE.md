@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 42
-current_phase_name: FE
+current_phase_name: Special-Days-Anlegen-Button-Bugfix
 status: executing
 stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T07:23:48.452Z"
+last_updated: "2026-07-02T07:35:37.151Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 41 complete, transitioned to Phase 42
+last_activity_desc: Phase 42 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 13
+  total_plans: 14
   completed_plans: 13
   percent: 75
 ---
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 42 — Special-Days-„Anlegen"-Button-Bugfix (FE)
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-02 — Phase 41 complete, transitioned to Phase 42
+Phase: 42 (Special-Days-Anlegen-Button-Bugfix) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 42
+Last activity: 2026-07-02 — Phase 42 execution started
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 
