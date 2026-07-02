@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 41
-current_phase_name: BE+FE
-status: verifying
+current_phase_name: Ø-Anwesenheit bei flexiblen Stunden
+status: executing
 stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T05:51:48.575Z"
+last_updated: "2026-07-02T06:22:32.943Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 40 complete, transitioned to Phase 41
+last_activity_desc: Phase 41 execution started
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 9
+  total_plans: 13
   completed_plans: 9
   percent: 50
 ---
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE)
-Plan: Not started
-Status: Phase 40 execution complete (awaiting verify/close)
-Last activity: 2026-07-02 — Phase 40 complete, transitioned to Phase 41
+Phase: 41 (Ø-Anwesenheit bei flexiblen Stunden) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 41
+Last activity: 2026-07-02 — Phase 41 execution started
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 
