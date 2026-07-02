@@ -6,7 +6,7 @@ current_phase: 39
 current_phase_name: KW-Status Grundlage
 status: executing
 stopped_at: Completed 39-04-PLAN.md
-last_updated: "2026-07-02T00:00:40.935Z"
+last_updated: "2026-07-02T00:01:26.222Z"
 last_activity: 2026-07-02
 last_activity_desc: Executed 39-04 (KW-Status FE-Fundament)
 progress:
@@ -192,6 +192,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: Unset == row absence, mapped as 4th WeekStatus variant, never persisted (D-39-04)
 - [Phase ?]: 39-04: FE fresh-fetch KW-Status store (D-39-06) — Set->PUT->GET, kein optimistisches Signal (T-39-05)
 - [Phase ?]: 39-04: WeekStatus FE-Enum 4 Varianten Default=Unset + i18n de/en/cs 4x3 (WST-05)
+- [Phase ?]: 39-05: should_show_badge pure-fn is the tested source of truth for the Unset->hidden badge rule (D-39-05); WeekStatusDropdown on DropdownTrigger, no controlled select (D-39-06), with an Unset reset entry (D-39-07)
 
 ## Performance Metrics
 
@@ -204,3 +205,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 37-modal-ux-politur P02 | 35 | 2 tasks | 5 files |
 | Phase 39 P02 | 7min | 2 tasks | 6 files |
 | Phase 39 P04 | 12min | 2 tasks | 11 files |
+| Phase 39 P05 | ~18min | 2 tasks | 5 files |
