@@ -27,8 +27,6 @@ pub struct WeekStatusStore {
     /// The confirmed server value. `WeekStatus::Unset` is the default and also
     /// what a missing row / missing server value maps to (D-39-04).
     pub status: WeekStatus,
-    pub loaded_year: Option<u32>,
-    pub loaded_week: Option<u8>,
 }
 
 pub static WEEK_STATUS_STORE: GlobalSignal<WeekStatusStore> =
@@ -52,8 +50,6 @@ async fn load_week_status(year: u32, week: u8) -> Result<(), ShiftyError> {
         .unwrap_or(WeekStatus::Unset);
     let mut store = WEEK_STATUS_STORE.write();
     store.status = status;
-    store.loaded_year = Some(year);
-    store.loaded_week = Some(week);
     Ok(())
 }
 
