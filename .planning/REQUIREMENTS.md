@@ -88,7 +88,7 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
 
 ### Special-Days-Settings-Bugfix (SDF)
 
-- [ ] **SDF-01**: Nach erfolgreichem Special-Day-Anlegen in den Einstellungen bleibt der
+- [x] **SDF-01**: Nach erfolgreichem Special-Day-Anlegen in den Einstellungen bleibt der
   **„Anlegen"-Button aktiv** — mehrfaches Anlegen hintereinander ohne Dropdown-Toggle möglich.
   Umsetzung: Reset-Block `settings.rs:458-459` (und etwaiger Zeit-Reset) entfernen — nach Create
   **nichts** zurücksetzen (Option 2), sodass Typ/Datum stehen bleiben. SSR-/Komponenten-Test:
@@ -132,7 +132,7 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | AVG-01 | Phase 41 | Complete |
 | AVG-02 | Phase 41 | Complete |
 | AVG-03 | Phase 41 | Complete |
-| SDF-01 | Phase 42 | Pending |
+| SDF-01 | Phase 42 | Complete |
 
 **Coverage:**
 

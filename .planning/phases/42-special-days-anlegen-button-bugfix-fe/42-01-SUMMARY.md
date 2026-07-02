@@ -122,3 +122,8 @@ migration, no new deps, i18n unchanged.
 ## Known Stubs
 
 None.
+
+## Self-Check: PASSED
+
+- Files: 42-01-SUMMARY.md, 42-VALIDATION.md, settings.rs — all present.
+- Commits: b0fed7a, e144847, b77394e, fcd6362, 1288083 — all present.

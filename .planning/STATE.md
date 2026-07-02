@@ -5,16 +5,16 @@ milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 42
 current_phase_name: Special-Days-Anlegen-Button-Bugfix
 status: executing
-stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T07:35:37.151Z"
+stopped_at: Completed 42-01-PLAN.md
+last_updated: "2026-07-02T07:50:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 42 execution started
+last_activity_desc: Phase 42 complete (SDF-01 FE bugfix)
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 13
-  percent: 75
+  completed_plans: 14
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -33,12 +33,12 @@ progress:
 
 ## Current Position
 
-Phase: 42 (Special-Days-Anlegen-Button-Bugfix) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 42
-Last activity: 2026-07-02 — Phase 42 execution started
+Phase: 42 (Special-Days-Anlegen-Button-Bugfix) — COMPLETE
+Plan: 1 of 1 (complete)
+Status: Phase 42 complete — v2.1 all 4 phases done (39–42); milestone-close pending
+Last activity: 2026-07-02 — Phase 42 complete (SDF-01)
 
-Progress (Pläne Phase 40): [██████████] 100% (4/4)
+Progress (Pläne Phase 42): [██████████] 100% (1/1)
 
 ## Deferred Items
 
@@ -198,6 +198,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase 41]: 41-01: average_hours_per_attendance_day is a SEPARATE pure fn from A-22-1 (own struct EmployeeAttendanceStatistics, input &[WorkingHoursDay]); A-22-1 byte-for-byte unchanged
 - [Phase 41]: 41-01: attendance day = DISTINCT date (BTreeSet<time::Date>) with ≥1 work-category entry (Shiftplan|ExtraWork|VolunteerWork, hours>0); Absence+Custom excluded by filter; <2 days → None (D-AVG-06); no snapshot bump (stays 12, D-AVG-08)
 - [Phase 41]: 41-02: ReportingService::get_employee_attendance_statistics — HR_PRIVILEGE ist die ERSTE await-Operation (D-AVG-05, kein Datenabruf vor Auth); is_dynamic-Filter server-seitig (nicht-flexibler MA → Ok(None)); aggregiert via get_report_for_employee über by_week[*].days mit until_week-Clamp (D-AVG-04); reines Read-Aggregat, Snapshot bleibt 12 (D-AVG-08)
+- [Phase 42]: 42-01: SDF-01 FE-only — Option 2 (D-42-01): 3 Post-Create-Feld-Resets entfernt, Felder bleiben gefüllt → Anlegen-Button bleibt aktiv; sd_year.set + sd_resource.restart bleiben (D-42-02). Validitäts-Prädikat + Retention-Policy in reine Fns extrahiert + unit-getestet (is_special_day_form_valid, SpecialDayForm/special_day_form_after_create; D-42-05). Duplikat-Hinweis nicht an disabled gekoppelt (D-42-03), sd_save_result unverändert (D-42-04). SSR-Mount-Test begründet übersprungen (D-42-06 Fall B — SettingsPage ohne Live-Harness nicht mountbar). WASM-Build warnungsfrei; kein Backend, kein Snapshot-Bump, keine Migration, keine Deps, i18n unverändert.
 
 ## Performance Metrics
 
@@ -216,3 +217,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 40 P03 | 11min | 2 tasks | 3 files |
 | Phase 41 P01 | ~10min | 2 tasks | 3 files |
 | Phase 41 P04 | ~12min | 3 tasks | 7 files |
+| Phase 42 P01 | ~13min | 3 tasks | 2 files |
