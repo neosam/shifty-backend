@@ -13,8 +13,7 @@
 //! - two_days_returns_some: exactly 2 attendance days → Some (threshold met).
 
 use service::reporting::{
-    average_hours_per_attendance_day, EmployeeAttendanceStatistics, ExtraHoursReportCategory,
-    WorkingHoursDay,
+    average_hours_per_attendance_day, ExtraHoursReportCategory, WorkingHoursDay,
 };
 use shifty_utils::LazyLoad;
 use time::macros::date;
@@ -49,15 +48,9 @@ fn user_example() {
     ];
     let stats = average_hours_per_attendance_day(&days);
     assert_eq!(stats.attendance_days, 12);
-    assert!((stats.total_worked_hours - 54.0).abs() < 0.001);
-    assert_eq!(
-        stats,
-        EmployeeAttendanceStatistics {
-            average_hours_per_attendance_day: Some(4.5),
-            attendance_days: 12,
-            total_worked_hours: 54.0,
-        }
-    );
+    assert!((stats.total_worked_hours - 54.0).abs() < 0.001, "total_worked_hours={}", stats.total_worked_hours);
+    let avg = stats.average_hours_per_attendance_day.expect("average should be Some for 12 attendance days");
+    assert!((avg - 4.5).abs() < 0.001, "avg={avg}");
 }
 
 /// D-AVG-03: a Vacation day (hours>0, no work) is NOT an attendance day.
