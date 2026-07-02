@@ -147,7 +147,8 @@
   2. Ein User kann mehrere Special-Days hintereinander anlegen, ohne das Dropdown neu zu togglen.
   3. Ein SSR-/Komponenten-Test deckt das mehrfache Anlegen ab (Formulardaten bleiben erhalten).
 
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 42-01-PLAN.md — Reset-Block entfernen + reine Validitaets-/Retention-Funktionen extrahieren und testen (SDF-01)
 **UI hint**: yes
 
 **Scope (FE-only):** Reset-Block `settings.rs:458-459` (und etwaigen Zeit-Reset) entfernen — umgeht den Controlled-Select-Desync (D-25-06-Klasse) komplett. Kein Backend-Anteil (begründete „Backend out of scope"-Notiz: reiner FE-State-Fix ohne API-Wirkung; SDF-Desync ist ein isolierter Settings-Bug, kein neues/geändertes TO).
