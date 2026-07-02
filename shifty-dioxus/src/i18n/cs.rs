@@ -1201,9 +1201,4 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::WeekStatusChangeAriaLabel,
         "Změnit stav týdne",
     );
-    i18n.add_text(
-        Locale::Cs,
-        Key::WeekLockedError,
-        "Tento týden je uzamčen — změny nejsou možné.",
-    );
 }

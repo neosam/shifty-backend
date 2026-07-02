@@ -1215,9 +1215,4 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::WeekStatusChangeAriaLabel,
         "Wochenstatus ändern",
     );
-    i18n.add_text(
-        Locale::De,
-        Key::WeekLockedError,
-        "Diese Woche ist gesperrt — Änderungen sind nicht möglich.",
-    );
 }

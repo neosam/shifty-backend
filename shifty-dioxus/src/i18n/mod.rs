@@ -696,8 +696,6 @@ pub enum Key {
     WeekStatusSetError,
     /// Aria-label for the KW-Status change control (dropdown trigger).
     WeekStatusChangeAriaLabel,
-    /// Localized text for the 423 locked-week response body (D-40-05).
-    WeekLockedError,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -888,7 +886,6 @@ mod tests {
                 Key::WeekStatusLocked,
                 Key::WeekStatusSetError,
                 Key::WeekStatusChangeAriaLabel,
-                Key::WeekLockedError,
             ] {
                 let value = i18n.t(key);
                 assert!(

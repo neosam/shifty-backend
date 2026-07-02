@@ -1120,9 +1120,4 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::WeekStatusChangeAriaLabel,
         "Change week status",
     );
-    i18n.add_text(
-        Locale::En,
-        Key::WeekLockedError,
-        "This week is locked — changes are not possible.",
-    );
 }
