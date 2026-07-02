@@ -6,15 +6,15 @@ current_phase: 41
 current_phase_name: Ø-Anwesenheit bei flexiblen Stunden
 status: executing
 stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T06:49:21.272Z"
+last_updated: "2026-07-02T07:00:23.020Z"
 last_activity: 2026-07-02
-last_activity_desc: "41-02 executed (ReportingService::get_employee_attendance_statistics: HR-gate first + is_dynamic filter → None; Snapshot 12 unberührt)"
+last_activity_desc: 41-03 executed (EmployeeAttendanceStatisticsTO + HR-gated GET /report/{id}/attendance-statistics range-aware endpoint + route + ApiDoc; None→null; Snapshot 12 unberührt)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
   completed_plans: 13
-  percent: 50
+  percent: 75
 ---
 
 # Project State: Shifty Backend
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 41 (Ø-Anwesenheit bei flexiblen Stunden) — EXECUTING
-Plan: 3 of 4 complete (pure fn + ReportingService method + REST TO/endpoint)
+Plan: 4 of 4 complete (pure fn + ReportingService method + REST TO/endpoint)
 Status: Ready to execute
 Last activity: 2026-07-02 — 41-03 executed (EmployeeAttendanceStatisticsTO + HR-gated GET /report/{id}/attendance-statistics range-aware endpoint + route + ApiDoc; None→null; Snapshot 12 unberührt)
 
@@ -215,3 +215,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 40 P02 | 12min | 2 tasks | 5 files |
 | Phase 40 P03 | 11min | 2 tasks | 3 files |
 | Phase 41 P01 | ~10min | 2 tasks | 3 files |
+| Phase 41 P04 | ~12min | 3 tasks | 7 files |

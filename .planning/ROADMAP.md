@@ -129,7 +129,7 @@
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 41-04-PLAN.md — FE: i18n de/en/cs + api-Loader + EmployeeStore + Rendering (Wave 4)
+- [x] 41-04-PLAN.md — FE: i18n de/en/cs + api-Loader + EmployeeStore + Rendering (Wave 4)
 
 **UI hint**: yes
 
@@ -328,7 +328,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete    | 2026-07-02 |
 | 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 4/4 | Complete    | 2026-07-02 |
-| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 3/4 | In Progress|  |
+| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 4/4 | Complete   | 2026-07-02 |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog

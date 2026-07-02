@@ -84,7 +84,7 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
   **Read-Aggregat** im `ReportingService` (Business-Logic-Tier) — **kein Snapshot-Bump**, keine
   neue Persistenz, kein neuer `BillingPeriodValueType`.
 
-- [ ] **AVG-03**: i18n de/en/cs für die neue Auswertungs-Sicht (Labels, Tooltips, Leerzustand).
+- [x] **AVG-03**: i18n de/en/cs für die neue Auswertungs-Sicht (Labels, Tooltips, Leerzustand).
 
 ### Special-Days-Settings-Bugfix (SDF)
 
@@ -131,7 +131,7 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | WST-04 | Phase 40 | Complete |
 | AVG-01 | Phase 41 | Pending |
 | AVG-02 | Phase 41 | Complete |
-| AVG-03 | Phase 41 | Pending |
+| AVG-03 | Phase 41 | Complete |
 | SDF-01 | Phase 42 | Pending |
 
 **Coverage:**
