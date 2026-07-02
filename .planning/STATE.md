@@ -13,7 +13,7 @@ progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
   percent: 50
 ---
 
@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: 41 (Ø-Anwesenheit bei flexiblen Stunden) — EXECUTING
-Plan: 1 of 4
+Plan: 1 of 4 complete (pure fn + struct + 7 Nyquist tests)
 Status: Executing Phase 41
-Last activity: 2026-07-02 — Phase 41 execution started
+Last activity: 2026-07-02 — 41-01 executed (RED+GREEN, A-22-1 + Snapshot 12 unberührt)
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 
@@ -195,6 +195,8 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: 39-05: should_show_badge pure-fn is the tested source of truth for the Unset->hidden badge rule (D-39-05); WeekStatusDropdown on DropdownTrigger, no controlled select (D-39-06), with an Unset reset entry (D-39-07)
 - [Phase ?]: 40-01: WeekStatusService dep uses full <Context, Transaction> bound — Open Question 1 resolved, no reduction needed
 - [Phase ?]: 40-01: assert_week_not_locked is pass-through scaffold (reads status, always Ok); enforcement+bypass deferred to 40-03, delete_booking handler re-route to 40-04
+- [Phase 41]: 41-01: average_hours_per_attendance_day is a SEPARATE pure fn from A-22-1 (own struct EmployeeAttendanceStatistics, input &[WorkingHoursDay]); A-22-1 byte-for-byte unchanged
+- [Phase 41]: 41-01: attendance day = DISTINCT date (BTreeSet<time::Date>) with ≥1 work-category entry (Shiftplan|ExtraWork|VolunteerWork, hours>0); Absence+Custom excluded by filter; <2 days → None (D-AVG-06); no snapshot bump (stays 12, D-AVG-08)
 
 ## Performance Metrics
 
@@ -211,3 +213,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 40 P01 | 18min | 2 tasks | 6 files |
 | Phase 40 P02 | 12min | 2 tasks | 5 files |
 | Phase 40 P03 | 11min | 2 tasks | 3 files |
+| Phase 41 P01 | ~10min | 2 tasks | 3 files |
