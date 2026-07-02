@@ -616,6 +616,34 @@ impl From<&service::reporting::EmployeeWeeklyStatistics> for EmployeeWeeklyStati
     }
 }
 
+/// DTO for the AVG-01 average worked hours per attendance day statistic (Phase 41 / AVG-02).
+///
+/// HR-gated, range-aware read aggregate over the displayed report range (D-AVG-04). Served
+/// by `GET /report/{id}/attendance-statistics`; for non-flexible employees the whole DTO is
+/// omitted (JSON `null`) via the service returning `None` (D-AVG-05). No persistence, no
+/// snapshot bump (D-AVG-08).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct EmployeeAttendanceStatisticsTO {
+    /// Average worked hours per attendance day; `None` when fewer than 2 attendance days
+    /// are in range (D-AVG-06).
+    pub average_hours_per_attendance_day: Option<f32>,
+    /// Number of distinct days with attendance in range (denominator).
+    pub attendance_days: u32,
+    /// Total worked hours across all attendance days in range (numerator).
+    pub total_worked_hours: f32,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::reporting::EmployeeAttendanceStatistics> for EmployeeAttendanceStatisticsTO {
+    fn from(stats: &service::reporting::EmployeeAttendanceStatistics) -> Self {
+        Self {
+            average_hours_per_attendance_day: stats.average_hours_per_attendance_day,
+            attendance_days: stats.attendance_days,
+            total_worked_hours: stats.total_worked_hours,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmployeeWorkDetailsTO {
     #[serde(default)]
