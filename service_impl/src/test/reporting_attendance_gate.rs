@@ -9,26 +9,29 @@
 //!
 //! Structural template: service_impl/src/test/reporting_holiday_auto_credit.rs.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use service::employee_work_details::MockEmployeeWorkDetailsService;
-use service::extra_hours::MockExtraHoursService;
+use service::extra_hours::{ExtraHours, MockExtraHoursService};
 use service::absence::MockAbsenceService;
 use service::carryover::MockCarryoverService;
 use service::clock::MockClockService;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
-use service::shiftplan_report::MockShiftplanReportService;
+use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
 use service::special_days::MockSpecialDayService;
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::permission::Authentication;
 use service::MockPermissionService;
 use service::ServiceError;
+use shifty_utils::DayOfWeek;
 
 use crate::reporting::{ReportingServiceDeps, ReportingServiceImpl};
 use crate::test::reporting_phase2_fixtures::{
-    fixture_sales_person_id, fixture_work_details_8h_mon_fri,
+    fixture_sales_person, fixture_sales_person_id, fixture_work_details_8h_mon_fri,
+    fixture_work_details_dynamic_mon_fri,
 };
 
 // ─── ReportingMocks / TestDeps (same pattern as reporting_holiday_auto_credit.rs) ──
@@ -156,4 +159,103 @@ async fn attendance_statistics_returns_none_for_static() {
         .await;
 
     assert_eq!(result.unwrap(), None);
+}
+
+/// T-41-05 (D-AVG-01/D-AVG-05): flexible employee (is_dynamic=true) + HR caller
+/// → `Ok(Some(stats))` with attendance_days >= 2 and average is Some.
+/// Exercises the full chain: HR gate → is_dynamic==true → get_report_for_employee
+/// → average_hours_per_attendance_day.
+///
+/// Fixture: 2 shiftplan days in KW23/2024 (Mon + Wed), each 4h
+/// → attendance_days=2, total_worked_hours=8.0, average=Some(4.0).
+#[tokio::test]
+async fn attendance_statistics_returns_some_for_flexible() {
+    let mut mocks = ReportingMocks::new();
+
+    // HR gate (called in get_employee_attendance_statistics AND get_report_for_employee_range).
+    mocks
+        .permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    // is_dynamic filter (called in get_employee_attendance_statistics AND get_report_for_employee_range).
+    mocks
+        .employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![fixture_work_details_dynamic_mon_fri()])));
+
+    // get_report_for_employee_range: sales person stubs.
+    mocks
+        .sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+
+    // 2 shiftplan days in KW23/2024 → 2 distinct attendance days.
+    let sp_id = fixture_sales_person_id();
+    mocks
+        .shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(move |_, _, _, _, _| {
+            Ok(Arc::from(vec![
+                ShiftplanReportDay {
+                    sales_person_id: sp_id,
+                    hours: 4.0,
+                    year: 2024,
+                    calendar_week: 23,
+                    day_of_week: DayOfWeek::Monday,
+                },
+                ShiftplanReportDay {
+                    sales_person_id: sp_id,
+                    hours: 4.0,
+                    year: 2024,
+                    calendar_week: 23,
+                    day_of_week: DayOfWeek::Wednesday,
+                },
+            ]))
+        });
+
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year_range()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<ExtraHours>::new())));
+
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    // toggle → None: holiday auto-credit off (no special_day_service calls needed).
+    mocks
+        .toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
+    mocks
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+
+    let service = mocks.build();
+    let result = service
+        .get_employee_attendance_statistics(
+            &fixture_sales_person_id(),
+            2024,
+            25,
+            Authentication::Full,
+            None,
+        )
+        .await;
+
+    let stats = result.expect("should succeed for flexible employee").expect("should be Some for flexible employee");
+    assert!(stats.attendance_days >= 2, "attendance_days={}", stats.attendance_days);
+    assert!(
+        stats.average_hours_per_attendance_day.is_some(),
+        "average should be Some when attendance_days >= 2"
+    );
+    let avg = stats.average_hours_per_attendance_day.unwrap();
+    assert!((avg - 4.0).abs() < 0.001, "avg={avg}");
 }
