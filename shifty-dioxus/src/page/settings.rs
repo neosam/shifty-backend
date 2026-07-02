@@ -535,6 +535,9 @@ pub fn SettingsPage() -> Element {
     let mut sd_save_result: Signal<Option<bool>> = use_signal(|| None);
     let mut sd_saving = use_signal(|| false);
     let mut sd_delete_error = use_signal(|| false);
+    // 260702-jql: suppress the "existiert bereits" hint right after a create (the
+    // retained form self-matches). Cleared on the next real field edit.
+    let mut sd_dup_hint_suppressed = use_signal(|| false);
 
     // Load year list (restarted after create/delete)
     let config_for_sd = config.clone();
@@ -639,6 +642,9 @@ pub fn SettingsPage() -> Element {
                     sd_date_str.set(retained.date);
                     sd_type.set(retained.ty);
                     sd_time_str.set(retained.time);
+                    // 260702-jql: the retained fields self-match the just-created
+                    // entry → suppress the duplicate hint until the next real edit.
+                    sd_dup_hint_suppressed.set(true);
                     sd_resource.restart();
                 }
                 Err(_) => {
@@ -809,6 +815,7 @@ pub fn SettingsPage() -> Element {
                                     on_change: move |v: ImStr| {
                                         sd_date_str.set(v.as_str().to_string());
                                         sd_save_result.set(None);
+                                        sd_dup_hint_suppressed.set(false);
                                     },
                                 }
                             }
@@ -834,6 +841,7 @@ pub fn SettingsPage() -> Element {
                                     };
                                     sd_type.set(ty);
                                     sd_save_result.set(None);
+                                    sd_dup_hint_suppressed.set(false);
                                 },
                                 option { value: "", "" }
                                 option { value: "holiday", "{i18n.t(Key::SettingsSpecialDaysTypeHoliday)}" }
@@ -854,6 +862,7 @@ pub fn SettingsPage() -> Element {
                                         on_change: move |v: ImStr| {
                                             sd_time_str.set(v.as_str().to_string());
                                             sd_save_result.set(None);
+                                            sd_dup_hint_suppressed.set(false);
                                         },
                                     }
                                 }
@@ -870,7 +879,9 @@ pub fn SettingsPage() -> Element {
                     }
 
                     // Row D: Inline hints and errors
-                    if sd_is_duplicate {
+                    // 260702-jql: gate the duplicate hint through the pure fn so a
+                    // just-created (self-matching) entry does not re-trigger it.
+                    if should_show_duplicate_hint(sd_is_duplicate, sd_dup_hint_suppressed()) {
                         span { class: "text-small text-bad",
                             "{i18n.t(Key::SettingsSpecialDaysDuplicateHint)}"
                         }
