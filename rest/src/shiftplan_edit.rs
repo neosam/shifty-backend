@@ -161,6 +161,7 @@ pub struct CopyWeekRequest {
         (status = 403, description = "Forbidden"),
         (status = 409, description = "Paid employee limit exceeded — booking blocked"),
         (status = 422, description = "Validation error"),
+        (status = 423, description = "Week is locked — changes are not possible"),
     ),
 )]
 pub async fn book_slot_with_conflict_check<RestState: RestStateDef>(
@@ -200,6 +201,7 @@ pub async fn book_slot_with_conflict_check<RestState: RestStateDef>(
     responses(
         (status = 200, description = "Bookings copied (with cross-source warnings if any)", body = CopyWeekResultTO),
         (status = 403, description = "Forbidden"),
+        (status = 423, description = "Week is locked — changes are not possible"),
     ),
 )]
 pub async fn copy_week_with_conflict_check<RestState: RestStateDef>(
