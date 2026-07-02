@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: 41 (Ø-Anwesenheit bei flexiblen Stunden) — EXECUTING
-Plan: 1 of 4 complete (pure fn + struct + 7 Nyquist tests)
+Plan: 2 of 4 complete (pure fn + ReportingService method HR-gate/is_dynamic)
 Status: Executing Phase 41
-Last activity: 2026-07-02 — 41-01 executed (RED+GREEN, A-22-1 + Snapshot 12 unberührt)
+Last activity: 2026-07-02 — 41-02 executed (ReportingService::get_employee_attendance_statistics: HR-gate first + is_dynamic filter → None; Snapshot 12 unberührt)
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 
@@ -197,6 +197,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: 40-01: assert_week_not_locked is pass-through scaffold (reads status, always Ok); enforcement+bypass deferred to 40-03, delete_booking handler re-route to 40-04
 - [Phase 41]: 41-01: average_hours_per_attendance_day is a SEPARATE pure fn from A-22-1 (own struct EmployeeAttendanceStatistics, input &[WorkingHoursDay]); A-22-1 byte-for-byte unchanged
 - [Phase 41]: 41-01: attendance day = DISTINCT date (BTreeSet<time::Date>) with ≥1 work-category entry (Shiftplan|ExtraWork|VolunteerWork, hours>0); Absence+Custom excluded by filter; <2 days → None (D-AVG-06); no snapshot bump (stays 12, D-AVG-08)
+- [Phase 41]: 41-02: ReportingService::get_employee_attendance_statistics — HR_PRIVILEGE ist die ERSTE await-Operation (D-AVG-05, kein Datenabruf vor Auth); is_dynamic-Filter server-seitig (nicht-flexibler MA → Ok(None)); aggregiert via get_report_for_employee über by_week[*].days mit until_week-Clamp (D-AVG-04); reines Read-Aggregat, Snapshot bleibt 12 (D-AVG-08)
 
 ## Performance Metrics
 
