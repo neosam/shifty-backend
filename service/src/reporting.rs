@@ -353,4 +353,24 @@ pub trait ReportingService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWeeklyStatistics, ServiceError>;
+
+    /// Returns the AVG-01 attendance-day metric (Ø worked hours per attendance
+    /// day) for the given sales person over the displayed report range.
+    ///
+    /// - D-AVG-04: aggregates over the shown report window (`year` / `until_week`
+    ///   via `get_report_for_employee`) — no separate date picker.
+    /// - D-AVG-05: HR-gated (`HR_PRIVILEGE` is the FIRST operation, no data is
+    ///   fetched before authorization) and server-side filtered on `is_dynamic`:
+    ///   non-flexible employees yield `Ok(None)` (the metric is not computed nor
+    ///   returned for them).
+    /// - D-AVG-08: pure read aggregate over `get_report_for_employee` — no new
+    ///   `BillingPeriodValueType`, no persistence, snapshot version stays 12.
+    async fn get_employee_attendance_statistics(
+        &self,
+        sales_person_id: &Uuid,
+        year: u32,
+        until_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Option<EmployeeAttendanceStatistics>, ServiceError>;
 }
