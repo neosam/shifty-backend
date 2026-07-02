@@ -37,14 +37,13 @@ pub enum WeekStatusAction {
     Set { year: u32, week: u8, status: WeekStatus },
 }
 
-/// GET the current status and write it into the store. `None` (no row / 404)
-/// maps to `WeekStatus::Unset`. On error the store keeps its last value.
+/// GET the current status and write it into the store. Backend always returns
+/// 200 with status="unset" for a missing row (D-39-06). On error the store
+/// keeps its last value.
 async fn load_week_status(year: u32, week: u8) -> Result<(), ShiftyError> {
     let config = CONFIG.read().clone();
-    let status = api::get_week_status(config, year, week)
-        .await?
-        .map(|to| WeekStatus::from(&to))
-        .unwrap_or(WeekStatus::Unset);
+    let to = api::get_week_status(config, year, week).await?;
+    let status = WeekStatus::from(&to);
     let mut store = WEEK_STATUS_STORE.write();
     store.status = status;
     Ok(())

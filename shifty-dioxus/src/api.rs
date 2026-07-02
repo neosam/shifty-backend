@@ -1205,20 +1205,19 @@ pub async fn get_week_status(
     config: Config,
     year: u32,
     week: u8,
-) -> Result<Option<WeekStatusTO>, reqwest::Error> {
+) -> Result<WeekStatusTO, reqwest::Error> {
+    // Backend always returns HTTP 200 with status="unset" when no row exists —
+    // it never returns 404 for this endpoint (D-39-06).
     info!("Fetching week status for {year}/{week}");
     let url = format!(
         "{}/week-status/by-year-and-week/{}/{}",
         config.backend, year, week
     );
     let response = reqwest::get(url).await?;
-    if response.status() == 404 {
-        return Ok(None);
-    }
     response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched week status");
-    Ok(Some(res))
+    Ok(res)
 }
 
 pub async fn set_week_status(
