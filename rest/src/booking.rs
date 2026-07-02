@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{error_handler, Context, RestError, RestStateDef};
 use service::booking::{Booking, BookingService};
+use service::shiftplan_edit::ShiftplanEditService;
 
 pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
     Router::new()
@@ -162,8 +163,8 @@ pub async fn delete_booking<RestState: RestStateDef>(
     error_handler(
         (async {
             rest_state
-                .booking_service()
-                .delete(booking_id, context.into(), None)
+                .shiftplan_edit_service()
+                .delete_booking(booking_id, context.into(), None)
                 .await?;
             Ok(Response::builder().status(200).body(Body::empty()).unwrap())
         })
