@@ -889,23 +889,48 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 // Konventionen" + v1.0 D-Phase3-18 Regression-Lock: BookingService bleibt
 // strikt Basic-Tier).
 impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditServiceImpl<Deps> {
-    /// Phase 40 (D-40-01) — Wochen-Sperre-Gate. SCAFFOLD-Variante (Plan 40-01):
-    /// liest den Wochen-Status in DERSELBEN Transaktion wie der Write (kein
-    /// TOCTOU), gibt aber IMMER `Ok(())` zurück. Die eigentliche Blockier-Logik
-    /// (`WeekStatus::Locked` → `ServiceError::WeekLocked`) und der
-    /// `shiftplan.edit`-Bypass folgen RED-first in Plan 40-03. Der Read „benutzt"
-    /// die neue `WeekStatusService`-Dep, damit kein dead-field-Lint entsteht.
+    /// Phase 40 (D-40-01/02) — Wochen-Sperre-Gate. ENFORCEMENT-Variante (Plan
+    /// 40-03): blockiert Schreibzugriffe in gesperrten Wochen.
+    ///
+    /// 1. Bypass: Hält der Aufrufer `shiftplan.edit`, darf er immer schreiben
+    ///    (D-40-02, konsistent mit dem FE-`is_shift_editor`). Der Bypass läuft
+    ///    VOR dem Read → spart den Status-Lookup für Schichtplaner.
+    /// 2. Sonst wird der Wochen-Status in DERSELBEN Transaktion wie der Write
+    ///    gelesen (kein TOCTOU); bei `WeekStatus::Locked` →
+    ///    `Err(ServiceError::WeekLocked { year, week })`, sonst `Ok(())`.
+    ///
+    /// Der Bypass prüft `shiftplan.edit` (NICHT `SHIFTPLANNER_PRIVILEGE`) —
+    /// damit werden Self-Booker/-Ausbucher (die kein `shiftplan.edit` halten)
+    /// in gesperrten Wochen korrekt geblockt (harte Sperre inkl. Self).
     async fn assert_week_not_locked(
         &self,
         year: u32,
         calendar_week: u8,
-        _context: Authentication<Deps::Context>,
+        context: Authentication<Deps::Context>,
         tx: Deps::Transaction,
     ) -> Result<(), ServiceError> {
-        let _status = self
+        // Bypass: shiftplan.edit-Halter umgehen die Sperre (D-40-02).
+        if self
+            .permission_service
+            .check_permission("shiftplan.edit", context)
+            .await
+            .is_ok()
+        {
+            return Ok(());
+        }
+
+        // In-Transaction-Read (kein TOCTOU): Status in derselben tx wie der Write.
+        let status = self
             .week_status_service
             .get_week_status(year, calendar_week, Authentication::Full, Some(tx))
             .await?;
+
+        if status == service::week_status::WeekStatus::Locked {
+            return Err(ServiceError::WeekLocked {
+                year,
+                week: calendar_week,
+            });
+        }
         Ok(())
     }
 
