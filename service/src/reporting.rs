@@ -243,6 +243,67 @@ pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWe
     }
 }
 
+/// Result of the AVG-01 attendance-day metric (Phase 41).
+///
+/// Deliberately distinct from A-22-1 (`EmployeeWeeklyStatistics`): this is a
+/// day-based average, not a week-based one (D-AVG-01).
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmployeeAttendanceStatistics {
+    /// Average worked hours per attendance day, or None if fewer than 2
+    /// attendance days (D-AVG-06 — not meaningful below the threshold).
+    pub average_hours_per_attendance_day: Option<f32>,
+    /// Number of distinct calendar dates counted as attendance days (denominator).
+    pub attendance_days: u32,
+    /// Sum of worked hours across all attendance days (numerator).
+    pub total_worked_hours: f32,
+}
+
+/// Pure AVG-01 formula: average worked hours per attendance day.
+///
+/// A day counts as an attendance day iff it has at least one entry with
+/// category in {Shiftplan, ExtraWork, VolunteerWork} and `hours > 0` (D-AVG-02).
+/// Absence categories (Vacation, SickLeave, Holiday, UnpaidLeave, Unavailable)
+/// and `Custom(_)` are NOT attendance categories (D-AVG-03) — they drop out of
+/// both numerator and denominator by construction of the filter.
+///
+/// - Denominator = number of DISTINCT dates among work-category entries
+///   (deduplicated via `BTreeSet<time::Date>`, so a date with several work
+///   entries counts once).
+/// - Numerator = sum of `hours` over all work-category entries.
+/// - Denominator < 2 → `average_hours_per_attendance_day` is None (D-AVG-06).
+///
+/// This is a separate function from A-22-1 (`average_worked_hours_per_week`):
+/// different input type (`&[WorkingHoursDay]`) and different result struct.
+pub fn average_hours_per_attendance_day(days: &[WorkingHoursDay]) -> EmployeeAttendanceStatistics {
+    use std::collections::BTreeSet;
+    use ExtraHoursReportCategory::{ExtraWork, Shiftplan, VolunteerWork};
+
+    // Work-category entries with positive hours only (D-AVG-02/03).
+    let work_entries = days.iter().filter(|d| {
+        d.hours > 0.0 && matches!(d.category, Shiftplan | ExtraWork | VolunteerWork)
+    });
+
+    // Distinct attendance dates → denominator.
+    let attendance_date_set: BTreeSet<time::Date> =
+        work_entries.clone().map(|d| d.date).collect();
+    let attendance_days = attendance_date_set.len() as u32;
+
+    // Sum all worked hours → numerator.
+    let total_worked_hours: f32 = work_entries.map(|d| d.hours).sum();
+
+    let average_hours_per_attendance_day = if attendance_days >= 2 {
+        Some(total_worked_hours / attendance_days as f32)
+    } else {
+        None // D-AVG-06: not meaningful below the 2-day threshold
+    };
+
+    EmployeeAttendanceStatistics {
+        average_hours_per_attendance_day,
+        attendance_days,
+        total_worked_hours,
+    }
+}
+
 #[automock(type Context=(); type Transaction=dao::MockTransaction;)]
 #[async_trait]
 pub trait ReportingService {
