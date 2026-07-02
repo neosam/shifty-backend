@@ -32,9 +32,6 @@ pub struct WeekStatusStore {
 pub static WEEK_STATUS_STORE: GlobalSignal<WeekStatusStore> =
     Signal::global(WeekStatusStore::default);
 
-// Consumers (send-sites) arrive in Plan 39-05 (badge + dropdown + shiftplan
-// integration); this plumbing plan wires the store + coroutine only.
-#[allow(dead_code)]
 pub enum WeekStatusAction {
     Load { year: u32, week: u8 },
     Set { year: u32, week: u8, status: WeekStatus },
