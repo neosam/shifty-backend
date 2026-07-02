@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
-current_phase: 41
-current_phase_name: Ø-Anwesenheit bei flexiblen Stunden
+current_phase: 42
+current_phase_name: FE
 status: executing
 stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T07:00:23.020Z"
+last_updated: "2026-07-02T07:23:48.452Z"
 last_activity: 2026-07-02
-last_activity_desc: 41-03 executed (EmployeeAttendanceStatisticsTO + HR-gated GET /report/{id}/attendance-statistics range-aware endpoint + route + ApiDoc; None→null; Snapshot 12 unberührt)
+last_activity_desc: Phase 41 complete, transitioned to Phase 42
 progress:
   total_phases: 4
   completed_phases: 3
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 41 (Ø-Anwesenheit bei flexiblen Stunden) — EXECUTING
-Plan: 4 of 4 complete (pure fn + ReportingService method + REST TO/endpoint)
+Phase: 42 — Special-Days-„Anlegen"-Button-Bugfix (FE)
+Plan: Not started
 Status: Ready to execute
-Last activity: 2026-07-02 — 41-03 executed (EmployeeAttendanceStatisticsTO + HR-gated GET /report/{id}/attendance-statistics range-aware endpoint + route + ApiDoc; None→null; Snapshot 12 unberührt)
+Last activity: 2026-07-02 — Phase 41 complete, transitioned to Phase 42
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 

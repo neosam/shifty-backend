@@ -30,7 +30,7 @@
 
 - [x] **Phase 39: KW-Status Grundlage (BE+FE)** — WST-01, WST-02, WST-05 (completed 2026-07-02)
 - [x] **Phase 40: Wochen-Sperre durchsetzen (BE+FE)** — WST-03, WST-04 (completed 2026-07-02)
-- [ ] **Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE)** — AVG-01, AVG-02, AVG-03
+- [x] **Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE)** — AVG-01, AVG-02, AVG-03 (completed 2026-07-02)
 - [ ] **Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE)** — SDF-01
 
 ### Phase 39: KW-Status Grundlage (BE+FE)
@@ -328,7 +328,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete    | 2026-07-02 |
 | 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 4/4 | Complete    | 2026-07-02 |
-| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 4/4 | Complete   | 2026-07-02 |
+| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 4/4 | Complete    | 2026-07-02 |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog

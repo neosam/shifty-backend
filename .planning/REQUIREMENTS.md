@@ -73,7 +73,7 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
 
 ### Durchschnittliche Anwesenheit bei flexiblen Stunden (AVG)
 
-- [ ] **AVG-01**: HR kann pro **flexiblem** Mitarbeiter (`is_dynamic == true`) die
+- [x] **AVG-01**: HR kann pro **flexiblem** Mitarbeiter (`is_dynamic == true`) die
   **durchschnittliche tatsächliche Anwesenheit** über einen Zeitraum einsehen, wobei **Urlaub
   aus dem Nenner** herausgerechnet wird. Exakte Bezugsgröße (Woche/Monat/Abrechnungsperiode),
   Zähler (geleistete Stunden vs. Anwesenheitstage) und das genaue Exclusion-Set (nur Urlaub vs.
@@ -129,7 +129,7 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | WST-05 | Phase 39 | Complete |
 | WST-03 | Phase 40 | Complete |
 | WST-04 | Phase 40 | Complete |
-| AVG-01 | Phase 41 | Pending |
+| AVG-01 | Phase 41 | Complete |
 | AVG-02 | Phase 41 | Complete |
 | AVG-03 | Phase 41 | Complete |
 | SDF-01 | Phase 42 | Pending |
