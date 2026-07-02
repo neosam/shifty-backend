@@ -176,6 +176,89 @@ mod tests {
             "short_day"
         );
     }
+
+    // ── D-42-05: pure validity predicate (extracted from settings.rs:387-389) ──
+
+    /// D-42-05: empty date → invalid, regardless of type.
+    #[test]
+    fn special_day_form_valid_empty_date_false() {
+        assert!(!is_special_day_form_valid(
+            "",
+            Some(SpecialDayTypeTO::Holiday),
+            ""
+        ));
+    }
+
+    /// D-42-05: date set but no type selected → invalid.
+    #[test]
+    fn special_day_form_valid_no_type_false() {
+        assert!(!is_special_day_form_valid("2026-08-15", None, ""));
+    }
+
+    /// D-42-05: date set, Holiday, no time → valid (time only required for ShortDay).
+    #[test]
+    fn special_day_form_valid_holiday_true() {
+        assert!(is_special_day_form_valid(
+            "2026-08-15",
+            Some(SpecialDayTypeTO::Holiday),
+            ""
+        ));
+    }
+
+    /// D-42-05: date set, ShortDay, but empty time → invalid.
+    #[test]
+    fn special_day_form_valid_shortday_without_time_false() {
+        assert!(!is_special_day_form_valid(
+            "2026-08-15",
+            Some(SpecialDayTypeTO::ShortDay),
+            ""
+        ));
+    }
+
+    /// D-42-05: date set, ShortDay, with time → valid.
+    #[test]
+    fn special_day_form_valid_shortday_with_time_true() {
+        assert!(is_special_day_form_valid(
+            "2026-08-15",
+            Some(SpecialDayTypeTO::ShortDay),
+            "12:00"
+        ));
+    }
+
+    // ── D-42-01/02: post-create retention policy (Option 2 — keep all fields) ──
+
+    /// D-42-01: for a filled form the after-create state equals the before state
+    /// (all three fields retained; the three field resets are removed).
+    #[test]
+    fn special_day_form_retained_after_create() {
+        let before = SpecialDayForm {
+            date: "2026-08-15".to_string(),
+            ty: Some(SpecialDayTypeTO::ShortDay),
+            time: "12:00".to_string(),
+        };
+        let after = special_day_form_after_create(&before);
+        assert_eq!(after, before);
+    }
+
+    /// D-42-05 (central case): the validity predicate stays `true` for the
+    /// retained fields after create → the Anlegen button stays enabled.
+    #[test]
+    fn special_day_form_valid_stays_true_after_create() {
+        let before = SpecialDayForm {
+            date: "2026-08-15".to_string(),
+            ty: Some(SpecialDayTypeTO::Holiday),
+            time: String::new(),
+        };
+        // Before create the form is valid.
+        assert!(is_special_day_form_valid(
+            &before.date,
+            before.ty,
+            &before.time
+        ));
+        let after = special_day_form_after_create(&before);
+        // After create the retained fields are STILL valid (button stays enabled).
+        assert!(is_special_day_form_valid(&after.date, after.ty, &after.time));
+    }
 }
 
 const TOGGLE_NAME: &str = "paid_limit_hard_enforcement";
