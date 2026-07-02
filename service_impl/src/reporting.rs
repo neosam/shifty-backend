@@ -1190,6 +1190,47 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         let stats = service::reporting::average_worked_hours_per_week(&report.by_week);
         Ok(stats)
     }
+
+    async fn get_employee_attendance_statistics(
+        &self,
+        sales_person_id: &Uuid,
+        year: u32,
+        until_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Option<service::reporting::EmployeeAttendanceStatistics>, ServiceError> {
+        // D-AVG-05: HR gate is the FIRST await — no data fetched before auth.
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await?;
+
+        // D-AVG-05: server-side is_dynamic filter. Non-flexible employees → Ok(None),
+        // the metric is neither computed nor returned for them.
+        let work_details = self
+            .employee_work_details_service
+            .find_by_sales_person_id(*sales_person_id, Authentication::Full, tx.clone())
+            .await?;
+        if !work_details.iter().any(|w| w.is_dynamic) {
+            return Ok(None);
+        }
+
+        // T-41-05: clamp until_week to the year's ISO week count.
+        let until_week = until_week.min(time::util::weeks_in_year(year as i32));
+
+        // D-AVG-04: aggregate over the displayed report range.
+        let report = self
+            .get_report_for_employee(sales_person_id, year, until_week, context, tx)
+            .await?;
+
+        // Flatten all per-week days and apply the 41-01 pure aggregate fn.
+        let all_days: Vec<WorkingHoursDay> = report
+            .by_week
+            .iter()
+            .flat_map(|w| w.days.iter().cloned())
+            .collect();
+        let stats = service::reporting::average_hours_per_attendance_day(&all_days);
+        Ok(Some(stats))
+    }
 }
 
 fn weight_for_week(
