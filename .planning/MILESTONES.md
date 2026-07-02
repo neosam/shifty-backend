@@ -383,3 +383,43 @@ Konsolidierung nach der v1.7–v1.10-Feature-Welle: vier gemeldete Bugs abgeräu
 **Hinweis:** v1.11 ist das interne Planungs-Label. Reale Release-Version datumsbasiert via `cli-update-version`/`/release-version` (kein v1.x git tag).
 
 ---
+
+## v2.1 — Schichtplan- & Reporting-Erweiterungen
+
+**Shipped:** 2026-07-02
+**Phases:** 39–42 (4 phases, 14 plans)
+**Closeout:** override_closeout (Milestone-Audit `passed`; Carry-over Deferred Items acknowledged)
+**Audit:** ✅ passed (9/9 Requirements, Integration clean, 3/3 Flows)
+**Archive:** [`milestones/v2.1-ROADMAP.md`](milestones/v2.1-ROADMAP.md) · [`milestones/v2.1-REQUIREMENTS.md`](milestones/v2.1-REQUIREMENTS.md) · [`milestones/v2.1-MILESTONE-AUDIT.md`](milestones/v2.1-MILESTONE-AUDIT.md)
+
+**Delivered:**
+Zwei neue Steuerungs-/Auswertungs-Fähigkeiten für die Schichtplanung plus ein isolierter
+Settings-Bugfix. KW-Status (`None / In Planung / Geplant / Gesperrt`) pro ISO-(Jahr, Woche) —
+shiftplanner-gated CRUD, farbkodiertes Badge für alle Rollen, Locked-Woche sperrt alle 6
+Schreibpfade (`book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`,
+`remove_slot`, `copy_week_with_conflict_check`, `delete_booking` inkl. REST-Re-Routing) via
+TOCTOU-sicherem `assert_week_not_locked` in derselben Transaktion (HTTP 423); Schichtplaner
+behält Vollzugriff. HR-gated Ø-Anwesenheit pro flexiblem Mitarbeiter (`is_dynamic == true`)
+über einen Zeitraum, Urlaub aus Nenner herausgerechnet (reines Read-Aggregat, kein Snapshot-Bump,
+Snapshot bleibt 12). Special-Days-„Anlegen"-Button-Fix (Option-2-Reset-Removal). Migration
+nur in Phase 39 (`week_status`-Tabelle, partial UNIQUE). Keine neuen Dependencies.
+
+**Key accomplishments:**
+
+1. **Phase 39 (WST-01/02/05)** — `week_status`-Tabelle + Migration (partial UNIQUE) + `WeekStatusDao` + `WeekStatusService` (Basic-Tier, TDD: Permission-Gate, Upsert/Soft-Delete, KW-53); `WeekStatusTO` + REST-CRUD + ApiDoc + DI-Wiring; FE: `WeekStatus`-Enum (4 Varianten inkl. `Unset`, i18n de/en/cs), Fresh-Fetch-Store, `WeekStatusBadge` + `WeekStatusDropdown` in der Schichtplan-Wochenansicht. `should_show_badge` pure-fn. Code-Review 0 Blocker.
+2. **Phase 40 (WST-03/04)** — `ServiceError::WeekLocked` → HTTP 423 + OpenAPI-Annotation; `assert_week_not_locked`-Helper in allen 6 Schreibpfaden in-Transaktion (kein TOCTOU); neue `ShiftplanEditService::delete_booking`-Methode + REST-Re-Routing `DELETE /booking/{id}` (schließt Basic-Tier-Bypass); Shiftplanner-Bypass; FE read-only Locked-Woche + 423-Inline-Banner; i18n de/en/cs. **CRITICAL CR-01 (Privileg-Mismatch) via Code-Review gefunden + gefixt** + Regressionstest. Test-Matrix 6 Pfade × {gesperrt, offen}.
+3. **Phase 41 (AVG-01/02/03)** — Pure fn `average_hours_per_attendance_day` (eigener Struct `EmployeeAttendanceStatistics`, DISTINCT-Date-BTreeSet, ≥1 work-category, <2 Tage → None); `ReportingService::get_employee_attendance_statistics` (HR-Gate als erste await-Op, `is_dynamic`-Filter, `until_week`-Clamp); `EmployeeAttendanceStatisticsTO` + HR-gated Endpoint + ApiDoc; FE Ø-Anwesenheit-Sektion im HR-Report mit Leerzustand; i18n de/en/cs. Snapshot bleibt 12 (grep-verifiziert).
+4. **Phase 42 (SDF-01)** — Reset-Block `settings.rs:458-459` entfernt (Option 2); reine Validitäts-/Retention-Fns `is_special_day_form_valid` + `special_day_form_after_create` extrahiert + unit-getestet; stale Doc-Comment gefixt. SSR-Mount-Test begründet übersprungen (D-42-06).
+
+**Test verification:** Backend `cargo test --workspace` (569 service_impl + 64 rest + weitere, 0 Failures) + `cargo clippy --workspace -- -D warnings` clean; FE `cargo build --target wasm32-unknown-unknown` warnungsfrei + `cargo test -p shifty-dioxus` 752 grün. Audit `passed` (9/9 Requirements, Integration clean, 3/3 E2E-Flows, Nyquist compliant).
+
+**Known deferred items (acknowledged at close, 2026-07-02, override_closeout):**
+
+- **3 optionale D-25-06-Browser-Smokes** (Phase 40: +/- Buttons weg in Locked-Woche; Phase 41: Ø-Anwesenheits-Zahl im HR-Report; Phase 42: Button bleibt aktiv nach Create) — strukturell via pure-fn + Endpoint-Tests verifiziert; live-WASM-Interaktion optional deferred.
+- **WR-03 (akzeptiert):** `is_dynamic`-Filter ohne Report-Perioden-Bezug — konsistent mit `billing_period_report.rs`-Muster; zeitraum-bewusste Vertragshistorie out-of-scope (AVG-05 Backlog).
+- **PRÄ-v2.1 Carry-over** (i18n_impersonation_keys_match_german_reference aus v1.11/Phase 37-02, Commit 83a0d91): De-Label '🥸 Agieren' vs Test-Referenz 'Als diese Person agieren' — Produkt-Copy-Entscheidung offen; Todo: `.planning/todos/pending/2026-07-02-i18n-impersonation-key-test-mismatch.md`.
+- **Carry-over Deferred Items aus v1.4–v1.11** — weiterhin deferred, siehe STATE.md. Keines v2.1-spezifisch.
+
+**Hinweis:** v2.1 ist das interne Planungs-Label. Reale Release-Version datumsbasiert via `cli-update-version`/`/release-version` (kein git tag).
+
+---

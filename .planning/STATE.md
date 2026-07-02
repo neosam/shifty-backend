@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 42
-status: completed
+status: shipped
 stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T07:55:02.890Z"
+last_updated: "2026-07-02T12:00:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 42 complete
+last_activity_desc: v2.1 milestone archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -21,13 +21,13 @@ current_phase_name: Special-Days-Anlegen-Button-Bugfix
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (**v2.1 aktiv**, Phasen 39–42 expanded; v1.0–v1.11 archiviert/collapsed; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` (v2.1 — 9/9 Requirements, Traceability befüllt: WST-01/02/05→39, WST-03/04→40, AVG-01/02/03→41, SDF-01→42)
+- **Roadmap**: `.planning/ROADMAP.md` (**v2.1 archiviert/collapsed**; v1.0–v1.11 archiviert/collapsed; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` (v2.1 — 9/9 Requirements, alle Complete; archiviert als `milestones/v2.1-REQUIREMENTS.md`)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v1.11-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v2.1-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v1.11 Stabilisierung & UX-Politur** (shipped + archiviert 2026-07-01, Phasen 36–38, 6 Pläne, 6/6 Requirements, Audit `passed`, override_closeout)
-- **Current milestone**: **v2.1 Schichtplan- & Reporting-Erweiterungen** (gestartet 2026-07-01, autonomer Nacht-Run) — 4 Phasen (39–42), 9 Requirements (WST-01..05, AVG-01..03, SDF-01). Reihenfolge WST (39→40) vor AVG (41), SDF (42) zuletzt (isoliert, niedrigstes Risiko).
+- **Last shipped/closed**: **v2.1 Schichtplan- & Reporting-Erweiterungen** (shipped + archiviert 2026-07-02, Phasen 39–42, 14 Pläne, 9/9 Requirements, Audit `passed`, override_closeout)
+- **Current milestone**: **keiner** — zwischen Milestones; nächste Iteration via `/gsd-new-milestone` (Kandidat: v2.2 PDF-Export → Nextcloud/WebDAV, EXP-01)
 - **Current focus**: Phase 42 Kontext erfasst (Special-Days-„Anlegen"-Button-Bugfix, FE-only). Entscheidungen D-42-01..06: Option-2-Reset entfernen (nur die 3 Feld-Resets, `sd_year.set`+`sd_resource.restart()` bleiben), Duplikat akzeptieren (Backend in-place Replace), „Gespeichert" bleibt bis nächstem Klick, Test = Pure-Unit-Prädikat (Pflicht) + SSR best-effort. Nächster Schritt: `/gsd-plan-phase 42`.
 - **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9–v1.11 **kein** Bump. **v2.1 erwartet KEINEN Bump** (WST-01 berührt keinen persistierten `BillingPeriodValueType`; AVG-01 = reines Read-Aggregat) — in Phase 41 verifizieren. **Migration erwartet für Phase 39** (neue `week_status`-Tabelle). Keine neuen Deps erwartet.
 
@@ -35,8 +35,8 @@ current_phase_name: Special-Days-Anlegen-Button-Bugfix
 
 Phase: 42
 Plan: Not started
-Status: Phase 42 complete — v2.1 all 4 phases done (39–42); milestone-close pending
-Last activity: 2026-07-02 — Phase 42 complete
+Status: v2.1 milestone shipped + archived 2026-07-02 — 9/9 Requirements, Audit passed
+Last activity: 2026-07-02 — v2.1 milestone archived
 
 Progress (Pläne Phase 42): [██████████] 100% (1/1)
 
@@ -71,6 +71,19 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | tech_debt | Phase 37: WR-01 Panel-`stop_propagation` blockt document-level Outside-Click (v1.11) | deferred | Code-Review WARNING: das für den MOD-01-Fix nötige Panel-`onmousedown`-`stop_propagation` verhindert, dass künftige generische Dialog-Kinder document-level Outside-Click-Detection nutzen. Inhärent zum gelockten D-01-Ansatz, aktuell kein Opfer. |
 
 ## Shipped Milestones
+
+### v2.1 — Schichtplan- & Reporting-Erweiterungen (shipped 2026-07-02)
+
+- **Geliefert:** Phasen 39–42 (14 Pläne). WST-01/02/05 KW-Status Grundlage (neue `week_status`-Tabelle, `WeekStatusService` Basic-Tier, shiftplanner-gated CRUD, farbkodiertes Badge + Dropdown für alle Rollen). WST-03/04 Wochen-Sperre (TOCTOU-sicheres `assert_week_not_locked` in allen 6 Schreibpfaden in-Transaktion, HTTP 423, Shiftplanner-Bypass, neue `delete_booking`-Methode + REST-Re-Routing, FE read-only + 423-Banner). AVG-01/02/03 Ø-Anwesenheit flexibler Mitarbeiter (pure fn `average_hours_per_attendance_day`, HR-gated Endpoint, FE-Sektion mit Leerzustand, i18n de/en/cs). SDF-01 Special-Days-„Anlegen"-Button-Fix (Option-2-Reset-Removal, reine Validitäts-Fns unit-getestet).
+- **Snapshot-Schema-Version:** bleibt 12 (kein Bump — AVG = reines Read-Aggregat, kein neuer `BillingPeriodValueType`; grep-verifiziert). Migration nur in Phase 39 (`week_status`-Tabelle, partial UNIQUE). Keine neuen Dependencies.
+- **Verifikation:** alle 4 Phasen passed (39: 20/20; 40: 11/11, inkl. **CRITICAL CR-01-Bugfix (Privileg-Mismatch) via Code-Review gefunden + gefixt** + Regressionstest; 41: 13/13; 42: 7/7); Milestone-Audit `passed` (9/9 Requirements, Integration clean, 3/3 Flows, Nyquist compliant). Gates: Backend `cargo test --workspace` (569+64+weitere, 0 Failures) + `cargo clippy --workspace -- -D warnings` clean; FE `cargo build --target wasm32-unknown-unknown` + `cargo test -p shifty-dioxus` (752) grün.
+- **Closeout:** override_closeout (Audit `passed`; 3 optionale D-25-06-Browser-Smokes + WR-03 (akzeptiert) + PRÄ-v2.1 i18n-Impersonation-Carry-over acknowledged). Kein git tag.
+- **Archiv:** `milestones/v2.1-ROADMAP.md`, `milestones/v2.1-REQUIREMENTS.md`, `milestones/v2.1-MILESTONE-AUDIT.md`.
+
+**Deferred (acknowledged at close):**
+- 3 optionale D-25-06-Browser-Smokes (Phase 40: +/- Buttons weg in Locked-Woche; Phase 41: Ø-Anwesenheits-Zahl im HR-Report; Phase 42: Button bleibt aktiv nach Create) — strukturell verifiziert.
+- WR-03 (akzeptiert): `is_dynamic`-Filter ohne Perioden-Bezug — konsistent mit bestehendem Muster.
+- PRÄ-v2.1 Carry-over: `i18n_impersonation_keys_match_german_reference` (Phase 37-02/v1.11, '🥸 Agieren' vs Referenz 'Als diese Person agieren') — Produkt-Copy-Entscheidung offen; Todo: `.planning/todos/pending/2026-07-02-i18n-impersonation-key-test-mismatch.md`.
 
 ### v1.11 — Stabilisierung & UX-Politur (shipped 2026-07-01)
 
@@ -151,31 +164,31 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 ## Session Continuity
 
-**Last session:** 2026-07-01T23:27:18.384Z
-**Stopped at:** Completed 39-02-PLAN.md
+**Last session:** 2026-07-02T12:00:00.000Z
+**Stopped at:** v2.1 milestone archived
 **Resume file:** None
 
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (**v2.1 aktiv**, Phasen 39–42 expanded; v1.0–v1.11 archiviert/collapsed; Backlog 999.1)
-3. Read `.planning/REQUIREMENTS.md` (v2.1, 9/9 Requirements, Traceability befüllt)
-4. Read `.planning/PROJECT.md` (Charter + Current State: v2.1 aktiv)
-5. Read `.planning/MILESTONES.md` (Index inkl. v1.7–v1.11)
-6. Read `.planning/research/SUMMARY.md` (HIGH-confidence: keine neuen Deps, Integration-Map, Pitfalls P1–P8)
+2. Read `.planning/ROADMAP.md` (v2.1 archived/collapsed; v1.0–v2.1 archiviert/collapsed; Backlog 999.1)
+3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
+4. Read `.planning/MILESTONES.md` (Index inkl. v1.7–v2.1)
 
-**Aktueller Stand:** v2.1-Roadmap fertig — 9/9 Requirements gemappt (WST-01/02/05 → Phase 39, WST-03/04 → Phase 40, AVG-01/02/03 → Phase 41, SDF-01 → Phase 42).
+**Aktueller Stand:** v2.1 shipped + archiviert (9/9 Requirements, Audit `passed`). Zwischen Milestones — nächste Iteration via `/gsd-new-milestone` (Kandidat: v2.2 PDF-Export → Nextcloud/WebDAV, EXP-01).
 
-**Next command**: `/gsd-discuss-phase 39` (KW-Status Grundlage — offene Entscheidungen: wer setzt Status + erlaubte Übergänge, Badge+Button-UI zur Vermeidung des D-25-06-Desync, None-Variante ≠ `None`). Danach `/gsd-plan-phase 39`.
+**Next command**: `/gsd-new-milestone` für v2.2 (oder nach User-Priorisierung).
 
 ---
 
-*State updated: 2026-07-01 — **v2.1-Roadmap erstellt** (Phasen 39–42, 9/9 Requirements gemappt, Coverage ✓). ROADMAP.md: v2.1 expanded, v1.0–v1.11 collapsed erhalten, Backlog 999.1 unverändert. Nächster Schritt: `/gsd-discuss-phase 39`.*
+*State updated: 2026-07-02 — **v2.1 geshipt + archiviert** (Phasen 39–42, 14 Pläne, 9/9 Requirements, Audit `passed`). ROADMAP.md: v2.1 collapsed; MILESTONES.md: v2.1-Eintrag hinzugefügt; milestones/v2.1-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md angelegt. Zwischen Milestones.*
 
 ## Operator Next Steps
 
-- v2.1-Milestone geplant (4 Phasen). Nächster Schritt: `/gsd-discuss-phase 39` → `/gsd-plan-phase 39` (oder autonomer Run `/gsd-autonomous`).
-- Autonomer Nacht-Run vorgesehen (yolo, GSD-Auto-Commit via git→jj aktiv).
+- v2.1 shipped + archiviert. Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
+- Kandidat: **v2.2 PDF-Export → Nextcloud/WebDAV** (EXP-01, bereits im Backlog von REQUIREMENTS.md).
+- Offene Deferred Items: i18n-Impersonation-Carry-over-Todo + optionale Browser-Smokes (nicht-blockierend).
+- Backlog-Phase 999.1 (Breaking/Major Dependency-Migration) weiterhin separat verfügbar via `/gsd-plan-phase 999.1`.
 
 ## Decisions
 
