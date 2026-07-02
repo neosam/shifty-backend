@@ -7,7 +7,10 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-use rest_types::{EmployeeReportTO, EmployeeWeeklyStatisticsTO, ShortEmployeeReportTO};
+use rest_types::{
+    EmployeeAttendanceStatisticsTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO,
+    ShortEmployeeReportTO,
+};
 use serde::Deserialize;
 use service::reporting::ReportingService;
 use tracing::instrument;
@@ -24,6 +27,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             get(get_short_week_report::<RestState>),
         )
         .route("/{id}/weekly-statistics", get(get_weekly_statistics::<RestState>))
+        .route(
+            "/{id}/attendance-statistics",
+            get(get_attendance_statistics::<RestState>),
+        )
         .route("/{id}", get(get_report::<RestState>))
 }
 
@@ -188,6 +195,52 @@ pub async fn get_weekly_statistics<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/{id}/attendance-statistics",
+    tags = ["Report"],
+    params(
+        ("id" = Uuid, Path, description = "Sales person ID"),
+        ("year" = u32, Query, description = "The year for the report"),
+        ("until_week" = u8, Query, description = "The week to report until")
+    ),
+    responses(
+        (status = 200, description = "HR-only average worked hours per attendance day over the report range; null body for non-flexible employees", body = EmployeeAttendanceStatisticsTO, content_type = "application/json"),
+        (status = 403, description = "Forbidden — HR role required"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_attendance_statistics<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    query: Query<ReportRequest>,
+    Path(sales_person_id): Path<Uuid>,
+    Extension(context): Extension<Context>,
+) -> Response {
+    error_handler(
+        (async {
+            let maybe_stats = rest_state
+                .reporting_service()
+                .get_employee_attendance_statistics(
+                    &sales_person_id,
+                    query.year,
+                    query.until_week,
+                    context.into(),
+                    None,
+                )
+                .await?;
+            let stats: Option<EmployeeAttendanceStatisticsTO> =
+                maybe_stats.as_ref().map(EmployeeAttendanceStatisticsTO::from);
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::new(serde_json::to_string(&stats).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     tags(
@@ -197,8 +250,15 @@ pub async fn get_weekly_statistics<RestState: RestStateDef>(
         get_short_report_for_all,
         get_report,
         get_short_week_report,
-        get_weekly_statistics
+        get_weekly_statistics,
+        get_attendance_statistics
     ),
-    components(schemas(ShortEmployeeReportTO, EmployeeReportTO, ReportRequest, EmployeeWeeklyStatisticsTO))
+    components(schemas(
+        ShortEmployeeReportTO,
+        EmployeeReportTO,
+        ReportRequest,
+        EmployeeWeeklyStatisticsTO,
+        EmployeeAttendanceStatisticsTO
+    ))
 )]
 pub struct ReportApiDoc;
