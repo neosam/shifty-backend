@@ -84,10 +84,19 @@
   4. Der Sperr-Check läuft in derselben Transaktion wie der Write (kein TOCTOU) — durch Test/Review belegt.
 
 **Plans**: 4 plans
+**Wave 1**
+
 - [ ] 40-01-PLAN.md — Backend contract + DI scaffold (WeekLocked+423, delete_booking trait, WeekStatusService dep, pass-through gate) [W1]
 - [ ] 40-02-PLAN.md — Frontend: +/- Buttons ausblenden in Locked-Woche + i18n WeekLockedError [W1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 40-03-PLAN.md — TDD Lock-Enforcement (assert_week_not_locked blockt 6 Pfade; 6×2+TOCTOU+delete-Reihenfolge) [W2]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 40-04-PLAN.md — REST Re-Routing DELETE /booking → delete_booking (WST-04) + OpenAPI 423 [W3]
+
 **UI hint**: yes
 
 **Offene Entscheidungen (discuss-phase 40):** HTTP-Code für Locked-Write (Default **423 Locked**; 409-Alternative geprüft — Konsistenz mit `PaidLimitExceeded`-409-Präzedenz abwägen).
