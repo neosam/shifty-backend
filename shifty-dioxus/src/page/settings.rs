@@ -510,12 +510,11 @@ pub fn SettingsPage() -> Element {
         .unwrap_or_default();
 
     // Form validity (D-33-06): date non-empty AND (type≠ShortDay OR time non-empty)
+    // Extracted into the pure, unit-tested `is_special_day_form_valid` (D-42-05).
     let sd_date_val = sd_date_str.read().clone();
     let sd_time_val = sd_time_str.read().clone();
     let sd_type_val = sd_type.read().clone();
-    let sd_form_valid = !sd_date_val.is_empty()
-        && sd_type_val.is_some()
-        && (sd_type_val != Some(SpecialDayTypeTO::ShortDay) || !sd_time_val.is_empty());
+    let sd_form_valid = is_special_day_form_valid(&sd_date_val, sd_type_val.clone(), &sd_time_val);
 
     // Live duplicate check (D-33-07)
     let sd_is_duplicate = parse_date_to_iso_parts(&sd_date_val)
@@ -531,6 +530,13 @@ pub fn SettingsPage() -> Element {
         let date_s = sd_date_str.read().clone();
         let time_s = sd_time_str.read().clone();
         let ty = sd_type.read().clone();
+
+        // Snapshot the current form for the post-create retention policy (D-42-01).
+        let sd_form_before = SpecialDayForm {
+            date: date_s.clone(),
+            ty: ty.clone(),
+            time: time_s.clone(),
+        };
 
         let Some((iso_year, iso_week, weekday)) = parse_date_to_iso_parts(&date_s) else {
             sd_save_result.set(Some(false));
@@ -582,11 +588,15 @@ pub fn SettingsPage() -> Element {
                     // entry's ISO year so the just-created entry stays visible
                     // instead of silently vanishing from the reloaded list.
                     sd_year.set(iso_year);
-                    // Reset the form so re-clicking Add cannot immediately resubmit
-                    // an exact duplicate (WR-02).
-                    sd_date_str.set(String::new());
-                    sd_type.set(None);
-                    sd_time_str.set(String::new());
+                    // D-42-01 (Option 2): keep the form filled after create so
+                    // `is_special_day_form_valid` stays true → the Anlegen button
+                    // stays enabled → repeated create without re-toggling the type
+                    // dropdown. The former three field resets are removed; the
+                    // retention policy is the single source of truth for what stays.
+                    let retained = special_day_form_after_create(&sd_form_before);
+                    sd_date_str.set(retained.date);
+                    sd_type.set(retained.ty);
+                    sd_time_str.set(retained.time);
                     sd_resource.restart();
                 }
                 Err(_) => {
