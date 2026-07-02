@@ -1,9 +1,9 @@
 ---
 phase: 42
 slug: special-days-anlegen-button-bugfix-fe
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-02
 ---
 
@@ -47,9 +47,9 @@ created: 2026-07-02
 
 ## Wave 0 Requirements
 
-- [ ] Extract the inline validity predicate (`settings.rs` ~387) into a pure fn (analog existing helpers `sd_type_to_select_value`, `is_duplicate_special_day`) with `#[cfg(test)]` unit tests
-- [ ] Pure fn modeling post-create retention (which signals reset vs retained), unit-tested
-- [ ] (best-effort) SSR/VirtualDom mount test asserting the "Anlegen" button is not `disabled` after mount — only if the component mounts without live backend/config; otherwise document a justified skip (D-42-06)
+- [x] Extract the inline validity predicate (`settings.rs` ~387) into a pure fn (analog existing helpers `sd_type_to_select_value`, `is_duplicate_special_day`) with `#[cfg(test)]` unit tests → `is_special_day_form_valid` + 5 predicate tests
+- [x] Pure fn modeling post-create retention (which signals reset vs retained), unit-tested → `SpecialDayForm` + `special_day_form_after_create` + 2 retention tests (incl. "valid stays true after create")
+- [x] (best-effort) SSR/VirtualDom mount test — **justified skip** (D-42-06, Fall B), see below
 
 ---
 
@@ -63,13 +63,45 @@ created: 2026-07-02
 
 ---
 
+## D-42-06 SSR/VirtualDom Mount Test — Justified Skip (Fall B)
+
+**Decision:** No SSR/VirtualDom render test was added; the pure-fn tests from Task 1
+(D-42-05) are the sole, sufficient hard gate.
+
+**Why the component is not sensibly mountable without a live harness:**
+
+1. **Global provider dependency.** `SettingsPage` reads three global signals at the
+   top of its body — `I18N.read()`, `CONFIG.read()`, `AUTH.read()`. A bare
+   `VirtualDom::new(SettingsPage)` has none of these initialized to a realistic
+   state.
+2. **Admin guard short-circuits before the button renders.** The component's first
+   act is `is_admin = AUTH.read().auth_info.as_ref().map(|a| a.has_privilege("admin"))`.
+   Without an initialized `auth_info` this is `false`, so the component returns the
+   "Not authorized." branch and the Card-3 create form (and the Anlegen button) is
+   never rendered — the assertion target would not exist.
+3. **Network resources on mount.** The body starts `use_resource(get_toggle_enabled)`
+   and `use_resource(api::get_special_days_for_year)`, both of which trigger HTTP
+   calls against the backend proxy. Mounting without a live backend/config would
+   exercise error paths unrelated to the button-disabled invariant.
+4. **No existing VirtualDom harness.** The crate's `settings.rs` tests are all pure
+   `#[cfg(test)]` unit tests over pure helpers (confirmed in 42-CONTEXT.md); adding a
+   one-off mount harness for this isolated bugfix would be brittle and low-value.
+
+**Coverage instead:** `special_day_form_valid_stays_true_after_create` proves the
+button-enabled invariant at the predicate level (the exact `!sd_form_valid` input to
+`Btn { disabled }`), and `special_day_form_retained_after_create` proves all three
+fields are kept. The live WASM signal↔DOM behavior (D-25-06 class) remains the
+optional browser smoke listed under Manual-Only Verifications.
+
+---
+
 ## Validation Sign-Off
 
-- [ ] Validity predicate extracted to a tested pure fn; equals old inline logic
-- [ ] "stays true after create (fields retained)" case covered
-- [ ] Retention-policy pure fn tested (3 resets removed; year/restart kept)
-- [ ] Controlled-select D-06/D-08 not broken (field stays filled, not emptied)
-- [ ] SSR best-effort attempted or justified-skip documented
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] Validity predicate extracted to a tested pure fn; equals old inline logic
+- [x] "stays true after create (fields retained)" case covered
+- [x] Retention-policy pure fn tested (3 resets removed; year/restart kept)
+- [x] Controlled-select D-06/D-08 not broken (field stays filled, not emptied)
+- [x] SSR best-effort attempted or justified-skip documented (Fall B, above)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved (2026-07-02, executor — pure-fn hard gate green, WASM build warning-free)
