@@ -64,10 +64,12 @@ pub fn weekday_key(day: DayOfWeekTO) -> Key {
 /// Map `Option<SpecialDayTypeTO>` to the HTML select `value` string (D-06).
 ///
 /// Mirrors the inverse of the `onchange` match in the Card-3 SelectInput handler.
-/// Used to derive a controlled `value` prop from the `sd_type` signal so that
-/// `sd_type.set(None)` after a successful create visibly clears the dropdown and
-/// re-enables the Anlegen button (D-08: the date field is already controlled via
-/// `value: ImStr::from(sd_date_val.as_str())` so no change is needed there).
+/// Used to derive a controlled `value` prop from the `sd_type` signal so the
+/// dropdown stays in sync with the signal without signal↔DOM desync (D-08: the
+/// date field is likewise controlled via `value: ImStr::from(sd_date_val.as_str())`).
+/// Note (Phase 42 / D-42-01): the form fields are NO LONGER reset after a successful
+/// create — type/date/time are retained so the Anlegen button stays enabled for
+/// repeated creates.
 pub(crate) fn sd_type_to_select_value(ty: Option<SpecialDayTypeTO>) -> &'static str {
     match ty {
         None => "",
@@ -779,9 +781,10 @@ pub fn SettingsPage() -> Element {
                             }
                             SelectInput {
                                 // D-06: controlled binding — the select value tracks
-                                // sd_type so sd_type.set(None) after a successful
-                                // create visibly clears the dropdown and re-enables
-                                // the Anlegen button (no desync between signal and DOM).
+                                // sd_type so there is no desync between signal and DOM.
+                                // Phase 42 (D-42-01): fields are retained after create
+                                // (not reset), so the dropdown keeps its value and the
+                                // Anlegen button stays enabled for repeated creates.
                                 value: Some(ImStr::from(sd_type_to_select_value(sd_type_val.clone()))),
                                 on_change: move |v: ImStr| {
                                     let ty = match v.as_str() {
