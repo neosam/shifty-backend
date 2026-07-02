@@ -36,9 +36,15 @@ current_phase_name: Special-Days-Anlegen-Button-Bugfix
 Phase: 42
 Plan: Not started
 Status: v2.1 milestone shipped + archived 2026-07-02 — 9/9 Requirements, Audit passed
-Last activity: 2026-07-02 — v2.1 milestone archived
+Last activity: 2026-07-02 — Completed quick task 260702-jql: Special-Day Duplikat-Hinweis nach Create ausblenden
 
 Progress (Pläne Phase 42): [██████████] 100% (1/1)
+
+## Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260702-jql | Special-Day Duplikat-Hinweis nach Create ausblenden, erst bei Feld-Änderung wieder | 2026-07-02 | b9d270b | [260702-jql-special-day-duplikat-hinweis-nach-create](./quick/260702-jql-special-day-duplikat-hinweis-nach-create/) |
 
 ## Deferred Items
 
