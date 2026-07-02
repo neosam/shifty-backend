@@ -83,7 +83,11 @@
   3. Die Sperre greift auf allen sechs Schreibpfaden ohne Bypass (`book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`, `copy_week_with_conflict_check`, neu `delete_booking` inkl. Re-Routing von `DELETE /booking/{id}`) — belegt durch Test-Matrix 6 Pfade × {gesperrt, offen}.
   4. Der Sperr-Check läuft in derselben Transaktion wie der Write (kein TOCTOU) — durch Test/Review belegt.
 
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 40-01-PLAN.md — Backend contract + DI scaffold (WeekLocked+423, delete_booking trait, WeekStatusService dep, pass-through gate) [W1]
+- [ ] 40-02-PLAN.md — Frontend: +/- Buttons ausblenden in Locked-Woche + i18n WeekLockedError [W1]
+- [ ] 40-03-PLAN.md — TDD Lock-Enforcement (assert_week_not_locked blockt 6 Pfade; 6×2+TOCTOU+delete-Reihenfolge) [W2]
+- [ ] 40-04-PLAN.md — REST Re-Routing DELETE /booking → delete_booking (WST-04) + OpenAPI 423 [W3]
 **UI hint**: yes
 
 **Offene Entscheidungen (discuss-phase 40):** HTTP-Code für Locked-Write (Default **423 Locked**; 409-Alternative geprüft — Konsistenz mit `PaidLimitExceeded`-409-Präzedenz abwägen).
