@@ -136,6 +136,20 @@ pub(crate) fn special_day_form_after_create(before: &SpecialDayForm) -> SpecialD
     before.clone()
 }
 
+/// Visibility rule for the Card-3 "existiert bereits" duplicate hint (260702-jql).
+///
+/// Since Phase 42 (D-42-01) the create-form fields are retained after a successful
+/// create, so the just-created entry matches itself and `is_duplicate` flips true
+/// immediately. That is a false-positive for the user (they did not type a
+/// duplicate — the system kept their input). This pure predicate gates the hint on
+/// a `suppressed` flag that the success handler sets after create and the three
+/// field `on_change` handlers clear on the next real edit: the hint shows only when
+/// there is a duplicate AND it is not currently suppressed. (Deliberate, narrow
+/// reversal of the "always show on match" behaviour from D-42-03.)
+pub(crate) fn should_show_duplicate_hint(is_duplicate: bool, suppressed: bool) -> bool {
+    is_duplicate && !suppressed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,6 +320,32 @@ mod tests {
             after.ty.clone(),
             &after.time
         ));
+    }
+
+    // ── 260702-jql: duplicate-hint visibility rule ──
+
+    /// Real duplicate typed by the user, not suppressed → hint shows.
+    #[test]
+    fn duplicate_hint_shown_when_duplicate_and_not_suppressed() {
+        assert!(should_show_duplicate_hint(true, false));
+    }
+
+    /// Directly after a successful create the self-match is suppressed → no hint.
+    #[test]
+    fn duplicate_hint_hidden_after_create_when_suppressed() {
+        assert!(!should_show_duplicate_hint(true, true));
+    }
+
+    /// No duplicate, not suppressed → no hint.
+    #[test]
+    fn duplicate_hint_hidden_when_not_duplicate() {
+        assert!(!should_show_duplicate_hint(false, false));
+    }
+
+    /// No duplicate and suppressed → still no hint.
+    #[test]
+    fn duplicate_hint_hidden_when_not_duplicate_and_suppressed() {
+        assert!(!should_show_duplicate_hint(false, true));
     }
 }
 
