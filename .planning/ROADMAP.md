@@ -115,10 +115,22 @@
   4. Die Auswertung ist ein reines Read-Aggregat — kein Snapshot-Bump, keine neue Persistenz, kein neuer `BillingPeriodValueType` (`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12) — grep-/test-verifiziert.
 
 **Plans**: 4 plans
+**Wave 1**
+
 - [ ] 41-01-PLAN.md — Pure fn `average_hours_per_attendance_day` + Result-Struct (TDD, Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 41-02-PLAN.md — ReportingService-Methode: HR-Gate + is_dynamic-Filter + Mock-Tests (Wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 41-03-PLAN.md — `EmployeeAttendanceStatisticsTO` + HR-gated Endpoint + ApiDoc (Wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 41-04-PLAN.md — FE: i18n de/en/cs + api-Loader + EmployeeStore + Rendering (Wave 4)
+
 **UI hint**: yes
 
 **Offene Entscheidungen (discuss-phase 41, D-AVG-01..08):** Bezugsgröße (Woche/Monat/Abrechnungsperiode); Zähler (geleistete Stunden vs. Anwesenheitstage); exaktes Exclusion-Set (nur Urlaub vs. auch Krankheit/unbezahlt/Feiertag — **A-22-1 schließt ALLE Absence-Kategorien aus und ist NICHT identisch**); Mitarbeiter-Scope (`is_dynamic == true` bestätigen); Anzeige-Ort (Abrechnungsperioden-Report vs. eigenständige Sicht); Mindest-Datenschwelle; No-Persist-Bestätigung.

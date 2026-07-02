@@ -764,17 +764,19 @@ Alle Tools sind im Nix-Develop-Shell vorhanden. Phase 41 hat keine neuen externe
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`find_by_sales_person_id` auf EmployeeWorkDetailsService?**
    - Was wir wissen: `employee_work_details_service.all()` existiert; `filter(|w| w.sales_person_id == id)` ist im `get_reports_for_all_employees`-Impl vorhanden (service_impl/src/reporting.rs:290–294).
    - Was unklar ist: Ob eine direkte `find_by_sales_person_id`-Methode existiert oder `all()` + Filter verwendet werden muss.
    - Empfehlung: Bei der Implementierung prüfen; falls nicht vorhanden → `all()` + clientseitiger Filter (wie im bestehenden Code).
+   - **RESOLVED:** Plan 41-02 Task 2 implementiert den `all()`+Filter-Fallback (kein harter Bedarf an einer dedizierten Methode).
 
 2. **Serde-Verhalten von `Option<EmployeeAttendanceStatisticsTO>` als JSON**
    - Was wir wissen: `serde_json::to_string(&None::<T>)` → `"null"`.
    - Was unklar ist: Ob das FE `reqwest::Response::json::<Option<EmployeeAttendanceStatisticsTO>>()` korrekt deserialisiert.
    - Empfehlung: Im FE `response.json::<Option<EmployeeAttendanceStatisticsTO>>()` verwenden; testet mit Mock-Backend.
+   - **RESOLVED:** Plan 41-04 Task 2 nutzt `response.json::<Option<EmployeeAttendanceStatisticsTO>>()` (null → None), mit i18n-/Leerzustand-Test.
 
 ---
 
