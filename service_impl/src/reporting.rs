@@ -1214,10 +1214,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             return Ok(None);
         }
 
-        // T-41-05: clamp until_week to the year's ISO week count.
-        let until_week = until_week.min(time::util::weeks_in_year(year as i32));
-
         // D-AVG-04: aggregate over the displayed report range.
+        // Note: until_week clamping to weeks_in_year is done inside get_report_for_employee.
         let report = self
             .get_report_for_employee(sales_person_id, year, until_week, context, tx)
             .await?;
