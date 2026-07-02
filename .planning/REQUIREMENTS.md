@@ -58,12 +58,12 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
   (für alle Rollen sichtbar; Setzen/Ändern nur für Schichtplaner). UI als Badge + Aktions-Button
   (kein controlled `<select>`, um D-25-06-Desync zu vermeiden).
 
-- [ ] **WST-03**: In einer **Gesperrt**-Woche werden Buchungs- und Slot-Schreibaktionen für
+- [x] **WST-03**: In einer **Gesperrt**-Woche werden Buchungs- und Slot-Schreibaktionen für
   **Nicht-Schichtplaner** server-seitig blockiert (`ServiceError::WeekLocked` → HTTP-Code in
   discuss-phase, Default **423 Locked**; 409-Alternative geprüft); Schichtplaner behält
   Vollzugriff. Check läuft **in derselben Transaktion** wie der Write (kein TOCTOU).
 
-- [ ] **WST-04**: Die Sperre greift auf **allen** Schreibpfaden **ohne Bypass** —
+- [x] **WST-04**: Die Sperre greift auf **allen** Schreibpfaden **ohne Bypass** —
   `book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`,
   `copy_week_with_conflict_check` und **neu** `delete_booking` (inkl. Re-Routing von
   `DELETE /booking/{id}` über den Business-Logic-Tier). Geteilter `assert_week_not_locked`-Helper;
@@ -127,8 +127,8 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | WST-01 | Phase 39 | Complete |
 | WST-02 | Phase 39 | Complete |
 | WST-05 | Phase 39 | Complete |
-| WST-03 | Phase 40 | Pending |
-| WST-04 | Phase 40 | Pending |
+| WST-03 | Phase 40 | Complete |
+| WST-04 | Phase 40 | Complete |
 | AVG-01 | Phase 41 | Pending |
 | AVG-02 | Phase 41 | Pending |
 | AVG-03 | Phase 41 | Pending |

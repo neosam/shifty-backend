@@ -86,7 +86,7 @@
 **Plans**: 4 plans
 **Wave 1**
 
-- [ ] 40-01-PLAN.md — Backend contract + DI scaffold (WeekLocked+423, delete_booking trait, WeekStatusService dep, pass-through gate) [W1]
+- [x] 40-01-PLAN.md — Backend contract + DI scaffold (WeekLocked+423, delete_booking trait, WeekStatusService dep, pass-through gate) [W1]
 - [ ] 40-02-PLAN.md — Frontend: +/- Buttons ausblenden in Locked-Woche + i18n WeekLockedError [W1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -311,7 +311,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete    | 2026-07-02 |
-| 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 0/TBD | Not started | - |
+| 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 1/4 | In Progress|  |
 | 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
 

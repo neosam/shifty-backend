@@ -5,15 +5,15 @@ milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 40
 current_phase_name: Wochen-Sperre durchsetzen
 status: executing
-stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T04:32:37.987Z"
+stopped_at: Completed 40-01-PLAN.md
+last_updated: "2026-07-02T04:50:00.965Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 40 execution started
+last_activity_desc: Completed 40-01-PLAN.md (week-lock scaffold, green)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 25
 ---
 
@@ -34,11 +34,11 @@ progress:
 ## Current Position
 
 Phase: 40 (Wochen-Sperre durchsetzen) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 40
-Last activity: 2026-07-02 — Phase 40 execution started
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-02 — Completed 40-01-PLAN.md (week-lock scaffold, green)
 
-Progress (Pläne Phase 39): [████████░░] 80% (4/5)
+Progress (Pläne Phase 40): [██░░░░░░░░] 25% (1/4)
 
 ## Deferred Items
 
@@ -193,6 +193,8 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase ?]: 39-04: FE fresh-fetch KW-Status store (D-39-06) — Set->PUT->GET, kein optimistisches Signal (T-39-05)
 - [Phase ?]: 39-04: WeekStatus FE-Enum 4 Varianten Default=Unset + i18n de/en/cs 4x3 (WST-05)
 - [Phase ?]: 39-05: should_show_badge pure-fn is the tested source of truth for the Unset->hidden badge rule (D-39-05); WeekStatusDropdown on DropdownTrigger, no controlled select (D-39-06), with an Unset reset entry (D-39-07)
+- [Phase ?]: 40-01: WeekStatusService dep uses full <Context, Transaction> bound — Open Question 1 resolved, no reduction needed
+- [Phase ?]: 40-01: assert_week_not_locked is pass-through scaffold (reads status, always Ok); enforcement+bypass deferred to 40-03, delete_booking handler re-route to 40-04
 
 ## Performance Metrics
 
@@ -206,3 +208,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 39 P02 | 7min | 2 tasks | 6 files |
 | Phase 39 P04 | 12min | 2 tasks | 11 files |
 | Phase 39 P05 | ~18min | 2 tasks | 5 files |
+| Phase 40 P01 | 18min | 2 tasks | 6 files |
