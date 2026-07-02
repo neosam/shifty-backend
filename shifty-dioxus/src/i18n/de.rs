@@ -1053,6 +1053,21 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Durchschnittlich gearbeitete Stunden pro Woche",
     );
     i18n.add_text(Locale::De, Key::StatisticsIncludedWeeks, "Einbezogene Wochen");
+    i18n.add_text(
+        Locale::De,
+        Key::AvgHoursPerAttendanceDay,
+        "Ø Std/Anwesenheitstag",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AvgHoursPerAttendanceDayDescription,
+        "Durchschnittliche Arbeitsstunden pro Anwesenheitstag (nur flexible MA). Urlaub und Abwesenheiten sind nicht im Nenner.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::AvgHoursPerAttendanceDayEmpty,
+        "Nicht aussagekräftig (weniger als 2 Anwesenheitstage)",
+    );
 
     // Phase 24 — Bezahlt-Limit-Durchsetzung konfigurierbar (D-24-06, D-24-03, D-24-05).
     i18n.add_text(

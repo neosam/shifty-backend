@@ -597,6 +597,14 @@ pub enum Key {
     /// Label for the included weeks row.
     StatisticsIncludedWeeks,
 
+    // Phase 41 — Ø-Anwesenheit bei flexiblen Stunden (AVG-02/AVG-03, D-AVG-07/09).
+    /// Label for the average hours per attendance day row.
+    AvgHoursPerAttendanceDay,
+    /// Inline description for the average hours per attendance day row.
+    AvgHoursPerAttendanceDayDescription,
+    /// Empty-state / tooltip text when fewer than 2 attendance days.
+    AvgHoursPerAttendanceDayEmpty,
+
     // Phase 23 — Slot paid-capacity editor (FUI-02, D-23-01/D-23-02/D-23-06).
     /// Label for the `max_paid_employees` number field in the slot editor.
     MaxPaidEmployeesLabel,
@@ -886,6 +894,30 @@ mod tests {
                 Key::WeekStatusLocked,
                 Key::WeekStatusSetError,
                 Key::WeekStatusChangeAriaLabel,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    /// AVG-03 / D-AVG-09: proves the three new attendance-statistic keys
+    /// (label, description, empty-state) resolve to a non-empty, non-"??"
+    /// string in de/en/cs — the i18n completeness gate for Phase 41.
+    #[test]
+    fn i18n_attendance_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::AvgHoursPerAttendanceDay,
+                Key::AvgHoursPerAttendanceDayDescription,
+                Key::AvgHoursPerAttendanceDayEmpty,
             ] {
                 let value = i18n.t(key);
                 assert!(

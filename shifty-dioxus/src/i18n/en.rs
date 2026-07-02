@@ -978,6 +978,21 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Average worked hours per week",
     );
     i18n.add_text(Locale::En, Key::StatisticsIncludedWeeks, "Included weeks");
+    i18n.add_text(
+        Locale::En,
+        Key::AvgHoursPerAttendanceDay,
+        "Avg h/attendance day",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::AvgHoursPerAttendanceDayDescription,
+        "Average working hours per day actually worked (flexible employees only). Absences excluded from the denominator.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::AvgHoursPerAttendanceDayEmpty,
+        "Not meaningful (fewer than 2 attendance days)",
+    );
 
     // Phase 24 — Paid-limit enforcement config (D-24-06, D-24-03, D-24-05).
     i18n.add_text(

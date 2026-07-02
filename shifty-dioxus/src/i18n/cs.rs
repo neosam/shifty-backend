@@ -1043,6 +1043,21 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Průměrně odpracované hodiny za týden",
     );
     i18n.add_text(Locale::Cs, Key::StatisticsIncludedWeeks, "Započítané týdny");
+    i18n.add_text(
+        Locale::Cs,
+        Key::AvgHoursPerAttendanceDay,
+        "Prům. hod./den přítomnosti",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AvgHoursPerAttendanceDayDescription,
+        "Průměrné pracovní hodiny za den skutečné přítomnosti (pouze flexibilní zaměstnanci). Absence nejsou ve jmenovateli.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::AvgHoursPerAttendanceDayEmpty,
+        "Nevýznamné (méně než 2 dny přítomnosti)",
+    );
 
     // Phase 24 — Konfigurace vynucení limitu placených (D-24-06, D-24-03, D-24-05).
     i18n.add_text(
