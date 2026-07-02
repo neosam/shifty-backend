@@ -92,6 +92,48 @@ pub fn is_duplicate_special_day(
     })
 }
 
+/// Pure Card-3 create-form validity predicate (D-42-05, extracted from the former
+/// inline logic at the render body).
+///
+/// Returns `true` iff the date is non-empty AND a type is selected AND
+/// (the type is not `ShortDay` OR a time is provided). Byte-for-byte the same
+/// semantics as the previous inline `sd_form_valid` expression — just extracted
+/// into a pure, unit-tested function so the "button stays enabled after create"
+/// invariant (D-42-01) can be verified without browser flakiness.
+pub(crate) fn is_special_day_form_valid(
+    date_str: &str,
+    ty: Option<SpecialDayTypeTO>,
+    time_str: &str,
+) -> bool {
+    !date_str.is_empty()
+        && ty.is_some()
+        && (ty != Some(SpecialDayTypeTO::ShortDay) || !time_str.is_empty())
+}
+
+/// Snapshot of the three Card-3 create-form signal values (date / type / time).
+///
+/// Modeled as a pure value so the post-create retention policy (D-42-01/02) is
+/// unit-testable independent of Dioxus signals.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SpecialDayForm {
+    pub date: String,
+    pub ty: Option<SpecialDayTypeTO>,
+    pub time: String,
+}
+
+/// Post-create retention policy (D-42-01: Option 2 — keep the form filled).
+///
+/// After a successful create, the three form fields are NOT reset: this returns
+/// `before.clone()` so date/type/time stay filled → `is_special_day_form_valid`
+/// stays `true` → the Anlegen button stays enabled → repeated create without
+/// re-toggling the type dropdown. `sd_year.set(iso_year)` (WR-04) and
+/// `sd_resource.restart()` (reload the list) are handled separately by the
+/// success handler and are intentionally NOT part of this form-field policy
+/// (D-42-02).
+pub(crate) fn special_day_form_after_create(before: &SpecialDayForm) -> SpecialDayForm {
+    before.clone()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,12 +294,16 @@ mod tests {
         // Before create the form is valid.
         assert!(is_special_day_form_valid(
             &before.date,
-            before.ty,
+            before.ty.clone(),
             &before.time
         ));
         let after = special_day_form_after_create(&before);
         // After create the retained fields are STILL valid (button stays enabled).
-        assert!(is_special_day_form_valid(&after.date, after.ty, &after.time));
+        assert!(is_special_day_form_valid(
+            &after.date,
+            after.ty.clone(),
+            &after.time
+        ));
     }
 }
 
