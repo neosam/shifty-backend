@@ -36,6 +36,7 @@ use service::{
     toggle::MockToggleService,
     uuid_service::MockUuidService,
     warning::Warning,
+    week_status::{MockWeekStatusService, WeekStatus},
     MockPermissionService, ServiceError,
 };
 use shifty_utils::DayOfWeek;
@@ -161,6 +162,7 @@ pub(crate) struct ShiftplanEditDependencies {
     pub transaction_dao: MockTransactionDao,
     pub absence_service: MockAbsenceService,
     pub toggle_service: MockToggleService,
+    pub week_status_service: MockWeekStatusService,
 }
 
 impl ShiftplanEditServiceDeps for ShiftplanEditDependencies {
@@ -179,6 +181,7 @@ impl ShiftplanEditServiceDeps for ShiftplanEditDependencies {
     type TransactionDao = MockTransactionDao;
     type AbsenceService = MockAbsenceService;
     type ToggleService = MockToggleService;
+    type WeekStatusService = MockWeekStatusService;
 }
 
 impl ShiftplanEditDependencies {
@@ -197,6 +200,7 @@ impl ShiftplanEditDependencies {
             transaction_dao: self.transaction_dao.into(),
             absence_service: self.absence_service.into(),
             toggle_service: self.toggle_service.into(),
+            week_status_service: self.week_status_service.into(),
         }
     }
 }
@@ -277,6 +281,14 @@ pub(crate) fn build_dependencies(
         .expect_is_enabled()
         .returning(|_, _, _| Ok(false)); // soft mode by default → existing tests unaffected
 
+    // Phase 40 (D-40-01): Default für den pass-through Wochen-Sperre-Read. Ohne
+    // .times, damit bestehende Nicht-Bypass-Pfade (z.B. Self-Booker in book_slot)
+    // beim Helper-Read nicht paniken. Enforcement-Tests in 40-03 überschreiben.
+    let mut week_status_service = MockWeekStatusService::new();
+    week_status_service
+        .expect_get_week_status()
+        .returning(|_, _, _, _| Ok(WeekStatus::Unset));
+
     ShiftplanEditDependencies {
         permission_service,
         slot_service,
@@ -291,6 +303,7 @@ pub(crate) fn build_dependencies(
         transaction_dao,
         absence_service,
         toggle_service,
+        week_status_service,
     }
 }
 

@@ -16,6 +16,7 @@ use service::{
     slot::{Slot, SlotService},
     toggle::ToggleService,
     warning::Warning,
+    week_status::WeekStatusService,
     PermissionService, ServiceError,
 };
 use tokio::join;
@@ -39,7 +40,11 @@ gen_service_impl! {
         // NEU für Phase 3 (D-Phase3-06): Reverse-Warning konsumiert AbsenceService
         AbsenceService: service::absence::AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service,
         // D-24-08: ToggleService für paid_limit_hard_enforcement-Prüfung
-        ToggleService: service::toggle::ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service
+        ToggleService: service::toggle::ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service,
+        // NEU für Phase 40 (D-40-01): WeekStatusService liefert den Lock-Status
+        // für das Wochen-Sperre-Gate. Basic-Tier-Dep in Business-Logic-Service
+        // (CLAUDE.md § Service-Tier-Konventionen).
+        WeekStatusService: service::week_status::WeekStatusService<Context = Self::Context, Transaction = Self::Transaction> = week_status_service
     }
 }
 
@@ -58,7 +63,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
     ) -> Result<Slot, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
-            .check_permission("shiftplan.edit", context)
+            .check_permission("shiftplan.edit", context.clone())
+            .await?;
+        // Phase 40 (D-40-01): Wochen-Sperre-Gate (Scaffold, blockiert noch nicht).
+        self.assert_week_not_locked(change_year, change_week, context.clone(), tx.clone())
             .await?;
 
         let mut stored_slot = self
@@ -152,7 +160,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
     ) -> Result<(), ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
-            .check_permission("shiftplan.edit", context)
+            .check_permission("shiftplan.edit", context.clone())
+            .await?;
+        // Phase 40 (D-40-01): Wochen-Sperre-Gate (Scaffold, blockiert noch nicht).
+        self.assert_week_not_locked(change_year, change_week, context.clone(), tx.clone())
             .await?;
 
         let mut stored_slot = self
@@ -209,7 +220,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 
         // D-35-06: Permission-Gate als erster Aufruf (vor jeder Mutation)
         self.permission_service
-            .check_permission("shiftplan.edit", context)
+            .check_permission("shiftplan.edit", context.clone())
+            .await?;
+        // Phase 40 (D-40-01): Wochen-Sperre-Gate (Scaffold, blockiert noch nicht).
+        self.assert_week_not_locked(change_year, change_week, context.clone(), tx.clone())
             .await?;
 
         let mut stored_slot = self
@@ -574,6 +588,18 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         let is_shiftplanner = sp_perm.is_ok();
         sp_perm.or(self_perm)?;
 
+        // Phase 40 (D-40-01/02): Wochen-Sperre-Gate für Nicht-Schichtplaner
+        // (Scaffold, blockiert noch nicht). Schichtplaner umgehen den Read.
+        if !is_shiftplanner {
+            self.assert_week_not_locked(
+                booking.year,
+                booking.calendar_week as u8,
+                context.clone(),
+                tx.clone(),
+            )
+            .await?;
+        }
+
         // Slot-Lookup für day_of_week (Pattern aus modify_slot).
         let slot = self
             .slot_service
@@ -773,6 +799,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         self.permission_service
             .check_permission("shiftplan.edit", context.clone())
             .await?;
+        // Phase 40 (D-40-01): Wochen-Sperre-Gate — AUSSCHLIESSLICH die Ziel-Woche
+        // (Lesen der Quelle ist nie gesperrt). Scaffold, blockiert noch nicht.
+        self.assert_week_not_locked(to_year, to_calendar_week, context.clone(), tx.clone())
+            .await?;
 
         // Source-Bookings via BookingService (Basic, unangetastet).
         let source_bookings = self
@@ -816,6 +846,41 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             warnings: Arc::from(all_warnings),
         })
     }
+
+    async fn delete_booking(
+        &self,
+        booking_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Booking laden um (year, calendar_week) zu lesen — VOR dem Delete, sonst
+        // ist die Entity soft-deleted und der Lock-Read hätte keine Woche mehr.
+        let booking = self
+            .booking_service
+            .get(booking_id, Authentication::Full, Some(tx.clone()))
+            .await?;
+
+        // Phase 40 (D-40-02): 6. Schreibpfad — Wochen-Sperre-Gate (Scaffold,
+        // blockiert noch nicht). Reihenfolge get → assert → delete ist zwingend.
+        self.assert_week_not_locked(
+            booking.year,
+            booking.calendar_week as u8,
+            context.clone(),
+            tx.clone(),
+        )
+        .await?;
+
+        // Delegation an Basic-Tier-BookingService::delete erhält die Permission
+        // (Shiftplanner ∨ Self) — nur der Lock-Gate wird hier addiert.
+        self.booking_service
+            .delete(booking_id, context, Some(tx.clone()))
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
+    }
 }
 
 // Phase 5 (D-04, D-05, D-12) — private Helpers für die Paid-Employee-Limit-
@@ -824,6 +889,26 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
 // Konventionen" + v1.0 D-Phase3-18 Regression-Lock: BookingService bleibt
 // strikt Basic-Tier).
 impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditServiceImpl<Deps> {
+    /// Phase 40 (D-40-01) — Wochen-Sperre-Gate. SCAFFOLD-Variante (Plan 40-01):
+    /// liest den Wochen-Status in DERSELBEN Transaktion wie der Write (kein
+    /// TOCTOU), gibt aber IMMER `Ok(())` zurück. Die eigentliche Blockier-Logik
+    /// (`WeekStatus::Locked` → `ServiceError::WeekLocked`) und der
+    /// `shiftplan.edit`-Bypass folgen RED-first in Plan 40-03. Der Read „benutzt"
+    /// die neue `WeekStatusService`-Dep, damit kein dead-field-Lint entsteht.
+    async fn assert_week_not_locked(
+        &self,
+        year: u32,
+        calendar_week: u8,
+        _context: Authentication<Deps::Context>,
+        tx: Deps::Transaction,
+    ) -> Result<(), ServiceError> {
+        let _status = self
+            .week_status_service
+            .get_week_status(year, calendar_week, Authentication::Full, Some(tx))
+            .await?;
+        Ok(())
+    }
+
     /// Phase 5 (D-04, D-05): zählt aktive Bookings im (slot_id, year, week)
     /// deren Sales Person aktuell `is_paid = true` hat.
     ///

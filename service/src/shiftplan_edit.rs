@@ -140,4 +140,18 @@ pub trait ShiftplanEditService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<CopyWeekResult, ServiceError>;
+
+    /// Phase 40 (WST-04) — Lösch-Pfad mit Wochen-Sperre-Gate.
+    ///
+    /// Ersetzt den direkten `BookingService::delete`-Aufruf im DELETE-Handler,
+    /// damit auch das Ausbuchen der Wochen-Sperre unterliegt (D-40-02). Lädt das
+    /// Booking (für year/calendar_week), prüft die Sperre und delegiert dann an
+    /// die Basic-Tier-`BookingService::delete` (erhält die Shiftplanner-∨-Self-
+    /// Permission). Reihenfolge: get → assert_week_not_locked → delete.
+    async fn delete_booking(
+        &self,
+        booking_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }

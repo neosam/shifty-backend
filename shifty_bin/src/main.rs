@@ -455,6 +455,8 @@ impl service_impl::shiftplan_edit::ShiftplanEditServiceDeps for ShiftplanEditSer
     type AbsenceService = AbsenceService;
     // D-24-08: ToggleService für paid_limit_hard_enforcement-Prüfung
     type ToggleService = ToggleService;
+    // NEU für Phase 40 (D-40-01): Wochen-Sperre-Gate liest den Lock-Status.
+    type WeekStatusService = WeekStatusService;
 }
 type ShiftplanEditService =
     service_impl::shiftplan_edit::ShiftplanEditServiceImpl<ShiftplanEditServiceDependencies>;
@@ -1001,6 +1003,18 @@ impl RestStateImpl {
             },
         );
 
+        // Phase 40 (D-40-01): WeekStatusService (Basic-Tier) muss VOR dem
+        // ShiftplanEditService (Business-Logic-Tier) konstruiert werden, da
+        // Letzterer es als Dep für das Wochen-Sperre-Gate konsumiert
+        // (Service-Tier-Konvention: erst Basic, dann Business-Logic).
+        let week_status_service = Arc::new(WeekStatusService {
+            week_status_dao: Arc::new(WeekStatusDao::new(pool.clone())),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let shiftplan_edit_service =
             Arc::new(service_impl::shiftplan_edit::ShiftplanEditServiceImpl {
                 permission_service: permission_service.clone(),
@@ -1018,6 +1032,8 @@ impl RestStateImpl {
                 absence_service: absence_service.clone(),
                 // D-24-08: ToggleService für paid_limit_hard_enforcement-Prüfung.
                 toggle_service: toggle_service.clone(),
+                // NEU für Phase 40 (D-40-01): Wochen-Sperre-Gate.
+                week_status_service: week_status_service.clone(),
             });
         let shiftplan_dao = Arc::new(ShiftplanDao::new(pool.clone()));
         let shiftplan_service = Arc::new(service_impl::shiftplan_catalog::ShiftplanServiceImpl {
@@ -1055,14 +1071,6 @@ impl RestStateImpl {
 
         let week_message_service = Arc::new(WeekMessageService {
             week_message_dao: Arc::new(WeekMessageDao::new(pool.clone())),
-            permission_service: permission_service.clone(),
-            clock_service: clock_service.clone(),
-            uuid_service: uuid_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
-
-        let week_status_service = Arc::new(WeekStatusService {
-            week_status_dao: Arc::new(WeekStatusDao::new(pool.clone())),
             permission_service: permission_service.clone(),
             clock_service: clock_service.clone(),
             uuid_service: uuid_service.clone(),
