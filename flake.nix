@@ -28,7 +28,7 @@
         # take the whole repo and `cd shifty-dioxus` in the build phase.
         frontend-build = pkgs.rustPlatform.buildRustPackage {
           pname = "shifty-dioxus";
-          version = "2.0.1-dev";
+          version = "2.1.0";
 
           src = ./.;
           setSourceRoot = ''
