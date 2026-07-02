@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use rest_types::EmployeeWeeklyStatisticsTO;
+use rest_types::{EmployeeAttendanceStatisticsTO, EmployeeWeeklyStatisticsTO};
 use uuid::Uuid;
 
 use crate::base_types::{format_hours, ImStr};
@@ -40,6 +40,11 @@ pub struct EmployeeViewPlainProps {
     /// None for non-HR users (403 → None) or when data is unavailable.
     #[props(!optional, default = None)]
     pub weekly_statistics: Option<Rc<EmployeeWeeklyStatisticsTO>>,
+    /// Average-hours-per-attendance-day statistic (flexible employees only).
+    /// None for non-flexible employees / non-HR (server returns null/403) — the
+    /// row is then not rendered at all (D-AVG-05).
+    #[props(!optional, default = None)]
+    pub attendance_statistics: Option<Rc<EmployeeAttendanceStatisticsTO>>,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -529,6 +534,28 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             {format_hours(stats.average_worked_hours_per_week, 2)}
                         } },
                     }
+                    // Ø-Anwesenheit bei flexiblen Stunden (D-AVG-07): directly after
+                    // "Ø Std/Woche", before "Einbezogene Wochen". Rendered only when the
+                    // server delivered the statistic (Some) — non-flexible employees get None
+                    // and no row at all (D-AVG-05).
+                    if let Some(att) = props.attendance_statistics.as_ref() {
+                        TupleRow {
+                            label: ImStr::from(i18n.t(Key::AvgHoursPerAttendanceDay).as_ref()),
+                            value: match att.average_hours_per_attendance_day {
+                                Some(avg) => rsx! { span { class: "font-mono tabular-nums",
+                                    {format_hours(avg, 2)}
+                                } },
+                                None => rsx! { span {
+                                    class: "font-mono tabular-nums text-ink-muted",
+                                    title: "{i18n.t(Key::AvgHoursPerAttendanceDayEmpty)}",
+                                    "–"
+                                } },
+                            },
+                            description: Some(rsx! {
+                                "{i18n.t(Key::AvgHoursPerAttendanceDayDescription)}"
+                            }),
+                        }
+                    }
                     TupleRow {
                         label: ImStr::from(i18n.t(Key::StatisticsIncludedWeeks).as_ref()),
                         value: rsx! { span { class: "font-mono tabular-nums",
@@ -1015,6 +1042,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let custom_hours = employee_store.employee.custom_extra_hours.clone();
     let custom_extra_hours_definitions = employee_store.custom_extra_hours_definitions.clone();
     let weekly_statistics = employee_store.weekly_statistics.clone();
+    let attendance_statistics = employee_store.attendance_statistics.clone();
     let is_hr = AUTH
         .read()
         .auth_info
@@ -1035,6 +1063,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             custom_extra_hours_definitions,
             is_hr,
             weekly_statistics,
+            attendance_statistics,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
             on_extra_hour_edit: props.on_extra_hour_edit,
@@ -1589,6 +1618,94 @@ mod tests {
         assert!(
             !html.contains("Statistics"),
             "HR stats heading must NOT be present when statistics is None: {html}"
+        );
+    }
+
+    // --- SSR tests for the Ø-Anwesenheit attendance row (Phase 41) ---
+
+    #[derive(Props, Clone, PartialEq)]
+    struct AttendanceRowProps {
+        attendance_statistics: Option<Rc<EmployeeAttendanceStatisticsTO>>,
+    }
+
+    /// Minimal stub mirroring only the attendance-row conditional from the
+    /// HR-stats block: rendered only when `Some`, value is a formatted number
+    /// when `average_hours_per_attendance_day == Some`, otherwise the EN-DASH
+    /// empty state.
+    fn render_attendance_row(p: AttendanceRowProps) -> String {
+        fn app(p: AttendanceRowProps) -> Element {
+            let i18n = crate::service::i18n::I18N.read().clone();
+            rsx! {
+                div {
+                    if let Some(att) = p.attendance_statistics.as_ref() {
+                        match att.average_hours_per_attendance_day {
+                            Some(avg) => rsx! { span { class: "font-mono tabular-nums",
+                                {format_hours(avg, 2)}
+                            } },
+                            None => rsx! { span {
+                                class: "font-mono tabular-nums text-ink-muted",
+                                title: "{i18n.t(crate::i18n::Key::AvgHoursPerAttendanceDayEmpty)}",
+                                "–"
+                            } },
+                        }
+                    }
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(app, p);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn attendance_row_shows_number_when_some() {
+        // avg = 4.5 → format_hours(4.5, 2) = "4.50"; D-AVG-07 normal state.
+        let html = render_attendance_row(AttendanceRowProps {
+            attendance_statistics: Some(Rc::new(EmployeeAttendanceStatisticsTO {
+                average_hours_per_attendance_day: Some(4.5),
+                attendance_days: 10,
+                total_worked_hours: 45.0,
+            })),
+        });
+        assert!(
+            html.contains("4.50") || html.contains("4.5"),
+            "attendance row must show the formatted number: {html}"
+        );
+        assert!(
+            !html.contains('–'),
+            "attendance row must NOT show the EN-DASH when a value is present: {html}"
+        );
+    }
+
+    #[test]
+    fn attendance_row_shows_endash_when_inner_none() {
+        // < 2 attendance days → average_hours_per_attendance_day == None (D-AVG-06).
+        let html = render_attendance_row(AttendanceRowProps {
+            attendance_statistics: Some(Rc::new(EmployeeAttendanceStatisticsTO {
+                average_hours_per_attendance_day: None,
+                attendance_days: 1,
+                total_worked_hours: 8.0,
+            })),
+        });
+        assert!(
+            html.contains('–'),
+            "attendance row must show the EN-DASH empty state when inner None: {html}"
+        );
+        assert!(
+            html.contains("text-ink-muted"),
+            "empty-state value must be dimmed via text-ink-muted: {html}"
+        );
+    }
+
+    #[test]
+    fn attendance_row_absent_when_none() {
+        // Non-flexible employee / non-HR → attendance_statistics == None → no row (D-AVG-05).
+        let html = render_attendance_row(AttendanceRowProps {
+            attendance_statistics: None,
+        });
+        assert!(
+            !html.contains('–') && !html.contains("font-mono"),
+            "attendance row must NOT be rendered when statistics is None: {html}"
         );
     }
 }
