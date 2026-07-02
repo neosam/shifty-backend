@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
-current_phase: 39
-current_phase_name: KW-Status Grundlage
-status: executing
-stopped_at: Completed 39-04-PLAN.md
-last_updated: "2026-07-02T00:01:26.222Z"
+current_phase: 40
+current_phase_name: BE+FE
+status: "39-04 abgeschlossen (FE-Fundament: Enum, i18n 4×3, API-Client, Fresh-Fetch-Store); nächster Plan 39-05 (Badge + Dropdown + Schichtplan-Integration)"
+stopped_at: Completed 39-02-PLAN.md
+last_updated: "2026-07-02T00:22:42.912Z"
 last_activity: 2026-07-02
-last_activity_desc: Executed 39-04 (KW-Status FE-Fundament)
+last_activity_desc: Phase 39 complete, transitioned to Phase 40
 progress:
   total_phases: 4
   completed_phases: 1
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 39 (KW-Status Grundlage) — EXECUTING
-Plan: 5 of 5
+Phase: 40 — Wochen-Sperre durchsetzen (BE+FE)
+Plan: Not started
 Status: 39-04 abgeschlossen (FE-Fundament: Enum, i18n 4×3, API-Client, Fresh-Fetch-Store); nächster Plan 39-05 (Badge + Dropdown + Schichtplan-Integration)
-Last activity: 2026-07-02 — Executed 39-04 (KW-Status FE-Fundament)
+Last activity: 2026-07-02 — Phase 39 complete, transitioned to Phase 40
 
 Progress (Pläne Phase 39): [████████░░] 80% (4/5)
 

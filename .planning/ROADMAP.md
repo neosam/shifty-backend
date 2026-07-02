@@ -28,7 +28,7 @@
 
 **v2.1 Phasen-Checkliste:**
 
-- [ ] **Phase 39: KW-Status Grundlage (BE+FE)** — WST-01, WST-02, WST-05
+- [x] **Phase 39: KW-Status Grundlage (BE+FE)** — WST-01, WST-02, WST-05 (completed 2026-07-02)
 - [ ] **Phase 40: Wochen-Sperre durchsetzen (BE+FE)** — WST-03, WST-04
 - [ ] **Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE)** — AVG-01, AVG-02, AVG-03
 - [ ] **Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE)** — SDF-01
@@ -297,7 +297,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
-| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete   | 2026-07-02 |
+| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete    | 2026-07-02 |
 | 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 0/TBD | Not started | - |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
@@ -326,6 +326,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   - jj-Repo: User committet manuell, keine git-Fallbacks.
 
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
-  **Plans:** 2/2 plans complete
+  **Plans:** 5/5 plans complete
 
 *Last updated: 2026-07-01 — **v2.1 Milestone-Roadmap erstellt** (Phasen 39–42, 9/9 Requirements gemappt: WST-01/02/05→39, WST-03/04→40, AVG-01/02/03→41, SDF-01→42). v1.0–v1.11 archiviert/collapsed unverändert; Backlog 999.1 unverändert. Nächster Schritt: `/gsd-discuss-phase 39`.*
