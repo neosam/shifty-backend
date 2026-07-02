@@ -45,6 +45,8 @@ pub mod shiftplan;
 #[cfg(test)]
 pub mod shiftplan_edit;
 #[cfg(test)]
+pub mod shiftplan_edit_lock;
+#[cfg(test)]
 pub mod shiftplan_catalog;
 #[cfg(test)]
 pub mod slot;
