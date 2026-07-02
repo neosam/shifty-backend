@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schichtplan- & Reporting-Erweiterungen
-current_phase: 40
-current_phase_name: Wochen-Sperre durchsetzen
-status: executing
-stopped_at: Completed 40-04-PLAN.md
-last_updated: "2026-07-02T05:30:00.000Z"
+current_phase: 41
+current_phase_name: BE+FE
+status: verifying
+stopped_at: Completed 39-02-PLAN.md
+last_updated: "2026-07-02T05:51:48.575Z"
 last_activity: 2026-07-02
-last_activity_desc: Completed 40-04-PLAN.md (DELETE /booking re-routed to lock-gated delete_booking; WST-04 bypass closed; 423 in OpenAPI)
+last_activity_desc: Phase 40 complete, transitioned to Phase 41
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 25
+  completed_plans: 9
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 40 (Wochen-Sperre durchsetzen) — ALL PLANS EXECUTED
-Plan: 4 of 4 (complete)
+Phase: 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE)
+Plan: Not started
 Status: Phase 40 execution complete (awaiting verify/close)
-Last activity: 2026-07-02 — Completed 40-04-PLAN.md (DELETE /booking/{id} re-routed to lock-gated ShiftplanEditService::delete_booking, WST-04 bypass closed; 423 documented in OpenAPI on book_slot + copy_week)
+Last activity: 2026-07-02 — Phase 40 complete, transitioned to Phase 41
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 
