@@ -148,7 +148,9 @@
   3. Ein SSR-/Komponenten-Test deckt das mehrfache Anlegen ab (Formulardaten bleiben erhalten).
 
 **Plans**: 1 plan
+
 - [x] 42-01-PLAN.md — Reset-Block entfernen + reine Validitaets-/Retention-Funktionen extrahieren und testen (SDF-01)
+
 **UI hint**: yes
 
 **Scope (FE-only):** Reset-Block `settings.rs:458-459` (und etwaigen Zeit-Reset) entfernen — umgeht den Controlled-Select-Desync (D-25-06-Klasse) komplett. Kein Backend-Anteil (begründete „Backend out of scope"-Notiz: reiner FE-State-Fix ohne API-Wirkung; SDF-Desync ist ein isolierter Settings-Bug, kein neues/geändertes TO).
@@ -356,6 +358,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   - jj-Repo: User committet manuell, keine git-Fallbacks.
 
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
-  **Plans:** 4/4 plans complete
+  **Plans:** 1/1 plans complete
 
 *Last updated: 2026-07-01 — **v2.1 Milestone-Roadmap erstellt** (Phasen 39–42, 9/9 Requirements gemappt: WST-01/02/05→39, WST-03/04→40, AVG-01/02/03→41, SDF-01→42). v1.0–v1.11 archiviert/collapsed unverändert; Backlog 999.1 unverändert. Nächster Schritt: `/gsd-discuss-phase 39`.*
