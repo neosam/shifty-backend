@@ -588,17 +588,20 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
         let is_shiftplanner = sp_perm.is_ok();
         sp_perm.or(self_perm)?;
 
-        // Phase 40 (D-40-01/02): Wochen-Sperre-Gate für Nicht-Schichtplaner
-        // (Scaffold, blockiert noch nicht). Schichtplaner umgehen den Read.
-        if !is_shiftplanner {
-            self.assert_week_not_locked(
-                booking.year,
-                booking.calendar_week as u8,
-                context.clone(),
-                tx.clone(),
-            )
-            .await?;
-        }
+        // Phase 40 (D-40-01/02): Wochen-Sperre-Gate — unbedingt via
+        // assert_week_not_locked (wie alle anderen 5 Schreibpfade).
+        // Der Helper prüft intern shiftplan.edit als Bypass (D-40-02).
+        // NICHT nach is_shiftplanner pröfen: shiftplanner ≠ shiftplan.edit
+        // (separate DB-Rollen, separate Migrationen); ein reiner shiftplanner
+        // würde damit den Gate umgehen — inkonsistent mit allen anderen Pfaden
+        // und dem FE (CR-01 Fix, 2026-07-02).
+        self.assert_week_not_locked(
+            booking.year,
+            booking.calendar_week as u8,
+            context.clone(),
+            tx.clone(),
+        )
+        .await?;
 
         // Slot-Lookup für day_of_week (Pattern aus modify_slot).
         let slot = self
