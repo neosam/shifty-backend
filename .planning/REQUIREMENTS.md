@@ -80,7 +80,7 @@ Jahresgrenzen-Unit-Tests (ISO-Wochen-Jahr ≠ Gregorianisches Jahr).
   auch Krankheit/unbezahlt/Feiertag) werden in discuss-phase entschieden (D-AVG-01..08). Die
   bestehende A-22-1-Formel wird **nicht** blind wiederverwendet.
 
-- [ ] **AVG-02**: Die Auswertung ist im Frontend sichtbar (Report-/Auswertungs-Sicht). Reines
+- [x] **AVG-02**: Die Auswertung ist im Frontend sichtbar (Report-/Auswertungs-Sicht). Reines
   **Read-Aggregat** im `ReportingService` (Business-Logic-Tier) — **kein Snapshot-Bump**, keine
   neue Persistenz, kein neuer `BillingPeriodValueType`.
 
@@ -130,7 +130,7 @@ Befüllt bei der Roadmap-Erstellung (2026-07-01) — jede Requirement → genau 
 | WST-03 | Phase 40 | Complete |
 | WST-04 | Phase 40 | Complete |
 | AVG-01 | Phase 41 | Pending |
-| AVG-02 | Phase 41 | Pending |
+| AVG-02 | Phase 41 | Complete |
 | AVG-03 | Phase 41 | Pending |
 | SDF-01 | Phase 42 | Pending |
 

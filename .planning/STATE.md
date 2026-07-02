@@ -6,14 +6,14 @@ current_phase: 41
 current_phase_name: Ø-Anwesenheit bei flexiblen Stunden
 status: executing
 stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T06:22:32.943Z"
+last_updated: "2026-07-02T06:49:21.272Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 41 execution started
+last_activity_desc: "41-02 executed (ReportingService::get_employee_attendance_statistics: HR-gate first + is_dynamic filter → None; Snapshot 12 unberührt)"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 13
   percent: 50
 ---
 
@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: 41 (Ø-Anwesenheit bei flexiblen Stunden) — EXECUTING
-Plan: 2 of 4 complete (pure fn + ReportingService method HR-gate/is_dynamic)
-Status: Executing Phase 41
-Last activity: 2026-07-02 — 41-02 executed (ReportingService::get_employee_attendance_statistics: HR-gate first + is_dynamic filter → None; Snapshot 12 unberührt)
+Plan: 3 of 4 complete (pure fn + ReportingService method + REST TO/endpoint)
+Status: Ready to execute
+Last activity: 2026-07-02 — 41-03 executed (EmployeeAttendanceStatisticsTO + HR-gated GET /report/{id}/attendance-statistics range-aware endpoint + route + ApiDoc; None→null; Snapshot 12 unberührt)
 
 Progress (Pläne Phase 40): [██████████] 100% (4/4)
 

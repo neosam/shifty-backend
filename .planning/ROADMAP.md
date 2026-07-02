@@ -125,7 +125,7 @@
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 41-03-PLAN.md — `EmployeeAttendanceStatisticsTO` + HR-gated Endpoint + ApiDoc (Wave 3)
+- [x] 41-03-PLAN.md — `EmployeeAttendanceStatisticsTO` + HR-gated Endpoint + ApiDoc (Wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -328,7 +328,7 @@ Vollständige Phasen-Details, Success-Criteria und Audit:
 | 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
 | 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete    | 2026-07-02 |
 | 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 4/4 | Complete    | 2026-07-02 |
-| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 2/4 | In progress | 41-02 |
+| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 3/4 | In Progress|  |
 | 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog
