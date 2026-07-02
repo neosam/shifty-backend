@@ -5,15 +5,15 @@ milestone_name: Schichtplan- & Reporting-Erweiterungen
 current_phase: 40
 current_phase_name: Wochen-Sperre durchsetzen
 status: executing
-stopped_at: Completed 40-01-PLAN.md
-last_updated: "2026-07-02T04:55:51.169Z"
+stopped_at: Completed 40-04-PLAN.md
+last_updated: "2026-07-02T05:30:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Completed 40-01-PLAN.md (week-lock scaffold, green)
+last_activity_desc: Completed 40-04-PLAN.md (DELETE /booking re-routed to lock-gated delete_booking; WST-04 bypass closed; 423 in OpenAPI)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 25
 ---
 
@@ -33,12 +33,12 @@ progress:
 
 ## Current Position
 
-Phase: 40 (Wochen-Sperre durchsetzen) — EXECUTING
-Plan: 4 of 4
-Status: Ready to execute
-Last activity: 2026-07-02 — Completed 40-03-PLAN.md (TDD lock-enforcement: assert_week_not_locked blocks 6 write paths, shiftplan.edit bypass, T-40-01..17 green)
+Phase: 40 (Wochen-Sperre durchsetzen) — ALL PLANS EXECUTED
+Plan: 4 of 4 (complete)
+Status: Phase 40 execution complete (awaiting verify/close)
+Last activity: 2026-07-02 — Completed 40-04-PLAN.md (DELETE /booking/{id} re-routed to lock-gated ShiftplanEditService::delete_booking, WST-04 bypass closed; 423 documented in OpenAPI on book_slot + copy_week)
 
-Progress (Pläne Phase 40): [████████░░] 75% (3/4)
+Progress (Pläne Phase 40): [██████████] 100% (4/4)
 
 ## Deferred Items
 

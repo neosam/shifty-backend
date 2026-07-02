@@ -105,3 +105,8 @@ None — no new security surface introduced (bypass closed, no new endpoints/sch
 
 - e1c9e6f: feat(40-04): route DELETE /booking/{id} through ShiftplanEditService::delete_booking
 - 12db006: docs(40-04): document HTTP 423 response in OpenAPI for write endpoints
+
+## Self-Check: PASSED
+
+- SUMMARY.md present on disk.
+- All task commits present in git history (e1c9e6f, 12db006).

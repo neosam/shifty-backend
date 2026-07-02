@@ -95,7 +95,7 @@
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 40-04-PLAN.md — REST Re-Routing DELETE /booking → delete_booking (WST-04) + OpenAPI 423 [W3]
+- [x] 40-04-PLAN.md — REST Re-Routing DELETE /booking → delete_booking (WST-04) + OpenAPI 423 [W3]
 
 **UI hint**: yes
 
