@@ -259,6 +259,12 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     let button_mode = if *change_structure_mode.read() {
         WeekViewButtonTypes::Dropdown
+    } else if week_status == WeekStatus::Locked && !is_shift_editor {
+        // D-40-03: In a Locked week, non-shiftplan.edit users lose the +/- buttons
+        // (controls disappear from the DOM). shiftplan.edit holders (is_shift_editor)
+        // are the bypass (D-40-02) and keep the buttons. UX-only — the real
+        // enforcement is the server gate (40-01/40-03). No banner (D-40-04).
+        WeekViewButtonTypes::None
     } else if js::current_datetime().date() - date > time::Duration::weeks(2) && !is_hr {
         WeekViewButtonTypes::None
     } else {
