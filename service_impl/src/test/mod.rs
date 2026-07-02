@@ -75,6 +75,8 @@ pub mod reporting_avg_weekly;
 #[cfg(test)]
 pub mod reporting_avg_attendance;
 #[cfg(test)]
+pub mod reporting_attendance_gate;
+#[cfg(test)]
 pub mod special_days;
 #[cfg(test)]
 pub mod week_status;
