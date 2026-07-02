@@ -5,8 +5,8 @@
 //!
 //! The badge is **only** rendered for a set status. At [`WeekStatus::Unset`] a
 //! non-shiftplaner sees *nothing* — no empty/grey pill. The caller enforces this
-//! via [`should_show_badge`]; the class helper therefore never has to produce a
-//! neutral badge (Unset is `unreachable!()` inside [`week_status_badge_class`]).
+//! via [`should_show_badge`]; the component also guards internally and returns an
+//! empty element for `Unset` so a stray caller cannot crash the WASM tab.
 //!
 //! ## Color semantics (D-39-08)
 //!
@@ -28,8 +28,8 @@ pub(crate) fn should_show_badge(status: &WeekStatus) -> bool {
 }
 
 /// Static Tailwind design-token class string for the badge, one per set status
-/// (D-39-08). `Unset` is `unreachable!()` — the badge is never rendered for it
-/// (the caller gates via [`should_show_badge`]).
+/// (D-39-08). Returns `""` for `Unset` as a defensive fallback — the component
+/// guards via an early `None` return before this function is reached.
 pub(crate) fn week_status_badge_class(status: &WeekStatus) -> &'static str {
     match status {
         WeekStatus::Locked => {
@@ -41,7 +41,7 @@ pub(crate) fn week_status_badge_class(status: &WeekStatus) -> &'static str {
         WeekStatus::InPlanning => {
             "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium bg-warn-soft border border-warn text-warn"
         }
-        WeekStatus::Unset => unreachable!("Badge wird nie fuer Unset gerendert"),
+        WeekStatus::Unset => "",
     }
 }
 
@@ -63,9 +63,13 @@ pub struct WeekStatusBadgeProps {
 }
 
 /// Read-only color-coded status pill. Renders a `span` with the token class and
-/// the translated label.
+/// the translated label. Returns an empty element for `WeekStatus::Unset` so
+/// stray callers that skip [`should_show_badge`] cannot crash the WASM tab.
 #[component]
 pub fn WeekStatusBadge(props: WeekStatusBadgeProps) -> Element {
+    if props.status == WeekStatus::Unset {
+        return rsx! {};
+    }
     let label = I18N.read().t(week_status_label_key(&props.status));
     rsx! {
         span {
@@ -84,6 +88,14 @@ mod tests {
     fn should_show_badge_is_false_for_unset() {
         // D-39-05: a non-shiftplaner sees no element at Unset.
         assert!(!should_show_badge(&WeekStatus::Unset));
+    }
+
+    #[test]
+    fn badge_class_for_unset_does_not_panic() {
+        // Belt-and-suspenders: even if a stray caller skips should_show_badge,
+        // week_status_badge_class must not trap the WASM tab.
+        let c = week_status_badge_class(&WeekStatus::Unset);
+        assert_eq!(c, "", "Unset must yield empty class string, not panic");
     }
 
     #[test]
