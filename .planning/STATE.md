@@ -6,14 +6,14 @@ current_phase: 40
 current_phase_name: Wochen-Sperre durchsetzen
 status: executing
 stopped_at: Completed 40-01-PLAN.md
-last_updated: "2026-07-02T04:50:00.965Z"
+last_updated: "2026-07-02T04:55:51.169Z"
 last_activity: 2026-07-02
 last_activity_desc: Completed 40-01-PLAN.md (week-lock scaffold, green)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 25
 ---
 
@@ -34,11 +34,11 @@ progress:
 ## Current Position
 
 Phase: 40 (Wochen-Sperre durchsetzen) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
-Last activity: 2026-07-02 — Completed 40-01-PLAN.md (week-lock scaffold, green)
+Last activity: 2026-07-02 — Completed 40-02-PLAN.md (FE hide +/- in Locked week + WeekLockedError i18n, green)
 
-Progress (Pläne Phase 40): [██░░░░░░░░] 25% (1/4)
+Progress (Pläne Phase 40): [█████░░░░░] 50% (2/4)
 
 ## Deferred Items
 
@@ -209,3 +209,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 39 P04 | 12min | 2 tasks | 11 files |
 | Phase 39 P05 | ~18min | 2 tasks | 5 files |
 | Phase 40 P01 | 18min | 2 tasks | 6 files |
+| Phase 40 P02 | 12min | 2 tasks | 5 files |
