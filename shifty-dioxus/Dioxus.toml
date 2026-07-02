@@ -103,4 +103,6 @@ backend = "http://localhost:3000/feature-flag"
 [[web.proxy]]
 backend = "http://localhost:3000/admin/cutover"
 [[web.proxy]]
+backend = "http://localhost:3000/admin/impersonate"
+[[web.proxy]]
 backend = "http://localhost:3000/toggle"
