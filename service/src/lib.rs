@@ -128,6 +128,9 @@ pub enum ServiceError {
     #[error("Paid employee limit exceeded: {current} > {max}")]
     PaidLimitExceeded { current: u8, max: u8 },
 
+    #[error("Week {year}/{week} is locked — changes are not possible")]
+    WeekLocked { year: u32, week: u8 },
+
     #[error("Internal error")]
     InternalError,
 }

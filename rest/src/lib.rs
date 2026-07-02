@@ -257,6 +257,15 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        // Phase 40 (D-40-01): a locked calendar week rejects writes with HTTP 423
+        // Locked. First 423 in the codebase; the exhaustive match makes the
+        // compiler enforce this arm.
+        Err(RestError::ServiceError(err @ ServiceError::WeekLocked { .. })) => {
+            Response::builder()
+                .status(423)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
         Err(RestError::ServiceError(ServiceError::InternalError)) => Response::builder()
             .status(500)
             .body(Body::new("Internal server error".to_string()))
