@@ -3,7 +3,15 @@
 //!
 //! Deckt die 6 Schreibpfade × {Locked, Open} + TOCTOU (kein Write vor Gate)
 //! + delete_booking-Reihenfolge (get → gate → delete) ab. IDs aus
-//! 40-VALIDATION.md (T-40-01..17).
+//! 40-VALIDATION.md (T-40-01..17) + T-40-CR01 (CR-01-Regressions-Test).
+//!
+//! T-40-03 (WR-01 Fix, 2026-07-02): modify_slot_single_week + non-editor →
+//! Forbidden. War in der ursprünglichen Implementierung vergessen worden;
+//! jetzt wiederhergestellt (vollständige Matrix: 17 nummerierte Tests).
+//!
+//! T-40-CR01 (CR-01 Fix, 2026-07-02): Regression für den shiftplanner-vs-
+//! shiftplan.edit-Bypass-Mismatch. Belegt, dass book_slot shiftplan.edit
+//! (nicht shiftplanner) als Bypass prüft — konsistent mit allen anderen Pfaden.
 //!
 //! Enforcement-Vertrag (D-40-02):
 //!  - `assert_week_not_locked` prüft ZUERST `check_permission("shiftplan.edit")`
@@ -161,6 +169,22 @@ async fn t_40_02_modify_slot_locked_editor_bypass_ok() {
 //  modify_slot_single_week
 // =========================================================================
 
+/// T-40-03: modify_slot_single_week + Locked + non-editor → Err(Forbidden).
+/// Symmetrisch zu T-40-01 (modify_slot): shiftplan.edit schlägt VOR dem
+/// Sperr-Gate fehl, sodass Forbidden der erwartete Fehler ist.
+/// (Dieser Test war in der ursprünglichen Phase-40-Implementierung vergessen
+/// worden; WR-01 Fix, 2026-07-02.)
+#[tokio::test]
+async fn t_40_03_modify_slot_single_week_locked_non_editor_forbidden() {
+    let mut deps = build_dependencies(false, false); // non-editor
+    set_week_status(&mut deps, WeekStatus::Locked);
+    let service = deps.build_service();
+    let result = service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await;
+    test_forbidden(&result);
+}
+
 /// T-40-04: modify_slot_single_week + Locked + shiftplanner → Ok (Bypass).
 #[tokio::test]
 async fn t_40_04_modify_slot_single_week_locked_editor_bypass_ok() {
@@ -291,6 +315,55 @@ async fn t_40_09_book_slot_open_non_editor_ok() {
         .book_slot_with_conflict_check(&default_booking(), ().auth(), None)
         .await;
     assert!(result.is_ok(), "offene Woche muss durchlaufen: {result:?}");
+}
+
+/// T-40-CR01 Regression (CR-01 Fix): book_slot + Locked + shiftplanner-only
+/// (kein shiftplan.edit) → Err(WeekLocked).
+///
+/// Dieser Test war mit dem alten `if !is_shiftplanner`-Guard ROT (der Guard
+/// übersprang den Lock-Check für jeden shiftplanner-Halter, auch ohne
+/// shiftplan.edit). Nach dem CR-01 Fix (unbedingtes assert_week_not_locked)
+/// ist er GRÜN, weil assert_week_not_locked intern shiftplan.edit prüft —
+/// und nur bei Erfolg bypassed.
+///
+/// Mock-Setup: shiftplanner=Ok, shiftplan.edit=Err(Forbidden) — die beiden
+/// DB-Rollen werden bewusst getrennt gemockt (separate Migrationen).
+#[tokio::test]
+async fn t_40_cr01_book_slot_locked_shiftplanner_no_edit_weeklocked() {
+    use mockall::predicate::{always, eq};
+    use service::permission::SHIFTPLANNER_PRIVILEGE;
+
+    let mut deps = build_dependencies(false, false); // Basis: alle Perms Err
+    set_week_status(&mut deps, WeekStatus::Locked);
+
+    // Perms granular überschreiben: shiftplanner=Ok, shiftplan.edit=Err.
+    deps.permission_service.checkpoint();
+    deps.permission_service
+        .expect_check_permission()
+        .with(eq(SHIFTPLANNER_PRIVILEGE), always())
+        .returning(|_, _| Ok(()));
+    deps.permission_service
+        .expect_check_permission()
+        .with(eq("shiftplan.edit"), always())
+        .returning(|_, _| Err(ServiceError::Forbidden));
+    deps.permission_service
+        .expect_current_user_id()
+        .returning(|_| Ok(Some("test-user".into())));
+
+    let service = deps.build_service();
+    let result = service
+        .book_slot_with_conflict_check(&default_booking(), ().auth(), None)
+        .await;
+
+    match result {
+        Err(ServiceError::WeekLocked { year, week }) => {
+            assert_eq!(year, 2026, "year mismatch");
+            assert_eq!(week, 17, "week mismatch");
+        }
+        other => panic!(
+            "expected WeekLocked for shiftplanner-only caller in Locked week, got {other:?}"
+        ),
+    }
 }
 
 // =========================================================================
