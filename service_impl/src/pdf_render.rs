@@ -46,8 +46,9 @@
 //!   like the browser week view (side-by-side rows), even though slot start
 //!   times may differ per day.
 //! - Inside each box: bold time label at the top, then plain-text names
-//!   alphabetical case-insensitive (D-50-05, D-50-06), volunteers with
-//!   ` (freiwillig)` suffix (D-50-07).
+//!   alphabetical case-insensitive (D-50-05, D-50-06). D-50-07's volunteer
+//!   ` (freiwillig)` suffix was dropped in UAT (paid/unpaid distinction not
+//!   relevant for the printed schedule).
 //! - Names are joined with `, ` and wrapped across as many lines as needed;
 //!   the slot box grows vertically so all names fit (revises D-50-04 based
 //!   on UAT — a PDF cannot show "+ N weitere" interactively, so the box
@@ -460,8 +461,11 @@ fn sort_slots_for_day(slots: &[ShiftplanSlot]) -> Vec<&ShiftplanSlot> {
 }
 
 /// Build the alphabetical (case-insensitive) list of names inside a slot box,
-/// resolving each booking's `sales_person_id` against `sales_persons` and
-/// appending ` (freiwillig)` for `is_paid == Some(false)` (D-50-06, D-50-07).
+/// resolving each booking's `sales_person_id` against `sales_persons`
+/// (D-50-06).
+///
+/// UAT 2026-07-03: D-50-07's ` (freiwillig)` suffix was dropped — the
+/// paid/unpaid distinction is not relevant for the printed schedule.
 ///
 /// Bookings whose sales-person is missing from `sales_persons` (e.g. because
 /// the caller filtered them out) are silently skipped — matches the previous
@@ -475,14 +479,7 @@ fn build_slot_name_list(slot: &ShiftplanSlot, sales_persons: &[SalesPerson]) -> 
                 .iter()
                 .find(|sp| sp.id == booking.sales_person.id)
         })
-        .map(|sp| {
-            let suffix = if sp.is_paid == Some(false) {
-                " (freiwillig)"
-            } else {
-                ""
-            };
-            format!("{}{}", sp.name, suffix)
-        })
+        .map(|sp| sp.name.to_string())
         .collect();
     names.sort_by_key(|a| a.to_lowercase());
     names
@@ -1308,11 +1305,12 @@ mod test {
         );
     }
 
-    /// D-50-16 / D-50-07 / PDF-01: Volunteers (`is_paid == Some(false)`) get
-    /// the suffix " (freiwillig)" appended to their name in the rendered
-    /// output.
+    /// D-50-07 revised (UAT 2026-07-03): the paid/unpaid distinction is
+    /// not relevant for the printed schedule — a volunteer's name must
+    /// appear WITHOUT the ` (freiwillig)` suffix, exactly like a paid
+    /// employee.
     #[test]
-    fn unpaid_marker_suffix() {
+    fn volunteers_render_without_freiwillig_suffix() {
         let volunteer = make_sales_person(
             0x0000_0000_0000_0000_0000_0000_0000_0001,
             "Volunteer",
@@ -1335,10 +1333,15 @@ mod test {
             FIXED_RENDER_TIMESTAMP,
         )
         .expect("render succeeds");
-        let expected_hex = encode_ascii_to_pdf_hex("Volunteer (freiwillig)");
+        // The name itself is still rendered.
         assert!(
-            find_subsequence(&bytes, expected_hex.as_bytes()).is_some(),
-            "unpaid marker suffix ' (freiwillig)' must appear after volunteer name (D-50-07)",
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("Volunteer").as_bytes()).is_some(),
+            "volunteer name must still appear",
+        );
+        // The suffix must NOT appear anywhere in the byte stream (D-50-07 dropped).
+        assert!(
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("freiwillig").as_bytes()).is_none(),
+            "'(freiwillig)' suffix must NOT appear after UAT revision of D-50-07",
         );
     }
 
