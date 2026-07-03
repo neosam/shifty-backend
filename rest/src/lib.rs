@@ -19,6 +19,7 @@ pub mod feature_flag;
 pub mod impersonate;
 mod my_block;
 mod pdf_export_config;
+mod pdf_shiftplan;
 mod permission;
 mod report;
 mod sales_person;
@@ -589,6 +590,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/vacation-balance", api = vacation_balance::VacationBalanceApiDoc),
         (path = "/vacation-entitlement-offset", api = vacation_entitlement_offset::VacationEntitlementOffsetApiDoc),
         (path = "/pdf-export-config", api = pdf_export_config::PdfExportConfigApiDoc),
+        (path = "/shiftplan", api = pdf_shiftplan::PdfShiftplanApiDoc),
         (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
@@ -658,6 +660,10 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             vacation_entitlement_offset::generate_route(),
         )
         .nest("/pdf-export-config", pdf_export_config::generate_route())
+        // Phase 49 (PDF-03/PDF-04/PDF-05): On-Demand-PDF-Download.
+        // `/shiftplan` als eigenständiger Prefix (frei — belegt sind nur
+        // `/shiftplan-catalog`, `/shiftplan-edit`, `/shiftplan-info`).
+        .nest("/shiftplan", pdf_shiftplan::generate_route())
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())

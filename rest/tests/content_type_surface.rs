@@ -69,6 +69,11 @@ const ALLOWED_CONTENT_TYPES: &[&str] = &[
     //   - rest/src/toggle.rs             GET /toggle/{name}/value    (raw string value)
     //   - rest/src/sales_person.rs       GET /sales-person/{id}/user (username as text)
     "text/plain",
+    // Phase 49 (PDF-03): On-demand Wochen-PDF-Download.
+    //   - rest/src/pdf_shiftplan.rs      GET /shiftplan/{shiftplan_id}/{year}/{week}/pdf
+    // Handler setzt `Content-Type: application/pdf` + Content-Disposition
+    // (Attachment mit `schichtplan-{JJJJ}-KW{NN:02}.pdf`).
+    "application/pdf",
 ];
 
 /// Endpoints known to declare a 2xx response (200 or 201) without a response

@@ -141,3 +141,8 @@ impl<Deps: PdfShiftplanServiceDeps + 'static> PdfShiftplanService for PdfShiftpl
         )
     }
 }
+
+/// Re-export von `service::pdf_shiftplan::filename_for` — hält Test- und
+/// Scheduler-Aufrufer in `service_impl` intakt (Zugriff via
+/// `crate::pdf_shiftplan::filename_for`).
+pub use service::pdf_shiftplan::filename_for;

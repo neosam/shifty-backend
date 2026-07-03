@@ -58,3 +58,13 @@ pub trait PdfShiftplanService {
         tx: Option<Self::Transaction>,
     ) -> Result<Vec<u8>, ServiceError>;
 }
+
+/// Kanonischer Download-Filename für den Wochen-PDF-Export (Phase 49 PDF-03).
+///
+/// Format: `schichtplan-{JJJJ}-KW{NN:02}.pdf`. Wird sowohl vom REST-Handler
+/// (Content-Disposition-Header) als auch vom Nextcloud-Scheduler konsumiert;
+/// im `service`-Crate, damit `rest` ohne Abwärts-Dependency auf `service_impl`
+/// zugreifen kann.
+pub fn filename_for(year: u32, calendar_week: u8) -> String {
+    format!("schichtplan-{year}-KW{calendar_week:02}.pdf")
+}

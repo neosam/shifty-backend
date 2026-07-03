@@ -2851,6 +2851,7 @@ dependencies = [
  "dao",
  "http 1.4.2",
  "http-body 1.0.1",
+ "http-body-util",
  "rest-types",
  "serde",
  "serde_json",

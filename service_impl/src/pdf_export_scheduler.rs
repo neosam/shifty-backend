@@ -380,7 +380,7 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
                 }
             };
 
-            let filename = format!("schichtplan-{y}-KW{w:02}.pdf");
+            let filename = crate::pdf_shiftplan::filename_for(y, w);
             if let Err(e) = upload
                 .upload_file(&run_cfg.target_folder, &filename, bytes)
                 .await
