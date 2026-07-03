@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: PDF-Export — Browser-Look & Download-Button
 current_phase: 49
-status: Ready for plan-phase
-stopped_at: v2.3 milestone bootstrapped (REQUIREMENTS + ROADMAP)
-last_updated: "2026-07-03T12:00:00.000Z"
+status: Ready to execute
+stopped_at: Phase 49 planned — 5 plans across 3 waves
+last_updated: "2026-07-03T18:00:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: v2.3 milestone bootstrapped — PDF-Export Fix (2 Phasen, 5 Requirements)
+last_activity_desc: Phase 49 planned — 5 PLAN.md (Service+Impl+Tests / REST / Scheduler-Refactor / FE+i18n / Doku-Audit)
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 5
   completed_plans: 0
   percent: 0
 current_phase_name: On-Demand-Download-Button (BE + FE)
@@ -34,9 +34,9 @@ current_phase_name: On-Demand-Download-Button (BE + FE)
 ## Current Position
 
 Phase: **49 — On-Demand-Download-Button (BE + FE)**
-Plan: —
-Status: Ready for `/gsd-plan-phase 49`
-Last activity: 2026-07-03 — v2.3 milestone bootstrapped (REQUIREMENTS + ROADMAP + Phasen-Dirs)
+Plan: 5 PLAN.md (Waves 1→3)
+Status: Ready for `/gsd-execute-phase 49`
+Last activity: 2026-07-03 — Phase 49 planned (Research + UI-SPEC + Patterns + 5 PLAN.md, VERIFICATION PASSED nach 1 Revision)
 
 ## Quick Tasks Completed
 

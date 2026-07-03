@@ -681,17 +681,24 @@ i18n.add_text(Locale::Cs, Key::PdfDownload, "PDF");
 | A4 | Der bestehende iCal-Anchor-Precedent nutzt exakt dieses Styling und ist die richtige Vorlage | Pattern 3 | Wenn User später anderes Icon/Layout will: trivial nachträglich; kein Blocker. |
 | A5 | Filename-Konvention `schichtplan-{year}-KW{week:02}.pdf` bleibt konsistent mit Phase 48 WebDAV-Export | Scheduler-Refactor + Code Examples | Verifiziert via `pdf_export_scheduler.rs:402` — dieselbe Konvention. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+**Resolved während Plan-Phase 49 (Orchestrator-Directive, verankert in CONTEXT.md D-49-06/D-49-07/D-49-08).**
 
 1. **Soll der Scheduler weiterhin ALLE KWs (auch Unset/InPlanning) exportieren, oder soll er nach dem Refactor nur noch `Planned/Locked` exportieren?**
    - What we know: Aktuell exportiert der Scheduler alle KWs im horizon. Der neue `PdfShiftplanService::render_week_pdf` prüft laut D-49-06 den WeekStatus.
    - What's unclear: Ob der Scheduler den Gate als Feature oder als Bug erlebt.
-   - Recommendation: **user-clarify in Plan-Phase 49.** Wahrscheinlich Weg (b) — nur veröffentlichte Wochen exportieren (semantisch sauber), da die Zielgruppe der WebDAV-PDFs Team-Mitarbeiter mit veröffentlichten Plänen sind. Wenn User (b) wählt: keine Service-API-Änderung. Wenn User (a) wählt: `render_week_pdf` bekommt `skip_week_status_check: bool` (oder der Gate lebt nur im REST-Handler und der Service tut es nicht).
+   - Recommendation: Weg (b) — nur veröffentlichte Wochen exportieren.
+   - **RESOLVED:** Weg (b). Der Scheduler exportiert nach dem Refactor NUR `Planned/Locked`-KWs. Konsequenz von D-49-06 (Service prüft Gate) + D-49-08 (Scheduler nutzt Service). Der Scheduler ignoriert Fehler pro Woche (`return Ok(())` bei Fehler) — WeekStatus-Rejections werden zu normalen Skips. Dokumentiert in Plan 03 `must_haves.truths` unter D-49-08 (Q1). Keine Service-API-Änderung, kein `skip_week_status_check`-Parameter.
 
 2. **Räumen wir `shiftplan_view_service` + `sales_person_service` aus den `PdfExportSchedulerDeps` nach dem Refactor komplett aus, oder lassen wir sie als `#[allow(dead_code)]` drin?**
    - What we know: Nach dem Refactor werden beide nicht mehr direkt vom Scheduler aufgerufen.
    - What's unclear: Ob Planner beim Refactor auch die Test-File `test/pdf_export_scheduler.rs::TestDeps` anpassen mag (bricht sonst der Test-Build).
-   - Recommendation: **Ganz raus.** DRY-Sinn der Phase ist genau das. Testfile MUSS im gleichen Plan mit angepasst werden.
+   - Recommendation: Ganz raus.
+   - **RESOLVED:** Vollständig entfernen — beide Deps raus aus `PdfExportSchedulerDeps` + `new()`-Constructor + `test/pdf_export_scheduler.rs::TestDeps`. Test-File-Anpassung liegt im selben Plan (Plan 03) wie der Scheduler-Refactor. Dokumentiert in Plan 03 `must_haves.truths` unter D-49-08 (Q2).
+
+3. **[aus Pitfall 3 abgeleitet] 409-Signalisierungsweg — Handler-Pre-Check oder neue `ServiceError`-Variant?**
+   - **RESOLVED:** Handler-Pre-Check via `WeekStatusService::get_week_status()` ist Primär-Quelle für 409 (chirurgischer Weg, kein neuer `ServiceError`-Variant, kein neuer `error_handler`-Match-Arm). Der Service-interne WeekStatus-Gate (D-49-06) bleibt als Defense-in-Depth für Race-Cases (Status ändert sich zwischen Handler-Pre-Check und Service-Call). Dokumentiert in Plan 02 `must_haves.truths` unter D-49-03.
 
 ## Environment Availability
 

@@ -44,19 +44,37 @@ User ausliefert — aber nur sichtbar, wenn `week_status ∈ {Planned, Locked}`.
 
 **Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
 **Requirements:** PDF-03, PDF-04, PDF-05
-**Plans:** 0/? plans complete
+**Plans:** 5 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 49-01-PLAN.md — Backend Service Trait + Impl + 8+ Unit-Tests (PDF-03, PDF-04) [TDD, Wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 49-02-PLAN.md — REST Handler + PdfShiftplanApiDoc + Router-Wiring + Router-Tests (PDF-03, PDF-04, PDF-05) [TDD, Wave 2]
+- [ ] 49-03-PLAN.md — Scheduler-Refactor (DRY) + DI-Wiring in main.rs (PDF-03, PDF-04) [Wave 2]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 49-04-PLAN.md — FE PDF-Anchor neben iCal + i18n `PdfDownload` de/en/cs + 8-case Predicate-Tests (PDF-03, PDF-04) [Wave 3]
+- [ ] 49-05-PLAN.md — REQUIREMENTS.md + ROADMAP.md D-49-15/16 Doku-Deviation (PDF-03, PDF-04) [Wave 3]
 
 **Success Criteria:**
 
 1. Neuer REST-Endpoint `GET /shiftplan/{shiftplan_id}/{year}/{week}/pdf` liefert das PDF
    mit Dateiname `schichtplan-{JJJJ}-KW{NN}.pdf` (Content-Disposition-Header);
    auth-required, aber KEIN Admin-Gate (Employee-Auth liefert 200).
+
 2. Backend gibt HTTP 409 zurück, wenn `week_status ∈ {Unset, InPlanning}`
    (Defense-in-Depth für Race-Case).
+
 3. Frontend-Button in `shifty-dioxus/src/page/shiftplan.rs` sitzt neben dem
    iCal-Button und wird nur sichtbar gerendert, wenn `week_status ∈ {Planned, Locked}`
    (kein disabled-Zustand, kein Tooltip, kein Fehler-Toast). Button lädt die
    aktuell im UI selektierte KW des ausgewählten Shiftplans. i18n-Label in de/en/cs.
+
 4. DRY: neuer Business-Logic-Service `PdfShiftplanService` kapselt
    `ShiftplanViewService` + `SalesPersonService` + `WeekStatusService` + `pdf_render`.
    `PdfExportScheduler` wird refactored, damit er diesen Service konsumiert statt
@@ -79,13 +97,13 @@ Phase-49-Button gegen ein reales Wochen-Fixture).
 1. Rendering entspricht sichtbar der Browser-Wochenansicht: Slots als Zellen mit
    Uhrzeit-Label pro Zelle, Sales-Person-Namen in der Zelle, sieben Wochentag-Spalten,
    Landscape A4, „Schichtplan KW {NN} ({JJJJ})"-Kopfzeile.
+
 2. Renderzeitpunkt „Erstellt am DD.MM.YYYY HH:MM Uhr" auf jeder Seite sichtbar; Renderer
    nimmt Timestamp als Argument (pure Funktion bleibt testbar).
+
 3. Byte-Determinismus-Vertrag aus v2.2 wird bewusst aufgehoben (Timestamp bricht ihn
    ohnehin). WebDAV-Scheduler nutzt den neuen Renderer transparent — kein Scheduler-Code-
    Change nötig. Alle Backend-Tests + `cargo clippy --workspace -- -D warnings` grün.
-
-
 
 ## Backlog
 
