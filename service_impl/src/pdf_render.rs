@@ -41,9 +41,12 @@
 //! - Inside each box: bold time label at the top, then plain-text names
 //!   alphabetical case-insensitive (D-50-05, D-50-06), volunteers with
 //!   ` (freiwillig)` suffix (D-50-07).
-//! - Overflow: `+ N weitere` marker for both slot-overflow (too many slots in
-//!   the column) and name-overflow (too many names inside a box)
-//!   (D-50-03, D-50-04).
+//! - Names are joined with `, ` and wrapped across as many lines as needed;
+//!   the slot box grows vertically so all names fit (revises D-50-04 based
+//!   on UAT — a PDF cannot show "+ N weitere" interactively, so the box
+//!   itself has to accommodate the content).
+//! - Column-level overflow (too many stacked slots in one day) still uses
+//!   `+ N weitere` (D-50-03) — the page height is finite.
 
 use service::sales_person::SalesPerson;
 use service::shiftplan::{ShiftplanSlot, ShiftplanWeek};
@@ -93,6 +96,8 @@ const SLOT_BASE_MM: f32 = 9.0;
 const SLOT_STEP_MM: f32 = 4.0;
 /// Inner padding inside a slot box (top+bottom, in mm).
 const SLOT_PADDING_MM: f32 = 1.2;
+/// Horizontal padding for text inside a slot box (left + right, each side).
+const SLOT_TEXT_H_PADDING_MM: f32 = 1.5;
 /// Vertical gap between two stacked slot boxes.
 const SLOT_GAP_MM: f32 = 0.7;
 /// Approximate baseline-to-baseline distance for 9pt Helvetica text.
@@ -373,9 +378,80 @@ fn compute_slot_duration_hours(slot: &service::slot::Slot) -> f32 {
     (to_min - from_min) / 60.0
 }
 
-/// Height in mm of a slot box for a given duration (D-50-01 Hybrid Stack).
+/// Height in mm of a slot box for a given duration (D-50-01 Hybrid Stack —
+/// base term plus per-hour step). Does NOT account for the space needed by
+/// wrapped name lines; use [`compute_slot_box_height_mm`] for that.
 fn compute_slot_height_mm(duration_hours: f32) -> f32 {
     SLOT_BASE_MM + duration_hours * SLOT_STEP_MM
+}
+
+/// Effective slot-box height in mm: whichever of "duration-scaled height"
+/// (D-50-01) or "height needed to fit all wrapped name lines" is larger.
+///
+/// This revises the original D-50-04 name-overflow behaviour: instead of
+/// truncating names with `+ N weitere` (useless in a static PDF), the box
+/// grows so every booked name is visible. The duration-scaling still acts
+/// as a lower bound so short slots keep their visual weight.
+fn compute_slot_box_height_mm(duration_hours: f32, name_line_count: usize) -> f32 {
+    let by_duration = compute_slot_height_mm(duration_hours);
+    // top padding + bold time-label line + one name line per wrapped entry
+    // + bottom padding. `LINE_HEIGHT_MM` is the baseline distance we use for
+    // both the time label (8pt) and names (9pt) — a small over-estimate for
+    // the label is acceptable and keeps the maths simple.
+    let by_names = 2.0 * SLOT_PADDING_MM
+        + LINE_HEIGHT_MM
+        + (name_line_count as f32) * LINE_HEIGHT_MM;
+    by_duration.max(by_names)
+}
+
+/// Rough width in mm of a text string rendered in Helvetica at the given
+/// point size. Uses average glyph advance ≈ 0.53 × font-size (empirical
+/// mean for Helvetica). Conservative enough for wrap decisions where a
+/// few millimetres slack is acceptable.
+fn approx_text_width_mm(text: &str, font_pt: f32) -> f32 {
+    const PT_TO_MM: f32 = 0.352_777_78;
+    let avg_advance_mm = font_pt * 0.53 * PT_TO_MM;
+    text.chars().count() as f32 * avg_advance_mm
+}
+
+/// Wrap a list of names into comma-separated text lines that each fit
+/// within `max_width_mm` when rendered at 9pt Helvetica. Non-last names
+/// carry a trailing `,` so continuation across lines reads naturally;
+/// the final name has no trailing separator. If a single name is wider
+/// than `max_width_mm`, it becomes its own line (best-effort — the text
+/// may visually overflow the box, but nothing is silently dropped).
+fn wrap_names_comma(names: &[String], max_width_mm: f32) -> Vec<String> {
+    if names.is_empty() {
+        return Vec::new();
+    }
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for (i, name) in names.iter().enumerate() {
+        let is_last = i == names.len() - 1;
+        let piece = if is_last {
+            name.clone()
+        } else {
+            format!("{name},")
+        };
+        let candidate = if current.is_empty() {
+            piece.clone()
+        } else {
+            format!("{current} {piece}")
+        };
+        if approx_text_width_mm(&candidate, NAME_FONT_PT) <= max_width_mm {
+            current = candidate;
+        } else if current.is_empty() {
+            // Single item exceeds width — emit as its own (possibly overflowing) line.
+            lines.push(piece);
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current = piece;
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
 }
 
 /// Time-label for the top of the slot box (`HH:MM - HH:MM`, ASCII hyphen —
@@ -396,13 +472,17 @@ fn format_slot_time_label(slot: &service::slot::Slot) -> String {
 // -----------------------------------------------------------------------
 
 /// Render a single slot box: bordered rectangle (D-50-10) + bold time label
-/// + alphabetical plain-text names (D-50-05, D-50-06). Name overflow → `+ N
-/// weitere` on the last visible name line (D-50-04).
+/// + pre-wrapped comma-separated name lines (D-50-05, D-50-06).
+///
+/// The caller is expected to have wrapped names via [`wrap_names_comma`] and
+/// sized the box via [`compute_slot_box_height_mm`] so all lines fit. This
+/// function therefore does not carry the old `+ N weitere` name-overflow
+/// path (see D-50-04 revision in the module doc-comment).
 #[allow(clippy::too_many_arguments)]
 fn render_slot_box(
     layer: &printpdf::PdfLayerReference,
     slot: &ShiftplanSlot,
-    sorted_names: &[String],
+    name_lines: &[String],
     box_x: f32,
     box_y_bottom: f32,
     box_w: f32,
@@ -428,41 +508,23 @@ fn render_slot_box(
     layer.use_text(
         format_slot_time_label(&slot.slot),
         TIME_LABEL_FONT_PT,
-        Mm(box_x + 1.5),
+        Mm(box_x + SLOT_TEXT_H_PADDING_MM),
         Mm(label_y),
         font_bold,
     );
 
-    // 3) Names below, alphabetical; name-overflow via `+ N weitere` (D-50-04).
+    // 3) Wrapped name lines below the time label. Box height was already
+    //    sized to fit them, so a straight loop suffices.
     let mut name_y = label_y - LINE_HEIGHT_MM;
-    let name_bottom_limit = box_y_bottom + SLOT_PADDING_MM;
-    for (i, name) in sorted_names.iter().enumerate() {
-        let is_last = i == sorted_names.len() - 1;
-        let next_y = name_y - LINE_HEIGHT_MM;
-        if name_y < name_bottom_limit {
-            // Not enough room even for this line — stop rendering.
-            return;
-        }
-        if next_y < name_bottom_limit && !is_last {
-            // Next line would not fit and there are more names → overflow marker.
-            let remaining = sorted_names.len() - i;
-            layer.use_text(
-                format!("+ {remaining} weitere"),
-                NAME_FONT_PT,
-                Mm(box_x + 1.5),
-                Mm(name_y),
-                font,
-            );
-            return;
-        }
+    for line in name_lines {
         layer.use_text(
-            name.clone(),
+            line.clone(),
             NAME_FONT_PT,
-            Mm(box_x + 1.5),
+            Mm(box_x + SLOT_TEXT_H_PADDING_MM),
             Mm(name_y),
             font,
         );
-        name_y = next_y;
+        name_y -= LINE_HEIGHT_MM;
     }
 }
 
@@ -487,12 +549,18 @@ fn render_day_column(
     // Note: `i` in this loop doubles as `rendered_count` — every iteration
     // either renders exactly one box (and increments the effective count) or
     // returns early on overflow, so no separate counter is needed.
+    // Usable text width inside a slot box (subtract left+right padding).
+    let text_width_mm = (col_width_mm - 2.0 * SLOT_TEXT_H_PADDING_MM).max(1.0);
+
     for (i, slot) in sorted_slots.iter().enumerate() {
         let duration_hours = compute_slot_duration_hours(&slot.slot);
-        let box_h = compute_slot_height_mm(duration_hours);
+        let names = build_slot_name_list(slot, sales_persons);
+        let name_lines = wrap_names_comma(&names, text_width_mm);
+        let box_h = compute_slot_box_height_mm(duration_hours, name_lines.len());
         let box_bottom = y_cursor - box_h;
         if box_bottom < grid_bottom_y {
-            // Box would overflow → collapse remaining slots into `+ N weitere`.
+            // Column-level overflow (D-50-03): remaining slots don't fit on
+            // the (single) page — collapse them into `+ N weitere`.
             let remaining = sorted_slots.len() - i;
             let marker_y = if i == 0 {
                 grid_top_y - LINE_HEIGHT_MM
@@ -502,17 +570,16 @@ fn render_day_column(
             layer.use_text(
                 format!("+ {remaining} weitere"),
                 NAME_FONT_PT,
-                Mm(col_x + 1.5),
+                Mm(col_x + SLOT_TEXT_H_PADDING_MM),
                 Mm(marker_y),
                 font,
             );
             return;
         }
-        let names = build_slot_name_list(slot, sales_persons);
         render_slot_box(
             layer,
             slot,
-            &names,
+            &name_lines,
             col_x,
             box_bottom,
             col_width_mm,
@@ -937,6 +1004,71 @@ mod test {
             idx_alice < idx_bob && idx_bob < idx_charlie,
             "names must be alphabetical case-insensitive within slot box (D-50-06)",
         );
+    }
+
+    /// D-50-04 revision (UAT feedback 2026-07-03): a short slot with more
+    /// bookings than would fit under the old duration-scaled height must
+    /// no longer emit `+ N weitere` — the box has to grow to accommodate
+    /// all names, comma-separated across as many lines as needed.
+    #[test]
+    fn short_slot_with_many_names_grows_box_no_overflow_marker() {
+        let names_input = ["Anna", "Bertha", "Chris", "Doro", "Emil"];
+        let mut sales_persons: Vec<SalesPerson> = Vec::new();
+        let mut bookings: Vec<ShiftplanBooking> = Vec::new();
+        let slot = make_slot(DayOfWeek::Monday, 8, 0, 9, 0); // 1h slot — smallest realistic case
+        for (i, n) in names_input.iter().enumerate() {
+            let sp = make_sales_person((i as u128) + 1, n, Some(true));
+            bookings.push(make_booking(&sp, slot.id, 2026, 27));
+            sales_persons.push(sp);
+        }
+        let mut week = empty_week(2026, 27);
+        week.days[0].slots.push(ShiftplanSlot {
+            slot,
+            bookings,
+            current_paid_count: names_input.len() as u8,
+        });
+        let bytes = render_shiftplan_week_pdf(
+            &week,
+            &sales_persons,
+            2026,
+            27,
+            FIXED_RENDER_TIMESTAMP,
+        )
+        .expect("render succeeds");
+        for n in &names_input {
+            assert!(
+                find_subsequence(&bytes, encode_ascii_to_pdf_hex(n).as_bytes()).is_some(),
+                "name '{n}' must appear in a slot that grew to fit all bookings (D-50-04 revised)",
+            );
+        }
+        // No name-overflow marker inside the slot box.
+        assert!(
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("weitere").as_bytes()).is_none(),
+            "'+ N weitere' name-overflow marker must not appear when a slot has any realistic number of bookings",
+        );
+    }
+
+    /// Unit test for the comma-wrap helper directly — verifies the atomic
+    /// join semantics (non-last names carry a trailing `,`) and that wraps
+    /// happen at name boundaries when the accumulated width would exceed
+    /// `max_width_mm`.
+    #[test]
+    fn wrap_names_comma_splits_at_name_boundary() {
+        let names: Vec<String> = ["Anna", "Bertha", "Christina"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        // Very wide: one line.
+        let lines = wrap_names_comma(&names, 200.0);
+        assert_eq!(lines, vec!["Anna, Bertha, Christina".to_string()]);
+        // Very narrow: three lines, non-last names with trailing comma.
+        let lines = wrap_names_comma(&names, 8.0);
+        assert_eq!(
+            lines,
+            vec!["Anna,".to_string(), "Bertha,".to_string(), "Christina".to_string()]
+        );
+        // Empty input: no lines.
+        assert!(wrap_names_comma(&[], 50.0).is_empty());
     }
 
     /// D-50-16 / D-50-07 / PDF-01: Volunteers (`is_paid == Some(false)`) get
