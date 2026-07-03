@@ -44,7 +44,7 @@ User ausliefert — aber nur sichtbar, wenn `week_status ∈ {Planned, Locked}`.
 
 **Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
 **Requirements:** PDF-03, PDF-04, PDF-05
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 **Wave 1**
@@ -53,7 +53,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 49-02-PLAN.md — REST Handler + PdfShiftplanApiDoc + Router-Wiring + Router-Tests (PDF-03, PDF-04, PDF-05) [TDD, Wave 2]
+- [x] 49-02-PLAN.md — REST Handler + PdfShiftplanApiDoc + Router-Wiring + Router-Tests (PDF-03, PDF-04, PDF-05) [TDD, Wave 2]
 - [ ] 49-03-PLAN.md — Scheduler-Refactor (DRY) + DI-Wiring in main.rs (PDF-03, PDF-04) [Wave 2]
 
 **Wave 3** *(blocked on Wave 2 completion)*
