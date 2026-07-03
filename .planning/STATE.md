@@ -4,11 +4,11 @@ milestone: v2.3
 milestone_name: "— PDF-Export: Browser-Look & Download-Button"
 current_phase: 49
 current_phase_name: BE + FE
-status: Ready to execute
-stopped_at: Phase 49 planned — 5 plans across 3 waves
-last_updated: "2026-07-03T14:52:42.784Z"
+status: Executed — awaiting human UAT
+stopped_at: Phase 49 executed — 5/5 plans complete, Verifier human_needed (3 UAT-Items)
+last_updated: "2026-07-03T20:00:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 49 planned (Research + UI-SPEC + Patterns + 5 PLAN.md, VERIFICATION PASSED nach 1 Revision)
+last_activity_desc: Phase 49 executed — 5/5 plans, alle Automated-Gates grün (cargo build/test/clippy + WASM). Verifier meldet 4/4 must-haves + 3 UAT-Items für Browser-Klick pending.
 progress:
   total_phases: 2
   completed_phases: 1
