@@ -6,15 +6,15 @@ current_phase: 49
 current_phase_name: BE + FE
 status: Ready to execute
 stopped_at: Phase 49 planned — 5 plans across 3 waves
-last_updated: "2026-07-03T14:39:15.837Z"
+last_updated: "2026-07-03T14:52:42.784Z"
 last_activity: 2026-07-03
 last_activity_desc: Phase 49 planned (Research + UI-SPEC + Patterns + 5 PLAN.md, VERIFICATION PASSED nach 1 Revision)
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 0
+  completed_plans: 5
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -232,6 +232,7 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 - [Phase 42]: 42-01: SDF-01 FE-only — Option 2 (D-42-01): 3 Post-Create-Feld-Resets entfernt, Felder bleiben gefüllt → Anlegen-Button bleibt aktiv; sd_year.set + sd_resource.restart bleiben (D-42-02). Validitäts-Prädikat + Retention-Policy in reine Fns extrahiert + unit-getestet (is_special_day_form_valid, SpecialDayForm/special_day_form_after_create; D-42-05). Duplikat-Hinweis nicht an disabled gekoppelt (D-42-03), sd_save_result unverändert (D-42-04). SSR-Mount-Test begründet übersprungen (D-42-06 Fall B — SettingsPage ohne Live-Harness nicht mountbar). WASM-Build warnungsfrei; kein Backend, kein Snapshot-Bump, keine Migration, keine Deps, i18n unverändert.
 - [Phase ?]: Phase 45 D-45-01: FE-Clippy-Gate -D warnings scharfgestellt (177 zu 0 warnings).
 - [Phase ?]: D-49-15/D-49-16 doc audit passed (grep-verified) for REQUIREMENTS.md PDF-03 and ROADMAP.md Phase 49 Goal+SC 3 — no-op regelfall
+- [Phase ?]: Phase 49 Plan 04: Pure-fn visibility gate + <a>-anchor download-attribute pattern for Cookie-Auth file download in Dioxus WASM (sidesteps signal-mocking via cargo-test-only unit-test matrix).
 
 ## Performance Metrics
 
@@ -254,3 +255,4 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 | Phase 45 P01 | 20 | 3 tasks | 22 files |
 | Phase 49 P01 | 5 | - tasks | - files |
 | Phase 49 P05 | 1min | 2 tasks | 1 files |
+| Phase 49 P04 | 14min | 3 tasks | 5 files |

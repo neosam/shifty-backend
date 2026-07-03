@@ -29,7 +29,7 @@ einen On-Demand-Download-Button auf die Schichtplan-Seite. Kein Snapshot-Bump (b
 keine Migration, keine neue Cargo-Dep. WebDAV-Scheduler aus Phase 48 nutzt den neuen
 Renderer nach Phase 50 automatisch.
 
-- [ ] Phase 49: On-Demand-Download-Button (BE + FE) — PDF-03, PDF-04, PDF-05
+- [x] Phase 49: On-Demand-Download-Button (BE + FE) — PDF-03, PDF-04, PDF-05 (completed 2026-07-03)
 - [ ] Phase 50: PDF-Renderer neu — Browser-Look + Timestamp — PDF-01, PDF-02
 
 **Reihenfolge-Rationale:** Erst der Button (mit dem alten, unlesbaren Renderer), dann der
@@ -44,7 +44,7 @@ User ausliefert — aber nur sichtbar, wenn `week_status ∈ {Planned, Locked}`.
 
 **Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
 **Requirements:** PDF-03, PDF-04, PDF-05
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -58,7 +58,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 49-04-PLAN.md — FE PDF-Anchor neben iCal + i18n `PdfDownload` de/en/cs + 8-case Predicate-Tests (PDF-03, PDF-04) [Wave 3]
+- [x] 49-04-PLAN.md — FE PDF-Anchor neben iCal + i18n `PdfDownload` de/en/cs + 8-case Predicate-Tests (PDF-03, PDF-04) [Wave 3]
 - [x] 49-05-PLAN.md — REQUIREMENTS.md + ROADMAP.md D-49-15/16 Doku-Deviation (PDF-03, PDF-04) [Wave 3]
 
 **Success Criteria:**
