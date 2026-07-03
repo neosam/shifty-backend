@@ -92,11 +92,6 @@ pub(crate) fn special_day_error_after_create<T, E>(
 /// signal-setting in a browser test does not trigger Dioxus's reactive graph
 /// (memory-anchor "Dioxus Browser-Test: Datepicker"). Unit tests cover the
 /// full 4×2 matrix (WeekStatus × Option<Uuid>).
-// reason: consumed by the RSX toolbar block in the same file (Task 3 of the
-// Plan 49-04 execution wave). The staged commit for Task 2 lands the pure fn
-// + unit-test matrix first so the RED → GREEN sequence stays visible in git
-// history; Task 3 wires the anchor and drops this attribute in the same file.
-#[allow(dead_code)]
 pub fn should_show_pdf_button(status: WeekStatus, shiftplan_id: Option<Uuid>) -> bool {
     shiftplan_id.is_some() && matches!(status, WeekStatus::Planned | WeekStatus::Locked)
 }
@@ -1157,6 +1152,33 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 title: "{personal_label}",
                                 span { class: "font-mono", "↓" }
                                 "iCal"
+                            }
+                        }
+                    }
+                }
+                // Phase 49 (PDF-03/PDF-04, D-49-10/11/12/13): download-anchor for
+                // the currently selected week's PDF, gated by the pure predicate
+                // `should_show_pdf_button` (visible iff Some(shiftplan_id) and
+                // KW-status in {Planned, Locked}). Consumes the cookie session
+                // automatically — no WASM fetch/Blob, no target="_blank".
+                {
+                    let backend_url_pdf = backend_url.clone();
+                    let pdf_label = i18n.t(Key::PdfDownload).to_string();
+                    let sp_id_opt = *selected_shiftplan_id.read();
+                    let y = *year.read();
+                    let w = *week.read();
+                    let ws = week_status.clone();
+                    rsx! {
+                        if should_show_pdf_button(ws, sp_id_opt) {
+                            if let Some(sp_id) = sp_id_opt {
+                                a {
+                                    class: "px-3 py-1.5 rounded-md text-body font-medium border bg-surface text-ink border-border-strong inline-flex items-center gap-1 hover:bg-surface-alt",
+                                    href: format!("{}/shiftplan/{}/{}/{}/pdf", backend_url_pdf, sp_id, y, w),
+                                    download: format!("schichtplan-{y}-KW{w:02}.pdf"),
+                                    title: "{pdf_label}",
+                                    span { class: "font-mono", "↓" }
+                                    "{pdf_label}"
+                                }
                             }
                         }
                     }
