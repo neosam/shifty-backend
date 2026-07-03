@@ -1,8 +1,11 @@
 ---
 phase: 49-pdf-download-button
 verified: 2026-07-03T00:00:00Z
-status: human_needed
-score: 4/4 must-haves verified (SC1..SC4)
+uat_confirmed: 2026-07-03
+uat_confirmed_by: user (Simon Goller)
+uat_note: "PDF-Download-Roundtrip funktioniert (Klick lädt Datei); Dev-Proxy /shiftplan in Dioxus.toml als hotfix b1bfeab nachgezogen"
+status: passed
+score: 4/4 must-haves verified (SC1..SC4) + 3/3 UAT-Items PASSED
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:

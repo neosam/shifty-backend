@@ -4,11 +4,11 @@ milestone: v2.3
 milestone_name: "— PDF-Export: Browser-Look & Download-Button"
 current_phase: 49
 current_phase_name: BE + FE
-status: Executed — awaiting human UAT
-stopped_at: Phase 49 executed — 5/5 plans complete, Verifier human_needed (3 UAT-Items)
-last_updated: "2026-07-03T20:00:00.000Z"
+status: Complete
+stopped_at: Phase 49 COMPLETE — UAT PASSED (User bestätigt PDF-Download funktioniert)
+last_updated: "2026-07-03T21:00:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 49 executed — 5/5 plans, alle Automated-Gates grün (cargo build/test/clippy + WASM). Verifier meldet 4/4 must-haves + 3 UAT-Items für Browser-Klick pending.
+last_activity_desc: Phase 49 COMPLETE — Browser-UAT PASSED, PDF-Download-Roundtrip funktioniert. Hotfix b1bfeab (Dioxus.toml /shiftplan-Proxy) im Dev-Modus nötig war.
 progress:
   total_phases: 2
   completed_phases: 1
