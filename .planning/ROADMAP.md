@@ -38,9 +38,9 @@ werden.
 
 #### Phase 49: On-Demand-Download-Button (BE + FE)
 
-**Goal:** Auf der Schichtplan-Seite gibt es einen PDF-Download-Button, der die aktuelle
-Kalenderwoche (basierend auf heute) für jeden authentifizierten User ausliefert — aber
-nur, wenn `week_status ∈ {Planned, Locked}`.
+**Goal:** Auf der Schichtplan-Seite gibt es einen PDF-Download-Button, der die aktuell
+im UI selektierte Kalenderwoche des ausgewählten Shiftplans für jeden authentifizierten
+User ausliefert — aber nur sichtbar, wenn `week_status ∈ {Planned, Locked}`.
 
 **Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
 **Requirements:** PDF-03, PDF-04, PDF-05
@@ -48,13 +48,19 @@ nur, wenn `week_status ∈ {Planned, Locked}`.
 
 **Success Criteria:**
 
-1. Neuer REST-Endpoint `GET /shiftplan/{year}/{week}/pdf` liefert das PDF mit Dateiname
-   `schichtplan-{JJJJ}-KW{NN}.pdf`; auth-required, aber KEIN Admin-Gate (Employee-Auth
-   liefert 200).
-2. Backend gibt HTTP 409 zurück, wenn `week_status ∈ {None, Planning}` (Defense-in-Depth).
-3. Frontend-Button in `shifty-dioxus/src/page/shiftplan.rs` ist nur enabled bei
-   `week_status ∈ {Planned, Locked}`; sonst disabled + Tooltip. Button lädt IMMER die
-   KW von heute, nicht die im UI navigierte Woche. i18n-Label + Tooltip in de/en/cs.
+1. Neuer REST-Endpoint `GET /shiftplan/{shiftplan_id}/{year}/{week}/pdf` liefert das PDF
+   mit Dateiname `schichtplan-{JJJJ}-KW{NN}.pdf` (Content-Disposition-Header);
+   auth-required, aber KEIN Admin-Gate (Employee-Auth liefert 200).
+2. Backend gibt HTTP 409 zurück, wenn `week_status ∈ {Unset, InPlanning}`
+   (Defense-in-Depth für Race-Case).
+3. Frontend-Button in `shifty-dioxus/src/page/shiftplan.rs` sitzt neben dem
+   iCal-Button und wird nur sichtbar gerendert, wenn `week_status ∈ {Planned, Locked}`
+   (kein disabled-Zustand, kein Tooltip, kein Fehler-Toast). Button lädt die
+   aktuell im UI selektierte KW des ausgewählten Shiftplans. i18n-Label in de/en/cs.
+4. DRY: neuer Business-Logic-Service `PdfShiftplanService` kapselt
+   `ShiftplanViewService` + `SalesPersonService` + `WeekStatusService` + `pdf_render`.
+   `PdfExportScheduler` wird refactored, damit er diesen Service konsumiert statt
+   inline zu orchestrieren (einheitlicher Assemble-Pfad für On-Demand + Cron).
 
 #### Phase 50: PDF-Renderer neu — Browser-Look + Timestamp
 

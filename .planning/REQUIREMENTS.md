@@ -22,8 +22,8 @@ v2.3 löst zwei Probleme zusammen:
    externe Referenz nutzbar ist. Zusätzlich soll jede Seite den
    Renderzeitpunkt tragen, damit Ausdrucke datierbar sind.
 2. Auf der Schichtplan-Seite selbst gibt es einen Download-Button für die
-   aktuelle Kalenderwoche, damit man den Export ad-hoc nutzen kann und nicht
-   auf den täglichen Cron-Slot warten muss.
+   im UI selektierte Kalenderwoche, damit man den Export ad-hoc nutzen kann
+   und nicht auf den täglichen Cron-Slot warten muss.
 
 Der Reihenfolge-Trick: Phase 49 liefert nur den Button (nutzt den alten,
 unlesbaren Renderer), Phase 50 tauscht den Renderer aus. So kann das
@@ -33,9 +33,6 @@ Rendering-Ergebnis in Phase 50 direkt per Button-Klick verifiziert werden.
 
 - **i18n der PDF-Texte** — bleibt Deutsch (Datumsformat, „Schichtplan KW"-
   Header, Timestamp-Label). Frontend-Button-Label wird i18nt.
-- **Wochenwahl über die UI-Navigation** — der Button lädt bewusst nur die KW
-  von heute, nicht die im UI vor/zurück-navigierte Woche. Bewusster
-  Reduktions-Scope.
 - **Byte-Determinismus des Renderers** — fällt implizit durch PDF-02
   (Renderzeitpunkt). Der v2.2-Determinismus-Vertrag (fixe Metadata
   2000-01-01) wird in Phase 50 aufgehoben. WebDAV-Overwrite bleibt korrekt.
@@ -75,9 +72,10 @@ bleibt testbar; Uhrzeit wird von Aufrufern injiziert).
 
 ### PDF-03 — Download-Button auf Schichtplan-Seite
 
-Auf `shifty-dioxus/src/page/shiftplan.rs` gibt es einen sichtbaren
-Download-Button „PDF herunterladen". Klick lädt das PDF der **aktuellen
-Kalenderwoche (basierend auf heute)**, nicht der im UI navigierten Woche.
+Auf `shifty-dioxus/src/page/shiftplan.rs` gibt es einen Download-Button
+neben dem iCal-Button. Klick lädt das PDF der **aktuell im UI selektierten
+Kalenderwoche** (via `year`/`week`-Signals des Shiftplan-Views), für den
+aktuell im Catalog ausgewählten Shiftplan.
 
 Dateiname: `schichtplan-{JJJJ}-KW{NN}.pdf` (dieselbe Konvention wie beim
 WebDAV-Export in v2.2, Phase 48).
@@ -85,17 +83,20 @@ WebDAV-Export in v2.2, Phase 48).
 **Verifikation:** Manueller UAT — Klick, Datei landet mit korrektem
 Dateinamen im Browser-Download.
 
-### PDF-04 — Download-Gate auf `week_status`
+### PDF-04 — Sichtbarkeits-/Download-Gate auf `week_status`
 
-Der Button ist nur aktivierbar, wenn `week_status ∈ {Planned, Locked}`.
-Bei `None` (kein Status) oder `Planning` ist der Button disabled und zeigt
-einen Tooltip an („Nur für geplante oder gesperrte Wochen verfügbar").
+Der Button ist im Frontend nur sichtbar, wenn der `WeekStatus` der aktuell
+selektierten KW ∈ {`Planned`, `Locked`} liegt. Bei `Unset` (keine
+persistierte Row) oder `InPlanning` wird der Button nicht gerendert (kein
+disabled-Zustand, kein Tooltip).
 
-Der Backend-Endpoint gibt bei Status `None`/`Planning` HTTP 409 zurück
-(Defense-in-Depth — Frontend disabled, Backend verweigert trotzdem).
+Der Backend-Endpoint gibt bei `WeekStatus ∈ {Unset, InPlanning}` HTTP 409
+zurück (Defense-in-Depth — Race-Case wenn Status zwischen Signal-Update
+und Klick wechselt).
 
 **Verifikation:** Backend-Integrationstest gegen alle vier Status-Werte
-für die KW. Frontend-Test (browser oder cargo) prüft Enable/Disable-Logik.
+für die KW. Frontend-Test (cargo) auf reine Predikat-Fn
+`should_show_pdf_button(week_status, shiftplan_id) -> bool`.
 
 ### PDF-05 — Kein Admin-Gate auf Download
 
