@@ -377,3 +377,17 @@ async fn week_status_error_bubbles_up() {
         .expect_err("gate error must bubble");
     assert!(matches!(err, ServiceError::InternalError), "got {err:?}");
 }
+
+// ─── PDF-03 (Task 1 RED): Filename-Helper Format-Regel ────────────────────
+//
+// Filename-Format `schichtplan-{JJJJ}-KW{NN:02}.pdf` (D-49-01 + PDF-03).
+// Der Helper wird in Task 2 in `crate::pdf_shiftplan` als freistehende
+// `pub fn` angelegt, sobald der REST-Handler ihn braucht. Bis dahin ist
+// dieser Test RED (Symbol nicht auflösbar).
+#[test]
+fn content_disposition_filename_format_helper() {
+    use crate::pdf_shiftplan::filename_for;
+    assert_eq!(filename_for(2026, 27), "schichtplan-2026-KW27.pdf");
+    assert_eq!(filename_for(2026, 3), "schichtplan-2026-KW03.pdf");
+    assert_eq!(filename_for(2025, 52), "schichtplan-2025-KW52.pdf");
+}
