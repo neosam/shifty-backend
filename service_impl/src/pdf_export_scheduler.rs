@@ -192,7 +192,18 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
             *sched_guard = Some(scheduler);
         }
         drop(sched_guard);
-        self.reload_from_db().await?;
+        // v2.3.1: boot-tolerance — ein fehlerhafter Config-Zustand in der DB
+        // (z.B. ungültiger Cron-Ausdruck) darf den GESAMTEN Backend-Start
+        // nicht verhindern. `reload_from_db` persistiert den Fehler bereits
+        // via `record_error`; wir loggen zusätzlich eine Boot-Warnung und
+        // starten den Scheduler dormant. Ein späteres PUT auf
+        // `/pdf-export-config` mit gültiger Config triggert einen neuen
+        // Reload und aktiviert den Job dann live.
+        if let Err(e) = self.reload_from_db().await {
+            warn!(
+                "pdf-export: initial reload at boot failed ({e:?}) — scheduler starts dormant; fix config via PUT /pdf-export-config"
+            );
+        }
         let sched_guard = self.scheduler.lock().await;
         if let Some(sched) = sched_guard.as_ref() {
             sched.start().await.map_err(|e| {
@@ -353,15 +364,18 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
         let start_week = ShiftyWeek::new(start_shifty.year(), start_shifty.week());
         let mut cursor = start_week;
         let horizon = run_cfg.weeks_horizon as usize;
-        for offset in 0..horizon {
+        let mut succeeded_count: usize = 0;
+        for _offset in 0..horizon {
             let (y, w) = (cursor.year, cursor.week);
+            cursor = cursor.next();
             // Phase 49 D-49-08: Delegate assemble (WeekStatus-Gate + View +
             // active-SalesPersons + Render) an den PdfShiftplanService.
             // D-49-07: Aufrufer-Kontext = `Authentication::Full` (Scheduler
             // ist trusted; Cron-Callback ruft `run_once_now` mit Full).
-            // Q1: ValidationError (Status != Planned/Locked) wird per
-            // `record_error` geloggt + `return Ok(())` als per-Week-Skip
-            // behandelt — der Scheduler exportiert damit nur releasbare Wochen.
+            // v2.3.1: ValidationError (Status != Planned/Locked) wird per
+            // `record_error` geloggt und die Schleife läuft mit `continue`
+            // weiter — vorher brach der komplette Horizon beim ersten
+            // Draft-Week ab und ließ spätere Planned-Wochen ungeexportiert.
             let bytes = match self
                 .pdf_shiftplan_service
                 .render_week_pdf(shiftplan_id, y, w, Authentication::Full, None)
@@ -376,7 +390,7 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
                     self.pdf_export_config_service
                         .record_error(at, msg, Authentication::Full, None)
                         .await?;
-                    return Ok(());
+                    continue;
                 }
             };
 
@@ -405,21 +419,32 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
                     .await?;
                 // Do not attempt further weeks — surface first failure and
                 // let the next cron slot retry from scratch (per plan).
-                let _ = offset;
                 return Ok(());
             }
 
-            cursor = cursor.next();
+            succeeded_count += 1;
         }
 
-        let at = self.clock_service.date_time_now();
-        self.pdf_export_config_service
-            .record_success(at, Authentication::Full, None)
-            .await?;
-        info!(
-            "pdf-export success: {} week(s) uploaded to Nextcloud",
-            horizon
-        );
+        // v2.3.1: nur `record_success` wenn tatsächlich mind. eine Woche
+        // hochgeladen wurde. Sind alle Wochen im Horizon fehlgeschlagen
+        // (`succeeded_count == 0`), bleibt `record_error` die einzige
+        // Persistenz — sonst würde die UI Erfolg suggerieren obwohl nichts
+        // exportiert wurde.
+        if succeeded_count > 0 {
+            let at = self.clock_service.date_time_now();
+            self.pdf_export_config_service
+                .record_success(at, Authentication::Full, None)
+                .await?;
+            info!(
+                "pdf-export success: {}/{} week(s) uploaded to Nextcloud",
+                succeeded_count, horizon
+            );
+        } else {
+            info!(
+                "pdf-export run finished with 0/{} weeks uploaded — see last_error_message",
+                horizon
+            );
+        }
         Ok(())
     }
 }

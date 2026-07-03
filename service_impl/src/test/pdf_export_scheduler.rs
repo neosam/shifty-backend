@@ -639,6 +639,112 @@ async fn scheduler_skips_week_on_validation_error() {
     assert_eq!(error_count.load(Ordering::SeqCst), 1);
 }
 
+// ─── Test 8b: multi-week horizon continues past per-week ValidationError ──
+
+/// v2.3.1-Regression (production bug): der Scheduler brach vor dem Fix
+/// beim ERSTEN nicht-planned Week im Horizon (`ValidationError`) via
+/// `return Ok(())` ab und ließ ALLE folgenden Wochen ungeexportiert —
+/// selbst wenn die spätere Woche Planned/Locked und bereit war.
+/// Nach dem Fix läuft die Schleife per `continue` weiter: Woche 1 fällt aus
+/// mit `record_error`, Woche 2 wird erfolgreich hochgeladen, und
+/// `record_success` wird am Ende einmal aufgerufen (mind. eine Woche
+/// exportiert ⇒ Teilerfolg zählt).
+#[tokio::test]
+async fn scheduler_continues_past_validation_error_for_later_weeks() {
+    let shiftplan_id = uuid!("aaaa8888-0000-0000-0000-000000000048");
+
+    let mut cfg = MockPdfExportConfigService::new();
+    cfg.expect_get().returning(move |_ctx, _tx| {
+        let mut c = base_config(true);
+        c.weeks_horizon = 2;
+        Ok(c)
+    });
+    let error_count = Arc::new(AtomicUsize::new(0));
+    let ec = error_count.clone();
+    cfg.expect_record_error()
+        .times(1)
+        .returning(move |_at, msg, _ctx, _tx| {
+            assert!(
+                msg.as_ref().contains("KW27"),
+                "record_error should mention the skipped week KW27, got: {msg}"
+            );
+            ec.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+    let success_count = Arc::new(AtomicUsize::new(0));
+    let sc = success_count.clone();
+    cfg.expect_record_success()
+        .times(1)
+        .returning(move |_at, _ctx, _tx| {
+            sc.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
+        .times(2)
+        .returning(|_id, _y, w, _ctx, _tx| {
+            if w == 27 {
+                Err(ServiceError::ValidationError(Arc::from([
+                    ValidationFailureItem::InvalidValue(Arc::from(
+                        "Woche KW27/2026 ist im Status Unset — kein Download",
+                    )),
+                ])))
+            } else {
+                Ok(fake_pdf_bytes())
+            }
+        });
+
+    let mut sh = MockShiftplanService::new();
+    sh.expect_get_all().returning(move |_ctx, _tx| {
+        Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
+    });
+
+    let mut clock = MockClockService::new();
+    clock.expect_date_now().returning(|| {
+        // 2026-07-01 → ISO week 27; next() → week 28.
+        time::Date::from_calendar_date(2026, time::Month::July, 1).unwrap()
+    });
+    clock.expect_date_time_now().returning(|| {
+        time::PrimitiveDateTime::new(
+            time::Date::from_calendar_date(2026, time::Month::July, 1).unwrap(),
+            time::Time::from_hms(6, 0, 0).unwrap(),
+        )
+    });
+
+    // Upload MUST be called exactly once (only for the succeeding week 28).
+    let mut upload = MockWebDavUpload::new();
+    let uploaded = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let up_clone = uploaded.clone();
+    upload
+        .expect_upload_file()
+        .times(1)
+        .returning(move |folder, filename, _bytes| {
+            up_clone
+                .lock()
+                .unwrap()
+                .push(format!("{folder}/{filename}"));
+            Ok(())
+        });
+    let factory = Arc::new(FixedFactory {
+        upload: Arc::new(upload),
+    });
+
+    let perm = full_auth_permission();
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
+    scheduler
+        .run_once_now(Authentication::Full)
+        .await
+        .expect("run must be Ok — week 1 skips, week 2 succeeds");
+
+    assert_eq!(error_count.load(Ordering::SeqCst), 1);
+    assert_eq!(success_count.load(Ordering::SeqCst), 1);
+    let paths = uploaded.lock().unwrap();
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0], "Schichtplaene/schichtplan-2026-KW28.pdf");
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // End-to-End Integration Test: boot_trigger_reload_flow
 // ═════════════════════════════════════════════════════════════════════════

@@ -3,7 +3,7 @@
 //!
 //! Deckt die 6 Schreibpfade × {Locked, Open} + TOCTOU (kein Write vor Gate)
 //! + delete_booking-Reihenfolge (get → gate → delete) ab. IDs aus
-//! 40-VALIDATION.md (T-40-01..17) + T-40-CR01 (CR-01-Regressions-Test).
+//!   40-VALIDATION.md (T-40-01..17) + T-40-CR01 (CR-01-Regressions-Test).
 //!
 //! T-40-03 (WR-01 Fix, 2026-07-02): modify_slot_single_week + non-editor →
 //! Forbidden. War in der ursprünglichen Implementierung vergessen worden;

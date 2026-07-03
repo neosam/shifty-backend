@@ -406,8 +406,9 @@ mod integration {
     }
 
     /// Frische DB nach `sqlx::migrate!` liefert die Seed-Row: enabled=false,
-    /// weeks_horizon=8, cron_schedule="0 6 * * 1", alle Text- und Status-Felder
-    /// None. (D-48-CONFIG)
+    /// weeks_horizon=8, cron_schedule="0 0 6 * * 1" (6-Feld nach v2.3.1
+    /// `20260704000000_fix-pdf-export-cron-6-field.sql`), alle Text- und
+    /// Status-Felder None. (D-48-CONFIG)
     #[tokio::test]
     async fn fresh_db_returns_seed_row() {
         let pool = setup_pool().await;
@@ -428,7 +429,7 @@ mod integration {
             .expect("get() must succeed as Full auth");
         assert!(!cfg.enabled);
         assert_eq!(cfg.weeks_horizon, 8);
-        assert_eq!(&*cfg.cron_schedule, "0 6 * * 1");
+        assert_eq!(&*cfg.cron_schedule, "0 0 6 * * 1");
         assert!(cfg.nextcloud_url.is_none());
         assert!(cfg.webdav_user.is_none());
         assert!(cfg.webdav_app_token.is_none());
