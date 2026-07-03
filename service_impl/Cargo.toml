@@ -46,7 +46,7 @@ path = "../shifty-utils"
 
 [dependencies.time]
 version = "0.3.36"
-features = ["std", "formatting", "macros"]
+features = ["std", "formatting", "macros", "local-offset"]
 
 [dependencies.uuid]
 version = "1.8.0"

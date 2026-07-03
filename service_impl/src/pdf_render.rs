@@ -240,6 +240,16 @@ mod test {
     use std::sync::Arc;
     use uuid::Uuid;
 
+    /// D-50-14: Fixed-Timestamp fixture for all renderer tests (2026-07-03 17:15 UTC).
+    ///
+    /// Consumed as the 5th parameter of `render_shiftplan_week_pdf` after the
+    /// Wave-2 rewrite (D-50-11). Wave-1 tests reference it via
+    /// `let _ = FIXED_RENDER_TIMESTAMP;` to keep the constant alive against the
+    /// `dead_code` lint until Wave 2 actually consumes it.
+    #[allow(dead_code)]
+    const FIXED_RENDER_TIMESTAMP: time::OffsetDateTime =
+        time::macros::datetime!(2026-07-03 17:15 UTC);
+
     /// Deterministic fixture: build an empty `ShiftplanWeek` with 7 empty days.
     fn empty_week(year: u32, week: u8) -> ShiftplanWeek {
         ShiftplanWeek {
@@ -256,12 +266,12 @@ mod test {
         }
     }
 
-    fn make_sales_person(id_hex: u128, name: &str) -> SalesPerson {
+    fn make_sales_person(id_hex: u128, name: &str, is_paid: Option<bool>) -> SalesPerson {
         SalesPerson {
             id: Uuid::from_u128(id_hex),
             name: Arc::from(name),
             background_color: Arc::from("#ffffff"),
-            is_paid: Some(true),
+            is_paid,
             inactive: false,
             deleted: None,
             version: Uuid::from_u128(0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff),
@@ -391,9 +401,15 @@ mod test {
     // ---------------------------------------------------------------
     #[test]
     fn all_active_sales_persons_appear() {
-        let alice = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0001, "Alice");
-        let bob = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0002, "Bob");
-        let charlie = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0003, "Charlie");
+        let alice =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0001, "Alice", Some(true));
+        let bob =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0002, "Bob", Some(true));
+        let charlie = make_sales_person(
+            0x0000_0000_0000_0000_0000_0000_0000_0003,
+            "Charlie",
+            Some(true),
+        );
 
         let slot = make_slot(DayOfWeek::Monday, 8, 0, 12, 0);
 
@@ -471,9 +487,15 @@ mod test {
     // ---------------------------------------------------------------
     #[test]
     fn sales_persons_sorted_by_id() {
-        let alice = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0001, "Alice");
-        let bob = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0002, "Bob");
-        let charlie = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0003, "Charlie");
+        let alice =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0001, "Alice", Some(true));
+        let bob =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0002, "Bob", Some(true));
+        let charlie = make_sales_person(
+            0x0000_0000_0000_0000_0000_0000_0000_0003,
+            "Charlie",
+            Some(true),
+        );
 
         let week = empty_week(2026, 27);
 
@@ -510,7 +532,8 @@ mod test {
 
     #[test]
     fn build_sales_person_row_lists_bookings_time_ranges() {
-        let sp = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0007, "Test");
+        let sp =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0007, "Test", Some(true));
         let slot = make_slot(DayOfWeek::Wednesday, 9, 30, 14, 45);
         let booking = make_booking(&sp, slot.id, 2026, 27);
         let mut week = empty_week(2026, 27);
