@@ -250,11 +250,18 @@ pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWe
 /// `share` is `count / counted_calendar_weeks`, clamped to `0.0..=1.0` and
 /// rounded to two decimals. When `counted_calendar_weeks == 0`, `share = 0.0`
 /// (no NaN, no +Inf).
+///
+/// v2.2.1: additionally `hours` (sum of worked hours on this weekday within
+/// the report range, same category filter as `count`) and `share_of_hours`
+/// (hours / total_hours across all seven days, so the sum over Mon..Sun is
+/// exactly 1.0 when total_hours > 0, else 0.0).
 #[derive(Clone, Debug, PartialEq)]
 pub struct WeekdayAttendanceStat {
     pub weekday: shifty_utils::DayOfWeek,
     pub count: u32,
     pub share: f32,
+    pub hours: f32,
+    pub share_of_hours: f32,
 }
 
 /// RPT-01: v2.2 attendance statistic — per-weekday distribution.
@@ -287,13 +294,18 @@ pub fn weekday_attendance_distribution(
 
     // Seven distinct-date buckets, indexed by Monday=0..Sunday=6.
     let mut buckets: [BTreeSet<time::Date>; 7] = Default::default();
+    // v2.2.1: parallel hour-sum buckets, same filter + weekday indexing.
+    let mut hour_buckets: [f32; 7] = [0.0; 7];
 
     for d in days.iter().filter(|d| {
         d.hours > 0.0 && matches!(d.category, Shiftplan | ExtraWork | VolunteerWork)
     }) {
         let idx = weekday_index_mon0(d.date.weekday());
         buckets[idx].insert(d.date);
+        hour_buckets[idx] += d.hours;
     }
+
+    let total_hours: f32 = hour_buckets.iter().sum();
 
     let weekday_order = [
         shifty_utils::DayOfWeek::Monday,
@@ -314,10 +326,19 @@ pub fn weekday_attendance_distribution(
             let clamped = raw.min(1.0);
             (clamped * 100.0).round() / 100.0
         };
+        let hours = hour_buckets[i];
+        let share_of_hours = if total_hours <= 0.0 {
+            0.0
+        } else {
+            let raw = hours / total_hours;
+            (raw * 100.0).round() / 100.0
+        };
         WeekdayAttendanceStat {
             weekday: weekday_order[i],
             count,
             share,
+            hours,
+            share_of_hours,
         }
     });
 

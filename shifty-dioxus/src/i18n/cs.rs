@@ -1067,6 +1067,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Žádné započítané kalendářní týdny v období",
     );
     i18n.add_text(Locale::Cs, Key::WeekdayAttendanceLabel, "Docházka / den");
+    i18n.add_text(Locale::Cs, Key::WeekdayAttendanceColDay, "Den");
+    i18n.add_text(Locale::Cs, Key::WeekdayAttendanceColCount, "Docházka");
+    i18n.add_text(Locale::Cs, Key::WeekdayAttendanceColHours, "Hodiny");
+    i18n.add_text(Locale::Cs, Key::WeekdayAttendanceColShare, "% hodin");
+    i18n.add_text(Locale::Cs, Key::WeekdayAttendanceRowTotal, "Σ");
 
     // Phase 24 — Konfigurace vynucení limitu placených (D-24-06, D-24-03, D-24-05).
     i18n.add_text(

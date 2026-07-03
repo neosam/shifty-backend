@@ -1002,6 +1002,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "No counted calendar weeks in range",
     );
     i18n.add_text(Locale::En, Key::WeekdayAttendanceLabel, "Attendance / day");
+    i18n.add_text(Locale::En, Key::WeekdayAttendanceColDay, "Day");
+    i18n.add_text(Locale::En, Key::WeekdayAttendanceColCount, "Attendances");
+    i18n.add_text(Locale::En, Key::WeekdayAttendanceColHours, "Hours");
+    i18n.add_text(Locale::En, Key::WeekdayAttendanceColShare, "% Hours");
+    i18n.add_text(Locale::En, Key::WeekdayAttendanceRowTotal, "Σ");
 
     // Phase 24 — Paid-limit enforcement config (D-24-06, D-24-03, D-24-05).
     i18n.add_text(

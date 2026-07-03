@@ -1077,6 +1077,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Keine gezählten Kalenderwochen im Zeitraum",
     );
     i18n.add_text(Locale::De, Key::WeekdayAttendanceLabel, "Anwesenheit / Tag");
+    i18n.add_text(Locale::De, Key::WeekdayAttendanceColDay, "Tag");
+    i18n.add_text(Locale::De, Key::WeekdayAttendanceColCount, "Anwesenheiten");
+    i18n.add_text(Locale::De, Key::WeekdayAttendanceColHours, "Stunden");
+    i18n.add_text(Locale::De, Key::WeekdayAttendanceColShare, "% Stunden");
+    i18n.add_text(Locale::De, Key::WeekdayAttendanceRowTotal, "Σ");
 
     // Phase 24 — Bezahlt-Limit-Durchsetzung konfigurierbar (D-24-06, D-24-03, D-24-05).
     i18n.add_text(

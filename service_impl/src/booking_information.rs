@@ -82,6 +82,28 @@ pub(crate) fn period_overlaps_week(
     from <= week_sunday && to >= week_monday
 }
 
+/// v2.2.1: pure conflict predicate for `get_booking_conflicts_for_week`. A booking
+/// is a conflict when EITHER the person is manually marked unavailable on this
+/// weekday, OR the booking date falls into an active absence period for the same
+/// person. `absence_ranges` is an already-filtered list of `(from, to)` pairs for
+/// the person; empty for persons without absences overlapping the week.
+pub(crate) fn is_booking_conflict(
+    unavailable_weekdays: &[DayOfWeek],
+    slot_day_of_week: DayOfWeek,
+    booking_date: Option<time::Date>,
+    absence_ranges: &[(time::Date, time::Date)],
+) -> bool {
+    if unavailable_weekdays.contains(&slot_day_of_week) {
+        return true;
+    }
+    let Some(date) = booking_date else {
+        return false;
+    };
+    absence_ranges
+        .iter()
+        .any(|(from, to)| *from <= date && date <= *to)
+}
+
 gen_service_impl! {
     struct BookingInformationServiceImpl: BookingInformationService = BookingInformationServiceDeps {
         ShiftplanReportService: ShiftplanReportService<Transaction = Self::Transaction> = shiftplan_report_service,
@@ -118,6 +140,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[BookingInformation]>, ServiceError> {
+        use shifty_utils::{DateRange, ShiftyDate};
+        use std::collections::HashMap;
+
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_permission(SHIFTPLANNER_PRIVILEGE, context)
@@ -139,13 +164,82 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .get_by_week(year, week, Authentication::Full, tx.clone().into())
             .await?;
         let booking_informations = build_booking_information(slots, bookings, sales_persons);
+
+        // v2.2.1: additionally flag bookings that fall into any active absence
+        // period for the same sales person. Fetches per-person absences that
+        // overlap the [Mon..Sun] range of this ISO week once, then filters
+        // in-memory per booking date.
+        let week_from = ShiftyDate::new(year, week, DayOfWeek::Monday).ok();
+        let week_to = ShiftyDate::new(year, week, DayOfWeek::Sunday).ok();
+        let week_range = match (week_from, week_to) {
+            (Some(from), Some(to)) => DateRange::new(from.to_date(), to.to_date()).ok(),
+            _ => None,
+        };
+
+        let mut absences_by_person: HashMap<Uuid, Arc<[service::absence::AbsencePeriod]>> =
+            HashMap::new();
+        if let Some(range) = week_range {
+            // Collect unique sales-person ids that actually have bookings.
+            let mut seen = std::collections::HashSet::<Uuid>::new();
+            let unique_ids: Vec<Uuid> = booking_informations
+                .iter()
+                .filter_map(|bi| {
+                    if seen.insert(bi.sales_person.id) {
+                        Some(bi.sales_person.id)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for sp_id in unique_ids {
+                let overlapping = self
+                    .absence_service
+                    .find_overlapping_for_booking(
+                        sp_id,
+                        range,
+                        Authentication::Full,
+                        tx.clone().into(),
+                    )
+                    .await?;
+                absences_by_person.insert(sp_id, overlapping);
+            }
+        }
+
         let conflicts = booking_informations
             .iter()
             .filter(|booking_information| {
-                unavailable_entries.iter().any(|unavailable| {
-                    unavailable.sales_person_id == booking_information.sales_person.id
-                        && unavailable.day_of_week == booking_information.slot.day_of_week
-                })
+                let unavailable_weekdays: Vec<DayOfWeek> = unavailable_entries
+                    .iter()
+                    .filter(|u| u.sales_person_id == booking_information.sales_person.id)
+                    .map(|u| u.day_of_week)
+                    .collect();
+
+                // v2.2.1: compute the booking's exact calendar date; used both to check
+                // absence-period membership and to skip on bad week/day encoding.
+                let cw_u8: Result<u8, _> =
+                    booking_information.booking.calendar_week.try_into();
+                let booking_date = cw_u8.ok().and_then(|cw| {
+                    ShiftyDate::new(
+                        booking_information.booking.year,
+                        cw,
+                        booking_information.slot.day_of_week,
+                    )
+                    .ok()
+                    .map(|d| d.to_date())
+                });
+
+                let absence_ranges: Vec<(time::Date, time::Date)> = absences_by_person
+                    .get(&booking_information.sales_person.id)
+                    .map(|periods| periods.iter().map(|p| (p.from_date, p.to_date)).collect())
+                    .unwrap_or_default();
+
+                is_booking_conflict(
+                    &unavailable_weekdays,
+                    booking_information.slot.day_of_week,
+                    booking_date,
+                    &absence_ranges,
+                )
             })
             .cloned()
             .collect();

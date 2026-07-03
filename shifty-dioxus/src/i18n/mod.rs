@@ -622,6 +622,12 @@ pub enum Key {
     WeekdayAttendanceEmpty,
     /// Short label for the weekday-attendance distribution row (v2.2 post-ship).
     WeekdayAttendanceLabel,
+    /// v2.2.1: table column headers for the weekday attendance table.
+    WeekdayAttendanceColDay,
+    WeekdayAttendanceColCount,
+    WeekdayAttendanceColHours,
+    WeekdayAttendanceColShare,
+    WeekdayAttendanceRowTotal,
 
     // Phase 23 — Slot paid-capacity editor (FUI-02, D-23-01/D-23-02/D-23-06).
     /// Label for the `max_paid_employees` number field in the slot editor.

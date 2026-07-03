@@ -11,8 +11,10 @@
 //! comes from the separate report-ehrenamt-gesamtstunden cap-leak bugfix).
 
 use crate::booking_information::{
-    period_overlaps_week, volunteer_surplus_above_committed, volunteer_surplus_band2,
+    is_booking_conflict, period_overlaps_week, volunteer_surplus_above_committed,
+    volunteer_surplus_band2,
 };
+use shifty_utils::DayOfWeek;
 use std::collections::HashSet;
 use time::macros::date;
 use uuid::Uuid;
@@ -604,4 +606,70 @@ fn vfa01_non_absent_volunteer_unaffected() {
         approx(band1, 4.0),
         "non-absent volunteer must contribute their full committed value, got {band1}"
     );
+}
+
+// ─── v2.2.1 booking-conflict predicate (SalesPersonUnavailable + AbsencePeriod) ──
+
+/// Baseline: person is manually marked unavailable on this weekday → conflict.
+#[test]
+fn v221_conflict_when_unavailable_weekday_matches() {
+    let booking_date = Some(date!(2026 - 06 - 29)); // Monday
+    let conflict = is_booking_conflict(
+        &[DayOfWeek::Monday],
+        DayOfWeek::Monday,
+        booking_date,
+        &[],
+    );
+    assert!(conflict, "Monday unavailable + Monday slot must be a conflict");
+}
+
+/// v2.2.1: person has an active absence period covering the booking date → conflict.
+#[test]
+fn v221_conflict_when_absence_period_covers_booking_date() {
+    let booking_date = Some(date!(2026 - 06 - 29)); // Monday
+    let absences = [(date!(2026 - 06 - 27), date!(2026 - 07 - 03))]; // week-long vacation
+    let conflict = is_booking_conflict(
+        &[], // no manual unavailable
+        DayOfWeek::Monday,
+        booking_date,
+        &absences,
+    );
+    assert!(
+        conflict,
+        "absence period covering 2026-06-29 must be a conflict for a Monday booking"
+    );
+}
+
+/// v2.2.1: no unavailable + no absence → no conflict.
+#[test]
+fn v221_no_conflict_when_neither_source_matches() {
+    let booking_date = Some(date!(2026 - 06 - 29));
+    let absences = [(date!(2026 - 07 - 01), date!(2026 - 07 - 05))]; // absence AFTER Monday
+    let conflict = is_booking_conflict(
+        &[DayOfWeek::Tuesday], // unavailable on a DIFFERENT weekday
+        DayOfWeek::Monday,
+        booking_date,
+        &absences,
+    );
+    assert!(!conflict, "Monday booking outside absence + non-matching unavailable weekday: no conflict");
+}
+
+/// v2.2.1: booking date on the exact boundary of the absence period → conflict.
+#[test]
+fn v221_conflict_on_absence_boundary_dates() {
+    let absences = [(date!(2026 - 06 - 27), date!(2026 - 07 - 03))];
+    for date in [date!(2026 - 06 - 27), date!(2026 - 07 - 03)] {
+        assert!(
+            is_booking_conflict(&[], DayOfWeek::Monday, Some(date), &absences),
+            "boundary {date} must be a conflict (from_date and to_date are inclusive)"
+        );
+    }
+}
+
+/// v2.2.1: booking_date is None (bad calendar_week encoding) → no conflict, no panic.
+#[test]
+fn v221_none_booking_date_gives_no_conflict_and_no_panic() {
+    let absences = [(date!(2026 - 06 - 27), date!(2026 - 07 - 03))];
+    let conflict = is_booking_conflict(&[], DayOfWeek::Monday, None, &absences);
+    assert!(!conflict, "None booking_date must never produce a conflict");
 }

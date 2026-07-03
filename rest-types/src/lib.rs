@@ -630,6 +630,14 @@ pub struct WeekdayAttendanceTO {
     /// `count / counted_calendar_weeks`, clamped to `0.0..=1.0` and rounded to two
     /// decimals. When `counted_calendar_weeks == 0`, this is `0.0`.
     pub share: f32,
+    /// v2.2.1: sum of worked hours on this weekday within the report range
+    /// (same category filter as `count`). Always >= 0.0.
+    #[serde(default)]
+    pub hours: f32,
+    /// v2.2.1: `hours / total_hours` across all seven weekdays, rounded to two
+    /// decimals. Sum over Mon..Sun is 1.0 when total_hours > 0, else 0.0.
+    #[serde(default)]
+    pub share_of_hours: f32,
 }
 
 /// DTO for the RPT-01 per-weekday attendance-day distribution (Phase 47).
@@ -661,6 +669,8 @@ impl From<&service::reporting::EmployeeAttendanceStatistics> for EmployeeAttenda
                     weekday: DayOfWeekTO::from(s.weekday),
                     count: s.count,
                     share: s.share,
+                    hours: s.hours,
+                    share_of_hours: s.share_of_hours,
                 })
                 .collect(),
             counted_calendar_weeks: stats.counted_calendar_weeks,

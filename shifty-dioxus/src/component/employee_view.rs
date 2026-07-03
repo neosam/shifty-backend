@@ -44,6 +44,10 @@ fn weekday_short_key(weekday: DayOfWeekTO) -> Key {
 ///   does NOT re-sort). Each row is rendered as `"<short-label>: <count> (<pct>%)"`
 ///   where `pct = (share * 100.0).round() as i32`. Segments are joined by
 ///   `" · "` (space, U+00B7 MIDDLE DOT, space) per D-47-CONTEXT.
+// v2.2.1: obsolete inline-format kept for the SSR test suite as a compact
+// stringification that mirrors the pre-table rendering. Prod UI renders a table
+// (see `EmployeeViewPlain`), so this fn is dead-code in the release binary.
+#[allow(dead_code)]
 pub fn format_weekday_attendance_line(
     stats: &EmployeeAttendanceStatisticsTO,
     i18n: &I18nType,
@@ -575,23 +579,88 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             {format_hours(stats.average_worked_hours_per_week, 2)}
                         } },
                     }
-                    // Phase 47 (RPT-02): weekday attendance distribution — replaces the
-                    // v2.1 "Ø Std/Anwesenheitstag" row at the same slot. Rendered only
-                    // when the server delivered the statistic (Some) — non-flexible
-                    // employees get None and no row at all (D-AVG-05 gate preserved).
+                    // Phase 47 (RPT-02) + v2.2.1: weekday attendance table.
+                    // Renders count + hours + %-hours per weekday plus a total row.
                     if let Some(att) = props.attendance_statistics.as_ref() {
                         {
-                            let line = format_weekday_attendance_line(att.as_ref(), &i18n);
                             let tooltip = i18n.t(Key::WeekdayAttendanceTooltip);
                             let label = i18n.t(Key::WeekdayAttendanceLabel);
+                            let col_day = i18n.t(Key::WeekdayAttendanceColDay);
+                            let col_count = i18n.t(Key::WeekdayAttendanceColCount);
+                            let col_hours = i18n.t(Key::WeekdayAttendanceColHours);
+                            let col_share = i18n.t(Key::WeekdayAttendanceColShare);
+                            let row_total = i18n.t(Key::WeekdayAttendanceRowTotal);
+
+                            let empty = att.counted_calendar_weeks == 0
+                                || att.attendance_by_weekday.is_empty();
+                            let empty_line = i18n.t(Key::WeekdayAttendanceEmpty);
+
+                            let total_count: u32 =
+                                att.attendance_by_weekday.iter().map(|w| w.count).sum();
+                            let total_hours: f32 =
+                                att.attendance_by_weekday.iter().map(|w| w.hours).sum();
+
+                            let weekday_rows: Vec<Element> = att
+                                .attendance_by_weekday
+                                .iter()
+                                .map(|entry| {
+                                    let label = i18n.t(weekday_short_key(entry.weekday));
+                                    let pct = (entry.share_of_hours * 100.0).round() as i32;
+                                    rsx! {
+                                        tr {
+                                            td { class: "pr-3 py-0.5 text-ink-muted", "{label}" }
+                                            td { class: "pr-3 py-0.5 text-right font-mono tabular-nums",
+                                                "{entry.count}"
+                                            }
+                                            td { class: "pr-3 py-0.5 text-right font-mono tabular-nums",
+                                                {format_hours(entry.hours, 1)}
+                                            }
+                                            td { class: "py-0.5 text-right font-mono tabular-nums",
+                                                "{pct}%"
+                                            }
+                                        }
+                                    }
+                                })
+                                .collect();
+
                             rsx! {
                                 TupleRow {
                                     label: ImStr::from(label.as_ref()),
                                     value: rsx! {
-                                        span {
-                                            class: "font-mono tabular-nums",
-                                            title: "{tooltip}",
-                                            "{line}"
+                                        if empty {
+                                            span {
+                                                class: "text-ink-muted italic",
+                                                title: "{tooltip}",
+                                                "{empty_line}"
+                                            }
+                                        } else {
+                                            table {
+                                                class: "w-full text-small",
+                                                title: "{tooltip}",
+                                                thead {
+                                                    tr { class: "text-ink-muted uppercase text-micro border-b border-border",
+                                                        th { class: "pr-3 py-0.5 text-left font-normal", "{col_day}" }
+                                                        th { class: "pr-3 py-0.5 text-right font-normal", "{col_count}" }
+                                                        th { class: "pr-3 py-0.5 text-right font-normal", "{col_hours}" }
+                                                        th { class: "py-0.5 text-right font-normal", "{col_share}" }
+                                                    }
+                                                }
+                                                tbody { {weekday_rows.into_iter()} }
+                                                tfoot {
+                                                    tr { class: "border-t border-border font-bold",
+                                                        td { class: "pr-3 py-0.5", "{row_total}" }
+                                                        td { class: "pr-3 py-0.5 text-right font-mono tabular-nums",
+                                                            "{total_count}"
+                                                        }
+                                                        td { class: "pr-3 py-0.5 text-right font-mono tabular-nums",
+                                                            {format_hours(total_hours, 1)}
+                                                        }
+                                                        td { class: "py-0.5 text-right font-mono tabular-nums",
+                                                            "100%"
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     },
                                 }
@@ -1680,6 +1749,8 @@ mod tests {
                     weekday: w,
                     count: c,
                     share: s,
+                    hours: 0.0,
+                    share_of_hours: 0.0,
                 })
                 .collect(),
             counted_calendar_weeks,

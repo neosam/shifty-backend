@@ -193,3 +193,59 @@ fn share_never_exceeds_one() {
     assert!(mon.share <= 1.0, "share must be ≤ 1.0, got {}", mon.share);
     assert!((mon.share - 1.0).abs() < 1e-6, "share should be clamped to 1.0, got {}", mon.share);
 }
+
+/// v2.2.1 Test 9: hours are summed per weekday (same filter as count) and
+/// share_of_hours = hours / total_hours across all weekdays.
+#[test]
+fn hours_and_share_of_hours_v2_2_1() {
+    // 2× Mo (4h + 6h = 10h), 1× Di (5h), 1× Mi (5h). Total: 20h.
+    // Expected share_of_hours: Mo 0.50, Di 0.25, Mi 0.25, rest 0.00.
+    // Absence entries and Custom entries are excluded (byte-identical to count filter).
+    let days = [
+        day(date!(2026 - 05 - 04), 4.0, ExtraHoursReportCategory::Shiftplan), // Mo
+        day(date!(2026 - 05 - 11), 6.0, ExtraHoursReportCategory::Shiftplan), // Mo (different date)
+        day(date!(2026 - 05 - 05), 5.0, ExtraHoursReportCategory::ExtraWork), // Di
+        day(date!(2026 - 05 - 06), 5.0, ExtraHoursReportCategory::VolunteerWork), // Mi
+        day(date!(2026 - 05 - 07), 3.0, ExtraHoursReportCategory::Vacation),  // Do — excluded
+    ];
+    let stats = weekday_attendance_distribution(&days, 2);
+
+    let mon = &stats.attendance_by_weekday[0];
+    let tue = &stats.attendance_by_weekday[1];
+    let wed = &stats.attendance_by_weekday[2];
+    let thu = &stats.attendance_by_weekday[3];
+
+    assert_eq!(mon.count, 2, "Mo count should be 2 (both dates)");
+    assert!((mon.hours - 10.0).abs() < 1e-6, "Mo hours should be 10.0, got {}", mon.hours);
+    assert!((mon.share_of_hours - 0.50).abs() < 1e-4, "Mo share_of_hours should be 0.50, got {}", mon.share_of_hours);
+
+    assert_eq!(tue.count, 1);
+    assert!((tue.hours - 5.0).abs() < 1e-6);
+    assert!((tue.share_of_hours - 0.25).abs() < 1e-4);
+
+    assert_eq!(wed.count, 1);
+    assert!((wed.hours - 5.0).abs() < 1e-6);
+    assert!((wed.share_of_hours - 0.25).abs() < 1e-4);
+
+    // Thursday: Vacation is excluded from both hours AND count.
+    assert_eq!(thu.count, 0);
+    assert!((thu.hours - 0.0).abs() < 1e-6);
+    assert!((thu.share_of_hours - 0.0).abs() < 1e-6);
+
+    // Summe der share_of_hours über alle 7 Wochentage ≈ 1.0.
+    let sum_shares: f32 = stats.attendance_by_weekday.iter().map(|w| w.share_of_hours).sum();
+    assert!((sum_shares - 1.0).abs() < 0.01, "sum of share_of_hours should be ~1.0, got {}", sum_shares);
+}
+
+/// v2.2.1 Test 10: empty inputs → hours=0.0 and share_of_hours=0.0 (never NaN).
+#[test]
+fn empty_input_zero_hours_and_shares() {
+    let days: [WorkingHoursDay; 0] = [];
+    let stats = weekday_attendance_distribution(&days, 0);
+    for stat in stats.attendance_by_weekday.iter() {
+        assert!(stat.hours.is_finite(), "hours must be finite, got {}", stat.hours);
+        assert!((stat.hours - 0.0).abs() < 1e-6);
+        assert!(stat.share_of_hours.is_finite(), "share_of_hours must be finite, got {}", stat.share_of_hours);
+        assert!((stat.share_of_hours - 0.0).abs() < 1e-6);
+    }
+}
