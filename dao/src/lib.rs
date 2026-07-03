@@ -15,6 +15,7 @@ pub mod employee_work_details;
 pub mod extra_hours;
 pub mod feature_flag;
 pub mod migration_source;
+pub mod pdf_export_config;
 pub mod permission;
 pub mod sales_person;
 pub mod sales_person_shiftplan;

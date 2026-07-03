@@ -81,7 +81,7 @@ pub fn PersonChip(props: PersonChipProps) -> Element {
         .as_ref()
         .map(|c| format!("background-color: {}", c))
         .unwrap_or_default();
-    let on_click = props.on_click.clone();
+    let on_click = props.on_click;
 
     rsx! {
         span {

@@ -37,7 +37,6 @@ pub async fn feature_flag_service(mut rx: UnboundedReceiver<FeatureFlagAction>) 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::state::Config;
     use std::rc::Rc;
 

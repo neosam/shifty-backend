@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pdf_export_config\n               SET last_error_at = ?,\n                   last_error_message = ?,\n                   update_process = ?,\n                   update_version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "76455b018e830fab116fa0c0c2cd37f62c3f39b1f2e3a1b702b3e418bbd925b6"
+}

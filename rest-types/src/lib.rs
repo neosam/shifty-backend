@@ -616,30 +616,54 @@ impl From<&service::reporting::EmployeeWeeklyStatistics> for EmployeeWeeklyStati
     }
 }
 
-/// DTO for the AVG-01 average worked hours per attendance day statistic (Phase 41 / AVG-02).
+/// DTO for a single weekday entry in the RPT-01 attendance distribution (Phase 47).
+///
+/// Emitted as part of `EmployeeAttendanceStatisticsTO::attendance_by_weekday`. The
+/// server guarantees exactly 7 entries ordered Monday..Sunday.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct WeekdayAttendanceTO {
+    /// Weekday this row describes.
+    pub weekday: DayOfWeekTO,
+    /// Number of DISTINCT calendar dates on this weekday that count as an
+    /// attendance day (category in {Shiftplan, ExtraWork, VolunteerWork} with hours > 0).
+    pub count: u32,
+    /// `count / counted_calendar_weeks`, clamped to `0.0..=1.0` and rounded to two
+    /// decimals. When `counted_calendar_weeks == 0`, this is `0.0`.
+    pub share: f32,
+}
+
+/// DTO for the RPT-01 per-weekday attendance-day distribution (Phase 47).
 ///
 /// HR-gated, range-aware read aggregate over the displayed report range (D-AVG-04). Served
 /// by `GET /report/{id}/attendance-statistics`; for non-flexible employees the whole DTO is
 /// omitted (JSON `null`) via the service returning `None` (D-AVG-05). No persistence, no
-/// snapshot bump (D-AVG-08).
+/// snapshot bump (RPT-03).
+///
+/// Length invariant: `attendance_by_weekday` is ALWAYS length 7, ordered Monday..Sunday.
+/// A `Vec` is used instead of `[T; 7]` because utoipa `ToSchema` support for fixed-size
+/// arrays is fragile — the invariant is documented and enforced by the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct EmployeeAttendanceStatisticsTO {
-    /// Average worked hours per attendance day; `None` when fewer than 2 attendance days
-    /// are in range (D-AVG-06).
-    pub average_hours_per_attendance_day: Option<f32>,
-    /// Number of distinct days with attendance in range (denominator).
-    pub attendance_days: u32,
-    /// Total worked hours across all attendance days in range (numerator).
-    pub total_worked_hours: f32,
+    /// Per-weekday attendance-day distribution. Always length 7, ordered Monday..Sunday.
+    pub attendance_by_weekday: Vec<WeekdayAttendanceTO>,
+    /// Number of calendar weeks counted in the denominator for `share`.
+    pub counted_calendar_weeks: u32,
 }
 
 #[cfg(feature = "service-impl")]
 impl From<&service::reporting::EmployeeAttendanceStatistics> for EmployeeAttendanceStatisticsTO {
     fn from(stats: &service::reporting::EmployeeAttendanceStatistics) -> Self {
         Self {
-            average_hours_per_attendance_day: stats.average_hours_per_attendance_day,
-            attendance_days: stats.attendance_days,
-            total_worked_hours: stats.total_worked_hours,
+            attendance_by_weekday: stats
+                .attendance_by_weekday
+                .iter()
+                .map(|s| WeekdayAttendanceTO {
+                    weekday: DayOfWeekTO::from(s.weekday),
+                    count: s.count,
+                    share: s.share,
+                })
+                .collect(),
+            counted_calendar_weeks: stats.counted_calendar_weeks,
         }
     }
 }
@@ -2183,6 +2207,56 @@ pub struct VacationEntitlementOffsetTO {
     pub year: u32,
     /// Signierte Korrektur in ganzen Tagen (kann negativ sein).
     pub offset_days: i32,
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 48 — PDF-Export-Config DTO (EXP-02/EXP-03, D-48-REST)
+//
+// Trägt die admin-gated PDF-Export-Konfiguration für `GET /pdf-export-config`
+// und `PUT /pdf-export-config`. Sicherheitseigenschaft (T-48-02): die
+// `From<&PdfExportConfig>`-Conversion setzt `webdav_app_token` IMMER auf
+// `None` — der Token verlässt niemals die HTTP-Response. Im PUT-Body ist
+// `webdav_app_token = None` das Signal „bestehenden Wert behalten"; ein
+// gesetzter Wert überschreibt.
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+pub struct PdfExportConfigTO {
+    pub enabled: bool,
+    pub nextcloud_url: Option<Arc<str>>,
+    pub webdav_user: Option<Arc<str>>,
+    /// Admin-Token für den WebDAV-Zugriff. IMMER maskiert (`None`) in
+    /// Response-Bodies — der Server sendet den Token NICHT zurück. Im PUT-
+    /// Request bedeutet `None` „Token unverändert lassen", `Some(v)` „neuen
+    /// Token setzen".
+    pub webdav_app_token: Option<Arc<str>>,
+    pub target_folder: Option<Arc<str>>,
+    pub weeks_horizon: u32,
+    pub cron_schedule: Arc<str>,
+    pub last_success_at: Option<PrimitiveDateTime>,
+    pub last_error_at: Option<PrimitiveDateTime>,
+    pub last_error_message: Option<Arc<str>>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::pdf_export_config::PdfExportConfig> for PdfExportConfigTO {
+    fn from(cfg: &service::pdf_export_config::PdfExportConfig) -> Self {
+        // Sicherheits-Kritischer Punkt (T-48-02): Token wird IMMER auf None
+        // gesetzt — auch für Admin-Rollen. Die UI zeigt ein leeres Feld mit
+        // Placeholder, und ein leeres Feld beim PUT bedeutet „unverändert".
+        Self {
+            enabled: cfg.enabled,
+            nextcloud_url: cfg.nextcloud_url.clone(),
+            webdav_user: cfg.webdav_user.clone(),
+            webdav_app_token: None,
+            target_folder: cfg.target_folder.clone(),
+            weeks_horizon: cfg.weeks_horizon,
+            cron_schedule: cfg.cron_schedule.clone(),
+            last_success_at: cfg.last_success_at,
+            last_error_at: cfg.last_error_at,
+            last_error_message: cfg.last_error_message.clone(),
+        }
+    }
 }
 
 // =====================

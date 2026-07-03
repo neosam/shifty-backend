@@ -1,11 +1,20 @@
 ---
 created: 2026-06-30T00:00:00
+resolved: 2026-07-02
+resolved_by: phase 44-01 (BUG-01)
 title: save_slot_edit hält SLOT_EDIT_STORE-Write-Borrow über .await (already-borrowed Panic-Risiko)
 area: frontend / shiftplan
-resolves_phase:
+resolves_phase: 44
 files:
   - shifty-dioxus/src/service/slot_edit.rs
 ---
+
+**Resolved 2026-07-02 by Phase 44-01 (BUG-01):** `save_slot_edit` wurde refaktoriert.
+Vor jedem `.await` wird ein owned `SaveSlotEditSnapshot` in einem block-scope-`.read()`
+gebaut, alle Loader-Calls laufen rein gegen den Snapshot, nach dem `.await` wird ein
+frischer block-scope-`.write()` geöffnet und ein pure `SaveOutcome`-Übergang
+angewandt. 6 neue Pure-fn-Regressionstests decken die Zweig-Matrix ab
+(3× snapshot_for_save, 3× apply_save_outcome). WASM-Build + Backend-Clippy blieben grün.
 
 ## Problem
 

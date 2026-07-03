@@ -44,7 +44,7 @@ pub fn BillingPeriodDetails(props: BillingPeriodDetailsProps) -> Element {
     let sales_persons = use_resource(move || loader::load_sales_persons(config.clone()));
 
     // Filter state for sales persons
-    let mut filter_text = use_signal(|| String::new());
+    let mut filter_text = use_signal(String::new);
     let mut show_paid = use_signal(|| true); // Default: checked - show only paid
     let mut show_active = use_signal(|| true); // Default: checked - show only active
 

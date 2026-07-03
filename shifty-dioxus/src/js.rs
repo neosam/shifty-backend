@@ -82,8 +82,7 @@ fn copy_with_exec_command(text: &str) -> Result<(), JsValue> {
 
     // Create a temporary textarea element
     let textarea = document
-        .create_element("textarea")
-        .map_err(|e| JsValue::from(e))?
+        .create_element("textarea")?
         .dyn_into::<web_sys::HtmlTextAreaElement>()
         .map_err(|_| JsValue::from_str("Failed to create textarea"))?;
 
@@ -97,8 +96,7 @@ fn copy_with_exec_command(text: &str) -> Result<(), JsValue> {
     document
         .body()
         .ok_or(JsValue::from_str("No body element"))?
-        .append_child(&textarea)
-        .map_err(|e| JsValue::from(e))?;
+        .append_child(&textarea)?;
 
     // Select and copy
     textarea.select();

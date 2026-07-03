@@ -2,228 +2,33 @@
 
 ## Milestones
 
-- ✅ **v1.0 Range-Based Absence Management** — Phasen 1–4 (shipped 2026-05-03) — siehe [`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md)
-- ✅ **v1.1 Slot Capacity & Constraints** — Phase 5 (shipped 2026-05-04) — siehe [`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md)
-- ✅ **v1.2 Frontend rest-types Konsolidierung** — Phasen 6–7 (shipped 2026-05-07) — siehe [`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md)
-- ✅ **v1.3 Frontend Abwesenheiten + UI-Closure-Restanten** — Phasen 8–13 (closed 2026-06-22) — siehe [`milestones/v1.3-ROADMAP.md`](milestones/v1.3-ROADMAP.md)
-- ✅ **v1.4 Committed Voluntary Capacity** — Phasen 14–17 (shipped 2026-06-25) — siehe [`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md)
-- ✅ **v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen** — Phasen 18–23 (shipped 2026-06-27) — siehe [`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md)
-- ✅ **v1.6 Paid-Capacity-Durchsetzung & Konfiguration** — Phase 24 (shipped 2026-06-27) — siehe [`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
-- ✅ **v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit** — Phasen 25–26 (shipped 2026-06-29) — siehe [`milestones/v1.7-ROADMAP.md`](milestones/v1.7-ROADMAP.md)
-- ✅ **v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX)** — Phasen 27–28 (shipped 2026-06-29) — siehe [`milestones/v1.8-ROADMAP.md`](milestones/v1.8-ROADMAP.md)
-- ✅ **v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation** — Phasen 29–32 (shipped 2026-06-29) — siehe [`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md)
-- ✅ **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** — Phasen 33–35 (shipped 2026-06-30) — siehe [`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md)
-- ✅ **v1.11 Stabilisierung & UX-Politur** — Phasen 36–38 (shipped 2026-07-01) — siehe [`milestones/v1.11-ROADMAP.md`](milestones/v1.11-ROADMAP.md)
-- ✅ **v2.1 Schichtplan- & Reporting-Erweiterungen** — Phasen 39–42 (shipped 2026-07-02) — siehe [`milestones/v2.1-ROADMAP.md`](milestones/v2.1-ROADMAP.md)
+- ✅ **v2.2** — Phasen 43–48 (shipped 2026-07-03) — Aufräumen, WebDAV-Export & Wochentag-Muster ([`milestones/v2.2-ROADMAP.md`](milestones/v2.2-ROADMAP.md))
+- ✅ **v2.1** — Phasen 39–42 (shipped 2026-07-02) — Schichtplan- & Reporting-Erweiterungen ([`milestones/v2.1-ROADMAP.md`](milestones/v2.1-ROADMAP.md))
+- ✅ **v1.11** — Phasen 36–38 (shipped 2026-07-01) — Stabilisierung & UX-Politur ([`milestones/v1.11-ROADMAP.md`](milestones/v1.11-ROADMAP.md))
+- ✅ **v1.10** — Phasen 33–35 (shipped 2026-06-30) — Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz ([`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md))
+- ✅ **v1.9** — Phasen 29–32 (shipped 2026-06-29) — Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation ([`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md))
+- ✅ **v1.8** — Phasen 27–28 (shipped 2026-06-29) — Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) ([`milestones/v1.8-ROADMAP.md`](milestones/v1.8-ROADMAP.md))
+- ✅ **v1.7** — Phasen 25–26 (shipped 2026-06-29) — Automatische Feiertage & Freiwilligen-Abwesenheit ([`milestones/v1.7-ROADMAP.md`](milestones/v1.7-ROADMAP.md))
+- ✅ **v1.6** — Phase 24 (shipped 2026-06-27) — Paid-Capacity-Durchsetzung & Konfiguration ([`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md))
+- ✅ **v1.5** — Phasen 18–23 (shipped 2026-06-27) — Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen ([`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md))
+- ✅ **v1.4** — Phasen 14–17 (shipped 2026-06-25) — Committed Voluntary Capacity ([`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md))
+- ✅ **v1.3** — Phasen 8–13 (closed 2026-06-22) — Frontend Abwesenheiten + UI-Closure-Restanten ([`milestones/v1.3-ROADMAP.md`](milestones/v1.3-ROADMAP.md))
+- ✅ **v1.2** — Phasen 6–7 (shipped 2026-05-07) — Frontend rest-types Konsolidierung ([`milestones/v1.2-ROADMAP.md`](milestones/v1.2-ROADMAP.md))
+- ✅ **v1.1** — Phase 5 (shipped 2026-05-04) — Slot Capacity & Constraints ([`milestones/v1.1-ROADMAP.md`](milestones/v1.1-ROADMAP.md))
+- ✅ **v1.0** — Phasen 1–4 (shipped 2026-05-03) — Range-Based Absence Management ([`milestones/v1.0-ROADMAP.md`](milestones/v1.0-ROADMAP.md))
 
-## Phases
+Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
-<details>
-<summary>✅ v2.1 Schichtplan- & Reporting-Erweiterungen (Phasen 39–42) — SHIPPED 2026-07-02</summary>
+## Next Milestone
 
-- [x] Phase 39: KW-Status Grundlage (BE+FE) (5/5 plans) — WST-01, WST-02, WST-05
-- [x] Phase 40: Wochen-Sperre durchsetzen (BE+FE) (4/4 plans) — WST-03, WST-04
-- [x] Phase 41: Ø-Anwesenheit bei flexiblen Stunden (BE+FE) (4/4 plans) — AVG-01, AVG-02, AVG-03
-- [x] Phase 42: Special-Days-„Anlegen"-Button-Bugfix (FE) (1/1 plan) — SDF-01
-
-Zwei neue Steuerungs-/Auswertungs-Fähigkeiten plus isolierter Settings-Bugfix: KW-Status
-mit Sperr-Gate (None/Planung/Geplant/Gesperrt) + TOCTOU-sicheres `assert_week_not_locked`
-auf allen 6 Schreibpfaden incl. neuem `delete_booking` (HTTP 423, Shiftplanner-Bypass);
-HR-gated Ø-Anwesenheit pro flexiblem Mitarbeiter (reines Read-Aggregat, Snapshot bleibt 12);
-Special-Days-„Anlegen"-Button-Fix (Option-2-Reset-Removal). Migration in Phase 39
-(`week_status`-Tabelle, partial UNIQUE). Keine neuen Dependencies, kein Snapshot-Bump.
-Audit `passed` (9/9 Requirements, Integration clean, 3/3 E2E-Flows).
-
-Vollständige Phasen-Details, Decisions und Closeout:
-[`milestones/v2.1-ROADMAP.md`](milestones/v2.1-ROADMAP.md) · [`milestones/v2.1-REQUIREMENTS.md`](milestones/v2.1-REQUIREMENTS.md) · [`milestones/v2.1-MILESTONE-AUDIT.md`](milestones/v2.1-MILESTONE-AUDIT.md)
-
-</details>
-
-<details>
-<summary>✅ v1.11 Stabilisierung & UX-Politur (Phasen 36–38) — SHIPPED 2026-07-01</summary>
-
-- [x] Phase 36: Special-Days-Bugfixes (BE+FE) (2/2 plans) — SDF-01, SDF-02
-- [x] Phase 37: Modal-UX-Politur (FE) (2/2 plans) — MOD-01, MOD-02
-- [x] Phase 38: Frontend-Build-Hygiene (2/2 plans) — HYG-01, HYG-02
-
-Konsolidierung nach der v1.7–v1.10-Feature-Welle: vier gemeldete Bugs abgeräumt und der
-Frontend-Build warnungsfrei gemacht. SDF-01 atomarer in-place Special-Day-Replace (Feiertag↔
-Kurzer-Tag ohne Fehler, HTTP 422→success); SDF-02 controlled SelectInput; MOD-01 zentrale
-drag-sichere Backdrop-Schließ-Logik (`BackdropPress`) inkl. absence_convert_modal; MOD-02
-pro-Feld-Help-Texte im Arbeitsvertrag-Modal (de/en/cs); HYG-01 `shifty-dioxus` cargo-build-
-warnungsfrei; HYG-02 Backend-Clippy-Gate grün. Kein Snapshot-Bump (bleibt 12), keine Migration,
-keine neuen Deps. Audit `passed` (6/6 Requirements, Integration clean, 4/4 Flows).
-
-Vollständige Phasen-Details, Decisions und Closeout:
-[`milestones/v1.11-ROADMAP.md`](milestones/v1.11-ROADMAP.md) · [`milestones/v1.11-REQUIREMENTS.md`](milestones/v1.11-REQUIREMENTS.md) · [`milestones/v1.11-MILESTONE-AUDIT.md`](milestones/v1.11-MILESTONE-AUDIT.md)
-
-</details>
-
-<details>
-<summary>✅ v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz (Phasen 33–35) — SHIPPED 2026-06-30</summary>
-
-- [x] Phase 33: Special-Days-UI in den Einstellungen (FE) (4/4 plans) — SPD-01..04
-- [x] Phase 34: Feiertags-Soll im Schichtplan (BE) (1/1 plan) — HSP-01..04
-- [x] Phase 35: Slot-Werte nur für eine Woche ändern (BE+FE) (3/3 plans) — SWO-01..04
-
-Special Days (Holiday/ShortDay) shiftplanner-gated über die UI pflegbar auf zwei Flächen
-(Schichtplan-Wochenraster Per-Tag-Dropdown + Settings-Kalenderdatum-Picker + Jahres-Liste)
-gegen die bestehende REST-CRUD + neuen `for-year`-Read-Endpoint. Automatisch angerechneter
-Feiertag reduziert das angezeigte Soll in der Schichtplan-Wochentabelle (`get_week` 4.
-Injektionspunkt via `build_derived_holiday_map`), konsistent zum Stundenkonto, Kapazitätsbänder
-unangetastet (D-25-08). Slot-Werte für genau eine KW als einmalige Ausnahme via 3-Segment-
-Split+Re-Merge (atomar, Buchungs-Re-Point ohne Doppelzählung) + UI-Wahl „nur diese Woche"/
-„ab dieser Woche". Kein Snapshot-Bump (bleibt 12), keine Migration, keine neuen Deps. Audit
-`passed` (12/12 Requirements, Integration clean, 2/2 E2E-Flows).
-
-Vollständige Phasen-Details, Decisions und Closeout:
-[`milestones/v1.10-ROADMAP.md`](milestones/v1.10-ROADMAP.md) · [`milestones/v1.10-REQUIREMENTS.md`](milestones/v1.10-REQUIREMENTS.md) · [`v1.10-MILESTONE-AUDIT.md`](v1.10-MILESTONE-AUDIT.md)
-
-</details>
-
-<details>
-<summary>✅ v1.9 Schichtplan-/Urlaubs-UX-Korrekturen & Admin-Impersonation (Phasen 29–32) — SHIPPED 2026-06-29</summary>
-
-- [x] Phase 29: Urlaubs-Balken-Konsistenz (FE) (1/1 plan) — VAC-01
-- [x] Phase 30: Stale-Daten-Race Guard (FE) (1/1 plan) — SHP-02
-- [x] Phase 31: Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) (1/1 plan) — SHP-01
-- [x] Phase 32: Admin-Impersonation Frontend + Audit-Schicht (FE+BE) (3/3 plans) — IMP-01..04
-
-Drei Schichtplan-/Urlaubs-UX-Fixes + vollwertige Admin-Impersonation mit Audit der echten
-Admin-Identität. Urlaubsbalken `(used+planned)/total` (Überzug als Farb-Signal); geteilter
-`(year,week)`-Staleness-Guard über alle Summary-Loader; proaktive „Nicht Verfügbar"-Markierung
-eigener/ausgewählter Absence-Tage (kategorie-treu zur `BookingOnAbsenceDay`-Warnung, null Drift);
-Impersonation-FE (nicht-schließbarer Banner, reload-persistent, Users-Tab-Einstieg) + zentrale
-Audit-Middleware (`RealUser`) + Store-Teardown — ohne `Authentication<Context>`-Signatur-Change,
-ohne Snapshot-Bump, ohne Migration. Audit `passed` (7/7 Requirements, 4/4 Integration + E2E).
-
-Vollständige Phasen-Details, Decisions und Closeout:
-[`milestones/v1.9-ROADMAP.md`](milestones/v1.9-ROADMAP.md) · [`milestones/v1.9-REQUIREMENTS.md`](milestones/v1.9-REQUIREMENTS.md) · [`milestones/v1.9-MILESTONE-AUDIT.md`](milestones/v1.9-MILESTONE-AUDIT.md)
-
-</details>
-
-<details>
-<summary>✅ v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) (Phasen 27–28) — SHIPPED 2026-06-29</summary>
-
-- [x] Phase 27: Freiwillige in Abwesenheitsliste auswählbar (FE) (1/1 plan) — VOL-SEL-01
-- [x] Phase 28: Urlaubsanspruch-Korrektur via Offset (BE+FE) (4/4 plans) — VAC-OFFSET-01
-
-Gruppierter Personen-Selector (optgroup Angestellte/Freiwillige) in AbsenceModal +
-AbsenceFilterBar via gemeinsamem Helfer; signed Urlaubsanspruch-Offset pro Person+Jahr
-(Delta, kein Override), HR-gekennzeichnet+editierbar, für User unsichtbar (API-level
-Hiding) + Off-by-one-Proration-Fix + Snapshot-Bump 11→12. Audit `passed`.
-
-Vollständige Phasen-Details, Decisions und Closeout:
-[`milestones/v1.8-ROADMAP.md`](milestones/v1.8-ROADMAP.md) · [`milestones/v1.8-REQUIREMENTS.md`](milestones/v1.8-REQUIREMENTS.md) · [`milestones/v1.8-MILESTONE-AUDIT.md`](milestones/v1.8-MILESTONE-AUDIT.md)
-
-</details>
-
-<details>
-<summary>✅ v1.7 Automatische Feiertage & Freiwilligen-Abwesenheit (Phasen 25–26) — SHIPPED 2026-06-29</summary>
-
-- [x] Phase 25: Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) (4/4 plans) — HOL-01..03, HCFG-01..03, HSNAP-01
-- [x] Phase 26: Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) (3/3 plans) — VFA-01/02, NAV-01
-
-Feiertage werden automatisch (derive-on-read, identisch zu manuellem ExtraHours(Holiday))
-ab konfigurierbarem Stichtag angerechnet; Urlaub von Freiwilligen reduziert die committed-
-Zusage in der Jahresansicht (Feiertage bewusst nicht — Asymmetrie); bidirektionale
-Deep-Links /absences ↔ Report. Snapshot-Bump 10→11.
-
-Vollständige Phasen-Details, Success-Criteria und Requirements:
-[`milestones/v1.7-ROADMAP.md`](milestones/v1.7-ROADMAP.md) · [`milestones/v1.7-REQUIREMENTS.md`](milestones/v1.7-REQUIREMENTS.md)
-
-</details>
-
-<details>
-<summary>✅ v1.6 Paid-Capacity-Durchsetzung & Konfiguration (Phase 24) — SHIPPED 2026-06-27</summary>
-
-- [x] Phase 24: Paid-Limit konfigurierbar & rollenbasiert durchsetzen (BE+FE) (5/5 plans) — D-24-01..08 + strikt-größer-Grenzregel
-
-Globaler hart/weich-Toggle (`paid_limit_hard_enforcement`, Default weich), pre-persist
-Hard-Block (Shiftplanner-Bypass, HTTP 409), admin-gated `/settings/`-Seite, persistente
-Overage-Sektion für alle Rollen, Permission-Gate-Fix HR→Shiftplanner.
-
-Vollständige Phasen-Details, Decisions und Closeout:
-[`milestones/v1.6-ROADMAP.md`](milestones/v1.6-ROADMAP.md)
-
-</details>
-
-<details>
-<summary>✅ v1.5 Mitarbeiter-Sicht & Urlaubsverwaltung — Korrekturen & Auswertungen (Phasen 18–23) — SHIPPED 2026-06-27</summary>
-
-- [x] Phase 18: Report-/Balance-Korrektheit (BE) (2/2 plans) — UV-04, UV-05
-- [x] Phase 19: Convert-Dialog UX (FE+BE) (2/2 plans) — UV-01, UV-02
-- [x] Phase 20: Absences-Indikator & Jahres-Histogramm (FE) (2/2 plans) — UV-03, YV-01/02/03
-- [x] Phase 21: Tabellen-Lesbarkeit (FE) (1/1 plan) — UI-01, UI-02
-- [x] Phase 22: Mitarbeiter-Statistik HR (BE+FE) (2/2 plans) — STAT-01, STAT-02
-- [x] Phase 23: Frontend Slot Paid-Capacity UI (FE) (2/2 plans)
-
-Vollständige Phasen-Details, Success-Criteria und Requirements:
-[`milestones/v1.5-ROADMAP.md`](milestones/v1.5-ROADMAP.md) · [`milestones/v1.5-REQUIREMENTS.md`](milestones/v1.5-REQUIREMENTS.md)
-
-</details>
-
-<details>
-<summary>✅ v1.4 Committed Voluntary Capacity (Phasen 14–17) — SHIPPED 2026-06-25</summary>
-
-- [x] Phase 14: Data-model foundation (backend) (2/2 plans) — CVC-01/02/03
-- [x] Phase 15: Reporting no-double-count (Achse B only, kein Snapshot-Bump) (2/2 plans) — CVC-04/05/06
-- [x] Phase 16: Jahresansicht display (3/3 plans) — CVC-07/08
-- [x] Phase 17: Contract editor input + „alle"-Filter / unpaid-volunteer path (4/4 plans) — CVC-09/10
-
-Vollständige Phasen-Details, Success-Criteria und Audit:
-[`milestones/v1.4-ROADMAP.md`](milestones/v1.4-ROADMAP.md) · [`milestones/v1.4-MILESTONE-AUDIT.md`](milestones/v1.4-MILESTONE-AUDIT.md)
-
-</details>
-
-## Progress
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1 — Absence Domain Foundation | v1.0 | 5/5 | Complete | 2026-05-01 |
-| 2 — Reporting Integration & Snapshot Versioning | v1.0 | 4/4 | Complete | 2026-05-02 |
-| 3 — Booking & Shift-Plan Konflikt-Integration | v1.0 | 6/6 | Complete | 2026-05-02 |
-| 4 — Migration & Cutover | v1.0 | 8/8 | Complete | 2026-05-03 |
-| 5 — Slot Paid Capacity Warning | v1.1 | 6/6 | Complete | 2026-05-04 |
-| 6 — rest-types Unification & Frontend Compile-Through | v1.2 | 5/5 | Complete | 2026-05-07 |
-| 7 — Runtime Smoke & Regression Safety | v1.2 | 1/1 | Complete | 2026-05-07 |
-| 8–13 — v1.3 (siehe milestones/v1.3-ROADMAP.md) | v1.3 | — | Closed | 2026-06-22 |
-| 14 — Data-model foundation (backend) | v1.4 | 2/2 | Complete | 2026-06-23 |
-| 15 — Reporting no-double-count (KEIN Snapshot-Bump) | v1.4 | 2/2 | Complete | 2026-06-24 |
-| 16 — Jahresansicht display | v1.4 | 3/3 | Complete | 2026-06-24 |
-| 17 — Contract editor input + „alle"-Filter / unpaid-volunteer | v1.4 | 4/4 | Complete | 2026-06-24 |
-| 18 — Report-/Balance-Korrektheit (BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 19 — Convert-Dialog UX (FE+BE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 20 — Absences-Indikator & Jahres-Histogramm (FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 21 — Tabellen-Lesbarkeit (FE) | v1.5 | 1/1 | Complete | 2026-06-26 |
-| 22 — Mitarbeiter-Statistik HR (BE+FE) | v1.5 | 2/2 | Complete | 2026-06-26 |
-| 23 — Frontend: Slot Paid-Capacity UI (FE) | v1.5 | 2/2 | Complete | 2026-06-27 |
-| 24 — Paid-Limit konfigurierbar & rollenbasiert (BE+FE) | v1.6 | 5/5 | Complete | 2026-06-27 |
-| 25 — Feiertags-Auto-Anrechnung & Stichtag-Konfiguration (BE+FE) | v1.7 | 4/4 | Complete | 2026-06-28 |
-| 26 — Freiwilligen-Abwesenheit & Cross-Navigation (BE+FE) | v1.7 | 3/3 | Complete | 2026-06-28 |
-| 27 — Freiwillige in Abwesenheitsliste auswählbar (FE) | v1.8 | 1/1 | Complete | 2026-06-29 |
-| 28 — Urlaubsanspruch-Korrektur via Offset (BE+FE) | v1.8 | 4/4 | Complete | 2026-06-29 |
-| 29 — Urlaubs-Balken-Konsistenz (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
-| 30 — Stale-Daten-Race Guard (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
-| 31 — Abwesenheit → Nicht-Verfügbar-Markierung im Schichtplan (FE) | v1.9 | 1/1 | Complete    | 2026-06-29 |
-| 32 — Admin-Impersonation Frontend + Audit-Schicht (FE+BE) | v1.9 | 3/3 | Complete    | 2026-06-29 |
-| 33 — Special-Days-UI in den Einstellungen (FE) | v1.10 | 4/4 | Complete   | 2026-06-30 |
-| 34 — Feiertags-Soll im Schichtplan (BE) | v1.10 | 1/1 | Complete    | 2026-06-30 |
-| 35 — Slot-Werte nur für eine Woche ändern (BE+FE) | v1.10 | 3/3 | Complete    | 2026-06-30 |
-| 36 — Special-Days-Bugfixes (BE+FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
-| 37 — Modal-UX-Politur (FE) | v1.11 | 2/2 | Complete    | 2026-07-01 |
-| 38 — Frontend-Build-Hygiene | v1.11 | 2/2 | Complete    | 2026-07-01 |
-| 39 — KW-Status Grundlage (BE+FE) | v2.1 | 5/5 | Complete    | 2026-07-02 |
-| 40 — Wochen-Sperre durchsetzen (BE+FE) | v2.1 | 4/4 | Complete    | 2026-07-02 |
-| 41 — Ø-Anwesenheit bei flexiblen Stunden (BE+FE) | v2.1 | 4/4 | Complete    | 2026-07-02 |
-| 42 — Special-Days-„Anlegen"-Button-Bugfix (FE) | v2.1 | 1/1 | Complete    | 2026-07-02 |
+(No active milestone — run `/gsd-new-milestone` to start v2.3.)
 
 ## Backlog
 
 Ungeplante / off-theme Arbeit, die NICHT zum aktiven Milestone gehört. Vor Ausführung
 in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
-- [ ] **Phase 999.1: Breaking/Major Dependency-Migration** (Backend + Frontend, Maintenance) — Alle direkten Deps mit verfügbaren Major-Releases über beide Cargo-Workspaces (Backend-Root + `shifty-dioxus/`, 9 Member-Crates) auf den neuen Major heben (Cargo.toml-Constraint-Edits + Code-/API-Migration). **Off-theme zu v1.6** (Paid-Capacity) → bewusst Backlog.
+- [ ] **Phase 999.1: Breaking/Major Dependency-Migration** (Backend + Frontend, Maintenance) — Alle direkten Deps mit verfügbaren Major-Releases über beide Cargo-Workspaces (Backend-Root + `shifty-dioxus/`, 9 Member-Crates) auf den neuen Major heben (Cargo.toml-Constraint-Edits + Code-/API-Migration).
 
   **Goal:** Reproduzierbares Breaking-Update-Tooling etabliert und alle tragbaren Major-Bumps migriert, mit grünen Gates über beide Workspaces — ohne die heiklen Pins (dioxus 0.6.x) ungefragt anzufassen.
 
@@ -244,4 +49,6 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
   **Plans:** 1/1 plans complete
 
-*Last updated: 2026-07-02 — **v2.1 geshipt + archiviert** (Phasen 39–42, 14 Pläne, 9/9 Requirements, Audit `passed`). Phase-Details nach [`milestones/v2.1-ROADMAP.md`](milestones/v2.1-ROADMAP.md) ausgelagert + im Milestones-Block collapsed; Progress-Zeilen 39–42 bleiben Complete (2026-07-02). Backlog 999.1 unverändert.*
+---
+
+*Last updated: 2026-07-03 — **v2.2 geshipt + archiviert** (Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`). ROADMAP.md auf kompaktes Milestone-Grouping-Format umgestellt; Phase-Details liegen in den `milestones/vX.Y-ROADMAP.md`-Archiven. Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.*

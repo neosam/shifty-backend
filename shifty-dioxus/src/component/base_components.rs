@@ -76,7 +76,7 @@ pub struct SimpleSelectProps {
 #[component]
 pub fn SimpleSelect(props: SimpleSelectProps) -> Element {
     rsx! {
-        Select { on_change: props.on_change.clone(),
+        Select { on_change: props.on_change,
             for option in props.options.iter() {
                 Option {
                     value: option.key.clone(),

@@ -372,7 +372,7 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
     let filtered: Vec<_> = user_management
         .users
         .iter()
-        .filter(|u| matches_search(&u.username.as_str(), &term))
+        .filter(|u| matches_search(u.username.as_str(), &term))
         .cloned()
         .collect();
 
@@ -421,8 +421,6 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                             .user_role_assignments
                             .get(&username)
                             .cloned();
-                        let on_request_delete = on_request_delete.clone();
-                        let on_impersonate = on_impersonate.clone();
                         rsx! {
                             tr { class: "border-b border-border hover:bg-surface-alt",
                                 td { class: "py-2 px-3 font-mono text-ink", "{username}" }
@@ -515,7 +513,7 @@ mod tests {
         }
         #[component]
         fn SalesWrapper(props: WrapperProps) -> Element {
-            let mut search = use_signal(|| props.initial.clone());
+            let search = use_signal(|| props.initial.clone());
             let _ = search.read();
             rsx! {
                 SalesPersonTabContent { user_management: props.store.clone(), search }
@@ -540,7 +538,7 @@ mod tests {
         }
         #[component]
         fn UsersWrapper(props: WrapperProps) -> Element {
-            let mut search = use_signal(|| props.initial.clone());
+            let search = use_signal(|| props.initial.clone());
             let _ = search.read();
             rsx! {
                 UsersTabContent {

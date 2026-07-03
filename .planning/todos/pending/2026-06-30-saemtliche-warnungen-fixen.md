@@ -2,6 +2,7 @@
 created: 2026-06-30T20:30:24.971Z
 title: Sämtliche Compiler-/Clippy-Warnungen fixen
 area: frontend
+resolves_phase: 45
 files:
   - shifty-dioxus/ (alle Crates)
   - shifty-dioxus/src/state/shiftplan.rs:315

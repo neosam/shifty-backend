@@ -1,44 +1,42 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: Schichtplan- & Reporting-Erweiterungen
-current_phase: 42
-status: shipped
-stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-07-02T12:00:00.000Z"
-last_activity: 2026-07-02
-last_activity_desc: v2.1 milestone archived
+milestone: none
+milestone_name: (between milestones)
+current_phase: none
+status: Ready for v2.3
+stopped_at: v2.2 milestone archived
+last_updated: "2026-07-03T00:44:20.551Z"
+last_activity: 2026-07-03
+last_activity_desc: Milestone v2.2 completed and archived
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
-  percent: 100
-current_phase_name: Special-Days-Anlegen-Button-Bugfix
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase_name: (none)
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (**v2.1 archiviert/collapsed**; v1.0–v1.11 archiviert/collapsed; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` (v2.1 — 9/9 Requirements, alle Complete; archiviert als `milestones/v2.1-REQUIREMENTS.md`)
+- **Roadmap**: `.planning/ROADMAP.md` (kompaktes Milestone-Grouping-Format; Phase-Details in `milestones/vX.Y-ROADMAP.md`; Backlog 999.1 erhalten)
+- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` — wird beim nächsten `/gsd-new-milestone` frisch angelegt. v2.2-Archiv: `.planning/milestones/v2.2-REQUIREMENTS.md`
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v2.1-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v2.2-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v2.1 Schichtplan- & Reporting-Erweiterungen** (shipped + archiviert 2026-07-02, Phasen 39–42, 14 Pläne, 9/9 Requirements, Audit `passed`, override_closeout)
-- **Current milestone**: **keiner** — zwischen Milestones; nächste Iteration via `/gsd-new-milestone` (Kandidat: v2.2 PDF-Export → Nextcloud/WebDAV, EXP-01)
-- **Current focus**: Phase 42 Kontext erfasst (Special-Days-„Anlegen"-Button-Bugfix, FE-only). Entscheidungen D-42-01..06: Option-2-Reset entfernen (nur die 3 Feld-Resets, `sd_year.set`+`sd_resource.restart()` bleiben), Duplikat akzeptieren (Backend in-place Replace), „Gespeichert" bleibt bis nächstem Klick, Test = Pure-Unit-Prädikat (Pflicht) + SSR best-effort. Nächster Schritt: `/gsd-plan-phase 42`.
-- **Snapshot-Schema-Version**: 12 (v1.7 Bump 10→11; v1.8 Bump 11→12); v1.9–v1.11 **kein** Bump. **v2.1 erwartet KEINEN Bump** (WST-01 berührt keinen persistierten `BillingPeriodValueType`; AVG-01 = reines Read-Aggregat) — in Phase 41 verifizieren. **Migration erwartet für Phase 39** (neue `week_status`-Tabelle). Keine neuen Deps erwartet.
+- **Last shipped/closed**: **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped + archiviert 2026-07-03, Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`, override_closeout)
+- **Current milestone**: — (zwischen Milestones; nächste Iteration via `/gsd-new-milestone`)
+- **Current focus**: v2.2 abgeschlossen, kein aktiver Milestone. Nächster Schritt: `/gsd-new-milestone` für v2.3 (Priorität durch User).
+- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.2 kein Bump; grep-verifiziert in v2.2 Phase 47). Neue Migration in v2.2 nur in Phase 48 (`pdf_export_config`). Neue Deps in v2.2: `printpdf`, `reqwest_dav`, `tokio-cron-scheduler`.
 
 ## Current Position
 
-Phase: 42
-Plan: Not started
-Status: v2.1 milestone shipped + archived 2026-07-02 — 9/9 Requirements, Audit passed
-Last activity: 2026-07-02 — Completed quick task 260702-jql: Special-Day Duplikat-Hinweis nach Create ausblenden
-
-Progress (Pläne Phase 42): [██████████] 100% (1/1)
+Phase: —
+Plan: —
+Status: Ready for v2.3
+Last activity: 2026-07-03 — Milestone v2.2 completed and archived
 
 ## Quick Tasks Completed
 
@@ -48,10 +46,11 @@ Progress (Pläne Phase 42): [██████████] 100% (1/1)
 
 ## Deferred Items
 
-Erneut acknowledged + deferred beim **v1.7 + v1.8 Milestone-Close am 2026-06-29**
-(User-Entscheidung override_closeout — Pre-Close-Audit meldete 15 offene Items, alle
-bereits vorab-deferred Carry-over, keines v1.7/v1.8-spezifisch). Davor beim v1.6-Close
-am 2026-06-28; Ursprung v1.5/v1.4:
+Erneut acknowledged + deferred beim **v2.2-Milestone-Close am 2026-07-03**
+(User-Entscheidung override_closeout — Pre-Close-Audit meldete 13 offene Items: 1 Debug-
+Session `awaiting_human_verify`, 7 Quick-Tasks, 5+ Pending Todos aus Mai/Juni 2026 —
+alles historischer Ballast aus v1.4–v2.1, keines v2.2-spezifisch). Davor beim v1.7+v1.8-
+Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 | Kategorie | Item | Status | Notiz |
 |-----------|------|--------|-------|
@@ -78,6 +77,20 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 ## Shipped Milestones
 
+### v2.2 — Aufräumen, WebDAV-Export & Wochentag-Muster (shipped 2026-07-03)
+
+- **Geliefert:** Phasen 43–48 (16 Pläne, 14 Tasks). SDF-03/04/05 Special-Days-Feintuning (Kalenderjahr-Loader-Fix, Duplikat-Hinweis Replace-Copy in de/en/cs, Feiertag↔Kurzer-Tag atomarer Roundtrip-Test). BUG-01/02/03 Frontend-Korrektheit (`save_slot_edit` Snapshot-vor-`.await` + 6 Regressionstests; `ShiftyError::InvitationParse` + Inline-Banner für sichtbaren Parse-Fehler; durable Grep-Invariant für `BackdropPress`-Adoption). HYG-03 shifty-dioxus Warnings (177→0, FE-Clippy-Gate `-D warnings` erstmals scharfgestellt). HYG-04/HYG-05/IMP-05 Backend-Hygiene (Edit-structure-i18n, OpenAPI-Reflection-Content-Type-Drift-Guard über 120 Operationen, i18n-Impersonation-Test grün). RPT-01/02/03 Wochentag-Anwesenheits-Muster (pure fn `weekday_attendance_distribution` ersetzt v2.1-AVG, DTO-Shape-Umbau, Formatter „Mo: 8 (80 %) · …", 9 neue i18n-Keys de/en/cs). EXP-01/02/03 Nextcloud-PDF-Export via WebDAV (`printpdf` deterministisches Layout, `reqwest_dav` mit 3× Backoff 2s/4s/8s, `tokio-cron-scheduler`, admin-gated Settings-Card mit „Jetzt exportieren", Single-Row-`pdf_export_config`-Tabelle).
+- **Snapshot-Schema-Version:** bleibt **12** (kein Bump — RPT = reines Read-Aggregat, EXP berührt keinen `BillingPeriodValueType`; grep-verifiziert). Migration in Phase 48 (`pdf_export_config` Single-Row + Seed). Neue Deps: `printpdf`, `reqwest_dav`, `tokio-cron-scheduler`.
+- **Verifikation:** alle 6 Phasen VERIFIED passed (43: 8/8; 44: 3/3; 45: 5/5; 46: 3/3; 47: 11/11; 48: 30/30 inkl. E2E `boot_trigger_reload_flow` gegen wiremock-WebDAV); Milestone-Audit `passed` (16/16 Requirements, Integration clean, 3/3 E2E-Flows). Gates: Backend `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün; FE `cargo build --target wasm32-unknown-unknown` warnungsfrei + `cargo test -p shifty-dioxus` **787 grün** (inkl. der zuvor gebrochenen `i18n_impersonation_keys_match_german_reference` via IMP-05) + FE-`cargo clippy -p shifty-dioxus -- -D warnings` erstmals grün.
+- **Closeout:** override_closeout (Audit `passed`; Pre-Close-Audit-13-Carry-over-Items acknowledged, keines v2.2-spezifisch). Kein git tag hier — SemVer-Tag via `/release-version`, `git.create_tag=false`.
+- **Archiv:** `milestones/v2.2-ROADMAP.md`, `milestones/v2.2-REQUIREMENTS.md`, `milestones/v2.2-MILESTONE-AUDIT.md`.
+
+**Deferred (acknowledged at close):**
+
+- Pre-existing `doc_lazy_continuation`-Clippy-Warning in `service_impl/src/test/shiftplan_edit_lock.rs:6` (Origin Phase 40 / v2.1): fires nur mit `--all-targets`, nicht Teil des Standard-Clippy-Gates. Non-blocking.
+- Phase 45 Scope-Caveat: 13 pre-existing `#[allow(dead_code)]`/`#[allow(non_snake_case)]` ohne reason-Kommentar — Clippy `-D warnings` trotzdem grün.
+- Phase 48 Deviation: PDF-Determinismus-Test normalisiert `/ID`-Array-Bytes test-seitig (dokumentiert im SUMMARY) — Payload/Layout byte-gleich, nur printpdf-internal `/ID`-Fingerprint runspezifisch.
+
 ### v2.1 — Schichtplan- & Reporting-Erweiterungen (shipped 2026-07-02)
 
 - **Geliefert:** Phasen 39–42 (14 Pläne). WST-01/02/05 KW-Status Grundlage (neue `week_status`-Tabelle, `WeekStatusService` Basic-Tier, shiftplanner-gated CRUD, farbkodiertes Badge + Dropdown für alle Rollen). WST-03/04 Wochen-Sperre (TOCTOU-sicheres `assert_week_not_locked` in allen 6 Schreibpfaden in-Transaktion, HTTP 423, Shiftplanner-Bypass, neue `delete_booking`-Methode + REST-Re-Routing, FE read-only + 423-Banner). AVG-01/02/03 Ø-Anwesenheit flexibler Mitarbeiter (pure fn `average_hours_per_attendance_day`, HR-gated Endpoint, FE-Sektion mit Leerzustand, i18n de/en/cs). SDF-01 Special-Days-„Anlegen"-Button-Fix (Option-2-Reset-Removal, reine Validitäts-Fns unit-getestet).
@@ -87,6 +100,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - **Archiv:** `milestones/v2.1-ROADMAP.md`, `milestones/v2.1-REQUIREMENTS.md`, `milestones/v2.1-MILESTONE-AUDIT.md`.
 
 **Deferred (acknowledged at close):**
+
 - 3 optionale D-25-06-Browser-Smokes (Phase 40: +/- Buttons weg in Locked-Woche; Phase 41: Ø-Anwesenheits-Zahl im HR-Report; Phase 42: Button bleibt aktiv nach Create) — strukturell verifiziert.
 - WR-03 (akzeptiert): `is_dynamic`-Filter ohne Perioden-Bezug — konsistent mit bestehendem Muster.
 - PRÄ-v2.1 Carry-over: `i18n_impersonation_keys_match_german_reference` (Phase 37-02/v1.11, '🥸 Agieren' vs Referenz 'Als diese Person agieren') — Produkt-Copy-Entscheidung offen; Todo: `.planning/todos/pending/2026-07-02-i18n-impersonation-key-test-mismatch.md`.
@@ -170,31 +184,28 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 
 ## Session Continuity
 
-**Last session:** 2026-07-02T12:00:00.000Z
-**Stopped at:** v2.1 milestone archived
+**Last session:** 2026-07-03
+**Stopped at:** v2.2 milestone archived
 **Resume file:** None
 
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (v2.1 archived/collapsed; v1.0–v2.1 archiviert/collapsed; Backlog 999.1)
+2. Read `.planning/ROADMAP.md` (kompaktes Milestone-Grouping-Format; Backlog 999.1 erhalten)
 3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
-4. Read `.planning/MILESTONES.md` (Index inkl. v1.7–v2.1)
+4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.2)
 
-**Aktueller Stand:** v2.1 shipped + archiviert (9/9 Requirements, Audit `passed`). Zwischen Milestones — nächste Iteration via `/gsd-new-milestone` (Kandidat: v2.2 PDF-Export → Nextcloud/WebDAV, EXP-01).
+**Aktueller Stand:** v2.2 shipped + archiviert (16/16 Requirements, Audit `passed`, override_closeout). Zwischen Milestones — nächste Iteration via `/gsd-new-milestone` (User priorisiert v2.3).
 
-**Next command**: `/gsd-new-milestone` für v2.2 (oder nach User-Priorisierung).
+**Next command**: `/gsd-new-milestone` für v2.3.
 
 ---
 
-*State updated: 2026-07-02 — **v2.1 geshipt + archiviert** (Phasen 39–42, 14 Pläne, 9/9 Requirements, Audit `passed`). ROADMAP.md: v2.1 collapsed; MILESTONES.md: v2.1-Eintrag hinzugefügt; milestones/v2.1-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md angelegt. Zwischen Milestones.*
+*State updated: 2026-07-03 — **v2.2 geshipt + archiviert** (Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`). ROADMAP.md auf kompaktes Milestone-Grouping-Format umgestellt; MILESTONES.md: v2.2-Eintrag chronologisch am Ende (Junk-Entry entfernt); milestones/v2.2-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md archiviert; REQUIREMENTS.md gelöscht. Zwischen Milestones.*
 
 ## Operator Next Steps
 
-- v2.1 shipped + archiviert. Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
-- Kandidat: **v2.2 PDF-Export → Nextcloud/WebDAV** (EXP-01, bereits im Backlog von REQUIREMENTS.md).
-- Offene Deferred Items: i18n-Impersonation-Carry-over-Todo + optionale Browser-Smokes (nicht-blockierend).
-- Backlog-Phase 999.1 (Breaking/Major Dependency-Migration) weiterhin separat verfügbar via `/gsd-plan-phase 999.1`.
+- Start the next milestone with /gsd-new-milestone
 
 ## Decisions
 
@@ -218,6 +229,7 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 - [Phase 41]: 41-01: attendance day = DISTINCT date (BTreeSet<time::Date>) with ≥1 work-category entry (Shiftplan|ExtraWork|VolunteerWork, hours>0); Absence+Custom excluded by filter; <2 days → None (D-AVG-06); no snapshot bump (stays 12, D-AVG-08)
 - [Phase 41]: 41-02: ReportingService::get_employee_attendance_statistics — HR_PRIVILEGE ist die ERSTE await-Operation (D-AVG-05, kein Datenabruf vor Auth); is_dynamic-Filter server-seitig (nicht-flexibler MA → Ok(None)); aggregiert via get_report_for_employee über by_week[*].days mit until_week-Clamp (D-AVG-04); reines Read-Aggregat, Snapshot bleibt 12 (D-AVG-08)
 - [Phase 42]: 42-01: SDF-01 FE-only — Option 2 (D-42-01): 3 Post-Create-Feld-Resets entfernt, Felder bleiben gefüllt → Anlegen-Button bleibt aktiv; sd_year.set + sd_resource.restart bleiben (D-42-02). Validitäts-Prädikat + Retention-Policy in reine Fns extrahiert + unit-getestet (is_special_day_form_valid, SpecialDayForm/special_day_form_after_create; D-42-05). Duplikat-Hinweis nicht an disabled gekoppelt (D-42-03), sd_save_result unverändert (D-42-04). SSR-Mount-Test begründet übersprungen (D-42-06 Fall B — SettingsPage ohne Live-Harness nicht mountbar). WASM-Build warnungsfrei; kein Backend, kein Snapshot-Bump, keine Migration, keine Deps, i18n unverändert.
+- [Phase ?]: Phase 45 D-45-01: FE-Clippy-Gate -D warnings scharfgestellt (177 zu 0 warnings).
 
 ## Performance Metrics
 
@@ -237,3 +249,4 @@ am 2026-06-28; Ursprung v1.5/v1.4:
 | Phase 41 P01 | ~10min | 2 tasks | 3 files |
 | Phase 41 P04 | ~12min | 3 tasks | 7 files |
 | Phase 42 P01 | ~13min | 3 tasks | 2 files |
+| Phase 45 P01 | 20 | 3 tasks | 22 files |

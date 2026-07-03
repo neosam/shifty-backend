@@ -20,6 +20,9 @@ pub mod extra_hours;
 pub mod feature_flag;
 pub mod ical;
 pub mod macros;
+pub mod pdf_export_config;
+pub mod pdf_export_scheduler;
+pub mod pdf_render;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;
@@ -40,6 +43,7 @@ pub mod user_invitation;
 pub mod uuid_service;
 pub mod vacation_balance;
 pub mod vacation_entitlement_offset;
+pub mod webdav_client;
 pub mod week_message;
 pub mod week_status;
 

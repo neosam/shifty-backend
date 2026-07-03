@@ -47,7 +47,7 @@ pub struct AuthStore {
     pub loading_done: bool,
 }
 
-pub static AUTH: GlobalSignal<AuthStore> = Signal::global(|| AuthStore::default());
+pub static AUTH: GlobalSignal<AuthStore> = Signal::global(AuthStore::default);
 
 #[allow(dead_code)]
 pub async fn auth_service(_rx: UnboundedReceiver<()>) {

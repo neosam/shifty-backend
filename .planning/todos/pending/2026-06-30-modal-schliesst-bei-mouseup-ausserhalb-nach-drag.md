@@ -2,6 +2,7 @@
 created: 2026-06-30T20:52:29.810Z
 title: Modal schließt bei mouseup außerhalb, wenn Drag (Text-Selektion) innen begann
 area: frontend
+resolves_phase: 44
 files:
   - shifty-dioxus/src/component/dialog.rs:195
   - shifty-dioxus/src/component/dialog.rs:321

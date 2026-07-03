@@ -178,7 +178,7 @@ fn EmployeeWeeklyHistogramView(props: EmployeeWeeklyHistogramViewProps) -> Eleme
                         String::from("cursor: pointer;")
                     };
                     let show_label =
-                        (week_num as usize - 1) % 4 == 0 || week_num == 52 || is_current;
+                        (week_num as usize - 1).is_multiple_of(4) || week_num == 52 || is_current;
                     let label_x = x + bar_width / 2.0;
                     let label_text = format!("{} {}", week_short, week_num);
 
@@ -859,7 +859,7 @@ mod tests {
             if bytes[i] == b'#' {
                 // Check for 6 or 3 hex digits following the `#`.
                 let is_hex = |b: u8| {
-                    (b'0'..=b'9').contains(&b)
+                    b.is_ascii_digit()
                         || (b'a'..=b'f').contains(&b)
                         || (b'A'..=b'F').contains(&b)
                 };

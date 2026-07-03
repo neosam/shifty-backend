@@ -18,7 +18,7 @@ impl ErrorStore {
     }
 }
 
-pub static ERROR_STORE: GlobalSignal<ErrorStore> = Signal::global(|| ErrorStore::default());
+pub static ERROR_STORE: GlobalSignal<ErrorStore> = Signal::global(ErrorStore::default);
 
 #[allow(dead_code)]
 pub enum ErrorAction {

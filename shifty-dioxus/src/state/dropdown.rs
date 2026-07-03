@@ -63,7 +63,7 @@ where
 {
     fn from(triple: (ImStr, F, bool)) -> Self {
         DropdownEntry {
-            text: ImStr::from(triple.0),
+            text: triple.0,
             action: Rc::new(triple.1),
             disabled: triple.2,
         }

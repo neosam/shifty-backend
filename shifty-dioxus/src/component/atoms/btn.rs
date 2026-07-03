@@ -12,18 +12,15 @@ use crate::base_types::ImStr;
 /// - [`Ghost`](BtnVariant::Ghost): transparent with ink-soft text (low emphasis)
 /// - [`Danger`](BtnVariant::Danger): bad text on surface, bad border (destructive)
 #[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Default)]
 pub enum BtnVariant {
     Primary,
+    #[default]
     Secondary,
     Ghost,
     Danger,
 }
 
-impl Default for BtnVariant {
-    fn default() -> Self {
-        BtnVariant::Secondary
-    }
-}
 
 const BASE_CLASSES: &str = "px-3 py-1.5 rounded-md text-body font-medium border";
 
@@ -82,7 +79,7 @@ pub struct BtnProps {
 pub fn Btn(props: BtnProps) -> Element {
     let class = build_class(props.variant, props.disabled);
     let disabled = props.disabled;
-    let on_click = props.on_click.clone();
+    let on_click = props.on_click;
 
     rsx! {
         button {
@@ -263,7 +260,7 @@ mod tests {
         let html = render(app);
         let icon_pos = html
             .find("font-mono")
-            .expect(&format!("missing font-mono span: {html}"));
+            .unwrap_or_else(|| panic!("missing font-mono span: {html}"));
         let mr_pos = html.find("mr-1").expect("missing mr-1 class");
         let children_pos = html.find("Add").expect("missing button children");
         assert!(icon_pos < children_pos, "icon must precede children");

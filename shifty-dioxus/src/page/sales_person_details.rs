@@ -96,7 +96,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 "{i18n.t(Key::BasicInformation)}"
                             }
 
-                            FormPair { label: i18n.t(Key::Name).into(),
+                            FormPair { label: i18n.t(Key::Name),
                                 TextInput {
                                     value: sales_person.sales_person.name.clone().into(),
                                     on_change: {
@@ -114,7 +114,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 }
                             }
 
-                            FormPair { label: i18n.t(Key::ShiftplanColor).into(),
+                            FormPair { label: i18n.t(Key::ShiftplanColor),
                                 div { class: "flex items-center gap-3",
                                     div {
                                         class: "w-6 h-6 border border-gray-300 rounded flex-shrink-0",
@@ -186,7 +186,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                 }
                             }
 
-                            FormPair { label: i18n.t(Key::UserAccount).into(),
+                            FormPair { label: i18n.t(Key::UserAccount),
                                 if let Some(user_id) = &sales_person.user_id {
                                     div { class: "flex gap-2",
                                         Btn {
@@ -205,7 +205,7 @@ pub fn SalesPersonDetails(props: SalesPersonDetailsProps) -> Element {
                                                             .send(UserManagementAction::UpdateSalesPersonUser(value));
                                                     }
                                                 },
-                                                value: user_id.clone().into(),
+                                                value: user_id.clone(),
                                             }
                                         }
                                     }

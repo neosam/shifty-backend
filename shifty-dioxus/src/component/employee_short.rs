@@ -168,11 +168,11 @@ mod tests {
         let needle = "background-color: #dbe0ff";
         let dot_idx = html
             .find(needle)
-            .expect(&format!("color marker missing: {html}"));
+            .unwrap_or_else(|| panic!("color marker missing: {html}"));
         let after_dot = &html[dot_idx..];
         let close_idx = after_dot
             .find("</span>")
-            .expect(&format!("dot's closing tag missing: {html}"));
+            .unwrap_or_else(|| panic!("dot's closing tag missing: {html}"));
         let dot_block = &after_dot[..close_idx];
         // Anything after the closing > of the opening tag should be empty
         let inner_start = dot_block.find('>').expect("opening tag must close") + 1;

@@ -73,7 +73,7 @@ pub fn AddExtraDaysForm(props: AddExtraDaysFormProps) -> Element {
                         .iter()
                         .map(|week| SimpleOption {
                             key: format!("{}", week.week).into(),
-                            text: i18n.format_week(&week),
+                            text: i18n.format_week(week),
                         })
                         .collect::<Vec<_>>()
                         .into(),

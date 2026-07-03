@@ -2,6 +2,7 @@
 created: 2026-06-09 12:39
 title: Täglicher PDF-Export der Wochen-Schichtpläne nach Nextcloud (WebDAV)
 area: shiftplan / export
+resolves_phase: 48
 files:
   - service/src/ (neuer ExportService / ScheduledJob - TBD)
   - service_impl/src/reporting.rs (Schichtplan-Datenquelle?)

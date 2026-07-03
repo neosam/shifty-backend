@@ -30,7 +30,7 @@ impl Default for BillingPeriodStore {
 }
 
 pub static BILLING_PERIOD_STORE: GlobalSignal<BillingPeriodStore> =
-    Signal::global(|| BillingPeriodStore::default());
+    Signal::global(BillingPeriodStore::default);
 
 #[derive(Debug)]
 pub enum BillingPeriodAction {
@@ -78,7 +78,7 @@ pub async fn billing_period_service(mut rx: UnboundedReceiver<BillingPeriodActio
             Ok(_) => {}
             Err(err) => {
                 *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
+                    error: Some(err),
                 };
             }
         }

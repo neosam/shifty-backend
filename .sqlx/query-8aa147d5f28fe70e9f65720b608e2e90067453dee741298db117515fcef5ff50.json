@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pdf_export_config\n               SET enabled = ?,\n                   nextcloud_url = ?,\n                   webdav_user = ?,\n                   webdav_app_token = ?,\n                   target_folder = ?,\n                   weeks_horizon = ?,\n                   cron_schedule = ?,\n                   update_process = ?,\n                   update_version = ?\n               WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "8aa147d5f28fe70e9f65720b608e2e90067453dee741298db117515fcef5ff50"
+}

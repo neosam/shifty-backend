@@ -55,7 +55,7 @@ pub(crate) fn target_hours_for(employee: &Employee) -> f32 {
 #[component]
 pub fn EmployeesList(props: EmployeesListProps) -> Element {
     let i18n = I18N.read().clone();
-    let year = use_signal(|| js::get_current_year());
+    let year = use_signal(js::get_current_year);
     let week_until = if *year.read() == js::get_current_year() {
         js::get_current_week()
     } else {

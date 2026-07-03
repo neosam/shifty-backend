@@ -23,19 +23,16 @@ use wasm_bindgen::{closure::Closure, JsCast};
 /// live: a viewport that crosses the breakpoint while the dialog is open
 /// switches the layout without closing.
 #[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Default)]
 pub enum DialogVariant {
     Center,
     #[allow(dead_code)] // reason: planned layout variant with complete implementation and test coverage; removing would also delete its tests (out of hygiene scope)
     Sheet,
     Bottom,
+    #[default]
     Auto,
 }
 
-impl Default for DialogVariant {
-    fn default() -> Self {
-        DialogVariant::Auto
-    }
-}
 
 /// Resolves `Auto` to either `Bottom` (mobile) or `Center` (desktop). Other
 /// variants are returned unchanged.
@@ -350,7 +347,7 @@ fn install_body_scroll_lock() -> Option<Rc<()>> {
 }
 
 fn use_body_scroll_lock() {
-    use_hook(|| install_body_scroll_lock());
+    use_hook(install_body_scroll_lock);
 }
 
 // ─── ESC dismiss ────────────────────────────────────────────────────────
@@ -798,5 +795,97 @@ mod tests {
         bp.press_backdrop();
         assert!(bp.release(), "first release should return true");
         assert!(!bp.release(), "flag must be reset after a true release");
+    }
+}
+
+#[cfg(test)]
+mod backdrop_invariant {
+    //! BUG-03 (v2.2 Phase 44) — Grep-Invariant.
+    //!
+    //! Jede Modal-artige Komponente unter `shifty-dioxus/src/component/`,
+    //! die einen Backdrop-Close-Pfad implementiert (div mit `fixed inset-0`
+    //! + onclick, das `on_close` / `on_cancel` triggert), MUSS entweder
+    //!   die zentrale `Dialog`-Shell nutzen oder inline `BackdropPress`
+    //!   verwenden. Sonst kehrt das Phase-37 MOD-01 Panel-Drag-Bug zurück
+    //!   (Text-Selektion im Panel schließt das Modal beim Loslassen
+    //!   außerhalb).
+    //!
+    //! Der Test scannt zur Compile-Zeit die relevanten Component-Files
+    //! via `include_str!` (keine `std::fs`-Runtime-Abhängigkeit — WASM-
+    //! Test-Runner freundlich) und stellt sicher, dass die Menge der
+    //! Files mit `fixed inset-0` == der Menge {dialog.rs, absence_convert_modal.rs}
+    //! ∪ jede Datei, die explizit in `ALLOWED_NON_MODAL` steht (nur
+    //! Wrapper wie overlay.rs).
+
+    // Kompilezeit-eingebundene Component-Dateien.  Dieser Test läuft
+    // absichtlich auf einem festen Set — jede NEUE Component-Datei
+    // muss hier eingetragen werden, was ein Sichtbarkeits-Signal ist:
+    // Ein neues Modal ohne BackdropPress-Adopt-Entscheidung fällt sofort
+    // durch, sobald der Autor das Test-Set aktualisieren muss.
+    const FILES: &[(&str, &str)] = &[
+        ("dialog.rs", include_str!("dialog.rs")),
+        (
+            "absence_convert_modal.rs",
+            include_str!("absence_convert_modal.rs"),
+        ),
+        ("contract_modal.rs", include_str!("contract_modal.rs")),
+        ("extra_hours_modal.rs", include_str!("extra_hours_modal.rs")),
+        ("slot_edit.rs", include_str!("slot_edit.rs")),
+        ("overlay.rs", include_str!("overlay.rs")),
+        ("week_view.rs", include_str!("week_view.rs")),
+        ("day_aggregate_view.rs", include_str!("day_aggregate_view.rs")),
+        ("employee_view.rs", include_str!("employee_view.rs")),
+    ];
+
+    /// Dateien mit `fixed inset-0` die KEIN Backdrop-Close-Pfad sind
+    /// (reine Wrapper / kein Close-Handler auf dem Backdrop).
+    const ALLOWED_NON_MODAL: &[&str] = &[
+        "overlay.rs", // Wrapper-Element ohne Close-Handler
+    ];
+
+    /// Dateien, die als Backdrop-Close-Pfad-Träger anerkannt sind und
+    /// nachweislich `BackdropPress` verwenden.
+    const KNOWN_MIGRATED: &[&str] = &["dialog.rs", "absence_convert_modal.rs"];
+
+    #[test]
+    fn every_backdrop_close_path_uses_backdrop_press() {
+        for (name, body) in FILES {
+            let has_backdrop_marker = body.contains("fixed inset-0");
+            if !has_backdrop_marker {
+                continue;
+            }
+            if ALLOWED_NON_MODAL.contains(name) {
+                continue;
+            }
+            assert!(
+                KNOWN_MIGRATED.contains(name),
+                "BUG-03-Invariant verletzt: {name} enthält `fixed inset-0` \
+                 ist aber weder als ALLOWED_NON_MODAL noch als \
+                 KNOWN_MIGRATED gelistet — bitte auf BackdropPress \
+                 migrieren (siehe absence_convert_modal.rs als Vorlage) \
+                 UND in KNOWN_MIGRATED aufnehmen.",
+                name = name,
+            );
+            assert!(
+                body.contains("BackdropPress"),
+                "BUG-03-Invariant verletzt: {name} ist als migriert \
+                 gelistet, verwendet aber `BackdropPress` nicht — Regress \
+                 zum Phase-37 Panel-Drag-Bug.",
+                name = name,
+            );
+        }
+    }
+
+    #[test]
+    fn known_migrated_files_actually_contain_backdrop_press() {
+        for (name, body) in FILES {
+            if KNOWN_MIGRATED.contains(name) {
+                assert!(
+                    body.contains("BackdropPress"),
+                    "{name} ist als migriert markiert, enthält aber \
+                     `BackdropPress` nicht.",
+                );
+            }
+        }
     }
 }

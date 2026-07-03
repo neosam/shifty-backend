@@ -14,6 +14,8 @@ use crate::{
 
 use rest_types::CustomExtraHoursTO;
 
+// reason: variants use the CustomExtraHours domain name; renaming to Load/Create/etc would lose the domain qualifier used in the coroutine handler match
+#[allow(clippy::enum_variant_names)]
 pub enum CustomExtraHoursManagementAction {
     LoadCustomExtraHours,
     CreateCustomExtraHours {
@@ -65,24 +67,22 @@ pub fn CustomExtraHoursManagement() -> Element {
                             // For now, we'll load for the current user's sales person
                             // In a real implementation, you might want to load all custom extra hours
                             // or filter by the current user's permissions
-                            if let Ok(current_sales_person) =
+                            if let Ok(Some(sales_person)) =
                                 api::get_current_sales_person(config.clone()).await
                             {
-                                if let Some(sales_person) = current_sales_person {
-                                    match api::get_custom_extra_hours_by_sales_person(
-                                        config.clone(),
-                                        sales_person.id,
-                                    )
-                                    .await
-                                    {
-                                        Ok(hours) => {
-                                            let definitions: Rc<[CustomExtraHoursDefinition]> =
-                                                hours.iter().map(|h| h.into()).collect();
-                                            *custom_extra_hours.write() = definitions;
-                                        }
-                                        Err(e) => {
-                                            info!("Failed to load custom extra hours: {}", e);
-                                        }
+                                match api::get_custom_extra_hours_by_sales_person(
+                                    config.clone(),
+                                    sales_person.id,
+                                )
+                                .await
+                                {
+                                    Ok(hours) => {
+                                        let definitions: Rc<[CustomExtraHoursDefinition]> =
+                                            hours.iter().map(|h| h.into()).collect();
+                                        *custom_extra_hours.write() = definitions;
+                                    }
+                                    Err(e) => {
+                                        info!("Failed to load custom extra hours: {}", e);
                                     }
                                 }
                             }
@@ -107,7 +107,7 @@ pub fn CustomExtraHoursManagement() -> Element {
                             let result =
                                 api::post_custom_extra_hours(config.clone(), custom_extra_hours_to)
                                     .await;
-                            result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
+                            result_handler(result.map_err(crate::error::ShiftyError::from));
                             // Note: We don't reload here to avoid infinite loops
                         }
                         CustomExtraHoursManagementAction::UpdateCustomExtraHours {
@@ -131,12 +131,12 @@ pub fn CustomExtraHoursManagement() -> Element {
                             let result =
                                 api::put_custom_extra_hours(config.clone(), custom_extra_hours_to)
                                     .await;
-                            result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
+                            result_handler(result.map_err(crate::error::ShiftyError::from));
                             // Note: We don't reload here to avoid infinite loops
                         }
                         CustomExtraHoursManagementAction::DeleteCustomExtraHours(id) => {
                             let result = api::delete_custom_extra_hours(config.clone(), id).await;
-                            result_handler(result.map_err(|e| crate::error::ShiftyError::from(e)));
+                            result_handler(result.map_err(crate::error::ShiftyError::from));
                             // Note: We don't reload here to avoid infinite loops
                         }
                     }

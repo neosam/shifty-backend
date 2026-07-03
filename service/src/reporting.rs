@@ -243,64 +243,100 @@ pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWe
     }
 }
 
-/// Result of the AVG-01 attendance-day metric (Phase 41).
+/// RPT-01: per-weekday attendance-day statistic (Phase 47).
 ///
-/// Deliberately distinct from A-22-1 (`EmployeeWeeklyStatistics`): this is a
-/// day-based average, not a week-based one (D-AVG-01).
+/// One entry per weekday (Mon..Sun). `count` is the number of DISTINCT
+/// attendance dates that fall on this weekday within the report range;
+/// `share` is `count / counted_calendar_weeks`, clamped to `0.0..=1.0` and
+/// rounded to two decimals. When `counted_calendar_weeks == 0`, `share = 0.0`
+/// (no NaN, no +Inf).
 #[derive(Clone, Debug, PartialEq)]
-pub struct EmployeeAttendanceStatistics {
-    /// Average worked hours per attendance day, or None if fewer than 2
-    /// attendance days (D-AVG-06 — not meaningful below the threshold).
-    pub average_hours_per_attendance_day: Option<f32>,
-    /// Number of distinct calendar dates counted as attendance days (denominator).
-    pub attendance_days: u32,
-    /// Sum of worked hours across all attendance days (numerator).
-    pub total_worked_hours: f32,
+pub struct WeekdayAttendanceStat {
+    pub weekday: shifty_utils::DayOfWeek,
+    pub count: u32,
+    pub share: f32,
 }
 
-/// Pure AVG-01 formula: average worked hours per attendance day.
+/// RPT-01: v2.2 attendance statistic — per-weekday distribution.
 ///
-/// A day counts as an attendance day iff it has at least one entry with
-/// category in {Shiftplan, ExtraWork, VolunteerWork} and `hours > 0` (D-AVG-02).
-/// Absence categories (Vacation, SickLeave, Holiday, UnpaidLeave, Unavailable)
-/// and `Custom(_)` are NOT attendance categories (D-AVG-03) — they drop out of
-/// both numerator and denominator by construction of the filter.
+/// Replaces the v2.1 scalar Ø-hours metric with a count + share breakdown per
+/// weekday over the displayed report range.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmployeeAttendanceStatistics {
+    /// Always length 7, ordered Monday..Sunday. Every weekday present, even when count=0.
+    pub attendance_by_weekday: [WeekdayAttendanceStat; 7],
+    /// Number of calendar weeks counted in the denominator (= length of `report.by_week`).
+    pub counted_calendar_weeks: u32,
+}
+
+/// Pure RPT-01 formula: per-weekday attendance-day distribution.
 ///
-/// - Denominator = number of DISTINCT dates among work-category entries
-///   (deduplicated via `BTreeSet<time::Date>`, so a date with several work
-///   entries counts once).
-/// - Numerator = sum of `hours` over all work-category entries.
-/// - Denominator < 2 → `average_hours_per_attendance_day` is None (D-AVG-06).
-///
-/// This is a separate function from A-22-1 (`average_worked_hours_per_week`):
-/// different input type (`&[WorkingHoursDay]`) and different result struct.
-pub fn average_hours_per_attendance_day(days: &[WorkingHoursDay]) -> EmployeeAttendanceStatistics {
+/// - Attendance-day filter (D-AVG-02/03, byte-identical to v2.1):
+///   `d.hours > 0.0 && matches!(d.category, Shiftplan | ExtraWork | VolunteerWork)`.
+/// - Distinct-date dedupe per weekday bucket (`BTreeSet<time::Date>`).
+/// - `share = min(count / counted_calendar_weeks, 1.0)` rounded to two decimals
+///   via `((x * 100.0).round() / 100.0)`.
+/// - `counted_calendar_weeks == 0` → all shares 0.0 (no NaN, no +Inf).
+/// - Result array is ALWAYS length 7, ordered Mon..Sun.
+pub fn weekday_attendance_distribution(
+    days: &[WorkingHoursDay],
+    counted_calendar_weeks: u32,
+) -> EmployeeAttendanceStatistics {
     use std::collections::BTreeSet;
     use ExtraHoursReportCategory::{ExtraWork, Shiftplan, VolunteerWork};
 
-    // Work-category entries with positive hours only (D-AVG-02/03).
-    let work_entries = days.iter().filter(|d| {
+    // Seven distinct-date buckets, indexed by Monday=0..Sunday=6.
+    let mut buckets: [BTreeSet<time::Date>; 7] = Default::default();
+
+    for d in days.iter().filter(|d| {
         d.hours > 0.0 && matches!(d.category, Shiftplan | ExtraWork | VolunteerWork)
+    }) {
+        let idx = weekday_index_mon0(d.date.weekday());
+        buckets[idx].insert(d.date);
+    }
+
+    let weekday_order = [
+        shifty_utils::DayOfWeek::Monday,
+        shifty_utils::DayOfWeek::Tuesday,
+        shifty_utils::DayOfWeek::Wednesday,
+        shifty_utils::DayOfWeek::Thursday,
+        shifty_utils::DayOfWeek::Friday,
+        shifty_utils::DayOfWeek::Saturday,
+        shifty_utils::DayOfWeek::Sunday,
+    ];
+
+    let attendance_by_weekday: [WeekdayAttendanceStat; 7] = std::array::from_fn(|i| {
+        let count = buckets[i].len() as u32;
+        let share = if counted_calendar_weeks == 0 {
+            0.0
+        } else {
+            let raw = (count as f32) / (counted_calendar_weeks as f32);
+            let clamped = raw.min(1.0);
+            (clamped * 100.0).round() / 100.0
+        };
+        WeekdayAttendanceStat {
+            weekday: weekday_order[i],
+            count,
+            share,
+        }
     });
 
-    // Distinct attendance dates → denominator.
-    let attendance_date_set: BTreeSet<time::Date> =
-        work_entries.clone().map(|d| d.date).collect();
-    let attendance_days = attendance_date_set.len() as u32;
-
-    // Sum all worked hours → numerator.
-    let total_worked_hours: f32 = work_entries.map(|d| d.hours).sum();
-
-    let average_hours_per_attendance_day = if attendance_days >= 2 {
-        Some(total_worked_hours / attendance_days as f32)
-    } else {
-        None // D-AVG-06: not meaningful below the 2-day threshold
-    };
-
     EmployeeAttendanceStatistics {
-        average_hours_per_attendance_day,
-        attendance_days,
-        total_worked_hours,
+        attendance_by_weekday,
+        counted_calendar_weeks,
+    }
+}
+
+/// Maps `time::Weekday` to an index in [0..7] with Monday=0..Sunday=6.
+fn weekday_index_mon0(weekday: time::Weekday) -> usize {
+    match weekday {
+        time::Weekday::Monday => 0,
+        time::Weekday::Tuesday => 1,
+        time::Weekday::Wednesday => 2,
+        time::Weekday::Thursday => 3,
+        time::Weekday::Friday => 4,
+        time::Weekday::Saturday => 5,
+        time::Weekday::Sunday => 6,
     }
 }
 
@@ -354,17 +390,22 @@ pub trait ReportingService {
         tx: Option<Self::Transaction>,
     ) -> Result<EmployeeWeeklyStatistics, ServiceError>;
 
-    /// Returns the AVG-01 attendance-day metric (Ø worked hours per attendance
-    /// day) for the given sales person over the displayed report range.
+    /// Returns the RPT-01 per-weekday attendance-day distribution for the given
+    /// sales person over the displayed report range.
     ///
+    /// - D-47-BE: same endpoint as v2.1, response shape swapped to `attendance_by_weekday`
+    ///   (7 entries, Mon..Sun; each with count of attendance days + share of counted
+    ///   calendar weeks) plus `counted_calendar_weeks`.
+    /// - "Attendance day" definition (D-AVG-02/03, unchanged from v2.1): category in
+    ///   {Shiftplan, ExtraWork, VolunteerWork} with `hours > 0`.
     /// - D-AVG-04: aggregates over the shown report window (`year` / `until_week`
     ///   via `get_report_for_employee`) — no separate date picker.
     /// - D-AVG-05: HR-gated (`HR_PRIVILEGE` is the FIRST operation, no data is
     ///   fetched before authorization) and server-side filtered on `is_dynamic`:
     ///   non-flexible employees yield `Ok(None)` (the metric is not computed nor
     ///   returned for them).
-    /// - D-AVG-08: pure read aggregate over `get_report_for_employee` — no new
-    ///   `BillingPeriodValueType`, no persistence, snapshot version stays 12.
+    /// - RPT-03: pure read aggregate — no new `BillingPeriodValueType`, no persistence,
+    ///   snapshot version stays 12.
     async fn get_employee_attendance_statistics(
         &self,
         sales_person_id: &Uuid,

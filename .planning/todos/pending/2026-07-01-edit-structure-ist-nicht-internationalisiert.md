@@ -2,6 +2,7 @@
 created: 2026-07-01T04:29:55.804Z
 title: "Edit structure" ist noch nicht internationalisiert
 area: frontend
+resolves_phase: 46
 files:
   - shifty-dioxus/
 ---

@@ -192,9 +192,9 @@ pub fn ExtraHoursModal(props: ExtraHoursModalProps) -> Element {
                             on_saved.call(());
                         } else if category_value == WorkingHoursCategory::VacationDays {
                             let amount_value = amount_value as i32;
-                            let from_date = time::Date::parse(&*from.read(), &date_format)
+                            let from_date = time::Date::parse(&from.read(), &date_format)
                                 .unwrap_or(date!(1970 - 01 - 01));
-                            let to_date = time::Date::parse(&*to.read(), &date_format)
+                            let to_date = time::Date::parse(&to.read(), &date_format)
                                 .unwrap_or(date!(1970 - 01 - 01));
                             result_handler(
                                 api::add_vacation(

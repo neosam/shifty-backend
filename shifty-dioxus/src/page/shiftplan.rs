@@ -54,6 +54,30 @@ use crate::state::shiftplan::SalesPerson;
 use crate::state::Config;
 use crate::state::Weekday;
 
+/// SDF-05: Success/Error-Zweig-Entscheid des Wochenraster-Dropdown-Handlers als
+/// pure Funktion, kapselt die Signal-Set-Semantik der drei Special-Day-Dropdown-
+/// Aktionen (Feiertag setzen, Kurzer Tag setzen, Nichts/löschen).
+///
+/// Hintergrund: Der Wechsel Feiertag ↔ Kurzer Tag am selben Wochentag darf keine
+/// UI-Fehlermeldung produzieren, weil das Backend seit Phase 36 / SDF-01 den
+/// atomaren in-place Replace-Pfad in `SpecialDayServiceImpl::create` fährt
+/// (`service_impl/src/special_days.rs:137-163`, Preserve-id-Invariante D-01).
+/// Diese Funktion garantiert strukturell, dass der Success-Zweig das
+/// `special_day_error`-Signal auf `None` setzt und nur der Fehler-Zweig ein
+/// `Some((day, err_msg))` erzeugt. Regressionsschutz gegen die zukünftige
+/// Änderung, versehentlich auch im `Ok(_)`-Zweig ein Error-Signal zu setzen —
+/// User-Report Todo `2026-07-01-schichtplan-feiertag-auf-kurzer-tag-wirft-fehler`.
+pub(crate) fn special_day_error_after_create<T, E>(
+    result: &Result<T, E>,
+    day: Weekday,
+    err_msg: &ImStr,
+) -> Option<(Weekday, ImStr)> {
+    match result {
+        Ok(_) => None,
+        Err(_) => Some((day, err_msg.clone())),
+    }
+}
+
 pub enum ShiftPlanAction {
     AddUserToSlot {
         slot_id: Uuid,
@@ -118,8 +142,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         .map(|auth_info| auth_info.has_privilege("hr"))
         .unwrap_or(false);
 
-    let week = use_signal(|| props.week.unwrap_or_else(|| js::get_current_week()));
-    let year = use_signal(|| props.year.unwrap_or_else(|| js::get_current_year()));
+    let week = use_signal(|| props.week.unwrap_or_else(js::get_current_week));
+    let year = use_signal(|| props.year.unwrap_or_else(js::get_current_year));
     let date =
         time::Date::from_iso_week_date(*year.read() as i32, *week.read(), time::Weekday::Monday)
             .unwrap();
@@ -132,7 +156,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
         Key::ShiftplanCalendarWeek,
         [
             ("week", week.read().to_string().as_str()),
-            ("year", &year.read().to_string().as_str()),
+            ("year", year.read().to_string().as_str()),
             ("date", date_str.as_str()),
         ]
         .into(),
@@ -214,8 +238,8 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
     // D-24-05: slot-scoped signal holding the id of the slot whose booking was hard-blocked (409 CONFLICT).
     // None = no block active. Set to Some(slot_id) when 409 is returned; cleared on next success.
     let block_error: Signal<Option<Uuid>> = use_signal(|| None);
-    let week_message = use_signal(|| String::new());
-    let mut week_message_draft = use_signal(|| String::new());
+    let week_message = use_signal(String::new);
+    let mut week_message_draft = use_signal(String::new);
 
     // Day view state
     let mut view_mode = use_signal(|| state::ViewMode::Week);
@@ -234,7 +258,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
 
     // Booking log state
     let mut show_booking_log = use_signal(|| false);
-    let mut booking_log_name_filter = use_signal(|| String::new());
+    let mut booking_log_name_filter = use_signal(String::new);
     let mut booking_log_day_filter = use_signal(|| None::<Weekday>);
     let mut booking_log_status_filter = use_signal(|| "all".to_string());
     let mut booking_log_created_by_filter = use_signal(|| "all".to_string());
@@ -856,15 +880,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             version: Uuid::nil(),
                         };
                         spawn(async move {
-                            match crate::api::create_special_day(cfg2, body).await {
-                                Ok(_) => {
-                                    special_days_for_week.restart();
-                                    shift_plan_context.restart();
-                                    special_day_error.set(None);
-                                }
-                                Err(_) => {
-                                    special_day_error.set(Some((day, err2.clone())));
-                                }
+                            // SDF-05: pure fn kapselt Success/Error-Zweig-Entscheid; Ok → None.
+                            let outcome = crate::api::create_special_day(cfg2, body).await;
+                            special_day_error
+                                .set(special_day_error_after_create(&outcome, day, &err2));
+                            if outcome.is_ok() {
+                                special_days_for_week.restart();
+                                shift_plan_context.restart();
                             }
                         });
                     },
@@ -903,15 +925,13 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                             let cfg2 = cfg.clone();
                             let err2 = err.clone();
                             spawn(async move {
-                                match crate::api::delete_special_day(cfg2, id).await {
-                                    Ok(_) => {
-                                        special_days_for_week.restart();
-                                        shift_plan_context.restart();
-                                        special_day_error.set(None);
-                                    }
-                                    Err(_) => {
-                                        special_day_error.set(Some((day, err2.clone())));
-                                    }
+                                // SDF-05: pure fn kapselt Success/Error-Zweig-Entscheid; Ok → None.
+                                let outcome = crate::api::delete_special_day(cfg2, id).await;
+                                special_day_error
+                                    .set(special_day_error_after_create(&outcome, day, &err2));
+                                if outcome.is_ok() {
+                                    special_days_for_week.restart();
+                                    shift_plan_context.restart();
                                 }
                             });
                         }
@@ -978,17 +998,16 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                             version: Uuid::nil(),
                                         };
                                         spawn(async move {
-                                            match crate::api::create_special_day(cfg2, body).await {
-                                                Ok(_) => {
-                                                    shortday_prompt_day.set(None);
-                                                    shortday_time.set(String::new());
-                                                    special_days_for_week.restart();
-                                                    shift_plan_context.restart();
-                                                    special_day_error.set(None);
-                                                }
-                                                Err(_) => {
-                                                    special_day_error.set(Some((day, err2.clone())));
-                                                }
+                                            // SDF-05: pure fn kapselt Success/Error-Zweig-Entscheid; Ok → None.
+                                            let outcome = crate::api::create_special_day(cfg2, body).await;
+                                            special_day_error.set(
+                                                special_day_error_after_create(&outcome, day, &err2),
+                                            );
+                                            if outcome.is_ok() {
+                                                shortday_prompt_day.set(None);
+                                                shortday_time.set(String::new());
+                                                special_days_for_week.restart();
+                                                shift_plan_context.restart();
                                             }
                                         });
                                     },
@@ -1141,15 +1160,20 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                 }
                 if is_shiftplanner {
                     DropdownTrigger {
+                        // Phase 46 (HYG-04): dropdown labels via i18n instead of hardcoded English literals.
                         entries: [
                             (
-                                if *change_structure_mode.read() { "Normal mode" } else { "Edit structure" },
+                                if *change_structure_mode.read() {
+                                    ImStr::from(i18n.t(Key::ShiftplanNormalMode).as_ref())
+                                } else {
+                                    ImStr::from(i18n.t(Key::ShiftplanEditStructure).as_ref())
+                                },
                                 Box::new(move |_| { cr.send(ShiftPlanAction::ToggleChangeStructureMode) }),
                                 !is_shift_editor,
                             )
                                 .into(),
                             (
-                                "New slot",
+                                ImStr::from(i18n.t(Key::ShiftplanNewSlot).as_ref()),
                                 Box::new(move |_| {
                                     slot_edit_service
                                         .send(SlotEditAction::NewSlot(*year.read(), *week.read(), *selected_shiftplan_id.read()))
@@ -1183,7 +1207,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                         for sales_person in sales_persons.iter().filter(|sp| !sp.inactive) {
                                             option {
                                                 value: sales_person.id.to_string(),
-                                                selected: current_sales_person.read().as_ref().map_or(false, |c| c.id == sales_person.id),
+                                                selected: current_sales_person.read().as_ref().is_some_and(|c| c.id == sales_person.id),
                                                 {sales_person.name.clone()}
                                             }
                                         }
@@ -1430,7 +1454,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 button_types: button_mode.clone(),
                                 dropdown_entries: field_dropdown_entries.clone(),
                                 add_event: {
-                                    let current_sales_person = current_sales_person.clone();
+                                    let current_sales_person = current_sales_person;
                                     move |slot: state::Slot| {
                                         let sp = current_sales_person.read();
                                         if let Some(ref sp) = *sp {
@@ -1444,7 +1468,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     }
                                 },
                                 remove_event: {
-                                    let current_sales_person = current_sales_person.clone();
+                                    let current_sales_person = current_sales_person;
                                     move |slot: state::Slot| {
                                         let sp = current_sales_person.read();
                                         if let Some(ref sp) = *sp {
@@ -1522,7 +1546,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     // mismatch (stale write that slipped through, or year data),
                                     // fall through to the existing empty state (`else { vec![] }`).
                                     weekday_headers: if weekly_summary.data_loaded
-                                        && weekly_summary.weekly_summary.len() > 0
+                                        && !weekly_summary.weekly_summary.is_empty()
                                         && matches!(
                                             weekly_summary.loaded_week,
                                             Some(yw) if is_current_selection(yw, (*year.read(), *week.read()))
@@ -1615,7 +1639,7 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                 WorkingHoursMiniOverview {
                                     working_hours: WORKING_HOURS_MINI.read().clone(),
                                     on_dbl_click: move |employee_id: Uuid| {
-                                        cr.send(ShiftPlanAction::UpdateSalesPerson(employee_id.clone()));
+                                        cr.send(ShiftPlanAction::UpdateSalesPerson(employee_id));
                                     },
                                     selected_sales_person_id: current_sales_person.read().as_ref().map(|sp| sp.id),
                                     show_balance: is_shiftplanner && is_hr,
@@ -1840,7 +1864,7 @@ mod tests {
     use crate::component::{WarningList, WarningsList};
     use crate::i18n::{generate, Locale};
     use crate::service::i18n::I18N;
-    use dioxus::prelude::*;
+    
     use rest_types::{AbsenceCategoryTO, WarningTO};
     use std::rc::Rc;
     use uuid::Uuid;
@@ -2012,5 +2036,56 @@ mod tests {
             production.contains("layout: working_hours_layout()"),
             "page must pass the current layout into the overview"
         );
+    }
+
+    /// SDF-05: pure fn returns `None` on Ok so the Success-Zweig löscht das
+    /// `special_day_error`-Signal (kein Fehlerbanner nach erfolgreicher
+    /// Umstellung Feiertag / Kurzer Tag / Nichts im Wochenraster-Dropdown).
+    #[test]
+    fn special_day_error_after_create_ok_clears_error() {
+        let err_msg: crate::base_types::ImStr = "boom".into();
+        let ok_result: Result<(), ()> = Ok(());
+        let out = super::special_day_error_after_create(&ok_result, Weekday::Monday, &err_msg);
+        assert_eq!(out, None, "Ok(_) must clear special_day_error signal");
+    }
+
+    /// SDF-05: pure fn returns `Some((day, err_msg))` on Err, damit der
+    /// spezifische Wochentag den roten Inline-Fehlerbanner unter der
+    /// Weekday-Spalte anzeigen kann.
+    #[test]
+    fn special_day_error_after_create_err_sets_error() {
+        let err_msg: crate::base_types::ImStr = "boom".into();
+        let err_result: Result<(), ()> = Err(());
+        let out = super::special_day_error_after_create(&err_result, Weekday::Monday, &err_msg);
+        assert_eq!(
+            out,
+            Some((Weekday::Monday, err_msg.clone())),
+            "Err(_) must set special_day_error to Some((day, err_msg))"
+        );
+    }
+
+    /// SDF-05 Wochenraster-Dropdown Roundtrip: Holiday → ShortDay → Holiday am
+    /// selben Wochentag produziert nach jedem Ok(_) `None`, d.h. kein
+    /// Fehlerzustand bleibt im `special_day_error`-Signal hängen. Verifiziert
+    /// den strukturellen Contract des Backend-Replace-Pfads
+    /// (`service_impl/src/special_days.rs:137-163`, SDF-01) auf Frontend-Seite.
+    #[test]
+    fn special_day_error_after_create_roundtrip_success_leaves_none() {
+        let err_msg: crate::base_types::ImStr = "boom".into();
+        // Step 1: Holiday create → Ok
+        let step_1: Result<(), ()> = Ok(());
+        let out_1 =
+            super::special_day_error_after_create(&step_1, Weekday::Monday, &err_msg);
+        assert_eq!(out_1, None, "Step 1 (Holiday) success: no error");
+        // Step 2: Holiday → ShortDay switch → Ok
+        let step_2: Result<(), ()> = Ok(());
+        let out_2 =
+            super::special_day_error_after_create(&step_2, Weekday::Monday, &err_msg);
+        assert_eq!(out_2, None, "Step 2 (ShortDay) success: no error");
+        // Step 3: ShortDay → Holiday switch → Ok
+        let step_3: Result<(), ()> = Ok(());
+        let out_3 =
+            super::special_day_error_after_create(&step_3, Weekday::Monday, &err_msg);
+        assert_eq!(out_3, None, "Step 3 (Holiday) success: no error");
     }
 }

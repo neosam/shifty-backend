@@ -40,7 +40,7 @@ pub async fn booking_conflicts_service(mut rx: UnboundedReceiver<BookingConflict
             Ok(_) => {}
             Err(err) => {
                 *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
+                    error: Some(err),
                 };
             }
         }

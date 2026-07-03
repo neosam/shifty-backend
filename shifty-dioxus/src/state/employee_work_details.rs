@@ -102,6 +102,8 @@ impl EmployeeWorkDetails {
         }
     }
 
+    // reason: name mirrors the `from`/`to` field naming; rename would break UI callsites without semantic benefit
+    #[allow(clippy::wrong_self_convention)]
     pub fn from_as_calendar_week(&self) -> (u32, u8, time::Weekday) {
         let (year, week, day) = self.from.to_iso_week_date();
         (year as u32, week, day)

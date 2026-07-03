@@ -2,7 +2,6 @@
 created: 2026-06-30T00:00:00
 title: Special Days (Feiertage) in der UI bearbeiten — Sektion in den Einstellungen
 area: frontend / settings / special-days
-resolves_phase: 33
 files:
   - shifty-dioxus/src/page/settings.rs
   - shifty-dioxus/src/api.rs

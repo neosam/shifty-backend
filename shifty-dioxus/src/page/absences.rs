@@ -1255,7 +1255,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
 
     let mode_for_submit = mode_clone.clone();
     let editing_period_for_submit = editing_period.clone();
-    let absence_service_for_submit = absence_service.clone();
+    let absence_service_for_submit = absence_service;
     let on_submit = move |_| {
         // If we already have warnings → user clicks "Verstanden"; close.
         if !warnings_state.read().is_empty() {
@@ -1307,7 +1307,7 @@ pub fn AbsenceModal(props: AbsenceModalProps) -> Element {
         }
     };
 
-    let absence_service_for_reload = absence_service.clone();
+    let absence_service_for_reload = absence_service;
     let editing_for_reload = editing_period.clone();
     let on_reload = move |_| {
         // 409 reload — re-fetch the affected list. For HR variant we do not
@@ -2275,7 +2275,7 @@ pub fn AbsencesPage() -> Element {
     let hr_nav_label_display: std::rc::Rc<str> = hr_nav_label_opt.unwrap_or_else(|| "".into());
 
     let sales_persons_for_modal = sales_persons.read().clone();
-    let absence_service_for_delete = absence_service.clone();
+    let absence_service_for_delete = absence_service;
 
     let on_new = move |_| {
         modal_mode.set(AbsenceModalMode::Create);
@@ -2406,7 +2406,7 @@ pub fn AbsencesPage() -> Element {
                     }
                     Btn {
                         variant: BtnVariant::Primary,
-                        on_click: on_new.clone(),
+                        on_click: on_new,
                         "{new_btn_label}"
                     }
                 }
@@ -2480,7 +2480,7 @@ pub fn AbsencesPage() -> Element {
                 is_hr: is_hr,
                 today: today,
                 filter_active: filter_active,
-                on_row_click: on_row_click.clone(),
+                on_row_click: on_row_click,
                 on_edit_hours: move |m: ExtraHoursMarker| edit_hours_target.set(Some(m)),
                 on_convert: move |m: ExtraHoursMarker| convert_target.set(Some(m)),
             }
@@ -2493,7 +2493,7 @@ pub fn AbsencesPage() -> Element {
                 sales_persons: sales_persons_for_modal.clone(),
                 current_sp_id: *current_sp_id.read(),
                 on_close: move |_| modal_open.set(false),
-                on_delete_request: on_delete_request.clone(),
+                on_delete_request: on_delete_request,
             }
         }
         if *delete_open.read() {
@@ -2503,7 +2503,7 @@ pub fn AbsencesPage() -> Element {
                     delete_open.set(false);
                     delete_target.set(None);
                 },
-                on_confirm: on_delete_confirm.clone(),
+                on_confirm: on_delete_confirm,
             }
         }
         // D-09: AbsenceConvertModal — HR-only, öffnet wenn convert_target Some ist.
@@ -3550,7 +3550,7 @@ mod tests {
         let person_b = Uuid::from_u128(20);
         let bal_a = make_vacation_balance(person_a, 17.0);
         let bal_b = make_vacation_balance(person_b, 3.0);
-        let team: Rc<[VacationBalance]> = Rc::from(vec![bal_a, bal_b]);
+        let _team: Rc<[VacationBalance]> = Rc::from(vec![bal_a, bal_b]);
         fn app() -> Element {
             let person_a = Uuid::from_u128(10);
             let person_b = Uuid::from_u128(20);
@@ -3818,7 +3818,7 @@ mod tests {
         let id = Uuid::from_u128(1);
         let sp = SalesPerson { id, is_paid: true, inactive: false, ..Default::default() };
         let balance = make_vacation_balance(id, 10.0);
-        let result = selectable_balances(&[balance.clone()], &[sp]);
+        let result = selectable_balances(std::slice::from_ref(&balance), &[sp]);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].sales_person_id, id);
     }

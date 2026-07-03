@@ -112,7 +112,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                             .send(
                                                                 UserManagementAction::AssignUserToRole(
                                                                     props.user_id.to_owned().into(),
-                                                                    role_assignment.role.clone().into(),
+                                                                    role_assignment.role.clone(),
                                                                 ),
                                                             );
                                                     } else {
@@ -120,7 +120,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                             .send(
                                                                 UserManagementAction::RemoveUserFromRole(
                                                                     props.user_id.to_owned().into(),
-                                                                    role_assignment.role.clone().into(),
+                                                                    role_assignment.role.clone(),
                                                                 ),
                                                             );
                                                     }
@@ -156,6 +156,21 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                         }
                     }
 
+
+                    // BUG-02 (v2.2): persistent inline banner for a parse
+                    // failure. Rendered VOR dem is_empty()-Zweig so a schema-
+                    // drift response no longer masquerades as the empty-list
+                    // "No invitations found" state — leere Liste ≠ Parse-
+                    // Fehler. The central ErrorView-Overlay is still fired
+                    // by the service layer in parallel.
+                    if let Some(err) = user_management.user_invitations_load_error.as_ref() {
+                        div { class: "mb-4 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-body",
+                            p { class: "font-semibold",
+                                "{i18n.t(Key::UserInvitationsLoadError)}"
+                            }
+                            p { class: "text-small font-normal font-mono mt-1", "{err}" }
+                        }
+                    }
 
                     if user_management.user_invitations.is_empty() {
                         div { class: "text-center py-8 text-gray-500",
@@ -216,7 +231,7 @@ pub fn UserDetails(props: UserDetailsProps) -> Element {
                                                             let link = invitation.invitation_link.clone();
                                                             let id = invitation.id;
                                                             spawn(async move {
-                                                                if let Ok(_) = crate::js::copy_to_clipboard(&link).await {
+                                                                if crate::js::copy_to_clipboard(&link).await.is_ok() {
                                                                     copied_invitation_id.set(Some(id));
                                                                     gloo_timers::future::sleep(std::time::Duration::from_secs(2)).await;
                                                                     copied_invitation_id.set(None);

@@ -2,6 +2,7 @@
 created: 2026-05-07T10:50:00
 title: "Review: list_user_invitations gibt bei Parse-Fehler stilles leeres Array zurück"
 area: frontend / api
+resolves_phase: 44
 files:
   - shifty-dioxus/src/api.rs:1127-1171
 ---

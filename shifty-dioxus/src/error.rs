@@ -24,6 +24,20 @@ pub enum ShiftyError {
     /// raw text.
     #[error("{0}")]
     Validation(String),
+
+    /// BUG-02 (v2.2): The `/user-invitation/invitation/user/{name}` endpoint
+    /// returned a body that failed to deserialize into
+    /// `Rc<[InvitationResponse]>`. Prior to Phase 44 this was silently
+    /// swallowed to `Ok(Rc::new([]))`, hiding schema drift as an "empty list".
+    ///
+    /// The wrapped string is the `serde_json` error message concatenated with
+    /// the first 200 characters of the response body — enough context to
+    /// diagnose the parse failure without leaking secrets (invitation JSON
+    /// only carries id/username/status/redeemed_at/token/invitation_link).
+    /// Intentionally NOT `#[from] serde_json::Error` — the call site adds
+    /// the body-head snippet, so conversion is explicit.
+    #[error("invitation parse error: {0}")]
+    InvitationParse(String),
 }
 
 /// Walks the `reqwest::Error` source chain and joins each level with ` → `.

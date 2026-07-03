@@ -23,6 +23,7 @@ use crate::{
     js,
     loader,
     service::{auth::AUTH, config::CONFIG, i18n::I18N},
+    state::pdf_export_config::{clamp_weeks_horizon, PdfExportForm},
 };
 
 /// Parse an ISO date string (`"YYYY-MM-DD"`) into `(iso_year, iso_week, DayOfWeekTO)`.
@@ -128,12 +129,29 @@ pub(crate) struct SpecialDayForm {
 /// After a successful create, the three form fields are NOT reset: this returns
 /// `before.clone()` so date/type/time stay filled → `is_special_day_form_valid`
 /// stays `true` → the Anlegen button stays enabled → repeated create without
-/// re-toggling the type dropdown. `sd_year.set(iso_year)` (WR-04) and
+/// re-toggling the type dropdown. The year-picker jump (SDF-03 —
+/// `sd_year.set(sd_year_after_create(...))`, formerly WR-04's ISO-year set) and
 /// `sd_resource.restart()` (reload the list) are handled separately by the
 /// success handler and are intentionally NOT part of this form-field policy
 /// (D-42-02).
 pub(crate) fn special_day_form_after_create(before: &SpecialDayForm) -> SpecialDayForm {
     before.clone()
+}
+
+/// Post-create target year for the Card-3 year picker (SDF-03, 43-01).
+///
+/// Unlike [`parse_date_to_iso_parts`] which returns the **ISO-week-year**
+/// (`date.to_iso_week_date().0`), this helper returns the **calendar year**
+/// (`date.year()`). The distinction matters at year boundaries: a special day
+/// created on 2027-01-01 belongs to ISO week 53 of 2026 (`iso_year == 2026`) but
+/// to calendar year 2027. Prior to SDF-03 the picker was jumped to `iso_year`
+/// after create, so a 2027-01-01 entry silently vanished into the 2026er picker.
+///
+/// Returns `None` if `date_str` is not a valid ISO date.
+pub(crate) fn sd_year_after_create(date_str: &str) -> Option<u32> {
+    let date_format = format_description!("[year]-[month]-[day]");
+    let date = time::Date::parse(date_str, date_format).ok()?;
+    Some(date.year() as u32)
 }
 
 /// Visibility rule for the Card-3 "existiert bereits" duplicate hint (260702-jql).
@@ -346,6 +364,91 @@ mod tests {
     #[test]
     fn duplicate_hint_hidden_when_not_duplicate_and_suppressed() {
         assert!(!should_show_duplicate_hint(false, true));
+    }
+
+    // ── SDF-03 (Phase 43-01): sd_year_after_create uses calendar year ──
+
+    /// SDF-03 baseline: a mid-year date maps to its own calendar year.
+    #[test]
+    fn sd_year_after_create_mid_year() {
+        assert_eq!(sd_year_after_create("2026-08-15"), Some(2026));
+    }
+
+    /// SDF-03 core case: at the year boundary the calendar year and the ISO
+    /// week year DIVERGE. 2027-01-01 is calendar year 2027 but ISO week 53 of
+    /// 2026. The picker MUST jump to 2027 — otherwise the just-created entry
+    /// silently disappears from the reloaded list.
+    #[test]
+    fn sd_year_after_create_new_year_calendar_vs_iso() {
+        assert_eq!(sd_year_after_create("2027-01-01"), Some(2027));
+        // Sanity — pin the divergence so this test also fails loudly if the
+        // upstream `time` crate ever changes its ISO-week semantics.
+        let iso = parse_date_to_iso_parts("2027-01-01").unwrap().0;
+        assert_eq!(iso, 2026, "sanity: 2027-01-01 falls into ISO year 2026");
+    }
+
+    /// SDF-03 symmetry probe: Silvester of a year whose ISO week ends inside
+    /// the same calendar year — here calendar and ISO agree and the picker
+    /// stays put.
+    #[test]
+    fn sd_year_after_create_silvester() {
+        assert_eq!(sd_year_after_create("2026-12-31"), Some(2026));
+    }
+
+    /// SDF-03: unparsable input yields None (matches `parse_date_to_iso_parts`
+    /// error semantics).
+    #[test]
+    fn sd_year_after_create_invalid_returns_none() {
+        assert_eq!(sd_year_after_create("not-a-date"), None);
+    }
+
+    // ── SDF-04 (Phase 43-01): duplicate-hint copy signals replace semantics ──
+
+    /// SDF-04: the duplicate-hint text in de/en/cs must
+    /// - be non-empty in every locale (presence), and
+    /// - contain a replace-cue that signals in-place overwrite semantics
+    ///   (matches the SDF-01 v1.11 backend behavior; the hint is a heads-up,
+    ///   not a blocker).
+    #[test]
+    fn duplicate_hint_copy_signals_replace_semantics() {
+        use crate::i18n::{generate, Locale};
+
+        struct Case {
+            locale: Locale,
+            cues: &'static [&'static str],
+        }
+        let cases = [
+            Case {
+                locale: Locale::De,
+                cues: &["ersetzt", "überschrieben"],
+            },
+            Case {
+                locale: Locale::En,
+                cues: &["replace"],
+            },
+            Case {
+                locale: Locale::Cs,
+                cues: &["nahrazen", "přepsán"],
+            },
+        ];
+
+        for case in &cases {
+            let i18n = generate(case.locale);
+            let text = i18n.t(Key::SettingsSpecialDaysDuplicateHint);
+            assert!(
+                !text.is_empty() && text.as_ref() != "??",
+                "SDF-04: SettingsSpecialDaysDuplicateHint is empty/missing for {:?}: `{}`",
+                case.locale,
+                text
+            );
+            let lower = text.to_lowercase();
+            let has_cue = case.cues.iter().any(|cue| lower.contains(&cue.to_lowercase()));
+            assert!(
+                has_cue,
+                "SDF-04: replace-cue missing for {:?} — expected one of {:?} in `{}`",
+                case.locale, case.cues, text
+            );
+        }
     }
 }
 
@@ -627,12 +730,14 @@ pub fn SettingsPage() -> Element {
             match api::create_special_day(cfg, body).await {
                 Ok(_) => {
                     sd_save_result.set(Some(true));
-                    // WR-04: the stored entry lives under its ISO-week-year, which
-                    // can differ from the picker year near year boundaries (e.g.
-                    // 2027-01-01 is ISO week 53 of 2026). Switch the picker to the
-                    // entry's ISO year so the just-created entry stays visible
-                    // instead of silently vanishing from the reloaded list.
-                    sd_year.set(iso_year);
+                    // SDF-03 (Phase 43-01): jump the picker to the **calendar year**
+                    // of the picked date (not the ISO-week-year). Otherwise a
+                    // special day created on 2027-01-01 would silently vanish into
+                    // the 2026er picker (2027-01-01 is ISO week 53 of 2026). The
+                    // pure fn `sd_year_after_create` is unit-tested against the
+                    // year-boundary case; on parse failure we fall back to the
+                    // already-parsed `iso_year` so the year picker still updates.
+                    sd_year.set(sd_year_after_create(&date_s).unwrap_or(iso_year));
                     // D-42-01 (Option 2): keep the form filled after create so
                     // `is_special_day_form_valid` stays true → the Anlegen button
                     // stays enabled → repeated create without re-toggling the type
@@ -654,6 +759,100 @@ pub fn SettingsPage() -> Element {
             sd_saving.set(false);
         });
     };
+
+    // ── Card 4: PDF-Export nach Nextcloud (Phase 48-05 EXP-02 / EXP-03) ───────
+    // Admin-gated; sichtbar innerhalb des äußeren is_admin-Blocks. Kein
+    // zusätzlicher Inner-Gate (D-48-UI-GATE).
+
+    let config_for_pdf = config.clone();
+    let pdf_resource =
+        use_resource(move || loader::get_pdf_export_config(config_for_pdf.clone()));
+
+    let mut pdf_form: Signal<PdfExportForm> = use_signal(PdfExportForm::default);
+    let mut pdf_saving = use_signal(|| false);
+    let mut pdf_save_result: Signal<Option<bool>> = use_signal(|| None);
+    let mut pdf_triggering = use_signal(|| false);
+    let mut pdf_trigger_result: Signal<Option<bool>> = use_signal(|| None);
+
+    // Load-into-signal, analog Card 2 (cutoff_resource).
+    use_effect(move || {
+        if let Some(Ok(form)) = &*pdf_resource.read_unchecked() {
+            pdf_form.set(form.clone());
+        }
+    });
+
+    let config_for_pdf_save = config.clone();
+    let on_pdf_save = move |_| {
+        if *pdf_saving.read() {
+            return;
+        }
+        let form_snapshot = pdf_form.read().clone();
+        pdf_saving.set(true);
+        pdf_save_result.set(None);
+        let cfg = config_for_pdf_save.clone();
+        spawn(async move {
+            match loader::save_pdf_export_config(cfg, form_snapshot).await {
+                Ok(reloaded) => {
+                    pdf_form.set(reloaded);
+                    pdf_save_result.set(Some(true));
+                }
+                Err(_) => {
+                    pdf_save_result.set(Some(false));
+                }
+            }
+            pdf_saving.set(false);
+        });
+    };
+
+    let config_for_pdf_trigger = config.clone();
+    let on_pdf_trigger = move |_| {
+        if *pdf_triggering.read() {
+            return;
+        }
+        pdf_triggering.set(true);
+        pdf_trigger_result.set(None);
+        let cfg = config_for_pdf_trigger.clone();
+        spawn(async move {
+            match loader::trigger_pdf_export_now(cfg).await {
+                Ok(()) => {
+                    pdf_trigger_result.set(Some(true));
+                }
+                Err(_) => {
+                    pdf_trigger_result.set(Some(false));
+                }
+            }
+            pdf_triggering.set(false);
+        });
+    };
+
+    // Read-only view helpers.
+    let pdf_form_snapshot = pdf_form.read().clone();
+    let pdf_saving_now = *pdf_saving.read();
+    let pdf_triggering_now = *pdf_triggering.read();
+    let pdf_enabled = pdf_form_snapshot.enabled;
+    let pdf_toggle_class = if pdf_enabled {
+        "px-3 py-2 rounded-md border border-accent text-accent text-body font-semibold bg-accent-soft"
+    } else {
+        "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt"
+    };
+    let pdf_toggle_label = if pdf_enabled { "ON" } else { "OFF" };
+    let pdf_toggle_aria = if pdf_enabled { "true" } else { "false" };
+
+    // Format timestamps via the current locale's date formatter + explicit HH:MM.
+    let format_ts = |ts: time::PrimitiveDateTime| -> String {
+        format!(
+            "{} {:02}:{:02}",
+            i18n.format_date(&ts.date()),
+            ts.hour(),
+            ts.minute()
+        )
+    };
+    let last_success_display = pdf_form_snapshot.last_success_at.map(format_ts);
+    let last_error_display = pdf_form_snapshot
+        .last_error_at
+        .map(format_ts);
+    let last_error_msg = pdf_form_snapshot.last_error_message.clone();
+    let no_status = last_success_display.is_none() && last_error_display.is_none();
 
     rsx! {
         TopBar {}
@@ -792,7 +991,7 @@ pub fn SettingsPage() -> Element {
                                 step: Some(ImStr::from("1")),
                                 on_change: move |v: ImStr| {
                                     if let Ok(y) = v.as_str().parse::<u32>() {
-                                        if y >= 2020 && y <= 2099 {
+                                        if (2020..=2099).contains(&y) {
                                             sd_year.set(y);
                                         }
                                     }
@@ -994,6 +1193,194 @@ pub fn SettingsPage() -> Element {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // Card 4 — PDF-Export nach Nextcloud (Phase 48-05, admin-gated
+            // via the outer is_admin return above; no inner gate — D-48-UI-GATE).
+            div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3 mt-4",
+
+                // Row A: Title + Help
+                div { class: "flex flex-col gap-1",
+                    span { class: "text-body text-ink font-semibold",
+                        "{i18n.t(Key::SettingsPdfExportTitle)}"
+                    }
+                    span { class: "text-small text-ink-soft",
+                        "{i18n.t(Key::SettingsPdfExportHelp)}"
+                    }
+                }
+
+                // Row B: Enabled toggle
+                div { class: "flex flex-row items-center gap-3",
+                    span { class: "text-body text-ink",
+                        "{i18n.t(Key::SettingsPdfExportEnabled)}"
+                    }
+                    button {
+                        r#type: "button",
+                        class: "{pdf_toggle_class}",
+                        "aria-pressed": "{pdf_toggle_aria}",
+                        disabled: pdf_saving_now,
+                        onclick: move |_| {
+                            let next = !pdf_form.read().enabled;
+                            pdf_form.write().enabled = next;
+                        },
+                        "{pdf_toggle_label}"
+                    }
+                }
+
+                // Row C: Nextcloud URL
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportUrl)}"
+                    }
+                    TextInput {
+                        input_type: ImStr::from("text"),
+                        value: ImStr::from(pdf_form_snapshot.nextcloud_url.as_str()),
+                        on_change: move |v: ImStr| {
+                            pdf_form.write().nextcloud_url = v.as_str().to_string();
+                        },
+                    }
+                }
+
+                // Row D: WebDAV user
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportUser)}"
+                    }
+                    TextInput {
+                        input_type: ImStr::from("text"),
+                        value: ImStr::from(pdf_form_snapshot.webdav_user.as_str()),
+                        on_change: move |v: ImStr| {
+                            pdf_form.write().webdav_user = v.as_str().to_string();
+                        },
+                    }
+                }
+
+                // Row E: App token (password input; empty = keep existing)
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportToken)}"
+                    }
+                    TextInput {
+                        input_type: ImStr::from("password"),
+                        value: ImStr::from(pdf_form_snapshot.token_input.as_str()),
+                        placeholder: Some(i18n.t(Key::SettingsPdfExportTokenPlaceholder).as_ref().into()),
+                        on_change: move |v: ImStr| {
+                            pdf_form.write().token_input = v.as_str().to_string();
+                        },
+                    }
+                }
+
+                // Row F: Target folder
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportTargetFolder)}"
+                    }
+                    TextInput {
+                        input_type: ImStr::from("text"),
+                        value: ImStr::from(pdf_form_snapshot.target_folder.as_str()),
+                        on_change: move |v: ImStr| {
+                            pdf_form.write().target_folder = v.as_str().to_string();
+                        },
+                    }
+                }
+
+                // Row G: Weeks horizon (clamped to 1..=52)
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportWeeksHorizon)}"
+                    }
+                    div { class: "max-w-[120px]",
+                        TextInput {
+                            input_type: ImStr::from("number"),
+                            value: ImStr::from(pdf_form_snapshot.weeks_horizon.to_string().as_str()),
+                            step: Some(ImStr::from("1")),
+                            on_change: move |v: ImStr| {
+                                if let Ok(n) = v.as_str().parse::<i32>() {
+                                    pdf_form.write().weeks_horizon = clamp_weeks_horizon(n);
+                                }
+                            },
+                        }
+                    }
+                }
+
+                // Row H: Cron schedule
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportCronSchedule)}"
+                    }
+                    TextInput {
+                        input_type: ImStr::from("text"),
+                        value: ImStr::from(pdf_form_snapshot.cron_schedule.as_str()),
+                        on_change: move |v: ImStr| {
+                            pdf_form.write().cron_schedule = v.as_str().to_string();
+                        },
+                    }
+                }
+
+                // Row I: Action row — Save + Trigger + inline feedback
+                div { class: "flex flex-row items-center gap-3 flex-wrap",
+                    button {
+                        r#type: "button",
+                        class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                        disabled: pdf_saving_now,
+                        onclick: on_pdf_save,
+                        "{i18n.t(Key::SettingsPdfExportSave)}"
+                    }
+                    button {
+                        r#type: "button",
+                        class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                        disabled: pdf_triggering_now || !pdf_enabled,
+                        onclick: on_pdf_trigger,
+                        "{i18n.t(Key::SettingsPdfExportTriggerNow)}"
+                    }
+
+                    // Save-Result-Banner
+                    {match *pdf_save_result.read() {
+                        Some(true) => rsx! {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsPdfExportSaveSuccess)}"
+                            }
+                        },
+                        Some(false) => rsx! {
+                            span { class: "text-small text-bad",
+                                "{i18n.t(Key::SettingsPdfExportSaveError)}"
+                            }
+                        },
+                        None => rsx! { },
+                    }}
+
+                    // Trigger-Result-Banner
+                    {match *pdf_trigger_result.read() {
+                        Some(true) => rsx! {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsPdfExportTriggerNowSuccess)}"
+                            }
+                        },
+                        Some(false) => rsx! {
+                            span { class: "text-small text-bad",
+                                "{i18n.t(Key::SettingsPdfExportTriggerNowError)}"
+                            }
+                        },
+                        None => rsx! { },
+                    }}
+                }
+
+                // Row J: Read-only status (last success / last error / empty)
+                if let Some(ref ts) = last_success_display {
+                    div { class: "text-body text-good",
+                        "{i18n.t(Key::SettingsPdfExportLastSuccess)} {ts}"
+                    }
+                }
+                if let (Some(ts), Some(msg)) = (last_error_display.as_ref(), last_error_msg.as_ref()) {
+                    div { class: "text-body text-bad",
+                        "{i18n.t(Key::SettingsPdfExportLastError)} {ts} — {msg}"
+                    }
+                }
+                if no_status {
+                    div { class: "text-body text-ink-muted",
+                        "{i18n.t(Key::SettingsPdfExportStatusEmpty)}"
                     }
                 }
             }

@@ -271,7 +271,7 @@ pub async fn load_unpaid_volunteer_employees(
     let sales_person_tos = api::get_sales_persons(config).await?;
     let dummies: Rc<[Employee]> = sales_person_tos
         .iter()
-        .map(|to| SalesPerson::from(to))
+        .map(SalesPerson::from)
         .filter(|sp| !sp.is_paid && !sp.inactive)
         .map(Employee::unpaid_placeholder)
         .collect();
@@ -299,7 +299,7 @@ pub async fn load_extra_hours_per_year(
             .iter()
             .cloned()
             .collect();
-    extra_hours.sort_by_key(|extra_hours| extra_hours.date_time.clone());
+    extra_hours.sort_by_key(|extra_hours| extra_hours.date_time);
     Ok(extra_hours.iter().map(ExtraHours::from).collect())
 }
 
@@ -396,65 +396,6 @@ pub(crate) fn build_working_hours_mini(
     }
 }
 
-#[cfg(test)]
-mod working_hours_mini_loader_tests {
-    use super::*;
-    use rest_types::{SalesPersonTO, ShortEmployeeReportTO};
-    use std::sync::Arc;
-
-    fn make_report(id: Uuid, color: &str) -> ShortEmployeeReportTO {
-        ShortEmployeeReportTO {
-            sales_person: SalesPersonTO {
-                id,
-                name: Arc::<str>::from("Alex"),
-                background_color: Arc::<str>::from(color),
-                is_paid: Some(true),
-                inactive: false,
-                deleted: None,
-                version: Uuid::nil(),
-            },
-            balance_hours: 0.0,
-            expected_hours: 8.0,
-            dynamic_hours: 8.0,
-            overall_hours: 5.0,
-            volunteer_hours: 0.0,
-        }
-    }
-
-    #[test]
-    fn working_hours_mini_loader_populates_color_from_sales_person() {
-        let id = Uuid::from_u128(42);
-        let report = make_report(id, "#dbe0ff");
-        let mini = build_working_hours_mini(&report, &HashMap::new());
-        assert_eq!(mini.background_color.as_str(), "#dbe0ff");
-        assert_eq!(mini.sales_person_id, id);
-    }
-
-    #[test]
-    fn working_hours_mini_loader_falls_back_to_gray_when_color_empty() {
-        let report = make_report(Uuid::from_u128(1), "");
-        let mini = build_working_hours_mini(&report, &HashMap::new());
-        assert_eq!(mini.background_color.as_str(), "#cccccc");
-    }
-
-    #[test]
-    fn working_hours_mini_loader_uses_balance_when_present() {
-        let id = Uuid::from_u128(7);
-        let report = make_report(id, "#fff");
-        let mut balance = HashMap::new();
-        balance.insert(id, -2.5);
-        let mini = build_working_hours_mini(&report, &balance);
-        assert_eq!(mini.balance_hours, -2.5);
-    }
-
-    #[test]
-    fn working_hours_mini_loader_zero_balance_when_missing() {
-        let report = make_report(Uuid::from_u128(7), "#fff");
-        let mini = build_working_hours_mini(&report, &HashMap::new());
-        assert_eq!(mini.balance_hours, 0.0);
-    }
-}
-
 pub async fn load_all_users(config: Config) -> Result<Rc<[User]>, ShiftyError> {
     let users = api::get_all_users(config).await?;
     Ok(users.iter().map(User::from).collect())
@@ -529,7 +470,7 @@ pub async fn load_bookings_conflicts_for_week(
     Ok(api::get_booking_conflicts_for_week(config, year, week)
         .await?
         .iter()
-        .map(|booking_conflict_to| BookingConflict::from(booking_conflict_to))
+        .map(BookingConflict::from)
         .collect())
 }
 
@@ -541,7 +482,7 @@ pub async fn load_booking_log(
     Ok(api::get_booking_log(config, year, week)
         .await?
         .iter()
-        .map(|booking_log_to| BookingLog::from(booking_log_to))
+        .map(BookingLog::from)
         .collect())
 }
 
@@ -977,4 +918,91 @@ pub async fn set_holiday_cutoff_date(
         None => api::clear_toggle_value(config, "holiday_auto_credit").await?,
     }
     Ok(())
+}
+
+// ─── PDF-Export loaders (Phase 48-05 EXP-02 / EXP-03) ────────────────────────
+
+/// Loads the PDF-Export config from the backend and translates it into the
+/// UI form representation (token_input starts empty, per T-48-02 masking).
+pub async fn get_pdf_export_config(
+    config: Config,
+) -> Result<crate::state::pdf_export_config::PdfExportForm, ShiftyError> {
+    let response = api::get_pdf_export_config(&config).await?;
+    Ok(crate::state::pdf_export_config::pdf_export_form_from_response(&response))
+}
+
+/// Persists the UI form via PUT and returns the reloaded form (token_input
+/// leer, weil der Response den Token IMMER maskiert — Save-Then-Reload).
+pub async fn save_pdf_export_config(
+    config: Config,
+    form: crate::state::pdf_export_config::PdfExportForm,
+) -> Result<crate::state::pdf_export_config::PdfExportForm, ShiftyError> {
+    let body = crate::state::pdf_export_config::pdf_export_form_to_put_body(&form);
+    let response = api::put_pdf_export_config(&config, body).await?;
+    Ok(crate::state::pdf_export_config::pdf_export_form_from_response(&response))
+}
+
+/// Thin wrapper around `api::trigger_pdf_export` — POST /pdf-export-config/trigger
+/// erwartet **204 No Content**.
+pub async fn trigger_pdf_export_now(config: Config) -> Result<(), ShiftyError> {
+    api::trigger_pdf_export(&config).await
+}
+
+#[cfg(test)]
+mod working_hours_mini_loader_tests {
+    use super::*;
+    use rest_types::{SalesPersonTO, ShortEmployeeReportTO};
+    use std::sync::Arc;
+
+    fn make_report(id: Uuid, color: &str) -> ShortEmployeeReportTO {
+        ShortEmployeeReportTO {
+            sales_person: SalesPersonTO {
+                id,
+                name: Arc::<str>::from("Alex"),
+                background_color: Arc::<str>::from(color),
+                is_paid: Some(true),
+                inactive: false,
+                deleted: None,
+                version: Uuid::nil(),
+            },
+            balance_hours: 0.0,
+            expected_hours: 8.0,
+            dynamic_hours: 8.0,
+            overall_hours: 5.0,
+            volunteer_hours: 0.0,
+        }
+    }
+
+    #[test]
+    fn working_hours_mini_loader_populates_color_from_sales_person() {
+        let id = Uuid::from_u128(42);
+        let report = make_report(id, "#dbe0ff");
+        let mini = build_working_hours_mini(&report, &HashMap::new());
+        assert_eq!(mini.background_color.as_str(), "#dbe0ff");
+        assert_eq!(mini.sales_person_id, id);
+    }
+
+    #[test]
+    fn working_hours_mini_loader_falls_back_to_gray_when_color_empty() {
+        let report = make_report(Uuid::from_u128(1), "");
+        let mini = build_working_hours_mini(&report, &HashMap::new());
+        assert_eq!(mini.background_color.as_str(), "#cccccc");
+    }
+
+    #[test]
+    fn working_hours_mini_loader_uses_balance_when_present() {
+        let id = Uuid::from_u128(7);
+        let report = make_report(id, "#fff");
+        let mut balance = HashMap::new();
+        balance.insert(id, -2.5);
+        let mini = build_working_hours_mini(&report, &balance);
+        assert_eq!(mini.balance_hours, -2.5);
+    }
+
+    #[test]
+    fn working_hours_mini_loader_zero_balance_when_missing() {
+        let report = make_report(Uuid::from_u128(7), "#fff");
+        let mini = build_working_hours_mini(&report, &HashMap::new());
+        assert_eq!(mini.balance_hours, 0.0);
+    }
 }

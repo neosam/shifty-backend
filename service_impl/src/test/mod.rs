@@ -23,6 +23,10 @@ pub mod error_test;
 #[cfg(test)]
 pub mod feature_flag;
 #[cfg(test)]
+pub mod pdf_export_config;
+#[cfg(test)]
+pub mod pdf_export_scheduler;
+#[cfg(test)]
 mod permission_test;
 #[cfg(test)]
 pub mod reporting_additive_merge;
@@ -73,7 +77,7 @@ pub mod vacation_entitlement_offset;
 #[cfg(test)]
 pub mod reporting_avg_weekly;
 #[cfg(test)]
-pub mod reporting_avg_attendance;
+pub mod reporting_weekday_attendance;
 #[cfg(test)]
 pub mod reporting_attendance_gate;
 #[cfg(test)]

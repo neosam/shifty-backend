@@ -14,7 +14,12 @@ use dao_impl_sqlite::{
     shiftplan_report::ShiftplanReportDaoImpl, slot::SlotDaoImpl, special_day::SpecialDayDaoImpl,
     BasicDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl,
 };
+use service::pdf_export::PdfExportScheduler as _;
 use service::scheduler::SchedulerService;
+use service_impl::pdf_export_scheduler::{
+    PdfExportSchedulerDeps, PdfExportSchedulerImpl, ProductionWebDavUploadFactory,
+    WebDavUploadFactory,
+};
 use service_impl::{
     carryover::CarryoverServiceDeps,
     permission::PermissionServiceDeps,
@@ -54,6 +59,8 @@ type ShiftplanDao = dao_impl_sqlite::shiftplan::ShiftplanDaoImpl;
 // Phase 28 (VAC-OFFSET-01): Basic-Offset-DAO für den Urlaubsanspruch-Offset.
 type VacationEntitlementOffsetDao =
     dao_impl_sqlite::vacation_entitlement_offset::VacationEntitlementOffsetDaoImpl;
+// Phase 48 (EXP-02/EXP-03): Basic-Config-DAO für den Nextcloud-PDF-Export.
+type PdfExportConfigDao = dao_impl_sqlite::pdf_export_config::PdfExportConfigDaoImpl;
 
 type ConfigService = service_impl::config::ConfigServiceImpl;
 
@@ -283,6 +290,44 @@ type VacationEntitlementOffsetService =
     service_impl::vacation_entitlement_offset::VacationEntitlementOffsetServiceImpl<
         VacationEntitlementOffsetServiceDependencies,
     >;
+
+// Phase 48 (EXP-02/EXP-03, D-48-BASIC): PdfExportConfigServiceImpl ist
+// Basic-Tier — konsumiert AUSSCHLIESSLICH PdfExportConfigDao + Permission +
+// Clock + Uuid + Transaction. Kein Domain-Service als Dep.
+pub struct PdfExportConfigServiceDependencies;
+impl service_impl::pdf_export_config::PdfExportConfigServiceDeps
+    for PdfExportConfigServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type PdfExportConfigDao = PdfExportConfigDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type PdfExportConfigService = service_impl::pdf_export_config::PdfExportConfigServiceImpl<
+    PdfExportConfigServiceDependencies,
+>;
+
+// Phase 48 Plan 04 (EXP-01/EXP-03): PdfExportSchedulerImpl ist BL-Tier —
+// konsumiert PdfExportConfigService (Basic) + ShiftplanViewService +
+// ShiftplanService (catalog) + SalesPersonService + PermissionService +
+// ClockService + TransactionDao + eine `WebDavUploadFactory` (Prod: baut echte
+// WebDavClient pro Lauf; Tests injizieren einen Mock).
+pub struct PdfExportSchedulerDependencies;
+impl PdfExportSchedulerDeps for PdfExportSchedulerDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type PdfExportConfigService = PdfExportConfigService;
+    type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
+    type ShiftplanService = ShiftplanCatalogService;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type TransactionDao = TransactionDao;
+}
+type PdfExportSchedulerService = PdfExportSchedulerImpl<PdfExportSchedulerDependencies>;
 
 // Phase 8 (D-04, 08-02-PLAN.md): VacationBalanceServiceImpl ist BL-Tier.
 // Konsumiert AbsenceService + EmployeeWorkDetails (alias WorkingHoursService)
@@ -621,6 +666,10 @@ pub struct RestStateImpl {
     absence_conversion_service: Arc<AbsenceConversionService>,
     // Phase 28 (VAC-OFFSET-01): HR-gated REST-CRUD für den Urlaubsanspruch-Offset.
     vacation_entitlement_offset_service: Arc<VacationEntitlementOffsetService>,
+    // Phase 48 (EXP-02/EXP-03): admin-gated REST-CRUD für die PDF-Export-Konfig.
+    pdf_export_config_service: Arc<PdfExportConfigService>,
+    // Phase 48 Plan 04 (EXP-01/EXP-03): Cron-getriebener Nextcloud-Push.
+    pdf_export_scheduler: Arc<PdfExportSchedulerService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -656,6 +705,8 @@ impl rest::RestStateDef for RestStateImpl {
     type FeatureFlagService = FeatureFlagService;
     type AbsenceConversionService = AbsenceConversionService;
     type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
+    type PdfExportConfigService = PdfExportConfigService;
+    type PdfExportScheduler = PdfExportSchedulerService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -759,6 +810,12 @@ impl rest::RestStateDef for RestStateImpl {
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService> {
         self.vacation_entitlement_offset_service.clone()
     }
+    fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService> {
+        self.pdf_export_config_service.clone()
+    }
+    fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler> {
+        self.pdf_export_scheduler.clone()
+    }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
     }
@@ -771,6 +828,7 @@ impl RestStateImpl {
         let carryover_dao = Arc::new(CarryoverDao::new(pool.clone()));
         let vacation_entitlement_offset_dao =
             Arc::new(VacationEntitlementOffsetDao::new(pool.clone()));
+        let pdf_export_config_dao = Arc::new(PdfExportConfigDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
         let booking_log_dao = Arc::new(dao_impl_sqlite::booking_log::BookingLogDaoImpl);
@@ -931,6 +989,19 @@ impl RestStateImpl {
                 VacationEntitlementOffsetServiceDependencies,
             > {
                 vacation_entitlement_offset_dao,
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+        // Phase 48 (EXP-02/EXP-03, D-48-BASIC): Basic-Tier — konstruiert
+        // parallel zu den anderen Basic-Services (kein Domain-Service als Dep).
+        let pdf_export_config_service = Arc::new(
+            service_impl::pdf_export_config::PdfExportConfigServiceImpl::<
+                PdfExportConfigServiceDependencies,
+            > {
+                pdf_export_config_dao,
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),
@@ -1132,6 +1203,23 @@ impl RestStateImpl {
         // Phase 8.5 (Plan 03) — migration_source_dao wird von AbsenceConversionService benötigt.
         let migration_source_dao = Arc::new(MigrationSourceDao::new(pool.clone()));
 
+        // Phase 48 Plan 04 (EXP-01/EXP-03): PdfExportScheduler (BL-Tier).
+        // Konstruiert nach shiftplan_service (Basic) + shiftplan_view_service
+        // (Read-Aggregat) + sales_person_service (Basic) + pdf_export_config_service
+        // (Basic) + permission_service + clock_service + transaction_dao —
+        // alle bereits im Scope. Die WebDavUpload-Factory ist die Produktions-
+        // Variante, die pro Lauf einen echten WebDavClient baut.
+        let pdf_export_scheduler = Arc::new(PdfExportSchedulerService::new(
+            pdf_export_config_service.clone(),
+            shiftplan_view_service.clone(),
+            shiftplan_service.clone(),
+            sales_person_service.clone(),
+            permission_service.clone(),
+            clock_service.clone(),
+            transaction_dao.clone(),
+            Arc::new(ProductionWebDavUploadFactory) as Arc<dyn WebDavUploadFactory>,
+        ));
+
         // Phase 8.5 (Plan 03) — AbsenceConversionService (BL-Tier nach Basic-Services).
         // Konsumiert: extra_hours_dao (Basic-DAO), absence_dao (Basic-DAO),
         // migration_source_dao (Basic-DAO), extra_hours_service (Basic),
@@ -1183,6 +1271,8 @@ impl RestStateImpl {
             feature_flag_service,
             absence_conversion_service,
             vacation_entitlement_offset_service,
+            pdf_export_config_service,
+            pdf_export_scheduler,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }
@@ -1265,6 +1355,16 @@ async fn main() {
         .start()
         .await
         .expect("Expected the scheduler to start");
+
+    // Phase 48 Plan 04: PDF-Export-Scheduler starten. Bei enabled=false in
+    // der DB registriert start() den Cron-Job dormant; erst ein PUT auf
+    // `/pdf-export-config` mit enabled=true triggert einen Reload und macht
+    // den Job aktiv.
+    rest_state
+        .pdf_export_scheduler
+        .start()
+        .await
+        .expect("Expected the pdf-export scheduler to start");
 
     rest::start_server(rest_state).await
 }

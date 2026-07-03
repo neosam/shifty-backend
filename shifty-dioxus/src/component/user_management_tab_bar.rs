@@ -36,8 +36,8 @@ pub struct UserManagementTabBarProps {
 pub fn UserManagementTabBar(props: UserManagementTabBarProps) -> Element {
     let i18n = I18N.read().clone();
     let active = props.active;
-    let on_select = props.on_select.clone();
-    let on_select2 = on_select.clone();
+    let on_select = props.on_select;
+    let on_select2 = on_select;
 
     rsx! {
         div { class: "flex border-b border-border mb-4 items-center",

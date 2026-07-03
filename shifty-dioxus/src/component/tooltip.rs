@@ -28,8 +28,9 @@ pub fn TooltipBase() -> Element {
                         tooltip.x
                     };
 
-                    if let Err(_) = tooltip_base
+                    if tooltip_base
                         .set_attribute("style", &format!("top: {}px; left: {}px", tooltip.y, x))
+                        .is_err()
                     {
                         error!("Failed to set tooltip position");
                     }

@@ -30,8 +30,9 @@ pub fn DropdownBase() -> Element {
                 } else {
                     dropdown.x
                 };
-                if let Err(_) = dropdown_base
+                if dropdown_base
                     .set_attribute("style", &format!("top: {}px; left: {}px", dropdown.y, x))
+                    .is_err()
                 {
                     error!("Failed to set dropdown position");
                 }
@@ -49,7 +50,7 @@ pub fn DropdownBase() -> Element {
                 div {
                     class: "absolute z-50 bg-surface text-ink border border-border shadow-lg",
                     id: "dropdown-base",
-                    for entry in dropdown.entries.iter().filter(|entry| entry.disabled == false).cloned() {
+                    for entry in dropdown.entries.iter().filter(|entry| !entry.disabled).cloned() {
                         div {
                             class: "p-2 cursor-pointer hover:bg-surface-alt",
                             onclick: {

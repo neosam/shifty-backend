@@ -186,6 +186,8 @@ impl Identifiable for Slot {
     }
 }
 impl Slot {
+    // reason: name mirrors the `from`/`to` field naming; rename would ripple through all shiftplan callsites without semantic benefit
+    #[allow(clippy::wrong_self_convention)]
     pub fn from_hour(&self) -> f32 {
         self.from.hour() as f32 + self.from.minute() as f32 / 60.0
     }

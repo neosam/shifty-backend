@@ -538,6 +538,11 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
     // User invitations
     i18n.add_text(Locale::Cs, Key::UserInvitations, "Uživatelské pozvánky");
+    i18n.add_text(
+        Locale::Cs,
+        Key::UserInvitationsLoadError,
+        "Nepodařilo se načíst pozvánky. Podrobnosti viz chybové okno.",
+    );
     i18n.add_text(Locale::Cs, Key::GenerateInvitation, "Vytvořit pozvánku");
     i18n.add_text(Locale::Cs, Key::InvitationLink, "Odkaz na pozvánku");
     i18n.add_text(Locale::Cs, Key::RevokeInvitation, "Zrušit");
@@ -1043,21 +1048,25 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Průměrně odpracované hodiny za týden",
     );
     i18n.add_text(Locale::Cs, Key::StatisticsIncludedWeeks, "Započítané týdny");
+    // Phase 47 — Wochentag-Anwesenheits-Muster (RPT-02/RPT-03).
+    i18n.add_text(Locale::Cs, Key::WeekdayShortMon, "Po");
+    i18n.add_text(Locale::Cs, Key::WeekdayShortTue, "Út");
+    i18n.add_text(Locale::Cs, Key::WeekdayShortWed, "St");
+    i18n.add_text(Locale::Cs, Key::WeekdayShortThu, "Čt");
+    i18n.add_text(Locale::Cs, Key::WeekdayShortFri, "Pá");
+    i18n.add_text(Locale::Cs, Key::WeekdayShortSat, "So");
+    i18n.add_text(Locale::Cs, Key::WeekdayShortSun, "Ne");
     i18n.add_text(
         Locale::Cs,
-        Key::AvgHoursPerAttendanceDay,
-        "Prům. hod./den přítomnosti",
+        Key::WeekdayAttendanceTooltip,
+        "Počet pracovních dní podle dne v týdnu a podíl vůči započítaným kalendářním týdnům v období",
     );
     i18n.add_text(
         Locale::Cs,
-        Key::AvgHoursPerAttendanceDayDescription,
-        "Průměrné pracovní hodiny za den skutečné přítomnosti (pouze flexibilní zaměstnanci). Absence nejsou ve jmenovateli.",
+        Key::WeekdayAttendanceEmpty,
+        "Žádné započítané kalendářní týdny v období",
     );
-    i18n.add_text(
-        Locale::Cs,
-        Key::AvgHoursPerAttendanceDayEmpty,
-        "Nevýznamné (méně než 2 dny přítomnosti)",
-    );
+    i18n.add_text(Locale::Cs, Key::WeekdayAttendanceLabel, "Docházka / den");
 
     // Phase 24 — Konfigurace vynucení limitu placených (D-24-06, D-24-03, D-24-05).
     i18n.add_text(
@@ -1183,7 +1192,7 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::Cs,
         Key::SettingsSpecialDaysDuplicateHint,
-        "Pro toto datum již existuje zvláštní den.",
+        "Pro toto datum již existuje zvláštní den — vytvořením bude nahrazen.",
     );
     i18n.add_text(Locale::Cs, Key::SettingsSpecialDaysDeleteBtn, "Smazat");
     i18n.add_text(
@@ -1215,5 +1224,71 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Locale::Cs,
         Key::WeekStatusChangeAriaLabel,
         "Změnit stav týdne",
+    );
+
+    // Phase 46 (HYG-04): Rozevírací nabídka struktury směn — popisky.
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanEditStructure,
+        "Upravit strukturu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::ShiftplanNormalMode,
+        "Normální zobrazení",
+    );
+    i18n.add_text(Locale::Cs, Key::ShiftplanNewSlot, "Nový slot");
+
+    // Phase 48 (EXP-02 / EXP-03) — Karta PDF-exportu do Nextcloudu.
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportTitle,
+        "PDF export do Nextcloudu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportHelp,
+        "Backendová úloha renderuje týdenní směnové plány jako PDF a pravidelně je nahrává do Nextcloudu.",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportEnabled, "Export povolen");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportUrl, "URL Nextcloudu");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportUser, "Uživatel WebDAV");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportToken, "Aplikační token");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportTokenPlaceholder,
+        "(beze změny, sem zadejte nový token)",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportTargetFolder, "Cílová složka");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportWeeksHorizon, "Horizont týdnů");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportCronSchedule, "Cron plán");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportSave, "Uložit");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportSaveSuccess,
+        "Konfigurace uložena",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportSaveError,
+        "Uložení selhalo",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportTriggerNow, "Exportovat nyní");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportTriggerNowSuccess,
+        "Export spuštěn (běží na pozadí)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportTriggerNowError,
+        "Export se nepodařilo spustit",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportLastSuccess, "Poslední úspěch:");
+    i18n.add_text(Locale::Cs, Key::SettingsPdfExportLastError, "Poslední chyba:");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsPdfExportStatusEmpty,
+        "Zatím žádné spuštění",
     );
 }

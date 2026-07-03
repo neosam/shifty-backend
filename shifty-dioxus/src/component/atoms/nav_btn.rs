@@ -43,7 +43,7 @@ pub struct NavBtnProps {
 pub fn NavBtn(props: NavBtnProps) -> Element {
     let class = build_class(props.disabled);
     let disabled = props.disabled;
-    let on_click = props.on_click.clone();
+    let on_click = props.on_click;
 
     rsx! {
         button {

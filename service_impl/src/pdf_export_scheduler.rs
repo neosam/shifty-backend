@@ -1,0 +1,496 @@
+//! Business-Logic-Tier Implementation von
+//! [`service::pdf_export::PdfExportScheduler`] (Phase 48 EXP-01 + EXP-03).
+//!
+//! Kombiniert die Bausteine aus 48-01 (Config), 48-02 (PDF-Render) und 48-03
+//! (WebDAV-Upload) zum Cron-getriebenen Nextcloud-Push. Der Scheduler wird in
+//! `shifty_bin/src/main.rs` beim Boot mit
+//! [`PdfExportSchedulerImpl::start`] gestartet; Config-Änderungen via
+//! `PUT /pdf-export-config` triggern
+//! [`PdfExportSchedulerImpl::reload_from_db`].
+//!
+//! ## Token-Leak-Guard
+//!
+//! Diese Datei enthält KEINE `tracing`-Aufrufe, die `webdav_app_token`
+//! oder ähnliche Sensitive-Config-Felder loggen. Der einzige Weg wie das
+//! Token nach außen dringt ist der WebDAV-Basic-Auth-Header, den der
+//! [`crate::webdav_client::WebDavClient`] intern mit
+//! `header_value.set_sensitive(true)` markiert.
+//!
+//! ## v1-Vereinfachung: nur der erste aktive Shiftplan
+//!
+//! `run_once_now` rendert PRO WOCHE genau EINEN Shiftplan (den ersten
+//! non-deleted aus `shiftplan_service.get_all()`), weil das für den v1-Use-
+//! Case (ein „Planungs"-Shiftplan pro Woche) der Regelfall ist. Multi-
+//! Shiftplan-Zusammenführung im PDF ist ein Follow-up wenn benötigt.
+
+use std::fmt::Debug;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use dao::TransactionDao;
+use service::{
+    clock::ClockService,
+    pdf_export::PdfExportScheduler,
+    pdf_export_config::PdfExportConfigService,
+    permission::Authentication,
+    sales_person::SalesPersonService,
+    shiftplan::ShiftplanViewService,
+    shiftplan_catalog::ShiftplanService,
+    PermissionService, ServiceError,
+};
+use shifty_utils::{ShiftyDate, ShiftyWeek};
+use tokio::sync::Mutex;
+use tokio_cron_scheduler::{Job, JobScheduler};
+use tracing::{error, info, warn};
+use uuid::Uuid;
+
+use crate::gen_service_impl;
+use crate::pdf_render;
+use crate::webdav_client::{WebDavClient, WebDavError, WebDavUpload};
+
+const INCOMPLETE_CONFIG_MSG: &str = "Konfiguration unvollständig";
+
+gen_service_impl! {
+    struct PdfExportSchedulerImpl: service::pdf_export::PdfExportScheduler = PdfExportSchedulerDeps {
+        PdfExportConfigService: PdfExportConfigService<
+            Context = Self::Context,
+            Transaction = Self::Transaction,
+        > = pdf_export_config_service,
+        ShiftplanViewService: ShiftplanViewService<
+            Context = Self::Context,
+            Transaction = Self::Transaction,
+        > = shiftplan_view_service,
+        ShiftplanService: ShiftplanService<
+            Context = Self::Context,
+            Transaction = Self::Transaction,
+        > = shiftplan_service,
+        SalesPersonService: SalesPersonService<
+            Context = Self::Context,
+            Transaction = Self::Transaction,
+        > = sales_person_service,
+        PermissionService: PermissionService<Context = Self::Context> = permission_service,
+        ClockService: ClockService = clock_service,
+        TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
+    }
+    ; custom_fields {
+        webdav_upload_factory: Arc<dyn WebDavUploadFactory> = webdav_upload_factory,
+        scheduler: Arc<Mutex<Option<JobScheduler>>> = scheduler,
+        current_job: Arc<Mutex<Option<Uuid>>> = current_job,
+    }
+}
+
+/// Factory für den WebDAV-Upload — pro Lauf wird ein Client aus der aktuellen
+/// Config gebaut. In Tests kann ein Mock-Upload injiziert werden, in der
+/// Produktion baut die [`ProductionWebDavUploadFactory`] einen echten
+/// [`WebDavClient`].
+pub trait WebDavUploadFactory: Send + Sync + 'static {
+    fn build(
+        &self,
+        base_url: &str,
+        user: &str,
+        app_token: &str,
+    ) -> Result<Arc<dyn WebDavUpload>, WebDavError>;
+}
+
+/// Production-Factory: baut einen echten [`WebDavClient`] pro Lauf.
+pub struct ProductionWebDavUploadFactory;
+
+impl WebDavUploadFactory for ProductionWebDavUploadFactory {
+    fn build(
+        &self,
+        base_url: &str,
+        user: &str,
+        app_token: &str,
+    ) -> Result<Arc<dyn WebDavUpload>, WebDavError> {
+        let client = WebDavClient::new(Arc::<str>::from(base_url), user, app_token)?;
+        Ok(Arc::new(client))
+    }
+}
+
+impl<Deps: PdfExportSchedulerDeps> PdfExportSchedulerImpl<Deps> {
+    /// Konstruktor. Der `JobScheduler` wird lazy in `start()` initialisiert,
+    /// damit `new()` synchron bleibt und die DI-Wiring-Reihenfolge in
+    /// `shifty_bin/src/main.rs` einfach ist.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        pdf_export_config_service: Arc<Deps::PdfExportConfigService>,
+        shiftplan_view_service: Arc<Deps::ShiftplanViewService>,
+        shiftplan_service: Arc<Deps::ShiftplanService>,
+        sales_person_service: Arc<Deps::SalesPersonService>,
+        permission_service: Arc<Deps::PermissionService>,
+        clock_service: Arc<Deps::ClockService>,
+        transaction_dao: Arc<Deps::TransactionDao>,
+        webdav_upload_factory: Arc<dyn WebDavUploadFactory>,
+    ) -> Self {
+        Self {
+            pdf_export_config_service,
+            shiftplan_view_service,
+            shiftplan_service,
+            sales_person_service,
+            permission_service,
+            clock_service,
+            transaction_dao,
+            webdav_upload_factory,
+            scheduler: Arc::new(Mutex::new(None)),
+            current_job: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+/// Snapshot dessen was `run_once_now` aus der Config braucht — vermeidet
+/// dass der Klartext-Token länger als nötig im Prozess wandert.
+struct RunConfig {
+    base_url: Arc<str>,
+    user: Arc<str>,
+    app_token: Arc<str>,
+    target_folder: Arc<str>,
+    weeks_horizon: u32,
+}
+
+fn extract_run_config(
+    cfg: &service::pdf_export_config::PdfExportConfig,
+) -> Option<RunConfig> {
+    let base_url = cfg.nextcloud_url.clone()?;
+    let user = cfg.webdav_user.clone()?;
+    let app_token = cfg.webdav_app_token.clone()?;
+    let target_folder = cfg.target_folder.clone()?;
+    if base_url.is_empty()
+        || user.is_empty()
+        || app_token.is_empty()
+        || target_folder.is_empty()
+    {
+        return None;
+    }
+    Some(RunConfig {
+        base_url,
+        user,
+        app_token,
+        target_folder,
+        weeks_horizon: cfg.weeks_horizon.max(1),
+    })
+}
+
+#[async_trait]
+impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSchedulerImpl<Deps> {
+    type Context = Deps::Context;
+    type Transaction = Deps::Transaction;
+
+    async fn start(&self) -> Result<(), ServiceError> {
+        // Initialize the JobScheduler lazily (needs a tokio runtime — safe here
+        // because `start` is called from `main`).
+        let mut sched_guard = self.scheduler.lock().await;
+        if sched_guard.is_none() {
+            let scheduler = JobScheduler::new()
+                .await
+                .map_err(|e| {
+                    error!("pdf-export scheduler init failed: {e}");
+                    ServiceError::InternalError
+                })?;
+            *sched_guard = Some(scheduler);
+        }
+        drop(sched_guard);
+        self.reload_from_db().await?;
+        let sched_guard = self.scheduler.lock().await;
+        if let Some(sched) = sched_guard.as_ref() {
+            sched.start().await.map_err(|e| {
+                error!("pdf-export scheduler start failed: {e}");
+                ServiceError::InternalError
+            })?;
+        }
+        Ok(())
+    }
+
+    async fn reload_from_db(&self) -> Result<(), ServiceError> {
+        let cfg = self
+            .pdf_export_config_service
+            .get(Authentication::Full, None)
+            .await?;
+
+        // Remove any previously registered job. We do this whether or not
+        // the new config is enabled — a "disabled" state simply means no
+        // active job registration.
+        let mut sched_guard = self.scheduler.lock().await;
+        let scheduler = match sched_guard.as_mut() {
+            Some(s) => s,
+            None => {
+                // Not initialised yet — `start()` will call reload_from_db.
+                return Ok(());
+            }
+        };
+        let mut job_guard = self.current_job.lock().await;
+        if let Some(job_id) = job_guard.take() {
+            if let Err(e) = scheduler.remove(&job_id).await {
+                warn!("pdf-export: could not remove previous cron job: {e}");
+            }
+        }
+
+        if !cfg.enabled {
+            info!("pdf-export: scheduler reload complete (disabled)");
+            return Ok(());
+        }
+
+        let cron_schedule = cfg.cron_schedule.to_string();
+        let scheduler_ref = self.clone_for_job();
+        let job_result = Job::new_async(cron_schedule.as_str(), move |_uuid, _lock| {
+            let scheduler = scheduler_ref.clone();
+            Box::pin(async move {
+                if let Err(e) = scheduler.run_once_now(Authentication::Full).await {
+                    error!("pdf-export cron run failed: {e:?}");
+                }
+            })
+        });
+        match job_result {
+            Ok(job) => match scheduler.add(job).await {
+                Ok(job_id) => {
+                    *job_guard = Some(job_id);
+                    info!(
+                        "pdf-export: cron job registered with schedule '{}'",
+                        cron_schedule
+                    );
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("pdf-export: could not add cron job: {e}");
+                    Err(ServiceError::InternalError)
+                }
+            },
+            Err(e) => {
+                error!("pdf-export: invalid cron expression '{}': {e}", cron_schedule);
+                // Persist a diagnostic so the admin sees the failure in the UI.
+                let at = self.clock_service.date_time_now();
+                let msg: Arc<str> =
+                    Arc::from(format!("Cron-Ausdruck ungültig: {cron_schedule}"));
+                if let Err(err) = self
+                    .pdf_export_config_service
+                    .record_error(at, msg, Authentication::Full, None)
+                    .await
+                {
+                    warn!("pdf-export: could not persist cron-parse error: {err:?}");
+                }
+                Err(ServiceError::InternalError)
+            }
+        }
+    }
+
+    async fn run_once_now(
+        &self,
+        context: Authentication<Self::Context>,
+    ) -> Result<(), ServiceError> {
+        // Trusted-Caller-Gate: Cron-Path calls with Authentication::Full;
+        // REST-Handler stellt sicher dass Admin geprüft ist und wandelt dann
+        // in Authentication::Full um für den Full-Auth-only Config-Recorder.
+        self.permission_service
+            .check_only_full_authentication(context.clone())
+            .await?;
+
+        let cfg = self
+            .pdf_export_config_service
+            .get(Authentication::Full, None)
+            .await?;
+
+        if !cfg.enabled {
+            info!("pdf-export skipped (disabled)");
+            return Ok(());
+        }
+
+        let run_cfg = match extract_run_config(&cfg) {
+            Some(v) => v,
+            None => {
+                info!("pdf-export skipped (incomplete config)");
+                let at = self.clock_service.date_time_now();
+                let msg: Arc<str> = Arc::from(INCOMPLETE_CONFIG_MSG);
+                self.pdf_export_config_service
+                    .record_error(at, msg, Authentication::Full, None)
+                    .await?;
+                return Ok(());
+            }
+        };
+
+        // Build the WebDAV upload client via the factory. Any failure to
+        // build is persisted as record_error and returns Ok(()).
+        let upload: Arc<dyn WebDavUpload> = match self.webdav_upload_factory.build(
+            &run_cfg.base_url,
+            &run_cfg.user,
+            &run_cfg.app_token,
+        ) {
+            Ok(u) => u,
+            Err(e) => {
+                let at = self.clock_service.date_time_now();
+                let msg: Arc<str> = Arc::from(format!("WebDAV-Client-Init fehlgeschlagen: {e}"));
+                self.pdf_export_config_service
+                    .record_error(at, msg, Authentication::Full, None)
+                    .await?;
+                return Ok(());
+            }
+        };
+
+        // Pull the shiftplans and sales-persons once for the whole horizon.
+        let all_shiftplans = self
+            .shiftplan_service
+            .get_all(Authentication::Full, None)
+            .await?;
+        let active_shiftplan = all_shiftplans
+            .iter()
+            .find(|s| s.deleted.is_none());
+        let shiftplan_id = match active_shiftplan {
+            Some(s) => s.id,
+            None => {
+                let at = self.clock_service.date_time_now();
+                let msg: Arc<str> = Arc::from("Kein aktiver Shiftplan vorhanden");
+                self.pdf_export_config_service
+                    .record_error(at, msg, Authentication::Full, None)
+                    .await?;
+                return Ok(());
+            }
+        };
+
+        let all_sales_persons = self
+            .sales_person_service
+            .get_all(Authentication::Full, None)
+            .await?;
+        let active_sales_persons: Vec<service::sales_person::SalesPerson> = all_sales_persons
+            .iter()
+            .filter(|sp| sp.deleted.is_none())
+            .cloned()
+            .collect();
+
+        // Determine the horizon of ISO weeks.
+        let now_date = self.clock_service.date_now();
+        let start_shifty = ShiftyDate::from_date(now_date);
+        let start_week = ShiftyWeek::new(start_shifty.year(), start_shifty.week());
+        let mut cursor = start_week;
+        let horizon = run_cfg.weeks_horizon as usize;
+        for offset in 0..horizon {
+            let (y, w) = (cursor.year, cursor.week);
+            let week_view = match self
+                .shiftplan_view_service
+                .get_shiftplan_week(shiftplan_id, y, w, Authentication::Full, None)
+                .await
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    let at = self.clock_service.date_time_now();
+                    let msg: Arc<str> = Arc::from(format!(
+                        "Wochenansicht KW{w:02}/{y} konnte nicht geladen werden: {e}"
+                    ));
+                    self.pdf_export_config_service
+                        .record_error(at, msg, Authentication::Full, None)
+                        .await?;
+                    return Ok(());
+                }
+            };
+
+            let bytes = match pdf_render::render_shiftplan_week_pdf(
+                &week_view,
+                &active_sales_persons,
+                y,
+                w,
+            ) {
+                Ok(b) => b,
+                Err(e) => {
+                    let at = self.clock_service.date_time_now();
+                    let msg: Arc<str> = Arc::from(format!(
+                        "PDF-Rendering für KW{w:02}/{y} fehlgeschlagen: {e}"
+                    ));
+                    self.pdf_export_config_service
+                        .record_error(at, msg, Authentication::Full, None)
+                        .await?;
+                    return Ok(());
+                }
+            };
+
+            let filename = format!("schichtplan-{y}-KW{w:02}.pdf");
+            if let Err(e) = upload
+                .upload_file(&run_cfg.target_folder, &filename, bytes)
+                .await
+            {
+                let at = self.clock_service.date_time_now();
+                let msg: Arc<str> = match &e {
+                    WebDavError::Transient { attempts, .. } => Arc::from(format!(
+                        "WebDAV-Upload für KW{w:02}/{y} nach {attempts} Versuchen (transient) fehlgeschlagen"
+                    )),
+                    WebDavError::Permanent { status, .. } => Arc::from(format!(
+                        "WebDAV-Upload für KW{w:02}/{y} permanent fehlgeschlagen ({status})"
+                    )),
+                    WebDavError::Io(_) => Arc::from(format!(
+                        "WebDAV-Upload für KW{w:02}/{y} — Netzwerkfehler"
+                    )),
+                };
+                // Log a token-free diagnostic (WebDavError's Display never
+                // includes the Basic-Auth header — see 48-03 T-48-08).
+                error!("pdf-export upload failed for KW{w:02}/{y}: {e}");
+                self.pdf_export_config_service
+                    .record_error(at, msg, Authentication::Full, None)
+                    .await?;
+                // Do not attempt further weeks — surface first failure and
+                // let the next cron slot retry from scratch (per plan).
+                let _ = offset;
+                return Ok(());
+            }
+
+            cursor = cursor.next();
+        }
+
+        let at = self.clock_service.date_time_now();
+        self.pdf_export_config_service
+            .record_success(at, Authentication::Full, None)
+            .await?;
+        info!(
+            "pdf-export success: {} week(s) uploaded to Nextcloud",
+            horizon
+        );
+        Ok(())
+    }
+}
+
+/// Clone-Handle für den Cron-Callback: wir dürfen `self` nicht direkt in die
+/// Closure moven (async trait method), also klonen wir alle `Arc`-Handles in
+/// einen leichten Handle-Struct.
+struct PdfExportSchedulerHandle<Deps: PdfExportSchedulerDeps> {
+    inner: Arc<PdfExportSchedulerImpl<Deps>>,
+}
+
+impl<Deps: PdfExportSchedulerDeps> Clone for PdfExportSchedulerHandle<Deps> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportSchedulerHandle<Deps> {
+    async fn run_once_now(
+        &self,
+        context: Authentication<Deps::Context>,
+    ) -> Result<(), ServiceError> {
+        self.inner.run_once_now(context).await
+    }
+}
+
+impl<Deps: PdfExportSchedulerDeps> PdfExportSchedulerImpl<Deps> {
+    fn clone_for_job(&self) -> PdfExportSchedulerHandle<Deps> {
+        // Build a fresh Arc that shares the fields — cheaper than `Arc::new`
+        // wrapping self because the impl fields are already Arc.
+        PdfExportSchedulerHandle {
+            inner: Arc::new(Self {
+                pdf_export_config_service: self.pdf_export_config_service.clone(),
+                shiftplan_view_service: self.shiftplan_view_service.clone(),
+                shiftplan_service: self.shiftplan_service.clone(),
+                sales_person_service: self.sales_person_service.clone(),
+                permission_service: self.permission_service.clone(),
+                clock_service: self.clock_service.clone(),
+                transaction_dao: self.transaction_dao.clone(),
+                webdav_upload_factory: self.webdav_upload_factory.clone(),
+                scheduler: self.scheduler.clone(),
+                current_job: self.current_job.clone(),
+            }),
+        }
+    }
+}
+
+impl<Deps: PdfExportSchedulerDeps> Debug for PdfExportSchedulerImpl<Deps> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PdfExportSchedulerImpl")
+            .finish_non_exhaustive()
+    }
+}

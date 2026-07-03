@@ -1,3 +1,12 @@
+---
+created: 2026-07-02T12:00:00.000Z
+title: i18n-Impersonation-Key Test-Mismatch (vorbestehend, prä-v2.1)
+area: frontend / i18n
+resolves_phase: 46
+files:
+  - shifty-dioxus/src/i18n/mod.rs:1578
+---
+
 # Todo: i18n-Impersonation-Key Test-Mismatch (vorbestehend, prä-v2.1)
 
 **Erfasst:** 2026-07-02 (beim v2.1-Milestone-Close)

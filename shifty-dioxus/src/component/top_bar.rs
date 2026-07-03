@@ -158,6 +158,8 @@ pub(crate) fn is_admin_target_with_context(
 /// Task 4). Bei `absences_under_admin = true` landet `NavTarget::Absences`
 /// in der admin-Group; sonst bleibt es Top-Level (kompatibel mit dem
 /// bisherigen D-10-Verhalten).
+// reason: return partitions the same tuple shape used in nav-item routing; extracting a type alias would obscure the D-10 contract locality
+#[allow(clippy::type_complexity)]
 pub(crate) fn partition_nav_items_with_context<T: Clone>(
     items: &[(NavTarget, T, String)],
     absences_under_admin: bool,
@@ -570,13 +572,10 @@ fn TopBarRouted() -> Element {
                     class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
                     "aria-label": theme_aria.as_str(),
                     title: format!("{} (klicken zum Wechseln)", theme_aria_label(theme_mode)),
-                    onclick: {
-                        let theme_service = theme_service.clone();
-                        move |evt: Event<MouseData>| {
-                            evt.prevent_default();
-                            let next = cycle_theme(*THEME_MODE.read());
-                            theme_service.send(ThemeAction::SetMode(next));
-                        }
+                    onclick: move |evt: Event<MouseData>| {
+                        evt.prevent_default();
+                        let next = cycle_theme(*THEME_MODE.read());
+                        theme_service.send(ThemeAction::SetMode(next));
                     },
                     "{theme_glyph_str}"
                 }
@@ -676,13 +675,10 @@ fn TopBarLanding() -> Element {
                     class: "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-border bg-transparent text-ink-soft text-[15px] flex-shrink-0",
                     "aria-label": theme_aria.as_str(),
                     title: theme_title,
-                    onclick: {
-                        let theme_service = theme_service.clone();
-                        move |evt: Event<MouseData>| {
-                            evt.prevent_default();
-                            let next = cycle_theme(*THEME_MODE.read());
-                            theme_service.send(ThemeAction::SetMode(next));
-                        }
+                    onclick: move |evt: Event<MouseData>| {
+                        evt.prevent_default();
+                        let next = cycle_theme(*THEME_MODE.read());
+                        theme_service.send(ThemeAction::SetMode(next));
                     },
                     "{theme_glyph_str}"
                 }

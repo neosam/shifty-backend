@@ -34,7 +34,7 @@ pub enum WeeklySummaryAction {
 }
 
 async fn load_weekly_summary_year(year: u32) -> Result<(), ShiftyError> {
-    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = false;
+    WEEKLY_SUMMARY_STORE.write().data_loaded = false;
     let weekly_summary = loader::load_weekly_summary_for_year(CONFIG.read().clone(), year).await?;
     // D-30-04: year data must never satisfy the week render-guard — stamp loaded_week = None
     // so summary cards (which compare loaded_week against the selected week) stay in the
@@ -49,7 +49,7 @@ async fn load_weekly_summary_year(year: u32) -> Result<(), ShiftyError> {
 }
 
 async fn load_summary_for_week(year: u32, week: u8) -> Result<(), ShiftyError> {
-    (*WEEKLY_SUMMARY_STORE.write()).data_loaded = false;
+    WEEKLY_SUMMARY_STORE.write().data_loaded = false;
     let weekly_summary = loader::load_summary_for_week(CONFIG.read().clone(), year, week).await?;
     // D-30-01 / SC3: only write the store if the week we loaded for is still the
     // selected week.  A result that arrives after a week-switch is silently dropped
@@ -73,7 +73,7 @@ pub async fn weekly_summary_service(mut rx: UnboundedReceiver<WeeklySummaryActio
             Ok(_) => {}
             Err(err) => {
                 *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
+                    error: Some(err),
                 };
             }
         }

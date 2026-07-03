@@ -9,9 +9,10 @@ use rest_types::{
     EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, ImpersonateTO, InvitationResponse,
-    RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO, ShortEmployeeReportTO, SlotTO,
-    SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO, UserRole, UserTO, VacationBalanceTO,
-    VacationEntitlementOffsetTO, VacationPayloadTO, WeekMessageTO, WeekStatusTO, WeeklySummaryTO,
+    PdfExportConfigTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
+    ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO,
+    UserRole, UserTO, VacationBalanceTO, VacationEntitlementOffsetTO, VacationPayloadTO,
+    WeekMessageTO, WeekStatusTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -287,7 +288,7 @@ pub async fn put_sales_person(
     let url = format!(
         "{}/sales-person/{}",
         config.backend,
-        sales_person.id.to_string()
+        sales_person.id
     );
     let client = reqwest::Client::new();
     let response = client.put(url).json(&sales_person).send().await?;
@@ -1024,7 +1025,7 @@ pub async fn put_employee_work_details(
     let url = format!(
         "{}/working-hours/{}",
         config.backend,
-        work_details.id.to_string()
+        work_details.id
     );
     let client = reqwest::Client::new();
     let response = client.put(url).json(&work_details).send().await?;
@@ -1441,28 +1442,21 @@ pub async fn generate_invitation(
     Ok(res)
 }
 
-pub async fn list_user_invitations(
-    config: Config,
-    username: ImStr,
-) -> Result<Rc<[InvitationResponse]>, reqwest::Error> {
-    info!("Fetching invitations for user {username}");
-    let url = format!(
-        "{}/user-invitation/invitation/user/{}",
-        config.backend, username
-    );
-    info!("Invitation API URL: {}", url);
-
-    let response = reqwest::get(url).await?;
-    info!("Response status: {}", response.status());
-
-    response.error_for_status_ref()?;
-
-    // Get the raw response text first to see what we're working with
-    let response_text = response.text().await?;
-    info!("Raw response body: {}", response_text);
-
-    // Try to parse the JSON
-    match serde_json::from_str::<Rc<[InvitationResponse]>>(&response_text) {
+/// Parses the raw JSON body returned by
+/// `GET /user-invitation/invitation/user/{name}` into
+/// `Rc<[InvitationResponse]>`.
+///
+/// Extracted as a pure function so BUG-02's regression path is unit-testable
+/// without touching `reqwest`. On parse failure we return
+/// [`crate::error::ShiftyError::InvitationParse`] carrying the serde error
+/// message concatenated with the first 200 characters of the body — enough
+/// to diagnose schema drift without leaking a full response into
+/// long-lived state. See `error.rs` for the security note on why the
+/// snippet is safe.
+pub(crate) fn parse_invitations_response(
+    body: &str,
+) -> Result<Rc<[InvitationResponse]>, crate::error::ShiftyError> {
+    match serde_json::from_str::<Rc<[InvitationResponse]>>(body) {
         Ok(invitations) => {
             info!("Successfully parsed {} invitations", invitations.len());
             for (i, invitation) in invitations.iter().enumerate() {
@@ -1479,12 +1473,36 @@ pub async fn list_user_invitations(
         }
         Err(e) => {
             tracing::error!("Failed to deserialize invitations: {}", e);
-            tracing::error!("Response text was: {}", response_text);
-            // For now, return empty array but log the error properly
-            // TODO: Find a better way to convert serde error to reqwest error
-            Ok(Rc::new([]))
+            tracing::error!("Response text was: {}", body);
+            let head: String = body.chars().take(200).collect();
+            Err(crate::error::ShiftyError::InvitationParse(format!(
+                "{e} — body head: {head}"
+            )))
         }
     }
+}
+
+pub async fn list_user_invitations(
+    config: Config,
+    username: ImStr,
+) -> Result<Rc<[InvitationResponse]>, crate::error::ShiftyError> {
+    info!("Fetching invitations for user {username}");
+    let url = format!(
+        "{}/user-invitation/invitation/user/{}",
+        config.backend, username
+    );
+    info!("Invitation API URL: {}", url);
+
+    let response = reqwest::get(url).await?;
+    info!("Response status: {}", response.status());
+
+    response.error_for_status_ref()?;
+
+    // Get the raw response text first to see what we're working with
+    let response_text = response.text().await?;
+    info!("Raw response body: {}", response_text);
+
+    parse_invitations_response(&response_text)
 }
 
 pub async fn revoke_invitation(config: Config, invitation_id: Uuid) -> Result<(), reqwest::Error> {
@@ -1636,6 +1654,104 @@ mod normalize_backend_tests {
     }
 }
 
+#[cfg(test)]
+mod parse_invitations_tests {
+    //! BUG-02 (v2.2): the `list_user_invitations` API used to silently
+    //! swallow serde-parse failures by returning an empty-Ok array. These
+    //! tests pin the new behavior: a Parse-Error must surface as
+    //! `ShiftyError::InvitationParse(_)` — never as an empty-Ok — while
+    //! valid JSON continues to parse successfully.
+    use super::parse_invitations_response;
+    use crate::error::ShiftyError;
+
+    /// Test 1 — the new `ShiftyError::InvitationParse` display renders the
+    /// diagnostic prefix `"invitation parse error"` and preserves the
+    /// underlying cause message.
+    #[test]
+    fn invitation_parse_display_contains_prefix_and_cause() {
+        let err = ShiftyError::InvitationParse("expected `,` at line 3".into());
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains("invitation parse error"),
+            "missing prefix in {rendered:?}",
+        );
+        assert!(
+            rendered.contains("expected `,` at line 3"),
+            "cause message not surfaced in {rendered:?}",
+        );
+    }
+
+    /// Test 2 — well-formed JSON (empty array + a populated array) must
+    /// continue to parse as `Ok`. Guards against a regression where the
+    /// pure-fn extraction accidentally rejected valid bodies.
+    #[test]
+    fn valid_empty_array_parses_ok() {
+        let parsed = parse_invitations_response("[]")
+            .expect("valid empty JSON array must parse");
+        assert_eq!(parsed.len(), 0);
+    }
+
+    #[test]
+    fn valid_populated_array_parses_ok() {
+        // Minimal InvitationResponse fixture — pins rest-types field names
+        // (id/username/token/invitation_link/redeemed_at/status). A schema
+        // change on any of these fields fails this test, which is exactly
+        // the drift-detection BUG-02 needs to catch before it hits the UI.
+        let body = r#"[
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "username": "alice",
+                "token": "22222222-2222-2222-2222-222222222222",
+                "invitation_link": "http://example.com/invite/abc",
+                "redeemed_at": null,
+                "status": "valid"
+            }
+        ]"#;
+        let parsed = parse_invitations_response(body)
+            .expect("valid invitation JSON must parse");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].username, "alice");
+    }
+
+    /// Test 3 — malformed JSON must NOT silently degrade to an empty-Ok
+    /// array; it must produce `Err(ShiftyError::InvitationParse(_))` with a
+    /// non-empty message. This is the core BUG-02 regression.
+    #[test]
+    fn invalid_json_returns_invitation_parse_error() {
+        let err = parse_invitations_response("nope")
+            .expect_err("invalid JSON must surface as an error, not silent-empty");
+        match &err {
+            ShiftyError::InvitationParse(msg) => {
+                assert!(
+                    !msg.is_empty(),
+                    "InvitationParse message must not be empty",
+                );
+                assert!(
+                    msg.contains("body head"),
+                    "expected body-head snippet in message: {msg:?}",
+                );
+            }
+            other => panic!(
+                "expected ShiftyError::InvitationParse, got: {other:?}",
+            ),
+        }
+    }
+
+    /// Backend-shape-drift regression: a `{"error": "..."}` object (instead
+    /// of the expected top-level array) is exactly the kind of body that
+    /// v1.x silently rendered as "no invitations". It must surface an
+    /// error now.
+    #[test]
+    fn wrong_shape_object_returns_invitation_parse_error() {
+        let err = parse_invitations_response(r#"{"error":"nope"}"#)
+            .expect_err("wrong-shape body must surface as an error");
+        assert!(
+            matches!(err, ShiftyError::InvitationParse(_)),
+            "expected InvitationParse variant, got: {err:?}",
+        );
+    }
+}
+
 // ─── Toggle REST client (Phase 24 D-24-06) ───────────────────────────────────
 
 /// PUT /toggle/{name}/enable or /disable
@@ -1656,7 +1772,7 @@ pub async fn get_toggle_enabled(config: Config, name: &str) -> Result<bool, reqw
     let url = format!("{}/toggle/{}/enabled", config.backend, name);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
-    Ok(response.json().await?)
+    response.json().await
 }
 
 // ─── Toggle value REST clients (Phase 25 D-25-06) ────────────────────────────
@@ -1673,7 +1789,7 @@ pub async fn get_toggle_value(
         return Ok(None);
     }
     response.error_for_status_ref()?;
-    Ok(response.json::<Option<String>>().await?)
+    response.json::<Option<String>>().await
 }
 
 /// PUT /toggle/{name}/value — sets the value to the given ISO date string.
@@ -1747,4 +1863,53 @@ pub async fn stop_impersonate(config: Config) -> Result<ImpersonateTO, reqwest::
     info!("Stopped impersonation");
     Ok(res)
 }
+
+// ─── PDF-Export-Config REST client (Phase 48-05 EXP-02 / EXP-03) ────────────
+
+/// GET `/pdf-export-config` — admin-gated. Response has `webdav_app_token = None`
+/// per T-48-02 (server masks the token in every response).
+pub async fn get_pdf_export_config(
+    config: &Config,
+) -> Result<PdfExportConfigTO, ShiftyError> {
+    info!("Fetching PDF export config");
+    let url = format!("{}/pdf-export-config", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res: PdfExportConfigTO = response.json().await?;
+    info!("Fetched PDF export config");
+    Ok(res)
+}
+
+/// PUT `/pdf-export-config` — admin-gated. When `body.webdav_app_token` is
+/// `None` the backend keeps the existing token (D-48-UI-TOKEN-KEEP); a
+/// `Some(v)` replaces it.
+pub async fn put_pdf_export_config(
+    config: &Config,
+    body: PdfExportConfigTO,
+) -> Result<PdfExportConfigTO, ShiftyError> {
+    info!("Updating PDF export config");
+    let url = format!("{}/pdf-export-config", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.put(url).json(&body).send().await?;
+    response.error_for_status_ref()?;
+    let res: PdfExportConfigTO = response.json().await?;
+    info!("Updated PDF export config");
+    Ok(res)
+}
+
+/// POST `/pdf-export-config/trigger` — admin-gated, spawns `run_once_now` in
+/// the background. Backend responds with **204 No Content** (per Plan 48-04
+/// decision — HYG-05 content-type-surface gate) once accepted; the actual run
+/// happens asynchronously and its outcome lands in `last_success_at` /
+/// `last_error_at` (visible via GET).
+pub async fn trigger_pdf_export(config: &Config) -> Result<(), ShiftyError> {
+    info!("Triggering PDF export run");
+    let url = format!("{}/pdf-export-config/trigger", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("PDF export trigger accepted");
+    Ok(())
+}
+
 

@@ -23,7 +23,7 @@ pub struct FormCheckboxProps {
 
 #[component]
 pub fn FormCheckbox(props: FormCheckboxProps) -> Element {
-    let on_change = props.on_change.clone();
+    let on_change = props.on_change;
     let disabled = props.disabled;
     let checked = props.value;
 

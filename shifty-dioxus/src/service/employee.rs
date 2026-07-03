@@ -293,7 +293,7 @@ pub async fn employee_service(mut rx: UnboundedReceiver<EmployeeAction>) {
             Ok(_) => {}
             Err(err) => {
                 *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
+                    error: Some(err),
                 };
             }
         }

@@ -9,7 +9,7 @@ use axum::{
 };
 use rest_types::{
     EmployeeAttendanceStatisticsTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO,
-    ShortEmployeeReportTO,
+    ShortEmployeeReportTO, WeekdayAttendanceTO,
 };
 use serde::Deserialize;
 use service::reporting::ReportingService;
@@ -206,7 +206,7 @@ pub async fn get_weekly_statistics<RestState: RestStateDef>(
         ("until_week" = u8, Query, description = "The week to report until")
     ),
     responses(
-        (status = 200, description = "HR-only average worked hours per attendance day over the report range; null body for non-flexible employees", body = inline(Option<EmployeeAttendanceStatisticsTO>), content_type = "application/json"),
+        (status = 200, description = "HR-only per-weekday attendance-day distribution (count + share) over the report range for flexible employees; null body for non-flexible employees", body = inline(Option<EmployeeAttendanceStatisticsTO>), content_type = "application/json"),
         (status = 403, description = "Forbidden — HR role required"),
         (status = 500, description = "Internal server error")
     )
@@ -258,7 +258,8 @@ pub async fn get_attendance_statistics<RestState: RestStateDef>(
         EmployeeReportTO,
         ReportRequest,
         EmployeeWeeklyStatisticsTO,
-        EmployeeAttendanceStatisticsTO
+        EmployeeAttendanceStatisticsTO,
+        WeekdayAttendanceTO
     ))
 )]
 pub struct ReportApiDoc;

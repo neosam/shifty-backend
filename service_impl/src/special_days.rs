@@ -69,18 +69,50 @@ impl<
             .map(SpecialDay::from)
             .collect())
     }
+    /// Liefert alle Special Days, deren tatsächliches **Kalender-Datum** ins
+    /// Kalenderjahr `year` fällt. Die DB speichert `year` als ISO-Wochenjahr —
+    /// ein Eintrag am 01.01.2027 landet z.B. als `(year=2026, week=53, day=Fri)`.
+    /// Daher werden hier `year` und `year - 1` geladen und dann per
+    /// `ShiftyDate::to_date().year()` gefiltert (SDF-03 post-ship).
     async fn get_by_year(
         &self,
         year: u32,
         _context: Authentication<Self::Context>,
     ) -> Result<Arc<[SpecialDay]>, ServiceError> {
-        Ok(self
-            .special_day_dao
-            .find_by_year(year)
-            .await?
-            .iter()
-            .map(SpecialDay::from)
-            .collect())
+        use shifty_utils::ShiftyDate;
+
+        let target_year = year as i32;
+        let mut results: Vec<SpecialDay> = Vec::new();
+
+        let mut push_matches = |entities: Arc<[SpecialDayEntity]>| {
+            for entity in entities.iter() {
+                let sd = SpecialDay::from(entity);
+                let Ok(shifty_date) =
+                    ShiftyDate::new(sd.year, sd.calendar_week, sd.day_of_week)
+                else {
+                    continue;
+                };
+                if shifty_date.to_date().year() == target_year {
+                    results.push(sd);
+                }
+            }
+        };
+
+        push_matches(self.special_day_dao.find_by_year(year).await?);
+        if year > 0 {
+            push_matches(self.special_day_dao.find_by_year(year - 1).await?);
+        }
+
+        // v2.2 post-ship: nach Kalenderdatum aufsteigend sortieren, damit ein
+        // 01.01.YYYY-Eintrag (der aus ISO-Wochenjahr YYYY-1 stammt) am Anfang der
+        // Liste steht und nicht ans Ende der year=YYYY-Einträge angehängt bleibt.
+        results.sort_by_key(|sd| {
+            ShiftyDate::new(sd.year, sd.calendar_week, sd.day_of_week)
+                .map(|d| d.to_date())
+                .unwrap_or_else(|_| time::Date::MIN)
+        });
+
+        Ok(results.into())
     }
     async fn create(
         &self,

@@ -1204,15 +1204,10 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .check_permission(HR_PRIVILEGE, context.clone())
             .await?;
 
-        // D-AVG-05: server-side is_dynamic filter. Non-flexible employees → Ok(None),
-        // the metric is neither computed nor returned for them.
-        let work_details = self
-            .employee_work_details_service
-            .find_by_sales_person_id(*sales_person_id, Authentication::Full, tx.clone())
-            .await?;
-        if !work_details.iter().any(|w| w.is_dynamic) {
-            return Ok(None);
-        }
+        // v2.2 post-ship RPT-02-Fix: is_dynamic-Filter entfernt. Die Wochentag-
+        // Anwesenheits-Verteilung wird für ALLE Mitarbeiter berechnet — auch
+        // für non-flexible Rollen ist die pro-Wochentag-Verteilung sinnvoll
+        // (zeigt die tatsächliche Belegung im Zeitraum, unabhängig vom Contract).
 
         // D-AVG-04: aggregate over the displayed report range.
         // Note: until_week clamping to weeks_in_year is done inside get_report_for_employee.
@@ -1220,13 +1215,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .get_report_for_employee(sales_person_id, year, until_week, context, tx)
             .await?;
 
-        // Flatten all per-week days and apply the 41-01 pure aggregate fn.
+        // Flatten all per-week days and apply the RPT-01 pure aggregate fn.
         let all_days: Vec<WorkingHoursDay> = report
             .by_week
             .iter()
             .flat_map(|w| w.days.iter().cloned())
             .collect();
-        let stats = service::reporting::average_hours_per_attendance_day(&all_days);
+        // D-47-BE: counted_calendar_weeks = number of report weeks (year+until_week
+        // clamped inside get_report_for_employee); one row per counted week.
+        let counted_calendar_weeks = report.by_week.len() as u32;
+        let stats =
+            service::reporting::weekday_attendance_distribution(&all_days, counted_calendar_weeks);
         Ok(Some(stats))
     }
 }

@@ -45,7 +45,7 @@ pub(crate) fn inactive_tab_class() -> &'static str {
 pub fn ShiftplanTabBar(props: ShiftplanTabBarProps) -> Element {
     let i18n = I18N.read().clone();
     let mut dialog_mode: Signal<ShiftplanDialogMode> = use_signal(|| ShiftplanDialogMode::Hidden);
-    let mut dialog_name = use_signal(|| String::new());
+    let mut dialog_name = use_signal(String::new);
     let mut dialog_is_planning = use_signal(|| false);
     let mut delete_confirm_id: Signal<Option<Uuid>> = use_signal(|| None);
 

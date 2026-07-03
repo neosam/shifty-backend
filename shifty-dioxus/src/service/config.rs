@@ -24,7 +24,7 @@ pub async fn load_config() {
 }
 
 // Config service
-pub static CONFIG: GlobalSignal<Config> = Signal::global(|| Config::default());
+pub static CONFIG: GlobalSignal<Config> = Signal::global(Config::default);
 #[allow(dead_code)]
 pub enum ConfigAction {
     LoadConfig,

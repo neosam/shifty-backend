@@ -12,8 +12,7 @@ mod error_handling_tests {
 
             match shifty_error {
                 ShiftyError::TimeComponentRange(_) => {
-                    // Test passes if we can create the error
-                    assert!(true);
+                    // Test passes if we can create the error (matched arm proves it)
                 }
                 _ => panic!("Expected TimeComponentRange error"),
             }
@@ -35,7 +34,7 @@ mod error_handling_tests {
 
                 match shifty_error {
                     ShiftyError::TimeComponentRange(_) => {
-                        assert!(true); // Test passes
+                        // matched arm proves the conversion — no explicit assertion needed
                     }
                     _ => panic!("Expected TimeComponentRange error"),
                 }
@@ -224,8 +223,7 @@ mod error_handling_tests {
 
         match service_result {
             Err(ShiftyError::TimeComponentRange(_)) => {
-                // Error propagated correctly
-                assert!(true);
+                // Error propagated correctly — matched arm proves it
             }
             _ => panic!("Expected TimeComponentRange error to propagate"),
         }

@@ -102,17 +102,17 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
             FormPair { label: from_label,
                 div { class: "flex flex-col",
                     DateInput {
-                        value: employee_work_details.from.clone(),
+                        value: employee_work_details.from,
                         disabled: props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New,
                         on_change: {
                             to_owned![employee_work_details];
                             move |date: time::Date| {
                                 if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                                 {
-                                    return ();
+                                    return ;
                                 }
                                 let mut employee_work_details = employee_work_details.clone();
-                                employee_work_details.from = date.into();
+                                employee_work_details.from = date;
                                 props.on_update_employee_work_details.call(employee_work_details);
                             }
                         },
@@ -123,7 +123,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
             FormPair { label: to_label,
                 div { class: "flex flex-col",
                     DateInput {
-                        value: employee_work_details.to.clone(),
+                        value: employee_work_details.to,
                         disabled: props.employee_work_details_form_type == EmployeeWorkDetailsFormType::ReadOnly,
                         on_change: {
                             to_owned![employee_work_details];
@@ -131,10 +131,10 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                                 if props.employee_work_details_form_type
                                     == EmployeeWorkDetailsFormType::ReadOnly
                                 {
-                                    return ();
+                                    return ;
                                 }
                                 let mut employee_work_details = employee_work_details.clone();
-                                employee_work_details.to = date.into();
+                                employee_work_details.to = date;
                                 props.on_update_employee_work_details.call(employee_work_details);
                             }
                         },
@@ -151,7 +151,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.monday = value;
@@ -168,7 +168,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.tuesday = value;
@@ -185,7 +185,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.wednesday = value;
@@ -202,7 +202,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.thursday = value;
@@ -219,7 +219,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.friday = value;
@@ -236,7 +236,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.saturday = value;
@@ -253,7 +253,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                         move |value: bool| {
                             if props.employee_work_details_form_type != EmployeeWorkDetailsFormType::New
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.sunday = value;
@@ -274,7 +274,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             if props.employee_work_details_form_type
                                 == EmployeeWorkDetailsFormType::ReadOnly
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.expected_hours = value;
@@ -293,7 +293,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             if props.employee_work_details_form_type
                                 == EmployeeWorkDetailsFormType::ReadOnly
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.workdays_per_week = value as u8;
@@ -313,7 +313,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                                 if props.employee_work_details_form_type
                                     == EmployeeWorkDetailsFormType::ReadOnly
                                 {
-                                    return ();
+                                    return ;
                                 }
                                 let mut employee_work_details = employee_work_details.clone();
                                 employee_work_details.vacation_days = value as u8;
@@ -333,7 +333,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                             if props.employee_work_details_form_type
                                 == EmployeeWorkDetailsFormType::ReadOnly
                             {
-                                return ();
+                                return ;
                             }
                             let mut employee_work_details = employee_work_details.clone();
                             employee_work_details.dynamic = value;
@@ -354,7 +354,7 @@ pub fn EmployeeWorkDetailsFormPlain(props: WorkingHoursFormPlainProps) -> Elemen
                                 if props.employee_work_details_form_type
                                     == EmployeeWorkDetailsFormType::ReadOnly
                                 {
-                                    return ();
+                                    return ;
                                 }
                                 let mut employee_work_details = employee_work_details.clone();
                                 employee_work_details.cap_planned_hours_to_expected = value;
@@ -444,7 +444,7 @@ pub fn EmployeeWorkDetailsForm(props: EmployeeWorkDetailsFormPlainProps) -> Elem
                 }
             },
             show_save_button: props.on_save.is_some(),
-            on_cancel: props.on_cancel.clone(),
+            on_cancel: props.on_cancel,
         }
     }
 }

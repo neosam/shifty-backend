@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use rest_types::{EmployeeAttendanceStatisticsTO, EmployeeWeeklyStatisticsTO};
+use rest_types::{DayOfWeekTO, EmployeeAttendanceStatisticsTO, EmployeeWeeklyStatisticsTO};
 use uuid::Uuid;
 
 use crate::base_types::{format_hours, ImStr};
@@ -9,7 +9,7 @@ use crate::component::atoms::{Btn, BtnVariant, NavBtn, PersonChip, TupleRow};
 use crate::component::dialog::{Dialog, DialogVariant};
 use crate::component::dropdown_base::DropdownTrigger;
 use crate::component::EmployeeWeeklyHistogram;
-use crate::i18n::Key;
+use crate::i18n::{I18nType, Key};
 use crate::js;
 use crate::service::{
     auth::AUTH, employee::EmployeeAction, employee::EMPLOYEE_STORE,
@@ -22,6 +22,47 @@ use crate::state::employee_work_details::EmployeeWorkDetails;
 
 const TYPE_PILL_PAID_HEX: &str = "#eaecfb"; // var(--accent-soft) light theme
 const TYPE_PILL_VOLUNTEER_HEX: &str = "#fef0d6"; // var(--warn-soft) light theme
+
+/// Map a `DayOfWeekTO` value to the matching `Key::WeekdayShort*` i18n key.
+fn weekday_short_key(weekday: DayOfWeekTO) -> Key {
+    match weekday {
+        DayOfWeekTO::Monday => Key::WeekdayShortMon,
+        DayOfWeekTO::Tuesday => Key::WeekdayShortTue,
+        DayOfWeekTO::Wednesday => Key::WeekdayShortWed,
+        DayOfWeekTO::Thursday => Key::WeekdayShortThu,
+        DayOfWeekTO::Friday => Key::WeekdayShortFri,
+        DayOfWeekTO::Saturday => Key::WeekdayShortSat,
+        DayOfWeekTO::Sunday => Key::WeekdayShortSun,
+    }
+}
+
+/// Format the Phase-47 weekday-attendance line (RPT-02).
+///
+/// - When `counted_calendar_weeks == 0` or `attendance_by_weekday` is empty, the
+///   localized empty-state placeholder is returned.
+/// - Otherwise, the input is iterated in the BE-provided order (Mon..Sun — the FE
+///   does NOT re-sort). Each row is rendered as `"<short-label>: <count> (<pct>%)"`
+///   where `pct = (share * 100.0).round() as i32`. Segments are joined by
+///   `" · "` (space, U+00B7 MIDDLE DOT, space) per D-47-CONTEXT.
+pub fn format_weekday_attendance_line(
+    stats: &EmployeeAttendanceStatisticsTO,
+    i18n: &I18nType,
+) -> String {
+    if stats.counted_calendar_weeks == 0 || stats.attendance_by_weekday.is_empty() {
+        return i18n.t(Key::WeekdayAttendanceEmpty).as_ref().to_string();
+    }
+
+    stats
+        .attendance_by_weekday
+        .iter()
+        .map(|entry| {
+            let label = i18n.t(weekday_short_key(entry.weekday));
+            let pct = (entry.share * 100.0).round() as i32;
+            format!("{}: {} ({}%)", label.as_ref(), entry.count, pct)
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeeViewPlainProps {
@@ -534,26 +575,27 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             {format_hours(stats.average_worked_hours_per_week, 2)}
                         } },
                     }
-                    // Ø-Anwesenheit bei flexiblen Stunden (D-AVG-07): directly after
-                    // "Ø Std/Woche", before "Einbezogene Wochen". Rendered only when the
-                    // server delivered the statistic (Some) — non-flexible employees get None
-                    // and no row at all (D-AVG-05).
+                    // Phase 47 (RPT-02): weekday attendance distribution — replaces the
+                    // v2.1 "Ø Std/Anwesenheitstag" row at the same slot. Rendered only
+                    // when the server delivered the statistic (Some) — non-flexible
+                    // employees get None and no row at all (D-AVG-05 gate preserved).
                     if let Some(att) = props.attendance_statistics.as_ref() {
-                        TupleRow {
-                            label: ImStr::from(i18n.t(Key::AvgHoursPerAttendanceDay).as_ref()),
-                            value: match att.average_hours_per_attendance_day {
-                                Some(avg) => rsx! { span { class: "font-mono tabular-nums",
-                                    {format_hours(avg, 2)}
-                                } },
-                                None => rsx! { span {
-                                    class: "font-mono tabular-nums text-ink-muted",
-                                    title: "{i18n.t(Key::AvgHoursPerAttendanceDayEmpty)}",
-                                    "–"
-                                } },
-                            },
-                            description: Some(rsx! {
-                                "{i18n.t(Key::AvgHoursPerAttendanceDayDescription)}"
-                            }),
+                        {
+                            let line = format_weekday_attendance_line(att.as_ref(), &i18n);
+                            let tooltip = i18n.t(Key::WeekdayAttendanceTooltip);
+                            let label = i18n.t(Key::WeekdayAttendanceLabel);
+                            rsx! {
+                                TupleRow {
+                                    label: ImStr::from(label.as_ref()),
+                                    value: rsx! {
+                                        span {
+                                            class: "font-mono tabular-nums",
+                                            title: "{tooltip}",
+                                            "{line}"
+                                        }
+                                    },
+                                }
+                            }
                         }
                     }
                     TupleRow {
@@ -845,6 +887,8 @@ pub fn ExtraHoursView(props: ExtraHoursViewProps) -> Element {
     let work_hours_description_str = i18n.t(Key::WorkHoursDescription);
     let unavailable_description_str = i18n.t(Key::UnavailableDescription);
 
+    // reason: 3-tuple encodes (label, hint, predicate) per extra-hours category; type alias would obscure the local-only structure
+    #[allow(clippy::type_complexity)]
     let category_predicates: [(Rc<str>, Option<Rc<str>>, Box<dyn Fn(&ExtraHours) -> bool>); 7] = [
         (
             vacation_str,
@@ -1621,32 +1665,49 @@ mod tests {
         );
     }
 
-    // --- SSR tests for the Ø-Anwesenheit attendance row (Phase 41) ---
+    // --- Phase 47 (RPT-01/02/03): SSR + formatter tests for the weekday-attendance row ---
+
+    use rest_types::WeekdayAttendanceTO;
+
+    fn make_weekday_stats(
+        counts_and_shares: [(DayOfWeekTO, u32, f32); 7],
+        counted_calendar_weeks: u32,
+    ) -> EmployeeAttendanceStatisticsTO {
+        EmployeeAttendanceStatisticsTO {
+            attendance_by_weekday: counts_and_shares
+                .into_iter()
+                .map(|(w, c, s)| WeekdayAttendanceTO {
+                    weekday: w,
+                    count: c,
+                    share: s,
+                })
+                .collect(),
+            counted_calendar_weeks,
+        }
+    }
 
     #[derive(Props, Clone, PartialEq)]
-    struct AttendanceRowProps {
+    struct WeekdayAttendanceRowProps {
         attendance_statistics: Option<Rc<EmployeeAttendanceStatisticsTO>>,
     }
 
-    /// Minimal stub mirroring only the attendance-row conditional from the
-    /// HR-stats block: rendered only when `Some`, value is a formatted number
-    /// when `average_hours_per_attendance_day == Some`, otherwise the EN-DASH
-    /// empty state.
-    fn render_attendance_row(p: AttendanceRowProps) -> String {
-        fn app(p: AttendanceRowProps) -> Element {
+    /// Minimal stub mirroring only the weekday-attendance row from the HR-stats block.
+    fn render_weekday_attendance_row(p: WeekdayAttendanceRowProps) -> String {
+        fn app(p: WeekdayAttendanceRowProps) -> Element {
             let i18n = crate::service::i18n::I18N.read().clone();
             rsx! {
                 div {
                     if let Some(att) = p.attendance_statistics.as_ref() {
-                        match att.average_hours_per_attendance_day {
-                            Some(avg) => rsx! { span { class: "font-mono tabular-nums",
-                                {format_hours(avg, 2)}
-                            } },
-                            None => rsx! { span {
-                                class: "font-mono tabular-nums text-ink-muted",
-                                title: "{i18n.t(crate::i18n::Key::AvgHoursPerAttendanceDayEmpty)}",
-                                "–"
-                            } },
+                        {
+                            let line = format_weekday_attendance_line(att.as_ref(), &i18n);
+                            let tooltip = i18n.t(crate::i18n::Key::WeekdayAttendanceTooltip);
+                            rsx! {
+                                span {
+                                    class: "font-mono tabular-nums",
+                                    title: "{tooltip}",
+                                    "{line}"
+                                }
+                            }
                         }
                     }
                 }
@@ -1658,54 +1719,127 @@ mod tests {
     }
 
     #[test]
-    fn attendance_row_shows_number_when_some() {
-        // avg = 4.5 → format_hours(4.5, 2) = "4.50"; D-AVG-07 normal state.
-        let html = render_attendance_row(AttendanceRowProps {
-            attendance_statistics: Some(Rc::new(EmployeeAttendanceStatisticsTO {
-                average_hours_per_attendance_day: Some(4.5),
-                attendance_days: 10,
-                total_worked_hours: 45.0,
-            })),
-        });
-        assert!(
-            html.contains("4.50") || html.contains("4.5"),
-            "attendance row must show the formatted number: {html}"
+    fn weekday_row_renders_all_seven_segments_when_populated() {
+        // I18N default locale in tests is En, so the labels are Mon..Sun.
+        let stats = make_weekday_stats(
+            [
+                (DayOfWeekTO::Monday, 8, 0.8),
+                (DayOfWeekTO::Tuesday, 3, 0.3),
+                (DayOfWeekTO::Wednesday, 7, 0.7),
+                (DayOfWeekTO::Thursday, 5, 0.5),
+                (DayOfWeekTO::Friday, 2, 0.2),
+                (DayOfWeekTO::Saturday, 0, 0.0),
+                (DayOfWeekTO::Sunday, 0, 0.0),
+            ],
+            10,
         );
+        let html = render_weekday_attendance_row(WeekdayAttendanceRowProps {
+            attendance_statistics: Some(Rc::new(stats)),
+        });
+
+        for expected in [
+            "Mon: 8 (80%)",
+            "Tue: 3 (30%)",
+            "Wed: 7 (70%)",
+            "Thu: 5 (50%)",
+            "Fri: 2 (20%)",
+            "Sat: 0 (0%)",
+            "Sun: 0 (0%)",
+        ] {
+            assert!(
+                html.contains(expected),
+                "expected segment `{expected}` in weekday row: {html}"
+            );
+        }
+
+        // At least 6 middle-dot separators between 7 segments.
+        let dot_count = html.matches('·').count();
         assert!(
-            !html.contains('–'),
-            "attendance row must NOT show the EN-DASH when a value is present: {html}"
+            dot_count >= 6,
+            "expected at least 6 middle-dot separators, got {dot_count}: {html}"
+        );
+
+        assert!(
+            html.contains("title="),
+            "row must carry a `title=` tooltip attribute: {html}"
+        );
+
+        // RPT-02 regression proof: v2.1 label must not reappear.
+        assert!(
+            !html.contains("Ø Std/Anwesenheitstag"),
+            "v2.1 attendance label must not appear on the new row: {html}"
         );
     }
 
     #[test]
-    fn attendance_row_shows_endash_when_inner_none() {
-        // < 2 attendance days → average_hours_per_attendance_day == None (D-AVG-06).
-        let html = render_attendance_row(AttendanceRowProps {
-            attendance_statistics: Some(Rc::new(EmployeeAttendanceStatisticsTO {
-                average_hours_per_attendance_day: None,
-                attendance_days: 1,
-                total_worked_hours: 8.0,
-            })),
+    fn weekday_row_renders_empty_state_when_counted_weeks_zero() {
+        // All zeros + counted_calendar_weeks == 0 → localized empty-state text.
+        let stats = make_weekday_stats(
+            [
+                (DayOfWeekTO::Monday, 0, 0.0),
+                (DayOfWeekTO::Tuesday, 0, 0.0),
+                (DayOfWeekTO::Wednesday, 0, 0.0),
+                (DayOfWeekTO::Thursday, 0, 0.0),
+                (DayOfWeekTO::Friday, 0, 0.0),
+                (DayOfWeekTO::Saturday, 0, 0.0),
+                (DayOfWeekTO::Sunday, 0, 0.0),
+            ],
+            0,
+        );
+        let html = render_weekday_attendance_row(WeekdayAttendanceRowProps {
+            attendance_statistics: Some(Rc::new(stats)),
         });
+
+        // Default test locale is En.
         assert!(
-            html.contains('–'),
-            "attendance row must show the EN-DASH empty state when inner None: {html}"
+            html.contains("No counted calendar weeks in range"),
+            "empty state text must be rendered: {html}"
         );
         assert!(
-            html.contains("text-ink-muted"),
-            "empty-state value must be dimmed via text-ink-muted: {html}"
+            !html.contains("Mon: 0 (0%)"),
+            "empty state must NOT contain any weekday segment: {html}"
         );
     }
 
     #[test]
-    fn attendance_row_absent_when_none() {
+    fn weekday_row_absent_when_statistics_is_none() {
         // Non-flexible employee / non-HR → attendance_statistics == None → no row (D-AVG-05).
-        let html = render_attendance_row(AttendanceRowProps {
+        let html = render_weekday_attendance_row(WeekdayAttendanceRowProps {
             attendance_statistics: None,
         });
         assert!(
-            !html.contains('–') && !html.contains("font-mono"),
-            "attendance row must NOT be rendered when statistics is None: {html}"
+            !html.contains("font-mono"),
+            "row must NOT be rendered when statistics is None: {html}"
+        );
+        for label in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] {
+            assert!(
+                !html.contains(&format!("{label}: ")),
+                "no weekday label segment must be rendered when None: {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn formatter_handles_odd_percents_correctly() {
+        // 0.333 → 33.3 → round → 33.
+        let stats = make_weekday_stats(
+            [
+                (DayOfWeekTO::Monday, 3, 0.333),
+                (DayOfWeekTO::Tuesday, 0, 0.0),
+                (DayOfWeekTO::Wednesday, 0, 0.0),
+                (DayOfWeekTO::Thursday, 0, 0.0),
+                (DayOfWeekTO::Friday, 0, 0.0),
+                (DayOfWeekTO::Saturday, 0, 0.0),
+                (DayOfWeekTO::Sunday, 0, 0.0),
+            ],
+            10,
+        );
+        // Bypass the global I18N (Dioxus runtime not available in pure-fn tests).
+        let i18n = crate::i18n::generate(crate::i18n::Locale::En);
+        let line = format_weekday_attendance_line(&stats, &i18n);
+        assert!(
+            line.contains("Mon: 3 (33%)"),
+            "share=0.333 must round to 33%: {line}"
         );
     }
 }

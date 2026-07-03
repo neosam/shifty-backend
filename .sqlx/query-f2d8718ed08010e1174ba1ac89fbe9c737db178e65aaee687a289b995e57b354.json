@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                id,\n                enabled AS \"enabled!: bool\",\n                nextcloud_url,\n                webdav_user,\n                webdav_app_token,\n                target_folder,\n                weeks_horizon,\n                cron_schedule,\n                last_success_at,\n                last_error_at,\n                last_error_message,\n                update_version\n              FROM pdf_export_config\n              LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "enabled!: bool",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "nextcloud_url",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "webdav_user",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "webdav_app_token",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "target_folder",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "weeks_horizon",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "cron_schedule",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_success_at",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_error_at",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_error_message",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 11,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "f2d8718ed08010e1174ba1ac89fbe9c737db178e65aaee687a289b995e57b354"
+}

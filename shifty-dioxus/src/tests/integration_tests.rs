@@ -1,3 +1,5 @@
+// reason: intentional test-module organization — grouping tag matches file name for readability
+#[allow(clippy::module_inception)]
 #[cfg(test)]
 mod integration_tests {
     use crate::i18n::{generate, Key, Locale};

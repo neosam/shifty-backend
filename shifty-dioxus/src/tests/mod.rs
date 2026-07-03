@@ -71,7 +71,7 @@ mod i18n_tests {
 
     #[test]
     fn test_locale_variants() {
-        let locales = vec![Locale::En, Locale::De, Locale::Cs];
+        let locales = [Locale::En, Locale::De, Locale::Cs];
         assert_eq!(locales.len(), 3);
     }
 
@@ -148,7 +148,7 @@ mod service_tests {
 #[cfg(test)]
 mod invitation_tests {
     use rest_types::{InvitationResponse, InvitationStatus};
-    use serde_json;
+    
 
     #[test]
     fn test_invitation_deserialization_no_redeemed_at() {
@@ -399,8 +399,8 @@ mod utils_tests {
         let current_year = 2024u32;
         let current_week = 42u8;
 
-        assert!(current_year >= 2024 && current_year <= 2100);
-        assert!(current_week >= 1 && current_week <= 53);
+        assert!((2024..=2100).contains(&current_year));
+        assert!((1..=53).contains(&current_week));
     }
 
     #[test]

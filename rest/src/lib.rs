@@ -18,6 +18,7 @@ pub mod extra_hours;
 pub mod feature_flag;
 pub mod impersonate;
 mod my_block;
+mod pdf_export_config;
 mod permission;
 mod report;
 mod sales_person;
@@ -413,6 +414,19 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 48 (EXP-02/EXP-03, D-48-ADMIN): Basic-Tier admin-gated Config-
+    // Service für den `/pdf-export-config`-Endpoint (GET/PUT).
+    type PdfExportConfigService: service::pdf_export_config::PdfExportConfigService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
+    // Phase 48 Plan 04 (EXP-01/EXP-03): BL-Tier Scheduler — via REST vom
+    // PUT-Handler (`reload_from_db`) und vom POST /trigger-Endpoint
+    // (`run_once_now`) angesprochen.
+    type PdfExportScheduler: service::pdf_export::PdfExportScheduler<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -449,6 +463,8 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
+    fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
+    fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
@@ -562,6 +578,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/sales-person-shiftplan", api = sales_person_shiftplan::SalesPersonShiftplanApiDoc),
         (path = "/vacation-balance", api = vacation_balance::VacationBalanceApiDoc),
         (path = "/vacation-entitlement-offset", api = vacation_entitlement_offset::VacationEntitlementOffsetApiDoc),
+        (path = "/pdf-export-config", api = pdf_export_config::PdfExportConfigApiDoc),
         (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
     )
@@ -630,6 +647,7 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             "/vacation-entitlement-offset",
             vacation_entitlement_offset::generate_route(),
         )
+        .nest("/pdf-export-config", pdf_export_config::generate_route())
         .nest("/extra-hours", extra_hours::generate_route())
         .nest("/blocks", my_block::generate_route())
         .nest("/special-days", special_day::generate_route())

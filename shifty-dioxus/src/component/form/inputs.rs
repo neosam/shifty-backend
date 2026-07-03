@@ -40,7 +40,7 @@ pub fn TextInput(props: TextInputProps) -> Element {
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
     let step_attr = props.step.as_ref().map(|s| s.to_string());
     let input_type = props.input_type.clone();
-    let on_change = props.on_change.clone();
+    let on_change = props.on_change;
     let disabled = props.disabled;
 
     rsx! {
@@ -90,7 +90,7 @@ const SELECT_EXTRA_STYLE: &str =
 
 #[component]
 pub fn SelectInput(props: SelectInputProps) -> Element {
-    let on_change = props.on_change.clone();
+    let on_change = props.on_change;
     let disabled = props.disabled;
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
     // When `value` is `Some`, pass it as the controlled value attribute so the
@@ -138,7 +138,7 @@ const TEXTAREA_CLASSES: &str =
 #[component]
 pub fn TextareaInput(props: TextareaInputProps) -> Element {
     let placeholder_attr = props.placeholder.as_ref().map(|p| p.to_string());
-    let on_change = props.on_change.clone();
+    let on_change = props.on_change;
     let disabled = props.disabled;
     let rows = props.rows.to_string();
 

@@ -2,6 +2,7 @@
 created: 2026-07-01T04:40:00.000Z
 title: Content-Type aller REST-Services testen und korrigieren
 area: api
+resolves_phase: 46
 files:
   - rest/
 ---

@@ -517,6 +517,11 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ConnectUserAccount, "Connect User Account");
     // User invitations
     i18n.add_text(Locale::En, Key::UserInvitations, "User Invitations");
+    i18n.add_text(
+        Locale::En,
+        Key::UserInvitationsLoadError,
+        "Failed to load invitations. See error banner for details.",
+    );
     i18n.add_text(Locale::En, Key::GenerateInvitation, "Generate Invitation");
     i18n.add_text(Locale::En, Key::InvitationLink, "Invitation Link");
     i18n.add_text(Locale::En, Key::RevokeInvitation, "Revoke");
@@ -978,21 +983,25 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Average worked hours per week",
     );
     i18n.add_text(Locale::En, Key::StatisticsIncludedWeeks, "Included weeks");
+    // Phase 47 — Weekday attendance distribution (RPT-02/RPT-03).
+    i18n.add_text(Locale::En, Key::WeekdayShortMon, "Mon");
+    i18n.add_text(Locale::En, Key::WeekdayShortTue, "Tue");
+    i18n.add_text(Locale::En, Key::WeekdayShortWed, "Wed");
+    i18n.add_text(Locale::En, Key::WeekdayShortThu, "Thu");
+    i18n.add_text(Locale::En, Key::WeekdayShortFri, "Fri");
+    i18n.add_text(Locale::En, Key::WeekdayShortSat, "Sat");
+    i18n.add_text(Locale::En, Key::WeekdayShortSun, "Sun");
     i18n.add_text(
         Locale::En,
-        Key::AvgHoursPerAttendanceDay,
-        "Avg h/attendance day",
+        Key::WeekdayAttendanceTooltip,
+        "Attendance-day count per weekday and share relative to counted calendar weeks in the range",
     );
     i18n.add_text(
         Locale::En,
-        Key::AvgHoursPerAttendanceDayDescription,
-        "Average working hours per day actually worked (flexible employees only). Absences excluded from the denominator.",
+        Key::WeekdayAttendanceEmpty,
+        "No counted calendar weeks in range",
     );
-    i18n.add_text(
-        Locale::En,
-        Key::AvgHoursPerAttendanceDayEmpty,
-        "Not meaningful (fewer than 2 attendance days)",
-    );
+    i18n.add_text(Locale::En, Key::WeekdayAttendanceLabel, "Attendance / day");
 
     // Phase 24 — Paid-limit enforcement config (D-24-06, D-24-03, D-24-05).
     i18n.add_text(
@@ -1106,7 +1115,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::En,
         Key::SettingsSpecialDaysDuplicateHint,
-        "A special day already exists for this date.",
+        "A special day is already set for this date — creating will replace it.",
     );
     i18n.add_text(Locale::En, Key::SettingsSpecialDaysDeleteBtn, "Delete");
     i18n.add_text(
@@ -1135,4 +1144,54 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::WeekStatusChangeAriaLabel,
         "Change week status",
     );
+
+    // Phase 46 (HYG-04): Shiftplan structure-dropdown labels.
+    i18n.add_text(Locale::En, Key::ShiftplanEditStructure, "Edit structure");
+    i18n.add_text(Locale::En, Key::ShiftplanNormalMode, "Normal mode");
+    i18n.add_text(Locale::En, Key::ShiftplanNewSlot, "New slot");
+
+    // Phase 48 (EXP-02 / EXP-03) — Nextcloud PDF-Export admin-card.
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPdfExportTitle,
+        "PDF export to Nextcloud",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPdfExportHelp,
+        "The backend task renders the weekly shift plans as PDF and uploads them to Nextcloud regularly.",
+    );
+    i18n.add_text(Locale::En, Key::SettingsPdfExportEnabled, "Export enabled");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportUrl, "Nextcloud URL");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportUser, "WebDAV user");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportToken, "App token");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPdfExportTokenPlaceholder,
+        "(unchanged, enter a new token here)",
+    );
+    i18n.add_text(Locale::En, Key::SettingsPdfExportTargetFolder, "Target folder");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportWeeksHorizon, "Weeks horizon");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportCronSchedule, "Cron schedule");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportSave, "Save");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPdfExportSaveSuccess,
+        "Configuration saved",
+    );
+    i18n.add_text(Locale::En, Key::SettingsPdfExportSaveError, "Failed to save");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportTriggerNow, "Export now");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPdfExportTriggerNowSuccess,
+        "Export started (running in background)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsPdfExportTriggerNowError,
+        "Failed to trigger export",
+    );
+    i18n.add_text(Locale::En, Key::SettingsPdfExportLastSuccess, "Last success:");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportLastError, "Last error:");
+    i18n.add_text(Locale::En, Key::SettingsPdfExportStatusEmpty, "No runs yet");
 }

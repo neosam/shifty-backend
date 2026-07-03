@@ -2,6 +2,7 @@
 created: 2026-07-01T04:35:00.000Z
 title: Schichtplan — Tag von "Feiertag" auf "Kurzer Tag" umstellen wirft Fehlermeldung
 area: shiftplan
+resolves_phase: 43
 files:
   - shifty-dioxus/
 ---

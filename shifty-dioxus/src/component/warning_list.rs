@@ -134,7 +134,7 @@ pub fn WarningList(props: WarningListProps) -> Element {
                                     .as_ref()
                                     .replace("{person}", person)
                                     .replace("{date}", &date.to_string())
-                                    .replace("{category}", &i18n.t(category_key(category)).to_string());
+                                    .replace("{category}", i18n.t(category_key(category)).as_ref());
                                 rsx! { "{body}" }
                             }
                             WarningTO::BookingOnUnavailableDay { week, year, day_of_week, .. } => {
@@ -144,7 +144,7 @@ pub fn WarningList(props: WarningListProps) -> Element {
                                     .replace("{person}", person)
                                     .replace("{week}", &week.to_string())
                                     .replace("{year}", &year.to_string())
-                                    .replace("{day}", &i18n.t(day_of_week_key(day_of_week)).to_string());
+                                    .replace("{day}", i18n.t(day_of_week_key(day_of_week)).as_ref());
                                 rsx! { "{body}" }
                             }
                             WarningTO::PaidEmployeeLimitExceeded {

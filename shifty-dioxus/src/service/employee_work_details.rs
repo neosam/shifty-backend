@@ -37,7 +37,7 @@ impl Default for EmployeeWorkDetailsStore {
 }
 
 pub static EMPLOYEE_WORK_DETAILS_STORE: GlobalSignal<EmployeeWorkDetailsStore> =
-    Signal::global(|| EmployeeWorkDetailsStore::default());
+    Signal::global(EmployeeWorkDetailsStore::default);
 
 async fn load_sales_person_in_employee_work_details(
     sales_person_id: Uuid,
@@ -66,7 +66,7 @@ async fn new_employee_work_details_for_sales_person(
     sales_person_id: Uuid,
 ) -> Result<(), ShiftyError> {
     load_sales_person_in_employee_work_details(sales_person_id).await?;
-    (*EMPLOYEE_WORK_DETAILS_STORE.write()).selected_employee_work_details =
+    EMPLOYEE_WORK_DETAILS_STORE.write().selected_employee_work_details =
         EmployeeWorkDetails::blank_standard(sales_person_id);
     Ok(())
 }
@@ -155,7 +155,7 @@ pub async fn employee_work_details_service(mut rx: UnboundedReceiver<EmployeeWor
             Ok(_) => {}
             Err(err) => {
                 *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
+                    error: Some(err),
                 };
             }
         }

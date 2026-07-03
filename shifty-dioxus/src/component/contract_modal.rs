@@ -74,11 +74,7 @@ pub fn ContractModal(props: ContractModalProps) -> Element {
         .as_ref(),
     );
     let read_only = props.form_type == EmployeeWorkDetailsFormType::ReadOnly;
-    let cancel_label = if read_only {
-        ImStr::from(i18n.t(Key::Cancel).as_ref())
-    } else {
-        ImStr::from(i18n.t(Key::Cancel).as_ref())
-    };
+    let cancel_label = ImStr::from(i18n.t(Key::Cancel).as_ref());
     let save_label = ImStr::from(i18n.t(Key::Save).as_ref());
 
     let on_cancel = props.on_cancel;
@@ -231,6 +227,8 @@ fn ContractModalBody(props: ContractModalBodyProps) -> Element {
             Field { label: workdays_label,
                 div { class: "flex flex-wrap gap-1 mt-1",
                     {
+                        // reason: 4-tuple encodes (checked, label, disabled, setter) for each weekday pill; factoring into a type alias would obscure the local-only shape
+                        #[allow(clippy::type_complexity)]
                         let pills: [(bool, &str, bool, fn(&mut EmployeeWorkDetails, bool)); 7] = [
                             (
                                 details.monday,

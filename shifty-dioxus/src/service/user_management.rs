@@ -51,6 +51,17 @@ pub struct UserManagementStore {
     pub loaded_sales_person: Option<SelectedSalesPerson>,
     pub role_assignements: Rc<[RoleAssignment]>,
     pub user_invitations: Rc<[InvitationResponse]>,
+    /// BUG-02 (v2.2): last error observed while loading user invitations.
+    /// `None` on success (and reset on every successful reload); `Some(msg)`
+    /// when `list_user_invitations` failed — typically a
+    /// `ShiftyError::InvitationParse` from a schema-drift response body.
+    ///
+    /// Rendered as a persistent inline red banner on
+    /// `page/user_details.rs` so the empty-list state can no longer be
+    /// confused with a parse failure. The central `ERROR_STORE` overlay
+    /// is still fired in parallel — the two channels are complementary
+    /// (overlay = one-shot toast, banner = page-scoped persistent).
+    pub user_invitations_load_error: Option<ImStr>,
     pub save_success: bool,
     pub shiftplan_catalog: Rc<[ShiftplanTO]>,
 
@@ -67,7 +78,7 @@ pub struct UserManagementStore {
     pub user_role_assignments: Rc<HashMap<ImStr, Rc<[ImStr]>>>,
 }
 pub static USER_MANAGEMENT_STORE: GlobalSignal<UserManagementStore> =
-    Signal::global(|| UserManagementStore::default());
+    Signal::global(UserManagementStore::default);
 
 pub async fn load_shiftplan_catalog() {
     let config = CONFIG.read().clone();
@@ -107,11 +118,11 @@ pub async fn load_all_users() {
     let users = loader::load_all_users(CONFIG.read().clone()).await;
     match users {
         Ok(users) => {
-            USER_MANAGEMENT_STORE.write().users = users.into();
+            USER_MANAGEMENT_STORE.write().users = users;
         }
         Err(err) => {
             *ERROR_STORE.write() = ErrorStore {
-                error: Some(err.into()),
+                error: Some(err),
             };
         }
     }
@@ -121,11 +132,11 @@ pub async fn load_all_sales_persons() {
     let sales_persons = loader::load_sales_persons(CONFIG.read().clone()).await;
     match sales_persons {
         Ok(sales_persons) => {
-            USER_MANAGEMENT_STORE.write().sales_persons = sales_persons.into();
+            USER_MANAGEMENT_STORE.write().sales_persons = sales_persons;
         }
         Err(err) => {
             *ERROR_STORE.write() = ErrorStore {
-                error: Some(err.into()),
+                error: Some(err),
             };
         }
     }
@@ -156,7 +167,7 @@ where
 fn report_errors(errors: Vec<ShiftyError>) {
     for err in errors {
         *ERROR_STORE.write() = ErrorStore {
-            error: Some(err.into()),
+            error: Some(err),
         };
     }
 }
@@ -226,7 +237,7 @@ pub async fn load_sales_person(sales_person_id: Uuid) {
         }
         Err(err) => {
             *ERROR_STORE.write() = ErrorStore {
-                error: Some(err.into()),
+                error: Some(err),
             };
         }
     }
@@ -251,7 +262,7 @@ pub async fn load_sales_person(sales_person_id: Uuid) {
         }
         Err(err) => {
             *ERROR_STORE.write() = ErrorStore {
-                error: Some(err.into()),
+                error: Some(err),
             };
         }
     }
@@ -274,8 +285,8 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
                 selected_sales_person.user_id.clone(),
                 loaded_sales_person.user_id.clone(),
             ) {
-                (Some(new_user_id), Some(old_user_id)) => {
-                    if new_user_id != old_user_id {
+                (Some(new_user_id), Some(old_user_id))
+                    if new_user_id != old_user_id => {
                         loader::save_user_for_sales_person(
                             CONFIG.read().clone(),
                             saved_id,
@@ -283,7 +294,6 @@ pub async fn save_sales_person() -> Result<(), ShiftyError> {
                         )
                         .await?;
                     }
-                }
                 (Some(user_id), None) => {
                     loader::save_user_for_sales_person(CONFIG.read().clone(), saved_id, user_id)
                         .await?;
@@ -318,7 +328,7 @@ pub async fn load_role_assignments(user: ImStr) -> Result<(), ShiftyError> {
         .iter()
         .map(|role| RoleAssignment {
             role: role.clone(),
-            assigned: user_roles.contains(&role),
+            assigned: user_roles.contains(role),
         })
         .collect::<Vec<_>>();
     role_assignments.sort_by_key(|role| role.role.clone());
@@ -360,11 +370,23 @@ pub async fn load_user_invitations(username: ImStr) {
     let invitations = loader::load_user_invitations(CONFIG.read().clone(), username).await;
     match invitations {
         Ok(invitations) => {
-            USER_MANAGEMENT_STORE.write().user_invitations = invitations;
+            let mut s = USER_MANAGEMENT_STORE.write();
+            s.user_invitations = invitations;
+            s.user_invitations_load_error = None;
         }
         Err(err) => {
+            // BUG-02 (v2.2): mirror the error into a persistent per-page
+            // store field so `user_details.rs` can render an inline banner,
+            // and clear the stale invitation list so the empty state does
+            // NOT appear "successful" underneath the banner.
+            let msg: String = err.to_string();
+            {
+                let mut s = USER_MANAGEMENT_STORE.write();
+                s.user_invitations = Rc::new([]);
+                s.user_invitations_load_error = Some(msg.into());
+            }
             *ERROR_STORE.write() = ErrorStore {
-                error: Some(err.into()),
+                error: Some(err),
             };
         }
     }
@@ -574,7 +596,7 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             Ok(_) => {}
             Err(err) => {
                 *ERROR_STORE.write() = ErrorStore {
-                    error: Some(err.into()),
+                    error: Some(err),
                 };
             }
         }
@@ -643,6 +665,8 @@ mod tests {
 
     #[test]
     fn partition_results_supports_imstr_keys() {
+        // reason: test-local fixture typed for readability; extracting alias would spread noise
+        #[allow(clippy::type_complexity)]
         let input: Vec<(ImStr, Result<Rc<[ImStr]>, ShiftyError>)> = vec![
             (ImStr::from("alex"), Ok(vec![ImStr::from("admin")].into())),
             (ImStr::from("bob"), Err(sample_error())),

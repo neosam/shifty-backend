@@ -1,6 +1,8 @@
 pub mod cs;
 pub mod de;
 pub mod en;
+// reason: i18n module holds the I18n type; historic naming re-exported below via pub use
+#[allow(clippy::module_inception)]
 pub mod i18n;
 
 use std::rc::Rc;
@@ -333,6 +335,7 @@ pub enum Key {
     ConnectUserAccount,
     // User invitations
     UserInvitations,
+    UserInvitationsLoadError,
     GenerateInvitation,
     InvitationLink,
     RevokeInvitation,
@@ -597,13 +600,28 @@ pub enum Key {
     /// Label for the included weeks row.
     StatisticsIncludedWeeks,
 
-    // Phase 41 — Ø-Anwesenheit bei flexiblen Stunden (AVG-02/AVG-03, D-AVG-07/09).
-    /// Label for the average hours per attendance day row.
-    AvgHoursPerAttendanceDay,
-    /// Inline description for the average hours per attendance day row.
-    AvgHoursPerAttendanceDayDescription,
-    /// Empty-state / tooltip text when fewer than 2 attendance days.
-    AvgHoursPerAttendanceDayEmpty,
+    // Phase 47 — Wochentag-Anwesenheits-Muster (RPT-02/RPT-03).
+    // Retires the v2.1 `Ø Std/Anwesenheitstag` keys (removed).
+    /// Short weekday label for Monday (e.g. "Mo" / "Mon" / "Po").
+    WeekdayShortMon,
+    /// Short weekday label for Tuesday.
+    WeekdayShortTue,
+    /// Short weekday label for Wednesday.
+    WeekdayShortWed,
+    /// Short weekday label for Thursday.
+    WeekdayShortThu,
+    /// Short weekday label for Friday.
+    WeekdayShortFri,
+    /// Short weekday label for Saturday.
+    WeekdayShortSat,
+    /// Short weekday label for Sunday.
+    WeekdayShortSun,
+    /// Tooltip text for the weekday-attendance distribution row.
+    WeekdayAttendanceTooltip,
+    /// Placeholder text when `counted_calendar_weeks == 0`.
+    WeekdayAttendanceEmpty,
+    /// Short label for the weekday-attendance distribution row (v2.2 post-ship).
+    WeekdayAttendanceLabel,
 
     // Phase 23 — Slot paid-capacity editor (FUI-02, D-23-01/D-23-02/D-23-06).
     /// Label for the `max_paid_employees` number field in the slot editor.
@@ -704,6 +722,54 @@ pub enum Key {
     WeekStatusSetError,
     /// Aria-label for the KW-Status change control (dropdown trigger).
     WeekStatusChangeAriaLabel,
+    // Phase 46 (HYG-04): Schichtplan-Struktur-Dropdown (page/shiftplan.rs).
+    /// Shiftplan dropdown label: switch into structure-edit mode.
+    ShiftplanEditStructure,
+    /// Shiftplan dropdown label: switch back to normal view.
+    ShiftplanNormalMode,
+    /// Shiftplan dropdown label: create a new slot.
+    ShiftplanNewSlot,
+
+    // Phase 48 (EXP-02 / EXP-03) — Nextcloud PDF export admin-settings card.
+    /// Card title on the admin Settings page.
+    SettingsPdfExportTitle,
+    /// Short description below the title (one-liner explanation).
+    SettingsPdfExportHelp,
+    /// Enabled-toggle label.
+    SettingsPdfExportEnabled,
+    /// Nextcloud URL field label.
+    SettingsPdfExportUrl,
+    /// WebDAV user field label.
+    SettingsPdfExportUser,
+    /// App-token field label.
+    SettingsPdfExportToken,
+    /// Placeholder shown inside the token password input — explains that an
+    /// empty value keeps the existing token.
+    SettingsPdfExportTokenPlaceholder,
+    /// Target folder field label (WebDAV path).
+    SettingsPdfExportTargetFolder,
+    /// Weeks horizon field label.
+    SettingsPdfExportWeeksHorizon,
+    /// Cron schedule field label.
+    SettingsPdfExportCronSchedule,
+    /// Save button label.
+    SettingsPdfExportSave,
+    /// Inline banner after successful save.
+    SettingsPdfExportSaveSuccess,
+    /// Inline banner when save fails.
+    SettingsPdfExportSaveError,
+    /// "Export now" button label.
+    SettingsPdfExportTriggerNow,
+    /// Inline banner after the trigger has been accepted (204).
+    SettingsPdfExportTriggerNowSuccess,
+    /// Inline banner when the trigger call fails.
+    SettingsPdfExportTriggerNowError,
+    /// Prefix for the "last success" status line ("Last success: {timestamp}").
+    SettingsPdfExportLastSuccess,
+    /// Prefix for the "last error" status line ("Last error: {timestamp} — {message}").
+    SettingsPdfExportLastError,
+    /// Shown when neither `last_success_at` nor `last_error_at` is set.
+    SettingsPdfExportStatusEmpty,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -907,19 +973,30 @@ mod tests {
         }
     }
 
-    /// AVG-03 / D-AVG-09: proves the three new attendance-statistic keys
-    /// (label, description, empty-state) resolve to a non-empty, non-"??"
-    /// string in de/en/cs — the i18n completeness gate for Phase 41.
+    /// RPT-03 (Phase 47): proves the nine new weekday-attendance keys
+    /// (7 short weekday labels + tooltip + empty-state) resolve to a
+    /// non-empty, non-"??" string in de/en/cs. Also asserts that the seven
+    /// short weekday labels within a locale are DISTINCT (no duplicates).
     #[test]
-    fn i18n_attendance_keys_present_in_all_locales() {
+    fn phase_47_weekday_i18n_presence() {
+        use std::collections::HashSet;
+
+        let weekday_keys = [
+            Key::WeekdayShortMon,
+            Key::WeekdayShortTue,
+            Key::WeekdayShortWed,
+            Key::WeekdayShortThu,
+            Key::WeekdayShortFri,
+            Key::WeekdayShortSat,
+            Key::WeekdayShortSun,
+        ];
+        let meta_keys = [Key::WeekdayAttendanceTooltip, Key::WeekdayAttendanceEmpty];
+
         for locale in [Locale::En, Locale::De, Locale::Cs] {
             let i18n = generate(locale);
-            for key in [
-                Key::AvgHoursPerAttendanceDay,
-                Key::AvgHoursPerAttendanceDayDescription,
-                Key::AvgHoursPerAttendanceDayEmpty,
-            ] {
-                let value = i18n.t(key);
+
+            for key in weekday_keys.iter().chain(meta_keys.iter()) {
+                let value = i18n.t(*key);
                 assert!(
                     !value.is_empty() && value.as_ref() != "??",
                     "missing translation for {:?} in {:?}: got `{}`",
@@ -928,6 +1005,18 @@ mod tests {
                     value
                 );
             }
+
+            let mut set: HashSet<String> = HashSet::new();
+            for key in weekday_keys.iter() {
+                set.insert(i18n.t(*key).as_ref().to_string());
+            }
+            assert_eq!(
+                set.len(),
+                7,
+                "weekday short labels must be DISTINCT within {:?}, got {:?}",
+                locale,
+                set
+            );
         }
     }
 
@@ -1574,11 +1663,9 @@ mod tests {
     #[test]
     fn i18n_impersonation_keys_match_german_reference() {
         // Pitfall-2 guard: pins the De copy so a locale-swap bug fails fast.
+        // Phase 46 (IMP-05): pins the shipped 🥸-De-Copy; test aligned to de.rs, not vice versa.
         let i18n = generate(Locale::De);
-        assert_eq!(
-            i18n.t(Key::ImpersonateActAs).as_ref(),
-            "Als diese Person agieren"
-        );
+        assert_eq!(i18n.t(Key::ImpersonateActAs).as_ref(), "🥸 Agieren");
         assert_eq!(
             i18n.t(Key::ImpersonateBanner).as_ref(),
             "Du agierst als {user}."
@@ -1656,6 +1743,78 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Phase 48-05 (EXP-02 / EXP-03): presence-test for the new PDF-export
+    /// admin-card keys. Every one of the 19 new keys must resolve to a
+    /// non-empty, non-"??" string in de / en / cs — otherwise the admin
+    /// UI card falls back to `??`, which the plan explicitly forbids.
+    #[test]
+    fn i18n_phase48_pdf_export_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SettingsPdfExportTitle,
+                Key::SettingsPdfExportHelp,
+                Key::SettingsPdfExportEnabled,
+                Key::SettingsPdfExportUrl,
+                Key::SettingsPdfExportUser,
+                Key::SettingsPdfExportToken,
+                Key::SettingsPdfExportTokenPlaceholder,
+                Key::SettingsPdfExportTargetFolder,
+                Key::SettingsPdfExportWeeksHorizon,
+                Key::SettingsPdfExportCronSchedule,
+                Key::SettingsPdfExportSave,
+                Key::SettingsPdfExportSaveSuccess,
+                Key::SettingsPdfExportSaveError,
+                Key::SettingsPdfExportTriggerNow,
+                Key::SettingsPdfExportTriggerNowSuccess,
+                Key::SettingsPdfExportTriggerNowError,
+                Key::SettingsPdfExportLastSuccess,
+                Key::SettingsPdfExportLastError,
+                Key::SettingsPdfExportStatusEmpty,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    /// Pitfall-2 guard: pins the shipped De copy so a Locale::En-instead-of-Locale::De
+    /// swap in de.rs fails immediately (see plan's D-48-UI-I18N reference copy).
+    #[test]
+    fn i18n_phase48_pdf_export_keys_match_german_reference() {
+        let de = generate(Locale::De);
+        assert_eq!(
+            de.t(Key::SettingsPdfExportTitle).as_ref(),
+            "PDF-Export nach Nextcloud"
+        );
+        assert_eq!(
+            de.t(Key::SettingsPdfExportEnabled).as_ref(),
+            "Export aktiviert"
+        );
+        assert_eq!(
+            de.t(Key::SettingsPdfExportTokenPlaceholder).as_ref(),
+            "(unverändert, hier neues Token eintippen)"
+        );
+        assert_eq!(
+            de.t(Key::SettingsPdfExportLastSuccess).as_ref(),
+            "Letzter Erfolg:"
+        );
+        assert_eq!(
+            de.t(Key::SettingsPdfExportLastError).as_ref(),
+            "Letzter Fehler:"
+        );
+        assert_eq!(
+            de.t(Key::SettingsPdfExportStatusEmpty).as_ref(),
+            "Kein Lauf bisher"
+        );
     }
 
     #[test]

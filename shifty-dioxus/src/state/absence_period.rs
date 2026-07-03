@@ -146,7 +146,7 @@ impl From<&ExtraHoursMarkerTO> for ExtraHoursMarker {
             sales_person_id: t.sales_person_id,
             when: t.when,
             amount: t.amount,
-            category: t.category.clone(),
+            category: t.category,
             description: t.description.clone(),
             person_name: t.person_name.clone(),
             derived_days: t.derived_days,

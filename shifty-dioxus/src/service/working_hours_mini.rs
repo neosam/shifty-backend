@@ -40,7 +40,7 @@ pub async fn working_hours_mini_service(mut rx: UnboundedReceiver<WorkingHoursMi
                     }
                     Err(err) => {
                         *ERROR_STORE.write() = ErrorStore {
-                            error: Some(err.into()),
+                            error: Some(err),
                         };
                     }
                 }

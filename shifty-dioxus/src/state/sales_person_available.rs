@@ -17,7 +17,7 @@ impl From<&SalesPersonUnavailableTO> for SalesPersonUnavailable {
             id: sales_person_available.id,
             sales_person_id: sales_person_available.sales_person_id,
             year: sales_person_available.year,
-            week: sales_person_available.calendar_week as u8,
+            week: sales_person_available.calendar_week,
             day_of_week: sales_person_available.day_of_week.into(),
             version: sales_person_available.version,
         }

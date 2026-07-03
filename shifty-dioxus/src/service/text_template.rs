@@ -28,7 +28,7 @@ impl Default for TextTemplateStore {
 }
 
 pub static TEXT_TEMPLATE_STORE: GlobalSignal<TextTemplateStore> =
-    Signal::global(|| TextTemplateStore::default());
+    Signal::global(TextTemplateStore::default);
 
 #[derive(Debug)]
 pub enum TextTemplateAction {
@@ -168,7 +168,7 @@ pub async fn handle_text_template_action(action: TextTemplateAction) {
 
     if let Err(error) = result {
         *ERROR_STORE.write() = crate::service::error::ErrorStore {
-            error: Some(error.into()),
+            error: Some(error),
         };
     }
 }

@@ -423,3 +423,155 @@ nur in Phase 39 (`week_status`-Tabelle, partial UNIQUE). Keine neuen Dependencie
 **Hinweis:** v2.1 ist das interne Planungs-Label. Reale Release-Version datumsbasiert via `cli-update-version`/`/release-version` (kein git tag).
 
 ---
+
+## v2.2 — Aufräumen, WebDAV-Export & Wochentag-Muster
+
+**Shipped:** 2026-07-03
+**Phases:** 43–48 (6 phases, 16 plans)
+**Closeout:** override_closeout (Milestone-Audit `passed`; 13 Carry-over-Items aus dem Pre-Close-Audit acknowledged, keines v2.2-spezifisch)
+**Audit:** ✅ passed (16/16 Requirements, Integration clean, 3/3 E2E-Flows)
+**Archive:** [`milestones/v2.2-ROADMAP.md`](milestones/v2.2-ROADMAP.md) · [`milestones/v2.2-REQUIREMENTS.md`](milestones/v2.2-REQUIREMENTS.md) · [`milestones/v2.2-MILESTONE-AUDIT.md`](milestones/v2.2-MILESTONE-AUDIT.md)
+
+**Delivered:**
+Aufräum-Milestone mit zwei substantiellen Features. Verbliebene v1.x-Carry-over-Bugs
+(SDF-03/04/05 Special-Days-Feintuning; BUG-01/02/03 Frontend-Korrektheit) und
+Hygiene-Themen (HYG-03 Dioxus-Warnings, HYG-04 „Edit structure"-i18n, HYG-05
+REST-Content-Type-Drift-Guard, IMP-05 i18n-Impersonation-Test) geschlossen. Die
+v2.1-Ø-Std/Anwesenheitstag-Kennzahl wurde durch eine pro-Wochentag-Muster-Anzeige
+(count + %) im HR-Stats-Block ersetzt (RPT-01/02/03, reines Read-Aggregat, Snapshot
+bleibt 12). Neu: regelmäßiger Nextcloud-PDF-Export via WebDAV (EXP-01/02/03) —
+Backend-Task rendert pro Kalenderwoche ein PDF (`printpdf`, deterministisch), pusht
+per WebDAV (`reqwest_dav`, MKCOL+PUT, 3× Retry 2s/4s/8s), Cron-Scheduler
+(`tokio-cron-scheduler`), admin-gated Settings-Card mit Config + „Jetzt
+exportieren"-Button + Status. Migration nur in Phase 48 (`pdf_export_config`
+Single-Row). Snapshot bleibt 12 (kein Bump).
+
+**Key accomplishments:**
+
+1. **Phase 43 (SDF-03/04/05)** — Special-Days-Feintuning: `sd_year_after_create`
+   Kalenderjahr-Loader-Fix (`date.year()` statt `iso_year` → 1.1.-Anzeige-Bug
+   behoben), i18n-Copy Duplikat-Hinweis auf Replace-Verhalten umgestellt (de/en/cs,
+   Anti-Wording-Test), Feiertag↔Kurzer-Tag-Umschalter im Wochenraster wirft keinen
+   Fehler mehr (Backend-Roundtrip-Test kettet zwei Ersetzungen, FE
+   `special_day_error_after_create` pure fn).
+
+2. **Phase 44 (BUG-01/02/03)** — Frontend-Korrektheit: `save_slot_edit` auf
+   Snapshot-vor-`.await` + Pure-fn-Outcome-Apply refaktoriert (kein
+   `SLOT_EDIT_STORE`-Write-Borrow über `.await`, 6 Regressionstests),
+   `ShiftyError::InvitationParse(String)` + Inline-Banner + i18n für sichtbaren
+   Invitation-Parse-Fehler (kein silent-empty), durable Grep-Invariant-Test
+   `mod backdrop_invariant` in `dialog.rs` (jedes Modal mit `fixed inset-0` muss
+   `BackdropPress` nutzen).
+
+3. **Phase 45 (HYG-03)** — shifty-dioxus Warnings-Aufräumen: 177 → 0 Clippy-Warnings
+   (auto-fix erste Welle, dann manuelle Kategorien mit begründeten `#[allow]`s bei
+   API-brechenden Fällen); FE-Clippy-Gate `-D warnings` erstmals scharfgestellt;
+   Backend-Clippy-Gate unberührt grün.
+
+4. **Phase 46 (HYG-04/HYG-05/IMP-05)** — Backend-Hygiene & i18n: 3 neue i18n-Keys
+   (`Shiftplan{EditStructure,NormalMode,NewSlot}`) in de/en/cs + Call-Sites in
+   `page/shiftplan.rs`; OpenAPI-Reflection-Test `rest/tests/content_type_surface.rs`
+   iteriert 120 utoipa-Operationen + Whitelist (application/json + text/plain) +
+   Grandfather-Liste für 13 pre-existing Handler (Content-Type-Drift-Guard);
+   `i18n_impersonation_keys_match_german_reference`-Test auf shipped 🥸-Copy
+   angepasst (3/3 Impersonation-Tests grün).
+
+5. **Phase 47 (RPT-01/02/03)** — Wochentag-Anwesenheits-Muster: pure fn
+   `weekday_attendance_distribution` + Endpoint-Umbau
+   (`EmployeeAttendanceStatisticsTO.attendance_by_weekday + counted_calendar_weeks`),
+   HR-Gate + `is_dynamic`-Filter preserved, alte `average_hours_per_attendance_day`
+   grep-verifiziert entfernt (0 Hits); FE-Formatter `format_weekday_attendance_line`
+   („Mo: 8 (80 %) · …") + i18n de/en/cs (9 neue Keys: 7 Wochentag-Shortcuts,
+   Tooltip, Leerzustand) + SSR-Tests; Snapshot bleibt 12 (grep-verifiziert).
+
+6. **Phase 48 (EXP-01/02/03)** — Nextcloud-PDF-Export via WebDAV: Migration
+   `pdf_export_config` (Single-Row, fixe UUID-PK, INSERT-OR-IGNORE-Seed) + Basic-Tier
+   `PdfExportConfigService` (admin-gated get/update, Full-Auth-only
+   record_success/record_error) + REST GET/PUT mit Token-Maskierung;
+   `pdf_render.rs` mit `printpdf` (Landscape A4, deterministisch, 10 TDD-Tests);
+   `webdav_client.rs` mit `reqwest_dav` (MKCOL+PUT, 3× Exp-Backoff 2s/4s/8s,
+   Token-Leak-Guard im Debug-Impl, rustls-only, wiremock-Tests);
+   `PdfExportSchedulerImpl` mit `tokio-cron-scheduler` (Config-Reload via PUT-Hook,
+   POST /trigger-Endpoint, Boot-Wiring, 6 behavior-Unit-Tests + 1 E2E
+   `boot_trigger_reload_flow`); admin-gated Settings-Card 4 in FE (Toggle + 6
+   Felder + Save + „Jetzt exportieren" + Status-Anzeige, 19 neue i18n-Keys in
+   de/en/cs).
+
+**Test verification:** Backend `cargo test --workspace` grün; Backend
+`cargo clippy --workspace -- -D warnings` clean; FE `cargo build --target
+wasm32-unknown-unknown` warnungsfrei; FE `cargo test -p shifty-dioxus` **787
+grün** (inkl. der zuvor gebrochenen `i18n_impersonation_keys_match_german_reference`
+via IMP-05); FE `cargo clippy -p shifty-dioxus -- -D warnings` erstmals grün.
+Audit `passed` (16/16 Requirements, Integration clean, 3/3 E2E-Flows). Neue Deps
+(`printpdf`, `reqwest_dav`, `tokio-cron-scheduler`), eine neue Migration
+(`pdf_export_config`), kein Snapshot-Bump.
+
+**Known deferred items (acknowledged at close, 2026-07-03, override_closeout):**
+
+- **Pre-existing `doc_lazy_continuation`-Clippy-Warning** (Phase-40-Ursprung, aus
+  v2.1) in `service_impl/src/test/shiftplan_edit_lock.rs:6` — fires nur mit
+  `--all-targets`, nicht Teil des Standard-Clippy-Gates. Non-blocking, trivialer
+  Folge-Fix.
+- **Phase 45 Scope-Caveat:** 13 pre-existing `#[allow(dead_code)]`/
+  `#[allow(non_snake_case)]` ohne reason-Kommentar bleiben — Clippy `-D warnings`
+  trotzdem grün. Optionale Nach-Hygiene-Runde.
+- **Phase 48 Deviation:** PDF-Determinismus-Test normalisiert die `/ID`-Array-Bytes
+  test-seitig (dokumentiert im SUMMARY) — Payload/Layout byte-gleich, nur der
+  printpdf-internal `/ID`-Fingerprint runspezifisch.
+- **Pre-Close-Audit 2026-07-03**: 13 Carry-over-Items (1 debug session
+  `awaiting_human_verify`, 7 Quick-Tasks, 5+ Pending Todos aus Mai/Juni 2026) —
+  historischer Ballast aus v1.4–v2.1, in v2.2 nicht in Scope gezogen, weiterhin in
+  STATE.md → Deferred Items.
+
+**Post-Ship-Bugfixes (2026-07-03, nach Milestone-Close, vor Release-Tag):**
+
+Drei UAT-Findings vom User nachträglich in v2.2 gefixt (kein separater
+Milestone, weil noch nicht getagged):
+
+1. **SDF-03 Kalender-Jahr-Semantik (nachziehen)** — der Phase-43-Fix hatte nur
+   `sd_year.set()` nach einem Create korrigiert, nicht den DB-Filter.
+   Ein 01.01.2027-Eintrag wurde als ISO-Wochenjahr `(2026, W53, Fri)` gespeichert
+   und war im 2026er-Filter sichtbar, im 2027er-Filter unsichtbar.
+   Fix: `SpecialDayServiceImpl::get_by_year(year)` lädt jetzt `year` UND
+   `year - 1`, filtert per `ShiftyDate::to_date().year() == year` (Kalenderjahr)
+   und sortiert nach Kalenderdatum aufsteigend, sodass 01.01.YYYY oben statt am
+   Ende der Liste steht. Tests: `test_get_by_year_delegates_and_maps` (Mid-Year-
+   Basis-Fall angepasst auf 2026-W10-Mo) + neuer
+   `test_get_by_year_returns_new_year_day_under_calendar_year` (positive:
+   01.01.2027 ist in `get_by_year(2027)` sichtbar UND sortiert VOR 11.01.2027;
+   negative: NICHT sichtbar in `get_by_year(2026)`).
+   Files: `service_impl/src/special_days.rs`, `service_impl/src/test/special_days.rs`.
+
+2. **RPT-02 Sichtbarkeit + Label** — die Wochentag-Zeile wurde nur für flexible
+   Employees mit HR-Rolle gerendert (`is_dynamic`-Filter). User wollte sie für
+   ALLE Employees sehen. Fix: `is_dynamic`-Gate in
+   `ReportingServiceImpl::get_employee_attendance_statistics` entfernt (HR-Gate
+   bleibt). Zusätzlich UX-Fix: neuer i18n-Key `WeekdayAttendanceLabel`
+   (de: „Anwesenheit / Tag", en: „Attendance / day", cs: „Docházka / den") als
+   kurzes TupleRow-Label; der lange Text bleibt als `title`-Tooltip. Test
+   `attendance_statistics_returns_none_for_static` → durch
+   `attendance_statistics_returns_some_for_static_after_rpt02` ersetzt.
+   Files: `service_impl/src/reporting.rs`,
+   `service_impl/src/test/reporting_attendance_gate.rs`,
+   `shifty-dioxus/src/component/employee_view.rs`,
+   `shifty-dioxus/src/i18n/{mod,de,en,cs}.rs`.
+
+3. **+ Button Refresh (nicht reproduzierbar)** — User meldete Full-Page-Reload
+   beim + Button auf Absent-Markierten Montags-Slots. Bei Repro in Chrome (via
+   `mcp__claude-in-chrome`) trat der Reload weder mit programmatischem
+   `.click()` noch mit voller MouseEvent-Chain auf. Handler-Kette geprüft:
+   `r#type: "button"`, `evt.stop_propagation()`, kein Ancestor-`<form>`/`<a>`,
+   `update_shiftplan()` nutzt keinen Router-Push, `block_error` rendert nur
+   Banner ohne Redirect. Nach kurzem Retest durch den User selbst nicht mehr
+   auftretend — vermutlich transient (dx-serve Live-Reload während meiner
+   Backend-Änderungen). Kein Code-Fix; falls Bug wiederkehrt: Console-Log beim
+   Click liefert den Panic-Ort.
+
+Alle Gates nach Post-Ship-Fixes: Backend `cargo test --workspace` grün,
+`cargo clippy --workspace -- -D warnings` grün, `cargo build
+--target wasm32-unknown-unknown` grün.
+
+**Hinweis:** v2.2 ist das interne Planungs-Label. Reale Release-Version via
+`/release-version` (SemVer-Tag wird dort gesetzt, `git.create_tag=false` in GSD-Config).
+
+---

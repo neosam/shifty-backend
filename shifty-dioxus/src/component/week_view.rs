@@ -114,10 +114,9 @@ where
                         },
                         ColumnViewContent::Items(items) => {
                             let mut items: Vec<ColumnViewContentItem> = items
-                                .iter()
-                                .map(|item| item.clone())
+                                .iter().cloned()
                                 .collect();
-                            let item_clicked = props.item_clicked.clone();
+                            let item_clicked = props.item_clicked;
                             items.sort_by_key(|item| item.title.clone());
                             let tooltip_service = use_coroutine_handle::<TooltipAction>();
                             rsx! {
@@ -140,7 +139,7 @@ where
                                                             item_clicked.call(id);
                                                         }
                                                         info!("Item clicked");
-                                                        ()
+                                                        
                                                     },
                                                     onmousedown: {
                                                         let tooltip = item_tooltip.clone();
@@ -245,7 +244,7 @@ where
                                 add_event.call(custom_data_add.to_owned());
                             }
                             info!("Add event");
-                            ()
+                            
                         },
                         "+"
                     }
@@ -260,7 +259,7 @@ where
                                 remove_event.call(custom_data_remove.to_owned());
                             }
                             info!("Remove event");
-                            ()
+                            
                         },
                         "-"
                     }
@@ -443,8 +442,7 @@ where
                 item_data: ColumnViewItem {
                     start: 0.0,
                     end: props.offset,
-                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone())
-                        .into(),
+                    title: ColumnViewContent::Title(props.title.unwrap_or_else(|| "".into()).clone()),
                     show_add: false,
                     show_remove: false,
                     custom_data: (),
@@ -453,7 +451,7 @@ where
                 },
                 show_dropdown: true,
                 discourage: props.discourage,
-                double_clicked: props.title_double_clicked.clone(),
+                double_clicked: props.title_double_clicked,
                 warning: None,
             }
             for slot in props.slots.iter() {
@@ -476,7 +474,7 @@ where
                     },
                     add_event: props.add_event,
                     remove_event: props.remove_event,
-                    item_clicked: props.item_clicked.clone(),
+                    item_clicked: props.item_clicked,
                     discourage: props.discourage,
                     warning: slot.warning.clone(),
                 }
@@ -553,7 +551,7 @@ pub fn DayView(props: DayViewProps) -> Element {
     }
     rsx! {
         ColumnView::<Slot> {
-            height: (props.day_end - props.day_start) as f32 * SCALING,
+            height: (props.day_end - props.day_start) * SCALING,
             scale: SCALING,
             offset: SCALING / 2.0,
             slots: props
@@ -573,12 +571,12 @@ pub fn DayView(props: DayViewProps) -> Element {
                 .collect(),
             title: Some(title.into()),
             highlight_item_id: props.highlight_item_id,
-            add_event: props.add_event.clone(),
-            remove_event: props.remove_event.clone(),
-            item_clicked: props.item_clicked.clone(),
+            add_event: props.add_event,
+            remove_event: props.remove_event,
+            item_clicked: props.item_clicked,
             title_double_clicked: move |_| {
                 if let Some(title_double_clicked) = &props.title_double_clicked {
-                    title_double_clicked.call(props.weekday.clone());
+                    title_double_clicked.call(props.weekday);
                 }
             },
             discourage: props.discourage,
@@ -623,7 +621,7 @@ pub fn resolve_cell_button(
         WeekViewButtonTypes::AddRemove => match editing_person_id {
             None => CellButton::None,
             Some(id) => {
-                if booking_sales_person_ids.iter().any(|sp| *sp == id) {
+                if booking_sales_person_ids.contains(&id) {
                     CellButton::Remove
                 } else {
                     CellButton::Add

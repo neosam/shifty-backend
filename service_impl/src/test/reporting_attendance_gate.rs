@@ -1,4 +1,6 @@
-//! Server-side gate tests for the AVG-01 attendance-day metric (Phase 41-02).
+//! Server-side gate tests for the attendance statistic (Phase 47 / RPT-01).
+//!
+//! The endpoint URL and gate semantics are unchanged from v2.1 (D-AVG-05):
 //!
 //! T-41-03 (D-AVG-05): `get_employee_attendance_statistics` runs the HR_PRIVILEGE
 //!   check as its FIRST await — no work_details / report is fetched before auth.
@@ -6,6 +8,8 @@
 //! T-41-04 (D-AVG-05): non-flexible employees (no `is_dynamic`) are filtered
 //!   server-side → `Ok(None)`; `attendance_statistics_returns_none_for_static`
 //!   proves no report is fetched for them.
+//! T-47-01 (RPT-01): flexible employee + HR caller produces a per-weekday
+//!   distribution in the new v2.2 payload shape.
 //!
 //! Structural template: service_impl/src/test/reporting_holiday_auto_credit.rs.
 
@@ -133,41 +137,82 @@ async fn attendance_statistics_requires_hr() {
     assert!(matches!(result.unwrap_err(), ServiceError::Forbidden));
 }
 
-/// T-41-04 / D-AVG-05: a static (non-flexible) employee is filtered server-side
-/// → `Ok(None)`, and the report is never fetched (`.times(0)`).
+/// RPT-02 (v2.2 post-ship): der is_dynamic-Filter wurde entfernt — die
+/// Wochentag-Verteilung wird für ALLE Mitarbeiter berechnet. Ein static
+/// (non-flexible) Employee bekommt jetzt `Ok(Some(stats))` statt `Ok(None)`;
+/// der Report WIRD gefetched. Für einen leeren Report ist die Verteilung
+/// all-zero (7 Einträge, alle count=0).
 #[tokio::test]
-async fn attendance_statistics_returns_none_for_static() {
+async fn attendance_statistics_returns_some_for_static_after_rpt02() {
     let mut mocks = ReportingMocks::new();
     mocks
         .permission_service
         .expect_check_permission()
         .returning(|_, _| Ok(()));
-    // Static contract: is_dynamic == false.
+    // Non-flexible Fixture wird jetzt NICHT mehr abgefragt (kein is_dynamic-Filter),
+    // aber Mock-Setup bleibt für Kompatibilität mit dem Report-Fetch-Pfad, der
+    // find_by_sales_person_id weiter aufruft (get_report_for_employee_range).
     mocks
         .employee_work_details_service
         .expect_find_by_sales_person_id()
         .returning(|_, _, _| Ok(Arc::from(vec![fixture_work_details_8h_mon_fri()])));
-    // Proof: no report is aggregated for a non-flexible employee.
+    mocks
+        .sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    mocks
+        .sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Leerer Report — deckt den „nichts gearbeitet"-Fall ab, für den die
+    // Verteilung all-zero sein muss.
     mocks
         .shiftplan_report_service
         .expect_extract_shiftplan_report()
-        .times(0);
+        .returning(|_, _, _, _, _| Ok(Arc::from(vec![])));
+    mocks
+        .extra_hours_service
+        .expect_find_by_sales_person_id_and_year_range()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<ExtraHours>::new())));
+    mocks
+        .absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    mocks
+        .toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+    mocks
+        .carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
 
     let service = mocks.build();
     let result = service
         .get_employee_attendance_statistics(&fixture_sales_person_id(), 2024, 25, Authentication::Full, None)
-        .await;
+        .await
+        .expect("attendance_statistics must succeed for non-flexible employee after RPT-02");
 
-    assert_eq!(result.unwrap(), None);
+    let stats = result.expect("RPT-02: Some(...) for non-flexible employee");
+    assert_eq!(
+        stats.attendance_by_weekday.len(),
+        7,
+        "weekday distribution must always have 7 entries (Mo-So)"
+    );
+    assert!(
+        stats.attendance_by_weekday.iter().all(|w| w.count == 0),
+        "empty report → all counts must be 0, got {:?}",
+        stats.attendance_by_weekday
+    );
 }
 
-/// T-41-05 (D-AVG-01/D-AVG-05): flexible employee (is_dynamic=true) + HR caller
-/// → `Ok(Some(stats))` with attendance_days >= 2 and average is Some.
+/// T-47-01 (D-47-BE / D-AVG-05): flexible employee (is_dynamic=true) + HR caller
+/// → `Ok(Some(stats))` with `attendance_by_weekday` populated per weekday.
 /// Exercises the full chain: HR gate → is_dynamic==true → get_report_for_employee
-/// → average_hours_per_attendance_day.
+/// → weekday_attendance_distribution.
 ///
 /// Fixture: 2 shiftplan days in KW23/2024 (Mon + Wed), each 4h
-/// → attendance_days=2, total_worked_hours=8.0, average=Some(4.0).
+/// → Mon count=1, Wed count=1, all others 0.
 #[tokio::test]
 async fn attendance_statistics_returns_some_for_flexible() {
     let mut mocks = ReportingMocks::new();
@@ -250,12 +295,24 @@ async fn attendance_statistics_returns_some_for_flexible() {
         )
         .await;
 
-    let stats = result.expect("should succeed for flexible employee").expect("should be Some for flexible employee");
-    assert!(stats.attendance_days >= 2, "attendance_days={}", stats.attendance_days);
-    assert!(
-        stats.average_hours_per_attendance_day.is_some(),
-        "average should be Some when attendance_days >= 2"
-    );
-    let avg = stats.average_hours_per_attendance_day.unwrap();
-    assert!((avg - 4.0).abs() < 0.001, "avg={avg}");
+    let stats = result
+        .expect("should succeed for flexible employee")
+        .expect("should be Some for flexible employee");
+    // v2.2 (RPT-01): attendance_by_weekday is always length 7, Mon..Sun.
+    assert_eq!(stats.attendance_by_weekday.len(), 7);
+    // KW23/2024 is a single counted calendar week → Mon count=1 share=1.0, Wed count=1 share=1.0.
+    let mon = &stats.attendance_by_weekday[0];
+    let wed = &stats.attendance_by_weekday[2];
+    assert_eq!(mon.weekday, DayOfWeek::Monday);
+    assert_eq!(mon.count, 1, "Mon count should be 1");
+    assert_eq!(wed.weekday, DayOfWeek::Wednesday);
+    assert_eq!(wed.count, 1, "Wed count should be 1");
+    // Others must be zero.
+    for (i, stat) in stats.attendance_by_weekday.iter().enumerate() {
+        if i == 0 || i == 2 {
+            continue;
+        }
+        assert_eq!(stat.count, 0, "weekday index {} should have count 0", i);
+    }
+    assert!(stats.counted_calendar_weeks >= 1, "should count at least KW23");
 }

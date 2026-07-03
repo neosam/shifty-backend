@@ -63,16 +63,14 @@ pub fn BookingLogTable(props: BookingLogTableProps) -> Element {
             }
 
             match props.status_filter.as_str() {
-                "active" => {
-                    if b.deleted.is_some() {
+                "active"
+                    if b.deleted.is_some() => {
                         return false;
                     }
-                }
-                "deleted" => {
-                    if b.deleted.is_none() {
+                "deleted"
+                    if b.deleted.is_none() => {
                         return false;
                     }
-                }
                 _ => {}
             }
 

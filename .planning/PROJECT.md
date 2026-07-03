@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-07-02
-last_milestone: v2.1 Schichtplan- & Reporting-Erweiterungen (shipped 2026-07-02, Phasen 39–42, 9/9 Requirements, Audit passed)
-current_milestone: none (between milestones — next candidate: v2.2 PDF-Export → Nextcloud/WebDAV)
+last_updated: 2026-07-03
+last_milestone: v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster (shipped 2026-07-03, Phasen 43–48, 16/16 Requirements, Audit passed)
+current_milestone: — (between milestones; next via /gsd-new-milestone)
 ---
 
 # Shifty — Project Charter
@@ -133,7 +133,44 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Zuletzt geshipt: v2.1 Schichtplan- & Reporting-Erweiterungen (2026-07-02)
+## Zuletzt geshipt: v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster (2026-07-03)
+
+**Geliefert (as built):** 16/16 Requirements über 6 Phasen (43–48). Aufräum-Block: SDF-03/04/05
+Special-Days-Feintuning (Kalenderjahr-Loader-Fix, Duplikat-Hinweis Replace-Copy, Feiertag↔Kurzer-
+Tag atomarer Roundtrip); BUG-01/02/03 Frontend-Korrektheit (`save_slot_edit` Snapshot-vor-`.await`,
+`ShiftyError::InvitationParse`+Banner, durable Grep-Invariant für `BackdropPress`); HYG-03
+shifty-dioxus 177→0 Warnings (FE-Clippy `-D warnings` erstmals scharfgestellt); HYG-04/HYG-05/IMP-05
+Backend-Hygiene (Edit-structure-i18n, OpenAPI-Reflection-Content-Type-Drift-Guard über 120
+Operationen, i18n-Impersonation-Test grün). Feature-Block RPT: RPT-01/02/03 Wochentag-Anwesenheits-
+Muster ersetzt v2.1-Ø-Std/Anwesenheitstag durch pro-Wochentag-Anzeige (count + %), reines
+Read-Aggregat. Feature-Block EXP: EXP-01/02/03 Nextcloud-PDF-Export via WebDAV — Backend rendert
+pro Woche ein PDF (`printpdf`, deterministisch), pusht per WebDAV (`reqwest_dav`, MKCOL+PUT,
+3× Retry 2s/4s/8s), Cron-Scheduler (`tokio-cron-scheduler`), admin-gated Settings-Card mit
+Config + „Jetzt exportieren" + Status. Migration nur in Phase 48 (`pdf_export_config`
+Single-Row). Snapshot bleibt 12.
+
+**Verifikation:** alle 6 Phasen VERIFIED passed; Milestone-Audit `passed` (16/16 Requirements,
+Integration clean, 3/3 E2E-Flows). Backend `cargo test --workspace` + `clippy -D warnings` grün;
+FE WASM-Build + `cargo test -p shifty-dioxus` 787 grün + FE-Clippy `-D warnings` erstmals grün.
+
+**Closeout:** override_closeout — Audit `passed`; Pre-Close-Audit-13-Carry-over-Items acknowledged
+(historischer v1.4–v2.1-Ballast, keines v2.2-spezifisch). Kein git tag hier — Release-Tag via
+`/release-version`.
+
+**Archiv:** `milestones/v2.2-ROADMAP.md`, `milestones/v2.2-REQUIREMENTS.md`,
+`milestones/v2.2-MILESTONE-AUDIT.md`.
+
+<details>
+<summary>✅ v2.1 Schichtplan- & Reporting-Erweiterungen — SHIPPED 2026-07-02 (Phasen 39–42)</summary>
+
+**Geliefert (as built):** WST-01/02/05 KW-Status (neue `week_status`-Tabelle, shiftplanner-gated
+CRUD, farbkodiertes Badge). WST-03/04 Wochen-Sperre TOCTOU-sicher in allen 6 Schreibpfaden (HTTP
+423, Shiftplanner-Bypass, neue `delete_booking`-Methode + REST-Re-Routing, FE read-only + 423-Banner).
+AVG-01/02/03 Ø-Anwesenheit flexibler Mitarbeiter (pure fn `average_hours_per_attendance_day`,
+HR-gated). SDF-01 Special-Days-Anlegen-Button-Fix. Migration in Phase 39 (`week_status`-Tabelle).
+Snapshot bleibt 12. Audit `passed` (9/9 Requirements). Details: `milestones/v2.1-ROADMAP.md`.
+
+</details>
 
 <details>
 <summary>✅ v1.8 Freiwilligen-Auswahl & Urlaubsanspruch-Korrektur (HR-UX) — SHIPPED 2026-06-29 (Phasen 27–28)</summary>
@@ -236,34 +273,37 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
+## Current Milestone: — (zwischen Milestones)
+
+Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone` (Kandidat v2.3, Priorität
+durch User).
+
 ## Current State
 
-**v2.1 shipped 2026-07-02** (Phasen 39–42, 14 Pläne, 9/9 Requirements, Audit `passed`,
-override_closeout; autonomer Run). Geliefert: WST-01/02/05 KW-Status (new `week_status`-Tabelle,
-shiftplanner-gated CRUD, farbkodiertes Badge für alle Rollen, Unset/Planung/Geplant/Gesperrt);
-WST-03/04 Wochen-Sperre (TOCTOU-sicheres `assert_week_not_locked` in allen 6 Schreibpfaden
-in-Transaktion, HTTP 423, Shiftplanner-Bypass, `delete_booking` + REST-Re-Routing); AVG-01/02/03
-Ø-Anwesenheit flexibler Mitarbeiter (pure fn, HR-gated, reines Read-Aggregat, Snapshot bleibt 12);
-SDF-01 Special-Days-„Anlegen"-Button-Fix (Option-2-Reset-Removal). **Zwischen Milestones** —
-nächste Iteration via `/gsd-new-milestone`. Details:
-`milestones/v2.1-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`.
+**v2.2 shipped 2026-07-03** (Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`,
+override_closeout; autonomer Run). Geliefert: SDF-03/04/05 Special-Days-Feintuning, BUG-01/02/03
+Frontend-Korrektheit, HYG-03 shifty-dioxus 177→0 Warnings (FE-Clippy `-D warnings` erstmals
+scharfgestellt), HYG-04/HYG-05/IMP-05 Backend-Hygiene (Edit-structure-i18n, REST-Content-Type-
+Drift-Guard über 120 Operationen, i18n-Impersonation-Test grün), RPT-01/02/03 Wochentag-
+Anwesenheits-Muster (ersetzt v2.1-AVG), EXP-01/02/03 Nextcloud-PDF-Export via WebDAV (printpdf +
+reqwest_dav + tokio-cron-scheduler, admin-gated Settings-Card). Migration in Phase 48
+(`pdf_export_config` Single-Row). Neue Deps: printpdf, reqwest_dav, tokio-cron-scheduler.
+**Zwischen Milestones** — nächste Iteration via `/gsd-new-milestone`. Details:
+`milestones/v2.2-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`.
 
-Zuvor: **v1.11 Stabilisierung & UX-Politur** (shipped 2026-07-01, Phasen 36–38, 6 Pläne,
-6/6 Requirements, Audit `passed`). SDF-01/02 Special-Days-Bugfixes + MOD-01/02 Modal-UX +
-HYG-01/02 Frontend-Build-Hygiene. Details: `milestones/v1.11-ROADMAP.md`.
+Zuvor: **v2.1 Schichtplan- & Reporting-Erweiterungen** (shipped 2026-07-02, Phasen 39–42, 14 Pläne,
+9/9 Requirements, Audit `passed`). WST-01..05 KW-Status + Wochen-Sperre; AVG-01/02/03 Ø-Anwesenheit
+flexibler Mitarbeiter; SDF-01 Anlegen-Button-Fix. Details: `milestones/v2.1-ROADMAP.md`.
 
-Zuvor: **v1.10 Feiertage — UI-Pflege & Schichtplan-Soll-Konsistenz** (shipped 2026-06-30,
-Phasen 33–35, 8 Pläne, 12/12 Requirements, Audit `passed`). Details:
-`milestones/v1.10-ROADMAP.md` / `-REQUIREMENTS.md` / `v1.10-MILESTONE-AUDIT.md`.
+Davor: **v1.11 Stabilisierung & UX-Politur** (shipped 2026-07-01), **v1.10 Feiertage** (2026-06-30),
+**v1.9 Admin-Impersonation** (2026-06-29), **v1.8 HR-UX** (2026-06-29), **v1.7 Feiertage/VFA**
+(2026-06-29), **v1.6 Paid-Capacity** (2026-06-27) — alle archiviert (siehe MILESTONES.md).
 
-Davor: **v1.9 Admin-Impersonation** (2026-06-29), **v1.8 HR-UX** (2026-06-29), **v1.7
-Feiertage/VFA** (2026-06-29), **v1.6 Paid-Capacity** (2026-06-27) — alle archiviert.
+**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.2 kein Bump
+— v2.2 grep-verifiziert in Phase 47: RPT = reines Read-Aggregat, EXP berührt keinen
+`BillingPeriodValueType`).
 
-**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.1 kein Bump
-— v2.1 grep-verifiziert in Phase 41: AVG = reines Read-Aggregat, kein neuer BillingPeriodValueType).
-
-**Nächster Milestone: v2.2 PDF-Export → Nextcloud/WebDAV (EXP-01).** Die off-theme
-**Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt separat via
+Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt separat via
 `/gsd-plan-phase 999.1`.
 
 <details>
@@ -333,6 +373,8 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v1.11-ROADMAP.md`, `milestones/v1.11-REQUIREMENTS.md`, `milestones/v1.11-MILESTONE-AUDIT.md`.
 - v2.1 Schichtplan- & Reporting-Erweiterungen — shipped 2026-07-02 (Phasen 39–42).
   Archiv: `milestones/v2.1-ROADMAP.md`, `milestones/v2.1-REQUIREMENTS.md`, `milestones/v2.1-MILESTONE-AUDIT.md`.
+- v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster — shipped 2026-07-03 (Phasen 43–48).
+  Archiv: `milestones/v2.2-ROADMAP.md`, `milestones/v2.2-REQUIREMENTS.md`, `milestones/v2.2-MILESTONE-AUDIT.md`.
 
 Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
 

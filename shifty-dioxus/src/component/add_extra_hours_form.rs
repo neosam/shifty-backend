@@ -131,8 +131,8 @@ pub fn AddExtraHoursForm(props: AddExtraHoursFormProps) -> Element {
 
     // Helper function to parse category from identifier
     let parse_category = move |identifier: &str| -> WorkingHoursCategory {
-        if identifier.starts_with("custom_") {
-            if let Ok(uuid) = Uuid::parse_str(&identifier[7..]) {
+        if let Some(uuid_str) = identifier.strip_prefix("custom_") {
+            if let Ok(uuid) = Uuid::parse_str(uuid_str) {
                 WorkingHoursCategory::Custom(uuid)
             } else {
                 WorkingHoursCategory::ExtraWork("".into())

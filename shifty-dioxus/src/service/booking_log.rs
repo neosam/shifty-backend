@@ -27,7 +27,7 @@ pub async fn booking_log_service(mut rx: UnboundedReceiver<BookingLogAction>) {
                     }
                     Err(err) => {
                         *ERROR_STORE.write() = ErrorStore {
-                            error: Some(err.into()),
+                            error: Some(err),
                         };
                     }
                 }

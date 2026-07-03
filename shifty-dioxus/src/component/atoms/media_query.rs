@@ -25,7 +25,7 @@ pub fn use_media_query(query: &'static str) -> Signal<bool> {
     let initial = match_media_initial(query);
     let mut signal = use_signal(|| initial);
 
-    use_hook(|| install_media_query_listener(query, signal.clone()));
+    use_hook(|| install_media_query_listener(query, signal));
 
     let _ = &mut signal;
     signal
