@@ -34,6 +34,7 @@ use service::{
     PermissionService, ServiceError, ValidationFailureItem,
 };
 use time::OffsetDateTime;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
@@ -93,6 +94,30 @@ pub(crate) fn filter_active(sales_persons: &[SalesPerson]) -> Vec<SalesPerson> {
         .collect()
 }
 
+/// D-50-12: Beschafft den Render-Timestamp per `now_local()` mit UTC-Fallback.
+///
+/// Auf Deployments, in denen `time::OffsetDateTime::now_local()`
+/// `IndeterminateOffset` liefert (Multi-Thread ohne
+/// `unsafe { time::util::local_offset::set_soundness }`, minimal-Container
+/// ohne TZ-Data, Docker ohne `TZ`-Env), fällt die Fn stumm auf
+/// [`OffsetDateTime::now_utc`] zurück und loggt ein `warn!` — akzeptable
+/// Graceful-Degradation, weil der PDF-Footer nur informativ ist.
+///
+/// Als separate `pub(crate) fn` extrahiert, damit der D-50-16-Smoke-Test
+/// verifizieren kann, dass die `unwrap_or_else`-Verkabelung stimmt und die
+/// Fn niemals paniced (siehe `test/pdf_shiftplan.rs`
+/// `now_local_fallback_to_utc_on_indeterminate_offset`).
+///
+/// Anti-Pattern-Guard: hier steht bewusst KEIN `.unwrap()` oder `.expect()` —
+/// beides würde auf besagten Deployments sofort panicen und den PDF-Download
+/// aus einem rein informativen Grund killen.
+pub(crate) fn resolve_render_timestamp() -> OffsetDateTime {
+    OffsetDateTime::now_local().unwrap_or_else(|_| {
+        warn!("PDF-Renderer: Lokale TZ nicht bestimmbar — UTC wird verwendet");
+        OffsetDateTime::now_utc()
+    })
+}
+
 #[async_trait]
 impl<Deps: PdfShiftplanServiceDeps + 'static> PdfShiftplanService for PdfShiftplanServiceImpl<Deps> {
     type Context = Deps::Context;
@@ -133,9 +158,8 @@ impl<Deps: PdfShiftplanServiceDeps + 'static> PdfShiftplanService for PdfShiftpl
             .await?;
         let active_sales_persons = filter_active(&all_sales_persons);
 
-        // 4) Pure Renderer. Timestamp-Bridge: Wave 3 (50-03-PLAN.md) ersetzt
-        //    `now_utc()` durch `now_local()`-mit-UTC-Fallback (D-50-12).
-        let render_timestamp = OffsetDateTime::now_utc();
+        // 4) Pure Renderer. Timestamp via now_local() mit UTC-Fallback (D-50-12).
+        let render_timestamp = resolve_render_timestamp();
         pdf_render::render_shiftplan_week_pdf(
             &week_view,
             &active_sales_persons,
