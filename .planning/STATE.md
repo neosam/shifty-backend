@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: "— PDF-Export: Browser-Look & Download-Button"
-current_phase: 49
-current_phase_name: BE + FE
-status: Complete
-stopped_at: Phase 49 COMPLETE — UAT PASSED (User bestätigt PDF-Download funktioniert)
-last_updated: "2026-07-03T21:00:00.000Z"
+current_phase: 50
+current_phase_name: PDF-Renderer neu — Browser-Look + Timestamp
+status: Context gathered
+stopped_at: Phase 50 CONTEXT — 6 Gray Areas (G1-c/G2-a/G3-a/G4-Sonntag-dyn/G5-Boxen/G6-a) entschieden, ready for /gsd-plan-phase 50
+last_updated: "2026-07-03T22:30:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 49 COMPLETE — Browser-UAT PASSED, PDF-Download-Roundtrip funktioniert. Hotfix b1bfeab (Dioxus.toml /shiftplan-Proxy) im Dev-Modus nötig war.
+last_activity_desc: Phase 50 CONTEXT.md geschrieben — Renderer-Rewrite (Browser-Look) + Timestamp via now_local() (keine neue Dep). Sonntag dynamisch wie Browser. Slots als sichtbare Boxen mit Plain-Text-Namen (freiwillige mit „(freiwillig)"-Suffix).
 progress:
   total_phases: 2
   completed_phases: 1
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: **49 — On-Demand-Download-Button (BE + FE)**
-Plan: 5 PLAN.md (Waves 1→3)
-Status: Ready for `/gsd-execute-phase 49`
-Last activity: 2026-07-03 — Phase 49 planned (Research + UI-SPEC + Patterns + 5 PLAN.md, VERIFICATION PASSED nach 1 Revision)
+Phase: **50 — PDF-Renderer neu — Browser-Look + Timestamp**
+Plan: none yet
+Status: Context gathered → Ready for `/gsd-plan-phase 50`
+Last activity: 2026-07-03 — Phase 50 CONTEXT.md (6 Gray Areas entschieden). Renderer-Rewrite in `service_impl/src/pdf_render.rs`; PdfShiftplanService bekommt `now_local()`-Timestamp-Injection; Byte-Determinismus aufgehoben. Vorgänger Phase 49 COMPLETE.
 
 ## Quick Tasks Completed
 
