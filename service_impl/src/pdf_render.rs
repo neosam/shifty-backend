@@ -78,23 +78,23 @@ const MARGIN_LEFT_MM: f32 = 8.0;
 /// Right page margin in mm.
 const MARGIN_RIGHT_MM: f32 = 5.0;
 /// Top page margin in mm.
-const MARGIN_TOP_MM: f32 = 5.0;
+const MARGIN_TOP_MM: f32 = 4.0;
 /// Bottom page margin in mm.
-const MARGIN_BOTTOM_MM: f32 = 8.0;
+const MARGIN_BOTTOM_MM: f32 = 6.0;
 
 /// Height of the top header band (title + timestamp on one line).
-const HEADER_HEIGHT_MM: f32 = 12.0;
+const HEADER_HEIGHT_MM: f32 = 10.0;
 /// Height of the Mo/Di/… day-of-week header band below the top header.
-const DAY_HEADER_HEIGHT_MM: f32 = 8.0;
+const DAY_HEADER_HEIGHT_MM: f32 = 6.0;
 
 /// Minimum height of a slot box (D-50-01 Hybrid Stack — base term).
-const SLOT_BASE_MM: f32 = 12.0;
+const SLOT_BASE_MM: f32 = 9.0;
 /// Extra height per hour of slot duration (D-50-01 Hybrid Stack — step term).
-const SLOT_STEP_MM: f32 = 5.0;
+const SLOT_STEP_MM: f32 = 4.0;
 /// Inner padding inside a slot box (top+bottom, in mm).
-const SLOT_PADDING_MM: f32 = 1.5;
+const SLOT_PADDING_MM: f32 = 1.2;
 /// Vertical gap between two stacked slot boxes.
-const SLOT_GAP_MM: f32 = 1.0;
+const SLOT_GAP_MM: f32 = 0.7;
 /// Approximate baseline-to-baseline distance for 9pt Helvetica text.
 const LINE_HEIGHT_MM: f32 = 3.5;
 
