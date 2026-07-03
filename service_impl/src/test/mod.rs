@@ -27,6 +27,8 @@ pub mod pdf_export_config;
 #[cfg(test)]
 pub mod pdf_export_scheduler;
 #[cfg(test)]
+pub mod pdf_shiftplan;
+#[cfg(test)]
 mod permission_test;
 #[cfg(test)]
 pub mod reporting_additive_merge;

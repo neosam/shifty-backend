@@ -24,6 +24,7 @@ pub mod feature_flag;
 pub mod ical;
 pub mod pdf_export;
 pub mod pdf_export_config;
+pub mod pdf_shiftplan;
 pub mod permission;
 pub mod reporting;
 pub mod sales_person;
