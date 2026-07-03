@@ -246,7 +246,6 @@ mod test {
     /// Wave-2 rewrite (D-50-11). Wave-1 tests reference it via
     /// `let _ = FIXED_RENDER_TIMESTAMP;` to keep the constant alive against the
     /// `dead_code` lint until Wave 2 actually consumes it.
-    #[allow(dead_code)]
     const FIXED_RENDER_TIMESTAMP: time::OffsetDateTime =
         time::macros::datetime!(2026-07-03 17:15 UTC);
 
@@ -488,5 +487,197 @@ mod test {
         let hay = b"foo bar foo baz foo";
         let hits = find_all_subsequences(hay, b"foo");
         assert_eq!(hits, vec![0, 8, 16]);
+    }
+
+    // ================================================================
+    // Wave-1 RED-state skeletons (D-50-16).
+    //
+    // These tests are `#[ignore]`-marked because they encode the
+    // *target* behavior of the Wave-2 renderer rewrite (50-02-PLAN.md).
+    // They compile against the Wave-1 renderer signature (4 parameters,
+    // no timestamp), fail at runtime, and get their `#[ignore]` marker
+    // removed by 50-02 once the new renderer emits the expected bytes.
+    //
+    // Each body references `FIXED_RENDER_TIMESTAMP` via a `let _ = ...`
+    // binding so the const stays alive against the `dead_code` lint
+    // until Wave 2 passes it as the 5th renderer parameter.
+    // ================================================================
+
+    /// D-50-16 / PDF-02: The rendered PDF must embed the fixed timestamp
+    /// string "Erstellt am 03.07.2026 17:15 Uhr" (formatted from
+    /// `FIXED_RENDER_TIMESTAMP` after Wave 2 wires the parameter). The old
+    /// renderer emits no timestamp — fails at runtime.
+    #[test]
+    #[ignore = "Wave 2: erst nach Renderer-Rewrite grün — siehe 50-02-PLAN.md"]
+    fn render_includes_timestamp_string() {
+        let _ = FIXED_RENDER_TIMESTAMP;
+        let week = empty_week(2026, 27);
+        let bytes = render_shiftplan_week_pdf(&week, &[], 2026, 27).expect("render succeeds");
+        let hex = encode_ascii_to_pdf_hex("Erstellt am 03.07.2026 17:15 Uhr");
+        assert!(
+            find_subsequence(&bytes, hex.as_bytes()).is_some(),
+            "timestamp string not found in PDF (hex: {hex})",
+        );
+    }
+
+    /// D-50-16 / D-50-02 / PDF-01: Slot boxes on the same day must appear in
+    /// start-time order in the content stream, regardless of the input order
+    /// in the `slots` Vec. Fixture: Monday with two slots (12:00-16:00 then
+    /// 08:00-11:00 in Vec order → renderer must sort so that 08:00 comes
+    /// first in the byte stream).
+    #[test]
+    #[ignore = "Wave 2: erst nach Renderer-Rewrite grün — siehe 50-02-PLAN.md"]
+    fn slot_boxes_sorted_by_start_time() {
+        let _ = FIXED_RENDER_TIMESTAMP;
+        let slot_late = make_slot(DayOfWeek::Monday, 12, 0, 16, 0);
+        let slot_early = make_slot(DayOfWeek::Monday, 8, 0, 11, 0);
+        let mut week = empty_week(2026, 27);
+        // Insert late first, early second — the renderer must sort them.
+        week.days[0].slots.push(ShiftplanSlot {
+            slot: slot_late,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+        });
+        week.days[0].slots.push(ShiftplanSlot {
+            slot: slot_early,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+        });
+        let bytes = render_shiftplan_week_pdf(&week, &[], 2026, 27).expect("render succeeds");
+        let hex_early = encode_ascii_to_pdf_hex("08:00");
+        let hex_late = encode_ascii_to_pdf_hex("12:00");
+        let idx_early = find_subsequence(&bytes, hex_early.as_bytes());
+        let idx_late = find_subsequence(&bytes, hex_late.as_bytes());
+        assert!(
+            idx_early.is_some() && idx_late.is_some(),
+            "both time labels must be present (early={idx_early:?}, late={idx_late:?})",
+        );
+        assert!(
+            idx_early < idx_late,
+            "08:00 must appear before 12:00 in the textstream (sort order D-50-02)",
+        );
+    }
+
+    /// D-50-16 / D-50-06 / PDF-01: Names inside a single slot box must be
+    /// alphabetical (case-insensitive) regardless of booking-Vec insertion
+    /// order. Fixture: bookings inserted as Charlie/Alice/Bob → renderer
+    /// must emit Alice → Bob → Charlie.
+    #[test]
+    #[ignore = "Wave 2: erst nach Renderer-Rewrite grün — siehe 50-02-PLAN.md"]
+    fn names_within_slot_alphabetical() {
+        let _ = FIXED_RENDER_TIMESTAMP;
+        let alice =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0001, "Alice", Some(true));
+        let bob =
+            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0002, "Bob", Some(true));
+        let charlie = make_sales_person(
+            0x0000_0000_0000_0000_0000_0000_0000_0003,
+            "Charlie",
+            Some(true),
+        );
+        let slot = make_slot(DayOfWeek::Monday, 8, 0, 12, 0);
+        // Non-alphabetical insertion order — the renderer must sort.
+        let bookings = vec![
+            make_booking(&charlie, slot.id, 2026, 27),
+            make_booking(&alice, slot.id, 2026, 27),
+            make_booking(&bob, slot.id, 2026, 27),
+        ];
+        let mut week = empty_week(2026, 27);
+        week.days[0].slots.push(ShiftplanSlot {
+            slot,
+            bookings,
+            current_paid_count: 3,
+        });
+        let sales_persons = vec![alice.clone(), bob.clone(), charlie.clone()];
+        let bytes =
+            render_shiftplan_week_pdf(&week, &sales_persons, 2026, 27).expect("render succeeds");
+        let idx_alice = find_subsequence(&bytes, encode_ascii_to_pdf_hex("Alice").as_bytes());
+        let idx_bob = find_subsequence(&bytes, encode_ascii_to_pdf_hex("Bob").as_bytes());
+        let idx_charlie =
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("Charlie").as_bytes());
+        assert!(
+            idx_alice.is_some() && idx_bob.is_some() && idx_charlie.is_some(),
+            "all names must appear (alice={idx_alice:?}, bob={idx_bob:?}, charlie={idx_charlie:?})",
+        );
+        assert!(
+            idx_alice < idx_bob && idx_bob < idx_charlie,
+            "names must be alphabetical case-insensitive within slot box (D-50-06)",
+        );
+    }
+
+    /// D-50-16 / D-50-07 / PDF-01: Volunteers (`is_paid == Some(false)`) get
+    /// the suffix " (freiwillig)" appended to their name in the rendered
+    /// output. Old renderer emits no suffix — fails at runtime.
+    #[test]
+    #[ignore = "Wave 2: erst nach Renderer-Rewrite grün — siehe 50-02-PLAN.md"]
+    fn unpaid_marker_suffix() {
+        let _ = FIXED_RENDER_TIMESTAMP;
+        let volunteer = make_sales_person(
+            0x0000_0000_0000_0000_0000_0000_0000_0001,
+            "Volunteer",
+            Some(false),
+        );
+        let slot = make_slot(DayOfWeek::Monday, 8, 0, 12, 0);
+        let booking = make_booking(&volunteer, slot.id, 2026, 27);
+        let mut week = empty_week(2026, 27);
+        week.days[0].slots.push(ShiftplanSlot {
+            slot,
+            bookings: vec![booking],
+            current_paid_count: 0,
+        });
+        let sales_persons = vec![volunteer.clone()];
+        let bytes =
+            render_shiftplan_week_pdf(&week, &sales_persons, 2026, 27).expect("render succeeds");
+        let expected_hex = encode_ascii_to_pdf_hex("Volunteer (freiwillig)");
+        assert!(
+            find_subsequence(&bytes, expected_hex.as_bytes()).is_some(),
+            "unpaid marker suffix ' (freiwillig)' must appear after volunteer name (D-50-07)",
+        );
+    }
+
+    /// D-50-16 / D-50-08 / PDF-01: The Sunday column header "So" must NOT
+    /// appear when the week has no Sunday slots. Old renderer emits all
+    /// seven day headers unconditionally — fails at runtime.
+    #[test]
+    #[ignore = "Wave 2: erst nach Renderer-Rewrite grün — siehe 50-02-PLAN.md"]
+    fn sunday_column_hidden_when_no_sunday_slots() {
+        let _ = FIXED_RENDER_TIMESTAMP;
+        let slot = make_slot(DayOfWeek::Saturday, 8, 0, 12, 0);
+        let mut week = empty_week(2026, 27);
+        // Saturday is index 5 in day_of_week_order().
+        week.days[5].slots.push(ShiftplanSlot {
+            slot,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+        });
+        let bytes = render_shiftplan_week_pdf(&week, &[], 2026, 27).expect("render succeeds");
+        let so_hex = encode_ascii_to_pdf_hex("So");
+        assert!(
+            find_subsequence(&bytes, so_hex.as_bytes()).is_none(),
+            "'So' column header must NOT appear when no Sunday slots (D-50-08)",
+        );
+    }
+
+    /// D-50-16 / D-50-08 / PDF-01: The Sunday column header "So" MUST
+    /// appear when at least one Sunday slot exists. Complement to
+    /// `sunday_column_hidden_when_no_sunday_slots`.
+    #[test]
+    #[ignore = "Wave 2: erst nach Renderer-Rewrite grün — siehe 50-02-PLAN.md"]
+    fn sunday_column_shown_when_at_least_one_sunday_slot() {
+        let _ = FIXED_RENDER_TIMESTAMP;
+        let slot = make_slot(DayOfWeek::Sunday, 10, 0, 14, 0);
+        let mut week = empty_week(2026, 27);
+        // Sunday is index 6 in day_of_week_order().
+        week.days[6].slots.push(ShiftplanSlot {
+            slot,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+        });
+        let bytes = render_shiftplan_week_pdf(&week, &[], 2026, 27).expect("render succeeds");
+        let so_hex = encode_ascii_to_pdf_hex("So");
+        assert!(
+            find_subsequence(&bytes, so_hex.as_bytes()).is_some(),
+            "'So' column header MUST appear when at least one Sunday slot exists (D-50-08)",
+        );
     }
 }
