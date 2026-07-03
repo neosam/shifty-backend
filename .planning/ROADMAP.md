@@ -30,7 +30,7 @@ keine Migration, keine neue Cargo-Dep. WebDAV-Scheduler aus Phase 48 nutzt den n
 Renderer nach Phase 50 automatisch.
 
 - [x] Phase 49: On-Demand-Download-Button (BE + FE) — PDF-03, PDF-04, PDF-05 (completed 2026-07-03)
-- [ ] Phase 50: PDF-Renderer neu — Browser-Look + Timestamp — PDF-01, PDF-02
+- [x] Phase 50: PDF-Renderer neu — Browser-Look + Timestamp — PDF-01, PDF-02 (completed 2026-07-04)
 
 **Reihenfolge-Rationale:** Erst der Button (mit dem alten, unlesbaren Renderer), dann der
 Renderer-Rewrite. So kann das Rendering in Phase 50 direkt per Button-Klick verifiziert

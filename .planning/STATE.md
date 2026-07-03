@@ -4,17 +4,17 @@ milestone: v2.3
 milestone_name: "— PDF-Export: Browser-Look & Download-Button"
 current_phase: 50
 current_phase_name: PDF-Renderer neu — Browser-Look + Timestamp
-status: Executed, awaiting UAT
-stopped_at: Phase 50 executed — Renderer-Rewrite (3/3 Waves), Verifier PASSED (14/14 must-haves), human UAT D-50-17 pending (visueller PDF-Check via Phase-49-Button)
-last_updated: "2026-07-03T23:40:00.000Z"
-last_activity: 2026-07-03
-last_activity_desc: Phase 50 ausgeführt — 3 Waves sequenziell (Wave 1: TDD-Skeleton + local-offset-Feature; Wave 2: kompletter Renderer-Rewrite mit Browser-Look + Timestamp im Header; Wave 3: resolve_render_timestamp() mit now_local()+UTC-Fallback+warn!). 781 Tests grün. Clippy grün. Verifier meldet human_needed für D-50-17 (visueller PDF-Layout-Check via Phase-49-Download-Button).
+status: Milestone complete — ready to ship
+stopped_at: Phase 50 UAT PASSED — visueller PDF-Layout-Check bestätigt (D-50-17). Milestone v2.3 komplett (2/2 Phasen).
+last_updated: "2026-07-04T00:10:00.000Z"
+last_activity: 2026-07-04
+last_activity_desc: Phase 50 UAT PASSED — D-50-17 visueller PDF-Layout-Check per User bestätigt. Dokumentierte Design-Abweichung: `+ N weitere` Overflow-Marker (D-50-03/D-50-04) entfernt — Boxen wachsen mit, Namen komma-separiert. Milestone v2.3 fertig, ready für /gsd-ship.
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
   completed_plans: 8
-  percent: 87
+  percent: 100
 ---
 
 # Project State: Shifty Backend
