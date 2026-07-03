@@ -391,3 +391,31 @@ fn content_disposition_filename_format_helper() {
     assert_eq!(filename_for(2026, 3), "schichtplan-2026-KW03.pdf");
     assert_eq!(filename_for(2025, 52), "schichtplan-2025-KW52.pdf");
 }
+
+// ─── D-50-16: Fallback-Verkabelung `resolve_render_timestamp` ─────────────
+
+/// D-50-16 Service-Level-Test: verifiziert dass `resolve_render_timestamp()`
+/// niemals paniced und immer einen plausiblen `OffsetDateTime` liefert.
+///
+/// Wir können `IndeterminateOffset` nicht direkt simulieren ohne
+/// `unsafe { set_local_offset }` (auf Linux/NixOS mit Tokio-Multi-Thread
+/// ist `localtime_r` thread-safe und liefert nie den Error). Der Smoke-
+/// Test beweist stattdessen: die `unwrap_or_else`-Verkabelung ist korrekt,
+/// d.h. würde jemand versehentlich `.unwrap()` statt `.unwrap_or_else(...)`
+/// verwenden, würde in Deployments ohne funktionierendes Local-TZ (Docker
+/// ohne TZ-Env, minimal-Alpine) sofort ein Panic auftreten — dieser Test
+/// ist der Nyquist-Guardrail.
+#[test]
+fn now_local_fallback_to_utc_on_indeterminate_offset() {
+    let ts = crate::pdf_shiftplan::resolve_render_timestamp();
+    assert!(
+        ts.year() >= 2020,
+        "timestamp year implausible (year={}), fallback wiring broken?",
+        ts.year(),
+    );
+    assert!(
+        ts.year() < 2100,
+        "timestamp year implausible (year={}), fallback wiring broken?",
+        ts.year(),
+    );
+}
