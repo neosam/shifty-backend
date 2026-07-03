@@ -427,6 +427,15 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 49 (PDF-03/PDF-04/PDF-05): BL-Tier PDF-Shiftplan-Assembler.
+    // Konsumiert vom On-Demand-Download-Endpoint (Wave 2, Plan 02) UND vom
+    // Scheduler-Refactor (Plan 03) über den DRY-Kern `render_week_pdf`. Der
+    // REST-Handler leitet den Caller-Context (`Authentication<Context>`) 1:1
+    // durch (D-49-07); der Scheduler ruft mit `Authentication::Full`.
+    type PdfShiftplanService: service::pdf_shiftplan::PdfShiftplanService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -465,6 +474,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
+    fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 

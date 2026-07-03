@@ -22,6 +22,17 @@
 //! non-deleted aus `shiftplan_service.get_all()`), weil das für den v1-Use-
 //! Case (ein „Planungs"-Shiftplan pro Woche) der Regelfall ist. Multi-
 //! Shiftplan-Zusammenführung im PDF ist ein Follow-up wenn benötigt.
+//!
+//! ## Phase 49 Refactor (D-49-08 + Q1)
+//!
+//! Der Scheduler delegiert das PDF-Assemble jetzt an
+//! [`service::pdf_shiftplan::PdfShiftplanService::render_week_pdf`] — DRY-Kern
+//! der Phase 49. Konsequenz: Der Service prüft den `WeekStatus` und liefert
+//! nur für `Planned`/`Locked`-Weeks Bytes; andere Weeks kommen als
+//! [`ServiceError::ValidationError`] zurück und werden per `record_error` +
+//! `return Ok(())` als per-Week-Skip behandelt (Q1 im Discussion-Log).
+//! Der Scheduler exportiert nach diesem Refactor also NUR noch releasbare
+//! Wochen — kein leaky Export unfertiger Wochenplaene ins WebDAV-Storage.
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -32,9 +43,8 @@ use service::{
     clock::ClockService,
     pdf_export::PdfExportScheduler,
     pdf_export_config::PdfExportConfigService,
+    pdf_shiftplan::PdfShiftplanService,
     permission::Authentication,
-    sales_person::SalesPersonService,
-    shiftplan::ShiftplanViewService,
     shiftplan_catalog::ShiftplanService,
     PermissionService, ServiceError,
 };
@@ -45,7 +55,6 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::gen_service_impl;
-use crate::pdf_render;
 use crate::webdav_client::{WebDavClient, WebDavError, WebDavUpload};
 
 const INCOMPLETE_CONFIG_MSG: &str = "Konfiguration unvollständig";
@@ -56,18 +65,14 @@ gen_service_impl! {
             Context = Self::Context,
             Transaction = Self::Transaction,
         > = pdf_export_config_service,
-        ShiftplanViewService: ShiftplanViewService<
+        PdfShiftplanService: PdfShiftplanService<
             Context = Self::Context,
             Transaction = Self::Transaction,
-        > = shiftplan_view_service,
+        > = pdf_shiftplan_service,
         ShiftplanService: ShiftplanService<
             Context = Self::Context,
             Transaction = Self::Transaction,
         > = shiftplan_service,
-        SalesPersonService: SalesPersonService<
-            Context = Self::Context,
-            Transaction = Self::Transaction,
-        > = sales_person_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         ClockService: ClockService = clock_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
@@ -114,9 +119,8 @@ impl<Deps: PdfExportSchedulerDeps> PdfExportSchedulerImpl<Deps> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         pdf_export_config_service: Arc<Deps::PdfExportConfigService>,
-        shiftplan_view_service: Arc<Deps::ShiftplanViewService>,
+        pdf_shiftplan_service: Arc<Deps::PdfShiftplanService>,
         shiftplan_service: Arc<Deps::ShiftplanService>,
-        sales_person_service: Arc<Deps::SalesPersonService>,
         permission_service: Arc<Deps::PermissionService>,
         clock_service: Arc<Deps::ClockService>,
         transaction_dao: Arc<Deps::TransactionDao>,
@@ -124,9 +128,8 @@ impl<Deps: PdfExportSchedulerDeps> PdfExportSchedulerImpl<Deps> {
     ) -> Self {
         Self {
             pdf_export_config_service,
-            shiftplan_view_service,
+            pdf_shiftplan_service,
             shiftplan_service,
-            sales_person_service,
             permission_service,
             clock_service,
             transaction_dao,
@@ -344,16 +347,6 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
             }
         };
 
-        let all_sales_persons = self
-            .sales_person_service
-            .get_all(Authentication::Full, None)
-            .await?;
-        let active_sales_persons: Vec<service::sales_person::SalesPerson> = all_sales_persons
-            .iter()
-            .filter(|sp| sp.deleted.is_none())
-            .cloned()
-            .collect();
-
         // Determine the horizon of ISO weeks.
         let now_date = self.clock_service.date_now();
         let start_shifty = ShiftyDate::from_date(now_date);
@@ -362,35 +355,23 @@ impl<Deps: PdfExportSchedulerDeps + 'static> PdfExportScheduler for PdfExportSch
         let horizon = run_cfg.weeks_horizon as usize;
         for offset in 0..horizon {
             let (y, w) = (cursor.year, cursor.week);
-            let week_view = match self
-                .shiftplan_view_service
-                .get_shiftplan_week(shiftplan_id, y, w, Authentication::Full, None)
+            // Phase 49 D-49-08: Delegate assemble (WeekStatus-Gate + View +
+            // active-SalesPersons + Render) an den PdfShiftplanService.
+            // D-49-07: Aufrufer-Kontext = `Authentication::Full` (Scheduler
+            // ist trusted; Cron-Callback ruft `run_once_now` mit Full).
+            // Q1: ValidationError (Status != Planned/Locked) wird per
+            // `record_error` geloggt + `return Ok(())` als per-Week-Skip
+            // behandelt — der Scheduler exportiert damit nur releasbare Wochen.
+            let bytes = match self
+                .pdf_shiftplan_service
+                .render_week_pdf(shiftplan_id, y, w, Authentication::Full, None)
                 .await
             {
-                Ok(v) => v,
-                Err(e) => {
-                    let at = self.clock_service.date_time_now();
-                    let msg: Arc<str> = Arc::from(format!(
-                        "Wochenansicht KW{w:02}/{y} konnte nicht geladen werden: {e}"
-                    ));
-                    self.pdf_export_config_service
-                        .record_error(at, msg, Authentication::Full, None)
-                        .await?;
-                    return Ok(());
-                }
-            };
-
-            let bytes = match pdf_render::render_shiftplan_week_pdf(
-                &week_view,
-                &active_sales_persons,
-                y,
-                w,
-            ) {
                 Ok(b) => b,
                 Err(e) => {
                     let at = self.clock_service.date_time_now();
                     let msg: Arc<str> = Arc::from(format!(
-                        "PDF-Rendering für KW{w:02}/{y} fehlgeschlagen: {e}"
+                        "PDF-Assemble/Render fuer KW{w:02}/{y} fehlgeschlagen: {e}"
                     ));
                     self.pdf_export_config_service
                         .record_error(at, msg, Authentication::Full, None)
@@ -474,9 +455,8 @@ impl<Deps: PdfExportSchedulerDeps> PdfExportSchedulerImpl<Deps> {
         PdfExportSchedulerHandle {
             inner: Arc::new(Self {
                 pdf_export_config_service: self.pdf_export_config_service.clone(),
-                shiftplan_view_service: self.shiftplan_view_service.clone(),
+                pdf_shiftplan_service: self.pdf_shiftplan_service.clone(),
                 shiftplan_service: self.shiftplan_service.clone(),
-                sales_person_service: self.sales_person_service.clone(),
                 permission_service: self.permission_service.clone(),
                 clock_service: self.clock_service.clone(),
                 transaction_dao: self.transaction_dao.clone(),

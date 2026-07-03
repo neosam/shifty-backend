@@ -1,10 +1,19 @@
-//! Tests für [`PdfExportSchedulerImpl`] (Phase 48 Plan 04 EXP-01/EXP-03).
+//! Tests für [`PdfExportSchedulerImpl`] (Phase 48 Plan 04 EXP-01/EXP-03,
+//! refactored in Phase 49 Plan 03).
 //!
 //! Der WebDAV-Upload wird via [`MockWebDavUpload`] gemockt — der Scheduler
 //! kennt nur das Trait [`WebDavUpload`], daher reine unit-Tests ohne
-//! wiremock-Server für die 6 behavior-Tests. Der End-to-End-Test
-//! `boot_trigger_reload_flow` fährt in-memory SQLite hoch und geht durch die
-//! echten Basic-Services (`PdfExportConfigServiceImpl`).
+//! wiremock-Server für die 6 behavior-Tests.
+//!
+//! ## Phase 49 Refactor (D-49-08)
+//!
+//! Der Scheduler delegiert das PDF-Assemble jetzt an
+//! [`service::pdf_shiftplan::PdfShiftplanService::render_week_pdf`]. Die
+//! frueheren `MockShiftplanViewService` + `MockSalesPersonService`-Expectations
+//! sind entfernt und durch `MockPdfShiftplanService::expect_render_week_pdf`
+//! ersetzt. Neue Tests decken die Q1-Verhaltensaenderung
+//! (`ValidationError` → per-Week-Skip via `record_error`) und den
+//! D-49-07-Aufrufer-Kontext (`Authentication::Full`) ab.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,11 +24,10 @@ use service::{
     clock::MockClockService,
     pdf_export::PdfExportScheduler,
     pdf_export_config::{MockPdfExportConfigService, PdfExportConfig},
+    pdf_shiftplan::MockPdfShiftplanService,
     permission::Authentication,
-    sales_person::{MockSalesPersonService, SalesPerson},
-    shiftplan::{MockShiftplanViewService, ShiftplanWeek},
     shiftplan_catalog::{MockShiftplanService, Shiftplan},
-    MockPermissionService,
+    MockPermissionService, ServiceError, ValidationFailureItem,
 };
 use uuid::{uuid, Uuid};
 
@@ -36,9 +44,8 @@ impl PdfExportSchedulerDeps for TestDeps {
     type Context = ();
     type Transaction = MockTransaction;
     type PdfExportConfigService = MockPdfExportConfigService;
-    type ShiftplanViewService = MockShiftplanViewService;
+    type PdfShiftplanService = MockPdfShiftplanService;
     type ShiftplanService = MockShiftplanService;
-    type SalesPersonService = MockSalesPersonService;
     type PermissionService = MockPermissionService;
     type ClockService = MockClockService;
     type TransactionDao = MockTransactionDao;
@@ -77,14 +84,6 @@ fn base_config(enabled: bool) -> PdfExportConfig {
     }
 }
 
-fn empty_week(year: u32, week: u8) -> ShiftplanWeek {
-    ShiftplanWeek {
-        year,
-        calendar_week: week,
-        days: Vec::new(),
-    }
-}
-
 fn active_shiftplan(id: Uuid) -> Shiftplan {
     Shiftplan {
         id,
@@ -95,32 +94,28 @@ fn active_shiftplan(id: Uuid) -> Shiftplan {
     }
 }
 
-fn sales_person(id: Uuid, name: &str) -> SalesPerson {
-    SalesPerson {
-        id,
-        name: Arc::from(name),
-        background_color: Arc::from("#000000"),
-        is_paid: Some(true),
-        inactive: false,
-        deleted: None,
-        version: uuid!("22222222-0000-0000-0000-000000000048"),
-    }
+/// Baue einen sinnvollen minimalen PDF-Body (>400 Bytes) fuer Byte-Length-
+/// Assertions in den Upload-Erwartungen — der Scheduler leitet die Bytes
+/// 1:1 an den WebDAV-Upload weiter.
+fn fake_pdf_bytes() -> Vec<u8> {
+    let mut v = Vec::with_capacity(512);
+    v.extend_from_slice(b"%PDF-1.4\n");
+    v.extend_from_slice(&[b'x'; 500]);
+    v
 }
 
 fn build_scheduler(
     cfg_service: MockPdfExportConfigService,
-    view_service: MockShiftplanViewService,
+    pdf_shiftplan_service: MockPdfShiftplanService,
     shiftplan_service: MockShiftplanService,
-    sp_service: MockSalesPersonService,
     perm_service: MockPermissionService,
     clock_service: MockClockService,
     upload_factory: Arc<dyn WebDavUploadFactory>,
 ) -> PdfExportSchedulerImpl<TestDeps> {
     PdfExportSchedulerImpl::<TestDeps>::new(
         Arc::new(cfg_service),
-        Arc::new(view_service),
+        Arc::new(pdf_shiftplan_service),
         Arc::new(shiftplan_service),
-        Arc::new(sp_service),
         Arc::new(perm_service),
         Arc::new(clock_service),
         Arc::new(MockTransactionDao::new()),
@@ -153,9 +148,8 @@ async fn disabled_config_skips_run() {
     cfg.expect_record_success().times(0);
     cfg.expect_record_error().times(0);
 
-    let view = MockShiftplanViewService::new();
+    let pdf_svc = MockPdfShiftplanService::new();
     let sh = MockShiftplanService::new();
-    let sp = MockSalesPersonService::new();
     let clock = MockClockService::new();
     let upload = MockWebDavUpload::new();
     let factory = Arc::new(FixedFactory {
@@ -163,7 +157,7 @@ async fn disabled_config_skips_run() {
     });
     let perm = full_auth_permission();
 
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await
@@ -194,9 +188,8 @@ async fn incomplete_config_records_error() {
         });
     cfg.expect_record_success().times(0);
 
-    let view = MockShiftplanViewService::new();
+    let pdf_svc = MockPdfShiftplanService::new();
     let sh = MockShiftplanService::new();
-    let sp = MockSalesPersonService::new();
     let mut clock = MockClockService::new();
     clock.expect_date_time_now().returning(|| {
         time::PrimitiveDateTime::new(
@@ -211,7 +204,7 @@ async fn incomplete_config_records_error() {
     });
     let perm = full_auth_permission();
 
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await
@@ -241,24 +234,15 @@ async fn happy_path_renders_horizon_and_uploads() {
         });
     cfg.expect_record_error().times(0);
 
-    let mut view = MockShiftplanViewService::new();
-    // Cursor starts at ISO week of 2026-07-01 (=KW27) — set clock so we get
-    // a predictable start.
-    view.expect_get_shiftplan_week()
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
         .times(2)
-        .returning(|_id, year, week, _ctx, _tx| Ok(empty_week(year, week)));
+        .returning(|_id, _y, _w, _ctx, _tx| Ok(fake_pdf_bytes()));
 
     let mut sh = MockShiftplanService::new();
     sh.expect_get_all().returning(move |_ctx, _tx| {
         Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
-    });
-
-    let mut sp = MockSalesPersonService::new();
-    sp.expect_get_all().returning(|_ctx, _tx| {
-        Ok(Arc::from(vec![sales_person(
-            uuid!("bbbb1111-0000-0000-0000-000000000048"),
-            "Alice",
-        )]))
     });
 
     let mut clock = MockClockService::new();
@@ -293,7 +277,7 @@ async fn happy_path_renders_horizon_and_uploads() {
     });
 
     let perm = full_auth_permission();
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await
@@ -330,20 +314,17 @@ async fn webdav_transient_fail_after_3_retries_records_error() {
         });
     cfg.expect_record_success().times(0);
 
-    let mut view = MockShiftplanViewService::new();
-    view.expect_get_shiftplan_week()
-        // Only the first week is attempted (we bail on first failure).
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    // Only the first week is attempted (we bail on first upload failure).
+    pdf_svc
+        .expect_render_week_pdf()
         .times(1)
-        .returning(|_id, year, week, _ctx, _tx| Ok(empty_week(year, week)));
+        .returning(|_id, _y, _w, _ctx, _tx| Ok(fake_pdf_bytes()));
 
     let mut sh = MockShiftplanService::new();
     sh.expect_get_all().returning(move |_ctx, _tx| {
         Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
     });
-
-    let mut sp = MockSalesPersonService::new();
-    sp.expect_get_all()
-        .returning(|_ctx, _tx| Ok(Arc::from(vec![])));
 
     let mut clock = MockClockService::new();
     clock.expect_date_now().returning(|| {
@@ -371,7 +352,7 @@ async fn webdav_transient_fail_after_3_retries_records_error() {
     });
 
     let perm = full_auth_permission();
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await
@@ -402,19 +383,16 @@ async fn permanent_401_records_error_immediately() {
         });
     cfg.expect_record_success().times(0);
 
-    let mut view = MockShiftplanViewService::new();
-    view.expect_get_shiftplan_week()
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
         .times(1)
-        .returning(|_id, year, week, _ctx, _tx| Ok(empty_week(year, week)));
+        .returning(|_id, _y, _w, _ctx, _tx| Ok(fake_pdf_bytes()));
 
     let mut sh = MockShiftplanService::new();
     sh.expect_get_all().returning(move |_ctx, _tx| {
         Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
     });
-
-    let mut sp = MockSalesPersonService::new();
-    sp.expect_get_all()
-        .returning(|_ctx, _tx| Ok(Arc::from(vec![])));
 
     let mut clock = MockClockService::new();
     clock.expect_date_now().returning(|| {
@@ -442,7 +420,7 @@ async fn permanent_401_records_error_immediately() {
     });
 
     let perm = full_auth_permission();
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await
@@ -469,21 +447,19 @@ async fn year_week_wraps_correctly() {
 
     let requested = Arc::new(std::sync::Mutex::new(Vec::<(u32, u8)>::new()));
     let req_clone = requested.clone();
-    let mut view = MockShiftplanViewService::new();
-    view.expect_get_shiftplan_week()
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
         .times(2)
         .returning(move |_id, year, week, _ctx, _tx| {
             req_clone.lock().unwrap().push((year, week));
-            Ok(empty_week(year, week))
+            Ok(fake_pdf_bytes())
         });
 
     let mut sh = MockShiftplanService::new();
     sh.expect_get_all().returning(move |_ctx, _tx| {
         Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
     });
-    let mut sp = MockSalesPersonService::new();
-    sp.expect_get_all()
-        .returning(|_ctx, _tx| Ok(Arc::from(vec![])));
 
     let mut clock = MockClockService::new();
     // 2026-12-31 is in ISO week 53 (2026 has 53 ISO weeks).
@@ -507,7 +483,7 @@ async fn year_week_wraps_correctly() {
     });
 
     let perm = full_auth_permission();
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await
@@ -519,6 +495,148 @@ async fn year_week_wraps_correctly() {
     // wrap to 2027-1.
     assert_eq!(req[0], (2026, 53));
     assert_eq!(req[1], (2027, 1));
+}
+
+// ─── Test 7: scheduler calls PdfShiftplanService with Authentication::Full ───
+
+/// D-49-07 (Scheduler-Kontext): Der Scheduler ruft `render_week_pdf` mit
+/// `Authentication::Full` — er ist der trusted caller, keine User-Session
+/// im Cron-Callback. Der `.withf(...)`-Predicate matcht nur, wenn der
+/// context-Parameter exakt `Full` ist; jede andere Variante liesse die
+/// Erwartung fehlschlagen.
+#[tokio::test]
+async fn scheduler_calls_pdf_shiftplan_service_with_full_auth() {
+    let shiftplan_id = uuid!("aaaa5555-0000-0000-0000-000000000048");
+
+    let mut cfg = MockPdfExportConfigService::new();
+    cfg.expect_get().returning(move |_ctx, _tx| {
+        let mut c = base_config(true);
+        c.weeks_horizon = 1;
+        Ok(c)
+    });
+    cfg.expect_record_success()
+        .times(1)
+        .returning(|_at, _ctx, _tx| Ok(()));
+    cfg.expect_record_error().times(0);
+
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
+        .times(1)
+        .withf(|_id, _y, _w, ctx, _tx| matches!(ctx, Authentication::Full))
+        .returning(|_id, _y, _w, _ctx, _tx| Ok(fake_pdf_bytes()));
+
+    let mut sh = MockShiftplanService::new();
+    sh.expect_get_all().returning(move |_ctx, _tx| {
+        Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
+    });
+
+    let mut clock = MockClockService::new();
+    clock.expect_date_now().returning(|| {
+        time::Date::from_calendar_date(2026, time::Month::July, 1).unwrap()
+    });
+    clock.expect_date_time_now().returning(|| {
+        time::PrimitiveDateTime::new(
+            time::Date::from_calendar_date(2026, time::Month::July, 1).unwrap(),
+            time::Time::from_hms(6, 0, 0).unwrap(),
+        )
+    });
+
+    let mut upload = MockWebDavUpload::new();
+    upload
+        .expect_upload_file()
+        .times(1)
+        .returning(|_f, _n, _b| Ok(()));
+    let factory = Arc::new(FixedFactory {
+        upload: Arc::new(upload),
+    });
+
+    let perm = full_auth_permission();
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
+    scheduler
+        .run_once_now(Authentication::Full)
+        .await
+        .expect("full-auth-context run must succeed");
+}
+
+// ─── Test 8: scheduler skips week on ValidationError (Q1 semantic) ──────
+
+/// Q1-Verhalten (D-49-08): Wenn der PdfShiftplanService fuer eine Woche
+/// einen `ServiceError::ValidationError` liefert (z.B. weil WeekStatus nicht
+/// in {Planned, Locked} ist), MUSS der Scheduler diesen als per-Week-Skip
+/// behandeln — `record_error` einmal aufrufen und dann `Ok(())` returnen.
+/// Kein Panic, kein Fehler-Boot, kein Abbruch der gesamten Cron-Run
+/// (der bestehende `return Ok(())`-Pfad wird respektiert).
+#[tokio::test]
+async fn scheduler_skips_week_on_validation_error() {
+    let shiftplan_id = uuid!("aaaa6666-0000-0000-0000-000000000048");
+
+    let mut cfg = MockPdfExportConfigService::new();
+    cfg.expect_get().returning(move |_ctx, _tx| {
+        let mut c = base_config(true);
+        c.weeks_horizon = 1;
+        Ok(c)
+    });
+    let error_count = Arc::new(AtomicUsize::new(0));
+    let ec = error_count.clone();
+    cfg.expect_record_error()
+        .times(1)
+        .returning(move |_at, msg, _ctx, _tx| {
+            assert!(
+                msg.as_ref().contains("KW27"),
+                "expected 'KW27' in msg, got: {msg}"
+            );
+            assert!(
+                msg.as_ref().contains("Assemble") || msg.as_ref().contains("Render"),
+                "expected assemble/render marker in msg, got: {msg}"
+            );
+            ec.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+    cfg.expect_record_success().times(0);
+
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
+        .times(1)
+        .returning(|_id, _y, _w, _ctx, _tx| {
+            Err(ServiceError::ValidationError(Arc::from([
+                ValidationFailureItem::InvalidValue(Arc::from(
+                    "Woche KW27/2026 ist im Status Unset — kein Download",
+                )),
+            ])))
+        });
+
+    let mut sh = MockShiftplanService::new();
+    sh.expect_get_all().returning(move |_ctx, _tx| {
+        Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
+    });
+
+    let mut clock = MockClockService::new();
+    clock.expect_date_now().returning(|| {
+        time::Date::from_calendar_date(2026, time::Month::July, 1).unwrap()
+    });
+    clock.expect_date_time_now().returning(|| {
+        time::PrimitiveDateTime::new(
+            time::Date::from_calendar_date(2026, time::Month::July, 1).unwrap(),
+            time::Time::from_hms(6, 0, 0).unwrap(),
+        )
+    });
+
+    // Upload MUST NOT be called for a skipped week.
+    let mut upload = MockWebDavUpload::new();
+    upload.expect_upload_file().times(0);
+    let factory = Arc::new(FixedFactory {
+        upload: Arc::new(upload),
+    });
+
+    let perm = full_auth_permission();
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
+    scheduler
+        .run_once_now(Authentication::Full)
+        .await
+        .expect("run must be Ok even when service returns ValidationError");
+    assert_eq!(error_count.load(Ordering::SeqCst), 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -580,17 +698,15 @@ async fn boot_trigger_reload_flow() {
         upload: Arc::new(upload),
     });
 
-    let mut view = MockShiftplanViewService::new();
-    view.expect_get_shiftplan_week()
+    let mut pdf_svc = MockPdfShiftplanService::new();
+    pdf_svc
+        .expect_render_week_pdf()
         .times(1)
-        .returning(|_id, year, week, _ctx, _tx| Ok(empty_week(year, week)));
+        .returning(|_id, _y, _w, _ctx, _tx| Ok(fake_pdf_bytes()));
     let mut sh = MockShiftplanService::new();
     sh.expect_get_all().returning(move |_ctx, _tx| {
         Ok(Arc::from(vec![active_shiftplan(shiftplan_id)]))
     });
-    let mut sp = MockSalesPersonService::new();
-    sp.expect_get_all()
-        .returning(|_ctx, _tx| Ok(Arc::from(vec![])));
 
     let mut clock = MockClockService::new();
     clock.expect_date_now().returning(|| {
@@ -605,7 +721,7 @@ async fn boot_trigger_reload_flow() {
 
     let perm = full_auth_permission();
 
-    let scheduler = build_scheduler(cfg, view, sh, sp, perm, clock, factory);
+    let scheduler = build_scheduler(cfg, pdf_svc, sh, perm, clock, factory);
     scheduler
         .run_once_now(Authentication::Full)
         .await

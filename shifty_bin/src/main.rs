@@ -320,14 +320,35 @@ impl PdfExportSchedulerDeps for PdfExportSchedulerDependencies {
     type Context = Context;
     type Transaction = Transaction;
     type PdfExportConfigService = PdfExportConfigService;
-    type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
+    // Phase 49 Plan 03 (Wave 1 landed): der Scheduler konsumiert jetzt den
+    // PdfShiftplanService (BL-Kern), NICHT mehr ShiftplanViewService +
+    // SalesPersonService direkt — dedupe mit dem REST-Handler-Pfad.
+    type PdfShiftplanService = PdfShiftplanService;
     type ShiftplanService = ShiftplanCatalogService;
-    type SalesPersonService = SalesPersonService;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type TransactionDao = TransactionDao;
 }
 type PdfExportSchedulerService = PdfExportSchedulerImpl<PdfExportSchedulerDependencies>;
+
+// Phase 49 (PDF-03/PDF-04/PDF-05): PdfShiftplanServiceImpl ist BL-Tier —
+// konsumiert ShiftplanViewService (Read-Aggregat) + SalesPersonService
+// (Basic) + WeekStatusService (Basic) + PermissionService + TransactionDao.
+// Wird sowohl vom REST-Handler (`GET /shiftplan/{id}/{y}/{w}/pdf`, Wave 2)
+// als auch vom Scheduler-Refactor (Plan 03) über den DRY-Kern
+// `render_week_pdf` konsumiert.
+pub struct PdfShiftplanServiceDependencies;
+impl service_impl::pdf_shiftplan::PdfShiftplanServiceDeps for PdfShiftplanServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
+    type SalesPersonService = SalesPersonService;
+    type WeekStatusService = WeekStatusService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type PdfShiftplanService =
+    service_impl::pdf_shiftplan::PdfShiftplanServiceImpl<PdfShiftplanServiceDependencies>;
 
 // Phase 8 (D-04, 08-02-PLAN.md): VacationBalanceServiceImpl ist BL-Tier.
 // Konsumiert AbsenceService + EmployeeWorkDetails (alias WorkingHoursService)
@@ -670,6 +691,10 @@ pub struct RestStateImpl {
     pdf_export_config_service: Arc<PdfExportConfigService>,
     // Phase 48 Plan 04 (EXP-01/EXP-03): Cron-getriebener Nextcloud-Push.
     pdf_export_scheduler: Arc<PdfExportSchedulerService>,
+    // Phase 49 (PDF-03/PDF-04/PDF-05): BL-Tier PDF-Shiftplan-Assembler;
+    // konsumiert vom On-Demand-Download-Endpoint (Wave 2) und vom
+    // Scheduler-Refactor (Plan 03).
+    pdf_shiftplan_service: Arc<PdfShiftplanService>,
     basic_dao: Arc<BasicDaoImpl>,
 }
 impl rest::RestStateDef for RestStateImpl {
@@ -707,6 +732,7 @@ impl rest::RestStateDef for RestStateImpl {
     type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
     type PdfExportConfigService = PdfExportConfigService;
     type PdfExportScheduler = PdfExportSchedulerService;
+    type PdfShiftplanService = PdfShiftplanService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -815,6 +841,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler> {
         self.pdf_export_scheduler.clone()
+    }
+    fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService> {
+        self.pdf_shiftplan_service.clone()
     }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
@@ -1209,11 +1238,27 @@ impl RestStateImpl {
         // (Basic) + permission_service + clock_service + transaction_dao —
         // alle bereits im Scope. Die WebDavUpload-Factory ist die Produktions-
         // Variante, die pro Lauf einen echten WebDavClient baut.
+        // Phase 49 (PDF-03/PDF-04/PDF-05): BL-Tier PdfShiftplanService.
+        // Konsumiert bereits konstruierte Basic-/Read-Aggregat-Services:
+        // shiftplan_view_service, sales_person_service, week_status_service.
+        // Muss VOR pdf_export_scheduler stehen, weil der Scheduler ihn seit
+        // Wave 1 als Dep konsumiert (Phase 49 Plan 03 landed).
+        let pdf_shiftplan_service = Arc::new(
+            service_impl::pdf_shiftplan::PdfShiftplanServiceImpl::<
+                PdfShiftplanServiceDependencies,
+            >::new(
+                shiftplan_view_service.clone(),
+                sales_person_service.clone(),
+                week_status_service.clone(),
+                permission_service.clone(),
+                transaction_dao.clone(),
+            ),
+        );
+
         let pdf_export_scheduler = Arc::new(PdfExportSchedulerService::new(
             pdf_export_config_service.clone(),
-            shiftplan_view_service.clone(),
+            pdf_shiftplan_service.clone(),
             shiftplan_service.clone(),
-            sales_person_service.clone(),
             permission_service.clone(),
             clock_service.clone(),
             transaction_dao.clone(),
@@ -1273,6 +1318,7 @@ impl RestStateImpl {
             vacation_entitlement_offset_service,
             pdf_export_config_service,
             pdf_export_scheduler,
+            pdf_shiftplan_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }
