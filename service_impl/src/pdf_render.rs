@@ -439,80 +439,11 @@ mod test {
         }
     }
 
-    // ---------------------------------------------------------------
-    // Test D — repeated renders with same input are byte-identical
-    // (modulo the printpdf-generated /ID trailer array, see module docs).
-    // ---------------------------------------------------------------
-    #[test]
-    fn deterministic_bytes_for_same_input() {
-        let week = empty_week(2026, 27);
-        let a = render_shiftplan_week_pdf(&week, &[], 2026, 27).expect("first render succeeds");
-        let b = render_shiftplan_week_pdf(&week, &[], 2026, 27).expect("second render succeeds");
-
-        let a_norm = normalize_pdf_id(&a);
-        let b_norm = normalize_pdf_id(&b);
-        assert_eq!(
-            a_norm, b_norm,
-            "same input must produce byte-identical PDF except for /ID array (len_a={}, len_b={}, len_a_norm={}, len_b_norm={})",
-            a.len(), b.len(), a_norm.len(), b_norm.len(),
-        );
-
-        // Also assert that the /CreationDate is fixed and identical in both.
-        let creation_marker = b"/CreationDate";
-        let ca = find_subsequence(&a, creation_marker)
-            .expect("/CreationDate must be present in first PDF");
-        let cb = find_subsequence(&b, creation_marker)
-            .expect("/CreationDate must be present in second PDF");
-        // Extract 40 bytes after the marker and compare.
-        let a_slice = &a[ca..ca + creation_marker.len() + 40];
-        let b_slice = &b[cb..cb + creation_marker.len() + 40];
-        assert_eq!(a_slice, b_slice, "/CreationDate bytes must match across renders");
-
-        // Producer must also be the fixed constant.
-        let producer_marker = b"/Producer";
-        assert!(
-            find_subsequence(&a, producer_marker).is_some(),
-            "/Producer must be present"
-        );
-        assert!(
-            find_subsequence(&a, PDF_PRODUCER.as_bytes()).is_some(),
-            "producer constant '{}' must be embedded",
-            PDF_PRODUCER,
-        );
-    }
-
-    // ---------------------------------------------------------------
-    // Test E — internal sort by sales_person.id: pre-sorted vs shuffled
-    // input produces the same normalized bytes.
-    // ---------------------------------------------------------------
-    #[test]
-    fn sales_persons_sorted_by_id() {
-        let alice =
-            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0001, "Alice", Some(true));
-        let bob =
-            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0002, "Bob", Some(true));
-        let charlie = make_sales_person(
-            0x0000_0000_0000_0000_0000_0000_0000_0003,
-            "Charlie",
-            Some(true),
-        );
-
-        let week = empty_week(2026, 27);
-
-        let sorted = vec![alice.clone(), bob.clone(), charlie.clone()];
-        let shuffled = vec![charlie.clone(), alice.clone(), bob.clone()];
-
-        let bytes_sorted =
-            render_shiftplan_week_pdf(&week, &sorted, 2026, 27).expect("render sorted succeeds");
-        let bytes_shuffled =
-            render_shiftplan_week_pdf(&week, &shuffled, 2026, 27).expect("render shuffled succeeds");
-
-        assert_eq!(
-            normalize_pdf_id(&bytes_sorted),
-            normalize_pdf_id(&bytes_shuffled),
-            "internal id-sort must make input order irrelevant",
-        );
-    }
+    // Note: `deterministic_bytes_for_same_input` (v2.2 byte-determinism guard)
+    // and `sales_persons_sorted_by_id` (global id-sort assertion) were removed
+    // per D-50-13 (byte-determinism contract dropped) and D-50-15 (sort logic
+    // moved to alphabetical-within-slot-box, see `names_within_slot_alphabetical`
+    // in Wave 2).
 
     // ---------------------------------------------------------------
     // REFACTOR-Helper Tests: private-fn unit coverage.
@@ -530,26 +461,11 @@ mod test {
         assert_eq!(headers, ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]);
     }
 
-    #[test]
-    fn build_sales_person_row_lists_bookings_time_ranges() {
-        let sp =
-            make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0007, "Test", Some(true));
-        let slot = make_slot(DayOfWeek::Wednesday, 9, 30, 14, 45);
-        let booking = make_booking(&sp, slot.id, 2026, 27);
-        let mut week = empty_week(2026, 27);
-        // Wednesday is index 2 in day_of_week_order().
-        week.days[2].slots.push(ShiftplanSlot {
-            slot,
-            bookings: vec![booking],
-            current_paid_count: 1,
-        });
-
-        let cell = build_sales_person_day_cell(&week, &sp, DayOfWeek::Wednesday);
-        assert_eq!(cell, "09:30-14:45");
-
-        // Days with no booking yield empty string.
-        assert!(build_sales_person_day_cell(&week, &sp, DayOfWeek::Monday).is_empty());
-    }
+    // Note: `build_sales_person_row_lists_bookings_time_ranges` (v2.2 row-layout
+    // per-day cell test) was removed per D-50-15 — the row layout with a name
+    // column plus one time-range cell per day is gone. Wave 2 replaces it with
+    // slot-box-centric rendering (`slot_boxes_sorted_by_start_time` and
+    // `names_within_slot_alphabetical`).
 
     #[test]
     fn normalize_pdf_id_removes_variable_id_array() {
