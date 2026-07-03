@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.3
-milestone_name: PDF-Export — Browser-Look & Download-Button
+milestone_name: "— PDF-Export: Browser-Look & Download-Button"
 current_phase: 49
+current_phase_name: BE + FE
 status: Ready to execute
 stopped_at: Phase 49 planned — 5 plans across 3 waves
-last_updated: "2026-07-03T18:00:00.000Z"
+last_updated: "2026-07-03T13:43:48.774Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 49 planned — 5 PLAN.md (Service+Impl+Tests / REST / Scheduler-Refactor / FE+i18n / Doku-Audit)
+last_activity_desc: Phase 49 planned (Research + UI-SPEC + Patterns + 5 PLAN.md, VERIFICATION PASSED nach 1 Revision)
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
-current_phase_name: On-Demand-Download-Button (BE + FE)
 ---
 
 # Project State: Shifty Backend
@@ -251,3 +251,4 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 | Phase 41 P04 | ~12min | 3 tasks | 7 files |
 | Phase 42 P01 | ~13min | 3 tasks | 2 files |
 | Phase 45 P01 | 20 | 3 tasks | 22 files |
+| Phase 49 P01 | 5 | - tasks | - files |

@@ -44,12 +44,12 @@ User ausliefert — aber nur sichtbar, wenn `week_status ∈ {Planned, Locked}`.
 
 **Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
 **Requirements:** PDF-03, PDF-04, PDF-05
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 49-01-PLAN.md — Backend Service Trait + Impl + 8+ Unit-Tests (PDF-03, PDF-04) [TDD, Wave 1]
+- [x] 49-01-PLAN.md — Backend Service Trait + Impl + 8+ Unit-Tests (PDF-03, PDF-04) [TDD, Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
