@@ -38,6 +38,13 @@
 //!   0.4pt black, no fill — D-50-10). Box height scales with duration
 //!   (`base + duration_hours * step` — D-50-01 Hybrid Stack).
 //! - Slots vertically stacked in start-time order (D-50-02).
+//! - **Row-aligned across day columns (UAT 2026-07-03 revision of D-50-01):**
+//!   the N-th slot of every day sits on the same row. The row height is
+//!   `max(needed height of the N-th slot across all days)`, so a slot that
+//!   grew to accommodate many names pushes the slots below it down in every
+//!   day-column simultaneously — the resulting grid stays visually aligned
+//!   like the browser week view (side-by-side rows), even though slot start
+//!   times may differ per day.
 //! - Inside each box: bold time label at the top, then plain-text names
 //!   alphabetical case-insensitive (D-50-05, D-50-06), volunteers with
 //!   ` (freiwillig)` suffix (D-50-07).
@@ -45,8 +52,11 @@
 //!   the slot box grows vertically so all names fit (revises D-50-04 based
 //!   on UAT — a PDF cannot show "+ N weitere" interactively, so the box
 //!   itself has to accommodate the content).
-//! - Column-level overflow (too many stacked slots in one day) still uses
-//!   `+ N weitere` (D-50-03) — the page height is finite.
+//! - Column-level overflow (too many stacked slot-rows for the page height)
+//!   still uses `+ N weitere` (D-50-03) — the page height is finite. The
+//!   overflow decision is now global: rows that don't fit are skipped in
+//!   every column, and any day with un-rendered slots emits its own
+//!   `+ N weitere` marker below the last shared row.
 
 use service::sales_person::SalesPerson;
 use service::shiftplan::{ShiftplanSlot, ShiftplanWeek};
@@ -200,29 +210,141 @@ pub fn render_shiftplan_week_pdf(
         );
     }
 
-    // 3) Per-column slot boxes.
+    // 3) Per-column slot boxes with row-aligned heights (see module doc
+    //    "Row-aligned across day columns"). Compute per-day slot data,
+    //    per-row heights, and the number of rows that fit in one page.
     let grid_top_slots_y = grid_top_y - DAY_HEADER_HEIGHT_MM;
     let grid_bottom_y = MARGIN_BOTTOM_MM;
     let avail_height = grid_top_slots_y - grid_bottom_y;
-    for (i, dow) in visible_days.iter().enumerate() {
-        let col_x = MARGIN_LEFT_MM + (i as f32) * col_width_mm;
-        if let Some(day) = week.days.iter().find(|d| d.day_of_week == *dow) {
-            let sorted_slots = sort_slots_for_day(&day.slots);
-            render_day_column(
+    let text_width_mm = (col_width_mm - 2.0 * SLOT_TEXT_H_PADDING_MM).max(1.0);
+
+    let day_slot_renders: Vec<Vec<DaySlotRender<'_>>> = visible_days
+        .iter()
+        .map(|dow| {
+            let Some(day) = week.days.iter().find(|d| d.day_of_week == *dow) else {
+                return Vec::new();
+            };
+            sort_slots_for_day(&day.slots)
+                .into_iter()
+                .map(|s| {
+                    let names = build_slot_name_list(s, sales_persons);
+                    let name_lines = wrap_names_comma(&names, text_width_mm);
+                    let duration = compute_slot_duration_hours(&s.slot);
+                    let needed_height_mm =
+                        compute_slot_box_height_mm(duration, name_lines.len());
+                    DaySlotRender { slot: s, name_lines, needed_height_mm }
+                })
+                .collect()
+        })
+        .collect();
+
+    let row_heights = compute_row_heights(&day_slot_renders);
+    let rows_fitting = compute_rows_fitting(&row_heights, avail_height);
+    let row_y_bottoms = compute_row_y_bottoms(&row_heights, grid_top_slots_y, rows_fitting);
+
+    for (col_i, day) in day_slot_renders.iter().enumerate() {
+        let col_x = MARGIN_LEFT_MM + (col_i as f32) * col_width_mm;
+        let render_count = day.len().min(rows_fitting);
+        for (row_i, ds) in day.iter().take(render_count).enumerate() {
+            render_slot_box(
                 &layer,
-                &sorted_slots,
-                sales_persons,
+                ds.slot,
+                &ds.name_lines,
                 col_x,
+                row_y_bottoms[row_i],
                 col_width_mm,
-                grid_top_slots_y,
-                avail_height,
+                row_heights[row_i],
                 &font,
                 &font_bold,
+            );
+        }
+        if day.len() > rows_fitting {
+            let remaining = day.len() - rows_fitting;
+            let marker_y = if rows_fitting == 0 {
+                grid_top_slots_y - LINE_HEIGHT_MM
+            } else {
+                row_y_bottoms[rows_fitting - 1] - LINE_HEIGHT_MM * 0.5
+            };
+            layer.use_text(
+                format!("+ {remaining} weitere"),
+                NAME_FONT_PT,
+                Mm(col_x + SLOT_TEXT_H_PADDING_MM),
+                Mm(marker_y),
+                &font,
             );
         }
     }
 
     doc.save_to_bytes().map_err(|_| ServiceError::InternalError)
+}
+
+/// Per-day, per-slot pre-computed rendering data (used by the row-aligned
+/// grid layout in [`render_shiftplan_week_pdf`]).
+struct DaySlotRender<'a> {
+    slot: &'a ShiftplanSlot,
+    name_lines: Vec<String>,
+    /// Height the slot needs based on duration and wrapped name count.
+    /// The effective height used at render time is the max over all days
+    /// at the same row index (see [`compute_row_heights`]).
+    needed_height_mm: f32,
+}
+
+/// Per-row height across all day columns: the N-th row's height is the
+/// maximum `needed_height_mm` of the N-th slot across all days that have
+/// an N-th slot. Days without an N-th slot do not contribute.
+fn compute_row_heights(day_slot_renders: &[Vec<DaySlotRender<'_>>]) -> Vec<f32> {
+    let max_rows = day_slot_renders
+        .iter()
+        .map(|d| d.len())
+        .max()
+        .unwrap_or(0);
+    (0..max_rows)
+        .map(|row_i| {
+            day_slot_renders
+                .iter()
+                .filter_map(|d| d.get(row_i).map(|s| s.needed_height_mm))
+                .fold(0.0f32, f32::max)
+        })
+        .collect()
+}
+
+/// How many rows fit in `avail_height` given per-row heights, accounting
+/// for [`SLOT_GAP_MM`] between successive rows. Returns the number of
+/// rows that fully fit; further rows are dropped for the column-level
+/// `+ N weitere` marker (D-50-03).
+fn compute_rows_fitting(row_heights: &[f32], avail_height: f32) -> usize {
+    let mut consumed = 0.0f32;
+    let mut fitting = 0usize;
+    for (i, h) in row_heights.iter().enumerate() {
+        let after = if i == 0 { *h } else { consumed + SLOT_GAP_MM + *h };
+        if after > avail_height {
+            break;
+        }
+        consumed = after;
+        fitting = i + 1;
+    }
+    fitting
+}
+
+/// Bottom-y coordinate for each fitting row, starting from `grid_top_y`.
+/// Row 0's bottom is `grid_top_y - row_heights[0]`; each subsequent row
+/// drops another `SLOT_GAP_MM + row_heights[i]`.
+fn compute_row_y_bottoms(
+    row_heights: &[f32],
+    grid_top_y: f32,
+    rows_fitting: usize,
+) -> Vec<f32> {
+    let mut out = Vec::with_capacity(rows_fitting);
+    let mut row_top = grid_top_y;
+    for (i, h) in row_heights.iter().enumerate().take(rows_fitting) {
+        if i > 0 {
+            row_top -= SLOT_GAP_MM;
+        }
+        let y_bottom = row_top - h;
+        out.push(y_bottom);
+        row_top = y_bottom;
+    }
+    out
 }
 
 // -----------------------------------------------------------------------
@@ -525,69 +647,6 @@ fn render_slot_box(
             font,
         );
         name_y -= LINE_HEIGHT_MM;
-    }
-}
-
-/// Render all slot boxes of a single day column (D-50-01 Hybrid Stack).
-/// Slots stack top-to-bottom; when a box would extend below the grid, the
-/// remaining slots collapse into a `+ N weitere` marker (D-50-03).
-#[allow(clippy::too_many_arguments)]
-fn render_day_column(
-    layer: &printpdf::PdfLayerReference,
-    sorted_slots: &[&ShiftplanSlot],
-    sales_persons: &[SalesPerson],
-    col_x: f32,
-    col_width_mm: f32,
-    grid_top_y: f32,
-    avail_height: f32,
-    font: &printpdf::IndirectFontRef,
-    font_bold: &printpdf::IndirectFontRef,
-) {
-    let grid_bottom_y = grid_top_y - avail_height;
-    let mut y_cursor = grid_top_y;
-
-    // Note: `i` in this loop doubles as `rendered_count` — every iteration
-    // either renders exactly one box (and increments the effective count) or
-    // returns early on overflow, so no separate counter is needed.
-    // Usable text width inside a slot box (subtract left+right padding).
-    let text_width_mm = (col_width_mm - 2.0 * SLOT_TEXT_H_PADDING_MM).max(1.0);
-
-    for (i, slot) in sorted_slots.iter().enumerate() {
-        let duration_hours = compute_slot_duration_hours(&slot.slot);
-        let names = build_slot_name_list(slot, sales_persons);
-        let name_lines = wrap_names_comma(&names, text_width_mm);
-        let box_h = compute_slot_box_height_mm(duration_hours, name_lines.len());
-        let box_bottom = y_cursor - box_h;
-        if box_bottom < grid_bottom_y {
-            // Column-level overflow (D-50-03): remaining slots don't fit on
-            // the (single) page — collapse them into `+ N weitere`.
-            let remaining = sorted_slots.len() - i;
-            let marker_y = if i == 0 {
-                grid_top_y - LINE_HEIGHT_MM
-            } else {
-                y_cursor - LINE_HEIGHT_MM * 0.5
-            };
-            layer.use_text(
-                format!("+ {remaining} weitere"),
-                NAME_FONT_PT,
-                Mm(col_x + SLOT_TEXT_H_PADDING_MM),
-                Mm(marker_y),
-                font,
-            );
-            return;
-        }
-        render_slot_box(
-            layer,
-            slot,
-            &name_lines,
-            col_x,
-            box_bottom,
-            col_width_mm,
-            box_h,
-            font,
-            font_bold,
-        );
-        y_cursor = box_bottom - SLOT_GAP_MM;
     }
 }
 
@@ -1069,6 +1128,184 @@ mod test {
         );
         // Empty input: no lines.
         assert!(wrap_names_comma(&[], 50.0).is_empty());
+    }
+
+    /// UAT 2026-07-03 row-alignment revision of D-50-01: the row height is
+    /// the max needed height across all days at a given row index. Days
+    /// without an N-th slot do not contribute; only defined slots do.
+    #[test]
+    fn compute_row_heights_takes_max_across_days() {
+        // Build synthetic per-day slot data without going through the full
+        // renderer — DaySlotRender only needs `slot` (unused for the row
+        // math), `name_lines`, and `needed_height_mm`.
+        let slot = make_slot(DayOfWeek::Monday, 8, 0, 9, 0);
+        let s = ShiftplanSlot { slot, bookings: Vec::new(), current_paid_count: 0 };
+        let mk = |h: f32| DaySlotRender {
+            slot: &s,
+            name_lines: Vec::new(),
+            needed_height_mm: h,
+        };
+        // Day 0: [10, 20]
+        // Day 1: [15]
+        // Day 2: [5, 25, 30]
+        let days: Vec<Vec<DaySlotRender>> =
+            vec![vec![mk(10.0), mk(20.0)], vec![mk(15.0)], vec![mk(5.0), mk(25.0), mk(30.0)]];
+        let heights = compute_row_heights(&days);
+        assert_eq!(heights.len(), 3, "row count = max slot count across days");
+        assert!((heights[0] - 15.0).abs() < 1e-4, "row 0 = max(10,15,5) = 15");
+        assert!((heights[1] - 25.0).abs() < 1e-4, "row 1 = max(20,25) = 25 (day 1 has no row 1)");
+        assert!((heights[2] - 30.0).abs() < 1e-4, "row 2 = max(30) = 30 (only day 2 contributes)");
+    }
+
+    /// UAT 2026-07-03: rows_fitting stops before a row that would overflow;
+    /// gaps between rows count against the available height budget.
+    #[test]
+    fn compute_rows_fitting_stops_at_overflow() {
+        let heights = vec![20.0f32, 20.0, 20.0, 20.0];
+        // Avail 45 → rows 0+1 = 20 + gap + 20 = 40.7 fits, adding row 2 = 61.4 does not.
+        let fitting = compute_rows_fitting(&heights, 45.0);
+        assert_eq!(fitting, 2);
+        // Avail 100 → all four fit.
+        assert_eq!(compute_rows_fitting(&heights, 100.0), 4);
+        // Avail 5 → not even row 0 fits.
+        assert_eq!(compute_rows_fitting(&heights, 5.0), 0);
+        // Empty row list → nothing fits.
+        assert_eq!(compute_rows_fitting(&[], 100.0), 0);
+    }
+
+    /// UAT 2026-07-03: y-bottoms drop by `row_height + SLOT_GAP_MM` per row
+    /// starting from `grid_top_y`. Row 0 has no leading gap.
+    #[test]
+    fn compute_row_y_bottoms_stacks_with_gap() {
+        let heights = vec![10.0f32, 20.0, 5.0];
+        let ys = compute_row_y_bottoms(&heights, 200.0, 3);
+        assert!((ys[0] - (200.0 - 10.0)).abs() < 1e-4, "row 0 bottom = top - h[0]");
+        assert!(
+            (ys[1] - (200.0 - 10.0 - SLOT_GAP_MM - 20.0)).abs() < 1e-4,
+            "row 1 bottom = row 0 bottom - gap - h[1]",
+        );
+        assert!(
+            (ys[2] - (200.0 - 10.0 - SLOT_GAP_MM - 20.0 - SLOT_GAP_MM - 5.0)).abs() < 1e-4,
+            "row 2 bottom = row 1 bottom - gap - h[2]",
+        );
+        // rows_fitting = 0 → empty vec.
+        assert!(compute_row_y_bottoms(&heights, 200.0, 0).is_empty());
+    }
+
+    /// UAT 2026-07-03 end-to-end: two days both have a 1h slot at row 0
+    /// and a 1h slot at row 1. Monday's row 0 has one booking, Tuesday's
+    /// row 0 has enough bookings to force multi-line name wrap. The shared
+    /// row 0 height must exceed the duration-only baseline so BOTH days'
+    /// row-1 y-position is pushed down together — that is the invariant
+    /// the user asked for.
+    #[test]
+    fn row_alignment_across_days_pushes_all_columns_down_together() {
+        // Day 0 (Monday): 2 slots, both 1-hour, each with 1 short booking.
+        let mo0 = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0011, "Al", Some(true));
+        let mo1 = make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0012, "Bo", Some(true));
+        let mo_slot0 = make_slot(DayOfWeek::Monday, 8, 0, 9, 0);
+        let mo_slot1 = make_slot(DayOfWeek::Monday, 10, 0, 11, 0);
+        // Day 1 (Tuesday): row 0 has enough bookings (long names) to force
+        // 3+ wrapped lines; row 1 is small.
+        let tu_slot0 = make_slot(DayOfWeek::Tuesday, 8, 0, 9, 0);
+        let tu_slot1 = make_slot(DayOfWeek::Tuesday, 10, 0, 11, 0);
+        // Build ~12 Tuesday bookings with realistic-length names to force
+        // wrapping across ~3 lines in a 6-day-wide column (~47mm).
+        let tu_names: Vec<&'static str> = vec![
+            "Alexander", "Bernadette", "Christopher", "Dominique",
+            "Elizabeth", "Friedrich", "Gwendolyn", "Heinrich",
+            "Isabella", "Johannes", "Katharina", "Ludwig",
+        ];
+        let tu_persons: Vec<SalesPerson> = tu_names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| {
+                make_sales_person(0x0000_0000_0000_0000_0000_0000_0000_0100 + i as u128, n, Some(true))
+            })
+            .collect();
+
+        let mut week = empty_week(2026, 27);
+        let mo_slot0_id = mo_slot0.id;
+        let mo_slot1_id = mo_slot1.id;
+        let tu_slot0_id = tu_slot0.id;
+        let tu_slot1_id = tu_slot1.id;
+        week.days[0].slots.push(ShiftplanSlot {
+            slot: mo_slot0,
+            bookings: vec![make_booking(&mo0, mo_slot0_id, 2026, 27)],
+            current_paid_count: 1,
+        });
+        week.days[0].slots.push(ShiftplanSlot {
+            slot: mo_slot1,
+            bookings: vec![make_booking(&mo1, mo_slot1_id, 2026, 27)],
+            current_paid_count: 1,
+        });
+        week.days[1].slots.push(ShiftplanSlot {
+            slot: tu_slot0,
+            bookings: tu_persons
+                .iter()
+                .map(|sp| make_booking(sp, tu_slot0_id, 2026, 27))
+                .collect(),
+            current_paid_count: tu_persons.len() as u8,
+        });
+        week.days[1].slots.push(ShiftplanSlot {
+            slot: tu_slot1,
+            bookings: vec![make_booking(&mo1, tu_slot1_id, 2026, 27)],
+            current_paid_count: 1,
+        });
+        let mut sales_persons: Vec<SalesPerson> = vec![mo0.clone(), mo1.clone()];
+        sales_persons.extend(tu_persons.iter().cloned());
+
+        // Structural verification: compute the same per-day slot data the
+        // renderer uses, then check the row-alignment invariant. This is
+        // more precise than parsing the PDF byte stream.
+        let text_width_mm = (compute_col_width_mm(6) - 2.0 * SLOT_TEXT_H_PADDING_MM).max(1.0);
+        let day_slot_renders: Vec<Vec<DaySlotRender>> = [DayOfWeek::Monday, DayOfWeek::Tuesday]
+            .into_iter()
+            .map(|dow| {
+                let day = week.days.iter().find(|d| d.day_of_week == dow).unwrap();
+                sort_slots_for_day(&day.slots)
+                    .into_iter()
+                    .map(|s| {
+                        let names = build_slot_name_list(s, &sales_persons);
+                        let name_lines = wrap_names_comma(&names, text_width_mm);
+                        let duration = compute_slot_duration_hours(&s.slot);
+                        let needed = compute_slot_box_height_mm(duration, name_lines.len());
+                        DaySlotRender { slot: s, name_lines, needed_height_mm: needed }
+                    })
+                    .collect()
+            })
+            .collect();
+        let heights = compute_row_heights(&day_slot_renders);
+        assert_eq!(heights.len(), 2, "both days have 2 slots → 2 rows");
+        assert!(
+            heights[0] > heights[1] + 1.0,
+            "row 0 must grow beyond the duration-only baseline because Tuesday's slot 0 has many wrapped-name lines (row heights: {:?})",
+            heights,
+        );
+        // y_bottoms are shared across days by construction of the renderer.
+        let ys = compute_row_y_bottoms(&heights, 200.0, 2);
+        assert!(ys[1] < ys[0], "row 1 sits below row 0 by construction");
+        // End-to-end: render must succeed and preserve name visibility.
+        let bytes = render_shiftplan_week_pdf(
+            &week,
+            &sales_persons,
+            2026,
+            27,
+            FIXED_RENDER_TIMESTAMP,
+        )
+        .expect("render succeeds");
+        assert!(
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("Al").as_bytes()).is_some(),
+            "Monday row-0 name Al present",
+        );
+        assert!(
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("Bo").as_bytes()).is_some(),
+            "Monday row-1 name Bo present (pushed down by shared row 0 height, still on page)",
+        );
+        assert!(
+            find_subsequence(&bytes, encode_ascii_to_pdf_hex("Ludwig").as_bytes()).is_some(),
+            "Tuesday row-0 all names present including Ludwig (box grew, D-50-04 revised)",
+        );
     }
 
     /// D-50-16 / D-50-07 / PDF-01: Volunteers (`is_paid == Some(false)`) get
