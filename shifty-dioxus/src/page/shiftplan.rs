@@ -78,6 +78,29 @@ pub(crate) fn special_day_error_after_create<T, E>(
     }
 }
 
+/// Phase 49 (PDF-03/PDF-04, D-49-13): pure visibility gate for the PDF-Download
+/// anchor rendered next to the iCal button in the Shiftplan toolbar.
+///
+/// Returns `true` iff a shiftplan is selected AND the KW-status of the
+/// currently selected week is `Planned` or `Locked`. In every other combination
+/// (no shiftplan selected, or status in `Unset`/`InPlanning`) the anchor is
+/// suppressed — deliberately not rendered as a disabled control, no tooltip,
+/// no error toast (D-49-13 locked decision).
+///
+/// The predicate is intentionally pure and lives in file-scope so it can be
+/// exercised via `cargo test` without a Dioxus VirtualDom — programmatic
+/// signal-setting in a browser test does not trigger Dioxus's reactive graph
+/// (memory-anchor "Dioxus Browser-Test: Datepicker"). Unit tests cover the
+/// full 4×2 matrix (WeekStatus × Option<Uuid>).
+// reason: consumed by the RSX toolbar block in the same file (Task 3 of the
+// Plan 49-04 execution wave). The staged commit for Task 2 lands the pure fn
+// + unit-test matrix first so the RED → GREEN sequence stays visible in git
+// history; Task 3 wires the anchor and drops this attribute in the same file.
+#[allow(dead_code)]
+pub fn should_show_pdf_button(status: WeekStatus, shiftplan_id: Option<Uuid>) -> bool {
+    shiftplan_id.is_some() && matches!(status, WeekStatus::Planned | WeekStatus::Locked)
+}
+
 pub enum ShiftPlanAction {
     AddUserToSlot {
         slot_id: Uuid,
@@ -2087,5 +2110,63 @@ mod tests {
         let out_3 =
             super::special_day_error_after_create(&step_3, Weekday::Monday, &err_msg);
         assert_eq!(out_3, None, "Step 3 (Holiday) success: no error");
+    }
+
+    /// Phase 49 (PDF-03/PDF-04, D-49-13): full 4×2 truth-table for the pure
+    /// visibility predicate of the PDF-Download button. The button is visible
+    /// iff a shiftplan is selected AND the KW-status is Planned or Locked.
+    /// Every other cell must yield `false` — no disabled state, no tooltip.
+    mod pdf_button_tests {
+        use super::super::should_show_pdf_button;
+        use crate::state::week_status::WeekStatus;
+        use uuid::Uuid;
+
+        fn sp_id() -> Option<Uuid> {
+            Some(Uuid::from_u128(0x4949_0404_0000_0000_0000_0000_0000_0001))
+        }
+
+        // --- Some(shiftplan_id) rows -------------------------------------
+
+        #[test]
+        fn some_id_planned() {
+            assert!(should_show_pdf_button(WeekStatus::Planned, sp_id()));
+        }
+
+        #[test]
+        fn some_id_locked() {
+            assert!(should_show_pdf_button(WeekStatus::Locked, sp_id()));
+        }
+
+        #[test]
+        fn some_id_unset() {
+            assert!(!should_show_pdf_button(WeekStatus::Unset, sp_id()));
+        }
+
+        #[test]
+        fn some_id_in_planning() {
+            assert!(!should_show_pdf_button(WeekStatus::InPlanning, sp_id()));
+        }
+
+        // --- None rows (no shiftplan selected → always hidden) -----------
+
+        #[test]
+        fn none_id_planned() {
+            assert!(!should_show_pdf_button(WeekStatus::Planned, None));
+        }
+
+        #[test]
+        fn none_id_locked() {
+            assert!(!should_show_pdf_button(WeekStatus::Locked, None));
+        }
+
+        #[test]
+        fn none_id_unset() {
+            assert!(!should_show_pdf_button(WeekStatus::Unset, None));
+        }
+
+        #[test]
+        fn none_id_in_planning() {
+            assert!(!should_show_pdf_button(WeekStatus::InPlanning, None));
+        }
     }
 }
