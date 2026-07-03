@@ -1,42 +1,42 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: (between milestones)
-current_phase: none
-status: Ready for v2.3
-stopped_at: v2.2 milestone archived
-last_updated: "2026-07-03T00:44:20.551Z"
+milestone: v2.3
+milestone_name: PDF-Export — Browser-Look & Download-Button
+current_phase: 49
+status: Ready for plan-phase
+stopped_at: v2.3 milestone bootstrapped (REQUIREMENTS + ROADMAP)
+last_updated: "2026-07-03T12:00:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: Milestone v2.2 completed and archived
+last_activity_desc: v2.3 milestone bootstrapped — PDF-Export Fix (2 Phasen, 5 Requirements)
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: (none)
+current_phase_name: On-Demand-Download-Button (BE + FE)
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (kompaktes Milestone-Grouping-Format; Phase-Details in `milestones/vX.Y-ROADMAP.md`; Backlog 999.1 erhalten)
-- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` — wird beim nächsten `/gsd-new-milestone` frisch angelegt. v2.2-Archiv: `.planning/milestones/v2.2-REQUIREMENTS.md`
+- **Roadmap**: `.planning/ROADMAP.md` (v2.3-Sektion in „Next Milestone"; Phasen 49–50; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` — v2.3: 5 Requirements (PDF-01..PDF-05)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v2.2-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped + archiviert 2026-07-03, Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`, override_closeout)
-- **Current milestone**: — (zwischen Milestones; nächste Iteration via `/gsd-new-milestone`)
-- **Current focus**: v2.2 abgeschlossen, kein aktiver Milestone. Nächster Schritt: `/gsd-new-milestone` für v2.3 (Priorität durch User).
+- **Current milestone**: **v2.3 PDF-Export — Browser-Look & Download-Button** (Phasen 49–50, 5 Requirements PDF-01..PDF-05)
+- **Current focus**: Phase 49 (Download-Button, BE+FE, nutzt v2.2-Renderer 1:1) → Phase 50 (Renderer-Rewrite Browser-Look + Timestamp). Reihenfolge bewusst so, damit das Rendering-Ergebnis in Phase 50 direkt per Button verifiziert werden kann.
 - **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.2 kein Bump; grep-verifiziert in v2.2 Phase 47). Neue Migration in v2.2 nur in Phase 48 (`pdf_export_config`). Neue Deps in v2.2: `printpdf`, `reqwest_dav`, `tokio-cron-scheduler`.
 
 ## Current Position
 
-Phase: —
+Phase: **49 — On-Demand-Download-Button (BE + FE)**
 Plan: —
-Status: Ready for v2.3
-Last activity: 2026-07-03 — Milestone v2.2 completed and archived
+Status: Ready for `/gsd-plan-phase 49`
+Last activity: 2026-07-03 — v2.3 milestone bootstrapped (REQUIREMENTS + ROADMAP + Phasen-Dirs)
 
 ## Quick Tasks Completed
 
@@ -195,9 +195,9 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
 4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.2)
 
-**Aktueller Stand:** v2.2 shipped + archiviert (16/16 Requirements, Audit `passed`, override_closeout). Zwischen Milestones — nächste Iteration via `/gsd-new-milestone` (User priorisiert v2.3).
+**Aktueller Stand:** v2.3 gestartet — Fix-Milestone für den in v2.2 gelieferten PDF-Export. REQUIREMENTS + ROADMAP + Phasen-Dirs (49, 50) angelegt. Reihenfolge bewusst: erst Download-Button, dann Renderer-Rewrite (Button dient als Verifikationswerkzeug für Phase 50).
 
-**Next command**: `/gsd-new-milestone` für v2.3.
+**Next command**: `/gsd-plan-phase 49`.
 
 ---
 
@@ -205,7 +205,8 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 49 with `/gsd-plan-phase 49` (BE-Endpoint + FE-Button, Reihenfolge-Rationale: Verifikations-Werkzeug für Phase 50)
+- Anschließend `/gsd-plan-phase 50` (Renderer-Rewrite Browser-Look + Timestamp)
 
 ## Decisions
 

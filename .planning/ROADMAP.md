@@ -21,7 +21,65 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
 ## Next Milestone
 
-(No active milestone — run `/gsd-new-milestone` to start v2.3.)
+### 🚧 v2.3 — PDF-Export: Browser-Look & Download-Button (Phasen 49–50) — IN ARBEIT
+
+**Charakter:** Kleiner Fix-Milestone auf dem v2.2-PDF-Export. Der v2.2-Renderer produziert
+praktisch unlesbare PDFs; v2.3 macht daraus eine browser-ähnliche Wochenansicht und legt
+einen On-Demand-Download-Button auf die Schichtplan-Seite. Kein Snapshot-Bump (bleibt 12),
+keine Migration, keine neue Cargo-Dep. WebDAV-Scheduler aus Phase 48 nutzt den neuen
+Renderer nach Phase 50 automatisch.
+
+- [ ] Phase 49: On-Demand-Download-Button (BE + FE) — PDF-03, PDF-04, PDF-05
+- [ ] Phase 50: PDF-Renderer neu — Browser-Look + Timestamp — PDF-01, PDF-02
+
+**Reihenfolge-Rationale:** Erst der Button (mit dem alten, unlesbaren Renderer), dann der
+Renderer-Rewrite. So kann das Rendering in Phase 50 direkt per Button-Klick verifiziert
+werden.
+
+#### Phase 49: On-Demand-Download-Button (BE + FE)
+
+**Goal:** Auf der Schichtplan-Seite gibt es einen PDF-Download-Button, der die aktuelle
+Kalenderwoche (basierend auf heute) für jeden authentifizierten User ausliefert — aber
+nur, wenn `week_status ∈ {Planned, Locked}`.
+
+**Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
+**Requirements:** PDF-03, PDF-04, PDF-05
+**Plans:** 0/? plans complete
+
+**Success Criteria:**
+
+1. Neuer REST-Endpoint `GET /shiftplan/{year}/{week}/pdf` liefert das PDF mit Dateiname
+   `schichtplan-{JJJJ}-KW{NN}.pdf`; auth-required, aber KEIN Admin-Gate (Employee-Auth
+   liefert 200).
+2. Backend gibt HTTP 409 zurück, wenn `week_status ∈ {None, Planning}` (Defense-in-Depth).
+3. Frontend-Button in `shifty-dioxus/src/page/shiftplan.rs` ist nur enabled bei
+   `week_status ∈ {Planned, Locked}`; sonst disabled + Tooltip. Button lädt IMMER die
+   KW von heute, nicht die im UI navigierte Woche. i18n-Label + Tooltip in de/en/cs.
+
+#### Phase 50: PDF-Renderer neu — Browser-Look + Timestamp
+
+**Goal:** `service_impl/src/pdf_render.rs` produziert PDFs, die visuell der
+Browser-Wochenansicht (`shifty-dioxus/src/page/shiftplan.rs`) entsprechen — Slots als
+Zellen mit Uhrzeiten, Bookings mit Sales-Person-Namen, Wochentage als Spalten — und
+tragen den Renderzeitpunkt sichtbar auf jeder Seite.
+
+**Depends on:** Nichts (Phase 49 unabhängig; Phase 50 verifiziert per Klick auf den
+Phase-49-Button gegen ein reales Wochen-Fixture).
+**Requirements:** PDF-01, PDF-02
+**Plans:** 0/? plans complete
+
+**Success Criteria:**
+
+1. Rendering entspricht sichtbar der Browser-Wochenansicht: Slots als Zellen mit
+   Uhrzeit-Label pro Zelle, Sales-Person-Namen in der Zelle, sieben Wochentag-Spalten,
+   Landscape A4, „Schichtplan KW {NN} ({JJJJ})"-Kopfzeile.
+2. Renderzeitpunkt „Erstellt am DD.MM.YYYY HH:MM Uhr" auf jeder Seite sichtbar; Renderer
+   nimmt Timestamp als Argument (pure Funktion bleibt testbar).
+3. Byte-Determinismus-Vertrag aus v2.2 wird bewusst aufgehoben (Timestamp bricht ihn
+   ohnehin). WebDAV-Scheduler nutzt den neuen Renderer transparent — kein Scheduler-Code-
+   Change nötig. Alle Backend-Tests + `cargo clippy --workspace -- -D warnings` grün.
+
+
 
 ## Backlog
 
@@ -51,4 +109,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-07-03 — **v2.2 geshipt + archiviert** (Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`). ROADMAP.md auf kompaktes Milestone-Grouping-Format umgestellt; Phase-Details liegen in den `milestones/vX.Y-ROADMAP.md`-Archiven. Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.*
+*Last updated: 2026-07-03 — **v2.3 gestartet** (Phasen 49–50, 5 Requirements PDF-01…PDF-05). Kleiner Fix-Milestone auf dem v2.2-PDF-Export: erst Download-Button (Phase 49, unlesbarer alter Renderer), dann Renderer-Rewrite (Phase 50, Browser-Look + Timestamp). Kein Snapshot-Bump, keine Migration, keine neue Dep.*

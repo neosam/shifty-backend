@@ -2,7 +2,7 @@
 type: project_charter
 last_updated: 2026-07-03
 last_milestone: v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster (shipped 2026-07-03, Phasen 43–48, 16/16 Requirements, Audit passed)
-current_milestone: — (between milestones; next via /gsd-new-milestone)
+current_milestone: v2.3 PDF-Export — Browser-Look & Download-Button (Phasen 49–50, 5 Requirements PDF-01..PDF-05, IN ARBEIT)
 ---
 
 # Shifty — Project Charter
