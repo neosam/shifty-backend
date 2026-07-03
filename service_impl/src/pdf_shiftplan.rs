@@ -33,6 +33,7 @@ use service::{
     week_status::{WeekStatus, WeekStatusService},
     PermissionService, ServiceError, ValidationFailureItem,
 };
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
@@ -132,12 +133,15 @@ impl<Deps: PdfShiftplanServiceDeps + 'static> PdfShiftplanService for PdfShiftpl
             .await?;
         let active_sales_persons = filter_active(&all_sales_persons);
 
-        // 4) Pure Renderer.
+        // 4) Pure Renderer. Timestamp-Bridge: Wave 3 (50-03-PLAN.md) ersetzt
+        //    `now_utc()` durch `now_local()`-mit-UTC-Fallback (D-50-12).
+        let render_timestamp = OffsetDateTime::now_utc();
         pdf_render::render_shiftplan_week_pdf(
             &week_view,
             &active_sales_persons,
             year,
             calendar_week,
+            render_timestamp,
         )
     }
 }
