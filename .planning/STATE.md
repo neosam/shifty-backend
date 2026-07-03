@@ -4,17 +4,17 @@ milestone: v2.3
 milestone_name: "— PDF-Export: Browser-Look & Download-Button"
 current_phase: 50
 current_phase_name: PDF-Renderer neu — Browser-Look + Timestamp
-status: Ready to execute
-stopped_at: Phase 50 planned — 3 Pläne (Wave 1: TDD-Skeleton + local-offset-Feature; Wave 2: Renderer-Rewrite; Wave 3: PdfShiftplanService now_local() + Service-Test), ready for /gsd-execute-phase 50
-last_updated: "2026-07-03T23:00:00.000Z"
+status: Executed, awaiting UAT
+stopped_at: Phase 50 executed — Renderer-Rewrite (3/3 Waves), Verifier PASSED (14/14 must-haves), human UAT D-50-17 pending (visueller PDF-Check via Phase-49-Button)
+last_updated: "2026-07-03T23:40:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 50 geplant — 3 Pläne (50-01/02/03) in 3 sequentiellen Waves. Alle 17 Locked Decisions (D-50-01..D-50-17) in must_haves referenziert. Plan-Checker PASSED (0 Blocker, 0 Warnings). RESEARCH.md + VALIDATION.md + PLAN-Files committed.
+last_activity_desc: Phase 50 ausgeführt — 3 Waves sequenziell (Wave 1: TDD-Skeleton + local-offset-Feature; Wave 2: kompletter Renderer-Rewrite mit Browser-Look + Timestamp im Header; Wave 3: resolve_render_timestamp() mit now_local()+UTC-Fallback+warn!). 781 Tests grün. Clippy grün. Verifier meldet human_needed für D-50-17 (visueller PDF-Layout-Check via Phase-49-Download-Button).
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 5
-  percent: 50
+  completed_plans: 8
+  percent: 87
 ---
 
 # Project State: Shifty Backend
@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: **50 — PDF-Renderer neu — Browser-Look + Timestamp**
-Plan: 3/3 written (50-01, 50-02, 50-03) — 0/3 executed
-Status: Ready to execute → `/gsd-execute-phase 50`
-Last activity: 2026-07-03 — Phase 50 geplant. 3 sequentielle Waves: (1) TDD-Skeleton + Cargo-`local-offset`-Feature (D-50-13/14/15/16), (2) Renderer-Rewrite mit Browser-Look + Timestamp im Header (D-50-01..11), (3) PdfShiftplanService `now_local()`-Fallback mit UTC-Rückfall + Service-Test (D-50-12). Plan-Checker PASSED. Nyquist: alle Tasks automated, Wave-0-Vorbereitung in 50-01.
+Plan: 3/3 executed (50-01, 50-02, 50-03) — SUMMARY.md pro Plan committed
+Status: Executed, awaiting UAT → `/gsd-verify-work 50` (visueller PDF-Check via Phase-49-Button)
+Last activity: 2026-07-03 — Phase 50 ausgeführt. 3 sequenzielle Waves (50-01: Cargo-Feature `local-offset` + FIXED_RENDER_TIMESTAMP + `is_paid`-Fixture + 6 Skelette + 3 gestrichene Tests; 50-02: kompletter Renderer-Rewrite mit 5-Parameter-Signatur, Hybrid-Stack-Layout, `add_rect`+`Stroke`-Boxen, dyn. Sonntag, Header+Timestamp, alphabetische Namen mit `(freiwillig)`-Suffix, Overflow-Handling, `pdf_shiftplan.rs`-Bridge; 50-03: `resolve_render_timestamp()` mit `now_local()`+UTC-Fallback+`warn!`, Service-Test). 781 Tests grün, Clippy grün. Verifier PASSED (14/14). D-50-17 visueller UAT-Check offen (via Phase-49-Button).
 
 ## Quick Tasks Completed
 

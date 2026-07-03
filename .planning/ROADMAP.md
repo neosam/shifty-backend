@@ -90,20 +90,20 @@ tragen den Renderzeitpunkt sichtbar auf jeder Seite.
 **Depends on:** Nichts (Phase 49 unabhängig; Phase 50 verifiziert per Klick auf den
 Phase-49-Button gegen ein reales Wochen-Fixture).
 **Requirements:** PDF-01, PDF-02
-**Plans:** 0/3 plans complete
+**Plans:** 3/3 plans complete (executed 2026-07-03; verifier PASSED 14/14, human UAT D-50-17 pending)
 
 Plans:
 **Wave 1**
 
-- [ ] 50-01-PLAN.md — TDD-Wave-0-Vorbereitung: `local-offset`-Cargo-Feature, `FIXED_RENDER_TIMESTAMP`-Konstante, `make_sales_person`-Fixture-Extension (`is_paid`-Param), 6 neue D-50-16-Test-Skelette (`#[ignore]`), 3 obsolete Tests entfernt (D-50-13/D-50-15) [TDD, Wave 1]
+- [x] 50-01-PLAN.md — TDD-Wave-0-Vorbereitung: `local-offset`-Cargo-Feature, `FIXED_RENDER_TIMESTAMP`-Konstante, `make_sales_person`-Fixture-Extension (`is_paid`-Param), 6 neue D-50-16-Test-Skelette (`#[ignore]`), 3 obsolete Tests entfernt (D-50-13/D-50-15) [TDD, Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 50-02-PLAN.md — Renderer-Rewrite: neue 5-Parameter-Signatur mit `render_timestamp` (D-50-11), Hybrid-Stack-Layout (D-50-01/02), Slot-Boxen mit `add_rect`+`PaintMode::Stroke` (D-50-10), dynamische Sonntag-Spalte (D-50-08), Timestamp im Header (D-50-09), alphabetische Namen mit `(freiwillig)`-Suffix (D-50-06/07), `+ N weitere`-Overflow (D-50-03/04), pdf_shiftplan.rs Übergangs-Bridge [TDD, Wave 2]
+- [x] 50-02-PLAN.md — Renderer-Rewrite: neue 5-Parameter-Signatur mit `render_timestamp` (D-50-11), Hybrid-Stack-Layout (D-50-01/02), Slot-Boxen mit `add_rect`+`PaintMode::Stroke` (D-50-10), dynamische Sonntag-Spalte (D-50-08), Timestamp im Header (D-50-09), alphabetische Namen mit `(freiwillig)`-Suffix (D-50-06/07), `+ N weitere`-Overflow (D-50-03/04), pdf_shiftplan.rs Übergangs-Bridge [TDD, Wave 2]
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 50-03-PLAN.md — Aufrufer-Finalisierung: `resolve_render_timestamp()`-Fn mit `now_local()` + UTC-Fallback + `warn!`-Log (D-50-12), Service-Test `now_local_fallback_to_utc_on_indeterminate_offset` (D-50-16) [TDD, Wave 3]
+- [x] 50-03-PLAN.md — Aufrufer-Finalisierung: `resolve_render_timestamp()`-Fn mit `now_local()` + UTC-Fallback + `warn!`-Log (D-50-12), Service-Test `now_local_fallback_to_utc_on_indeterminate_offset` (D-50-16) [TDD, Wave 3]
 
 **Cross-cutting constraints (aus PLAN.md must_haves.truths, in ≥2 Plänen):**
 - D-50-11: Renderer nimmt `render_timestamp: OffsetDateTime` als 5. Parameter (definiert in 50-02, konsumiert in 50-03)
