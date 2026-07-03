@@ -4,15 +4,15 @@ milestone: v2.3
 milestone_name: "— PDF-Export: Browser-Look & Download-Button"
 current_phase: 50
 current_phase_name: PDF-Renderer neu — Browser-Look + Timestamp
-status: Context gathered
-stopped_at: Phase 50 CONTEXT — 6 Gray Areas (G1-c/G2-a/G3-a/G4-Sonntag-dyn/G5-Boxen/G6-a) entschieden, ready for /gsd-plan-phase 50
-last_updated: "2026-07-03T22:30:00.000Z"
+status: Ready to execute
+stopped_at: Phase 50 planned — 3 Pläne (Wave 1: TDD-Skeleton + local-offset-Feature; Wave 2: Renderer-Rewrite; Wave 3: PdfShiftplanService now_local() + Service-Test), ready for /gsd-execute-phase 50
+last_updated: "2026-07-03T23:00:00.000Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 50 CONTEXT.md geschrieben — Renderer-Rewrite (Browser-Look) + Timestamp via now_local() (keine neue Dep). Sonntag dynamisch wie Browser. Slots als sichtbare Boxen mit Plain-Text-Namen (freiwillige mit „(freiwillig)"-Suffix).
+last_activity_desc: Phase 50 geplant — 3 Pläne (50-01/02/03) in 3 sequentiellen Waves. Alle 17 Locked Decisions (D-50-01..D-50-17) in must_haves referenziert. Plan-Checker PASSED (0 Blocker, 0 Warnings). RESEARCH.md + VALIDATION.md + PLAN-Files committed.
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 5
+  total_plans: 8
   completed_plans: 5
   percent: 50
 ---
@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: **50 — PDF-Renderer neu — Browser-Look + Timestamp**
-Plan: none yet
-Status: Context gathered → Ready for `/gsd-plan-phase 50`
-Last activity: 2026-07-03 — Phase 50 CONTEXT.md (6 Gray Areas entschieden). Renderer-Rewrite in `service_impl/src/pdf_render.rs`; PdfShiftplanService bekommt `now_local()`-Timestamp-Injection; Byte-Determinismus aufgehoben. Vorgänger Phase 49 COMPLETE.
+Plan: 3/3 written (50-01, 50-02, 50-03) — 0/3 executed
+Status: Ready to execute → `/gsd-execute-phase 50`
+Last activity: 2026-07-03 — Phase 50 geplant. 3 sequentielle Waves: (1) TDD-Skeleton + Cargo-`local-offset`-Feature (D-50-13/14/15/16), (2) Renderer-Rewrite mit Browser-Look + Timestamp im Header (D-50-01..11), (3) PdfShiftplanService `now_local()`-Fallback mit UTC-Rückfall + Service-Test (D-50-12). Plan-Checker PASSED. Nyquist: alle Tasks automated, Wave-0-Vorbereitung in 50-01.
 
 ## Quick Tasks Completed
 
