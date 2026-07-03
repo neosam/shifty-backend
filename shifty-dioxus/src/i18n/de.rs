@@ -41,6 +41,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::PersonalCalendarExport,
         "Persönlichen Kalender exportieren (iCal)",
     );
+    i18n.add_text(Locale::De, Key::PdfDownload, "PDF");
     i18n.add_text(
         Locale::De,
         Key::UnsufficientlyBookedCalendarExport,

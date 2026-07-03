@@ -82,6 +82,10 @@ pub enum Key {
     ShiftplanYouAre,
     ConflictBookingsHeader,
     PersonalCalendarExport,
+    /// Phase 49 (PDF-03/PDF-04): download-button label next to the iCal button
+    /// in the Shiftplan toolbar. Localised as "PDF" in all three locales
+    /// (de/en/cs) — symmetric to the "iCal" shorthand.
+    PdfDownload,
     UnsufficientlyBookedCalendarExport,
     WeekMessage,
     ShiftplanFilledOfNeed,
