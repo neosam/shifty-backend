@@ -9,6 +9,16 @@
 //!
 //! Beide Aufrufer (REST-Handler Plan 02, Scheduler-Refactor Plan 03) gehen
 //! durch [`PdfShiftplanServiceImpl::render_week_pdf`]. DRY-Kern.
+//!
+//! ## Reihenfolge im Assemble-Path
+//!
+//! 1. **WeekStatus-Gate** — kein Aufwand vor der Auth/Status-Prüfung.
+//! 2. **ShiftplanView** — der teure Read.
+//! 3. **SalesPersons + Filter** — `deleted.is_none()` (D-49-05, PDF-05).
+//! 4. **Pure Renderer** — `pdf_render::render_shiftplan_week_pdf`.
+//!
+//! Der `context` wird 1:1 an alle konsumierten Services weitergereicht
+//! (D-49-07); niemals wird intern auf `Authentication::Full` hochgehebelt.
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -26,7 +36,6 @@ use service::{
 use uuid::Uuid;
 
 use crate::gen_service_impl;
-#[allow(unused_imports)]
 use crate::pdf_render;
 
 gen_service_impl! {
@@ -72,11 +81,9 @@ impl<Deps: PdfShiftplanServiceDeps> Debug for PdfShiftplanServiceImpl<Deps> {
     }
 }
 
-/// Hilfs-Reiner-Filter: aktive SalesPersons (nicht soft-deleted). Als eigene
-/// pure fn extrahiert, damit der Filter-Test (`filters_deleted_sales_persons`)
-/// deterministisch ohne printpdf-Byte-Grep prüfen kann (siehe PLAN-01
-/// Alternative-Assertion in Task 2).
-#[allow(dead_code)]
+/// Pure Filter-Helfer: aktive SalesPersons (nicht soft-deleted). Als eigene
+/// Funktion extrahiert, damit die PDF-05-Assertion deterministisch ohne
+/// printpdf-Byte-Grep testbar ist (Text landet in FlateDecode-Streams).
 pub(crate) fn filter_active(sales_persons: &[SalesPerson]) -> Vec<SalesPerson> {
     sales_persons
         .iter()
@@ -92,22 +99,45 @@ impl<Deps: PdfShiftplanServiceDeps + 'static> PdfShiftplanService for PdfShiftpl
 
     async fn render_week_pdf(
         &self,
-        _shiftplan_id: Uuid,
-        _year: u32,
-        _calendar_week: u8,
-        _context: Authentication<Self::Context>,
-        _tx: Option<Self::Transaction>,
+        shiftplan_id: Uuid,
+        year: u32,
+        calendar_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
     ) -> Result<Vec<u8>, ServiceError> {
-        // RED-Phase skeleton — Task 2 (GREEN) will implement the assemble path.
-        // Reference the types so unused-import lints don't fire on the stub.
-        let _ = (
-            &self.shiftplan_view_service,
-            &self.sales_person_service,
-            &self.week_status_service,
-            &self.permission_service,
-            &self.transaction_dao,
-        );
-        let _ = (WeekStatus::Planned, ValidationFailureItem::Duplicate);
-        Err(ServiceError::InternalError)
+        // 1) WeekStatus-Gate — Defense-in-Depth. Nur Planned/Locked freigegeben
+        //    (D-49-06). Kein View/get_all-Call bei Ablehnung → zero side effects.
+        let status = self
+            .week_status_service
+            .get_week_status(year, calendar_week, context.clone(), tx.clone())
+            .await?;
+        if !matches!(status, WeekStatus::Planned | WeekStatus::Locked) {
+            return Err(ServiceError::ValidationError(Arc::from([
+                ValidationFailureItem::InvalidValue(Arc::from(format!(
+                    "Woche KW{calendar_week:02}/{year} ist im Status {status:?} — kein Download"
+                ))),
+            ])));
+        }
+
+        // 2) View-Read (D-49-07: caller-context weitergereicht).
+        let week_view = self
+            .shiftplan_view_service
+            .get_shiftplan_week(shiftplan_id, year, calendar_week, context.clone(), tx.clone())
+            .await?;
+
+        // 3) SalesPersons + aktive-Filter (D-49-05, PDF-05).
+        let all_sales_persons = self
+            .sales_person_service
+            .get_all(context, tx)
+            .await?;
+        let active_sales_persons = filter_active(&all_sales_persons);
+
+        // 4) Pure Renderer.
+        pdf_render::render_shiftplan_week_pdf(
+            &week_view,
+            &active_sales_persons,
+            year,
+            calendar_week,
+        )
     }
 }
