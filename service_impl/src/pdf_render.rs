@@ -1403,4 +1403,92 @@ mod test {
             "'So' column header MUST appear when at least one Sunday slot exists (D-50-08)",
         );
     }
+
+    // ---------------------------------------------------------------
+    // SHC-04 — PDF renderer consumes the clipped ShiftplanWeek.
+    //
+    // The PDF renderer receives the same `ShiftplanWeek` aggregate as the
+    // WeekView (Chain B). After Phase 51 P03 the aggregate carries
+    // `effective_to` on every `ShiftplanSlot`; the P07 renderer helpers
+    // (`compute_slot_duration_hours`, `format_slot_time_label`) MUST
+    // consume the wrapper's `effective_to`, not the raw `slot.to`.
+    //
+    // Tests A and B pin the pure helpers directly (they're the smallest
+    // testable surface); Test C proves the whole render pipeline reflects
+    // the clipped time in the PDF output by byte-grepping the hex-encoded
+    // time label.
+    // ---------------------------------------------------------------
+
+    /// SHC-04 / P07 Task 3 Test A: `compute_slot_duration_hours` returns
+    /// the effective duration when the ShortDay cutoff clips the slot.
+    /// Fixture: 14:00-15:00 raw, `effective_to=14:30` → 0.5h.
+    #[test]
+    fn pdf_slot_duration_uses_effective_to_when_clipped() {
+        let slot = make_slot(DayOfWeek::Monday, 14, 0, 15, 0);
+        let clipped = time::Time::from_hms(14, 30, 0).unwrap();
+        let shiftplan_slot = ShiftplanSlot {
+            slot,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+            effective_to: clipped,
+        };
+        let hours = compute_slot_duration_hours(&shiftplan_slot);
+        assert!(
+            (hours - 0.5).abs() < 1e-4,
+            "duration must reflect effective_to=14:30 (0.5h), got {hours}",
+        );
+    }
+
+    /// SHC-04 / P07 Task 3 Test B: Non-ShortDay path (default) stays
+    /// unaffected. When `effective_to == slot.to` the duration is the
+    /// raw duration (1h for 14:00-15:00).
+    #[test]
+    fn pdf_slot_duration_matches_raw_when_effective_to_equals_to() {
+        let slot = make_slot(DayOfWeek::Monday, 14, 0, 15, 0);
+        let raw_to = slot.to;
+        let shiftplan_slot = ShiftplanSlot {
+            slot,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+            effective_to: raw_to,
+        };
+        let hours = compute_slot_duration_hours(&shiftplan_slot);
+        assert!(
+            (hours - 1.0).abs() < 1e-4,
+            "duration must reflect the raw 1h when effective_to == slot.to, got {hours}",
+        );
+    }
+
+    /// SHC-04 / P07 Task 3 Test C: End-to-end — a rendered `ShiftplanWeek`
+    /// with a clipped slot embeds the CLIPPED time label ("14:00 - 14:30")
+    /// in the PDF, NOT the raw label ("14:00 - 15:00"). This proves the
+    /// renderer consumes the wrapper's `effective_to` all the way through
+    /// `render_shiftplan_week_pdf` without touching `pdf_render`-external
+    /// code.
+    #[test]
+    fn pdf_bytes_embed_clipped_time_label_not_raw() {
+        let slot = make_slot(DayOfWeek::Monday, 14, 0, 15, 0);
+        let clipped = time::Time::from_hms(14, 30, 0).unwrap();
+        let mut week = empty_week(2026, 27);
+        week.days[0].slots.push(ShiftplanSlot {
+            slot,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+            effective_to: clipped,
+        });
+
+        let bytes = render_shiftplan_week_pdf(&week, &[], 2026, 27, FIXED_RENDER_TIMESTAMP)
+            .expect("render succeeds");
+
+        let clipped_hex = encode_ascii_to_pdf_hex("14:00 - 14:30");
+        let raw_hex = encode_ascii_to_pdf_hex("14:00 - 15:00");
+        assert!(
+            find_subsequence(&bytes, clipped_hex.as_bytes()).is_some(),
+            "clipped label '14:00 - 14:30' (hex {clipped_hex}) must appear in PDF bytes (SHC-04)",
+        );
+        assert!(
+            find_subsequence(&bytes, raw_hex.as_bytes()).is_none(),
+            "raw label '14:00 - 15:00' MUST NOT appear — renderer must consume effective_to (D-51-04)",
+        );
+    }
 }
