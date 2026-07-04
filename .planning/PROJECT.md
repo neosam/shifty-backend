@@ -51,6 +51,32 @@ API-Wirkung darf still ohne Frontend-Anteil laufen.
 Frontend-Anteil im Plan stand. „Backend-Tests grün" ist nicht ausreichend
 für Phasen mit Frontend-Anteil.
 
+## Architektur-Prinzipien
+
+### Fat Backend, Thin Client
+
+**Sämtliche Business-Logik (Berechnungen, Validierung, Aggregation, Semantik-
+Regeln wie Slot-Clipping am Cutoff, Balance-Berechnung, Konflikt-Detection)
+lebt im Backend. Das Frontend ist reiner View-Layer und zeigt vorbereitete
+DTOs an.** Wenn ein DTO nachträglich Logik verlangt, ist das ein Signal,
+dass das Backend ihm die effektiv anzuzeigenden Werte hätte liefern müssen.
+
+**Motivation:** Zweit-Client-Fähigkeit — Mobile-App, alternative Web-UI,
+CLI-Client etc. sollen ohne Duplikation der Domain-Regeln angebunden werden
+können. Jede Regel, die im FE lebt, müsste in jedem zukünftigen Client
+wiederholt werden.
+
+**Ausnahmen** (nicht darunter):
+- Reine UI-State-Logik (Selection, Filter-Sichten, Modal-Open/Close)
+- Anzeigeformatierung (Datumsformat pro Locale, Farbwahl pro Status)
+- Client-Side Input-Validierung als *Convenience* zusätzlich zur
+  BE-Validierung (nie stattdessen)
+
+**Konsequenz für Phasen-Design:** In discuss-phase-Fragen wie „rechnet BE
+oder FE?" ist der Default „BE liefert fertigen Wert im DTO". Abweichung
+braucht expliziten User-Konsens. Etabliert in Phase 51 (Kurzer-Tag-Slot-
+Kürzung, 2026-07-04), rückwirkend Grundprinzip für alle folgenden Phasen.
+
 ## Quellen-Hierarchie
 
 | Zweck | Quelle |
