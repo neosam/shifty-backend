@@ -98,7 +98,12 @@ pub async fn load_shift_plan(
             id: slot.slot.id,
             day_of_week: slot.slot.day_of_week.into(),
             from: slot.slot.from,
-            to: slot.slot.to,
+            // Phase 51 P07 (D-51-02, D-51-04, D-51-09): read the WRAPPER's
+            // `effective_to`. On non-ShortDays this equals `slot.slot.to`;
+            // on ShortDays with the D-51-07 stichtag gate active it's the
+            // clipped end time (Fat Backend — FE renders the value as-is,
+            // no clip logic in the frontend).
+            to: slot.effective_to,
             min_resources: slot.slot.min_resources,
             max_paid_employees: slot.slot.max_paid_employees,
             current_paid_count: slot.current_paid_count,
@@ -151,7 +156,9 @@ pub async fn load_day_aggregate(
                     id: slot.slot.id,
                     day_of_week: slot.slot.day_of_week.into(),
                     from: slot.slot.from,
-                    to: slot.slot.to,
+                    // Phase 51 P07 (D-51-02, D-51-04, D-51-09): read the
+                    // WRAPPER's `effective_to` (see load_shift_plan above).
+                    to: slot.effective_to,
                     min_resources: slot.slot.min_resources,
                     max_paid_employees: slot.slot.max_paid_employees,
                     current_paid_count: slot.current_paid_count,
