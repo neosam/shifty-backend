@@ -1121,3 +1121,83 @@ async fn test_create_falls_back_to_booking_created_by_when_user_is_anon() {
         "created_by must fall back to the caller-provided value"
     );
 }
+
+// ─── Phase 51 D-51-03: Booking-Create bleibt unangefasst ──────────────────────
+//
+// Doku-Assertion für Chain C (D-51-06): der Slot-Clip aus Phase 51 wirkt AUSSCHLIESSLICH
+// im View-Layer (`get_weekly_summary` / `get_summery_for_week` / `get_blocks_*`).
+// `BookingService::create` konsultiert weder `SpecialDayService`, `ToggleService` noch
+// den ShortDay-Cutoff. Ein Booking auf einem Post-Cutoff-Slot MUSS erfolgreich
+// angelegt werden — kein neuer `ServiceError`-Variant, kein 409, keine Validation-
+// Failure. Dieser Test bricht, wenn eine spätere Phase versehentlich einen
+// Cutoff-Check in den Create-Pfad einbaut.
+
+#[tokio::test]
+async fn phase51_create_post_cutoff_slot_not_rejected() {
+    let mut deps = build_dependencies(true, "shiftplanner");
+
+    // Slot-Mock überschreiben: Slot 15:00–16:00 (komplett nach ShortDay-Cutoff 14:30).
+    // Auch das existierende `expect_exists() → true` in build_dependencies bleibt gültig.
+    deps.slot_service.checkpoint();
+    deps.slot_service.expect_exists().returning(|_, _, _| Ok(true));
+    deps.slot_service.expect_get_slot().returning(|id, _, _| {
+        Ok(Slot {
+            id: *id,
+            day_of_week: shifty_utils::DayOfWeek::Monday,
+            // Slot liegt komplett hinter einem hypothetischen Cutoff 14:30 —
+            // wenn Chain C's Clip-Semantik in create() lecken würde, würde
+            // ein solcher Slot als "gedroppt" behandelt und create fehlschlagen.
+            from: time::Time::from_hms(15, 0, 0).unwrap(),
+            to: time::Time::from_hms(16, 0, 0).unwrap(),
+            min_resources: 1,
+            max_paid_employees: None,
+            valid_from: time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: Some(uuid!("00000000-0000-4000-8000-000000000001")),
+        })
+    });
+
+    deps.booking_dao
+        .expect_create()
+        .with(
+            eq(BookingEntity {
+                created: generate_default_datetime(),
+                created_by: Some("test_user".into()),
+                ..default_booking_entity()
+            }),
+            eq("booking-service"),
+            always(),
+        )
+        .returning(|_, _, _| Ok(()));
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-id"))
+        .returning(|_| default_id());
+    deps.uuid_service
+        .expect_new_uuid()
+        .with(eq("booking-version"))
+        .returning(|_| default_version());
+
+    let service = deps.build_service();
+    let result = service
+        .create(
+            &Booking {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                created: None,
+                ..default_booking()
+            },
+            ().auth(),
+            None,
+        )
+        .await;
+
+    // Kern D-51-03: Create bleibt Ok — kein 409, kein neuer Error-Variant.
+    assert!(
+        result.is_ok(),
+        "D-51-03: Booking-Create auf Post-Cutoff-Slot MUSS Ok liefern; \
+         Chain C's Clip ist View-Layer-only. Ergebnis: {result:?}"
+    );
+}

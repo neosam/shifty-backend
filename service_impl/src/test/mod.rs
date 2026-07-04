@@ -5,6 +5,8 @@ pub mod booking_information;
 #[cfg(test)]
 pub mod booking_information_vfa;
 #[cfg(test)]
+pub mod booking_information_chain_c;
+#[cfg(test)]
 pub mod absence_conversion;
 #[cfg(test)]
 pub mod absence_derive_hours_range;
