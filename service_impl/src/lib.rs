@@ -35,6 +35,7 @@ pub mod shiftplan;
 pub mod shiftplan_catalog;
 pub mod shiftplan_edit;
 pub mod shiftplan_report;
+pub mod shortday_gate;
 pub mod slot;
 pub mod special_days;
 mod test;
