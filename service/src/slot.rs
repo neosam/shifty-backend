@@ -152,3 +152,95 @@ pub trait SlotService {
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_slot(from: time::Time, to: time::Time) -> Slot {
+        Slot {
+            id: Uuid::new_v4(),
+            day_of_week: shifty_utils::DayOfWeek::Tuesday,
+            from,
+            to,
+            min_resources: 1,
+            max_paid_employees: None,
+            valid_from: time::Date::from_calendar_date(2026, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: None,
+        }
+    }
+
+    #[test]
+    fn clip_to_leaves_slot_unchanged_when_slot_ends_before_cutoff() {
+        // D-04 Zeile 1: slot.to < cutoff → unchanged.
+        let slot = make_slot(
+            time::Time::from_hms(8, 0, 0).unwrap(),
+            time::Time::from_hms(12, 0, 0).unwrap(),
+        );
+        let cutoff = time::Time::from_hms(14, 30, 0).unwrap();
+        let result = slot.clip_to(cutoff);
+        let clipped = result.expect("slot should be kept");
+        assert_eq!(clipped.from, time::Time::from_hms(8, 0, 0).unwrap());
+        assert_eq!(clipped.to, time::Time::from_hms(12, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn clip_to_leaves_slot_unchanged_when_slot_ends_exactly_at_cutoff() {
+        // D-04 Zeile 2: slot.to == cutoff → unchanged (no special case).
+        let slot = make_slot(
+            time::Time::from_hms(13, 0, 0).unwrap(),
+            time::Time::from_hms(14, 30, 0).unwrap(),
+        );
+        let cutoff = time::Time::from_hms(14, 30, 0).unwrap();
+        let result = slot.clip_to(cutoff);
+        let clipped = result.expect("slot should be kept");
+        assert_eq!(clipped.to, time::Time::from_hms(14, 30, 0).unwrap());
+    }
+
+    #[test]
+    fn clip_to_returns_none_when_slot_starts_at_or_after_cutoff() {
+        // D-04 Zeile 3: slot.from >= cutoff → None.
+        let cutoff = time::Time::from_hms(14, 30, 0).unwrap();
+
+        let slot_exact = make_slot(
+            time::Time::from_hms(14, 30, 0).unwrap(),
+            time::Time::from_hms(15, 30, 0).unwrap(),
+        );
+        assert!(slot_exact.clip_to(cutoff).is_none());
+
+        let slot_after = make_slot(
+            time::Time::from_hms(15, 0, 0).unwrap(),
+            time::Time::from_hms(16, 0, 0).unwrap(),
+        );
+        assert!(slot_after.clip_to(cutoff).is_none());
+    }
+
+    #[test]
+    fn clip_to_shrinks_slot_when_slot_overlaps_cutoff() {
+        // D-04 Zeile 4: slot.from < cutoff < slot.to → shrunk to cutoff.
+        let slot = make_slot(
+            time::Time::from_hms(14, 0, 0).unwrap(),
+            time::Time::from_hms(15, 0, 0).unwrap(),
+        );
+        let cutoff = time::Time::from_hms(14, 30, 0).unwrap();
+        let result = slot.clip_to(cutoff);
+        let clipped = result.expect("slot should be kept but shrunk");
+
+        assert_eq!(clipped.from, time::Time::from_hms(14, 0, 0).unwrap());
+        assert_eq!(clipped.to, time::Time::from_hms(14, 30, 0).unwrap());
+
+        // Nur `to` mutiert — alle anderen Felder unverändert (D-51-01-Regel).
+        assert_eq!(clipped.id, slot.id);
+        assert_eq!(clipped.day_of_week, slot.day_of_week);
+        assert_eq!(clipped.min_resources, slot.min_resources);
+        assert_eq!(clipped.max_paid_employees, slot.max_paid_employees);
+        assert_eq!(clipped.valid_from, slot.valid_from);
+        assert_eq!(clipped.valid_to, slot.valid_to);
+        assert_eq!(clipped.deleted, slot.deleted);
+        assert_eq!(clipped.version, slot.version);
+        assert_eq!(clipped.shiftplan_id, slot.shiftplan_id);
+    }
+}
