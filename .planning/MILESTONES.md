@@ -575,3 +575,85 @@ Alle Gates nach Post-Ship-Fixes: Backend `cargo test --workspace` grün,
 `/release-version` (SemVer-Tag wird dort gesetzt, `git.create_tag=false` in GSD-Config).
 
 ---
+
+## v2.3 — PDF-Export: Browser-Look & Download-Button
+
+**Shipped:** 2026-07-04
+**Phases:** 49–50 (2 phases, 8 plans, 8 SUMMARYs)
+**Archive:** [`milestones/v2.3-ROADMAP.md`](milestones/v2.3-ROADMAP.md)
+
+**Delivered:**
+Kleiner Fix-Milestone auf dem v2.2-PDF-Export. Der v2.2-Renderer produzierte
+praktisch unlesbare PDFs (starres mm-Absolut-Layout, keine sichtbaren Slot-
+Zellen, keine Uhrzeiten). v2.3 tauschte den Renderer gegen eine browser-
+ähnliche Wochenansicht (Slots als Zellen mit Uhrzeit-Label + Namen, sieben
+Wochentag-Spalten, Landscape A4, Header „Schichtplan KW {NN} ({JJJJ})",
+Renderzeitpunkt „Erstellt am DD.MM.YYYY HH:MM Uhr" auf jeder Seite) und
+legte einen On-Demand-Download-Button neben dem iCal-Button auf die
+Schichtplan-Seite (visibility-gated auf `WeekStatus ∈ {Planned, Locked}`).
+WebDAV-Scheduler aus Phase 48 nutzt den neuen Renderer automatisch via
+`PdfShiftplanService`-Delegation. Kein Snapshot-Bump (bleibt 12), keine
+Migration, keine neue Cargo-Dep — nur das `local-offset`-Feature auf
+existierendem `time`-Crate.
+
+**Key accomplishments:**
+
+1. **Phase 49 — On-Demand-Download-Button (BE + FE)** — Neuer REST-Endpoint
+   `GET /shiftplan/{id}/{year}/{week}/pdf` mit Auth-Gate (kein Admin-Gate,
+   Employee-Auth liefert 200) und `WeekStatus`-Defense-in-Depth-409
+   (`week-not-releasable` JSON-Error-Code, D-49-03).
+   `PdfShiftplanService` als Business-Logic-Tier-Assembler (ShiftplanView +
+   SalesPerson + WeekStatus + pdf_render); `PdfExportScheduler` refactored
+   zu Delegation an denselben Service (D-49-08). Frontend-Anchor neben iCal
+   mit pure Predicate `should_show_pdf_button(status, shiftplan_id) -> bool`
+   (8-case Test-Matrix, D-49-13); i18n-Key `PdfDownload` in de/en/cs.
+   Dateiname `schichtplan-{JJJJ}-KW{NN}.pdf` via `filename_for()` DRY-Helper.
+
+2. **Phase 50 — PDF-Renderer neu: Browser-Look + Timestamp** — Kompletter
+   Rewrite von `service_impl/src/pdf_render.rs`. Neue 5-Parameter-Signatur
+   `render_shiftplan_week_pdf(week, sales_persons, header_year, header_week,
+   render_timestamp: OffsetDateTime)` (D-50-11) — Renderer bleibt pure Funktion.
+   Hybrid-Stack-Layout (base + duration_hours × step, D-50-01/02); sichtbare
+   Slot-Rahmen via `add_rect(Rect::with_mode(PaintMode::Stroke))` +
+   `save_graphics_state`/`set_outline_thickness`/`restore_graphics_state`
+   (D-50-10); dynamische Sonntag-Spalte (D-50-08); Header-Timestamp
+   oben-rechts (D-50-09); alphabetische Namen (D-50-06/07); Overflow-Marker
+   „+ N weitere" (D-50-03/04). `resolve_render_timestamp()` mit
+   `time::OffsetDateTime::now_local()` + UTC-Fallback + `tracing::warn!`-Log
+   bei `IndeterminateOffset` (D-50-12). `local-offset`-Cargo-Feature auf
+   existierendem `time` — keine neue Crate.
+
+3. **Human UAT bestätigt (D-50-17)** — visueller Layout-Check gegen reale
+   Woche via Phase-49-Button. Erfolgskriterium PDF-01 „Ausdruck ohne
+   Digital-Referenz nutzbar" erreicht. Post-UAT-User-Feedback in Fix-Commits
+   umgesetzt: `+ N weitere` Overflow-Marker (D-50-03/04) entfernt (Boxen
+   wachsen mit, Namen komma-separiert); `(freiwillig)`-Suffix (D-50-06/07)
+   entfernt (paid/unpaid irrelevant im PDF, Fix-Commit `a484f74`); Slot-Boxen
+   row-aligned über alle Tages-Spalten (`e8c4a83`); tighterer Layout für
+   ~2 mehr Slots pro Spalte (`1c1f5df`).
+
+4. **Post-Ship-Hotfix v2.3.1** — `fix(pdf-export): tolerate per-week
+   ValidationError + fix cron seed to 6-field` (Commit `754f94f`).
+   WebDAV-Scheduler ignoriert jetzt einzelne Wochen mit `ValidationError`
+   statt komplett zu fallen; Cron-Seed-Format korrigiert auf 6-Feld
+   (`tokio-cron-scheduler`-Erwartung).
+
+5. **Byte-Determinismus bewusst gebrochen** — v2.2-Vertrag (fixe Metadata
+   2000-01-01) durch PDF-02 (Timestamp) obsolet. WebDAV-Overwrite bleibt
+   korrekt; kein Scheduler-Code-Change nötig. `printpdf`-Crate unverändert,
+   keine neuen Deps.
+
+**Test verification:** 781 Tests grün workspace-wide.
+`cargo clippy --workspace -- -D warnings` grün. Verifier PASSED 14/14 in
+Phase 50. Human UAT D-50-17 bestätigt 2026-07-04.
+
+**Known deferred items:**
+
+Keine v2.3-spezifischen. Historische Deferred-Items siehe
+`.planning/STATE.md` „Deferred Items"-Sektion.
+
+**Hinweis:** v2.3 ist das interne Planungs-Label. Reale Release-Versionen
+`v2.3.0` und `v2.3.1` (Hotfix) via `/release-version` gesetzt
+(`git.create_tag=false` in GSD-Config, Tags aus SemVer-Flow).
+
+---

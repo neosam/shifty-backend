@@ -1,42 +1,42 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.3
-milestone_name: "— PDF-Export: Browser-Look & Download-Button"
-current_phase: 50
-current_phase_name: PDF-Renderer neu — Browser-Look + Timestamp
-status: Milestone complete — ready to ship
-stopped_at: Phase 50 UAT PASSED — visueller PDF-Layout-Check bestätigt (D-50-17). Milestone v2.3 komplett (2/2 Phasen).
-last_updated: "2026-07-04T00:10:00.000Z"
+milestone: —
+milestone_name: "(zwischen Milestones)"
+current_phase: —
+current_phase_name: —
+status: Between milestones — v2.3 shipped + archived
+stopped_at: Milestone v2.3 komplett + archiviert 2026-07-04. Kandidat für nächste Iteration: Kurzer-Tag-Slot-Kürzung (Seed shortday-slot-clipping).
+last_updated: "2026-07-04T12:00:00.000Z"
 last_activity: 2026-07-04
-last_activity_desc: Phase 50 UAT PASSED — D-50-17 visueller PDF-Layout-Check per User bestätigt. Dokumentierte Design-Abweichung: `+ N weitere` Overflow-Marker (D-50-03/D-50-04) entfernt — Boxen wachsen mit, Namen komma-separiert. Milestone v2.3 fertig, ready für /gsd-ship.
+last_activity_desc: v2.3 Milestone-Close — ROADMAP/REQUIREMENTS/PROJECT/MILESTONES aktualisiert, v2.3-ROADMAP.md + v2.3-REQUIREMENTS.md ins milestones/-Archiv geschrieben, Phase 49+50-Dirs verschoben. Kein git tag hier (create_tag=false, Release über /release-version — v2.3.0 + v2.3.1 bereits gesetzt).
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v2.3-Sektion in „Next Milestone"; Phasen 49–50; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` — v2.3: 5 Requirements (PDF-01..PDF-05)
+- **Roadmap**: `.planning/ROADMAP.md` (kein aktiver Milestone; Backlog 999.1 erhalten; Next-Milestone-Kandidat: Kurzer-Tag-Slot-Kürzung via Seed `shortday-slot-clipping`)
+- **Requirements**: (kein aktiver Milestone — REQUIREMENTS.md wird beim nächsten `/gsd-new-milestone` frisch angelegt)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v2.2-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v2.3-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped + archiviert 2026-07-03, Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`, override_closeout)
-- **Current milestone**: **v2.3 PDF-Export — Browser-Look & Download-Button** (Phasen 49–50, 5 Requirements PDF-01..PDF-05)
-- **Current focus**: Phase 49 (Download-Button, BE+FE, nutzt v2.2-Renderer 1:1) → Phase 50 (Renderer-Rewrite Browser-Look + Timestamp). Reihenfolge bewusst so, damit das Rendering-Ergebnis in Phase 50 direkt per Button verifiziert werden kann.
-- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.2 kein Bump; grep-verifiziert in v2.2 Phase 47). Neue Migration in v2.2 nur in Phase 48 (`pdf_export_config`). Neue Deps in v2.2: `printpdf`, `reqwest_dav`, `tokio-cron-scheduler`.
+- **Last shipped/closed**: **v2.3 PDF-Export: Browser-Look & Download-Button** (shipped + archiviert 2026-07-04, Phasen 49–50, 8 Pläne, 5/5 Requirements PDF-01..PDF-05, override_closeout, Post-Ship-Hotfix v2.3.1)
+- **Current milestone**: — (zwischen Milestones)
+- **Current focus**: Start via `/gsd-new-milestone`. Aktueller Kandidat für v2.4: Kurzer-Tag-Slot-Kürzung — dynamische View-Layer-Clip-Funktion für Slots am ShortDay-Cutoff, wirkt auf Ist-Stunden im Reporting + WeekView-Rendering, nicht auf Soll-Stunden. Semantik-Anker: `notes/shortday-slot-clipping-semantics.md`, Codebase-Mapping-Frage: `research/questions.md` Q-01.
+- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump — v2.3 grep-verifiziert: rein PDF-Renderer + REST + FE, kein `BillingPeriodValueType` angefasst).
 
 ## Current Position
 
-Phase: **50 — PDF-Renderer neu — Browser-Look + Timestamp**
-Plan: 3/3 executed (50-01, 50-02, 50-03) — SUMMARY.md pro Plan committed
-Status: Executed, awaiting UAT → `/gsd-verify-work 50` (visueller PDF-Check via Phase-49-Button)
-Last activity: 2026-07-03 — Phase 50 ausgeführt. 3 sequenzielle Waves (50-01: Cargo-Feature `local-offset` + FIXED_RENDER_TIMESTAMP + `is_paid`-Fixture + 6 Skelette + 3 gestrichene Tests; 50-02: kompletter Renderer-Rewrite mit 5-Parameter-Signatur, Hybrid-Stack-Layout, `add_rect`+`Stroke`-Boxen, dyn. Sonntag, Header+Timestamp, alphabetische Namen mit `(freiwillig)`-Suffix, Overflow-Handling, `pdf_shiftplan.rs`-Bridge; 50-03: `resolve_render_timestamp()` mit `now_local()`+UTC-Fallback+`warn!`, Service-Test). 781 Tests grün, Clippy grün. Verifier PASSED (14/14). D-50-17 visueller UAT-Check offen (via Phase-49-Button).
+Phase: — (kein aktiver Milestone)
+Plan: —
+Status: Between milestones. Nächste Iteration via `/gsd-new-milestone` oder `/gsd-progress --next`.
+Last activity: 2026-07-04 — v2.3-Milestone-Close via /gsd-complete-milestone (manuell, ohne SDK-`milestone.complete`-Call wegen bekanntem Junk-Bug).
 
 ## Quick Tasks Completed
 

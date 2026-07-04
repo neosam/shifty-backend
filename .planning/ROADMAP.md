@@ -2,6 +2,7 @@
 
 ## Milestones
 
+- ✅ **v2.3** — Phasen 49–50 (shipped 2026-07-04) — PDF-Export: Browser-Look & Download-Button ([`milestones/v2.3-ROADMAP.md`](milestones/v2.3-ROADMAP.md))
 - ✅ **v2.2** — Phasen 43–48 (shipped 2026-07-03) — Aufräumen, WebDAV-Export & Wochentag-Muster ([`milestones/v2.2-ROADMAP.md`](milestones/v2.2-ROADMAP.md))
 - ✅ **v2.1** — Phasen 39–42 (shipped 2026-07-02) — Schichtplan- & Reporting-Erweiterungen ([`milestones/v2.1-ROADMAP.md`](milestones/v2.1-ROADMAP.md))
 - ✅ **v1.11** — Phasen 36–38 (shipped 2026-07-01) — Stabilisierung & UX-Politur ([`milestones/v1.11-ROADMAP.md`](milestones/v1.11-ROADMAP.md))
@@ -21,109 +22,10 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
 ## Next Milestone
 
-### 🚧 v2.3 — PDF-Export: Browser-Look & Download-Button (Phasen 49–50) — IN ARBEIT
+*Kein aktiver Milestone. Nächster Kandidat: `.planning/seeds/shortday-slot-clipping.md`
+(Kurzer-Tag-Slot-Kürzung — 2026-07-04 exploriert, planungsbereit).*
 
-**Charakter:** Kleiner Fix-Milestone auf dem v2.2-PDF-Export. Der v2.2-Renderer produziert
-praktisch unlesbare PDFs; v2.3 macht daraus eine browser-ähnliche Wochenansicht und legt
-einen On-Demand-Download-Button auf die Schichtplan-Seite. Kein Snapshot-Bump (bleibt 12),
-keine Migration, keine neue Cargo-Dep. WebDAV-Scheduler aus Phase 48 nutzt den neuen
-Renderer nach Phase 50 automatisch.
-
-- [x] Phase 49: On-Demand-Download-Button (BE + FE) — PDF-03, PDF-04, PDF-05 (completed 2026-07-03)
-- [x] Phase 50: PDF-Renderer neu — Browser-Look + Timestamp — PDF-01, PDF-02 (completed 2026-07-04)
-
-**Reihenfolge-Rationale:** Erst der Button (mit dem alten, unlesbaren Renderer), dann der
-Renderer-Rewrite. So kann das Rendering in Phase 50 direkt per Button-Klick verifiziert
-werden.
-
-#### Phase 49: On-Demand-Download-Button (BE + FE)
-
-**Goal:** Auf der Schichtplan-Seite gibt es einen PDF-Download-Button, der die aktuell
-im UI selektierte Kalenderwoche des ausgewählten Shiftplans für jeden authentifizierten
-User ausliefert — aber nur sichtbar, wenn `week_status ∈ {Planned, Locked}`.
-
-**Depends on:** Nichts Neues (nutzt den v2.2-Renderer 1:1).
-**Requirements:** PDF-03, PDF-04, PDF-05
-**Plans:** 5/5 plans complete
-
-Plans:
-**Wave 1**
-
-- [x] 49-01-PLAN.md — Backend Service Trait + Impl + 8+ Unit-Tests (PDF-03, PDF-04) [TDD, Wave 1]
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 49-02-PLAN.md — REST Handler + PdfShiftplanApiDoc + Router-Wiring + Router-Tests (PDF-03, PDF-04, PDF-05) [TDD, Wave 2]
-- [x] 49-03-PLAN.md — Scheduler-Refactor (DRY) + DI-Wiring in main.rs (PDF-03, PDF-04) [Wave 2]
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 49-04-PLAN.md — FE PDF-Anchor neben iCal + i18n `PdfDownload` de/en/cs + 8-case Predicate-Tests (PDF-03, PDF-04) [Wave 3]
-- [x] 49-05-PLAN.md — REQUIREMENTS.md + ROADMAP.md D-49-15/16 Doku-Deviation (PDF-03, PDF-04) [Wave 3]
-
-**Success Criteria:**
-
-1. Neuer REST-Endpoint `GET /shiftplan/{shiftplan_id}/{year}/{week}/pdf` liefert das PDF
-   mit Dateiname `schichtplan-{JJJJ}-KW{NN}.pdf` (Content-Disposition-Header);
-   auth-required, aber KEIN Admin-Gate (Employee-Auth liefert 200).
-
-2. Backend gibt HTTP 409 zurück, wenn `week_status ∈ {Unset, InPlanning}`
-   (Defense-in-Depth für Race-Case).
-
-3. Frontend-Button in `shifty-dioxus/src/page/shiftplan.rs` sitzt neben dem
-   iCal-Button und wird nur sichtbar gerendert, wenn `week_status ∈ {Planned, Locked}`
-   (kein disabled-Zustand, kein Tooltip, kein Fehler-Toast). Button lädt die
-   aktuell im UI selektierte KW des ausgewählten Shiftplans. i18n-Label in de/en/cs.
-
-4. DRY: neuer Business-Logic-Service `PdfShiftplanService` kapselt
-   `ShiftplanViewService` + `SalesPersonService` + `WeekStatusService` + `pdf_render`.
-   `PdfExportScheduler` wird refactored, damit er diesen Service konsumiert statt
-   inline zu orchestrieren (einheitlicher Assemble-Pfad für On-Demand + Cron).
-
-#### Phase 50: PDF-Renderer neu — Browser-Look + Timestamp
-
-**Goal:** `service_impl/src/pdf_render.rs` produziert PDFs, die visuell der
-Browser-Wochenansicht (`shifty-dioxus/src/page/shiftplan.rs`) entsprechen — Slots als
-Zellen mit Uhrzeiten, Bookings mit Sales-Person-Namen, Wochentage als Spalten — und
-tragen den Renderzeitpunkt sichtbar auf jeder Seite.
-
-**Depends on:** Nichts (Phase 49 unabhängig; Phase 50 verifiziert per Klick auf den
-Phase-49-Button gegen ein reales Wochen-Fixture).
-**Requirements:** PDF-01, PDF-02
-**Plans:** 3/3 plans complete (executed 2026-07-03; verifier PASSED 14/14, human UAT D-50-17 pending)
-
-Plans:
-**Wave 1**
-
-- [x] 50-01-PLAN.md — TDD-Wave-0-Vorbereitung: `local-offset`-Cargo-Feature, `FIXED_RENDER_TIMESTAMP`-Konstante, `make_sales_person`-Fixture-Extension (`is_paid`-Param), 6 neue D-50-16-Test-Skelette (`#[ignore]`), 3 obsolete Tests entfernt (D-50-13/D-50-15) [TDD, Wave 1]
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 50-02-PLAN.md — Renderer-Rewrite: neue 5-Parameter-Signatur mit `render_timestamp` (D-50-11), Hybrid-Stack-Layout (D-50-01/02), Slot-Boxen mit `add_rect`+`PaintMode::Stroke` (D-50-10), dynamische Sonntag-Spalte (D-50-08), Timestamp im Header (D-50-09), alphabetische Namen mit `(freiwillig)`-Suffix (D-50-06/07), `+ N weitere`-Overflow (D-50-03/04), pdf_shiftplan.rs Übergangs-Bridge [TDD, Wave 2]
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 50-03-PLAN.md — Aufrufer-Finalisierung: `resolve_render_timestamp()`-Fn mit `now_local()` + UTC-Fallback + `warn!`-Log (D-50-12), Service-Test `now_local_fallback_to_utc_on_indeterminate_offset` (D-50-16) [TDD, Wave 3]
-
-**Cross-cutting constraints (aus PLAN.md must_haves.truths, in ≥2 Plänen):**
-- D-50-11: Renderer nimmt `render_timestamp: OffsetDateTime` als 5. Parameter (definiert in 50-02, konsumiert in 50-03)
-- D-50-12: `now_local()` mit UTC-Fallback + `warn!`-Log (Übergangs-Bridge in 50-02, echte Impl in 50-03)
-- D-50-14: `FIXED_RENDER_TIMESTAMP`-Test-Konstante (definiert in 50-01, konsumiert in 50-02 Test-Aktivierung)
-- D-50-16: 7 neue Tests (Skelette in 50-01, aktiviert in 50-02, Service-Test in 50-03)
-- Clippy-Gate `cargo clippy --workspace -- -D warnings` grün nach jedem Wave
-
-**Success Criteria:**
-
-1. Rendering entspricht sichtbar der Browser-Wochenansicht: Slots als Zellen mit
-   Uhrzeit-Label pro Zelle, Sales-Person-Namen in der Zelle, sieben Wochentag-Spalten,
-   Landscape A4, „Schichtplan KW {NN} ({JJJJ})"-Kopfzeile.
-
-2. Renderzeitpunkt „Erstellt am DD.MM.YYYY HH:MM Uhr" auf jeder Seite sichtbar; Renderer
-   nimmt Timestamp als Argument (pure Funktion bleibt testbar).
-
-3. Byte-Determinismus-Vertrag aus v2.2 wird bewusst aufgehoben (Timestamp bricht ihn
-   ohnehin). WebDAV-Scheduler nutzt den neuen Renderer transparent — kein Scheduler-Code-
-   Change nötig. Alle Backend-Tests + `cargo clippy --workspace -- -D warnings` grün.
+Start via `/gsd-new-milestone`.
 
 ## Backlog
 
@@ -153,4 +55,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-07-03 — **v2.3 gestartet** (Phasen 49–50, 5 Requirements PDF-01…PDF-05). Kleiner Fix-Milestone auf dem v2.2-PDF-Export: erst Download-Button (Phase 49, unlesbarer alter Renderer), dann Renderer-Rewrite (Phase 50, Browser-Look + Timestamp). Kein Snapshot-Bump, keine Migration, keine neue Dep.*
+*Last updated: 2026-07-04 — **v2.3 archiviert** (Phasen 49–50, 5 Requirements PDF-01…PDF-05). Kleiner Fix-Milestone auf dem v2.2-PDF-Export: Download-Button + Renderer-Rewrite mit Browser-Look + Timestamp. Kein Snapshot-Bump, keine Migration, keine neue Dep. Post-Ship-Hotfix v2.3.1 (per-week ValidationError-Toleranz im Scheduler).*

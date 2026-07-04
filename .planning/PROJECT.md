@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-07-03
-last_milestone: v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster (shipped 2026-07-03, Phasen 43–48, 16/16 Requirements, Audit passed)
-current_milestone: v2.3 PDF-Export — Browser-Look & Download-Button (Phasen 49–50, 5 Requirements PDF-01..PDF-05, IN ARBEIT)
+last_updated: 2026-07-04
+last_milestone: v2.3 PDF-Export — Browser-Look & Download-Button (shipped 2026-07-04, Phasen 49–50, 5/5 Requirements)
+current_milestone: — (zwischen Milestones)
 ---
 
 # Shifty — Project Charter
@@ -133,32 +133,42 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Zuletzt geshipt: v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster (2026-07-03)
+## Zuletzt geshipt: v2.3 PDF-Export — Browser-Look & Download-Button (2026-07-04)
 
-**Geliefert (as built):** 16/16 Requirements über 6 Phasen (43–48). Aufräum-Block: SDF-03/04/05
-Special-Days-Feintuning (Kalenderjahr-Loader-Fix, Duplikat-Hinweis Replace-Copy, Feiertag↔Kurzer-
-Tag atomarer Roundtrip); BUG-01/02/03 Frontend-Korrektheit (`save_slot_edit` Snapshot-vor-`.await`,
-`ShiftyError::InvitationParse`+Banner, durable Grep-Invariant für `BackdropPress`); HYG-03
-shifty-dioxus 177→0 Warnings (FE-Clippy `-D warnings` erstmals scharfgestellt); HYG-04/HYG-05/IMP-05
-Backend-Hygiene (Edit-structure-i18n, OpenAPI-Reflection-Content-Type-Drift-Guard über 120
-Operationen, i18n-Impersonation-Test grün). Feature-Block RPT: RPT-01/02/03 Wochentag-Anwesenheits-
-Muster ersetzt v2.1-Ø-Std/Anwesenheitstag durch pro-Wochentag-Anzeige (count + %), reines
-Read-Aggregat. Feature-Block EXP: EXP-01/02/03 Nextcloud-PDF-Export via WebDAV — Backend rendert
-pro Woche ein PDF (`printpdf`, deterministisch), pusht per WebDAV (`reqwest_dav`, MKCOL+PUT,
-3× Retry 2s/4s/8s), Cron-Scheduler (`tokio-cron-scheduler`), admin-gated Settings-Card mit
-Config + „Jetzt exportieren" + Status. Migration nur in Phase 48 (`pdf_export_config`
-Single-Row). Snapshot bleibt 12.
+**Geliefert (as built):** 5/5 Requirements über 2 Phasen (49–50). Kleiner Fix-Milestone auf
+dem v2.2-PDF-Export. Phase 49 (Download-Button, BE+FE, PDF-03/04/05): neuer REST-Endpoint
+`GET /shiftplan/{id}/{year}/{week}/pdf` mit Auth-Gate (kein Admin-Gate) und
+`WeekStatus`-Defense-in-Depth-409 (`week-not-releasable`, D-49-03); Business-Logic-Tier-Service
+`PdfShiftplanService` als Assembler (ShiftplanView + SalesPerson + WeekStatus + pdf_render);
+`PdfExportScheduler` refactored auf Delegation (D-49-08, single Assemble-Pfad für On-Demand +
+Cron); FE-Anchor neben iCal mit pure Predicate `should_show_pdf_button(status, shiftplan_id)`
+(8-case Test-Matrix, D-49-13); i18n-Key `PdfDownload` in de/en/cs. Phase 50 (Renderer neu,
+PDF-01/02): kompletter Rewrite von `pdf_render.rs` mit 5-Parameter-Signatur
+`render_shiftplan_week_pdf(..., render_timestamp: OffsetDateTime)` (D-50-11, pure Fn),
+Hybrid-Stack-Layout (D-50-01/02), sichtbare Slot-Rahmen via `add_rect`+`PaintMode::Stroke`
+(D-50-10), dynamische Sonntag-Spalte (D-50-08), Header-Timestamp „Erstellt am DD.MM.YYYY HH:MM
+Uhr" (D-50-09), `resolve_render_timestamp()` mit `now_local()` + UTC-Fallback + `warn!`-Log
+(D-50-12). Byte-Determinismus des Renderers bewusst gebrochen — WebDAV-Overwrite bleibt korrekt.
+Kein Snapshot-Bump, keine Migration, keine neue Cargo-Dep (nur `local-offset`-Feature auf
+existierendem `time`-Crate).
 
-**Verifikation:** alle 6 Phasen VERIFIED passed; Milestone-Audit `passed` (16/16 Requirements,
-Integration clean, 3/3 E2E-Flows). Backend `cargo test --workspace` + `clippy -D warnings` grün;
-FE WASM-Build + `cargo test -p shifty-dioxus` 787 grün + FE-Clippy `-D warnings` erstmals grün.
+**Verifikation:** beide Phasen VERIFIED passed; Verifier PASSED 14/14 in Phase 50; Human UAT
+D-50-17 bestätigt 2026-07-04 (visueller Layout-Check via Phase-49-Button gegen reale Woche).
+781 Tests grün workspace-wide; `cargo clippy --workspace -- -D warnings` grün.
 
-**Closeout:** override_closeout — Audit `passed`; Pre-Close-Audit-13-Carry-over-Items acknowledged
-(historischer v1.4–v2.1-Ballast, keines v2.2-spezifisch). Kein git tag hier — Release-Tag via
-`/release-version`.
+**Post-Ship-Hotfix (v2.3.1):** `fix(pdf-export): tolerate per-week ValidationError + fix
+cron seed to 6-field` (Commit `754f94f`). WebDAV-Scheduler ignoriert einzelne Wochen mit
+`ValidationError` statt komplett zu fallen; Cron-Seed-Format korrigiert.
 
-**Archiv:** `milestones/v2.2-ROADMAP.md`, `milestones/v2.2-REQUIREMENTS.md`,
-`milestones/v2.2-MILESTONE-AUDIT.md`.
+**Design-Deviations post-UAT:** `+ N weitere` Overflow-Marker (D-50-03/04) und
+`(freiwillig)`-Suffix (D-50-06/07) auf User-Wunsch entfernt (Boxen wachsen mit, Namen
+komma-separiert, paid/unpaid irrelevant im PDF); Layout-Feintuning für Row-Alignment und
+~2 zusätzliche Slots pro Spalte.
+
+**Closeout:** override_closeout — kein formaler Milestone-Audit (2 Phasen, beide verifiziert,
+Präzedenz v1.2/v1.3/v1.5/v1.6/v1.7). Kein git tag hier — Release-Tag via `/release-version`.
+
+**Archiv:** `milestones/v2.3-ROADMAP.md`, `milestones/v2.3-REQUIREMENTS.md`.
 
 <details>
 <summary>✅ v2.1 Schichtplan- & Reporting-Erweiterungen — SHIPPED 2026-07-02 (Phasen 39–42)</summary>
@@ -275,33 +285,40 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 ## Current Milestone: — (zwischen Milestones)
 
-Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone` (Kandidat v2.3, Priorität
-durch User).
+Kein aktiver Milestone. **Nächster Kandidat**: Kurzer-Tag-Slot-Kürzung — Seed
+`.planning/seeds/shortday-slot-clipping.md` + Semantik-Note
+`.planning/notes/shortday-slot-clipping-semantics.md` + Research-Question Q-01 in
+`.planning/research/questions.md`. Start via `/gsd-new-milestone`.
 
 ## Current State
 
-**v2.2 shipped 2026-07-03** (Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`,
-override_closeout; autonomer Run). Geliefert: SDF-03/04/05 Special-Days-Feintuning, BUG-01/02/03
-Frontend-Korrektheit, HYG-03 shifty-dioxus 177→0 Warnings (FE-Clippy `-D warnings` erstmals
-scharfgestellt), HYG-04/HYG-05/IMP-05 Backend-Hygiene (Edit-structure-i18n, REST-Content-Type-
-Drift-Guard über 120 Operationen, i18n-Impersonation-Test grün), RPT-01/02/03 Wochentag-
-Anwesenheits-Muster (ersetzt v2.1-AVG), EXP-01/02/03 Nextcloud-PDF-Export via WebDAV (printpdf +
-reqwest_dav + tokio-cron-scheduler, admin-gated Settings-Card). Migration in Phase 48
-(`pdf_export_config` Single-Row). Neue Deps: printpdf, reqwest_dav, tokio-cron-scheduler.
-**Zwischen Milestones** — nächste Iteration via `/gsd-new-milestone`. Details:
-`milestones/v2.2-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`.
+**v2.3 shipped 2026-07-04** (Phasen 49–50, 8 Pläne, 5/5 Requirements PDF-01..PDF-05,
+override_closeout). Geliefert: PDF-Renderer-Rewrite mit Browser-Look (Slot-Zellen mit Uhrzeit,
+sieben Wochentag-Spalten, Landscape A4, Header „Schichtplan KW {NN} ({JJJJ})") und
+Renderzeitpunkt „Erstellt am DD.MM.YYYY HH:MM Uhr" auf jeder Seite; On-Demand-Download-Button
+neben iCal auf Schichtplan-Seite (visibility-gated auf `WeekStatus ∈ {Planned, Locked}`);
+Backend-Endpoint `GET /shiftplan/{id}/{year}/{week}/pdf` mit Auth-Gate + Defense-in-Depth-409;
+`PdfShiftplanService` als Business-Logic-Tier-Assembler; WebDAV-Scheduler transparent auf neuen
+Renderer umgestellt via Delegation. Kein Snapshot-Bump, keine Migration, keine neue Cargo-Dep
+(nur `local-offset`-Feature auf existierendem `time`-Crate). Post-Ship-Hotfix v2.3.1
+(per-week-ValidationError-Toleranz im Scheduler + Cron-Seed-6-Feld-Fix). Details:
+`milestones/v2.3-ROADMAP.md` / `-REQUIREMENTS.md`. **Zwischen Milestones** — nächste
+Iteration via `/gsd-new-milestone`.
 
-Zuvor: **v2.1 Schichtplan- & Reporting-Erweiterungen** (shipped 2026-07-02, Phasen 39–42, 14 Pläne,
-9/9 Requirements, Audit `passed`). WST-01..05 KW-Status + Wochen-Sperre; AVG-01/02/03 Ø-Anwesenheit
-flexibler Mitarbeiter; SDF-01 Anlegen-Button-Fix. Details: `milestones/v2.1-ROADMAP.md`.
+Zuvor: **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped 2026-07-03, Phasen 43–48,
+16/16 Requirements, Audit `passed`). SDF-03/04/05, BUG-01/02/03, HYG-03/04/05, IMP-05,
+RPT-01/02/03 Wochentag-Anwesenheits-Muster, EXP-01/02/03 Nextcloud-PDF-Export via WebDAV.
+Migration in Phase 48 (`pdf_export_config` Single-Row). Neue Deps: printpdf, reqwest_dav,
+tokio-cron-scheduler. Details: `milestones/v2.2-ROADMAP.md`.
 
-Davor: **v1.11 Stabilisierung & UX-Politur** (shipped 2026-07-01), **v1.10 Feiertage** (2026-06-30),
+Davor: **v2.1 Schichtplan- & Reporting-Erweiterungen** (shipped 2026-07-02, Phasen 39–42),
+**v1.11 Stabilisierung & UX-Politur** (2026-07-01), **v1.10 Feiertage** (2026-06-30),
 **v1.9 Admin-Impersonation** (2026-06-29), **v1.8 HR-UX** (2026-06-29), **v1.7 Feiertage/VFA**
 (2026-06-29), **v1.6 Paid-Capacity** (2026-06-27) — alle archiviert (siehe MILESTONES.md).
 
-**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.2 kein Bump
-— v2.2 grep-verifiziert in Phase 47: RPT = reines Read-Aggregat, EXP berührt keinen
-`BillingPeriodValueType`).
+**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump
+— v2.3 hat weder `billing_period.value_type` angefasst noch die Berechnung geändert, nur
+PDF-Renderer + REST + FE).
 
 Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt separat via
 `/gsd-plan-phase 999.1`.
@@ -375,8 +392,11 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v2.1-ROADMAP.md`, `milestones/v2.1-REQUIREMENTS.md`, `milestones/v2.1-MILESTONE-AUDIT.md`.
 - v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster — shipped 2026-07-03 (Phasen 43–48).
   Archiv: `milestones/v2.2-ROADMAP.md`, `milestones/v2.2-REQUIREMENTS.md`, `milestones/v2.2-MILESTONE-AUDIT.md`.
+- v2.3 PDF-Export: Browser-Look & Download-Button — shipped 2026-07-04 (Phasen 49–50).
+  Archiv: `milestones/v2.3-ROADMAP.md`, `milestones/v2.3-REQUIREMENTS.md`.
 
-Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
+Zwischen Milestones — nächste Iteration via `/gsd-new-milestone` (Kandidat:
+Kurzer-Tag-Slot-Kürzung, Seed `seeds/shortday-slot-clipping.md`).
 
 ## Evolution
 
