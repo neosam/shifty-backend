@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.4
-milestone_name: Kurzer-Tag-Slot-Kürzung
+milestone_name: — Kurzer-Tag-Slot-Kürzung
 current_phase: 51
-current_phase_name: Kurzer-Tag-Slot-Kürzung
-status: planning
-stopped_at: Phase 51 CONTEXT gathered — 6 Decisions D-51-01..06 gelockt (Clip-Fn als Method auf service::slot::Slot, BE liefert geclippte DTOs, Booking-Create unangefasst, keine Zusatz-Markierung, iCal via BlockService, zwei BE-Aggregat-Ketten). Fat-Backend-Prinzip in PROJECT.md verankert. Q-01 offen für Researcher. Nächster Schritt /gsd-plan-phase 51.
-last_updated: "2026-07-04T14:00:00.000Z"
-last_activity: 2026-07-04
-last_activity_desc: /gsd-discuss-phase 51 manuell durchgeführt (gsd-tools kaputt). CONTEXT.md + DISCUSSION-LOG.md geschrieben, Fat-Backend-Thin-Client als Architektur-Prinzip in PROJECT.md ergänzt und in Auto-Memory persistiert. Q-01 (Slot-Auflösungs-Pfad + Call-Sites) explizit für gsd-phase-researcher vor plan-phase reserviert.
+status: verified
+stopped_at: Phase 51 executed 2026-07-05 — Verifier PASS (SHC-01..06 alle erfüllt, alle 5 Hard-Gates grün, Snapshot bleibt 12, 8/8 Pläne, 30+ Commits). Nächster Schritt Milestone-Close via /gsd-complete-milestone v2.4.
+last_updated: "2026-07-05T01:07:00.000Z"
+last_activity: 2026-07-05
+last_activity_desc: /gsd-execute-phase 51 durchgeführt — Wave 1 (P01+P02), Wave 2 sequential (P03+P04+P05+P06), Wave 3 (P07), Wave 4 (P08). Verifier PASS. Zwei pre-existing Bugs mitgeräumt (Filter-statt-Clip in shiftplan.rs/booking_information.rs; `/60.0` in alten SUM-Queries via Delete-Branch bei Chain-D-Refactor).
 progress:
   total_phases: 1
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 8
+  completed_plans: 8
+  percent: 100
+current_phase_name: Kurzer-Tag-Slot-Kürzung
 ---
 
 # Project State: Shifty Backend
@@ -27,16 +27,16 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v2.3-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.3 PDF-Export: Browser-Look & Download-Button** (shipped + archiviert 2026-07-04, Phasen 49–50, 8 Pläne, 5/5 Requirements PDF-01..PDF-05, override_closeout, Post-Ship-Hotfix v2.3.1)
-- **Current milestone**: **v2.4 Kurzer-Tag-Slot-Kürzung** (Phase 51, 5 Requirements SHC-01..SHC-05, IN PLANNING)
-- **Current focus**: Phase 51 (Vertical MVP: kanonische Clip-Funktion + Reporting/BookingInfo-Konsum + FE WeekView + PDF-Renderer). Semantik fixiert im Explore 2026-07-04 (`notes/shortday-slot-clipping-semantics.md` D-01..D-06). Offene Codebase-Mapping-Frage: Q-01 in `research/questions.md` (Ort der Clip-Funktion + Call-Sites) — im discuss-phase-Vorfeld klären.
+- **Current milestone**: **v2.4 Kurzer-Tag-Slot-Kürzung** (Phase 51, 6 Requirements SHC-01..SHC-06, **EXECUTED + VERIFIED PASS 2026-07-05** — bereit für Milestone-Close)
+- **Current focus**: Phase 51 abgeschlossen. Kanonische `Slot::clip_to` + Toggle-Stichtag + vier BE-Aggregat-Ketten (Chain A' block / Chain B shiftplan / Chain C booking_information / Chain D shiftplan_report Rust-Layer-Refactor) + DTO `effective_to` am `ShiftplanSlotTO`-Wrapper + FE-Loader + Admin-Settings UI. Zwei pre-existing Bugs mitgefixt (Filter-statt-Clip; `/60.0` in alten SUM-Queries).
 - **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump; v2.4 auch kein Bump — nur dynamische Live-Berechnung, kein `BillingPeriodValueType` angefasst).
 
 ## Current Position
 
-Phase: **51 — Kurzer-Tag-Slot-Kürzung**
-Plan: 0/? (in `/gsd-plan-phase 51` zu bestimmen)
-Status: Planning — Requirements definiert, Wave-Struktur skizziert; nächster Schritt discuss-phase (empfohlen, wegen Q-01) oder plan-phase direkt.
-Last activity: 2026-07-04 — v2.4-Milestone gestartet via /gsd-new-milestone (manuell, ohne SDK-Kommandos wegen bekanntem Roster-Bug). Explore vom selben Tag lieferte Semantik + Seed + Note + Research-Question.
+Phase: **51 — Kurzer-Tag-Slot-Kürzung — EXECUTED + VERIFIED**
+Plan: **8/8** (P01–P08, alle Waves 1→4 durch)
+Status: Verified — Verifier verdict PASS (`.planning/phases/51-kurzer-tag-slot-kuerzung/51-VERIFICATION.md`). Bereit für Milestone-Close via `/gsd-complete-milestone v2.4`.
+Last activity: 2026-07-05 — /gsd-execute-phase 51: Wave 1 (Slot::clip_to + shortday_gate), Wave 2 sequential (vier BE-Aggregat-Ketten, DI-Wire in shifty_bin/src/main.rs), Wave 3 (DTO effective_to + FE-Loader + PDF-Verify), Wave 4 (Admin Settings UI). Chain-D-Delete-Branch räumt `/60.0`-SQL-Bug in alten SUM-Queries mit ab. Auto-Fix P02 Migration-Timestamp-Kollision (000000→000001).
 
 ## Quick Tasks Completed
 
@@ -195,9 +195,9 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
 4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.2)
 
-**Aktueller Stand:** v2.3 gestartet — Fix-Milestone für den in v2.2 gelieferten PDF-Export. REQUIREMENTS + ROADMAP + Phasen-Dirs (49, 50) angelegt. Reihenfolge bewusst: erst Download-Button, dann Renderer-Rewrite (Button dient als Verifikationswerkzeug für Phase 50).
+**Aktueller Stand:** v2.4 in Execution — Phase 51 geplant (8 Pläne, PLAN-CHECK PASS). Nächster Schritt `/gsd-execute-phase 51`.
 
-**Next command**: `/gsd-plan-phase 49`.
+**Next command**: `/gsd-execute-phase 51`.
 
 ---
 
@@ -205,8 +205,9 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 ## Operator Next Steps
 
-- Plan Phase 49 with `/gsd-plan-phase 49` (BE-Endpoint + FE-Button, Reihenfolge-Rationale: Verifikations-Werkzeug für Phase 50)
-- Anschließend `/gsd-plan-phase 50` (Renderer-Rewrite Browser-Look + Timestamp)
+- Execute Phase 51 with `/gsd-execute-phase 51` (8 Pläne, Wave 1→4).
+- Wave 2 (P03/P04/P05/P06) sequentiell laufen lassen wegen implizit geteilter `shifty_bin/src/main.rs` (DI-Konstruktion für neue ToggleService/SpecialDayService-Deps) — Warning 1 in `51-PLAN-INDEX.md`.
+- Bei P06 Task 5 den delete-branch bevorzugen (SQL-`/60.0`-Bug wird mitgeräumt) — Warning 2 in `51-PLAN-INDEX.md`.
 
 ## Decisions
 

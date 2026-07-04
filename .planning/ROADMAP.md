@@ -22,7 +22,7 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
 ## Next Milestone
 
-### 🚧 v2.4 — Kurzer-Tag-Slot-Kürzung (Phase 51) — IN PLANNING
+### ✅ v2.4 — Kurzer-Tag-Slot-Kürzung (Phase 51) — EXECUTED + VERIFIED (2026-07-05, bereit für Milestone-Close)
 
 **Charakter:** Fokus-Milestone auf einer einzelnen Semantik-Ergänzung. An Kurzen Tagen
 (`special_day.ShortDay` mit Cutoff-Uhrzeit) werden Slots, die den Cutoff überlappen,
@@ -32,7 +32,8 @@ Migration, keine neue Cargo-Dep.
 
 **Requirements:** SHC-01 (Clip-Funktion), SHC-02 (Reporting/Ist-Stunden),
 SHC-03 (WeekView-Rendering), SHC-04 (PDF-Renderer-Konsistenz),
-SHC-05 (dynamische Wirkung auf existierende zukünftige Bookings ohne Rewrite).
+SHC-05 (dynamische Wirkung auf existierende zukünftige Bookings ohne Rewrite),
+SHC-06 (admin-konfigurierbarer Stichtag `shortday_slot_clipping_active_from`).
 
 **Semantik-Anker:** [`notes/shortday-slot-clipping-semantics.md`](notes/shortday-slot-clipping-semantics.md)
 (D-01 bis D-06, User-bestätigt im Explore 2026-07-04).
@@ -42,7 +43,7 @@ SHC-05 (dynamische Wirkung auf existierende zukünftige Bookings ohne Rewrite).
 **Open Research:** Q-01 in [`research/questions.md`](research/questions.md) — kanonischer
 Ort der Clip-Funktion + Call-Sites, im discuss-phase-Vorfeld oder inline zu klären.
 
-- [ ] Phase 51: Kurzer-Tag-Slot-Kürzung (Vertical MVP: BE-Helper + Reporting-Konsum + FE-WeekView + PDF-Renderer) — SHC-01..05
+- [x] Phase 51: Kurzer-Tag-Slot-Kürzung (BE-Helper + Toggle-Stichtag + vier BE-Aggregat-Ketten + DTO/FE-Konsum + Admin-UI) — SHC-01..06 (completed 2026-07-04)
 
 #### Phase 51: Kurzer-Tag-Slot-Kürzung
 
@@ -54,18 +55,26 @@ unverändert. Kürzung ist view-layer / dynamisch — keine DB-Änderung, kein S
 **Depends on:** Nichts Neues. Basiert auf existierendem `special_day.ShortDay`-Modell und
 dem v2.3-PDF-Renderer.
 
-**Requirements:** SHC-01, SHC-02, SHC-03, SHC-04, SHC-05
-**Plans:** TBD (in `/gsd-plan-phase 51`)
+**Requirements:** SHC-01, SHC-02, SHC-03, SHC-04, SHC-05, SHC-06
+**Plans:** 8/8 plans complete
 
-**Vermutliche Wave-Struktur** (final in discuss-phase / plan-phase):
+Plans:
 
-- **Wave 1:** Kanonische Clip-Funktion mit vollständigen Grenzfall-Tests (SHC-01).
-  Ort TBD via Q-01 — Kandidaten: `shifty-utils`, Method auf `Slot`, Helper in
-  `service_impl`.
-- **Wave 2:** Backend-Konsum in Reporting + Booking-Information (SHC-02, SHC-05).
-  Live-Balance zeigt gekürzte Ist-Stunden für zukünftige ShortDay-Buchungen.
-- **Wave 3:** Frontend-Rendering (WeekView) + PDF-Renderer-Konsum (SHC-03, SHC-04).
-  Beide nutzen dieselbe Clip-Semantik.
+- [x] 51-01-PLAN.md — `Slot::clip_to` kanonische Clip-Fn + 4 D-04-Grenzfall-Tests (SHC-01)
+- [x] 51-02-PLAN.md — Toggle-Seed `shortday_slot_clipping_active_from` + `shortday_gate`-Helper (SHC-06 BE)
+- [x] 51-03-PLAN.md — Chain B: `build_shiftplan_day` clippt via `effective_to`; Bug-Fix + Gate (SHC-02/03/05/06)
+- [x] 51-04-PLAN.md — Chain A': BlockService clippt vor Merge (iCal + insufficient) (SHC-02/05/06)
+- [x] 51-05-PLAN.md — Chain C: BookingInformation-Aggregate clippen (SHC-02/05/06 + D-51-03 Verify)
+- [x] 51-06-PLAN.md — Chain D: ShiftplanReport DAO liefert raw rows, Service-Layer aggregiert+clippt (SHC-02/06, D-51-08)
+- [x] 51-07-PLAN.md — DTO `effective_to` am `ShiftplanSlotTO`-Wrapper + FE-Loader + PDF-Renderer-Konsum (SHC-03/04, D-51-09)
+- [x] 51-08-PLAN.md — Admin-Settings-UI für Stichtag + i18n de/en/cs (SHC-06 FE)
+
+**Wave-Struktur** (final):
+
+- **Wave 1** (parallel): 51-01, 51-02 — Foundation.
+- **Wave 2** (parallel): 51-03, 51-04, 51-05, 51-06 — vier BE-Aggregat-Ketten.
+- **Wave 3**: 51-07 — DTO/FE/PDF (hängt an 51-03).
+- **Wave 4**: 51-08 — Admin-Settings-UI (hängt an 51-02).
 
 **Cross-cutting Constraints:**
 
@@ -80,10 +89,13 @@ dem v2.3-PDF-Renderer.
 1. Backend-Test: Slot 14:00–15:00 auf Datum mit ShortDay-Cutoff 14:30 zählt in
    Reporting-Ist-Stunden exakt 0,5 h; ohne ShortDay 1 h. Slot 15:00–16:00 auf
    demselben Tag zählt 0 h und erscheint nicht in Booking-Information-Aggregaten.
+
 2. Frontend-Test: WeekView-Rendering für einen Tag mit ShortDay zeigt Slot
    14:00–15:00 mit Länge 30 min statt 60 min; Slot 15:00–16:00 wird nicht gerendert.
+
 3. PDF-Konsistenz: PDF-Renderer produziert dieselbe geclippte Wochendarstellung —
    Slot 14:00–15:00 als Zelle 14:00–14:30, Post-Cutoff-Slot fehlt.
+
 4. Alle Backend-Tests grün, `cargo clippy --workspace -- -D warnings` grün,
    `cargo build --target wasm32-unknown-unknown` grün, FE-Clippy `-D warnings` grün.
 
@@ -115,4 +127,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-07-04 — **v2.4 gestartet** (Phase 51, 5 Requirements SHC-01…SHC-05). Kurzer-Tag-Slot-Kürzung: an ShortDays werden Slots dynamisch am Cutoff geclippt — Rendering (WeekView + PDF) und Ist-Stunden (Reporting + Booking-Info). Soll bleibt unverändert. Kein Snapshot-Bump, keine Migration. Seed `shortday-slot-clipping` konsumiert; Semantik-Anker `notes/shortday-slot-clipping-semantics.md`; offene Codebase-Mapping-Frage Q-01 in `research/questions.md`.*
+*Last updated: 2026-07-04 — **v2.4 geplant** (Phase 51, 6 Requirements SHC-01…SHC-06, 8 Pläne). Kurzer-Tag-Slot-Kürzung: an ShortDays werden Slots dynamisch am Cutoff geclippt — Rendering (WeekView + PDF) und Ist-Stunden (Reporting + Booking-Info + Balance). Soll bleibt unverändert. Admin-konfigurierbarer Stichtag (D-51-07) schützt historische Balance-Views. Kein Snapshot-Bump (bleibt 12), nur additive Toggle-Seed-Migration. Vier BE-Aggregat-Ketten (Chain A' BlockService, Chain B ShiftplanWeek/PDF, Chain C BookingInformation, Chain D ShiftplanReport-Rust-Layer-Refactor). DTO `effective_to` am `ShiftplanSlotTO`-Wrapper (SlotTO bleibt roh). Seed `shortday-slot-clipping` konsumiert; Semantik-Anker `notes/shortday-slot-clipping-semantics.md`; Research Q-01 in `phases/51-.../51-RESEARCH.md` beantwortet.*

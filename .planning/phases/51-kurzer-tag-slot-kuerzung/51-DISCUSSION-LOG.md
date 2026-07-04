@@ -102,8 +102,55 @@ freigegeben.
 | D-51-02 | DTO liefert geclippte Slots (Fat-Backend) | B(a) | Zweit-Client-Fähigkeit |
 | D-51-03 | Booking-Create nicht abgelehnt | C(b) | Konsistent mit D-02 |
 | D-51-04 | Keine visuelle Zusatz-Markierung | D(a) | UI-Noise vermeiden |
-| D-51-05 | iCal via BlockService abgedeckt | E gestrichen | Block-Aggregat als View-Punkt |
-| D-51-06 | Zwei BE-Aggregat-Ketten (Block + ShiftplanWeek) | F(b) | Zwei getrennte View-Aggregate im Code |
+| D-51-05 | iCal via BlockService abgedeckt (revidiert in D-51-06) | E gestrichen | Block-Aggregat als View-Punkt |
+| D-51-06 | **Vier** BE-Aggregat-Ketten (Research-Update) | Research | Chain A'/B/C/D, siehe RESEARCH.md |
+| D-51-07 | Admin-Stichtag via Toggle `shortday_slot_clipping_active_from` | Nachdisk. | Balance-Historie schützen, HCFG-02-Muster |
+| D-51-08 | Chain D: Rust-Layer-Clipping, nicht SQL-Erweiterung | Nachdisk. | Kanonische Clip-Fn, testability |
+| D-51-09 | `effective_to` am `ShiftplanSlotTO`-Wrapper | Research | SlotTO ist bidirektional |
+
+## Nachdiskussion (2026-07-04, post-research)
+
+Nach `/gsd-plan-phase 51`-Start hat der `gsd-phase-researcher` in
+`51-RESEARCH.md` zwei kritische Funde gemeldet, die vor plan-phase geklärt
+werden mussten:
+
+**Fund A — Chain-D-Discovery:** Balance/Ist-Stunden fließt nicht durch
+`BlockService`, sondern durch rohem SQL in
+`dao_impl_sqlite/src/shiftplan_report.rs`. Plus drei direkte
+`slot.to - slot.from`-Sites in `booking_information.rs`. Vier statt zwei
+Aggregat-Ketten.
+
+**Fund B — pre-existing Bug:** `shiftplan.rs:62-66` +
+`booking_information.rs:394-401, 512-519` verwerfen Slots komplett statt
+zu clippen (verletzt D-04). Wird bei Feature-Implementierung mit-gefixt.
+
+**User-Frage:** „Wie legen wir das Startdatum für diese neue Regelung
+fest? In den Einstellungen?"
+
+**Rationale User:** „Historisch würde sonst die Stunden neu berechnen und
+sämtliche Stundenkonten wären verändert."
+
+**Wahl:** Config-Datum in Settings (analog HCFG-02 aus v1.7) — Toggle
+`shortday_slot_clipping_active_from` (ISO-8601-Date). Ohne Wert → Kürzung
+aus (Rollout-Default); mit Wert → gate `booking_date >= active_from` in
+allen vier Ketten. → **D-51-07** in CONTEXT.md, **SHC-06** in
+REQUIREMENTS.md.
+
+**Sub-Entscheidung (Default-Annahme in Auto-Mode):** Eigenes Toggle-Feld,
+nicht an existierenden HCFG-Stichtag gebunden. Rationale: verschiedene
+Semantiken, unterschiedliche Rollout-Zeitpunkte möglich, spätere
+Konsolidierung trivial.
+
+**Zweite Frage (Chain D):** SQL-Change vs. Rust-Layer vs. Chain-D
+vorerst nicht anfassen?
+
+**Wahl:** Option 1 — Rust-Layer-Clipping. DAO liefert Rohdaten,
+`ShiftplanReportServiceImpl` aggregiert per `Slot::clip_to` +
+Stichtag-Gate. Kanonische Clip-Fn für alle vier Ketten, Stichtag-Gate an
+einer Stelle, testbar in Rust. → **D-51-08**.
+
+**Verworfen:** SQL-JOIN + `MIN()`-Ansatz (Clip-Semantik in SQL dupliziert,
+Snapshot-Immunität schwerer zu argumentieren, schwerer testbar).
 
 ## Deferred Ideas
 

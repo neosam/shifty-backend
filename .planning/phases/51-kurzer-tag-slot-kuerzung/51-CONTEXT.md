@@ -4,7 +4,7 @@ phase_name: Kurzer-Tag-Slot-Kürzung
 milestone: v2.4
 created: 2026-07-04
 type: context
-requirements: [SHC-01, SHC-02, SHC-03, SHC-04, SHC-05]
+requirements: [SHC-01, SHC-02, SHC-03, SHC-04, SHC-05, SHC-06]
 ---
 
 # Phase 51 — Kurzer-Tag-Slot-Kürzung — CONTEXT
@@ -136,17 +136,136 @@ enthaltenen `Slot`s per ShortDay-Lookup pro Datum geclippt.
 **Kein separates SHC-06 für iCal nötig** — SHC-02 + SHC-05 decken es
 strukturell ab.
 
-### D-51-06 — Zwei BE-Aggregat-Punkte (statt einem)
+### D-51-06 — Vier BE-Aggregat-Ketten (Research-Update, ersetzt "zwei")
 
-Es gibt zwei getrennte BE-Aggregat-Ketten, an denen der Clip greifen muss:
+**Ursprüngliche Annahme (falsch):** Zwei BE-Aggregat-Ketten (BlockService
++ ShiftplanWeek).
 
-1. **BlockService** (aggregiert Bookings) — Reporting, Booking-Info,
-   iCal, MyBlock. Bereits identifiziert.
-2. **ShiftplanWeek-DTO-Bauer** (aggregiert Slot-Grid pro Datum ohne
-   Bookings) — WeekView + PDF-Renderer.
+**Verifiziert im Research (`51-RESEARCH.md`, 2026-07-04):** Es sind **vier**
+BE-Aggregat-Ketten, an denen der Clip greifen muss:
 
-Beide konsumieren `Slot::clip_to`. Der ShiftplanWeek-Pfad ist Q-01 im
-Researcher-Auftrag (siehe `open_research`).
+1. **Chain B — ShiftplanWeek-DTO-Bauer** (Read-Aggregat: WeekView + PDF)
+   `service_impl/src/shiftplan.rs:42-66` (`build_shiftplan_day`).
+   Automatisch mit-korrigiert: `pdf_render.rs` konsumiert dasselbe
+   `ShiftplanWeek`-Struct via `PdfShiftplanServiceImpl` (`service_impl/src/
+   pdf_shiftplan.rs:149-152`).
+2. **Chain A' — BlockService** (iCal + insufficient-booked)
+   `service_impl/src/block.rs:87-96, 237-269`. NICHT für Balance/Ist-Stunden
+   (siehe Chain D).
+3. **Chain C — BookingInformation** (weekly summary + booking-conflicts)
+   `service_impl/src/booking_information.rs:388-409, 506-525, 680-697`.
+   Direkte `slot.to - slot.from`-Arithmetik, unabhängig von BlockService.
+4. **Chain D — ShiftplanReportDao** (Balance / Ist-Stunden, raw SQL)
+   `dao_impl_sqlite/src/shiftplan_report.rs:77, 114, 147`. Aggregiert
+   `SUM(STRFTIME(slot.time_to) - STRFTIME(slot.time_from))` direkt in SQL.
+   Umsetzung siehe D-51-08.
+
+Alle vier konsumieren `Slot::clip_to` und respektieren das Stichtag-Gate
+aus D-51-07.
+
+**Bug-Discovery (Research):** `service_impl/src/shiftplan.rs:62-66` und
+`booking_information.rs:394-401, 512-519` haben schon heute eine
+ShortDay-Logik, aber sie **verwirft** den ganzen Slot statt zu clippen
+(verletzt D-04). Die Feature-Implementierung ersetzt diesen Bug durch die
+korrekte Clip-Semantik. Der Test `test_get_shiftplan_week_with_special_days`
+(`service_impl/src/test/shiftplan.rs:251`) muss auf die D-04-Erwartung
+angepasst werden.
+
+### D-51-07 — Admin-konfigurierbarer Stichtag (Toggle-basiert)
+
+Ein neuer `ToggleService`-Wert `shortday_slot_clipping_active_from` steuert,
+ab welchem Datum die Slot-Kürzung wirkt. Muster **identisch zu HCFG-02**
+(`holiday_auto_credit` in v1.7, siehe `service_impl/src/reporting.rs:164-180`):
+
+- **Wert:** `Option<String>` — ISO-8601-Date-String.
+- **`None`/leer:** Kürzung deaktiviert, Legacy-Verhalten (kein Clip an
+  keinem Datum). Default beim Rollout.
+- **`Some(date)`:** Kürzung greift **nur** für ShortDays mit Datum
+  `>= date`. Für Bookings vor dem Stichtag wird der rohe (ungeclippte)
+  Slot verwendet.
+
+**Rationale:** Ohne Stichtag würde die Live-Berechnung retroaktiv alle
+existierenden ShortDay-Einträge respektieren und die angezeigten Ist-Stunden
+in allen Stundenkonten der Vergangenheit ändern (User-Feedback 2026-07-04:
+„historisch würde sonst die Stunden neu berechnen und sämtliche
+Stundenkonten wären verändert"). Persistierte `billing_period`-Snapshots
+(Schema 12) bleiben ohnehin unangetastet, aber Live-Balance-Views auf
+historische Wochen würden abweichen.
+
+**Konsum-Punkt:** In **jedem** der vier Aggregat-Ketten aus D-51-06 vor
+dem Clip-Aufruf: `if booking_date < active_from { use raw slot } else
+{ slot.clip_to(cutoff) }`.
+
+**Ort im Repo:** `ToggleService::get_toggle_value(
+"shortday_slot_clipping_active_from", ...)`. Der Toggle wird via bestehende
+Toggle-DAO/Migration seed. Admin-Editor in Settings analog zu HCFG-02
+(`shifty-dioxus/src/i18n/de.rs:1130`-Muster).
+
+**Verworfen:**
+- Toggle an/aus (analog `paid_limit_hard_enforcement` v1.6) — zu grob, keine
+  Übergangsphase möglich.
+- An den existierenden HCFG-Stichtag gebunden — Feiertags- und
+  ShortDay-Rollout haben verschiedene Semantiken; separate Konfiguration
+  bleibt zukunftssicherer. Konsolidierung optional in Folge-Milestone.
+
+### D-51-08 — Chain D: Rust-Layer-Clipping (nicht SQL-Erweiterung)
+
+Der Balance/Ist-Stunden-Kanal (Chain D, `dao_impl_sqlite/src/
+shiftplan_report.rs`) wird nicht durch SQL-JOIN + `MIN()` erweitert,
+sondern durch **Rust-Layer-Refaktorierung**:
+
+- DAO liefert Rohdaten pro Slot (statt SQL-`SUM(...)` in der Query).
+- `ShiftplanReportServiceImpl` (`service_impl/src/shiftplan_report.rs`)
+  aggregiert die Roh-Slots per `Slot::clip_to` + D-51-07-Stichtag-Gate.
+
+**Rationale:** Eine kanonische Clip-Funktion für alle vier Ketten
+(A'/B/C/D), Stichtag-Gate lebt an einer Stelle, testbar in Rust.
+Snapshot-Immunität (D-03: keine Rückrechnung) wird durch das Stichtag-Gate
+sowieso gewahrt; die persistierten `billing_period`-Snapshots werden nie
+neu berechnet.
+
+**Verworfen:**
+- **Option A (SQL-Change):** `LEFT JOIN special_day + MIN(slot.time_to,
+  COALESCE(special_day.time_of_day, slot.time_to))`. Nachteil: Clip-
+  Semantik in SQL dupliziert, Stichtag-Gate in SQL, deutlich schwerer
+  testbar, Snapshot-Immunität schwerer zu argumentieren.
+- **Option C (Chain D vorerst nicht anfassen):** Balance-Konto zeigt
+  weiter volle Slot-Dauer. Verworfen, weil der User explizit
+  Minus-Stunden auf dem Balance-Konto sammeln möchte (D-05).
+
+**Perf-Note:** Row-Traffic pro Slot steigt (statt server-side SUM), aber
+SQLite ist lokal — Balance-Historien über mehrere Jahre bleiben
+verschmerzbar. Falls Perf zum Problem wird, spätere Optimierung möglich
+(Materialisierung, gestufter Cache), out-of-scope für v2.4.
+
+### D-51-09 — SlotTO-Feld-Design: `effective_to` am `ShiftplanSlotTO`-Wrapper
+
+Das Frontend erhält die geclippte Zeit über ein **neues Feld am
+`ShiftplanSlotTO`-Wrapper** (nicht am `SlotTO` selbst):
+
+- **Neu:** `ShiftplanSlotTO { slot: SlotTO, bookings, current_paid_count,
+  effective_to: time::Time }` (`rest-types/src/lib.rs:1069-1080`).
+- **`SlotTO.to` bleibt roh.** Grund: `SlotTO` ist bidirektional
+  (`POST /slot`, `PUT /slot/{id}` in `rest/src/slot.rs:100, 124`) — würde
+  `to` mutiert, käme das beim nächsten FE-Edit-Save zurück in die DB und
+  korrumpiert die Slot-Definition.
+- **Default:** `effective_to = slot.to` wenn kein Cutoff greift; sonst
+  `effective_to = cutoff`.
+- **Slots komplett hinter Cutoff (`slot.start >= cutoff`):** werden aus
+  `ShiftplanDayTO.slots` weggelassen — nicht im DTO enthalten. Kein
+  extra `visible: bool`-Feld.
+
+**Präzedenz:**
+- `ShiftplanSlotTO.current_paid_count: u8` (rest-types:1079) — gleicher
+  Grund: Wrapper trägt Anzeige-Daten, `SlotTO` bleibt persistenz-treu.
+- `AbsencePeriodTO.derived_days: f32` (rest-types:1793).
+- `VacationBalanceTO.computed_entitled_days: Option<f32>` (rest-types:2167).
+
+**Verworfen:**
+- `SlotTO.to` mutieren (Read-Path clippt) — bricht bidirektionale
+  Save-Semantik.
+- Zusätzliches Feld `SlotTO.effective_to` — koppelt Anzeige an Persistenz;
+  Wrapper ist der saubere Ort.
 
 ## Locked Constraints (cross-cutting)
 
@@ -155,10 +274,15 @@ Researcher-Auftrag (siehe `open_research`).
 - **Snapshot-Schema-Version bleibt 12.** Kein `BillingPeriodValueType`
   angefasst, keine Bump-Pflicht nach
   `CURRENT_SNAPSHOT_SCHEMA_VERSION`-Regel (`shifty-backend/CLAUDE.md`).
-- **Keine DB-Migration**, keine neue Cargo-Dep.
+- **Keine DB-Migration** (Ausnahme: Toggle-Seed für
+  `shortday_slot_clipping_active_from` folgt HCFG-02-Präzedenz aus v1.7),
+  keine neue Cargo-Dep.
 - **Soll-Stunden unberührt.** Nur Ist-Seite der Balance.
-- **Nur zukünftig** — kein historischer Rewrite, historische Snapshots
-  bleiben unangetastet.
+- **Nur zukünftig** — Stichtag-Gate aus D-51-07 schützt historische
+  Live-Balance-Views; persistierte Snapshots bleiben ohnehin unangetastet.
+- **Vier Aggregat-Ketten** (D-51-06): jede Kette respektiert das
+  Stichtag-Gate. Chain D wird Rust-Layer-refaktoriert (D-51-08), nicht
+  SQL-erweitert.
 
 ## Code Context (verifizierte Anker)
 
@@ -182,7 +306,13 @@ Researcher-Auftrag (siehe `open_research`).
 - `service_impl/src/pdf_render.rs` — v2.3-PDF-Renderer, konsumiert das
   Shiftplan-Aggregat für SHC-04.
 
-## Open Research (für gsd-phase-researcher)
+## Open Research — CLOSED
+
+Q-01 wurde durch `51-RESEARCH.md` (2026-07-04) beantwortet. Die Antworten
+sind in D-51-06/08/09 verankert.
+
+<details>
+<summary>Q-01 (historisch, geschlossen)</summary>
 
 **Q-01** (aus `.planning/research/questions.md`) — kanonischer Ort der
 Slot-Auflösung + Call-Sites im ShiftplanWeek-Pfad. Konkret:
@@ -206,20 +336,53 @@ Slot-Auflösung + Call-Sites im ShiftplanWeek-Pfad. Konkret:
 Empfehlung für die Signatur/Feld-Benennung auf `SlotTO`, Skizze des
 ShiftplanWeek-Aggregat-Umbaus.
 
+</details>
+
 ## Vermutliche Wave-Struktur (final in plan-phase)
 
-- **Wave 1** — `Slot::clip_to(cutoff) -> Option<Slot>` in
-  `service/src/slot.rs` + Unit-Tests für alle vier D-04-Fälle. (SHC-01)
-- **Wave 2** — BE-Aggregat-Anpassung an zwei Punkten:
-  - `BlockServiceImpl` clippt Slots während der Block-Konstruktion, mit
-    ShortDay-Lookup pro Datum → deckt Reporting, Booking-Info, iCal,
-    MyBlock ab. (SHC-02, SHC-05)
-  - `ShiftplanWeek`-DTO-Bauer clippt Slots pro Datum und liefert
-    geclippte Zeiten (via `effective_end` o. ä. auf `SlotTO`) → Basis
-    für WeekView + PDF. (Vorbereitung SHC-03/04)
-- **Wave 3** — FE-Konsum: WeekView + PDF-Renderer nutzen die geclippten
-  Slot-Fenster aus dem DTO. Kein FE-eigenes Clipping (D-51-02 / Fat-Backend).
-  (SHC-03, SHC-04)
+Aktualisiert nach `51-RESEARCH.md`-Discovery (vier Aggregat-Ketten, Chain D
+Rust-Layer, effective_to am Wrapper, Stichtag-Gate D-51-07).
+
+- **Wave 1 — Kanonische Clip-Fn + Stichtag-Toggle** (SHC-01, SHC-06)
+  - `Slot::clip_to(cutoff: time::Time) -> Option<Slot>` in
+    `service/src/slot.rs:12+` (Signatur aus RESEARCH §Slot Struct).
+    Unit-Tests für alle vier D-04-Fälle.
+  - Toggle-Seed `shortday_slot_clipping_active_from` (Migration analog
+    `holiday_auto_credit` v1.7).
+  - Wiederverwendbarer Helper für Stichtag-Gate + Cutoff-Lookup pro Woche
+    (Muster: `reporting.rs:188-198`) — als kleine Utility, an allen vier
+    Ketten konsumiert.
+
+- **Wave 2 — BE-Aggregat-Ketten** (SHC-02, SHC-05)
+  - **Chain B** — `service_impl/src/shiftplan.rs:42-66` — Bug-Fix von
+    Filter zu Clip; automatisch WeekView + PDF (Chain B teilt Aggregat
+    mit `pdf_render.rs`).
+  - **Chain A'** — `service_impl/src/block.rs:87-96, 237-269` — Slot-Clip
+    vor Merge; deckt iCal + insufficient-booked ab.
+  - **Chain C** — `service_impl/src/booking_information.rs:388-409,
+    506-525, 680-697` — Filter zu Clip.
+  - **Chain D** — `dao_impl_sqlite/src/shiftplan_report.rs:77, 114, 147`
+    + `service_impl/src/shiftplan_report.rs` — DAO liefert Rohdaten,
+    Rust-Layer clippt + gated (D-51-08).
+  - Jede Kette: Stichtag-Gate aus D-51-07 vor Clip.
+
+- **Wave 3 — DTO + FE + PDF-Konsum** (SHC-03, SHC-04)
+  - `ShiftplanSlotTO { …, effective_to: time::Time }` in
+    `rest-types/src/lib.rs:1069-1080` (D-51-09).
+  - `From<&ShiftplanSlot> for ShiftplanSlotTO`
+    (`rest-types/src/lib.rs:1115`) schreibt `effective_to`.
+  - FE-Loader `shifty-dioxus/src/loader.rs:101, 154` — `slot.slot.to` →
+    `slot.slot.effective_to` bzw. Wrapper-Feld.
+  - PDF-Renderer automatisch korrekt: `pdf_render.rs` konsumiert das
+    geclippte `service::shiftplan::ShiftplanWeek` (Chain B), keine
+    Änderung an `pdf_render.rs` selbst.
+
+- **Wave 4 — Admin-Settings UI** (SHC-06 FE-Anteil)
+  - Neuer Settings-Card-Eintrag (`shifty-dioxus/src/page/settings.rs`)
+    für `shortday_slot_clipping_active_from` — Muster: HCFG-02
+    Card-3-Datepicker (siehe `.planning/milestones/v1.7-ROADMAP.md` und
+    aktuellen Settings-Screen). WASM-Datepicker-Caveat D-25-06 beachten.
+  - i18n de/en/cs analog HCFG-02 (`shifty-dioxus/src/i18n/*.rs:1120+`).
 
 ## Deferred Ideas (nicht in v2.4)
 
