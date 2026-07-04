@@ -5,10 +5,10 @@ milestone_name: Kurzer-Tag-Slot-Kürzung
 current_phase: 51
 current_phase_name: Kurzer-Tag-Slot-Kürzung
 status: planning
-stopped_at: v2.4 initialisiert — Requirements SHC-01..05 definiert, Phase 51 als Vertical MVP im ROADMAP eingetragen. Nächster Schritt /gsd-discuss-phase 51 oder /gsd-plan-phase 51.
-last_updated: "2026-07-04T12:30:00.000Z"
+stopped_at: Phase 51 CONTEXT gathered — 6 Decisions D-51-01..06 gelockt (Clip-Fn als Method auf service::slot::Slot, BE liefert geclippte DTOs, Booking-Create unangefasst, keine Zusatz-Markierung, iCal via BlockService, zwei BE-Aggregat-Ketten). Fat-Backend-Prinzip in PROJECT.md verankert. Q-01 offen für Researcher. Nächster Schritt /gsd-plan-phase 51.
+last_updated: "2026-07-04T14:00:00.000Z"
 last_activity: 2026-07-04
-last_activity_desc: v2.4 Milestone gestartet — ROADMAP/REQUIREMENTS/PROJECT/STATE aktualisiert. Scope-Fixierung aus Explore vom selben Tag übernommen (Seed shortday-slot-clipping konsumiert, Semantik-Note D-01..D-06, offene Q-01 in research/questions.md).
+last_activity_desc: /gsd-discuss-phase 51 manuell durchgeführt (gsd-tools kaputt). CONTEXT.md + DISCUSSION-LOG.md geschrieben, Fat-Backend-Thin-Client als Architektur-Prinzip in PROJECT.md ergänzt und in Auto-Memory persistiert. Q-01 (Slot-Auflösungs-Pfad + Call-Sites) explizit für gsd-phase-researcher vor plan-phase reserviert.
 progress:
   total_phases: 1
   completed_phases: 0
