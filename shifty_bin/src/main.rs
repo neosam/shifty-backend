@@ -416,6 +416,8 @@ impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     // NEU für Phase 3 (D-Phase3-09):
     type AbsenceService = AbsenceService;
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
+    // NEU für Phase 51 (D-51-07): Stichtag-Gate für ShortDay-Slot-Kürzung.
+    type ToggleService = ToggleService;
 }
 
 pub struct BlockServiceDependencies;
@@ -1156,6 +1158,8 @@ impl RestStateImpl {
             // AbsenceService + SalesPersonUnavailableService.
             absence_service: absence_service.clone(),
             sales_person_unavailable_service: sales_person_unavailable_service.clone(),
+            // NEU für Phase 51 (D-51-07): Stichtag-Gate für ShortDay-Slot-Kürzung.
+            toggle_service: toggle_service.clone(),
         });
 
         let block_service = Arc::new(service_impl::block::BlockServiceImpl {

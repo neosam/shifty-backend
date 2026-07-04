@@ -10,6 +10,7 @@ use service::{
     shiftplan_catalog::{MockShiftplanService, Shiftplan},
     slot::{MockSlotService, Slot},
     special_days::{MockSpecialDayService, SpecialDay, SpecialDayType},
+    toggle::MockToggleService,
 };
 use shifty_utils::DayOfWeek;
 use std::collections::{HashMap, HashSet};
@@ -73,6 +74,8 @@ pub struct ShiftplanViewServiceDependencies {
     // Phase-3 per-sales-person-Pfade (Plan 03-04 / D-Phase3-09):
     pub absence_service: MockAbsenceService,
     pub sales_person_unavailable_service: MockSalesPersonUnavailableService,
+    // Phase 51 (D-51-07): Stichtag-Gate für ShortDay-Slot-Kürzung.
+    pub toggle_service: MockToggleService,
 }
 impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type Context = ();
@@ -86,6 +89,7 @@ impl ShiftplanViewServiceDeps for ShiftplanViewServiceDependencies {
     type TransactionDao = MockTransactionDao;
     type AbsenceService = MockAbsenceService;
     type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
+    type ToggleService = MockToggleService;
 }
 
 impl ShiftplanViewServiceDependencies {
@@ -100,6 +104,7 @@ impl ShiftplanViewServiceDependencies {
             transaction_dao: self.transaction_dao.into(),
             absence_service: self.absence_service.into(),
             sales_person_unavailable_service: self.sales_person_unavailable_service.into(),
+            toggle_service: self.toggle_service.into(),
         }
     }
 }
@@ -170,6 +175,15 @@ pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
         .expect_get_by_week_for_sales_person()
         .returning(|_, _, _, _, _| Ok(Arc::from(Vec::<SalesPersonUnavailable>::new())));
 
+    // Phase 51 (D-51-07) default: Toggle nicht gesetzt → `parse_active_from`
+    // liefert `None` → Legacy-Verhalten (nie clippen). Tests, die das Gate
+    // aktivieren wollen (`test_get_shiftplan_week_with_special_days` +
+    // die neuen `effective_to`-Tests), überschreiben diesen Mock lokal.
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     ShiftplanViewServiceDependencies {
         slot_service,
         booking_service,
@@ -180,6 +194,7 @@ pub fn build_dependencies() -> ShiftplanViewServiceDependencies {
         transaction_dao,
         absence_service,
         sales_person_unavailable_service,
+        toggle_service,
     }
 }
 
@@ -249,18 +264,37 @@ async fn test_get_shiftplan_week_invalid_week() {
 
 #[tokio::test]
 async fn test_get_shiftplan_week_with_special_days() {
+    // Phase 51 (D-51-06 Chain B): Bug-Fix + Feature — der Test verifizierte
+    // vorher das Filter-Anti-Pattern (`slot.to > cutoff → continue`) und ist
+    // jetzt auf die Clip-Semantik umgestellt. Zusätzlich wird das Stichtag-Gate
+    // (D-51-07) aktiviert, damit die Kürzung überhaupt greift.
     let mut deps = build_dependencies();
 
-    // Set up booking service expectations
-    deps.booking_service.checkpoint();
+    // Explizite Tuesday-Fixture: ein überlappender Slot (12:00–15:00), ein
+    // vollständig hinter Cutoff liegender Slot (15:00–17:00) sowie ein
+    // Monday-Slot (der wegen des Holiday-Special-Day wegfällt).
+    let monday_slot = slot_with_day_and_time(DayOfWeek::Monday, 9, 17);
+    let tuesday_overlap = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
+    let tuesday_after = slot_with_day_and_time(DayOfWeek::Tuesday, 15, 17);
+    let tuesday_overlap_id = tuesday_overlap.id;
 
+    deps.slot_service.checkpoint();
+    let slot_fixture: Arc<[Slot]> = Arc::from(vec![
+        monday_slot,
+        tuesday_overlap,
+        tuesday_after,
+    ]);
+    deps.slot_service
+        .expect_get_slots_for_week()
+        .returning(move |_, _, _, _, _| Ok(slot_fixture.clone()));
+
+    deps.booking_service.checkpoint();
     deps.booking_service
         .expect_get_for_week()
         .returning(|_, _, _, _| Ok(Arc::new([])));
 
-    // Set up special days - a holiday on Monday and short day on Tuesday
+    // Special days: holiday on Monday, short day (cutoff 14:00) on Tuesday.
     deps.special_day_service.checkpoint();
-
     deps.special_day_service
         .expect_get_by_week()
         .returning(|_, _, _| {
@@ -290,6 +324,13 @@ async fn test_get_shiftplan_week_with_special_days() {
             ]))
         });
 
+    // Stichtag-Gate aktivieren: Stichtag lange vor Test-Woche 2024-W3
+    // (2024-01-15 .. 2024-01-21), damit `should_clip` `true` liefert.
+    deps.toggle_service.checkpoint();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some("2020-01-01".into())));
+
     let service = deps.build_service();
 
     let result = service.get_shiftplan_week(Uuid::nil(), 2024, 3, ().auth(), None).await;
@@ -297,18 +338,36 @@ async fn test_get_shiftplan_week_with_special_days() {
 
     let shiftplan = result.unwrap();
 
-    // Monday should have no slots due to holiday
+    // Monday should have no slots due to holiday.
     let monday = &shiftplan.days[0];
     assert!(matches!(monday.day_of_week, DayOfWeek::Monday));
     assert_eq!(monday.slots.len(), 0);
 
-    // Tuesday should only have slots ending before 14:00
+    // Tuesday: der 15:00–17:00-Slot fehlt (D-04 Zeile 3, komplett hinter
+    // Cutoff). Der überlappende 12:00–15:00-Slot wurde geclippt: `slot.to`
+    // bleibt roh bei 15:00 (D-51-09), `effective_to == 14:00` (Cutoff).
     let tuesday = &shiftplan.days[1];
     assert!(matches!(tuesday.day_of_week, DayOfWeek::Tuesday));
-    assert!(tuesday
-        .slots
-        .iter()
-        .all(|slot| slot.slot.to <= Time::from_hms(14, 0, 0).unwrap()));
+    assert_eq!(
+        tuesday.slots.len(),
+        1,
+        "expected exactly the overlapping slot (12:00–15:00), got {} slots",
+        tuesday.slots.len()
+    );
+    let clipped = &tuesday.slots[0];
+    assert_eq!(clipped.slot.id, tuesday_overlap_id);
+    // D-51-09: `slot.to` bleibt roh (bidirektionale DTO-Regel).
+    assert_eq!(
+        clipped.slot.to,
+        Time::from_hms(15, 0, 0).unwrap(),
+        "slot.to must stay raw (D-51-09)"
+    );
+    // D-04 Zeile 4: `effective_to` == Cutoff (14:00).
+    assert_eq!(
+        clipped.effective_to,
+        Time::from_hms(14, 0, 0).unwrap(),
+        "effective_to must equal the ShortDay cutoff (D-04 Zeile 4)"
+    );
 }
 
 // --- Unit tests for build_shiftplan_day ---
@@ -370,6 +429,9 @@ fn test_build_shiftplan_day_filters_by_day_and_assigns_bookings() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -405,6 +467,9 @@ fn test_build_shiftplan_day_excludes_all_on_holiday() {
         &[holiday],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -413,6 +478,10 @@ fn test_build_shiftplan_day_excludes_all_on_holiday() {
 
 #[test]
 fn test_build_shiftplan_day_filters_short_day() {
+    // Phase 51 (D-51-07): mit aktivem Stichtag-Gate greift die ShortDay-
+    // Kürzung. Der Late-Slot (14:00–18:00) liegt komplett hinter dem Cutoff
+    // (14:00) → wird aus dem Vec weggelassen (D-04 Zeile 3). Der Early-Slot
+    // (09:00–12:00) endet weit vor dem Cutoff → unverändert (D-04 Zeile 1).
     let early_slot = slot_with_day_and_time(DayOfWeek::Monday, 9, 12);
     let late_slot = slot_with_day_and_time(DayOfWeek::Monday, 14, 18);
     let sp = default_sales_person();
@@ -430,6 +499,9 @@ fn test_build_shiftplan_day_filters_short_day() {
 
     let paid_ids: HashSet<Uuid> = HashSet::new();
 
+    // active_from = Stichtag lange vor 2024-W3 → Gate aktiv.
+    let active_from = Some(Date::from_calendar_date(2020, Month::January, 1).unwrap());
+
     let result = build_shiftplan_day(
         DayOfWeek::Monday,
         &[early_slot.clone(), late_slot],
@@ -438,11 +510,19 @@ fn test_build_shiftplan_day_filters_short_day() {
         &[short_day],
         None,
         &paid_ids,
+        2024,
+        3,
+        active_from,
     )
     .unwrap();
 
     assert_eq!(result.slots.len(), 1);
     assert_eq!(result.slots[0].slot.id, early_slot.id);
+    // Early slot endet vor dem Cutoff → effective_to bleibt raw.
+    assert_eq!(
+        result.slots[0].effective_to,
+        Time::from_hms(12, 0, 0).unwrap()
+    );
 }
 
 #[test]
@@ -464,6 +544,9 @@ fn test_build_shiftplan_day_self_added_with_assignments() {
         &[],
         Some(&assignments),
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -486,6 +569,9 @@ fn test_build_shiftplan_day_self_added_none_without_assignments() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -508,6 +594,9 @@ fn test_build_shiftplan_day_sorts_slots_by_from_time() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -565,6 +654,9 @@ fn test_shiftplan_week_emits_current_paid_count_zero_when_no_paid() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -594,6 +686,9 @@ fn test_shiftplan_week_emits_current_paid_count_mixed() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -624,6 +719,9 @@ fn test_shiftplan_week_emits_current_paid_count_with_no_limit() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -673,6 +771,9 @@ fn test_shiftplan_week_paid_in_absence_still_counts() {
         &[],
         None,
         &paid_ids,
+        2024,
+        3,
+        None,
     )
     .unwrap();
 
@@ -1173,4 +1274,241 @@ async fn test_current_paid_count_correct_for_non_hr_caller() {
          with 1 paid booking, but got {}",
         slot_view.current_paid_count
     );
+}
+
+// ---- Phase-51 Chain B: Stichtag-Gate + effective_to (D-51-06, D-51-07, D-51-09) ----
+
+/// D-51-07: Vor Stichtag (`booking_date < active_from`) greift die
+/// ShortDay-Kürzung nicht. Ergebnis: Slot bleibt roh, `effective_to == slot.to`.
+///
+/// Fixture: ISO-Woche 2026-W31 → Tuesday = 2026-07-28. Stichtag 2026-08-01.
+#[test]
+fn test_build_shiftplan_day_effective_to_unclipped_before_stichtag() {
+    let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
+    let sp = default_sales_person();
+    let short_day = SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Tuesday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(Time::from_hms(14, 0, 0).unwrap()),
+        created: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+    let active_from = Some(Date::from_calendar_date(2026, Month::August, 1).unwrap());
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Tuesday,
+        std::slice::from_ref(&overlap_slot),
+        &[],
+        &[sp],
+        &[short_day],
+        None,
+        &paid_ids,
+        2026,
+        31,
+        active_from,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    assert_eq!(
+        result.slots[0].slot.to,
+        Time::from_hms(15, 0, 0).unwrap(),
+        "slot.to raw"
+    );
+    assert_eq!(
+        result.slots[0].effective_to,
+        Time::from_hms(15, 0, 0).unwrap(),
+        "vor Stichtag: effective_to == slot.to"
+    );
+}
+
+/// D-51-07 (inklusiv am Stichtag) + D-04 Zeile 4: Am Stichtag greift die
+/// Kürzung. Overlap-Slot 12:00–15:00, Cutoff 14:00 → `effective_to == 14:00`.
+///
+/// Fixture: ISO-Woche 2026-W31, Saturday = 2026-08-01 (== Stichtag).
+#[test]
+fn test_build_shiftplan_day_effective_to_clipped_at_stichtag() {
+    let overlap_slot = slot_with_day_and_time(DayOfWeek::Saturday, 12, 15);
+    let sp = default_sales_person();
+    let short_day = SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Saturday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(Time::from_hms(14, 0, 0).unwrap()),
+        created: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+    let active_from = Some(Date::from_calendar_date(2026, Month::August, 1).unwrap());
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Saturday,
+        std::slice::from_ref(&overlap_slot),
+        &[],
+        &[sp],
+        &[short_day],
+        None,
+        &paid_ids,
+        2026,
+        31,
+        active_from,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    // D-51-09: slot.to bleibt roh.
+    assert_eq!(
+        result.slots[0].slot.to,
+        Time::from_hms(15, 0, 0).unwrap(),
+        "slot.to must stay raw at stichtag (D-51-09)"
+    );
+    // D-04 Zeile 4: effective_to == cutoff.
+    assert_eq!(
+        result.slots[0].effective_to,
+        Time::from_hms(14, 0, 0).unwrap(),
+        "am Stichtag: effective_to == cutoff (D-04 Zeile 4)"
+    );
+}
+
+/// D-51-07 Legacy: `active_from = None` → Kürzung deaktiviert. Selbst mit
+/// vorhandenem ShortDay bleibt der Slot roh.
+#[test]
+fn test_build_shiftplan_day_none_active_from_no_clip() {
+    let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
+    let sp = default_sales_person();
+    let short_day = SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Tuesday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(Time::from_hms(14, 0, 0).unwrap()),
+        created: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Tuesday,
+        std::slice::from_ref(&overlap_slot),
+        &[],
+        &[sp],
+        &[short_day],
+        None,
+        &paid_ids,
+        2026,
+        31,
+        None, // Legacy: kein Stichtag → nie clippen.
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    assert_eq!(
+        result.slots[0].effective_to,
+        Time::from_hms(15, 0, 0).unwrap(),
+        "Legacy: effective_to == slot.to auch bei ShortDay"
+    );
+}
+
+/// D-51-09: Wenn geclippt, mutiert nur `effective_to` — `slot.to` bleibt
+/// persistenz-treu. Beweist die bidirektionale-DTO-Invariante.
+#[test]
+fn test_build_shiftplan_day_slot_field_stays_raw_when_clipped() {
+    let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
+    let sp = default_sales_person();
+    let short_day = SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Tuesday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(Time::from_hms(14, 0, 0).unwrap()),
+        created: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+    let active_from = Some(Date::from_calendar_date(2020, Month::January, 1).unwrap());
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Tuesday,
+        std::slice::from_ref(&overlap_slot),
+        &[],
+        &[sp],
+        &[short_day],
+        None,
+        &paid_ids,
+        2026,
+        31,
+        active_from,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    let view = &result.slots[0];
+    // slot.to bleibt raw (SlotTO ist bidirektional, siehe P07).
+    assert_eq!(view.slot.to, Time::from_hms(15, 0, 0).unwrap());
+    // effective_to trägt den gekürzten Anzeige-Wert.
+    assert_eq!(view.effective_to, Time::from_hms(14, 0, 0).unwrap());
+    // Alle anderen Slot-Felder unverändert.
+    assert_eq!(view.slot.from, overlap_slot.from);
+    assert_eq!(view.slot.id, overlap_slot.id);
+    assert_eq!(view.slot.day_of_week, overlap_slot.day_of_week);
+}
+
+/// SHC-05: Auf einem teil-geclippten Slot bleiben existierende Bookings
+/// unverändert im `ShiftplanSlot.bookings`-Vec — kein Rewrite, keine
+/// Filterung anhand der Booking-Uhrzeit (Bookings haben keine — sie hängen
+/// am Slot als Ganzes).
+#[test]
+fn test_build_shiftplan_day_preserves_bookings_on_clipped_slot() {
+    let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
+    let sp = default_sales_person();
+    let booking = default_booking(overlap_slot.id, sp.id);
+    let short_day = SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Tuesday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(Time::from_hms(14, 0, 0).unwrap()),
+        created: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let paid_ids: HashSet<Uuid> = [sp.id].into_iter().collect();
+    let active_from = Some(Date::from_calendar_date(2020, Month::January, 1).unwrap());
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Tuesday,
+        &[overlap_slot],
+        std::slice::from_ref(&booking),
+        &[sp],
+        &[short_day],
+        None,
+        &paid_ids,
+        2026,
+        31,
+        active_from,
+    )
+    .unwrap();
+
+    assert_eq!(result.slots.len(), 1);
+    let view = &result.slots[0];
+    // Booking überlebt die Kürzung unverändert.
+    assert_eq!(view.bookings.len(), 1);
+    assert_eq!(view.bookings[0].booking.id, booking.id);
+    // effective_to zeigt weiterhin den gekürzten Wert.
+    assert_eq!(view.effective_to, Time::from_hms(14, 0, 0).unwrap());
+    // Paid-Count wird nicht durch das Clipping verändert.
+    assert_eq!(view.current_paid_count, 1);
 }

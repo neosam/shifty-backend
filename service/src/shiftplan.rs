@@ -53,6 +53,11 @@ pub struct ShiftplanSlot {
     /// soft-deleted sales persons are excluded upstream by the DAO/service
     /// layer; absence status of the booked person is irrelevant (D-05).
     pub current_paid_count: u8,
+    /// Phase 51 (D-51-09): view-layer effective end time. Equals `slot.to`
+    /// unless the day is a ShortDay AND the D-51-07 stichtag gate is active,
+    /// in which case it equals `min(slot.to, cutoff)`. `slot.to` bleibt roh
+    /// (bidirektional-DTO-Regel, siehe P07).
+    pub effective_to: time::Time,
 }
 
 #[derive(Debug, Clone)]

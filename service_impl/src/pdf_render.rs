@@ -871,6 +871,7 @@ mod test {
         let mut week = empty_week(2026, 27);
         // Put the slot with all bookings on Monday.
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: slot.to,
             slot,
             bookings,
             current_paid_count: 3,
@@ -988,11 +989,13 @@ mod test {
         let mut week = empty_week(2026, 27);
         // Insert late first, early second — the renderer must sort them.
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: slot_late.to,
             slot: slot_late,
             bookings: Vec::new(),
             current_paid_count: 0,
         });
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: slot_early.to,
             slot: slot_early,
             bookings: Vec::new(),
             current_paid_count: 0,
@@ -1035,6 +1038,7 @@ mod test {
         ];
         let mut week = empty_week(2026, 27);
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: slot.to,
             slot,
             bookings,
             current_paid_count: 3,
@@ -1079,6 +1083,7 @@ mod test {
         }
         let mut week = empty_week(2026, 27);
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: slot.to,
             slot,
             bookings,
             current_paid_count: names_input.len() as u8,
@@ -1136,7 +1141,12 @@ mod test {
         // renderer — DaySlotRender only needs `slot` (unused for the row
         // math), `name_lines`, and `needed_height_mm`.
         let slot = make_slot(DayOfWeek::Monday, 8, 0, 9, 0);
-        let s = ShiftplanSlot { slot, bookings: Vec::new(), current_paid_count: 0 };
+        let s = ShiftplanSlot {
+            effective_to: slot.to,
+            slot,
+            bookings: Vec::new(),
+            current_paid_count: 0,
+        };
         let mk = |h: f32| DaySlotRender {
             slot: &s,
             name_lines: Vec::new(),
@@ -1227,16 +1237,19 @@ mod test {
         let tu_slot0_id = tu_slot0.id;
         let tu_slot1_id = tu_slot1.id;
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: mo_slot0.to,
             slot: mo_slot0,
             bookings: vec![make_booking(&mo0, mo_slot0_id, 2026, 27)],
             current_paid_count: 1,
         });
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: mo_slot1.to,
             slot: mo_slot1,
             bookings: vec![make_booking(&mo1, mo_slot1_id, 2026, 27)],
             current_paid_count: 1,
         });
         week.days[1].slots.push(ShiftplanSlot {
+            effective_to: tu_slot0.to,
             slot: tu_slot0,
             bookings: tu_persons
                 .iter()
@@ -1245,6 +1258,7 @@ mod test {
             current_paid_count: tu_persons.len() as u8,
         });
         week.days[1].slots.push(ShiftplanSlot {
+            effective_to: tu_slot1.to,
             slot: tu_slot1,
             bookings: vec![make_booking(&mo1, tu_slot1_id, 2026, 27)],
             current_paid_count: 1,
@@ -1320,6 +1334,7 @@ mod test {
         let booking = make_booking(&volunteer, slot.id, 2026, 27);
         let mut week = empty_week(2026, 27);
         week.days[0].slots.push(ShiftplanSlot {
+            effective_to: slot.to,
             slot,
             bookings: vec![booking],
             current_paid_count: 0,
@@ -1353,6 +1368,7 @@ mod test {
         let mut week = empty_week(2026, 27);
         // Saturday is index 5 in day_of_week_order().
         week.days[5].slots.push(ShiftplanSlot {
+            effective_to: slot.to,
             slot,
             bookings: Vec::new(),
             current_paid_count: 0,
@@ -1374,6 +1390,7 @@ mod test {
         let mut week = empty_week(2026, 27);
         // Sunday is index 6 in day_of_week_order().
         week.days[6].slots.push(ShiftplanSlot {
+            effective_to: slot.to,
             slot,
             bookings: Vec::new(),
             current_paid_count: 0,

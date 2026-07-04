@@ -16,14 +16,18 @@ use service::{
     shiftplan_catalog::ShiftplanService,
     slot::{Slot, SlotService},
     special_days::{SpecialDay, SpecialDayService, SpecialDayType},
+    toggle::ToggleService,
     ServiceError,
 };
+
+use crate::shortday_gate;
 use shifty_utils::DayOfWeek;
 use tokio::join;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_shiftplan_day(
     day_of_week: DayOfWeek,
     slots: &[Slot],
@@ -32,6 +36,9 @@ pub(crate) fn build_shiftplan_day(
     special_days: &[SpecialDay],
     user_assignments: Option<&HashMap<Uuid, Arc<str>>>,
     paid_sales_person_ids: &HashSet<Uuid>,
+    year: u32,
+    week: u8,
+    active_from: Option<time::Date>,
 ) -> Result<ShiftplanDay, ServiceError> {
     // Check if this day is a holiday
     let is_holiday = special_days.iter().any(|sd| {
@@ -50,6 +57,16 @@ pub(crate) fn build_shiftplan_day(
         }
     });
 
+    // Phase 51 (D-51-07): Stichtag-Gate — Kürzung greift nur, wenn das
+    // Buchungsdatum am/nach `active_from` liegt. Vor Stichtag oder ohne
+    // `active_from` bleibt der Slot roh (Legacy).
+    let day_date = time::Date::from_iso_week_date(year as i32, week, day_of_week.into()).ok();
+    let effective_cutoff = short_day_cutoff.filter(|_| {
+        day_date
+            .map(|d| shortday_gate::should_clip(d, active_from))
+            .unwrap_or(false)
+    });
+
     let mut day_slots = Vec::new();
 
     if !is_holiday {
@@ -58,12 +75,22 @@ pub(crate) fn build_shiftplan_day(
                 continue;
             }
 
-            // Filter by short day cutoff
-            if let Some(cutoff) = short_day_cutoff {
-                if slot.to > cutoff {
-                    continue;
+            // Phase 51 (D-51-06 Chain B): clip statt filter. Pre-existing bug
+            // (D-04 Zeile 4 verletzt) fixt sich mit.
+            let effective_to = if let Some(cutoff) = effective_cutoff {
+                match slot.clip_to(cutoff) {
+                    // Slot komplett hinter Cutoff → aus Vec weglassen
+                    // (D-04 Zeile 3).
+                    None => continue,
+                    // Slot gekürzt oder unverändert → `effective_to = clipped.to`
+                    // (D-04 Zeilen 1, 2, 4). `slot.clone()` bleibt weiter roh
+                    // (D-51-09, `SlotTO` bidirektional).
+                    Some(clipped) => clipped.to,
                 }
-            }
+            } else {
+                // Kein Gate / kein ShortDay → view-layer `to` == persistenz-`to`.
+                slot.to
+            };
 
             // Find bookings for this slot
             let slot_bookings = bookings
@@ -114,6 +141,7 @@ pub(crate) fn build_shiftplan_day(
                 slot: slot.clone(),
                 bookings: slot_bookings,
                 current_paid_count,
+                effective_to,
             });
         }
     }
@@ -156,6 +184,9 @@ pub(crate) fn build_shiftplan_day_for_sales_person(
     sales_person_id: Uuid,
     absence_periods: &[AbsencePeriod],
     manual_unavailables: &[SalesPersonUnavailable],
+    year: u32,
+    week: u8,
+    active_from: Option<time::Date>,
 ) -> Result<ShiftplanDay, ServiceError> {
     let mut day = build_shiftplan_day(
         day_of_week,
@@ -165,6 +196,9 @@ pub(crate) fn build_shiftplan_day_for_sales_person(
         special_days,
         user_assignments,
         paid_sales_person_ids,
+        year,
+        week,
+        active_from,
     )?;
 
     let absence_match = absence_periods.iter().find(|ap| {
@@ -206,7 +240,9 @@ gen_service_impl! {
         TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao,
         // NEU für Phase 3 (D-Phase3-09):
         AbsenceService: service::absence::AbsenceService<Context = Self::Context, Transaction = Self::Transaction> = absence_service,
-        SalesPersonUnavailableService: service::sales_person_unavailable::SalesPersonUnavailableService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_unavailable_service
+        SalesPersonUnavailableService: service::sales_person_unavailable::SalesPersonUnavailableService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_unavailable_service,
+        // NEU für Phase 51 (D-51-07): Stichtag-Gate für ShortDay-Slot-Kürzung.
+        ToggleService: service::toggle::ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service
     }
 }
 
@@ -233,6 +269,21 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .special_day_service
             .get_by_week(year, week, context.clone())
             .await?;
+
+        // Phase 51 (D-51-07): Stichtag für ShortDay-Slot-Kürzung. Muster verbatim
+        // aus reporting.rs:164-180 (holiday_auto_credit-Toggle). `Unauthorized`
+        // → als "Legacy off" behandeln, weil die Sichten auch mit reduzierten
+        // Auth-Kontexten (z. B. Mock-Auth in Tests) aufrufbar sind.
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
 
         let slots = self
             .slot_service
@@ -292,6 +343,9 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 &special_days,
                 user_assignments.as_ref(),
                 &paid_sales_person_ids,
+                year,
+                week,
+                active_from,
             )?);
         }
 
@@ -322,6 +376,18 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .special_day_service
             .get_by_week(year, week, context.clone())
             .await?;
+
+        // Phase 51 (D-51-07): Stichtag-Toggle.
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
 
         let bookings = self
             .booking_service
@@ -380,6 +446,9 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 &special_days,
                 user_assignments.as_ref(),
                 &paid_sales_person_ids,
+                year,
+                week,
+                active_from,
             )?;
 
             plans.push(PlanDayView {
@@ -447,6 +516,18 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_by_week(year, week, context.clone())
             .await?;
 
+        // Phase 51 (D-51-07): Stichtag-Toggle.
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+
         let slots = self
             .slot_service
             .get_slots_for_week(year, week, shiftplan_id, context.clone(), Some(tx.clone()))
@@ -511,6 +592,9 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 sales_person_id,
                 &absence_periods,
                 &manual_unavailables,
+                year,
+                week,
+                active_from,
             )?);
         }
 
@@ -572,6 +656,18 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_by_week(year, week, context.clone())
             .await?;
 
+        // Phase 51 (D-51-07): Stichtag-Toggle.
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+
         let bookings = self
             .booking_service
             .get_for_week(week, year, context.clone(), Some(tx.clone()))
@@ -631,6 +727,9 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
                 sales_person_id,
                 &absence_periods,
                 &manual_unavailables,
+                year,
+                week,
+                active_from,
             )?;
 
             plans.push(PlanDayView {
