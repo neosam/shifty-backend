@@ -1071,6 +1071,23 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Not set — automation is off.",
     );
 
+    // Phase 51 — Short-day slot clipping activation date (D-51-07, SHC-06).
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsShortdayClippingLabel,
+        "Short-day slot clipping active from",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsShortdayClippingDescription,
+        "From this date, slots on short days are clipped at the cutoff time (rendering and actual hours). Leave empty to disable.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsShortdayClippingUnsetHint,
+        "Not set — clipping is off.",
+    );
+
     // Phase 26 — NAV-01 bidirectional cross-navigation links (D-26-06).
     i18n.add_text(Locale::En, Key::NavToMyAbsences, "My absences");
     i18n.add_text(Locale::En, Key::NavToEmployeeAbsences, "{name}'s absences");

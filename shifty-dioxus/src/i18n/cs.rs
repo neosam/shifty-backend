@@ -1144,6 +1144,23 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Nenastaveno — automatika je vypnuta.",
     );
 
+    // Phase 51 — Zkracování slotů v krátkých dnech aktivní od (D-51-07, SHC-06).
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsShortdayClippingLabel,
+        "Zkracování slotů v krátkých dnech aktivní od",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsShortdayClippingDescription,
+        "Od tohoto data se sloty v krátkých dnech zkracují na čas cutoff (zobrazení i hodiny). Prázdné = zkracování vypnuto.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsShortdayClippingUnsetHint,
+        "Nenastaveno — zkracování vypnuto.",
+    );
+
     // Phase 26 — NAV-01 obousměrné navigační odkazy (D-26-06).
     i18n.add_text(Locale::Cs, Key::NavToMyAbsences, "Moje absence");
     i18n.add_text(Locale::Cs, Key::NavToEmployeeAbsences, "Absence – {name}");

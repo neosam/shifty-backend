@@ -665,6 +665,12 @@ pub enum Key {
     SettingsHolidayAutoCreditClear,
     /// Settings page Card 2 hint shown when no date is set (automation off).
     SettingsHolidayAutoCreditUnsetHint,
+    /// Settings page Card 2b label — short-day slot clipping activation date (Phase 51 D-51-07 / SHC-06).
+    SettingsShortdayClippingLabel,
+    /// Settings page Card 2b description — explains the cutoff date effect on short-day clipping.
+    SettingsShortdayClippingDescription,
+    /// Settings page Card 2b hint shown when no date is set (clipping off).
+    SettingsShortdayClippingUnsetHint,
     /// Shiftplan overage section heading (D-24-03, persistent, all roles).
     ShiftplanPaidOverageSectionHeader,
     /// Shiftplan overage row per slot (placeholders `{slot}`, `{current}`, `{max}`).
@@ -1593,6 +1599,27 @@ mod tests {
                 Key::SettingsHolidayAutoCreditSave,
                 Key::SettingsHolidayAutoCreditClear,
                 Key::SettingsHolidayAutoCreditUnsetHint,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn i18n_phase51_shortday_clipping_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SettingsShortdayClippingLabel,
+                Key::SettingsShortdayClippingDescription,
+                Key::SettingsShortdayClippingUnsetHint,
             ] {
                 let value = i18n.t(key);
                 assert!(

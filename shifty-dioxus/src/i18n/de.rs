@@ -1154,6 +1154,23 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Nicht gesetzt — Automatik inaktiv.",
     );
 
+    // Phase 51 — Kurzer-Tag-Slot-Kürzung Stichtag (D-51-07, SHC-06).
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsShortdayClippingLabel,
+        "Kurzer-Tag-Slot-Kürzung aktiv ab",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsShortdayClippingDescription,
+        "Ab diesem Datum werden Slots an Kurzen Tagen am Cutoff gekürzt (Rendering und Ist-Stunden). Leer lassen = keine Kürzung.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsShortdayClippingUnsetHint,
+        "Nicht gesetzt — Kürzung inaktiv.",
+    );
+
     // Phase 26 — NAV-01 bidirektionale Quernavigations-Links (D-26-06).
     i18n.add_text(Locale::De, Key::NavToMyAbsences, "Meine Abwesenheiten");
     i18n.add_text(Locale::De, Key::NavToEmployeeAbsences, "Abwesenheiten von {name}");
