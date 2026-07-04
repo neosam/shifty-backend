@@ -19,10 +19,14 @@ use service::{
     sales_person_unavailable::SalesPersonUnavailableService,
     shiftplan_report::ShiftplanReportService,
     slot::{Slot, SlotService},
-    special_days::{SpecialDayService, SpecialDayType},
+    special_days::SpecialDayService,
+    toggle::ToggleService,
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
+
+use crate::shortday_gate;
+use crate::shortday_gate::ClipOutcome;
 use shifty_utils::DayOfWeek;
 use tokio::join;
 use uuid::Uuid;
@@ -113,6 +117,10 @@ gen_service_impl! {
         SalesPersonUnavailableService: SalesPersonUnavailableService<Transaction = Self::Transaction> = sales_person_unavailable_service,
         ReportingService: ReportingService<Transaction = Self::Transaction> = reporting_service,
         SpecialDayService: SpecialDayService = special_day_service,
+        // Phase 51 (D-51-06 Chain C + D-51-07): Stichtag-Toggle für pro-Slot-Clip
+        // in `get_weekly_summary` / `get_summery_for_week`. Basic-Tier-Dep — bleibt
+        // zyklen-frei (ToggleService konsumiert keine Business-Logic-Services).
+        ToggleService: ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service,
         EmployeeWorkDetailsService: EmployeeWorkDetailsService<Transaction = Self::Transaction> = employee_work_details_service,
         // VFA-01 (D-26-01/D-26-03): AbsenceService provides volunteer absences for the year-view.
         // BookingInformationService (business-logic tier) → AbsenceService (business-logic tier):
@@ -293,6 +301,20 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .absence_service
             .find_all(Authentication::Full, tx.clone().into())
             .await?;
+        // Phase 51 (D-51-06 Chain C + D-51-07): Stichtag-Toggle-Wert einmal pro
+        // Method-Call holen (nicht pro Woche) — er hängt weder an `year` noch
+        // an `week`. `Unauthorized` → None (Legacy off), analog reporting.rs
+        // und Chain A' (block.rs).
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
         for week in 1..=(weeks_in_year + 3) {
             let (year, week) = if week > weeks_in_year {
                 (year + 1, week - weeks_in_year)
@@ -385,6 +407,12 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .filter(|wh| !absent_volunteer_ids.contains(&wh.sales_person_id)) // VFA-01 (D-26-03): absent → 0 for whole week
             .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
             .sum();
+            // Phase 51 (D-51-06 Chain C + D-51-07): pro-Slot-Clip statt
+            // Filter-Anti-Pattern. Holiday-Filter bleibt hart (kompletter Slot
+            // raus); ShortDay-Slots werden via `Slot::clip_to` verkürzt statt
+            // verworfen — `slot_hours` unten sieht dann die geclippten Zeiten
+            // (D-04 Zeile 4). Legacy-Verhalten (Toggle aus / Gate inaktiv):
+            // `clip_slot_for_week` gibt den Slot unverändert weiter.
             let slots: Arc<[Slot]> = self
                 .slot_service
                 .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
@@ -393,13 +421,22 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 .filter(|slot| {
                     !special_days.iter().any(|day| {
                         day.day_of_week == slot.day_of_week
-                            && (day.day_type == SpecialDayType::Holiday
-                                || day.day_type == SpecialDayType::ShortDay
-                                    && day.time_of_day.is_some()
-                                    && slot.to > day.time_of_day.unwrap())
+                            && day.day_type
+                                == service::special_days::SpecialDayType::Holiday
                     })
                 })
-                .cloned()
+                .filter_map(|slot| {
+                    match shortday_gate::clip_slot_for_week(
+                        slot,
+                        &special_days,
+                        year,
+                        week,
+                        active_from,
+                    ) {
+                        ClipOutcome::Keep(s) => Some(s),
+                        ClipOutcome::Drop => None,
+                    }
+                })
                 .collect();
             let slot_hours = slots
                 .iter()
@@ -503,21 +540,42 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .filter(|report| volunteer_ids.contains(&report.sales_person_id))
             .map(|report| report.hours)
             .sum::<f32>();
+        // Phase 51 (D-51-06 Chain C + D-51-07): pro-Slot-Clip vor Filter-Anti-
+        // Pattern. Toggle-Prefetch für dieses (year, week) einmalig; `required_hours_by_day`
+        // (unten) foldet auto-korrekt über die geclippte `slots`-Variable.
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
         let slots: Arc<[Slot]> = self
             .slot_service
-                .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
+            .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
             .await?
             .iter()
             .filter(|slot| {
                 !special_days.iter().any(|day| {
                     day.day_of_week == slot.day_of_week
-                        && (day.day_type == SpecialDayType::Holiday
-                            || day.day_type == SpecialDayType::ShortDay
-                                && day.time_of_day.is_some()
-                                && slot.to > day.time_of_day.unwrap())
+                        && day.day_type == service::special_days::SpecialDayType::Holiday
                 })
             })
-            .cloned()
+            .filter_map(|slot| {
+                match shortday_gate::clip_slot_for_week(
+                    slot,
+                    &special_days,
+                    year,
+                    week,
+                    active_from,
+                ) {
+                    ClipOutcome::Keep(s) => Some(s),
+                    ClipOutcome::Drop => None,
+                }
+            })
             .collect();
         let slot_hours = slots
             .iter()

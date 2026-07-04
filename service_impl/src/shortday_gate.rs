@@ -24,6 +24,10 @@
 //! Muster übernommen aus `service_impl/src/reporting.rs:164-180`
 //! (HCFG-02 `holiday_auto_credit` in v1.7).
 
+use service::{
+    slot::Slot,
+    special_days::{SpecialDay, SpecialDayType},
+};
 use shifty_utils::DayOfWeek;
 use time::{Date, format_description::well_known::Iso8601};
 
@@ -81,6 +85,54 @@ pub fn resolve_active_from_for_week(
         return false;
     };
     should_clip(booking_date, active_from)
+}
+
+/// Ergebnis des pro-Slot-Clips (Phase 51, D-51-06 Chain A' / Chain C).
+///
+/// - `Keep(slot)` — Slot bleibt (roh oder geclippt).
+/// - `Drop` — Slot fällt ganz weg (Cutoff ≤ `slot.from`; D-04 Zeile 3).
+pub(crate) enum ClipOutcome {
+    Keep(Slot),
+    Drop,
+}
+
+/// Wendet den ShortDay-Cutoff pro Wochentag + Stichtag-Gate auf einen Slot an.
+///
+/// Zentraler Helper für alle Aggregat-Konsumenten (Chain A' Block, Chain C
+/// BookingInformation). Keine DB-Zugriffe — reine In-Memory-Kombi aus
+/// `special_days`-Snapshot pro Woche, ISO-Datum-Konstruktion und
+/// [`Slot::clip_to`] (P01). Wenn Gate inaktiv oder kein `ShortDay`-Cutoff für
+/// den Wochentag konfiguriert ist, wird der Slot unverändert weitergegeben.
+pub(crate) fn clip_slot_for_week(
+    slot: &Slot,
+    special_days: &[SpecialDay],
+    year: u32,
+    week: u8,
+    active_from: Option<Date>,
+) -> ClipOutcome {
+    // Stichtag-Gate: greift das Gate für diesen Wochentag überhaupt?
+    let gate_active = resolve_active_from_for_week(year, week, slot.day_of_week, active_from);
+    if !gate_active {
+        return ClipOutcome::Keep(slot.clone());
+    }
+
+    // Cutoff aus SpecialDay (nur ShortDay mit `time_of_day`) für diesen dow.
+    let cutoff = special_days.iter().find_map(|sd| {
+        if sd.day_of_week == slot.day_of_week && sd.day_type == SpecialDayType::ShortDay {
+            sd.time_of_day
+        } else {
+            None
+        }
+    });
+
+    let Some(cutoff) = cutoff else {
+        return ClipOutcome::Keep(slot.clone());
+    };
+
+    match slot.clip_to(cutoff) {
+        Some(clipped) => ClipOutcome::Keep(clipped),
+        None => ClipOutcome::Drop,
+    }
 }
 
 #[cfg(test)]

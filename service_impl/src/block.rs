@@ -11,7 +11,7 @@ use service::{
     sales_person::SalesPersonService,
     shiftplan::ShiftplanViewService,
     slot::{Slot, SlotService},
-    special_days::{SpecialDay, SpecialDayService, SpecialDayType},
+    special_days::SpecialDayService,
     toggle::ToggleService,
     ServiceError,
 };
@@ -21,6 +21,7 @@ use uuid::Uuid;
 
 use crate::gen_service_impl;
 use crate::shortday_gate;
+use crate::shortday_gate::{clip_slot_for_week, ClipOutcome};
 use dao::TransactionDao; // import your transaction trait
 use time::Time;
 
@@ -28,58 +29,6 @@ use time::Time;
 //
 // This macro pattern follows your existing approach. It wires up dependencies
 // (e.g., `BookingService`, `SlotService`, `SalesPersonService`, etc.) for the service.
-/// Ergebnis des pro-Slot-Clips für Chain A' (Block-Service).
-///
-/// - `Keep(slot)` — Slot bleibt (roh oder geclippt).
-/// - `Drop` — Slot fällt ganz weg (Cutoff ≤ `slot.from`; D-04 Zeile 3).
-enum ClipOutcome {
-    Keep(Slot),
-    Drop,
-}
-
-/// Wendet den ShortDay-Cutoff pro Wochentag + Stichtag-Gate auf einen Slot an.
-///
-/// Wird von beiden Aggregat-Methoden (`get_blocks_for_sales_person_week` und
-/// `get_unsufficiently_booked_blocks`) genutzt, damit die Merge-Loops jeweils
-/// mit geclippten Slots arbeiten. Keine DB-Zugriffe — reine In-Memory-Kombi.
-fn clip_slot_for_week(
-    slot: &Slot,
-    special_days: &[SpecialDay],
-    year: u32,
-    week: u8,
-    active_from: Option<time::Date>,
-) -> ClipOutcome {
-    // Stichtag-Gate: greift das Gate für diesen Wochentag überhaupt?
-    let gate_active = shortday_gate::resolve_active_from_for_week(
-        year,
-        week,
-        slot.day_of_week,
-        active_from,
-    );
-    if !gate_active {
-        return ClipOutcome::Keep(slot.clone());
-    }
-
-    // Cutoff aus SpecialDay (nur ShortDay mit `time_of_day`) für diesen dow.
-    let cutoff = special_days.iter().find_map(|sd| {
-        if sd.day_of_week == slot.day_of_week
-            && sd.day_type == SpecialDayType::ShortDay
-        {
-            sd.time_of_day
-        } else {
-            None
-        }
-    });
-
-    let Some(cutoff) = cutoff else {
-        return ClipOutcome::Keep(slot.clone());
-    };
-
-    match slot.clip_to(cutoff) {
-        Some(clipped) => ClipOutcome::Keep(clipped),
-        None => ClipOutcome::Drop,
-    }
-}
 
 gen_service_impl! {
     struct BlockServiceImpl: BlockService = BlockServiceDeps {

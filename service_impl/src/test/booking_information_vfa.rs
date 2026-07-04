@@ -33,6 +33,7 @@ use service::sales_person_unavailable::MockSalesPersonUnavailableService;
 use service::shiftplan_report::MockShiftplanReportService;
 use service::slot::MockSlotService;
 use service::special_days::{MockSpecialDayService, SpecialDay, SpecialDayType};
+use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
 use shifty_utils::DayOfWeek;
@@ -53,6 +54,7 @@ impl BookingInformationServiceDeps for TestDeps {
     type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
     type ReportingService = MockReportingService;
     type SpecialDayService = MockSpecialDayService;
+    type ToggleService = MockToggleService;
     type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
     type AbsenceService = MockAbsenceService;
     type PermissionService = MockPermissionService;
@@ -213,6 +215,12 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
         .expect_find_all()
         .returning(move |_, _| Ok(Arc::from(vec![absence_clone.clone()])));
 
+    // ── toggle_service: Phase 51 Stichtag-Toggle — Legacy off (returns None) ──
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     // ── special_day_service: Holiday returned ONLY for HOLIDAY_WEEK; empty otherwise ──
     // D-26-04: the holiday code path does NOT touch committed_voluntary_hours (only slots).
     let holiday_clone = holiday.clone();
@@ -266,6 +274,7 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
         sales_person_unavailable_service: Arc::new(MockSalesPersonUnavailableService::new()),
         reporting_service: Arc::new(reporting_service),
         special_day_service: Arc::new(special_day_service),
+        toggle_service: Arc::new(toggle_service),
         employee_work_details_service: Arc::new(employee_work_details_service),
         absence_service: Arc::new(absence_service),
         permission_service: Arc::new(permission_service),

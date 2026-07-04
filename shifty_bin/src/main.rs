@@ -214,6 +214,10 @@ impl service_impl::booking_information::BookingInformationServiceDeps
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
     type ReportingService = ReportingService;
     type SpecialDayService = SpecialDayService;
+    // Phase 51 (D-51-06 Chain C + D-51-07): Stichtag-Toggle für pro-Slot-Clip
+    // in `get_weekly_summary` / `get_summery_for_week`. Reuse des bereits im
+    // Modul definierten `ToggleService`-Alias (Phase 25 HCFG-02 wire).
+    type ToggleService = ToggleService;
     type PermissionService = PermissionService;
     type ClockService = ClockService;
     type UuidService = UuidService;
@@ -1099,6 +1103,10 @@ impl RestStateImpl {
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
                 reporting_service: reporting_service.clone(),
                 special_day_service: special_day_service.clone(),
+                // Phase 51 (D-51-06 Chain C + D-51-07): pro-Slot-Clip vor Filter
+                // in `get_weekly_summary` / `get_summery_for_week`. toggle_service
+                // ist bereits im Scope (P03/P04 hatten den Handle).
+                toggle_service: toggle_service.clone(),
                 employee_work_details_service: working_hours_service.clone(),
                 // VFA-01: absence_service already in scope (built at line ~821, before this point).
                 absence_service: absence_service.clone(),
