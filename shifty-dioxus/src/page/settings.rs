@@ -184,9 +184,12 @@ pub(crate) fn should_show_duplicate_hint(is_duplicate: bool, suppressed: bool) -
 /// validator lets us prove the Save-button gating rule independently of the
 /// browser via unit tests.
 ///
-/// **RED stub — replaced in GREEN commit.**
-pub(crate) fn is_valid_shortday_date_input(_s: &str) -> bool {
-    false
+pub(crate) fn is_valid_shortday_date_input(s: &str) -> bool {
+    if s.is_empty() {
+        return true;
+    }
+    let date_format = format_description!("[year]-[month]-[day]");
+    time::Date::parse(s, date_format).is_ok()
 }
 
 /// Semantic mirror of `service_impl::shortday_gate::should_clip` (backend P02) —
@@ -197,13 +200,14 @@ pub(crate) fn is_valid_shortday_date_input(_s: &str) -> bool {
 /// rule so the FE editor cannot silently drift from P02's semantics; if a future
 /// backend change flips the boundary, this FE test fails and the drift is
 /// visible in code review.
-///
-/// **RED stub — replaced in GREEN commit.**
 pub(crate) fn is_within_shortday_gate(
-    _booking_date: time::Date,
-    _active_from: Option<time::Date>,
+    booking_date: time::Date,
+    active_from: Option<time::Date>,
 ) -> bool {
-    false
+    match active_from {
+        Some(from) => booking_date >= from,
+        None => false,
+    }
 }
 
 #[cfg(test)]
