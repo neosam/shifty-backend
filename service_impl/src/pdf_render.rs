@@ -230,7 +230,7 @@ pub fn render_shiftplan_week_pdf(
                 .map(|s| {
                     let names = build_slot_name_list(s, sales_persons);
                     let name_lines = wrap_names_comma(&names, text_width_mm);
-                    let duration = compute_slot_duration_hours(&s.slot);
+                    let duration = compute_slot_duration_hours(s);
                     let needed_height_mm =
                         compute_slot_box_height_mm(duration, name_lines.len());
                     DaySlotRender { slot: s, name_lines, needed_height_mm }
@@ -489,11 +489,19 @@ fn build_slot_name_list(slot: &ShiftplanSlot, sales_persons: &[SalesPerson]) -> 
 // Slot geometry helpers (D-50-01 Hybrid Stack).
 // -----------------------------------------------------------------------
 
-/// Compute the duration of a slot in fractional hours (robust for
-/// minute-offset slots such as 09:30-14:45).
-fn compute_slot_duration_hours(slot: &service::slot::Slot) -> f32 {
+/// Compute the effective (view-layer) duration of a slot in fractional hours
+/// (robust for minute-offset slots such as 09:30-14:45).
+///
+/// Phase 51 P07 (D-51-09, SHC-04): consumes `ShiftplanSlot.effective_to`,
+/// NOT the raw `slot.to`. On ShortDays with the D-51-07 stichtag gate active,
+/// `effective_to` is the clipped end time — so the PDF renderer produces the
+/// same shortened slot the WeekView does. On all other days `effective_to`
+/// equals `slot.to` and the duration reflects the raw range.
+fn compute_slot_duration_hours(shiftplan_slot: &ShiftplanSlot) -> f32 {
+    let slot = &shiftplan_slot.slot;
     let from_min = (slot.from.hour() as f32) * 60.0 + (slot.from.minute() as f32);
-    let to_min = (slot.to.hour() as f32) * 60.0 + (slot.to.minute() as f32);
+    let to_min = (shiftplan_slot.effective_to.hour() as f32) * 60.0
+        + (shiftplan_slot.effective_to.minute() as f32);
     (to_min - from_min) / 60.0
 }
 
@@ -575,13 +583,19 @@ fn wrap_names_comma(names: &[String], max_width_mm: f32) -> Vec<String> {
 
 /// Time-label for the top of the slot box (`HH:MM - HH:MM`, ASCII hyphen —
 /// see RESEARCH §Common Pitfalls Pitfall 3 for Umlaut/dash notes).
-fn format_slot_time_label(slot: &service::slot::Slot) -> String {
+///
+/// Phase 51 P07 (D-51-09, SHC-04): consumes the wrapper's `effective_to`
+/// for the end time, so ShortDay-clipped slots render "14:00 - 14:30"
+/// instead of the raw "14:00 - 15:00". D-51-04: no extra visual marker;
+/// the clipped label IS the marker.
+fn format_slot_time_label(shiftplan_slot: &ShiftplanSlot) -> String {
+    let slot = &shiftplan_slot.slot;
     format!(
         "{:02}:{:02} - {:02}:{:02}",
         slot.from.hour(),
         slot.from.minute(),
-        slot.to.hour(),
-        slot.to.minute(),
+        shiftplan_slot.effective_to.hour(),
+        shiftplan_slot.effective_to.minute(),
     )
 }
 
@@ -625,7 +639,7 @@ fn render_slot_box(
     // 2) Time label at the top of the box, bold.
     let label_y = box_y_bottom + box_h - SLOT_PADDING_MM - LINE_HEIGHT_MM;
     layer.use_text(
-        format_slot_time_label(&slot.slot),
+        format_slot_time_label(slot),
         TIME_LABEL_FONT_PT,
         Mm(box_x + SLOT_TEXT_H_PADDING_MM),
         Mm(label_y),
@@ -1279,7 +1293,7 @@ mod test {
                     .map(|s| {
                         let names = build_slot_name_list(s, &sales_persons);
                         let name_lines = wrap_names_comma(&names, text_width_mm);
-                        let duration = compute_slot_duration_hours(&s.slot);
+                        let duration = compute_slot_duration_hours(s);
                         let needed = compute_slot_box_height_mm(duration, name_lines.len());
                         DaySlotRender { slot: s, name_lines, needed_height_mm: needed }
                     })
