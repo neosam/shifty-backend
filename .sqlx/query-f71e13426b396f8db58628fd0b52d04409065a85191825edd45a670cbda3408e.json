@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                  sales_person.id as sales_person_id,\n                  booking.id as booking_id,\n                  booking.year,\n                  booking.calendar_week,\n                  slot.day_of_week,\n                  slot.time_from,\n                  slot.time_to\n                FROM slot\n                INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)\n                INNER JOIN sales_person ON booking.sales_person_id = sales_person.id\n                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id\n                WHERE booking.year = ?\n                  AND booking.calendar_week <= ?\n                  AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)\n                        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "sales_person_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "booking_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "year",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "calendar_week",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "day_of_week",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "time_from",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "time_to",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f71e13426b396f8db58628fd0b52d04409065a85191825edd45a670cbda3408e"
+}
