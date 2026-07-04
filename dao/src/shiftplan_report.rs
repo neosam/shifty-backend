@@ -1,30 +1,30 @@
 use async_trait::async_trait;
 use mockall::automock;
-use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyDateUtilsError};
+use shifty_utils::DayOfWeek;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::DaoError;
 
+// Phase 51 Chain D (D-51-08): Die alten SUM-Aggregat-Entities
+// `ShiftplanReportEntity` + `ShiftplanQuickOverviewEntity` wurden entfernt.
+// Der DAO liefert jetzt ausschließlich Roh-Zeilen (`ShiftplanReportRawRow`),
+// der Service aggregiert + clippt + gatet in Rust (Chain D).
+
+/// Roh-Zeile pro Booking+Slot (Phase 51 Chain D — D-51-08).
+///
+/// Wird von den `extract_raw_*`-Methoden geliefert (kein SQL-`SUM`, kein
+/// `GROUP BY`). Der Service-Layer aggregiert + wendet `Slot::clip_to` +
+/// `shortday_gate::should_clip` an, bevor er die Report-DTOs baut.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ShiftplanReportEntity {
+pub struct ShiftplanReportRawRow {
     pub sales_person_id: Uuid,
-    pub hours: f32,
+    pub booking_id: Uuid,
     pub year: u32,
     pub calendar_week: u8,
     pub day_of_week: DayOfWeek,
-}
-
-impl ShiftplanReportEntity {
-    pub fn to_date(&self) -> Result<ShiftyDate, ShiftyDateUtilsError> {
-        ShiftyDate::new(self.year, self.calendar_week, self.day_of_week)
-    }
-}
-
-pub struct ShiftplanQuickOverviewEntity {
-    pub sales_person_id: Uuid,
-    pub hours: f32,
-    pub year: u32,
+    pub time_from: time::Time,
+    pub time_to: time::Time,
 }
 
 #[automock(type Transaction = crate::MockTransaction;)]
@@ -32,8 +32,9 @@ pub struct ShiftplanQuickOverviewEntity {
 pub trait ShiftplanReportDao {
     type Transaction: crate::Transaction;
 
-    /// A report which contains the worked hours of a sales person for each day.
-    async fn extract_shiftplan_report(
+    /// Roh-Zeilen pro Booking im Range (Phase 51 Chain D).
+    /// Service-Layer aggregiert + clippt + gatet in Rust (D-51-08).
+    async fn extract_raw_shiftplan_report(
         &self,
         sales_person_id: Uuid,
         from_year: u32,
@@ -41,21 +42,22 @@ pub trait ShiftplanReportDao {
         to_year: u32,
         to_week: u8,
         tx: Self::Transaction,
-    ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError>;
+    ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError>;
 
-    /// A report which shows the summed up yearly work hours of all sales persons.
-    async fn extract_quick_shiftplan_report(
+    /// Roh-Zeilen pro Booking bis `until_week` (Phase 51 Chain D).
+    /// Service-Layer aggregiert pro Jahr nach Clip + Gate.
+    async fn extract_raw_quick_shiftplan_report(
         &self,
         year: u32,
         until_week: u8,
         tx: Self::Transaction,
-    ) -> Result<Arc<[ShiftplanQuickOverviewEntity]>, DaoError>;
+    ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError>;
 
-    /// A report which contains the worked hours of all sales persons for a specific week.
-    async fn extract_shiftplan_report_for_week(
+    /// Roh-Zeilen pro Booking für eine konkrete Woche (Phase 51 Chain D).
+    async fn extract_raw_shiftplan_report_for_week(
         &self,
         year: u32,
         calendar_week: u8,
         tx: Self::Transaction,
-    ) -> Result<Arc<[ShiftplanReportEntity]>, DaoError>;
+    ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError>;
 }
