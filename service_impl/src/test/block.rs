@@ -11,6 +11,8 @@ use service::ical::MockIcalService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan::MockShiftplanViewService;
 use service::slot::{MockSlotService, Slot};
+use service::special_days::{MockSpecialDayService, SpecialDay, SpecialDayType};
+use service::toggle::MockToggleService;
 use service::ServiceError;
 use service::{booking::MockBookingService, sales_person::SalesPerson};
 use shifty_utils::DayOfWeek;
@@ -30,6 +32,10 @@ pub struct BlockServiceDependencies {
     pub clock_service: MockClockService,
     pub transaction_dao: MockTransactionDao,
     pub shiftplan_service: MockShiftplanViewService,
+    // Phase 51 (D-51-06 Chain A' + D-51-07): ShortDay-Lookup + Stichtag-Toggle
+    // für pro-Slot-Clip vor Block-Merge.
+    pub special_day_service: MockSpecialDayService,
+    pub toggle_service: MockToggleService,
 }
 
 impl crate::block::BlockServiceDeps for BlockServiceDependencies {
@@ -43,6 +49,8 @@ impl crate::block::BlockServiceDeps for BlockServiceDependencies {
     type ClockService = MockClockService;
     type TransactionDao = MockTransactionDao;
     type ShiftplanViewService = MockShiftplanViewService;
+    type SpecialDayService = MockSpecialDayService;
+    type ToggleService = MockToggleService;
     // If you also want to enforce permission checks here, you can add:
     // type PermissionService = MockPermissionService;
 }
@@ -59,6 +67,8 @@ impl BlockServiceDependencies {
             clock_service: self.clock_service.into(),
             transaction_dao: self.transaction_dao.into(),
             shiftplan_service: self.shiftplan_service.into(),
+            special_day_service: self.special_day_service.into(),
+            toggle_service: self.toggle_service.into(),
         }
     }
 }
@@ -204,6 +214,18 @@ pub fn build_dependencies() -> BlockServiceDependencies {
         })
     });
 
+    // Phase 51: Legacy-Default (kein ShortDay, Toggle-Wert = None). Bestehende
+    // Tests bleiben dadurch verhaltensinvariant.
+    let mut special_day_service = MockSpecialDayService::new();
+    special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([])));
+
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
     BlockServiceDependencies {
         booking_service,
         slot_service,
@@ -213,6 +235,8 @@ pub fn build_dependencies() -> BlockServiceDependencies {
         transaction_dao,
         shiftplan_service,
         config_service,
+        special_day_service,
+        toggle_service,
     }
 }
 
@@ -530,4 +554,415 @@ async fn test_get_blocks_for_current_user_forbidden() {
         .await;
 
     test_forbidden(&result);
+}
+
+// ========== Phase 51 (Chain A' — Slot-Clip vor Block-Merge) ==========
+//
+// Test-Kalender-Anker: 2026 ISO-Woche 31 → Montag = 2026-07-27.
+// Stichtag `active_from = Some(2026-07-01)` → Gate ON (Mo 2026-07-27 >= Stichtag).
+// Stichtag `active_from = Some(2099-01-01)` → Gate OFF (Mo 2026-07-27 < Stichtag).
+
+/// Helper: Slot mit expliziten Zeiten + Id (für die neuen Tests).
+fn slot_at(id: Uuid, from: Time, to: Time) -> Slot {
+    Slot {
+        id,
+        day_of_week: DayOfWeek::Monday,
+        from,
+        to,
+        min_resources: 1,
+        max_paid_employees: None,
+        valid_from: Date::from_calendar_date(2024, Month::January, 1).unwrap(),
+        valid_to: None,
+        deleted: None,
+        version: Uuid::nil(),
+        shiftplan_id: None,
+    }
+}
+
+/// Helper: SpecialDay `ShortDay` mit Cutoff für Mo/ISO-Wo 31/2026.
+fn shortday_monday(cutoff: Time) -> SpecialDay {
+    SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Monday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(cutoff),
+        created: Some(PrimitiveDateTime::new(
+            Date::from_calendar_date(2026, Month::June, 1).unwrap(),
+            Time::from_hms(0, 0, 0).unwrap(),
+        )),
+        deleted: None,
+        version: Uuid::nil(),
+    }
+}
+
+/// Test A — Merge-Reihenfolge: Slot Mo 10:00–14:00 + Slot Mo 14:00–16:00,
+/// ShortDay Cutoff 15:00, Gate aktiv. Erwartet: 1 Block Mo 10:00–15:00 mit
+/// 2 Slots ([10:00–14:00, 14:00–15:00]).
+///
+/// Beweist: Clip greift VOR Merge — der zweite Slot wird auf 15:00 verkürzt,
+/// und die Consecutive-Detection (`slot.from == to`) merged ihn korrekt an
+/// den ersten. Andernfalls würde `to = 16:00` durchschlagen.
+#[tokio::test]
+async fn test_get_blocks_clips_overlap_slot_at_shortday_cutoff() {
+    let slot_a_id = default_slot_id();
+    let slot_b_id = second_slot_id();
+
+    let booking_a = Booking {
+        id: default_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id: slot_a_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+    let booking_b = Booking {
+        id: second_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id: slot_b_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(move |_, _, _, _| Ok(vec![booking_a.clone(), booking_b.clone()].into()));
+    deps.slot_service
+        .expect_get_slot()
+        .returning(move |id, _, _| {
+            if *id == slot_a_id {
+                Ok(slot_at(
+                    slot_a_id,
+                    Time::from_hms(10, 0, 0).unwrap(),
+                    Time::from_hms(14, 0, 0).unwrap(),
+                ))
+            } else {
+                Ok(slot_at(
+                    slot_b_id,
+                    Time::from_hms(14, 0, 0).unwrap(),
+                    Time::from_hms(16, 0, 0).unwrap(),
+                ))
+            }
+        });
+
+    // Gate aktiv + ShortDay Mo Cutoff 15:00.
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([shortday_monday(Time::from_hms(15, 0, 0).unwrap())])));
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2026-07-01"))));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_blocks_for_sales_person_week(default_sales_person_id(), 2026, 31, ().auth(), None)
+        .await
+        .expect("blocks ok");
+
+    assert_eq!(blocks.len(), 1, "expected one merged block");
+    let block = &blocks[0];
+    assert_eq!(block.from, Time::from_hms(10, 0, 0).unwrap());
+    assert_eq!(
+        block.to,
+        Time::from_hms(15, 0, 0).unwrap(),
+        "block.to must respect cutoff (clip-before-merge)"
+    );
+    assert_eq!(block.bookings.len(), 2, "both bookings preserved");
+    assert_eq!(block.slots.len(), 2, "both slots present, second clipped");
+    // Slot B ist auf Cutoff geclippt (D-04 Zeile 4).
+    let clipped_b = block
+        .slots
+        .iter()
+        .find(|s| s.id == slot_b_id)
+        .expect("slot B in block");
+    assert_eq!(clipped_b.from, Time::from_hms(14, 0, 0).unwrap());
+    assert_eq!(clipped_b.to, Time::from_hms(15, 0, 0).unwrap());
+}
+
+/// Test B — D-04 Zeile 3: Slot ganz hinter Cutoff verschwindet aus dem
+/// Block-Aggregat, ABER die zugrundeliegende Booking-DB-Row bleibt unangetastet
+/// (SHC-05). Wir prüfen das indirekt: `booking_service.get_for_week` liefert
+/// die Booking (Mock), aber der Block-Result enthält sie nicht.
+#[tokio::test]
+async fn test_get_blocks_drops_post_cutoff_slot() {
+    let post_cutoff_slot_id = default_slot_id();
+    let booking = Booking {
+        id: default_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id: post_cutoff_slot_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(move |_, _, _, _| Ok(vec![booking.clone()].into()));
+    deps.slot_service.expect_get_slot().returning(move |id, _, _| {
+        Ok(slot_at(
+            *id,
+            Time::from_hms(16, 0, 0).unwrap(),
+            Time::from_hms(18, 0, 0).unwrap(),
+        ))
+    });
+
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([shortday_monday(Time::from_hms(15, 0, 0).unwrap())])));
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2026-07-01"))));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_blocks_for_sales_person_week(default_sales_person_id(), 2026, 31, ().auth(), None)
+        .await
+        .expect("blocks ok");
+
+    assert!(
+        blocks.is_empty(),
+        "post-cutoff slot yields no block (D-04 Zeile 3); booking DB row remains untouched"
+    );
+}
+
+/// Test C — Stichtag-Gate OFF (booking_date < active_from): Slot bleibt roh,
+/// Merge erzeugt Block 10:00–16:00 (nicht 10:00–15:00).
+#[tokio::test]
+async fn test_get_blocks_ungated_before_stichtag() {
+    let slot_a_id = default_slot_id();
+    let slot_b_id = second_slot_id();
+
+    let booking_a = Booking {
+        id: default_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id: slot_a_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+    let booking_b = Booking {
+        id: second_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id: slot_b_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(move |_, _, _, _| Ok(vec![booking_a.clone(), booking_b.clone()].into()));
+    deps.slot_service
+        .expect_get_slot()
+        .returning(move |id, _, _| {
+            if *id == slot_a_id {
+                Ok(slot_at(
+                    slot_a_id,
+                    Time::from_hms(10, 0, 0).unwrap(),
+                    Time::from_hms(14, 0, 0).unwrap(),
+                ))
+            } else {
+                Ok(slot_at(
+                    slot_b_id,
+                    Time::from_hms(14, 0, 0).unwrap(),
+                    Time::from_hms(16, 0, 0).unwrap(),
+                ))
+            }
+        });
+
+    // ShortDay existiert, aber Gate ist AUS (active_from = 2099-01-01 > 2026-07-27).
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([shortday_monday(Time::from_hms(15, 0, 0).unwrap())])));
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2099-01-01"))));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_blocks_for_sales_person_week(default_sales_person_id(), 2026, 31, ().auth(), None)
+        .await
+        .expect("blocks ok");
+
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(
+        blocks[0].to,
+        Time::from_hms(16, 0, 0).unwrap(),
+        "gate off → raw slot, no clip"
+    );
+}
+
+/// Test D — `active_from = None` (Toggle nicht gesetzt): Legacy-Verhalten,
+/// ShortDay wird komplett ignoriert (kein Clip).
+#[tokio::test]
+async fn test_get_blocks_none_active_from_no_clip() {
+    let slot_id = default_slot_id();
+    let booking = Booking {
+        id: default_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(move |_, _, _, _| Ok(vec![booking.clone()].into()));
+    deps.slot_service.expect_get_slot().returning(move |id, _, _| {
+        Ok(slot_at(
+            *id,
+            Time::from_hms(14, 0, 0).unwrap(),
+            Time::from_hms(16, 0, 0).unwrap(),
+        ))
+    });
+
+    // ShortDay existiert, aber Toggle-Wert ist None → Gate immer OFF (Legacy).
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([shortday_monday(Time::from_hms(15, 0, 0).unwrap())])));
+    // build_dependencies() liefert schon `Ok(None)` — hier expliziert.
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_blocks_for_sales_person_week(default_sales_person_id(), 2026, 31, ().auth(), None)
+        .await
+        .expect("blocks ok");
+
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(
+        blocks[0].to,
+        Time::from_hms(16, 0, 0).unwrap(),
+        "toggle=None → legacy (no clip)"
+    );
+}
+
+/// Test E — Insufficient-Report respektiert Cutoff: unbookter Slot 16:00–18:00
+/// mit ShortDay-Cutoff 15:00 + Gate aktiv → nicht in `insufficient_blocks`
+/// (D-04 Zeile 3 im zweiten Aggregat-Pfad).
+#[tokio::test]
+async fn test_get_unsufficiently_booked_blocks_respects_cutoff() {
+    let post_cutoff_slot_id = default_slot_id();
+
+    let mut deps = build_dependencies();
+    // `get_slots_for_week_all_plans` liefert einen Slot ganz hinter Cutoff.
+    deps.slot_service
+        .expect_get_slots_for_week_all_plans()
+        .returning(move |_, _, _, _| {
+            Ok(Arc::from(vec![slot_at(
+                post_cutoff_slot_id,
+                Time::from_hms(16, 0, 0).unwrap(),
+                Time::from_hms(18, 0, 0).unwrap(),
+            )]))
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(|_, _, _, _| Ok(vec![].into()));
+
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([shortday_monday(Time::from_hms(15, 0, 0).unwrap())])));
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2026-07-01"))));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_unsufficiently_booked_blocks(2026, 31, ().auth(), None)
+        .await
+        .expect("blocks ok");
+
+    assert!(
+        blocks.is_empty(),
+        "post-cutoff slot must not appear in insufficient-booked aggregate"
+    );
+}
+
+/// Test E-2 — Sanity-Gegenprobe zu Test E: ohne ShortDay (Gate irrelevant)
+/// wäre der Slot drin. Beweist, dass Test E's Leer-Ergebnis wirklich vom
+/// Clip kommt, nicht von einem anderen Filter.
+#[tokio::test]
+async fn test_get_unsufficiently_booked_blocks_without_shortday_lists_slot() {
+    let slot_id = default_slot_id();
+
+    let mut deps = build_dependencies();
+    deps.slot_service
+        .expect_get_slots_for_week_all_plans()
+        .returning(move |_, _, _, _| {
+            Ok(Arc::from(vec![slot_at(
+                slot_id,
+                Time::from_hms(16, 0, 0).unwrap(),
+                Time::from_hms(18, 0, 0).unwrap(),
+            )]))
+        });
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(|_, _, _, _| Ok(vec![].into()));
+
+    // Gate aktiv, aber KEIN ShortDay → Clip greift nicht → Slot bleibt.
+    // (Default-Mock in build_dependencies liefert bereits leere SpecialDays,
+    // wir setzen nur den Toggle auf einen aktiven Stichtag.)
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(Some(Arc::from("2026-07-01"))));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_unsufficiently_booked_blocks(2026, 31, ().auth(), None)
+        .await
+        .expect("blocks ok");
+
+    assert_eq!(blocks.len(), 1, "without ShortDay the slot is insufficient");
+    assert_eq!(blocks[0].from, Time::from_hms(16, 0, 0).unwrap());
+    assert_eq!(blocks[0].to, Time::from_hms(18, 0, 0).unwrap());
 }
