@@ -71,6 +71,30 @@ impl Ord for Slot {
     }
 }
 
+impl Slot {
+    /// Wendet den ShortDay-Cutoff auf diesen Slot an (D-51-01 / D-04).
+    ///
+    /// - `self.from >= cutoff` → `None` (Slot komplett hinter Cutoff, D-04 Zeile 3).
+    /// - `self.to <= cutoff` → `Some(self.clone())` (Slot endet spätestens am Cutoff,
+    ///   D-04 Zeile 1+2 zusammengefasst — Gleichheit ist explizit kein Sonderfall).
+    /// - Sonst → `Some(Slot { to: cutoff, ..self.clone() })` (Slot überlappt, wird auf
+    ///   Cutoff verkürzt, D-04 Zeile 4).
+    ///
+    /// Reine Fachlogik, keine Seiteneffekte.
+    pub fn clip_to(&self, cutoff: time::Time) -> Option<Slot> {
+        if self.from >= cutoff {
+            return None;
+        }
+        if self.to <= cutoff {
+            return Some(self.clone());
+        }
+        Some(Slot {
+            to: cutoff,
+            ..self.clone()
+        })
+    }
+}
+
 #[automock(type Context=(); type Transaction=MockTransaction;)]
 #[async_trait]
 pub trait SlotService {
