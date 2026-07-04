@@ -11,6 +11,8 @@ use service::{
     sales_person::SalesPersonService,
     shiftplan::ShiftplanViewService,
     slot::{Slot, SlotService},
+    special_days::{SpecialDay, SpecialDayService, SpecialDayType},
+    toggle::ToggleService,
     ServiceError,
 };
 use shifty_utils::{DayOfWeek, ShiftyWeek};
@@ -18,6 +20,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::gen_service_impl;
+use crate::shortday_gate;
 use dao::TransactionDao; // import your transaction trait
 use time::Time;
 
@@ -25,6 +28,59 @@ use time::Time;
 //
 // This macro pattern follows your existing approach. It wires up dependencies
 // (e.g., `BookingService`, `SlotService`, `SalesPersonService`, etc.) for the service.
+/// Ergebnis des pro-Slot-Clips für Chain A' (Block-Service).
+///
+/// - `Keep(slot)` — Slot bleibt (roh oder geclippt).
+/// - `Drop` — Slot fällt ganz weg (Cutoff ≤ `slot.from`; D-04 Zeile 3).
+enum ClipOutcome {
+    Keep(Slot),
+    Drop,
+}
+
+/// Wendet den ShortDay-Cutoff pro Wochentag + Stichtag-Gate auf einen Slot an.
+///
+/// Wird von beiden Aggregat-Methoden (`get_blocks_for_sales_person_week` und
+/// `get_unsufficiently_booked_blocks`) genutzt, damit die Merge-Loops jeweils
+/// mit geclippten Slots arbeiten. Keine DB-Zugriffe — reine In-Memory-Kombi.
+fn clip_slot_for_week(
+    slot: &Slot,
+    special_days: &[SpecialDay],
+    year: u32,
+    week: u8,
+    active_from: Option<time::Date>,
+) -> ClipOutcome {
+    // Stichtag-Gate: greift das Gate für diesen Wochentag überhaupt?
+    let gate_active = shortday_gate::resolve_active_from_for_week(
+        year,
+        week,
+        slot.day_of_week,
+        active_from,
+    );
+    if !gate_active {
+        return ClipOutcome::Keep(slot.clone());
+    }
+
+    // Cutoff aus SpecialDay (nur ShortDay mit `time_of_day`) für diesen dow.
+    let cutoff = special_days.iter().find_map(|sd| {
+        if sd.day_of_week == slot.day_of_week
+            && sd.day_type == SpecialDayType::ShortDay
+        {
+            sd.time_of_day
+        } else {
+            None
+        }
+    });
+
+    let Some(cutoff) = cutoff else {
+        return ClipOutcome::Keep(slot.clone());
+    };
+
+    match slot.clip_to(cutoff) {
+        Some(clipped) => ClipOutcome::Keep(clipped),
+        None => ClipOutcome::Drop,
+    }
+}
+
 gen_service_impl! {
     struct BlockServiceImpl: BlockService = BlockServiceDeps {
         BookingService: BookingService<Context = Self::Context, Transaction = Self::Transaction> = booking_service,
@@ -34,6 +90,10 @@ gen_service_impl! {
         IcalService: IcalService = ical_service,
         ConfigService: ConfigService = config_service,
         ClockService: ClockService = clock_service,
+        // Phase 51 (D-51-06 Chain A' + D-51-07 Stichtag-Gate): pro-Slot-Clip
+        // vor Merge braucht ShortDay-Lookup pro Woche + Toggle-Wert.
+        SpecialDayService: SpecialDayService<Context = Self::Context> = special_day_service,
+        ToggleService: ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
 }
@@ -81,6 +141,25 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
 
         dbg!(&bookings_for_person);
 
+        // Phase 51 (D-51-06 Chain A' + D-51-07): ShortDay-Cutoff pro Wochentag +
+        // Stichtag-Gate. Prefetch beides einmal pro Method-Call — der Cutoff hängt
+        // nur an `day_of_week`, das Gate am ISO-Datum aus (year, week, dow).
+        // `Unauthorized` mapped auf None (Legacy off), analog reporting.rs.
+        let special_days = self
+            .special_day_service
+            .get_by_week(year, week, context.clone())
+            .await?;
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+
         // Collect each booking's associated slot. We'll later group by day-of-week.
         // (You could optimize this by building a single query or caching, but this
         // example keeps it straightforward.)
@@ -91,6 +170,18 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
                 .get_slot(&booking.slot_id, context.clone(), Some(tx.clone()))
                 .await
             {
+                // Chain A' — pro-Slot-Clip vor dem Merge-Loop. Reihenfolge kritisch
+                // (Research §Risks 4): erst clippen, dann `slot.from == to`-Merge.
+                let slot = match clip_slot_for_week(
+                    &slot,
+                    &special_days,
+                    year,
+                    week,
+                    active_from,
+                ) {
+                    ClipOutcome::Keep(s) => s,
+                    ClipOutcome::Drop => continue,
+                };
                 booking_slot_pairs.push((booking.clone(), slot));
             }
         }
@@ -240,20 +331,51 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             .await?;
         let all_bookings = self
             .booking_service
-            .get_for_week(week, year, context, Some(tx.clone()))
+            .get_for_week(week, year, context.clone(), Some(tx.clone()))
             .await?;
 
-        // Group slots by day and sort by time
-        let mut day_map: BTreeMap<DayOfWeek, Vec<&Slot>> = BTreeMap::new();
+        // Phase 51 (D-51-06 Chain A' + D-51-07): identisches Prefetch-Muster wie in
+        // `get_blocks_for_sales_person_week`. Zwei Method-Calls, aber Duplizierung
+        // ist akzeptabel — bei einem dritten Konsumenten würde der Helper zu einer
+        // gemeinsamen Method gehoben.
+        let special_days = self
+            .special_day_service
+            .get_by_week(year, week, context.clone())
+            .await?;
+        let toggle_value = match self
+            .toggle_service
+            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
+            .await
+        {
+            Ok(v) => v,
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+
+        // Group slots by day and sort by time. Slots werden pro-Slot geclippt
+        // VOR dem Filter+Merge, damit die `slot.from == to`-Consecutive-Detection
+        // im Merge-Loop mit den effektiven Zeiten arbeitet. Owned `Slot` (statt
+        // `&Slot`), weil `clip_to` einen neuen Slot produziert.
+        let mut day_map: BTreeMap<DayOfWeek, Vec<Slot>> = BTreeMap::new();
         for slot in all_slots.iter() {
-            day_map.entry(slot.day_of_week).or_default().push(slot);
+            let clipped = match clip_slot_for_week(
+                slot,
+                &special_days,
+                year,
+                week,
+                active_from,
+            ) {
+                ClipOutcome::Keep(s) => s,
+                ClipOutcome::Drop => continue,
+            };
+            day_map.entry(clipped.day_of_week).or_default().push(clipped);
         }
 
         // For each day, sort slots by time and merge consecutive ones
         let mut insufficient_blocks = Vec::new();
 
-        for (day_of_week, slots) in day_map {
-            let mut slots = slots.clone();
+        for (day_of_week, mut slots) in day_map {
             slots.sort_by_key(|a| a.from);
 
             // Filter for slots with insufficient bookings

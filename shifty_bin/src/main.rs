@@ -432,6 +432,10 @@ impl service_impl::block::BlockServiceDeps for BlockServiceDependencies {
     type TransactionDao = TransactionDao;
     type ShiftplanViewService = ShiftplanViewServiceImpl<ShiftplanViewServiceDependencies>;
     type ConfigService = ConfigService;
+    // Phase 51 (D-51-06 Chain A' + D-51-07): pro-Slot-Clip vor Block-Merge
+    // konsumiert ShortDay-Lookup + Stichtag-Toggle.
+    type SpecialDayService = SpecialDayService;
+    type ToggleService = ToggleService;
 }
 type BlockService = service_impl::block::BlockServiceImpl<BlockServiceDependencies>;
 
@@ -1171,6 +1175,10 @@ impl RestStateImpl {
             transaction_dao: transaction_dao.clone(),
             shiftplan_service: shiftplan_view_service.clone(),
             config_service: config_service.clone(),
+            // NEU für Phase 51 (D-51-06 Chain A' + D-51-07): Stichtag-Gate +
+            // ShortDay-Lookup für Slot-Clip vor Block-Merge.
+            special_day_service: special_day_service.clone(),
+            toggle_service: toggle_service.clone(),
         });
 
         let week_message_service = Arc::new(WeekMessageService {
