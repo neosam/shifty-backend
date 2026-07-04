@@ -1077,6 +1077,15 @@ pub struct ShiftplanSlotTO {
     /// sind upstream gefiltert; Absence-Status zählt nicht (D-05). Immer
     /// populated, unabhängig von `slot.max_paid_employees`.
     pub current_paid_count: u8,
+    /// Phase 51 (D-51-09): view-layer effective end time for the slot.
+    /// Equals `slot.to` unless the day is a ShortDay AND the D-51-07 stichtag
+    /// gate is active — then `min(slot.to, cutoff)`.
+    /// `slot.to` bleibt roh (SlotTO ist bidirektional via POST/PUT `/slot`);
+    /// die geclippte Zeit lebt ausschließlich am Wrapper. FE-Loader rendert
+    /// Slots immer mit `effective_to` als End-Zeit (D-51-04: keine visuelle
+    /// Zusatz-Markierung, die kürzere Zelle IST die Markierung).
+    #[schema(value_type = String, format = "time")]
+    pub effective_to: time::Time,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -1115,6 +1124,7 @@ impl From<&service::shiftplan::ShiftplanSlot> for ShiftplanSlotTO {
             slot: (&slot.slot).into(),
             bookings: slot.bookings.iter().map(Into::into).collect(),
             current_paid_count: slot.current_paid_count,
+            effective_to: slot.effective_to,
         }
     }
 }
