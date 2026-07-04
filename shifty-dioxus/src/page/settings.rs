@@ -168,6 +168,44 @@ pub(crate) fn should_show_duplicate_hint(is_duplicate: bool, suppressed: bool) -
     is_duplicate && !suppressed
 }
 
+/// Validity predicate for the short-day slot-clipping activation-date input
+/// (Phase 51 SHC-06 / D-51-07).
+///
+/// Returns `true` for:
+/// - the empty string (Legacy off — user cleared the date), and
+/// - any well-formed ISO-8601 `YYYY-MM-DD` string.
+///
+/// Returns `false` for any malformed date input (e.g. German locale `08.01.2026`,
+/// natural-language `"tomorrow"`, or out-of-range components like `2026-13-01`).
+///
+/// **Why a pure fn?** `<input type=date>` in Dioxus/WASM does not reliably fire
+/// signal updates from programmatic `set()`s in browser tests (Auto-Memory
+/// `reference_dioxus_browser_test_date_inputs`, D-25-06). Extracting the
+/// validator lets us prove the Save-button gating rule independently of the
+/// browser via unit tests.
+///
+/// **RED stub — replaced in GREEN commit.**
+pub(crate) fn is_valid_shortday_date_input(_s: &str) -> bool {
+    false
+}
+
+/// Semantic mirror of `service_impl::shortday_gate::should_clip` (backend P02) —
+/// FE-local copy for the SHC-06 boundary-case test.
+///
+/// Contract: returns `true` iff `active_from` is `Some(date)` AND
+/// `booking_date >= active_from`. This mirrors the backend's inclusive-boundary
+/// rule so the FE editor cannot silently drift from P02's semantics; if a future
+/// backend change flips the boundary, this FE test fails and the drift is
+/// visible in code review.
+///
+/// **RED stub — replaced in GREEN commit.**
+pub(crate) fn is_within_shortday_gate(
+    _booking_date: time::Date,
+    _active_from: Option<time::Date>,
+) -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -449,6 +487,51 @@ mod tests {
                 case.locale, case.cues, text
             );
         }
+    }
+
+    // ── Phase 51 SHC-06: short-day slot-clipping validator (D-25-06 fallback) ──
+
+    #[test]
+    fn test_empty_shortday_input_is_valid() {
+        // Legacy off: empty string = user cleared the date, treat as valid input
+        // so Save can proceed (which triggers a DELETE-toggle-value).
+        assert!(is_valid_shortday_date_input(""));
+    }
+
+    #[test]
+    fn test_valid_iso_date_is_accepted() {
+        // Well-formed ISO-8601 date must be accepted.
+        assert!(is_valid_shortday_date_input("2026-08-01"));
+        // Leap day 2028-02-29 is valid.
+        assert!(is_valid_shortday_date_input("2028-02-29"));
+    }
+
+    #[test]
+    fn test_malformed_date_is_rejected() {
+        // German locale format — must be rejected.
+        assert!(!is_valid_shortday_date_input("08.01.2026"));
+        // Natural language — rejected.
+        assert!(!is_valid_shortday_date_input("tomorrow"));
+        // Out-of-range month — rejected.
+        assert!(!is_valid_shortday_date_input("2026-13-01"));
+        // Whitespace-only — rejected (not empty, not a date).
+        assert!(!is_valid_shortday_date_input("   "));
+    }
+
+    #[test]
+    fn test_grenzfall_active_from_equals_booking_date() {
+        // SHC-06 boundary case (inclusive): booking_date == active_from → clip.
+        // Mirrors backend `service_impl::shortday_gate::should_clip` semantics.
+        let active_from = time::Date::from_calendar_date(2026, time::Month::August, 1).unwrap();
+        let on_boundary = active_from;
+        let day_before = time::Date::from_calendar_date(2026, time::Month::July, 31).unwrap();
+
+        // On the boundary date: gate is ACTIVE (clip).
+        assert!(is_within_shortday_gate(on_boundary, Some(active_from)));
+        // One day before: gate is NOT active (no clip).
+        assert!(!is_within_shortday_gate(day_before, Some(active_from)));
+        // No active_from (Legacy off): never clip.
+        assert!(!is_within_shortday_gate(on_boundary, None));
     }
 }
 
