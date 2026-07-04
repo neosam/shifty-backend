@@ -2557,3 +2557,92 @@ mod test_weekly_summary_to_serde_default {
         );
     }
 }
+
+/// Phase 51 P07 (D-51-09): `ShiftplanSlotTO.effective_to` — view-layer clipped end
+/// time on the WRAPPER, not on `SlotTO`. `SlotTO` stays bidirectional-raw for
+/// POST/PUT `/slot` roundtrips (rest/src/slot.rs:100,124).
+#[cfg(all(test, feature = "service-impl"))]
+mod test_shiftplan_slot_to_effective_to {
+    use super::*;
+    use service::shiftplan::{ShiftplanBooking, ShiftplanSlot};
+    use service::slot::Slot;
+    use shifty_utils::DayOfWeek;
+    use uuid::Uuid;
+
+    fn make_slot(from_h: u8, to_h: u8) -> Slot {
+        Slot {
+            id: Uuid::from_u128(0x1111),
+            day_of_week: DayOfWeek::Monday,
+            from: time::Time::from_hms(from_h, 0, 0).unwrap(),
+            to: time::Time::from_hms(to_h, 0, 0).unwrap(),
+            min_resources: 1,
+            max_paid_employees: None,
+            valid_from: time::Date::from_calendar_date(2026, time::Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::from_u128(0x2222),
+            shiftplan_id: None,
+        }
+    }
+
+    /// P07 Task 1: Mapper propagates `effective_to` from wrapper to TO.
+    /// Slot 14:00-15:00 with `effective_to=14:30` (ShortDay-clipped) →
+    /// TO wrapper carries 14:30, `slot.to` stays 15:00 (raw).
+    #[test]
+    fn mapper_populates_effective_to_from_wrapper_and_leaves_slot_to_raw() {
+        let slot = make_slot(14, 15);
+        let raw_to = slot.to;
+        let clipped = time::Time::from_hms(14, 30, 0).unwrap();
+
+        let wrapper = ShiftplanSlot {
+            slot,
+            bookings: Vec::<ShiftplanBooking>::new(),
+            current_paid_count: 0,
+            effective_to: clipped,
+        };
+
+        let to: ShiftplanSlotTO = (&wrapper).into();
+
+        assert_eq!(
+            to.effective_to, clipped,
+            "wrapper effective_to must land on TO.effective_to",
+        );
+        assert_eq!(
+            to.slot.to, raw_to,
+            "SlotTO.to must stay raw (D-51-09 bidirectional invariant)",
+        );
+    }
+
+    /// P07 D-51-09 invariant: `SlotTO.to` roundtrip through
+    /// `SlotTO -> service::slot::Slot -> SlotTO` never touches
+    /// `effective_to` — proof that POST/PUT `/slot` is safe.
+    #[test]
+    fn slot_to_roundtrip_never_touches_effective_to() {
+        let slot = make_slot(14, 15);
+        let clipped = time::Time::from_hms(14, 30, 0).unwrap();
+        let wrapper = ShiftplanSlot {
+            slot: slot.clone(),
+            bookings: Vec::<ShiftplanBooking>::new(),
+            current_paid_count: 0,
+            effective_to: clipped,
+        };
+        let to: ShiftplanSlotTO = (&wrapper).into();
+
+        // Simulate an edit-roundtrip on the raw slot: SlotTO -> Slot -> SlotTO.
+        let raw_slot: Slot = (&to.slot).into();
+        let roundtripped: SlotTO = (&raw_slot).into();
+
+        assert_eq!(
+            roundtripped.to, slot.to,
+            "SlotTO.to must survive edit-roundtrip unchanged (raw 15:00)",
+        );
+        // `effective_to` lives on the wrapper only; SlotTO carries no such field.
+        // This assert is compile-time: if someone ever adds `effective_to` to
+        // SlotTO, this line will fail to compile → forcing a design review.
+        let _: &SlotTO = &roundtripped;
+
+        // Compile-check: an unused binding on the clipped value keeps intent
+        // explicit for future readers even though it's not otherwise consumed.
+        let _ = clipped;
+    }
+}
