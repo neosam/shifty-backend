@@ -196,6 +196,10 @@ impl service_impl::shiftplan_report::ShiftplanReportServiceDeps
     type Context = Context;
     type Transaction = Transaction;
     type ShiftplanReportDao = ShiftplanReportDao;
+    // Phase 51 Chain D (D-51-06 / D-51-08): SpecialDayService + ToggleService
+    // für Rust-Layer-Clip + Stichtag-Gate pro Buchungs-Datum.
+    type SpecialDayService = SpecialDayService;
+    type ToggleService = ToggleService;
     type TransactionDao = TransactionDao;
 }
 type ShiftplanReportService =
@@ -1012,8 +1016,24 @@ impl RestStateImpl {
             uuid_service: uuid_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
+        // D-24-08 / Phase 51 (D-51-06 Chain D): ToggleService ist Basic-Tier
+        // (nur DAO + Permission + Transaction). Wird VOR ShiftplanReportService
+        // konstruiert, weil dessen Chain-D-Refactor den Stichtag-Toggle via
+        // `get_toggle_value(shortday_slot_clipping_active_from, …)` liest.
+        // Reihenfolge ist bewusst früher als Ur-Position (nach Reporting) —
+        // ShiftplanReport hängt jetzt an ToggleService, also klettern beide vor.
+        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
+        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
+            toggle_dao,
+            permission_service: permission_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let shiftplan_report_service = Arc::new(ShiftplanReportService {
             shiftplan_report_dao: shiftplan_report_dao.clone(),
+            // Phase 51 Chain D: pro-Row Clip + Stichtag-Gate.
+            special_day_service: special_day_service.clone(),
+            toggle_service: toggle_service.clone(),
             transaction_dao: transaction_dao.clone(),
         });
         let carryover_service = Arc::new(service_impl::carryover::CarryoverServiceImpl {
@@ -1066,17 +1086,9 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
-        // D-24-08: ToggleService ist Basic-Tier (nur DAO + Permission + Transaction).
-        // Muss VOR ShiftplanEditService (Business-Tier) und VOR ReportingService
-        // konstruiert werden, da beide ToggleService als Dependency haben.
-        // Phase 25: ReportingService liest den holiday_auto_credit-Stichtag via ToggleService.
-        let toggle_dao = Arc::new(ToggleDao::new(pool.clone()));
-        let toggle_service = Arc::new(service_impl::toggle::ToggleServiceImpl {
-            toggle_dao,
-            permission_service: permission_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
-
+        // D-24-08 / Phase 51: ToggleService wurde vor `shiftplan_report_service`
+        // (oben) konstruiert. Reporting/ShiftplanEdit konsumieren denselben
+        // Handle.
         let reporting_service = Arc::new(service_impl::reporting::ReportingServiceImpl {
             extra_hours_service: extra_hours_service.clone(),
             shiftplan_report_service: shiftplan_report_service.clone(),

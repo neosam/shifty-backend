@@ -88,3 +88,5 @@ pub mod reporting_attendance_gate;
 pub mod special_days;
 #[cfg(test)]
 pub mod week_status;
+#[cfg(test)]
+pub mod shiftplan_report;
