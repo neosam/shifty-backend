@@ -2,7 +2,7 @@
 type: project_charter
 last_updated: 2026-07-04
 last_milestone: v2.3 PDF-Export — Browser-Look & Download-Button (shipped 2026-07-04, Phasen 49–50, 5/5 Requirements)
-current_milestone: — (zwischen Milestones)
+current_milestone: v2.4 Kurzer-Tag-Slot-Kürzung (Phase 51, IN PLANNING)
 ---
 
 # Shifty — Project Charter
@@ -283,12 +283,41 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
-## Current Milestone: — (zwischen Milestones)
+## Current Milestone: v2.4 Kurzer-Tag-Slot-Kürzung
 
-Kein aktiver Milestone. **Nächster Kandidat**: Kurzer-Tag-Slot-Kürzung — Seed
-`.planning/seeds/shortday-slot-clipping.md` + Semantik-Note
-`.planning/notes/shortday-slot-clipping-semantics.md` + Research-Question Q-01 in
-`.planning/research/questions.md`. Start via `/gsd-new-milestone`.
+**Goal:** An Kurzen Tagen (`special_day.ShortDay`) werden Slots, die den
+Cutoff-Zeitpunkt überlappen, dynamisch auf `[start, cutoff]` gekürzt —
+sowohl im Schichtplan-Rendering (WeekView, PDF-Export, ggf. iCal-Export)
+als auch bei der Ist-Stunden-Berechnung (Reporting, Booking-Information).
+Slots komplett hinter dem Cutoff verschwinden. Soll-Stunden bleiben
+unverändert. Kein Snapshot-Bump.
+
+**Target Features:**
+
+- Kanonische Clip-Funktion für `(Slot, Time) -> Option<Slot>` (View-Layer,
+  keine Persistenz)
+- Rendering: gekürzte Slots werden verkürzt dargestellt, Post-Cutoff-Slots
+  verschwinden (WeekView im FE, PDF-Export-Renderer, ggf. iCal)
+- Ist-Stunden-Berechnung berücksichtigt Kürzung (Reporting-Service +
+  Booking-Information)
+- Soll-Stunden unverändert (Contract-Erwartung bleibt) — Mitarbeiter
+  können an Kurzen Tagen Minusstunden im Balance-Konto sammeln
+
+**Semantik-Anker:** [`notes/shortday-slot-clipping-semantics.md`](notes/shortday-slot-clipping-semantics.md)
+(D-01 bis D-06 aus dem Explore am 2026-07-04, User-bestätigt).
+
+**Consumed seed:** [`seeds/shortday-slot-clipping.md`](seeds/shortday-slot-clipping.md)
+(planted 2026-07-04, Trigger erfüllt beim v2.4-Start).
+
+**Open research:** Q-01 in [`research/questions.md`](research/questions.md)
+— Codebase-Mapping für Clip-Funktion + Call-Sites, im discuss-phase-Vorfeld
+via `gsd-phase-researcher` oder inline.
+
+**Character:** Fokus-Milestone auf einer einzelnen Sematik-Ergänzung.
+Kein Snapshot-Bump, keine Migration, keine neue Cargo-Dep erwartet.
+Vermutlich 1 vertikale MVP-Phase (Phase 51) — Backend-Helper +
+Reporting-Konsum + FE-Rendering-Konsum + PDF-Renderer-Konsum in einem
+Vertical-Slice.
 
 ## Current State
 

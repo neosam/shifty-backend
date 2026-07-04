@@ -22,10 +22,70 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
 ## Next Milestone
 
-*Kein aktiver Milestone. Nächster Kandidat: `.planning/seeds/shortday-slot-clipping.md`
-(Kurzer-Tag-Slot-Kürzung — 2026-07-04 exploriert, planungsbereit).*
+### 🚧 v2.4 — Kurzer-Tag-Slot-Kürzung (Phase 51) — IN PLANNING
 
-Start via `/gsd-new-milestone`.
+**Charakter:** Fokus-Milestone auf einer einzelnen Semantik-Ergänzung. An Kurzen Tagen
+(`special_day.ShortDay` mit Cutoff-Uhrzeit) werden Slots, die den Cutoff überlappen,
+dynamisch auf `[start, cutoff]` gekürzt (Rendering + Ist-Stunden). Slots komplett hinter
+dem Cutoff verschwinden. Soll-Stunden bleiben unverändert. Kein Snapshot-Bump, keine
+Migration, keine neue Cargo-Dep.
+
+**Requirements:** SHC-01 (Clip-Funktion), SHC-02 (Reporting/Ist-Stunden),
+SHC-03 (WeekView-Rendering), SHC-04 (PDF-Renderer-Konsistenz),
+SHC-05 (dynamische Wirkung auf existierende zukünftige Bookings ohne Rewrite).
+
+**Semantik-Anker:** [`notes/shortday-slot-clipping-semantics.md`](notes/shortday-slot-clipping-semantics.md)
+(D-01 bis D-06, User-bestätigt im Explore 2026-07-04).
+
+**Consumed Seed:** [`seeds/shortday-slot-clipping.md`](seeds/shortday-slot-clipping.md).
+
+**Open Research:** Q-01 in [`research/questions.md`](research/questions.md) — kanonischer
+Ort der Clip-Funktion + Call-Sites, im discuss-phase-Vorfeld oder inline zu klären.
+
+- [ ] Phase 51: Kurzer-Tag-Slot-Kürzung (Vertical MVP: BE-Helper + Reporting-Konsum + FE-WeekView + PDF-Renderer) — SHC-01..05
+
+#### Phase 51: Kurzer-Tag-Slot-Kürzung
+
+**Goal:** An Kurzen Tagen werden Slots, die den Cutoff überlappen, dynamisch gekürzt —
+in Schichtplan-Rendering (WeekView + PDF) und Ist-Stunden-Berechnung (Reporting +
+Booking-Information). Slots komplett hinter dem Cutoff verschwinden. Soll-Stunden bleiben
+unverändert. Kürzung ist view-layer / dynamisch — keine DB-Änderung, kein Snapshot-Bump.
+
+**Depends on:** Nichts Neues. Basiert auf existierendem `special_day.ShortDay`-Modell und
+dem v2.3-PDF-Renderer.
+
+**Requirements:** SHC-01, SHC-02, SHC-03, SHC-04, SHC-05
+**Plans:** TBD (in `/gsd-plan-phase 51`)
+
+**Vermutliche Wave-Struktur** (final in discuss-phase / plan-phase):
+
+- **Wave 1:** Kanonische Clip-Funktion mit vollständigen Grenzfall-Tests (SHC-01).
+  Ort TBD via Q-01 — Kandidaten: `shifty-utils`, Method auf `Slot`, Helper in
+  `service_impl`.
+- **Wave 2:** Backend-Konsum in Reporting + Booking-Information (SHC-02, SHC-05).
+  Live-Balance zeigt gekürzte Ist-Stunden für zukünftige ShortDay-Buchungen.
+- **Wave 3:** Frontend-Rendering (WeekView) + PDF-Renderer-Konsum (SHC-03, SHC-04).
+  Beide nutzen dieselbe Clip-Semantik.
+
+**Cross-cutting Constraints:**
+
+- Dynamisch / view-layer — keine DB-Änderung
+- Snapshot-Schema-Version bleibt 12 (rein additive Live-Berechnung)
+- Keine Migration, keine neue Cargo-Dep
+- Soll-Stunden unberührt
+- Nur zukünftig — kein historischer Rewrite
+
+**Success Criteria:**
+
+1. Backend-Test: Slot 14:00–15:00 auf Datum mit ShortDay-Cutoff 14:30 zählt in
+   Reporting-Ist-Stunden exakt 0,5 h; ohne ShortDay 1 h. Slot 15:00–16:00 auf
+   demselben Tag zählt 0 h und erscheint nicht in Booking-Information-Aggregaten.
+2. Frontend-Test: WeekView-Rendering für einen Tag mit ShortDay zeigt Slot
+   14:00–15:00 mit Länge 30 min statt 60 min; Slot 15:00–16:00 wird nicht gerendert.
+3. PDF-Konsistenz: PDF-Renderer produziert dieselbe geclippte Wochendarstellung —
+   Slot 14:00–15:00 als Zelle 14:00–14:30, Post-Cutoff-Slot fehlt.
+4. Alle Backend-Tests grün, `cargo clippy --workspace -- -D warnings` grün,
+   `cargo build --target wasm32-unknown-unknown` grün, FE-Clippy `-D warnings` grün.
 
 ## Backlog
 
@@ -55,4 +115,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-07-04 — **v2.3 archiviert** (Phasen 49–50, 5 Requirements PDF-01…PDF-05). Kleiner Fix-Milestone auf dem v2.2-PDF-Export: Download-Button + Renderer-Rewrite mit Browser-Look + Timestamp. Kein Snapshot-Bump, keine Migration, keine neue Dep. Post-Ship-Hotfix v2.3.1 (per-week ValidationError-Toleranz im Scheduler).*
+*Last updated: 2026-07-04 — **v2.4 gestartet** (Phase 51, 5 Requirements SHC-01…SHC-05). Kurzer-Tag-Slot-Kürzung: an ShortDays werden Slots dynamisch am Cutoff geclippt — Rendering (WeekView + PDF) und Ist-Stunden (Reporting + Booking-Info). Soll bleibt unverändert. Kein Snapshot-Bump, keine Migration. Seed `shortday-slot-clipping` konsumiert; Semantik-Anker `notes/shortday-slot-clipping-semantics.md`; offene Codebase-Mapping-Frage Q-01 in `research/questions.md`.*

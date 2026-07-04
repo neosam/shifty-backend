@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: —
-milestone_name: "(zwischen Milestones)"
-current_phase: —
-current_phase_name: —
-status: Between milestones — v2.3 shipped + archived
-stopped_at: Milestone v2.3 komplett + archiviert 2026-07-04. Kandidat für nächste Iteration: Kurzer-Tag-Slot-Kürzung (Seed shortday-slot-clipping).
-last_updated: "2026-07-04T12:00:00.000Z"
+milestone: v2.4
+milestone_name: Kurzer-Tag-Slot-Kürzung
+current_phase: 51
+current_phase_name: Kurzer-Tag-Slot-Kürzung
+status: planning
+stopped_at: v2.4 initialisiert — Requirements SHC-01..05 definiert, Phase 51 als Vertical MVP im ROADMAP eingetragen. Nächster Schritt /gsd-discuss-phase 51 oder /gsd-plan-phase 51.
+last_updated: "2026-07-04T12:30:00.000Z"
 last_activity: 2026-07-04
-last_activity_desc: v2.3 Milestone-Close — ROADMAP/REQUIREMENTS/PROJECT/MILESTONES aktualisiert, v2.3-ROADMAP.md + v2.3-REQUIREMENTS.md ins milestones/-Archiv geschrieben, Phase 49+50-Dirs verschoben. Kein git tag hier (create_tag=false, Release über /release-version — v2.3.0 + v2.3.1 bereits gesetzt).
+last_activity_desc: v2.4 Milestone gestartet — ROADMAP/REQUIREMENTS/PROJECT/STATE aktualisiert. Scope-Fixierung aus Explore vom selben Tag übernommen (Seed shortday-slot-clipping konsumiert, Semantik-Note D-01..D-06, offene Q-01 in research/questions.md).
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,22 +21,22 @@ progress:
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (kein aktiver Milestone; Backlog 999.1 erhalten; Next-Milestone-Kandidat: Kurzer-Tag-Slot-Kürzung via Seed `shortday-slot-clipping`)
-- **Requirements**: (kein aktiver Milestone — REQUIREMENTS.md wird beim nächsten `/gsd-new-milestone` frisch angelegt)
+- **Roadmap**: `.planning/ROADMAP.md` (v2.4 in „Next Milestone", Phase 51 als Vertical MVP; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` — v2.4: 5 Requirements (SHC-01..SHC-05)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v2.3-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.3 PDF-Export: Browser-Look & Download-Button** (shipped + archiviert 2026-07-04, Phasen 49–50, 8 Pläne, 5/5 Requirements PDF-01..PDF-05, override_closeout, Post-Ship-Hotfix v2.3.1)
-- **Current milestone**: — (zwischen Milestones)
-- **Current focus**: Start via `/gsd-new-milestone`. Aktueller Kandidat für v2.4: Kurzer-Tag-Slot-Kürzung — dynamische View-Layer-Clip-Funktion für Slots am ShortDay-Cutoff, wirkt auf Ist-Stunden im Reporting + WeekView-Rendering, nicht auf Soll-Stunden. Semantik-Anker: `notes/shortday-slot-clipping-semantics.md`, Codebase-Mapping-Frage: `research/questions.md` Q-01.
-- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump — v2.3 grep-verifiziert: rein PDF-Renderer + REST + FE, kein `BillingPeriodValueType` angefasst).
+- **Current milestone**: **v2.4 Kurzer-Tag-Slot-Kürzung** (Phase 51, 5 Requirements SHC-01..SHC-05, IN PLANNING)
+- **Current focus**: Phase 51 (Vertical MVP: kanonische Clip-Funktion + Reporting/BookingInfo-Konsum + FE WeekView + PDF-Renderer). Semantik fixiert im Explore 2026-07-04 (`notes/shortday-slot-clipping-semantics.md` D-01..D-06). Offene Codebase-Mapping-Frage: Q-01 in `research/questions.md` (Ort der Clip-Funktion + Call-Sites) — im discuss-phase-Vorfeld klären.
+- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump; v2.4 auch kein Bump — nur dynamische Live-Berechnung, kein `BillingPeriodValueType` angefasst).
 
 ## Current Position
 
-Phase: — (kein aktiver Milestone)
-Plan: —
-Status: Between milestones. Nächste Iteration via `/gsd-new-milestone` oder `/gsd-progress --next`.
-Last activity: 2026-07-04 — v2.3-Milestone-Close via /gsd-complete-milestone (manuell, ohne SDK-`milestone.complete`-Call wegen bekanntem Junk-Bug).
+Phase: **51 — Kurzer-Tag-Slot-Kürzung**
+Plan: 0/? (in `/gsd-plan-phase 51` zu bestimmen)
+Status: Planning — Requirements definiert, Wave-Struktur skizziert; nächster Schritt discuss-phase (empfohlen, wegen Q-01) oder plan-phase direkt.
+Last activity: 2026-07-04 — v2.4-Milestone gestartet via /gsd-new-milestone (manuell, ohne SDK-Kommandos wegen bekanntem Roster-Bug). Explore vom selben Tag lieferte Semantik + Seed + Note + Research-Question.
 
 ## Quick Tasks Completed
 
