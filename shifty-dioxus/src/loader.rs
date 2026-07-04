@@ -927,6 +927,38 @@ pub async fn set_holiday_cutoff_date(
     Ok(())
 }
 
+// ─── Short-day slot-clipping activation-date loaders (Phase 51 D-51-07 / SHC-06) ─
+//
+// Toggle name mirrors `service_impl::shortday_gate::TOGGLE_NAME`. The row is
+// seeded (INSERT OR IGNORE, value NULL) by migration
+// `20260704000001_seed-shortday-slot-clipping-toggle.sql` (P02), so the first
+// PUT here becomes an `UPDATE toggle SET value = ? WHERE name = ?` on the
+// backend — no create-if-missing path in the FE.
+
+/// Fetch the current short-day slot-clipping activation date.
+/// Returns Ok(None) when no date is set (Legacy: clipping disabled).
+pub async fn get_shortday_clipping_active_from(
+    config: Config,
+) -> Result<Option<String>, ShiftyError> {
+    Ok(api::get_toggle_value(config, "shortday_slot_clipping_active_from").await?)
+}
+
+/// Set (Some) or clear (None) the short-day slot-clipping activation date.
+/// Passing None calls DELETE (clipping disabled), passing Some calls PUT with
+/// the ISO date string (clipping active from that date onward, inclusive).
+pub async fn set_shortday_clipping_active_from(
+    config: Config,
+    value: Option<&str>,
+) -> Result<(), ShiftyError> {
+    match value {
+        Some(v) => {
+            api::set_toggle_value(config, "shortday_slot_clipping_active_from", v).await?
+        }
+        None => api::clear_toggle_value(config, "shortday_slot_clipping_active_from").await?,
+    }
+    Ok(())
+}
+
 // ─── PDF-Export loaders (Phase 48-05 EXP-02 / EXP-03) ────────────────────────
 
 /// Loads the PDF-Export config from the backend and translates it into the

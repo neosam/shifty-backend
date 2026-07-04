@@ -1,9 +1,11 @@
 //! SettingsPage — admin-gated page with the paid-limit hard/soft toggle (Card 1),
-//! the holiday auto-credit activation date field (Card 2), and the Special-Days
+//! the holiday auto-credit activation date field (Card 2), the short-day slot-
+//! clipping activation date (Card 2b, Phase 51 SHC-06), and the Special-Days
 //! management card (Card 3, shiftplanner-gated).
 //! Phase 24 D-24-06: paid-limit enforcement toggle.
 //! Phase 25 D-25-06: holiday auto-credit cutoff date input.
 //! Phase 33: Special-Days Settings Card (D-33-02/04/06/07/08).
+//! Phase 51 D-51-07 / SHC-06: short-day slot-clipping activation date (Card 2b).
 
 use time::macros::format_description;
 
@@ -200,6 +202,11 @@ pub(crate) fn is_valid_shortday_date_input(s: &str) -> bool {
 /// rule so the FE editor cannot silently drift from P02's semantics; if a future
 /// backend change flips the boundary, this FE test fails and the drift is
 /// visible in code review.
+///
+/// Test-only: the FE currently does not need to compute this at runtime
+/// (the backend owns the clipping decision); the fn exists solely as a
+/// contract mirror for the boundary-case test below.
+#[cfg(test)]
 pub(crate) fn is_within_shortday_gate(
     booking_date: time::Date,
     active_from: Option<time::Date>,
@@ -707,6 +714,98 @@ pub fn SettingsPage() -> Element {
     let date_value = ImStr::from(date_string.as_str());
     let date_empty = date_string.is_empty();
 
+    // ── Card 2b: Short-day slot-clipping activation date (Phase 51 SHC-06) ────
+    // D-51-07: blueprint identical to Card 2 (HCFG-02). Toggle backing is
+    // `shortday_slot_clipping_active_from`; the row is pre-seeded (NULL) by the
+    // P02 migration, so the first PUT is an UPDATE, not a create.
+
+    let mut sc_date_str: Signal<String> = use_signal(String::new);
+    let mut sc_date_str_loaded_empty = use_signal(|| false);
+    let mut sc_save_result: Signal<Option<bool>> = use_signal(|| None);
+    let mut sc_saving = use_signal(|| false);
+
+    let config_for_sc_load = config.clone();
+    let sc_resource =
+        use_resource(move || loader::get_shortday_clipping_active_from(config_for_sc_load.clone()));
+
+    use_effect(move || {
+        match &*sc_resource.read_unchecked() {
+            Some(Ok(Some(date))) => {
+                sc_date_str.set(date.clone());
+                sc_date_str_loaded_empty.set(false);
+            }
+            Some(Ok(None)) => {
+                sc_date_str.set(String::new());
+                sc_date_str_loaded_empty.set(true);
+            }
+            _ => {}
+        }
+    });
+
+    let config_for_sc_save = config.clone();
+    let on_save_shortday_clipping = move |_| {
+        if *sc_saving.read() {
+            return;
+        }
+        let val = sc_date_str.read().clone();
+        if val.is_empty() {
+            return;
+        }
+        // Client-side ISO date validation via the pure fn tested in 51-08 Task 3.
+        // Defense in depth on top of <input type=date>.
+        if !is_valid_shortday_date_input(&val) {
+            sc_save_result.set(Some(false));
+            return;
+        }
+        sc_saving.set(true);
+        sc_save_result.set(None);
+        let cfg = config_for_sc_save.clone();
+        spawn(async move {
+            match loader::set_shortday_clipping_active_from(cfg, Some(&val)).await {
+                Ok(()) => {
+                    sc_save_result.set(Some(true));
+                    sc_date_str_loaded_empty.set(false);
+                }
+                Err(_) => {
+                    sc_save_result.set(Some(false));
+                }
+            }
+            sc_saving.set(false);
+        });
+    };
+
+    let config_for_sc_clear = config.clone();
+    let on_clear_shortday_clipping = move |_| {
+        if *sc_saving.read() {
+            return;
+        }
+        sc_saving.set(true);
+        sc_save_result.set(None);
+        let cfg = config_for_sc_clear.clone();
+        spawn(async move {
+            match loader::set_shortday_clipping_active_from(cfg, None).await {
+                Ok(()) => {
+                    sc_date_str.set(String::new());
+                    sc_date_str_loaded_empty.set(true);
+                    sc_save_result.set(Some(true));
+                }
+                Err(_) => {
+                    sc_save_result.set(Some(false));
+                }
+            }
+            sc_saving.set(false);
+        });
+    };
+
+    let is_sc_saving = *sc_saving.read();
+    let sc_loaded_empty = *sc_date_str_loaded_empty.read();
+    let sc_date_string = sc_date_str.read().clone();
+    let sc_date_value = ImStr::from(sc_date_string.as_str());
+    let sc_date_empty = sc_date_string.is_empty();
+    // Save-button guard uses the pure validator (D-25-06 fallback).
+    let sc_save_disabled =
+        is_sc_saving || sc_date_empty || !is_valid_shortday_date_input(&sc_date_string);
+
     // ── Card 3: Special-Days management (Phase 33, shiftplanner-gated) ────────
     // D-33-02: inner shiftplanner guard — NOT the page-level admin gate.
 
@@ -1048,6 +1147,71 @@ pub fn SettingsPage() -> Element {
                 if loaded_empty {
                     span { class: "text-small text-ink-muted",
                         "{i18n.t(Key::SettingsHolidayAutoCreditUnsetHint)}"
+                    }
+                }
+            }
+
+            // Card 2b — Short-day slot-clipping activation date (Phase 51 SHC-06, D-51-07).
+            // Structure mirrors HCFG-02 Card 2; backing toggle is
+            // `shortday_slot_clipping_active_from` (seeded by P02 migration).
+            div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3 mt-4",
+
+                // Row A: Feature label + description
+                div { class: "flex flex-col gap-1",
+                    span { class: "text-body text-ink font-semibold",
+                        "{i18n.t(Key::SettingsShortdayClippingLabel)}"
+                    }
+                    span { class: "text-small text-ink-soft",
+                        "{i18n.t(Key::SettingsShortdayClippingDescription)}"
+                    }
+                }
+
+                // Row B: Date input (width-constrained)
+                div { class: "max-w-[200px]",
+                    TextInput {
+                        input_type: ImStr::from("date"),
+                        value: sc_date_value,
+                        on_change: move |v: ImStr| sc_date_str.set(v.as_str().to_string()),
+                    }
+                }
+
+                // Row C: Action row (Save + Clear + inline feedback)
+                div { class: "flex flex-row items-center gap-3",
+                    button {
+                        r#type: "button",
+                        class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                        disabled: sc_save_disabled,
+                        onclick: on_save_shortday_clipping,
+                        "{i18n.t(Key::SettingsHolidayAutoCreditSave)}"
+                    }
+                    button {
+                        r#type: "button",
+                        class: "px-3 py-2 rounded-md border border-border text-ink-soft text-body bg-surface hover:bg-surface-alt",
+                        disabled: is_sc_saving || sc_date_empty,
+                        onclick: on_clear_shortday_clipping,
+                        "{i18n.t(Key::SettingsHolidayAutoCreditClear)}"
+                    }
+
+                    // Inline feedback — reuses SettingsSaved / SettingsSaveError keys
+                    {match *sc_save_result.read() {
+                        Some(true) => rsx! {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsSaved)}"
+                            }
+                        },
+                        Some(false) => rsx! {
+                            span { class: "text-bad text-small",
+                                "{i18n.t(Key::SettingsSaveError)}"
+                            }
+                        },
+                        None => rsx! { },
+                    }}
+                }
+
+                // Row D: Unset hint (shown only when no date is set after load)
+                if sc_loaded_empty {
+                    span { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsShortdayClippingUnsetHint)}"
                     }
                 }
             }
