@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-07-04
-last_milestone: v2.3 PDF-Export — Browser-Look & Download-Button (shipped 2026-07-04, Phasen 49–50, 5/5 Requirements)
-current_milestone: v2.4 Kurzer-Tag-Slot-Kürzung (Phase 51, IN PLANNING)
+last_updated: 2026-07-05
+last_milestone: v2.4 Kurzer-Tag-Slot-Kürzung (shipped 2026-07-05, Phase 51, 6/6 Requirements)
+current_milestone: (zwischen Milestones)
 ---
 
 # Shifty — Project Charter
@@ -159,7 +159,59 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Zuletzt geshipt: v2.3 PDF-Export — Browser-Look & Download-Button (2026-07-04)
+## Zuletzt geshipt: v2.4 Kurzer-Tag-Slot-Kürzung (2026-07-05)
+
+**Geliefert (as built):** 6/6 Requirements (SHC-01..SHC-06) über eine Phase (51,
+8 Pläne). An Kurzen Tagen (`special_day.ShortDay` mit Cutoff-Uhrzeit) werden
+Slots, die den Cutoff überlappen, dynamisch auf `[slot.start, cutoff]` gekürzt —
+in Rendering (WeekView + PDF) und Ist-Stunden-Berechnung (Reporting +
+Booking-Information + Balance). Slots komplett hinter dem Cutoff verschwinden.
+Soll-Stunden bleiben unverändert (Balance-Konto sammelt Minusstunden). Die
+Kürzung ist view-layer / dynamisch — keine DB-Änderung, kein Snapshot-Bump.
+Ein admin-konfigurierbarer Stichtag `shortday_slot_clipping_active_from`
+(ISO-Datum via `ToggleService`, Präzedenz HCFG-02) schützt historische
+Balance-Views: ohne Wert deaktiviert (Rollout-Default), mit Wert wirkt Kürzung
+nur für `booking_date >= active_from`. Kanonische pure Value-Methode
+`Slot::clip_to` auf `service::slot::Slot` (D-51-01). Vier BE-Aggregat-Ketten
+(Chain A' BlockService, Chain B ShiftplanWeek/PDF, Chain C
+BookingInformation, Chain D ShiftplanReport). Chain D wurde
+Rust-Layer-refaktoriert (raw-row DAO + Aggregation im Service statt SUM-SQL),
+das räumte einen pre-existing `/60.0`-SQL-Bug in den alten SUM-Queries mit ab.
+DTO `ShiftplanSlotTO.effective_to` (Wrapper-Field, D-51-09) trägt den
+geclippten Wert ans FE + PDF; `SlotTO` bleibt bidirektional roh. **Fat
+Backend, Thin Client** (D-51-02): grep-verifiziert kein `clip_to`-Call im
+`shifty-dioxus/src/`. Admin-Settings Card 2b analog HCFG-02-Blueprint, 6 neue
+i18n-Keys de/en/cs.
+
+**Verifikation:** Phase 51 VERIFIED PASS (6/6 must-haves,
+`behavior_unverified: 0`); Milestone-Audit `passed` (6/6 Requirements, 6/6
+Cross-Phase Wirings, 6/6 E2E-Flows, 2 non-blocking Warnings). Backend `cargo
+test --workspace` + `cargo clippy --workspace -- -D warnings` grün; FE `cargo
+build --target wasm32-unknown-unknown` + FE-Clippy `-D warnings` grün.
+
+**Bonus-Bugfixes (pre-existing, nicht in Requirements):** Filter-statt-Clip in
+`shiftplan.rs` + `booking_information.rs` (ShortDay-Slots wurden ganz
+ausgefiltert statt am Cutoff gekürzt); `/60.0`-SQL-Bug in alten
+Chain-D-SUM-Queries (via Delete-Branch bei Rust-Layer-Refactor);
+`ToggleService`-Full-Context-Bypass für internal-Aggregate-Konsumenten
+(Gap-Closure via Fix-Commits `f654613`, `7f21bd4`, `1b863e8`, `5aee47e`,
+`9cbe151`).
+
+**Snapshot-Schema-Version:** bleibt 12 (grep-verifiziert; kein
+`billing_period.value_type` angefasst). Migration: additiver Toggle-Seed
+`20260704000001_seed-shortday-slot-clipping-toggle.sql` (`INSERT OR IGNORE`,
+`enabled=0`, `value=NULL`). Keine neue Cargo-Dep.
+
+**Closeout:** override_closeout (Milestone-Audit `passed` mit zwei non-blocking
+Warnings W1 P07-SUMMARY-Doc-Drift + W2 latent `From<&SlotTO> for Slot` ohne
+`effective_to`-Awareness; historische Deferred-Items acknowledged). Kein
+git tag hier — SemVer-Tag via `/release-version`.
+
+**Archiv:** `milestones/v2.4-ROADMAP.md`, `milestones/v2.4-REQUIREMENTS.md`,
+`milestones/v2.4-MILESTONE-AUDIT.md`, `milestones/v2.4-phases/`.
+
+<details>
+<summary>✅ v2.3 PDF-Export — Browser-Look & Download-Button — SHIPPED 2026-07-04 (Phasen 49–50)</summary>
 
 **Geliefert (as built):** 5/5 Requirements über 2 Phasen (49–50). Kleiner Fix-Milestone auf
 dem v2.2-PDF-Export. Phase 49 (Download-Button, BE+FE, PDF-03/04/05): neuer REST-Endpoint
@@ -195,6 +247,8 @@ komma-separiert, paid/unpaid irrelevant im PDF); Layout-Feintuning für Row-Alig
 Präzedenz v1.2/v1.3/v1.5/v1.6/v1.7). Kein git tag hier — Release-Tag via `/release-version`.
 
 **Archiv:** `milestones/v2.3-ROADMAP.md`, `milestones/v2.3-REQUIREMENTS.md`.
+
+</details>
 
 <details>
 <summary>✅ v2.1 Schichtplan- & Reporting-Erweiterungen — SHIPPED 2026-07-02 (Phasen 39–42)</summary>
@@ -309,74 +363,50 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
-## Current Milestone: v2.4 Kurzer-Tag-Slot-Kürzung
+## Current Milestone
 
-**Goal:** An Kurzen Tagen (`special_day.ShortDay`) werden Slots, die den
-Cutoff-Zeitpunkt überlappen, dynamisch auf `[start, cutoff]` gekürzt —
-sowohl im Schichtplan-Rendering (WeekView, PDF-Export, ggf. iCal-Export)
-als auch bei der Ist-Stunden-Berechnung (Reporting, Booking-Information).
-Slots komplett hinter dem Cutoff verschwinden. Soll-Stunden bleiben
-unverändert. Kein Snapshot-Bump.
+**Zwischen Milestones.** Nächste Iteration via `/gsd-new-milestone`.
 
-**Target Features:**
-
-- Kanonische Clip-Funktion für `(Slot, Time) -> Option<Slot>` (View-Layer,
-  keine Persistenz)
-- Rendering: gekürzte Slots werden verkürzt dargestellt, Post-Cutoff-Slots
-  verschwinden (WeekView im FE, PDF-Export-Renderer, ggf. iCal)
-- Ist-Stunden-Berechnung berücksichtigt Kürzung (Reporting-Service +
-  Booking-Information)
-- Soll-Stunden unverändert (Contract-Erwartung bleibt) — Mitarbeiter
-  können an Kurzen Tagen Minusstunden im Balance-Konto sammeln
-
-**Semantik-Anker:** [`notes/shortday-slot-clipping-semantics.md`](notes/shortday-slot-clipping-semantics.md)
-(D-01 bis D-06 aus dem Explore am 2026-07-04, User-bestätigt).
-
-**Consumed seed:** [`seeds/shortday-slot-clipping.md`](seeds/shortday-slot-clipping.md)
-(planted 2026-07-04, Trigger erfüllt beim v2.4-Start).
-
-**Open research:** Q-01 in [`research/questions.md`](research/questions.md)
-— Codebase-Mapping für Clip-Funktion + Call-Sites, im discuss-phase-Vorfeld
-via `gsd-phase-researcher` oder inline.
-
-**Character:** Fokus-Milestone auf einer einzelnen Sematik-Ergänzung.
-Kein Snapshot-Bump, keine Migration, keine neue Cargo-Dep erwartet.
-Vermutlich 1 vertikale MVP-Phase (Phase 51) — Backend-Helper +
-Reporting-Konsum + FE-Rendering-Konsum + PDF-Renderer-Konsum in einem
-Vertical-Slice.
+Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt
+separat via `/gsd-plan-phase 999.1`.
 
 ## Current State
 
-**v2.3 shipped 2026-07-04** (Phasen 49–50, 8 Pläne, 5/5 Requirements PDF-01..PDF-05,
-override_closeout). Geliefert: PDF-Renderer-Rewrite mit Browser-Look (Slot-Zellen mit Uhrzeit,
-sieben Wochentag-Spalten, Landscape A4, Header „Schichtplan KW {NN} ({JJJJ})") und
-Renderzeitpunkt „Erstellt am DD.MM.YYYY HH:MM Uhr" auf jeder Seite; On-Demand-Download-Button
-neben iCal auf Schichtplan-Seite (visibility-gated auf `WeekStatus ∈ {Planned, Locked}`);
-Backend-Endpoint `GET /shiftplan/{id}/{year}/{week}/pdf` mit Auth-Gate + Defense-in-Depth-409;
-`PdfShiftplanService` als Business-Logic-Tier-Assembler; WebDAV-Scheduler transparent auf neuen
-Renderer umgestellt via Delegation. Kein Snapshot-Bump, keine Migration, keine neue Cargo-Dep
-(nur `local-offset`-Feature auf existierendem `time`-Crate). Post-Ship-Hotfix v2.3.1
-(per-week-ValidationError-Toleranz im Scheduler + Cron-Seed-6-Feld-Fix). Details:
-`milestones/v2.3-ROADMAP.md` / `-REQUIREMENTS.md`. **Zwischen Milestones** — nächste
-Iteration via `/gsd-new-milestone`.
+**v2.4 shipped 2026-07-05** (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06,
+override_closeout, Audit `passed`). Geliefert: dynamische View-Layer-Kürzung
+an ShortDays über die kanonische pure Value-Methode `Slot::clip_to` auf
+`service::slot::Slot`; vier BE-Aggregat-Ketten (Chain A' BlockService, Chain B
+ShiftplanWeek/PDF, Chain C BookingInformation, Chain D ShiftplanReport
+Rust-Layer-Refactor) gaten am `shortday_gate::should_clip`;
+Admin-konfigurierbarer Stichtag `shortday_slot_clipping_active_from` (ISO-Datum
+via `ToggleService`, Präzedenz HCFG-02) schützt historische Balance-Views; DTO
+`ShiftplanSlotTO.effective_to` (Wrapper, D-51-09) trägt geclippten Wert ans FE +
+PDF, `SlotTO` bleibt bidirektional roh; FE-Loader collapst `effective_to` in
+`state::Slot.to`, damit WeekView + PDF-Renderer automatisch geclippte Werte
+sehen (Fat Backend, Thin Client — grep-verifiziert kein `clip_to`-Call im FE);
+Admin-Settings Card 2b analog HCFG-02-Blueprint + 6 neue i18n-Keys de/en/cs.
+Chain-D-Rust-Layer-Refactor räumte pre-existing `/60.0`-SQL-Bug in alten
+SUM-Queries ab; Filter-statt-Clip-Bug in `shiftplan.rs` + `booking_information.rs`
+gefixt; `ToggleService`-Full-Context-Bypass für internal-Aggregate-Konsumenten
+nachträglich als Gap-Closure gefixt (`f654613`, `7f21bd4`, `1b863e8`, `5aee47e`,
+`9cbe151`). Kein Snapshot-Bump (bleibt 12), keine neue Cargo-Dep, nur additive
+Toggle-Seed-Migration. Details: `milestones/v2.4-ROADMAP.md` / `-REQUIREMENTS.md`
+/ `-MILESTONE-AUDIT.md`. **Zwischen Milestones** — nächste Iteration via
+`/gsd-new-milestone`.
 
-Zuvor: **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped 2026-07-03, Phasen 43–48,
-16/16 Requirements, Audit `passed`). SDF-03/04/05, BUG-01/02/03, HYG-03/04/05, IMP-05,
-RPT-01/02/03 Wochentag-Anwesenheits-Muster, EXP-01/02/03 Nextcloud-PDF-Export via WebDAV.
-Migration in Phase 48 (`pdf_export_config` Single-Row). Neue Deps: printpdf, reqwest_dav,
-tokio-cron-scheduler. Details: `milestones/v2.2-ROADMAP.md`.
+Zuvor: **v2.3 PDF-Export — Browser-Look & Download-Button** (shipped 2026-07-04,
+Phasen 49–50, 5/5 Requirements PDF-01..PDF-05, override_closeout, Post-Ship-Hotfix
+v2.3.1); **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped 2026-07-03,
+Phasen 43–48, 16/16 Requirements, Audit `passed`); **v2.1 Schichtplan- &
+Reporting-Erweiterungen** (2026-07-02, Phasen 39–42); **v1.11 Stabilisierung &
+UX-Politur** (2026-07-01); **v1.10 Feiertage** (2026-06-30); **v1.9
+Admin-Impersonation** (2026-06-29); **v1.8 HR-UX** (2026-06-29); **v1.7
+Feiertage/VFA** (2026-06-29); **v1.6 Paid-Capacity** (2026-06-27) — alle
+archiviert (siehe MILESTONES.md).
 
-Davor: **v2.1 Schichtplan- & Reporting-Erweiterungen** (shipped 2026-07-02, Phasen 39–42),
-**v1.11 Stabilisierung & UX-Politur** (2026-07-01), **v1.10 Feiertage** (2026-06-30),
-**v1.9 Admin-Impersonation** (2026-06-29), **v1.8 HR-UX** (2026-06-29), **v1.7 Feiertage/VFA**
-(2026-06-29), **v1.6 Paid-Capacity** (2026-06-27) — alle archiviert (siehe MILESTONES.md).
-
-**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump
-— v2.3 hat weder `billing_period.value_type` angefasst noch die Berechnung geändert, nur
-PDF-Renderer + REST + FE).
-
-Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt separat via
-`/gsd-plan-phase 999.1`.
+**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12;
+v1.9–v2.4 kein Bump — v2.4 rein additive Live-Berechnung, kein
+`BillingPeriodValueType` angefasst).
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity — SHIPPED 2026-06-25 (Phasen 14–17)</summary>
@@ -449,9 +479,10 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v2.2-ROADMAP.md`, `milestones/v2.2-REQUIREMENTS.md`, `milestones/v2.2-MILESTONE-AUDIT.md`.
 - v2.3 PDF-Export: Browser-Look & Download-Button — shipped 2026-07-04 (Phasen 49–50).
   Archiv: `milestones/v2.3-ROADMAP.md`, `milestones/v2.3-REQUIREMENTS.md`.
+- v2.4 Kurzer-Tag-Slot-Kürzung — shipped 2026-07-05 (Phase 51).
+  Archiv: `milestones/v2.4-ROADMAP.md`, `milestones/v2.4-REQUIREMENTS.md`, `milestones/v2.4-MILESTONE-AUDIT.md`, `milestones/v2.4-phases/`.
 
-Zwischen Milestones — nächste Iteration via `/gsd-new-milestone` (Kandidat:
-Kurzer-Tag-Slot-Kürzung, Seed `seeds/shortday-slot-clipping.md`).
+Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
 
 ## Evolution
 

@@ -1,42 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.4
-milestone_name: — Kurzer-Tag-Slot-Kürzung
-current_phase: 51
-status: verified
-stopped_at: Phase 51 executed 2026-07-05 — Verifier PASS (SHC-01..06 alle erfüllt, alle 5 Hard-Gates grün, Snapshot bleibt 12, 8/8 Pläne, 30+ Commits). Nächster Schritt Milestone-Close via /gsd-complete-milestone v2.4.
-last_updated: "2026-07-05T01:07:00.000Z"
+milestone: null
+milestone_name: (between milestones)
+current_phase: null
+status: between_milestones
+stopped_at: v2.4 shipped + archiviert 2026-07-05 (Phase 51, 6/6 Requirements SHC-01..06, Audit passed, override_closeout). Zwischen Milestones — nächste Iteration via /gsd-new-milestone.
+last_updated: "2026-07-05T09:00:00.000Z"
 last_activity: 2026-07-05
-last_activity_desc: /gsd-execute-phase 51 durchgeführt — Wave 1 (P01+P02), Wave 2 sequential (P03+P04+P05+P06), Wave 3 (P07), Wave 4 (P08). Verifier PASS. Zwei pre-existing Bugs mitgeräumt (Filter-statt-Clip in shiftplan.rs/booking_information.rs; `/60.0` in alten SUM-Queries via Delete-Branch bei Chain-D-Refactor).
+last_activity_desc: /gsd-complete-milestone v2.4 durchgeführt. Milestone v2.4 (Kurzer-Tag-Slot-Kürzung, Phase 51, 8 Pläne) archiviert nach milestones/v2.4-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md + -phases/. ROADMAP kompaktiert. PROJECT.md fortgeschrieben. REQUIREMENTS.md gelöscht.
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
-current_phase_name: Kurzer-Tag-Slot-Kürzung
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase_name: null
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v2.4 in „Next Milestone", Phase 51 als Vertical MVP; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` — v2.4: 5 Requirements (SHC-01..SHC-05)
+- **Roadmap**: `.planning/ROADMAP.md` (zwischen Milestones; Backlog 999.1 erhalten)
+- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` — wird bei nächstem `/gsd-new-milestone` frisch erzeugt
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v2.3-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v2.4-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v2.3 PDF-Export: Browser-Look & Download-Button** (shipped + archiviert 2026-07-04, Phasen 49–50, 8 Pläne, 5/5 Requirements PDF-01..PDF-05, override_closeout, Post-Ship-Hotfix v2.3.1)
-- **Current milestone**: **v2.4 Kurzer-Tag-Slot-Kürzung** (Phase 51, 6 Requirements SHC-01..SHC-06, **EXECUTED + VERIFIED PASS 2026-07-05** — bereit für Milestone-Close)
-- **Current focus**: Phase 51 abgeschlossen. Kanonische `Slot::clip_to` + Toggle-Stichtag + vier BE-Aggregat-Ketten (Chain A' block / Chain B shiftplan / Chain C booking_information / Chain D shiftplan_report Rust-Layer-Refactor) + DTO `effective_to` am `ShiftplanSlotTO`-Wrapper + FE-Loader + Admin-Settings UI. Zwei pre-existing Bugs mitgefixt (Filter-statt-Clip; `/60.0` in alten SUM-Queries).
-- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.3 kein Bump; v2.4 auch kein Bump — nur dynamische Live-Berechnung, kein `BillingPeriodValueType` angefasst).
+- **Last shipped/closed**: **v2.4 Kurzer-Tag-Slot-Kürzung** (shipped + archiviert 2026-07-05, Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06, override_closeout, Audit `passed`)
+- **Current milestone**: — (zwischen Milestones)
+- **Current focus**: Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone`.
+- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.4 kein Bump — v2.4 rein additive dynamische Live-Berechnung, kein `BillingPeriodValueType` angefasst).
 
 ## Current Position
 
-Phase: **51 — Kurzer-Tag-Slot-Kürzung — EXECUTED + VERIFIED**
-Plan: **8/8** (P01–P08, alle Waves 1→4 durch)
-Status: Verified — Verifier verdict PASS (`.planning/phases/51-kurzer-tag-slot-kuerzung/51-VERIFICATION.md`). Bereit für Milestone-Close via `/gsd-complete-milestone v2.4`.
-Last activity: 2026-07-05 — /gsd-execute-phase 51: Wave 1 (Slot::clip_to + shortday_gate), Wave 2 sequential (vier BE-Aggregat-Ketten, DI-Wire in shifty_bin/src/main.rs), Wave 3 (DTO effective_to + FE-Loader + PDF-Verify), Wave 4 (Admin Settings UI). Chain-D-Delete-Branch räumt `/60.0`-SQL-Bug in alten SUM-Queries mit ab. Auto-Fix P02 Migration-Timestamp-Kollision (000000→000001).
+Zwischen Milestones — kein aktiver Phase-Kontext.
+Last activity: 2026-07-05 — `/gsd-complete-milestone v2.4` durchgeführt. Milestone v2.4 (Kurzer-Tag-Slot-Kürzung, Phase 51, 8 Pläne, 6/6 Requirements) archiviert.
+Next: `/gsd-new-milestone` für nächste Iteration.
 
 ## Quick Tasks Completed
 
@@ -76,6 +75,21 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 | tech_debt | Phase 37: WR-01 Panel-`stop_propagation` blockt document-level Outside-Click (v1.11) | deferred | Code-Review WARNING: das für den MOD-01-Fix nötige Panel-`onmousedown`-`stop_propagation` verhindert, dass künftige generische Dialog-Kinder document-level Outside-Click-Detection nutzen. Inhärent zum gelockten D-01-Ansatz, aktuell kein Opfer. |
 
 ## Shipped Milestones
+
+### v2.4 — Kurzer-Tag-Slot-Kürzung (shipped 2026-07-05)
+
+- **Geliefert:** Phase 51 (8 Pläne). Dynamische View-Layer-Kürzung an ShortDays. Kanonische pure Value-Methode `Slot::clip_to` auf `service::slot::Slot` (D-51-01). Vier BE-Aggregat-Ketten (Chain A' BlockService / Chain B ShiftplanWeek+PDF / Chain C BookingInformation / Chain D ShiftplanReport Rust-Layer-Refactor) gaten am `shortday_gate::should_clip`. Admin-Stichtag `shortday_slot_clipping_active_from` (ISO-Datum via `ToggleService`, Präzedenz HCFG-02) schützt historische Balance-Views. DTO `ShiftplanSlotTO.effective_to` (Wrapper, D-51-09) trägt geclippten Wert ans FE + PDF; `SlotTO` bleibt bidirektional roh. FE-Loader collapst `effective_to` in `state::Slot.to`, damit WeekView + PDF-Renderer automatisch geclippte Werte sehen. Fat Backend, Thin Client (D-51-02): grep-verifiziert kein `clip_to`-Call im FE. Admin-Settings Card 2b + 6 neue i18n-Keys de/en/cs.
+- **Snapshot-Schema-Version:** bleibt **12** (kein Bump — rein additive Live-Berechnung, grep-verifiziert). Migration: additiver Toggle-Seed `20260704000001_seed-shortday-slot-clipping-toggle.sql`. Keine neue Cargo-Dep.
+- **Verifikation:** Phase 51 VERIFIED PASS (6/6 must-haves, `behavior_unverified: 0`); Milestone-Audit `passed` (6/6 Requirements, 6/6 Cross-Phase Wirings, 6/6 E2E-Flows, 2 non-blocking Warnings W1+W2). Gates: Backend `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün; FE `cargo build --target wasm32-unknown-unknown` + FE-Clippy `-D warnings` grün.
+- **Bonus-Bugfixes (pre-existing, nicht in Requirements):** Filter-statt-Clip in `shiftplan.rs` + `booking_information.rs` (ShortDay-Slots wurden ganz ausgefiltert statt am Cutoff gekürzt); `/60.0`-SQL-Bug in alten Chain-D-SUM-Queries via Delete-Branch beim Rust-Layer-Refactor; `ToggleService`-Full-Context-Bypass für internal-Aggregate-Konsumenten als Gap-Closure gefixt (`f654613`, `7f21bd4`, `1b863e8`, `5aee47e`, `9cbe151`).
+- **Closeout:** override_closeout (Audit `passed`; historische Deferred-Items acknowledged; W1 P07-SUMMARY-Doc-Drift + W2 latent `From<&SlotTO> for Slot` ohne `effective_to`-Awareness als non-blocking Warnings deferred). Kein git tag hier — SemVer-Tag via `/release-version`, `git.create_tag=false`.
+- **Archiv:** `milestones/v2.4-ROADMAP.md`, `milestones/v2.4-REQUIREMENTS.md`, `milestones/v2.4-MILESTONE-AUDIT.md`, `milestones/v2.4-phases/`.
+
+**Deferred (acknowledged at close):**
+
+- **W1 (cosmetic):** P07-SUMMARY-Doc-Drift — SUMMARY nennt pdf_render-Fns die nicht existieren; Runtime korrekt via loader-Collapse.
+- **W2 (latent):** `shifty-dioxus/src/state/shiftplan.rs:199-214` `From<&SlotTO> for Slot` kopiert raw `slot.to` ohne `effective_to`-Awareness; heute nur im Slot-Edit-Form-Pfad (raw korrekt); Empfehlung Doc-Warnkommentar oder Rename zu `Slot::from_edit_to(SlotTO)`.
+- Pre-existing 4 `dbg!`-Makros in `service_impl/src/block.rs:71-91` (kein Clippy-Verstoß, in VERIFICATION.md dokumentiert).
 
 ### v2.2 — Aufräumen, WebDAV-Export & Wochentag-Muster (shipped 2026-07-03)
 
@@ -184,8 +198,8 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 ## Session Continuity
 
-**Last session:** 2026-07-03
-**Stopped at:** v2.2 milestone archived
+**Last session:** 2026-07-05
+**Stopped at:** v2.4 milestone archived
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -193,21 +207,20 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 1. Read `.planning/STATE.md` (this file)
 2. Read `.planning/ROADMAP.md` (kompaktes Milestone-Grouping-Format; Backlog 999.1 erhalten)
 3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
-4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.2)
+4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.4)
 
-**Aktueller Stand:** v2.4 in Execution — Phase 51 geplant (8 Pläne, PLAN-CHECK PASS). Nächster Schritt `/gsd-execute-phase 51`.
+**Aktueller Stand:** Zwischen Milestones. v2.4 (Kurzer-Tag-Slot-Kürzung, Phase 51) am 2026-07-05 geshipt + archiviert. Nächste Iteration via `/gsd-new-milestone`.
 
-**Next command**: `/gsd-execute-phase 51`.
+**Next command**: `/gsd-new-milestone`.
 
 ---
 
-*State updated: 2026-07-03 — **v2.2 geshipt + archiviert** (Phasen 43–48, 16 Pläne, 16/16 Requirements, Audit `passed`). ROADMAP.md auf kompaktes Milestone-Grouping-Format umgestellt; MILESTONES.md: v2.2-Eintrag chronologisch am Ende (Junk-Entry entfernt); milestones/v2.2-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md archiviert; REQUIREMENTS.md gelöscht. Zwischen Milestones.*
+*State updated: 2026-07-05 — **v2.4 geshipt + archiviert** (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..06, Audit `passed`, override_closeout). ROADMAP.md um v2.4-Milestone-Eintrag ergänzt; MILESTONES.md v2.4-Eintrag chronologisch am Ende angehängt; milestones/v2.4-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md + -phases/ archiviert; REQUIREMENTS.md gelöscht. Zwischen Milestones.*
 
 ## Operator Next Steps
 
-- Execute Phase 51 with `/gsd-execute-phase 51` (8 Pläne, Wave 1→4).
-- Wave 2 (P03/P04/P05/P06) sequentiell laufen lassen wegen implizit geteilter `shifty_bin/src/main.rs` (DI-Konstruktion für neue ToggleService/SpecialDayService-Deps) — Warning 1 in `51-PLAN-INDEX.md`.
-- Bei P06 Task 5 den delete-branch bevorzugen (SQL-`/60.0`-Bug wird mitgeräumt) — Warning 2 in `51-PLAN-INDEX.md`.
+- Nächste Iteration mit `/gsd-new-milestone` starten (fresh requirements + roadmap).
+- Optional: `/release-version` für SemVer-Tag ausführen (v2.4 ist internes Planungs-Label).
 
 ## Decisions
 

@@ -657,3 +657,95 @@ Keine v2.3-spezifischen. Historische Deferred-Items siehe
 (`git.create_tag=false` in GSD-Config, Tags aus SemVer-Flow).
 
 ---
+
+## v2.4 — Kurzer-Tag-Slot-Kürzung
+
+**Shipped:** 2026-07-05
+**Phases:** 51 (1 phase, 8 plans, 8 SUMMARYs)
+**Archive:** [`milestones/v2.4-ROADMAP.md`](milestones/v2.4-ROADMAP.md)
+
+**Delivered:**
+Fokus-Milestone auf einer einzelnen Semantik-Ergänzung. An Kurzen Tagen
+(`special_day.ShortDay` mit Cutoff-Uhrzeit) werden Slots, die den Cutoff
+überlappen, dynamisch auf `[slot.start, cutoff]` gekürzt — in Rendering
+(WeekView + PDF) und Ist-Stunden-Berechnung (Reporting +
+Booking-Information + Balance). Slots komplett hinter dem Cutoff
+verschwinden. Soll-Stunden bleiben unverändert (Balance-Konto sammelt
+Minusstunden an Kurzen Tagen). Ein admin-konfigurierbarer Stichtag
+(`shortday_slot_clipping_active_from`) schützt historische
+Balance-Views: ohne Wert deaktiviert, mit Wert wirkt Kürzung nur für
+`booking_date >= active_from`. View-layer / dynamisch — keine
+DB-Änderung an Slots oder Bookings; kein Snapshot-Bump; nur additive
+Toggle-Seed-Migration; keine neue Cargo-Dep. Fat Backend, Thin Client
+(D-51-02): das Frontend enthält null Clip-Logik.
+
+**Key accomplishments:**
+
+1. **Kanonische `Slot::clip_to` als pure Value-Methode** auf
+   `service::slot::Slot` (D-51-01), mit vier D-04-Grenzfall-Tests
+   (Slot vor Cutoff / endet exakt am Cutoff / überlappt / komplett
+   hinter Cutoff). Keine Panics, kein `unwrap`.
+
+2. **Toggle-Stichtag + `shortday_gate`-Helper** (SHC-06 BE) — additive
+   Migration `20260704000001_seed-shortday-slot-clipping-toggle.sql`
+   (`INSERT OR IGNORE`, `enabled=0`, `value=NULL` → Rollout-Default
+   „Kürzung aus"). `shortday_gate::{parse_active_from, should_clip,
+   resolve_active_from_for_week, clip_slot_for_week, ClipOutcome}` als
+   pure Rust-Helper (kein async, kein DAO); Präzedenz HCFG-02 aus v1.7.
+
+3. **Vier BE-Aggregat-Ketten clippen konsistent** — Chain A' BlockService
+   (iCal + insufficient), Chain B `build_shiftplan_day` (WeekView + PDF
+   via `ShiftplanSlot.effective_to`, ersetzt Filter-statt-Clip-Bug),
+   Chain C `booking_information` (ersetzt denselben Bug), Chain D
+   `ShiftplanReport` als Rust-Layer-Refactor (raw-row DAO +
+   Aggregation im Service, entfernt SUM-Queries mit pre-existing
+   `/60.0`-Bug). Alle vier Ketten gaten am `shortday_gate::should_clip`.
+
+4. **DTO-Wrapper-Field `ShiftplanSlotTO.effective_to`** (D-51-09) —
+   trägt den geclippten Wert ans FE + PDF. `SlotTO` bleibt bidirektional
+   roh (POST/PUT `/slot`-Roundtrip byte-clean, per compile-time-Test
+   gepinnt). FE-Loader kopiert `effective_to` in `state::Slot.to` beim
+   Shiftplan-Load; WeekView + PDF-Renderer sehen automatisch geclippte
+   Werte. Fat Backend, Thin Client (D-51-02): grep-verifiziert kein
+   `clip_to`-Call im `shifty-dioxus/src/`.
+
+5. **Admin-Settings-UI Card 2b** (SHC-06 FE) — admin-gated Datepicker in
+   Settings-Page, strukturell identisch zum HCFG-02-Blueprint (Save +
+   Clear + Feedback + UnsetHint), 6 neue i18n-Keys de/en/cs. Pure
+   `is_within_shortday_gate`-Validator als `#[cfg(test)]`-
+   Kontraktspiegel.
+
+6. **Drei pre-existing Bugs mitgeräumt** — (a) Filter-statt-Clip in
+   `shiftplan.rs` + `booking_information.rs` (ShortDay-Slot wurde ganz
+   ausgefiltert statt am Cutoff gekürzt); (b) `/60.0`-SQL-Bug in alten
+   Chain-D-SUM-Queries (via Delete-Branch beim Rust-Layer-Refactor);
+   (c) `ToggleService`-Full-Context-Bypass für internal-Aggregate-
+   Konsumenten (nachträglich als Gap-Closure gefixt in Commits
+   `f654613`, `7f21bd4`, `1b863e8`, `5aee47e`, `9cbe151`).
+
+**Test verification:** Phase-51-Verifier PASS (6/6 must-haves,
+`behavior_unverified: 0`); Milestone-Audit `passed` (6/6 Requirements,
+6/6 Cross-Phase Wirings, 6/6 E2E-Flows, 2 non-blocking Warnings W1+W2).
+Backend `cargo test --workspace` + `cargo clippy --workspace -- -D
+warnings` grün; FE `cargo build --target wasm32-unknown-unknown` +
+FE-Clippy `-D warnings` grün. Snapshot-Schema-Version bleibt 12
+(grep-verifiziert).
+
+**Known deferred items:**
+
+- W1 (cosmetic): P07-SUMMARY-Doc-Drift (nennt pdf_render-Fns die nicht
+  existieren; Runtime korrekt via loader-Collapse). Kein Blocker.
+- W2 (latent): `shifty-dioxus/src/state/shiftplan.rs:199-214`
+  `From<&SlotTO> for Slot` ignoriert `effective_to`; heute nur im
+  Slot-Edit-Form-Pfad (raw korrekt). Empfehlung: Doc-Warnkommentar
+  oder Rename zu `Slot::from_edit_to(SlotTO)`.
+- Pre-existing 4 `dbg!`-Makros in `service_impl/src/block.rs:71-91`
+  (kein Clippy-Verstoß, in VERIFICATION.md dokumentiert).
+- Historische Deferred-Items siehe `.planning/STATE.md` „Deferred
+  Items"-Sektion.
+
+**Hinweis:** v2.4 ist das interne Planungs-Label. Reale Release-Version
+via `/release-version` (`git.create_tag=false` in GSD-Config,
+Tags aus SemVer-Flow).
+
+---
