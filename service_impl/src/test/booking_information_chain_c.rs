@@ -597,3 +597,54 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
         w.required_hours
     );
 }
+
+// ─── Gap-Closure Phase 51 (Live-Symptom): Full-Auth honoriert Toggle ────────
+//
+// Live-Symptom (Milestone v2.4, 2026-07-04):
+// - User setzt Toggle `shortday_slot_clipping_active_from = 2026-06-28`.
+// - `GET /booking-information/weekly-resource-report/{year}` läuft intern mit
+//   `Authentication::Full` in `get_summery_for_week` und `get_weekly_summary`
+//   und ruft `shortday_gate::read_active_from(toggle_service, Full)` auf.
+// - Vor Fix: `ToggleService::get_toggle_value(name, Full, tx)` warf
+//   `Unauthorized`, weil `PermissionService::current_user_id(Full) → None`
+//   den `user_id.is_none()` Guard triggerte.
+// - `read_active_from` fing das defensiv als `Ok(None)` ab → Legacy-Modus mit
+//   `active_from = None`. In Chain C bedeutet Legacy: Slot mit `slot.to > cutoff`
+//   fällt aus dem `required_hours`-Aggregat komplett heraus (`0h` statt geklippten
+//   `0.5h`), was am Backend zu **anderen** falschen Zahlen führte — aber
+//   ebenfalls nicht dem konfigurierten Verhalten entsprach.
+//
+// Fix (`toggle.rs`): `Authentication::Full` überspringt den `current_user_id`-
+// Guard. Dieser Test pinnt: mit Toggle-Wert + Full → geklippte 0,5h, nicht 0h
+// (Legacy) und nicht 1h (Modern ungeklippt).
+#[tokio::test]
+async fn test_get_weekly_summary_honors_toggle_under_full_auth() {
+    // Slot Mo 14:00–15:00 + ShortDay-Cutoff 14:30 + active_from = 2026-07-01
+    // (< 2026-07-27 = W31-Mo) → Gate aktiv → 0,5h.
+    let s = slot(
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+    let sd = shortday(DayOfWeek::Monday, time::Time::from_hms(14, 30, 0).unwrap());
+    // Toggle liefert den echten Wert (kein Unauthorized). Simuliert das
+    // Verhalten NACH dem toggle.rs-Fix.
+    let service = build_service(vec![s], vec![sd], Some("2026-07-01"));
+
+    let summaries = service
+        .get_weekly_summary(YEAR, Authentication::Full, None)
+        .await
+        .expect("get_weekly_summary must succeed under Authentication::Full");
+
+    let w = summaries
+        .iter()
+        .find(|s| s.year == YEAR && s.week == WEEK)
+        .expect("W31 must be present in year-view");
+
+    assert!(
+        approx(w.required_hours, 0.5),
+        "Full-Auth honoriert Toggle (Phase 51 Gap-Closure Live-Symptom): \
+         Gate aktiv → 0,5h Clip, got {}",
+        w.required_hours
+    );
+}

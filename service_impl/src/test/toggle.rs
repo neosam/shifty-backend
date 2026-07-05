@@ -543,3 +543,110 @@ async fn test_get_toggle_value_requires_authentication() {
         "get_toggle_value must require authentication"
     );
 }
+
+// ─── Gap-Closure Phase 51: Authentication::Full bypass ──────────────────────
+//
+// Regression-Guard für den Root-Fix: die vier Read-Ops (`is_enabled`,
+// `get_all_toggles`, `get_toggle`, `get_toggle_value`) müssen mit
+// `Authentication::Full` erfolgreich lesen, ohne den `current_user_id`-Guard
+// auszulösen.
+//
+// **Live-Symptom vor Fix:** Chain C (`booking_information.rs`) und Chain D
+// (`reporting.rs`, `shiftplan_report.rs`) riefen `get_toggle_value` intern mit
+// `Authentication::Full` — der `PermissionService::current_user_id` liefert für
+// `Full` `Ok(None)` → `Unauthorized` → `shortday_gate::read_active_from` fiel
+// stumm auf `Ok(None)` zurück → `shortday_slot_clipping_active_from` wurde nie
+// gelesen → volle Slot-Stunde statt geklippter 0,5h.
+
+/// Für Full-Kontext DARF `current_user_id` gar nicht aufgerufen werden —
+/// `MockPermissionService` ohne `expect_current_user_id` würde bei einem
+/// Aufruf panicken. Wenn der Test grün ist, ist der Bypass korrekt verdrahtet.
+fn mock_permission_service_that_must_not_be_called() -> MockPermissionService {
+    // Kein `.expect_current_user_id(...)` — jeder Aufruf wäre ein Test-Fehler.
+    MockPermissionService::new()
+}
+
+#[tokio::test]
+async fn test_get_toggle_value_bypasses_user_id_check_for_full_auth() {
+    let mut deps = build_dependencies();
+    deps.permission_service = mock_permission_service_that_must_not_be_called();
+    deps.toggle_dao
+        .expect_get_toggle_value()
+        .with(eq("shortday_slot_clipping_active_from"), always())
+        .returning(|_, _| Ok(Some("2026-06-28".to_string())));
+
+    let service = deps.build_service();
+    let result = service
+        .get_toggle_value(
+            "shortday_slot_clipping_active_from",
+            Authentication::Full,
+            None,
+        )
+        .await;
+    assert!(
+        result.is_ok(),
+        "get_toggle_value(Authentication::Full) must NOT return Unauthorized (Phase 51 Gap-Closure)"
+    );
+    assert_eq!(
+        result.unwrap().as_deref(),
+        Some("2026-06-28"),
+        "Full-Bypass darf den Toggle-Wert nicht verschlucken"
+    );
+}
+
+#[tokio::test]
+async fn test_is_enabled_bypasses_user_id_check_for_full_auth() {
+    let mut deps = build_dependencies();
+    deps.permission_service = mock_permission_service_that_must_not_be_called();
+    deps.toggle_dao
+        .expect_is_enabled()
+        .with(eq("shortday_slot_clipping_active_from"), always())
+        .returning(|_, _| Ok(true));
+
+    let service = deps.build_service();
+    let result = service
+        .is_enabled("shortday_slot_clipping_active_from", Authentication::Full, None)
+        .await;
+    assert!(
+        matches!(result, Ok(true)),
+        "is_enabled(Authentication::Full) must NOT return Unauthorized"
+    );
+}
+
+#[tokio::test]
+async fn test_get_toggle_bypasses_user_id_check_for_full_auth() {
+    let mut deps = build_dependencies();
+    deps.permission_service = mock_permission_service_that_must_not_be_called();
+    deps.toggle_dao
+        .expect_get_toggle()
+        .with(eq("test_toggle"), always())
+        .returning(move |_, _| Ok(Some(default_toggle_entity())));
+
+    let service = deps.build_service();
+    let result = service
+        .get_toggle("test_toggle", Authentication::Full, None)
+        .await;
+    assert!(
+        result.is_ok(),
+        "get_toggle(Authentication::Full) must NOT return Unauthorized"
+    );
+    assert!(result.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn test_get_all_toggles_bypasses_user_id_check_for_full_auth() {
+    let mut deps = build_dependencies();
+    deps.permission_service = mock_permission_service_that_must_not_be_called();
+    let entities: Arc<[ToggleEntity]> = vec![default_toggle_entity()].into();
+    deps.toggle_dao
+        .expect_get_all_toggles()
+        .returning(move |_| Ok(entities.clone()));
+
+    let service = deps.build_service();
+    let result = service.get_all_toggles(Authentication::Full, None).await;
+    assert!(
+        result.is_ok(),
+        "get_all_toggles(Authentication::Full) must NOT return Unauthorized"
+    );
+    assert_eq!(result.unwrap().len(), 1);
+}

@@ -558,3 +558,55 @@ async fn test_extract_for_week_tolerates_toggle_unauthorized() {
         out[0].hours
     );
 }
+
+// ─── Gap-Closure Phase 51 (Live-Symptom): Full-Auth honoriert Toggle ────────
+//
+// Live-Symptom (Milestone v2.4, 2026-07-04):
+// - User setzt `shortday_slot_clipping_active_from = 2026-06-28`.
+// - `GET /report/week/2026/27` schlägt bis in Chain D durch mit
+//   `Authentication::Full`.
+// - `ToggleService::get_toggle_value(name, Full, tx)` warf vor Fix
+//   `Unauthorized`, weil `PermissionService::current_user_id(Full) → None`
+//   den `user_id.is_none()` Guard triggerte.
+// - `shortday_gate::read_active_from` fing das defensiv als `Ok(None)` ab →
+//   Modern-Modus mit `active_from = None` → **kein Clip** → volle 1,0h in der
+//   Balance statt der konfigurierten 0,5h (Cutoff 14:30 im 14:00–15:00-Slot).
+//
+// Fix (`toggle.rs`): `Authentication::Full` überspringt den `current_user_id`-
+// Guard und lässt den Toggle-Wert durch. Dieser Test PINNT das: mit einem
+// Toggle-Wert und `Full` MUSS die aggregierte Stunde 0,5h sein, nicht 1,0h.
+#[tokio::test]
+async fn test_extract_for_week_honors_toggle_under_full_auth() {
+    // Slot Mo 14:00–15:00, ShortDay-Cutoff 14:30, active_from = 2026-07-01
+    // (< 2026-07-27 = W31-Mo) → Gate aktiv → 0,5h.
+    let sp = Uuid::new_v4();
+    let row = raw_row(
+        sp,
+        YEAR,
+        WEEK,
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+    let sd = shortday(
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 30, 0).unwrap(),
+        YEAR,
+        WEEK,
+    );
+    // WICHTIG: Toggle liefert den echten Wert (kein Unauthorized). Das
+    // simuliert das Verhalten NACH dem toggle.rs-Fix.
+    let service = build_service_for_week(vec![row], vec![sd], Some("2026-07-01"));
+
+    let out = service
+        .extract_shiftplan_report_for_week(YEAR, WEEK, Authentication::Full, None)
+        .await
+        .expect("extract must succeed under Authentication::Full");
+
+    assert_eq!(out.len(), 1);
+    assert!(
+        approx(out[0].hours, 0.5),
+        "Full-Auth honoriert Toggle: Gate aktiv → 0,5h Clip (Phase 51 Gap-Closure Live-Symptom), got {}",
+        out[0].hours
+    );
+}
