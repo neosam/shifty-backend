@@ -60,4 +60,15 @@ pub trait ShiftplanReportDao {
         calendar_week: u8,
         tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError>;
+
+    /// Roh-Zeilen pro Booking für ein ganzes Kalenderjahr
+    /// (Phase 52 WOP-01, D-52-06). Bulk-Load-Fundament für den
+    /// Weekly-Overview-Refactor: EINE SQL-Query pro Jahr statt
+    /// 55×`_for_week`. `calendar_week` bleibt in der Row erhalten,
+    /// damit Service/Consumer pro Woche filtern und aggregieren können.
+    async fn extract_raw_shiftplan_report_for_year(
+        &self,
+        year: u32,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError>;
 }

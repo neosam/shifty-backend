@@ -610,3 +610,253 @@ async fn test_extract_for_week_honors_toggle_under_full_auth() {
         out[0].hours
     );
 }
+
+// ─── Phase 52 (WOP-01, D-52-06) — `_for_year` Batch-Variante ────────────────
+
+/// Baut einen Service für Jahres-Batch-Tests.
+/// - `rows`: alle Roh-Rows des Jahres.
+/// - `special_days_year`: alle SpecialDays für das Jahr (werden via
+///   `get_by_year` geliefert, `get_by_week` bleibt unbenutzt).
+fn build_service_for_year(
+    rows: Vec<ShiftplanReportRawRow>,
+    special_days_year: Vec<SpecialDay>,
+    toggle_active_from: Option<&'static str>,
+) -> ShiftplanReportServiceImpl<TestDeps> {
+    let rows_arc: Arc<[ShiftplanReportRawRow]> = Arc::from(rows);
+    let mut shiftplan_report_dao = MockShiftplanReportDao::new();
+    let rows_clone = rows_arc.clone();
+    shiftplan_report_dao
+        .expect_extract_raw_shiftplan_report_for_year()
+        .returning(move |year, _| {
+            if year == YEAR {
+                Ok(rows_clone.clone())
+            } else {
+                Ok(Arc::from(Vec::<ShiftplanReportRawRow>::new()))
+            }
+        });
+
+    let sd_year = special_days_year.clone();
+    let mut special_day_service = MockSpecialDayService::new();
+    special_day_service
+        .expect_get_by_year()
+        .returning(move |year, _| {
+            if year == YEAR {
+                Ok(Arc::from(sd_year.clone()))
+            } else {
+                Ok(Arc::from(Vec::<SpecialDay>::new()))
+            }
+        });
+
+    let toggle_val: Option<String> = toggle_active_from.map(String::from);
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(move |_, _, _| Ok(toggle_val.clone().map(Arc::from)));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    ShiftplanReportServiceImpl::<TestDeps> {
+        shiftplan_report_dao: Arc::new(shiftplan_report_dao),
+        special_day_service: Arc::new(special_day_service),
+        toggle_service: Arc::new(toggle_service),
+        transaction_dao: Arc::new(transaction_dao),
+    }
+}
+
+/// D-52-06: `_for_year` liefert Rows aus mehreren Kalenderwochen, gruppiert
+/// pro (sales_person_id, calendar_week, day_of_week). Reine Aggregation ohne
+/// Gate/Clip (Gate off).
+#[tokio::test]
+async fn test_extract_for_year_multi_week_ungated() {
+    let sp = Uuid::new_v4();
+    let row_w30 = raw_row(
+        sp,
+        YEAR,
+        30,
+        DayOfWeek::Monday,
+        time::Time::from_hms(9, 0, 0).unwrap(),
+        time::Time::from_hms(12, 0, 0).unwrap(),
+    );
+    let row_w31 = raw_row(
+        sp,
+        YEAR,
+        WEEK,
+        DayOfWeek::Tuesday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+
+    let service = build_service_for_year(vec![row_w30, row_w31], vec![], None);
+
+    let out = service
+        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .await
+        .expect("extract_for_year must succeed");
+
+    assert_eq!(out.len(), 2, "zwei distinct (week, day) Einträge erwartet");
+
+    // Beide Rows sind vom selben sales_person, unterscheiden sich in
+    // (calendar_week, day_of_week).
+    let w30 = out.iter().find(|d| d.calendar_week == 30).expect("W30 vorhanden");
+    let w31 = out.iter().find(|d| d.calendar_week == WEEK).expect("W31 vorhanden");
+    assert!(approx(w30.hours, 3.0), "W30 3h ungeklippt, got {}", w30.hours);
+    assert!(approx(w31.hours, 1.0), "W31 1h ungeklippt, got {}", w31.hours);
+    assert_eq!(w30.day_of_week, DayOfWeek::Monday);
+    assert_eq!(w31.day_of_week, DayOfWeek::Tuesday);
+    assert_eq!(w30.year, YEAR);
+    assert_eq!(w31.year, YEAR);
+}
+
+/// D-52-06 + D-51-06: Gate aktiv, ShortDay-Cutoff nur in einer Woche → nur
+/// diese Woche wird geclippt. Beweist, dass `_for_year` SpecialDays korrekt
+/// pro Woche gruppiert.
+#[tokio::test]
+async fn test_extract_for_year_clips_only_in_shortday_week() {
+    let sp = Uuid::new_v4();
+    // Beide Rows: 14:00–15:00 (1h roh).
+    let row_w30 = raw_row(
+        sp,
+        YEAR,
+        30,
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+    let row_w31 = raw_row(
+        sp,
+        YEAR,
+        WEEK,
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+    // ShortDay-Cutoff nur in W31.
+    let sd_w31 = shortday(
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 30, 0).unwrap(),
+        YEAR,
+        WEEK,
+    );
+
+    let service = build_service_for_year(
+        vec![row_w30, row_w31],
+        vec![sd_w31],
+        Some("2026-01-01"),
+    );
+
+    let out = service
+        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .await
+        .expect("extract_for_year must succeed");
+
+    assert_eq!(out.len(), 2);
+    let w30 = out.iter().find(|d| d.calendar_week == 30).expect("W30 vorhanden");
+    let w31 = out.iter().find(|d| d.calendar_week == WEEK).expect("W31 vorhanden");
+    assert!(
+        approx(w30.hours, 1.0),
+        "W30 kein ShortDay → volle 1.0h, got {}",
+        w30.hours
+    );
+    assert!(
+        approx(w31.hours, 0.5),
+        "W31 ShortDay + Gate on → 0.5h geclippt, got {}",
+        w31.hours
+    );
+}
+
+/// Semantik-Äquivalenz: `_for_year` == Summe von `_for_week` pro Woche.
+/// Sanity-Check gegen Aggregations-Drift.
+#[tokio::test]
+async fn test_extract_for_year_matches_for_week_sum() {
+    let sp = Uuid::new_v4();
+    let row = raw_row(
+        sp,
+        YEAR,
+        WEEK,
+        DayOfWeek::Monday,
+        time::Time::from_hms(9, 0, 0).unwrap(),
+        time::Time::from_hms(17, 0, 0).unwrap(),
+    );
+
+    // `_for_year`-Ergebnis.
+    let svc_year = build_service_for_year(vec![row.clone()], vec![], None);
+    let out_year = svc_year
+        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .await
+        .expect("year batch must succeed");
+
+    // `_for_week`-Ergebnis für dieselbe Woche.
+    let svc_week = build_service_for_week(vec![row], vec![], None);
+    let out_week = svc_week
+        .extract_shiftplan_report_for_week(YEAR, WEEK, Authentication::Full, None)
+        .await
+        .expect("week batch must succeed");
+
+    assert_eq!(out_year.len(), out_week.len());
+    assert_eq!(out_year.len(), 1);
+    assert!(approx(out_year[0].hours, out_week[0].hours));
+    assert_eq!(out_year[0].sales_person_id, out_week[0].sales_person_id);
+    assert_eq!(out_year[0].calendar_week, out_week[0].calendar_week);
+    assert_eq!(out_year[0].day_of_week, out_week[0].day_of_week);
+}
+
+/// Regression: Toggle → Unauthorized darf auch `_for_year` NICHT als 401
+/// durchschlagen (Legacy-Fallback identisch zu `_for_week`).
+#[tokio::test]
+async fn test_extract_for_year_tolerates_toggle_unauthorized() {
+    let sp = Uuid::new_v4();
+    let row = raw_row(
+        sp,
+        YEAR,
+        WEEK,
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+
+    let rows_arc: Arc<[ShiftplanReportRawRow]> = Arc::from(vec![row]);
+    let mut shiftplan_report_dao = MockShiftplanReportDao::new();
+    let rows_clone = rows_arc.clone();
+    shiftplan_report_dao
+        .expect_extract_raw_shiftplan_report_for_year()
+        .returning(move |_, _| Ok(rows_clone.clone()));
+
+    let mut special_day_service = MockSpecialDayService::new();
+    special_day_service
+        .expect_get_by_year()
+        .returning(|_, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
+
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Err(service::ServiceError::Unauthorized));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let service = ShiftplanReportServiceImpl::<TestDeps> {
+        shiftplan_report_dao: Arc::new(shiftplan_report_dao),
+        special_day_service: Arc::new(special_day_service),
+        toggle_service: Arc::new(toggle_service),
+        transaction_dao: Arc::new(transaction_dao),
+    };
+
+    let out = service
+        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .await
+        .expect("Unauthorized-Toleranz: _for_year muss Ok liefern (Legacy off)");
+
+    assert_eq!(out.len(), 1);
+    assert!(
+        approx(out[0].hours, 1.0),
+        "Legacy off: ungeklippt = 1.0h, got {}",
+        out[0].hours
+    );
+}

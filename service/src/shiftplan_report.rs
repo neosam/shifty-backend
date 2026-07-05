@@ -60,4 +60,21 @@ pub trait ShiftplanReportService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError>;
+
+    /// Phase 52 (WOP-01, D-52-06) — Jahres-Batch-Variante zu
+    /// [`extract_shiftplan_report_for_week`].
+    ///
+    /// Semantisch äquivalent zum Aufsummieren aller `_for_week(year, w)`-Rufe
+    /// für `w ∈ 1..=53`. Liefert alle Report-Tage des Jahres in **einem**
+    /// DAO-Roundtrip; Aggregation, Clip und Stichtag-Gate laufen im
+    /// Service-Layer analog zur Wochenvariante.
+    ///
+    /// Rückgabe-Rows tragen `year`, `calendar_week` und `day_of_week` — der
+    /// Consumer kann pro Woche weiterfiltern.
+    async fn extract_shiftplan_report_for_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError>;
 }

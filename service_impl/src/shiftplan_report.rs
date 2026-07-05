@@ -308,5 +308,88 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
         self.transaction_dao.commit(tx).await?;
         Ok(result.into())
     }
+
+    /// Phase 52 (WOP-01, D-52-06) — Jahres-Batch-Variante zu
+    /// [`Self::extract_shiftplan_report_for_week`].
+    ///
+    /// Semantik-Äquivalenz: Das Ergebnis ist die Multi-Set-Vereinigung der
+    /// `_for_week(year, w)`-Ergebnisse für alle vorkommenden Wochen. Clip,
+    /// Stichtag-Gate und Aggregations-Reihenfolge sind identisch.
+    ///
+    /// Perf-Motivation: ein `extract_raw_shiftplan_report_for_year`-Call
+    /// statt bis zu 53 Wochen-Roundtrips; SpecialDays werden EINMAL via
+    /// `special_day_service.get_by_year` geladen und pro Woche in eine
+    /// Map gruppiert (siehe `extract_shiftplan_report` für dasselbe Muster).
+    async fn extract_shiftplan_report_for_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError> {
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Gap-Closure identisch zu `_for_week`: Unauthorized → Legacy off.
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
+
+        // Jahres-Batch für SpecialDays (D-52-06 nutzt bestehende Trait-Method).
+        let special_days_year = self
+            .special_day_service
+            .get_by_year(year, context.clone())
+            .await?;
+
+        // Nach `calendar_week` gruppieren, damit `hours_for_row` pro Row
+        // dieselbe Semantik wie in `_for_week` bekommt.
+        let mut special_days_by_week: HashMap<u8, Vec<SpecialDay>> = HashMap::new();
+        for sd in special_days_year.iter() {
+            if sd.year == year {
+                special_days_by_week
+                    .entry(sd.calendar_week)
+                    .or_default()
+                    .push(sd.clone());
+            }
+        }
+
+        let raw_rows = self
+            .shiftplan_report_dao
+            .extract_raw_shiftplan_report_for_year(year, tx.clone())
+            .await?;
+
+        // Aggregation pro (sales_person_id, calendar_week, day_of_week_number).
+        let mut agg: HashMap<(Uuid, u8, u8), f32> = HashMap::new();
+        let empty: Vec<SpecialDay> = Vec::new();
+        for row in raw_rows.iter() {
+            let sds = special_days_by_week.get(&row.calendar_week).unwrap_or(&empty);
+            let hours = hours_for_row(row, sds, active_from);
+            *agg.entry((
+                row.sales_person_id,
+                row.calendar_week,
+                row.day_of_week.to_number(),
+            ))
+                .or_insert(0.0) += hours;
+        }
+
+        let mut result: Vec<ShiftplanReportDay> = agg
+            .into_iter()
+            .filter_map(|((sales_person_id, calendar_week, dow_num), hours)| {
+                DayOfWeek::from_number(dow_num).map(|day_of_week| ShiftplanReportDay {
+                    sales_person_id,
+                    hours,
+                    year,
+                    calendar_week,
+                    day_of_week,
+                })
+            })
+            .collect();
+        result.sort_by(|a, b| {
+            a.sales_person_id
+                .cmp(&b.sales_person_id)
+                .then_with(|| a.calendar_week.cmp(&b.calendar_week))
+                .then_with(|| a.day_of_week.cmp(&b.day_of_week))
+        });
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(result.into())
+    }
 }
 

@@ -174,4 +174,42 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
         .map(ShiftplanReportRawRow::try_from)
         .collect::<Result<Arc<[_]>, _>>()?)
     }
+
+    async fn extract_raw_shiftplan_report_for_year(
+        &self,
+        year: u32,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError> {
+        // Phase 52 (WOP-01, D-52-06): Jahres-Batch analog zu `_for_week`,
+        // nur ohne den `calendar_week = ?`-Filter. `calendar_week` bleibt
+        // in der Projektion, damit der Service-Layer bzw. Wave-4-Konsumenten
+        // pro Woche filtern und aggregieren können.
+        Ok(query_as!(
+            ShiftplanReportRawRowDb,
+            r#"
+                SELECT
+                  sales_person.id as sales_person_id,
+                  booking.id as booking_id,
+                  booking.year,
+                  booking.calendar_week,
+                  slot.day_of_week,
+                  slot.time_from,
+                  slot.time_to
+                FROM slot
+                INNER JOIN booking ON (booking.slot_id = slot.id AND booking.deleted IS NULL)
+                INNER JOIN sales_person ON booking.sales_person_id = sales_person.id
+                LEFT JOIN shiftplan ON slot.shiftplan_id = shiftplan.id
+                WHERE booking.year = ?
+                  AND (shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL)
+                ORDER BY booking.calendar_week, slot.day_of_week
+                        "#,
+            year,
+        )
+        .fetch_all(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(ShiftplanReportRawRow::try_from)
+        .collect::<Result<Arc<[_]>, _>>()?)
+    }
 }
