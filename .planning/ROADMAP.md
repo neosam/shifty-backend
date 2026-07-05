@@ -53,12 +53,19 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55).
   5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12.
 
-  **Plans:** 5 plans
-  - [ ] 52-01-PLAN.md — Wave 1: Fixture-Golden-Snapshots + Latenz-Baseline (WOP-03/05)
-  - [ ] 52-02-PLAN.md — Wave 2: `assemble_weeks`-Helper aus `get_week` extrahieren (WOP-02/05)
-  - [ ] 52-03-PLAN.md — Wave 3: `extract_shiftplan_report_for_year` + `find_by_year` Trait+DAO+sqlx (WOP-01/05)
-  - [ ] 52-04-PLAN.md — Wave 4: `ReportingService::get_year` Trait+Impl (WOP-02/05)
-  - [ ] 52-05-PLAN.md — Wave 5: `get_weekly_summary`-Umbau + Latenz-Post-Refactor + Docs (WOP-01/04/05)
+  **Plans:** 5 plans (planned 2026-07-05; 5 Waves strikt sequenziell — kein Wave läuft parallel, weil `reporting.rs` und `booking_information.rs` mehrfach angefasst werden)
+  - [ ] 52-01-PLAN.md — **Wave 1** *(no deps)*: Fixture-Golden-Snapshots + Latenz-Baseline (WOP-03/05) — hartes Regressions-Gate für alle folgenden Waves
+  - [ ] 52-02-PLAN.md — **Wave 2** *(blocked on 52-01)*: `assemble_weeks`-Helper aus `get_week` extrahieren (WOP-02/05) — reiner Refactor, kein Verhaltens-Change
+  - [ ] 52-03-PLAN.md — **Wave 3** *(blocked on 52-02)*: `extract_shiftplan_report_for_year` + `find_by_year` Trait+DAO+`sqlx prepare` (WOP-01/05)
+  - [ ] 52-04-PLAN.md — **Wave 4** *(blocked on 52-02+52-03)*: `ReportingService::get_year` Trait+Impl (WOP-02/05) — delegiert auf `assemble_weeks` mit ~55-Element-Vec
+  - [ ] 52-05-PLAN.md — **Wave 5** *(blocked on 52-01+52-04)*: `get_weekly_summary`-Umbau (7 Bulk-Loads + In-Memory-Loop) + Latenz-Post-Refactor-Messung + F07-Docs-Check (WOP-01/04/05)
+
+  **Cross-cutting constraints (in ≥2 Plänen):**
+  - D-52-04 (Spillover via 2× `get_year(year)` + `get_year(year+1)` — Plans 04, 05)
+  - D-52-06 (Neue Trait-Methoden: `get_year` + `extract_shiftplan_report_for_year` — Plans 03, 04)
+  - D-52-08 (`assemble_weeks`-Helper — Plans 02, 04; RESEARCH Q2 überschreibt CONTEXT-Vereinfachung: `async fn` mit `tx`, NICHT sync)
+  - D-52-09 (MUST-preserve: Balance-Formel, CVC-06-Cap, Chain-C-Toggle-Read bleibt in `booking_information`, NICHT im Helper — Plans 02, 04, 05)
+  - D-52-10 (`get_week` bleibt public trait method, Signatur unverändert — Plans 02, 04)
 
 - [ ] **Phase 53: Freiwilligen-Abwesenheiten in Jahresansicht** — Requirements VAA-01, VAA-02, VAA-03, VAA-04
 

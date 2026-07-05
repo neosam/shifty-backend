@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.5
 milestone_name: Weekly-Overview Performance & Freiwilligen-Abwesenheiten
-status: planning
-last_updated: "2026-07-05T15:12:43.904Z"
+status: Ready to execute
+last_updated: "2026-07-05T20:45:00.000Z"
 last_activity: 2026-07-05
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 5
   completed_plans: 0
   percent: 0
 ---
@@ -29,10 +29,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 52 — Weekly-Overview Performance-Refactor
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-05 — Milestone v2.5 started
+Status: Ready to execute (5 Pläne, 5 Waves sequenziell)
+Last activity: 2026-07-05 — Phase 52 planning complete (WOP-01..05 mapped, D-52-01..16 in must_haves.truths, PLAN-Checker VERIFIED PASS)
 
 ## Quick Tasks Completed
 
