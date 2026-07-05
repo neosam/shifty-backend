@@ -53,6 +53,13 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55).
   5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12.
 
+  **Plans:** 5 plans
+  - [ ] 52-01-PLAN.md — Wave 1: Fixture-Golden-Snapshots + Latenz-Baseline (WOP-03/05)
+  - [ ] 52-02-PLAN.md — Wave 2: `assemble_weeks`-Helper aus `get_week` extrahieren (WOP-02/05)
+  - [ ] 52-03-PLAN.md — Wave 3: `extract_shiftplan_report_for_year` + `find_by_year` Trait+DAO+sqlx (WOP-01/05)
+  - [ ] 52-04-PLAN.md — Wave 4: `ReportingService::get_year` Trait+Impl (WOP-02/05)
+  - [ ] 52-05-PLAN.md — Wave 5: `get_weekly_summary`-Umbau + Latenz-Post-Refactor + Docs (WOP-01/04/05)
+
 - [ ] **Phase 53: Freiwilligen-Abwesenheiten in Jahresansicht** — Requirements VAA-01, VAA-02, VAA-03, VAA-04
 
   **Goal:** In `sales_person_absences` der Jahresansicht erscheinen zusätzlich
