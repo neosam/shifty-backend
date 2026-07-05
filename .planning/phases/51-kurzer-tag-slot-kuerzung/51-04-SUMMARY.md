@@ -151,3 +151,11 @@ Keine deviations gegenüber der Plan-Spec. Nennenswert:
 - Commit `0acb506` existiert (test).
 - Test-Modul `test::block` — 17 Tests, alle grün (siehe Task-4-Verify-Output).
 - Clippy workspace grün.
+
+## Gap-Closure (P06-Follow-up, 2026-07-05)
+
+Chain A' Block-Sites (2×) auf `shortday_gate::read_active_from` umgestellt —
+identisches Verhalten, Duplizierung des HCFG-02-Patterns entfernt.
+Regression-Guard: `test_get_blocks_tolerates_toggle_unauthorized`.
+- Refactor-Commit: `6088cd0`.
+- Test-Commit: `5aee47e`.

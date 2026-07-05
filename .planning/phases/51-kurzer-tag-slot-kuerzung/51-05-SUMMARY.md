@@ -178,3 +178,11 @@ zu testende Aufruf `BookingService::create` ist, nicht
 - service_impl/src/test/mod.rs — modified (mod declaration)
 - shifty_bin/src/main.rs — modified (DI wire-up)
 - Commits `62a2f35` (Task 1+2) und `0a8483b` (Task 3+F) FOUND.
+
+## Gap-Closure (P06-Follow-up, 2026-07-05)
+
+Chain C BookingInformation-Sites (2×) auf `shortday_gate::read_active_from`
+umgestellt — identisches Verhalten, Duplizierung des HCFG-02-Patterns entfernt.
+Regression-Guard: `test_get_weekly_summary_tolerates_toggle_unauthorized`.
+- Refactor-Commit: `6088cd0`.
+- Test-Commit: `5aee47e`.

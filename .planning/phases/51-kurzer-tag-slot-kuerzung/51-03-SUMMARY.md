@@ -139,3 +139,12 @@ Keine. Alle Änderungen sind vollständig implementiert und getestet.
 - `service_impl/src/test/shiftplan.rs` — modified, five new Phase-51 tests + updated existing test.
 - `shifty_bin/src/main.rs` — modified, `toggle_service` wired into `ShiftplanViewServiceImpl`.
 - Commit `8d12645` present in git log.
+
+## Gap-Closure (P06-Follow-up, 2026-07-05)
+
+Chain B's inline `Err(Unauthorized) → None`-Match wurde durch den zentralen
+Helper `shortday_gate::read_active_from` ersetzt. Verhaltensinvariant — der
+Refactor zieht nur die Wiederholung des HCFG-02-Patterns aus vier Konsumenten
+in einen Ort. Regression-Guard: `test_get_shiftplan_week_tolerates_toggle_unauthorized`.
+- Refactor-Commit: `6088cd0`.
+- Test-Commit: `5aee47e`.

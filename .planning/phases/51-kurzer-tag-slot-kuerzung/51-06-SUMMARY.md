@@ -178,3 +178,26 @@ Keine Rule-4-Deviations. Zwei Rule-3-Fixes (blocking):
 - `.planning/phases/51-kurzer-tag-slot-kuerzung/51-06-SUMMARY.md` — FOUND.
 - `service_impl/src/test/shiftplan_report.rs` — FOUND.
 - Commits `a6de121`, `6baf071`, `79cad95`, `59497a6`, `f654613` — all FOUND in `git log`.
+
+## Gap-Closure (P06-Follow-up, 2026-07-05)
+
+Der `f654613`-Fix hatte den `read_active_from`-Helper korrekt eingeführt, aber
+nur an **einer** der drei `ShiftplanReportService`-Methoden verwendet
+(`extract_shiftplan_report`). Die beiden anderen — `extract_quick_shiftplan_report`
+und `extract_shiftplan_report_for_week` — riefen weiterhin `.get_toggle_value(...).await?`
+direkt auf und produzierten HTTP 401 für Endpoints:
+
+- `GET /report/week/{year}/{week}` (routet direkt in `extract_shiftplan_report_for_week`)
+- `GET /booking-information/weekly-resource-report/{year}` (routet indirekt via
+  `booking_information::get_weekly_summary` → `Authentication::Full` → `Unauthorized`)
+
+**Fix (2026-07-05):**
+- Helper aus `shiftplan_report.rs` nach `shortday_gate::read_active_from` gehoben
+  (jetzt zentrale `pub(crate) async fn`).
+- Alle drei `ShiftplanReportService`-Sites + die drei anderen Chains
+  (A' Block, B Shiftplan, C BookingInformation) konsumieren jetzt denselben Helper.
+- Vier Chain-spezifische Regression-Guards ergänzt (siehe `5aee47e`).
+
+**Commits:**
+- `6088cd0` — `refactor(51): hoist shortday_gate::read_active_from and use everywhere`
+- `5aee47e` — `test(51): regression guards for ShortDay-Gate Unauthorized-Toleranz`
