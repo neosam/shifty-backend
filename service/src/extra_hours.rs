@@ -214,6 +214,23 @@ pub trait ExtraHoursService {
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;
 
+    /// Phase 52 (WOP-01, D-52-06 / OQ-1 Option a) — Jahres-Batch analog zu
+    /// [`Self::find_by_week`].
+    ///
+    /// Liefert alle nicht-gelöschten `ExtraHours` deren `date_time` im
+    /// Kalenderjahr `year` liegt. Symmetrisch zum `find_by_week`-Pattern,
+    /// gedacht als Bulk-Load-Fundament für Wave 4 (`get_weekly_summary`),
+    /// wo heute 55×`find_by_week` sequenziell iteriert werden.
+    ///
+    /// Auth: identisch zu `find_by_week` — `check_only_full_authentication`
+    /// (Cross-Service-Konsumenten mit `Authentication::Full`).
+    async fn find_by_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[ExtraHours]>, ServiceError>;
+
     async fn create(
         &self,
         entity: &ExtraHours,

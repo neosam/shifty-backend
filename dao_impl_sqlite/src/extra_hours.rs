@@ -165,6 +165,37 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .collect::<Result<Arc<[_]>, _>>()?)
     }
 
+    async fn find_by_year(
+        &self,
+        year: u32,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
+        // Phase 52 (WOP-01, D-52-06): kalendarisches Jahr, nicht ISO-Woche.
+        // `date_time` liegt als ISO-8601-TEXT vor → String-Range-Filter
+        // reicht (lexikografisch == zeitlich für ISO-8601).
+        let year_start = time::PrimitiveDateTime::new(
+            time::Date::from_calendar_date(year as i32, time::Month::January, 1)?,
+            time::Time::MIDNIGHT,
+        );
+        let next_year_start = time::PrimitiveDateTime::new(
+            time::Date::from_calendar_date((year as i32) + 1, time::Month::January, 1)?,
+            time::Time::MIDNIGHT,
+        );
+        let year_start_str = year_start.format(&Iso8601::DATE_TIME)?;
+        let next_year_start_str = next_year_start.format(&Iso8601::DATE_TIME)?;
+        Ok(query_as!(
+            ExtraHoursDb,
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+            year_start_str,
+            next_year_start_str,
+        ).fetch_all(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?
+            .iter()
+            .map(ExtraHoursEntity::try_from)
+            .collect::<Result<Arc<[_]>, _>>()?)
+    }
+
     async fn create(
         &self,
         entity: &ExtraHoursEntity,

@@ -746,3 +746,127 @@ async fn soft_delete_bulk_forbidden_for_unprivileged_user() {
         result
     );
 }
+
+// ============================================================================
+// Phase 52 (WOP-01, D-52-06 / OQ-1 Option a) — `find_by_year` Batch-Variante
+// ============================================================================
+
+fn build_deps_for_find_by_year(
+    full_auth_ok: bool,
+    year_rows: Arc<[ExtraHoursEntity]>,
+    expected_year: u32,
+) -> ExtraHoursDependencies {
+    let mut permission_service = MockPermissionService::new();
+    if full_auth_ok {
+        permission_service
+            .expect_check_only_full_authentication()
+            .returning(|_| Ok(()));
+    } else {
+        permission_service
+            .expect_check_only_full_authentication()
+            .returning(|_| Err(ServiceError::Forbidden));
+    }
+
+    let mut extra_hours_dao = MockExtraHoursDao::new();
+    let rows_clone = year_rows.clone();
+    extra_hours_dao
+        .expect_find_by_year()
+        .withf(move |year: &u32, _tx: &MockTransaction| *year == expected_year)
+        .returning(move |_year, _tx| Ok(rows_clone.clone()));
+
+    ExtraHoursDependencies {
+        extra_hours_dao,
+        permission_service,
+        sales_person_service: MockSalesPersonService::new(),
+        custom_extra_hours_service: MockCustomExtraHoursService::new(),
+        clock_service: MockClockService::new(),
+        uuid_service: MockUuidService::new(),
+        transaction_dao: build_default_transaction_dao(),
+    }
+}
+
+/// D-52-06 happy path: `find_by_year` reicht die Entities aus dem DAO
+/// unverändert nach `ExtraHours::from` weiter.
+#[tokio::test]
+async fn test_find_by_year_happy_path() {
+    let year = 2026u32;
+
+    let entity_a = ExtraHoursEntity {
+        id: uuid!("A0000000-0000-0000-0000-000000000001"),
+        logical_id: uuid!("A0000000-0000-0000-0000-000000000001"),
+        sales_person_id: default_sales_person_id(),
+        amount: 4.0,
+        category: ExtraHoursCategoryEntity::ExtraWork,
+        description: "row a".into(),
+        date_time: datetime!(2026-01-15 10:00:00),
+        created: datetime!(2026-01-15 11:00:00),
+        deleted: None,
+        version: default_version(),
+    };
+    let entity_b = ExtraHoursEntity {
+        id: uuid!("B0000000-0000-0000-0000-000000000002"),
+        logical_id: uuid!("B0000000-0000-0000-0000-000000000002"),
+        sales_person_id: other_sales_person_id(),
+        amount: 8.0,
+        category: ExtraHoursCategoryEntity::Vacation,
+        description: "row b".into(),
+        date_time: datetime!(2026-12-30 08:00:00),
+        created: datetime!(2026-12-30 09:00:00),
+        deleted: None,
+        version: alternate_version(),
+    };
+
+    let deps = build_deps_for_find_by_year(
+        true,
+        Arc::from(vec![entity_a.clone(), entity_b.clone()]),
+        year,
+    );
+    let service = deps.build_service();
+
+    let out = service
+        .find_by_year(year, Authentication::Full, None)
+        .await
+        .expect("find_by_year must succeed");
+
+    assert_eq!(out.len(), 2);
+    // Ordnung folgt der DAO-Reihenfolge.
+    assert_eq!(out[0].id, entity_a.logical_id);
+    assert_eq!(out[1].id, entity_b.logical_id);
+    assert_eq!(out[0].amount, 4.0);
+    assert_eq!(out[1].amount, 8.0);
+}
+
+/// T-52-05 Mitigation: Auth-Gate identisch zu `find_by_week`
+/// (`check_only_full_authentication`). Non-Full → Forbidden.
+#[tokio::test]
+async fn test_find_by_year_rejects_non_full_auth() {
+    let year = 2026u32;
+    let deps =
+        build_deps_for_find_by_year(false, Arc::from(Vec::<ExtraHoursEntity>::new()), year);
+    let service = deps.build_service();
+
+    // Der DAO darf nie aufgerufen werden, wenn das Gate schließt — die Mock
+    // hat `.withf` gesetzt, aber ohne `times()`-Constraint. Der eigentliche
+    // Check ist das `Err(Forbidden)`.
+    let result = service.find_by_year(year, Authentication::Full, None).await;
+    assert!(
+        matches!(result, Err(ServiceError::Forbidden)),
+        "non-full auth muss Forbidden werfen, got: {:?}",
+        result
+    );
+}
+
+/// D-52-06: Leerer Jahres-Batch → leeres Ergebnis, kein Fehler.
+#[tokio::test]
+async fn test_find_by_year_empty() {
+    let year = 2027u32;
+    let deps =
+        build_deps_for_find_by_year(true, Arc::from(Vec::<ExtraHoursEntity>::new()), year);
+    let service = deps.build_service();
+
+    let out = service
+        .find_by_year(year, Authentication::Full, None)
+        .await
+        .expect("empty year must succeed");
+    assert_eq!(out.len(), 0);
+}

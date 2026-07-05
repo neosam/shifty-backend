@@ -480,6 +480,15 @@ mod integration {
             unimplemented!("not needed in integration test")
         }
 
+        async fn find_by_year(
+            &self,
+            _year: u32,
+            _context: Authentication<Self::Context>,
+            _tx: Option<Self::Transaction>,
+        ) -> Result<Arc<[service::extra_hours::ExtraHours]>, service::ServiceError> {
+            unimplemented!("not needed in integration test")
+        }
+
         async fn create(
             &self,
             _entity: &service::extra_hours::ExtraHours,

@@ -65,6 +65,15 @@ pub trait ExtraHoursDao {
         year: u32,
         tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
+
+    /// Phase 52 (WOP-01, D-52-06) — Jahres-Batch analog zu
+    /// [`Self::find_by_week`]. Filter: `date_time ∈ [year-01-01, (year+1)-01-01)`
+    /// und `deleted IS NULL`. EIN SQL-Roundtrip statt 55×`find_by_week`.
+    async fn find_by_year(
+        &self,
+        year: u32,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
     async fn create(
         &self,
         entity: &ExtraHoursEntity,
