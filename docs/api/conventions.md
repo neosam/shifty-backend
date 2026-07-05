@@ -1,74 +1,73 @@
-# API-Konventionen
+# API Conventions
 
-Diese Datei sammelt Konventionen, die über die einzelnen Endpoints
-hinweg gelten. Für konkrete Endpoint-Definitionen siehe die
-Feature-Dokus.
+This file collects conventions that apply across individual endpoints.
+For concrete endpoint definitions, see the feature docs.
 
-## Request/Response-Format
+## Request/response format
 
-- **Content-Type:** `application/json` in beide Richtungen.
-- **Character-Encoding:** UTF-8.
+- **Content-Type:** `application/json` in both directions.
+- **Character encoding:** UTF-8.
 
-## HTTP-Methoden
+## HTTP methods
 
-| Methode | Semantik | Idempotent? |
+| Method | Semantics | Idempotent? |
 | --- | --- | --- |
-| GET | Lesen | Ja |
-| POST | Anlegen oder Command | Nein |
-| PUT | Full-Update / Upsert | Ja |
-| PATCH | Teil-Update | Nein |
-| DELETE | Soft-Delete (setzt `deleted`-Spalte) | Ja |
+| GET | Read | Yes |
+| POST | Create or command | No |
+| PUT | Full update / upsert | Yes |
+| PATCH | Partial update | No |
+| DELETE | Soft delete (sets the `deleted` column) | Yes |
 
-**Wichtig zu DELETE:** Shifty macht Soft-Delete, kein Hard-Delete.
-Der Reader filtert `deleted IS NULL`. Ein `DELETE`-Aufruf setzt die
-Spalte, entfernt die Zeile aber nicht physisch.
+**Important note on DELETE:** Shifty does soft delete, not hard delete.
+Readers filter `deleted IS NULL`. A `DELETE` call sets the column but
+does not physically remove the row.
 
-## URL-Struktur
+## URL structure
 
-- **Kebab-Case:** `/sales-person`, `/billing-period`, nicht
+- **Kebab-case:** `/sales-person`, `/billing-period`, not
   `/salesPerson`.
-- **Ressourcen im Plural:** `/bookings`, `/absences`.
-- **Sub-Ressourcen:** `/sales-person/{id}/employee-work-details`.
+- **Resources in plural:** `/bookings`, `/absences`.
+- **Sub-resources:** `/sales-person/{id}/employee-work-details`.
 
-**[Zu prüfen]** — Uniformität ist im Repo nicht 100% (manche Routen
-sind Singular, manche Plural). Bei neuen Routen: konsistent bleiben.
+**[To verify]** — uniformity is not 100% across the repo (some routes
+are singular, some plural). For new routes: stay consistent.
 
 ## UUIDs
 
-Alle Entity-IDs sind UUIDs, wire als Hyphenated-String:
+All entity IDs are UUIDs, transmitted as hyphenated strings:
 
 ```
 "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-Nicht: comma-separiert, ohne Bindestriche, oder als Byte-Array.
+Not: comma-separated, without dashes, or as a byte array.
 
-## Zeit & Datum
+## Time & date
 
-- **Date-only:** ISO 8601, `YYYY-MM-DD`.
-- **Datetime:** ISO 8601, `YYYY-MM-DDTHH:MM:SSZ` (UTC — **[Zu prüfen]**).
+- **Date only:** ISO 8601, `YYYY-MM-DD`.
+- **Datetime:** ISO 8601, `YYYY-MM-DDTHH:MM:SSZ` (UTC — **[To verify]**).
 
-Kein Unix-Timestamp. Keine Locale-abhängige Formatierung im API.
+No Unix timestamps. No locale-dependent formatting in the API.
 
 ## Enums
 
-Wire-Format: String mit exaktem Rust-Variant-Namen.
+Wire format: string with the exact Rust variant name.
 
 ```json
 { "category": "SickLeave" }
 ```
 
-Nicht: Lowercase, Snake-Case, Numeric-ID.
+Not: lowercase, snake_case, or numeric ID.
 
-## Optionale Felder
+## Optional fields
 
-Rust `Option<T>` wird zu `null` oder komplett weggelassen —
-**[Zu prüfen]** wie serde in Shifty konfiguriert ist (`skip_serializing_if`
-oder `null`?).
+Rust `Option<T>` becomes `null` or is omitted entirely —
+**[To verify]** how serde is configured in Shifty (`skip_serializing_if`
+or `null`?).
 
-## Fehler-Format
+## Error format
 
-Fehler kommen als JSON zurück:
+Errors are returned as JSON:
 
 ```json
 {
@@ -78,53 +77,52 @@ Fehler kommen als JSON zurück:
 }
 ```
 
-**[Zu prüfen]** — genaues Feld-Set aus `error_handler`.
+**[To verify]** — exact field set from `error_handler`.
 
-## Auth-Header
+## Auth header
 
-- **`mock_auth`:** Kein Header nötig.
-- **`oidc`:** Bearer-Token:
+- **`mock_auth`:** no header required.
+- **`oidc`:** bearer token:
   ```
   Authorization: Bearer <token>
   ```
 
-## Transaktionen aus Client-Sicht
+## Transactions from the client's perspective
 
-Ein API-Call = eine Backend-Transaktion. Der Client sieht **atomar**:
-entweder Erfolg mit vollem Effekt oder Fehler ohne teilweisen Effekt.
+One API call = one backend transaction. The client sees an **atomic**
+outcome: either success with full effect, or an error with no partial
+effect.
 
-Es gibt keine expliziten Client-Transaktionen ("BEGIN"/"COMMIT" über
-mehrere Requests). Wenn du eine Composite-Op brauchst, ist das ein
-Fall für einen dedizierten Backend-Endpoint, der die Ops intern
-zusammenfasst.
+There are no explicit client-side transactions ("BEGIN"/"COMMIT" across
+multiple requests). If you need a composite op, that's a case for a
+dedicated backend endpoint that bundles the ops internally.
 
 ## Pagination
 
-**[Zu prüfen]** — aktueller Stand. Viele Endpoints scheinen Full-Liste
-zu liefern. Für große Datensätze wäre offset-basierte Pagination der
-nächste Schritt.
+**[To verify]** — current state. Many endpoints appear to return a full
+list. For large datasets, offset-based pagination would be the next
+step.
 
-## Rate-Limiting
+## Rate limiting
 
-**[Zu prüfen]** — ob Rate-Limits gesetzt sind. Aktuell vermutlich
-nicht.
+**[To verify]** — whether rate limits are configured. Probably not
+today.
 
-## Versionierung des API
+## API versioning
 
-- **Kein URL-Prefix.** Aktuell ist `/booking`, nicht `/v1/booking`.
-- **Breaking Changes** werden über die SemVer-Backend-Version
-  kommuniziert. Ein Zweit-Client sollte die Backend-Version im UI oder
-  Log anzeigen.
-- **Für DTO-Änderungen:** Bei additiven Änderungen (neues Feld) kompatibel.
-  Bei entfernten Feldern: Major-Bump.
+- **No URL prefix.** Currently `/booking`, not `/v1/booking`.
+- **Breaking changes** are communicated via the SemVer backend version.
+  A second client should display the backend version in the UI or log.
+- **For DTO changes:** additive changes (new field) stay compatible;
+  removed fields trigger a major bump.
 
-## Idempotenz-Keys
+## Idempotency keys
 
-**[Zu prüfen]** — ob Idempotency-Header-Support existiert. Aktuell
-vermutlich nicht — Retry-Verhalten muss vom Client sicher gestaltet
-werden (POST kann bei Retry zu Duplikaten führen).
+**[To verify]** — whether idempotency-header support exists. Probably
+not today — retry behaviour has to be made safe by the client (a POST
+retry can produce duplicates).
 
-## Long-Polling / WebSockets
+## Long-polling / WebSockets
 
-**Nein.** Shifty ist Request-Response. Kein WebSocket, kein SSE. Für
-Live-Updates muss der Client periodisch pollen.
+**No.** Shifty is request-response. No WebSocket, no SSE. For live
+updates, the client must poll periodically.

@@ -1,38 +1,37 @@
-# Fach-Referenz — Domain-Modell & Regeln
+# Domain Reference — Domain Model & Rules
 
-Diese Sektion beschreibt **das Fach**, nicht die Technik: was ein Booking ist,
-wie das Stundenkonto rechnet, wann eine Billing-Period eingefroren wird, was
-der Unterschied zwischen Absence und (Legacy-)Extra-Hours ist.
+This section describes **the domain**, not the technology: what a Booking is,
+how the time account calculates, when a Billing Period is frozen, what the
+difference between Absence and (legacy) Extra Hours is.
 
-Wenn du fachlich mitreden willst oder eine Business-Regel prüfen musst, sind
-das die Dokumente hier.
+If you want to discuss the domain or need to verify a business rule, these
+are the documents to read.
 
-## Kapitel
+## Chapters
 
-- **[glossary.md](./glossary.md)** — Definitionen aller Domain-Begriffe.
-- **[time-accounting.md](./time-accounting.md)** — Stundenkonto:
-  Expected, Worked, Balance, Carryover — wie es berechnet wird und woher die
-  Daten kommen.
-- **[billing-period.md](./billing-period.md)** — Billing-Period-Snapshot,
-  `snapshot_schema_version`, warum re-computation stabil sein muss.
-- **[absence-system.md](./absence-system.md)** — Range-basierte Abwesenheiten
-  (v1.0+), Cutover-Historie, Verhältnis zu Legacy-Extra-Hours.
-- **[edge-cases.md](./edge-cases.md)** — **Zentrale Randfall-Referenz**.
-  Enthält Stundenkonto-Rand­fälle und app-weite Ecken (Auth, Transaktionen,
-  Zeit, Zeitzone, Rundung, Toggle-Rollouts, …).
+- **[glossary.md](./glossary.md)** — Definitions of all domain terms.
+- **[time-accounting.md](./time-accounting.md)** — Time account:
+  Expected, Worked, Balance, Carryover — how it is calculated and where the
+  data comes from.
+- **[billing-period.md](./billing-period.md)** — Billing Period snapshot,
+  `snapshot_schema_version`, why re-computation must be stable.
+- **[absence-system.md](./absence-system.md)** — Range-based absences
+  (v1.0+), cutover history, relationship to legacy Extra Hours.
+- **[edge-cases.md](./edge-cases.md)** — **Central edge-case reference**.
+  Contains time-account edge cases and application-wide edges (auth,
+  transactions, time, time zone, rounding, toggle rollouts, …).
 
-## Warum eine eigene Fach-Sektion
+## Why a dedicated domain section
 
-Shifty rechnet nicht triviale Dinge. Ein Booking ist einfach; eine
-korrekte Balance über einen Contract-Wechsel, einen Feiertag am Wochenende,
-eine periodenübergreifende Krankmeldung und einen Toggle-Rollout mitten im
-Zeitraum ist es nicht.
+Shifty computes non-trivial things. A Booking is simple; a correct Balance
+across a contract change, a public holiday on the weekend, a cross-period
+sick leave, and a toggle rollout in the middle of the range is not.
 
-Diese Dokumentation existiert, damit:
+This documentation exists so that:
 
-- **Fach-Reviewer** (nicht-technische Stakeholder) prüfen können, ob eine
-  Regel abgebildet ist, ohne Rust zu lesen.
-- **Backend-Entwickler:innen** vor jeder Änderung an der Balance-Rechnung
-  wissen, welche Kanten zu prüfen sind (`edge-cases.md`).
-- **Zweit-Client-Entwickler:innen** verstehen, was ein zurückgegebener Wert
-  bedeutet — ohne die Rechnung selbst zu bauen.
+- **Domain reviewers** (non-technical stakeholders) can verify that a rule
+  is represented without reading Rust.
+- **Backend developers** know, before any change to the Balance
+  calculation, which edges must be checked (`edge-cases.md`).
+- **Second-client developers** understand what a returned value means —
+  without building the calculation themselves.

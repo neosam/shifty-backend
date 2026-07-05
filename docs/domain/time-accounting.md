@@ -1,72 +1,72 @@
-# Stundenkonto — Wie die Balance rechnet
+# Time Account — How the Balance Is Calculated
 
-Diese Datei erklärt fachlich, wie das Stundenkonto (auch: Balance) in
-Shifty berechnet wird. Für den technischen Deep-Dive siehe
-[F07 Reporting & Balance](../features/F07-reporting-balance.md). Für
-Randfälle siehe [`edge-cases.md`](./edge-cases.md).
+This file explains, from the domain perspective, how the time account
+(also: Balance) in Shifty is calculated. For the technical deep-dive see
+[F07 Reporting & Balance](../features/F07-reporting-balance.md). For edge
+cases see [`edge-cases.md`](./edge-cases.md).
 
-## Die Grundformel
+## The base formula
 
 ```
 balance = worked − expected + carryover
 ```
 
-Für einen gegebenen Sales Person und einen Zeitraum:
+For a given Sales Person and a time range:
 
-- **`worked`** — tatsächlich verbuchte Stunden.
-- **`expected`** — vertraglich erwartete Stunden.
-- **`carryover`** — Vorjahres-Saldo, der in dieses Jahr rollt.
+- **`worked`** — actually recorded hours.
+- **`expected`** — contractually expected hours.
+- **`carryover`** — previous year's balance rolled into this year.
 
-Das Ergebnis ist ein positives oder negatives Delta:
+The result is a positive or negative delta:
 
-- **+5 Stunden:** Fünf Stunden Überstunden.
-- **−3 Stunden:** Drei Stunden Minus (nicht genug gearbeitet für die
-  Erwartung).
+- **+5 hours:** Five hours of overtime.
+- **−3 hours:** Three hours short (not enough worked to meet the
+  expectation).
 
-## Was zählt als `worked`?
+## What counts as `worked`?
 
-Ist-Stunden setzen sich zusammen aus:
+Actual hours are composed of:
 
-1. **Bookings** — geplante Schichten (Sales Person × Slot × Datum).
-   Jede Booking trägt die Dauer des zugewiesenen Slots bei.
-2. **Extra Hours mit Kategorie `ExtraWork`** — Überstunden außerhalb
-   des Shiftplans (Sonderdienste, ungeplante Arbeit).
-3. **Absences mit "positiver" Kategorie** — Urlaub, Krank, Feiertag,
-   Unavailable, VolunteerWork werden als "gearbeitet" behandelt (aus
-   Sicht der Balance, damit sie die Erwartung erfüllen).
-4. **Custom Extra Hours** — abhängig von der Definition der Kategorie.
+1. **Bookings** — planned shifts (Sales Person × Slot × date). Each
+   Booking contributes the duration of the assigned Slot.
+2. **Extra Hours with category `ExtraWork`** — overtime outside of the
+   Shiftplan (special duties, unplanned work).
+3. **Absences with a "positive" category** — Vacation, SickLeave,
+   Holiday, Unavailable, VolunteerWork are treated as "worked" (from the
+   perspective of the Balance, so that they satisfy the expectation).
+4. **Custom Extra Hours** — depending on the definition of the category.
 
-**Kategorie-Übersicht:**
+**Category overview:**
 
-| Kategorie | Trägt zu `worked` bei? | Senkt `expected`? | Bemerkung |
+| Category | Contributes to `worked`? | Reduces `expected`? | Note |
 | --- | --- | --- | --- |
-| Shiftplan (Booking) | Ja | Nein | Regulärer Fall |
-| ExtraWork | Ja | Nein | Überstunden |
-| Vacation | Ja | Nein | Urlaub gilt als "gearbeitet" |
-| SickLeave | Ja | Nein | Krankheit gilt als "gearbeitet" |
-| Holiday | Ja | Nein | Feiertag-Auto-Credit |
-| Unavailable | Ja | Nein | Verfügbarkeits-Sperre |
-| VolunteerWork | Ja | Nein | Ehrenamt |
-| **UnpaidLeave** | **Nein** | **Ja** | Sonderfall: senkt Erwartung |
-| CustomExtraHours | Definiert | Definiert | Pro Custom-Kategorie |
+| Shiftplan (Booking) | Yes | No | Regular case |
+| ExtraWork | Yes | No | Overtime |
+| Vacation | Yes | No | Vacation counts as "worked" |
+| SickLeave | Yes | No | Sick leave counts as "worked" |
+| Holiday | Yes | No | Holiday auto-credit |
+| Unavailable | Yes | No | Availability block |
+| VolunteerWork | Yes | No | Volunteer work |
+| **UnpaidLeave** | **No** | **Yes** | Special case: reduces expectation |
+| CustomExtraHours | Defined | Defined | Per custom category |
 
-**Der Sonderfall `UnpaidLeave`:** Statt zur Ist-Seite beizutragen, wird
-die Erwartung um die Dauer reduziert. Effekt: Ein Tag unbezahlter
-Urlaub bringt die Balance nicht in Minus, sondern verringert die
-"was hätte gearbeitet werden müssen"-Zahl.
+**The special case `UnpaidLeave`:** Instead of contributing to the actual
+side, the expectation is reduced by the duration. Effect: A day of unpaid
+leave does not push the Balance into the negative but instead lowers the
+"how much should have been worked" figure.
 
-## Was ist `expected`?
+## What is `expected`?
 
-Erwartung ergibt sich aus:
+Expectation is derived from:
 
-1. **Contract-Zeilen** (`employee_work_details`) — Wochenstunden verteilt
-   auf Wochentage.
-2. **Special Days** — Feiertage oder betriebliche Sondertage senken
-   die Erwartung an dem Tag.
-3. **UnpaidLeave** (siehe oben) — senkt die Erwartung im gebuchten
-   Zeitraum.
+1. **Contract rows** (`employee_work_details`) — weekly hours distributed
+   across weekdays.
+2. **Special Days** — public holidays or operational special days reduce
+   the expectation on that day.
+3. **UnpaidLeave** (see above) — reduces the expectation over the booked
+   range.
 
-**Grundschema pro Tag:**
+**Per-day base schema:**
 
 ```
 expected(day) = if working_day(contract, day) then
@@ -77,55 +77,55 @@ expected(day) = if working_day(contract, day) then
                     0
 ```
 
-**Aggregation auf Zeitraum:**
+**Aggregation over a time range:**
 
 ```
-expected(from..to) = Σ expected(day) für day in from..to
+expected(from..to) = Σ expected(day) for day in from..to
 ```
 
-## Was ist `carryover`?
+## What is `carryover`?
 
-**Carryover** ist der eingefrorene Jahresend-Saldo aus dem Vorjahr.
+**Carryover** is the frozen year-end balance from the previous year.
 
-Beispiel: Am 31.12.2025 hatte der Sales Person `+8` Balance-Stunden.
-Dieser Wert wird als `carryover(2025)` persistiert. Wenn 2026 die
-Balance ausgerechnet wird, ist der Startwert nicht 0, sondern die 8
-Stunden vom Vorjahresende.
+Example: On 2025-12-31 the Sales Person had `+8` Balance hours. This
+value is persisted as `carryover(2025)`. When the Balance for 2026 is
+computed, the starting value is not 0 but the 8 hours from the end of
+the previous year.
 
-**Warum das Muster?** Ohne Carryover müsste jeder Report seit
-Betrieb-Beginn alles rekalkulieren. Mit Carryover reicht das
-laufende Jahr.
+**Why this pattern?** Without Carryover every report would have to
+recompute everything since the start of operation. With Carryover the
+current year alone is sufficient.
 
-**Wann Carryover geschrieben wird:** Der Scheduler
-(`service_impl/src/scheduler.rs:60,68`) ruft
-`update_carryover_all_employees(year-1, Full)` und
-`update_carryover_all_employees(year, Full)` zeitgetrieben. Beide
-Jahre werden aktualisiert — das aktuelle wird nachjustiert, wenn
-rückwirkende Änderungen eingehen.
+**When Carryover is written:** The scheduler
+(`service_impl/src/scheduler.rs:60,68`) calls
+`update_carryover_all_employees(year-1, Full)` and
+`update_carryover_all_employees(year, Full)` on a schedule. Both years
+are updated — the current one is re-adjusted when retroactive changes
+arrive.
 
-## Zeit-Skalen
+## Time scales
 
-Die Balance kann für unterschiedliche Zeitfenster berechnet werden:
+The Balance can be computed for different time windows:
 
-- **Pro Tag** — Basis-Einheit.
-- **Pro Kalenderwoche** — Standardansicht (Block-Report).
-- **Pro Monat** — HR-Sicht.
-- **Pro Jahr** — Ganzjahresbilanz.
-- **Ad-hoc-Range** — beliebiges `[from, to]`.
+- **Per day** — base unit.
+- **Per calendar week** — default view (Block report).
+- **Per month** — HR view.
+- **Per year** — full-year balance.
+- **Ad-hoc range** — arbitrary `[from, to]`.
 
-Aggregation ist additiv über die Tage.
+Aggregation is additive over the days.
 
 ## Weekly Cap
 
-**[Verifiziert per F07-Doku]** Es gibt einen "weekly cap"-Mechanismus:
-Die Balance in einer Woche wird begrenzt, damit Extremwerte in einer
-einzelnen Woche das Bild nicht verzerren. Details:
-`apply_weekly_cap` in `reporting.rs` — siehe F07.
+**[Verified via F07 docs]** There is a "weekly cap" mechanism: the
+Balance in a week is capped so that extreme values in a single week
+don't distort the picture. Details: `apply_weekly_cap` in `reporting.rs`
+— see F07.
 
-## Vacation Balance separat
+## Vacation Balance separately
 
-Der Urlaubs-Saldo ist eine parallele Rechnung, mit derselben
-Carryover-Idee, aber auf Urlaubstagen statt Stunden:
+The vacation balance is a parallel calculation, using the same
+Carryover idea but on vacation days instead of hours:
 
 ```
 vacation_balance = entitled + carryover(year−1) − (used + planned) + offset
@@ -133,33 +133,33 @@ vacation_balance = entitled + carryover(year−1) − (used + planned) + offset
 
 Details: [F06](../features/F06-vacation-management.md).
 
-## Wo die Rechnung passiert
+## Where the calculation happens
 
-Zentral in `service_impl/src/reporting.rs` (2205 Zeilen), aggregiert
-über `sales_person`, `booking`, `extra_hours`, `absence`,
-`carryover`, `special_days`.
+Centrally in `service_impl/src/reporting.rs` (2205 lines), aggregated
+over `sales_person`, `booking`, `extra_hours`, `absence`, `carryover`,
+`special_days`.
 
-Interne Reads laufen mit `Authentication::Full` — der REST-Handler hat
-den User-Auth bereits geprüft, und das Reporting braucht die Rohdaten
-ohne pro-Read-Permission-Guard.
+Internal reads run with `Authentication::Full` — the REST handler has
+already verified the user auth, and the reporting layer needs the raw
+data without a per-read permission guard.
 
-## Wo die Rechnung sichtbar wird
+## Where the calculation becomes visible
 
-- **Weekly Overview** — Frontend-Page mit Blocken pro Sales Person.
-- **My Shifts** — Sales-Person-Eigensicht.
-- **Employee Details** — HR-Sicht mit Zeitraum-Selektor.
-- **Billing Period Details** — die eingefrorene Version.
+- **Weekly Overview** — frontend page with blocks per Sales Person.
+- **My Shifts** — Sales Person's own view.
+- **Employee Details** — HR view with time range selector.
+- **Billing Period Details** — the frozen version.
 
-## Warum das kompliziert ist
+## Why this is complicated
 
-Weil viele Randbedingungen zusammenkommen:
+Because many edge conditions combine:
 
-- Contract-Wechsel mitten in der Woche.
-- Special Days am Wochenende (ändern nichts, wenn kein Werktag).
-- Absences über Jahreswechsel (müssen den Carryover-Timepoint kreuzen).
-- Toggle-Rollouts (Stichtag-basiert — vor/nach Stichtag verschiedene
-  Rechnungswege).
-- Snapshot-Frozen-vs-Live-Diff (Billing Period vs Live-Reporting).
+- Contract change mid-week.
+- Special Days on the weekend (change nothing if not a working day).
+- Absences across the year boundary (must cross the Carryover timepoint).
+- Toggle rollouts (effective-date based — different calculation paths
+  before/after the effective date).
+- Snapshot frozen-vs-live diff (Billing Period vs live reporting).
 
-Vor jeder Änderung an der Balance-Rechnung: **lies
+Before any change to the Balance calculation: **read
 [`edge-cases.md#1-stundenkonto`](./edge-cases.md#1-stundenkonto)**.

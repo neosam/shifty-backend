@@ -1,215 +1,217 @@
 # Feature: Vacation Management — Balance, Offset & Carryover
 
-> **Kurzform:** Der Cluster berechnet, wieviel Urlaub ein Mitarbeiter im
-> Kalenderjahr hat, wieviel er verbraucht/geplant hat, was aus dem Vorjahr
-> übertragen wurde und trägt den offenen Rest am Jahresende weiter. HR kann den
-> Vertrags-Anspruch pro (Person, Jahr) über einen signierten Offset korrigieren.
+> **In short:** The cluster computes how much Vacation an employee is
+> entitled to in the calendar year, how much has been used/planned, what
+> was carried over from the previous year, and forwards the open remainder
+> at year end. HR can correct the contractual entitlement per (person, year)
+> via a signed offset.
 
-**Cluster-ID:** F06
-**Status:** produktiv (v2.4+, seit Milestone 8)
-**Erstmalig eingeführt:** Milestone 8 (Vacation-Balance-Endpoint), Milestone 28 (Vacation-Entitlement-Offset)
-**Zuständige Crates:**
+**Cluster ID:** F06
+**Status:** production (v2.4+, since Milestone 8)
+**First introduced:** Milestone 8 (Vacation-Balance endpoint), Milestone 28 (Vacation Entitlement Offset)
+**Responsible crates:**
 `service::vacation_balance`, `service::vacation_entitlement_offset`, `service::carryover`,
 `service_impl::vacation_balance`, `service_impl::vacation_entitlement_offset`, `service_impl::carryover`,
-`service_impl::scheduler` (Cron-Trigger für Carryover),
+`service_impl::scheduler` (cron trigger for Carryover),
 `dao::vacation_entitlement_offset`, `dao::carryover`,
 `rest::vacation_balance`, `rest::vacation_entitlement_offset`,
 `rest-types::{VacationBalanceTO, VacationEntitlementOffsetTO}`
 
 ---
 
-## 1. Was ist das? (Fachlich)
+## 1. What is this? (Domain view)
 
-Im Arbeitsvertrag jedes Mitarbeiters steht eine Zahl bezahlter Urlaubstage pro
-Jahr (`employee_work_details.vacation_days`). Dieser Cluster beantwortet für
-jeden Mitarbeiter drei Kernfragen:
+Every employee's employment contract states a number of paid vacation days
+per year (`employee_work_details.vacation_days`). This cluster answers
+three core questions for every employee:
 
-- **Wieviel Urlaub steht mir dieses Jahr zu?** — Vertragsanspruch, aliquot bei
-  Vertragswechsel und optional per HR-Offset korrigiert.
-- **Wieviel habe ich schon verbraucht und wieviel ist noch geplant?** — Summe
-  über die Vacation-Absence-Periods des Jahres, aufgeteilt in `used` (bis
-  heute) und `planned` (ab morgen).
-- **Was habe ich noch übrig?** — `entitled + carryover − (used + planned)`.
+- **How much Vacation am I entitled to this year?** — Contract entitlement,
+  aliquot on contract change, and optionally corrected by an HR offset.
+- **How much have I used and how much is still planned?** — Sum over the
+  Vacation Absence periods of the year, split into `used` (until today)
+  and `planned` (from tomorrow onwards).
+- **How much do I have left?** — `entitled + carryover − (used + planned)`.
 
-Der **Carryover** ist der Rest-Saldo am Jahresende, den ein Mitarbeiter ins
-nächste Jahr mitnimmt (analog zum Stunden-Carryover für die Balance-Hours). Er
-wird nächtlich vom Scheduler frisch berechnet und persistiert — sowohl für das
-Vorjahr (Rückwirkungen aus Nachtrag-Buchungen) als auch für das laufende Jahr
-(kontinuierliche Vorschau).
+The **Carryover** is the remaining balance at year end that an employee
+takes into the next year (analogous to the hour Carryover for balance
+hours). It is freshly computed and persisted nightly by the scheduler —
+both for the previous year (retroactive effects from late-entered bookings)
+and for the current year (continuous preview).
 
-Der **Vacation-Entitlement-Offset** ist eine HR-only Korrektur pro
-(Mitarbeiter, Jahr): eine Ganzzahl in Tagen, die auf den Vertrags-Anspruch
-addiert wird — z. B. `+2` als Prämie, `-3` als einmaliger Abzug. Der Offset
-ist bewusst *ganztägig* und wird NACH der `.round()`-Ganzzahl-Konvertierung
-des Anspruchs addiert, damit er niemals durch Rundung „verschwindet".
+The **Vacation Entitlement Offset** is an HR-only correction per
+(employee, year): an integer in days that is added to the contract
+entitlement — e.g. `+2` as a bonus, `-3` as a one-off deduction. The
+offset is deliberately *whole-day* and is added AFTER the `.round()`
+integer conversion of the entitlement, so it can never "disappear" through
+rounding.
 
-**Beispiel-Workflow aus User-Sicht (HR):**
+**Example workflow from the user perspective (HR):**
 
-1. HR öffnet den Reiter „Abwesenheiten", wählt Jahr 2026 und einen
-   Mitarbeiter aus.
-2. Die `VacationEntitlementCard` zeigt fünf Kacheln:
-   `Vertrag`, `Übertrag Vorjahr`, `Genommen`, `Geplant`, `Rest`.
-3. HR sieht zusätzlich zum effektiven Anspruch den *rohen* Vertragsanspruch
-   und den aktuellen Offset. Ein Inline-Editor erlaubt, den Offset zu setzen
-   oder zu löschen. Die Kachel aktualisiert sich sofort.
-4. Am 01.01. läuft der Cron: das Vorjahr wird endgültig „geschlossen"
-   (letzter Nachtrag), das neue Jahr bekommt initial einen Carryover-Eintrag.
+1. HR opens the "Absences" tab, selects year 2026 and an employee.
+2. The `VacationEntitlementCard` shows five tiles:
+   `Contract`, `Carryover from previous year`, `Used`, `Planned`, `Remaining`.
+3. In addition to the effective entitlement, HR sees the *raw* contract
+   entitlement and the current offset. An inline editor lets HR set or
+   delete the offset. The tile refreshes immediately.
+4. On Jan 1st, the cron runs: the previous year is finally "closed"
+   (last late entry), the new year is initialised with a Carryover entry.
 
-**Beispiel-Workflow (Mitarbeiter):**
+**Example workflow (employee):**
 
-1. Mitarbeiter öffnet seine Selbstansicht → sieht `entitled`, `carryover`,
-   `used`, `planned`, `remaining`. Der **rohe** Vertragsanspruch und der
-   Offset werden ihm serverseitig NICHT ausgeliefert (API-Hiding, D-28-03).
+1. Employee opens their self view → sees `entitled`, `carryover`,
+   `used`, `planned`, `remaining`. The **raw** contract entitlement and
+   the offset are NOT served to them by the backend (API hiding, D-28-03).
 
-## 2. Fachliche Regeln
+## 2. Domain rules
 
-### Vertrags-Anspruch (`entitled_days`)
+### Contract entitlement (`entitled_days`)
 
-- Quelle: `EmployeeWorkDetails.vacation_days: u8` — pro Vertragsabschnitt eine
-  Jahreszahl an Urlaubstagen (`service/src/employee_work_details.rs:37`).
-- Aliquotierung: `EmployeeWorkDetails::vacation_days_for_year(year)`
-  (`service/src/employee_work_details.rs:158-194`) rechnet für Verträge, die
-  nur einen Teil des Jahres abdecken, den Anteil `ordinal_days / days_in_year`
-  ab und liefert einen `f32`. **Phase-28-Fix (D-28-04):** Der Abzug am
-  Vertrags*start* startet erst bei Tag 1 (`ordinal - 1`), damit ein
-  Vertrag mit Start `01.01.` KEIN Sechzigstel abzieht.
-- Aggregation über alle nicht-gelöschten Verträge des Jahres, dann
-  `.round()` auf ganze Tage (`vacation_balance.rs:195-200` — konsistent mit
+- Source: `EmployeeWorkDetails.vacation_days: u8` — one annual number of
+  vacation days per contract segment (`service/src/employee_work_details.rs:37`).
+- Pro-rating: `EmployeeWorkDetails::vacation_days_for_year(year)`
+  (`service/src/employee_work_details.rs:158-194`) computes, for contracts
+  that cover only part of the year, the fraction `ordinal_days /
+  days_in_year` and returns an `f32`. **Phase-28 fix (D-28-04):** The
+  deduction at contract *start* begins at day 1 (`ordinal - 1`), so a
+  contract with start date `01.01.` does NOT deduct one-sixtieth.
+- Aggregation over all non-deleted contracts of the year, then `.round()`
+  to whole days (`vacation_balance.rs:195-200` — consistent with
   `reporting.rs`).
-- **Offset addiert nach der Rundung:** `entitled_effective = round(base) +
-  offset_days` (`vacation_balance.rs:213-214`, D-28-02). Der Offset ist eine
-  ganze Zahl in Tagen — er kann negativ sein.
+- **Offset added after rounding:** `entitled_effective = round(base) +
+  offset_days` (`vacation_balance.rs:213-214`, D-28-02). The offset is a
+  whole number in days — it can be negative.
 
-### Used / Planned (verbrauchte / geplante Tage)
+### Used / Planned (used / planned days)
 
-- Datenquelle: `AbsenceService::derive_hours_for_range(year_start,
-  year_end, sales_person_id, …)` — liefert pro Tag im Jahr eine
+- Data source: `AbsenceService::derive_hours_for_range(year_start,
+  year_end, sales_person_id, …)` — returns per day of the year a
   `ResolvedAbsence { category, hours, days }`.
-- Nur Tage mit `category == AbsenceCategory::Vacation` zählen; andere
-  Kategorien (Sick, UnpaidLeave, …) werden übersprungen
+- Only days with `category == AbsenceCategory::Vacation` count; other
+  categories (Sick, UnpaidLeave, …) are skipped
   (`vacation_balance.rs:248-249`).
-- Konflikt-Resolution (Sick > Vacation > UnpaidLeave) passiert bereits im
-  `derive_hours_for_range`; hier wird nur noch gefiltert.
-- Split am Stichtag `today`: `date <= today` → `used_days`,
+- Conflict resolution (Sick > Vacation > UnpaidLeave) already happens in
+  `derive_hours_for_range`; here it is only filtered.
+- Split at cutover date `today`: `date <= today` → `used_days`,
   `date > today` → `planned_days` (`vacation_balance.rs:255-262`).
-- **Tage kommen exakt aus `ResolvedAbsence.days`** — Halbtage (via
-  `day_fraction`, z. B. bei Halbtags-Feiertagen) und Wochendeckelung sind
-  bereits eingerechnet. Frühere naive „Kalendertag-Zählung" hätte
-  Wochenenden/Feiertage falsch gezählt.
-- Stunden werden parallel mitsummiert, aber aktuell nur defensiv aufbewahrt
+- **Days come exactly from `ResolvedAbsence.days`** — half days (via
+  `day_fraction`, e.g. on half-day public holidays) and weekly cap are
+  already accounted for. A naive "calendar day count" would have
+  miscounted weekends/public holidays.
+- Hours are summed in parallel, but currently only kept defensively
   (`_ = (used_hours, planned_hours)` in `vacation_balance.rs:264`).
 
-### Übertrag (`carryover_days`)
+### Carryover (`carryover_days`)
 
-- Gelesen aus `CarryoverService::get_carryover(sales_person_id, year - 1, …)`
-  (`vacation_balance.rs:270-273`). **Year-Semantik:** Ein
-  `Carryover`-Eintrag mit `year = Y` speichert den Ende-von-Y-Saldo, der in
-  Y+1 einfließt. Für den Übertrag *in* `year` muss also `year - 1` gefragt
-  werden — dies ist ein historischer Bug-Fix, der ursprünglich `year` direkt
-  weitergereicht hat (siehe Modul-Doc-Kommentar in `vacation_balance.rs:30-35`).
-- Soft-gelöschte Zeilen werden ignoriert (`filter(|c| c.deleted.is_none())`,
+- Read from `CarryoverService::get_carryover(sales_person_id, year - 1, …)`
+  (`vacation_balance.rs:270-273`). **Year semantics:** A `Carryover`
+  entry with `year = Y` stores the end-of-Y balance that flows into
+  Y+1. For the Carryover *into* `year`, `year - 1` must therefore be
+  queried — this is a historical bug fix that originally forwarded
+  `year` directly (see module doc comment in
+  `vacation_balance.rs:30-35`).
+- Soft-deleted rows are ignored (`filter(|c| c.deleted.is_none())`,
   `vacation_balance.rs:275`).
 
-### Rest (`remaining_days`)
+### Remaining (`remaining_days`)
 
 ```
 remaining_days = entitled_effective + carryover_days − (used_days + planned_days)
                                                                  ↑             ↑
-                                                              inkl. Halbtage / Konfliktresolution
+                                                              incl. half days / conflict resolution
 ```
 
 (`vacation_balance.rs:279-280`)
 
-### Offset-Semantik
+### Offset semantics
 
-- Genau **eine aktive Zeile pro (sales_person_id, year)**, enforced durch
-  Partial-Unique-Index auf `WHERE deleted IS NULL`
+- Exactly **one active row per (sales_person_id, year)**, enforced by a
+  partial unique index on `WHERE deleted IS NULL`
   (`migrations/sqlite/20260629000000_create-vacation-entitlement-offset.sql`).
-- `set` ist Upsert: gibt es bereits eine aktive Zeile, wird `offset_days` und
-  `version` aktualisiert; sonst neue Row angelegt
+- `set` is an upsert: if an active row already exists, `offset_days` and
+  `version` are updated; otherwise a new row is created
   (`service_impl/src/vacation_entitlement_offset.rs:67-102`).
-- `delete` ist Soft-Delete (`deleted = now(), new version`,
+- `delete` is a soft delete (`deleted = now(), new version`,
   `vacation_entitlement_offset.rs:130-139`).
-- `get` liefert nur die aktive Zeile
-  (`find_by_sales_person_id_and_year` mit `WHERE deleted IS NULL`).
-- **Alle CRUD-Ops sind HR-gated** (D-28-06b). Ein Nicht-HR-Aufrufer bekommt
+- `get` returns only the active row
+  (`find_by_sales_person_id_and_year` with `WHERE deleted IS NULL`).
+- **All CRUD ops are HR-gated** (D-28-06b). A non-HR caller gets
   `ServiceError::Forbidden`.
 
-### API-Hiding für HR-only-Felder
+### API hiding for HR-only fields
 
-- `VacationBalance` trägt zwei zusätzliche Felder — `offset_days` und
-  `computed_entitled_days` — als `Option<..>`.
-- Für HR-Aufrufer werden beide als `Some(..)` gesetzt, für self-only als
+- `VacationBalance` carries two additional fields — `offset_days` and
+  `computed_entitled_days` — as `Option<..>`.
+- For HR callers both are set to `Some(..)`, for self-only they are
   `None` (`vacation_balance.rs:127-128`, `vacation_balance.rs:292-298`).
-- **Wichtig:** `entitled_days` (der effektive Wert) ist für beide Rollen
-  identisch — Offset ist niemals versteckt in der Rechnung, nur der
-  *Breakdown* wird geschützt (D-28-03).
+- **Important:** `entitled_days` (the effective value) is identical for
+  both roles — the offset is never hidden from the calculation, only the
+  *breakdown* is protected (D-28-03).
 
-### Permission-Modell
+### Permission model
 
-- `VacationBalanceService::get`: **HR ∨ self**. Umsetzung via `tokio::join!`
-  über `check_permission(HR)` und `verify_user_is_sales_person`
-  (`vacation_balance.rs:114-128`).
+- `VacationBalanceService::get`: **HR ∨ self**. Implemented via
+  `tokio::join!` over `check_permission(HR)` and
+  `verify_user_is_sales_person` (`vacation_balance.rs:114-128`).
 - `VacationBalanceService::get_team`: **HR-only**
-  (`vacation_balance.rs:147-149`). Aggregiert nur *bezahlte* Sales Persons
+  (`vacation_balance.rs:147-149`). Aggregates only *paid* Sales Persons
   (`get_all_paid`, `vacation_balance.rs:151-154`).
 - `VacationEntitlementOffsetService::{get,set,delete}`: **HR-only**
   (`vacation_entitlement_offset.rs:39-41, 63-65, 116-118`).
-- `CarryoverService::{get,set}`: **kein expliziter Gate** — der Context wird
-  ignoriert (`_context`) und die Ops sind als internes Aggregat der Pipeline
-  gedacht (Cron-Scheduler ruft mit `Authentication::Full`, Reporting mit
-  `Authentication::Full`). Ein direkter REST-Endpoint auf Carryover existiert
-  **nicht**.
+- `CarryoverService::{get,set}`: **no explicit gate** — the context is
+  ignored (`_context`) and the ops are intended as an internal aggregate
+  of the pipeline (cron scheduler calls with `Authentication::Full`,
+  reporting with `Authentication::Full`). A direct REST endpoint on
+  Carryover does **not** exist.
 
-## 3. Datenmodell
+## 3. Data model
 
-### Tabellen
+### Tables
 
-| Tabelle | Zweck | Wichtige Spalten |
+| Table | Purpose | Key columns |
 | --- | --- | --- |
-| `employee_yearly_carryover` | Jahresend-Saldo pro (Person, Jahr) — Stunden **und** Urlaubstage in *einer* Row | `sales_person_id`, `year`, `carryover_hours REAL`, `vacation INTEGER`, `deleted`, `update_process`, `update_version` (PK: `(sales_person_id, year)`) |
-| `vacation_entitlement_offset` | Signierte HR-Korrektur pro (Person, Jahr) | `id BLOB PK`, `sales_person_id`, `year`, `offset_days INTEGER`, `deleted`, `update_process`, `update_version` |
-| `employee_yearly_carryover_pre_cutover_backup` | **Nur historisch (Milestone 8.6 gelöscht).** Cutover-Backup vor Absence-Cutover. | — |
+| `employee_yearly_carryover` | Year-end balance per (person, year) — hours **and** vacation days in *one* row | `sales_person_id`, `year`, `carryover_hours REAL`, `vacation INTEGER`, `deleted`, `update_process`, `update_version` (PK: `(sales_person_id, year)`) |
+| `vacation_entitlement_offset` | Signed HR correction per (person, year) | `id BLOB PK`, `sales_person_id`, `year`, `offset_days INTEGER`, `deleted`, `update_process`, `update_version` |
+| `employee_yearly_carryover_pre_cutover_backup` | **Historical only (deleted in Milestone 8.6).** Cutover backup before Absence cutover. | — |
 
 ### Migrations
 
-Chronologisch:
+Chronologically:
 
-- `20241215063132_add_employee-yearly-carryover.sql` — Basistabelle
+- `20241215063132_add_employee-yearly-carryover.sql` — base table
   `employee_yearly_carryover(sales_person_id, year, carryover_hours,
-  created, deleted, update_process, update_version)`. Primary Key
+  created, deleted, update_process, update_version)`. Primary key
   `(sales_person_id, year)`.
-- `20241231065409_add_employee-yearly-vacation-carryover.sql` — additive Spalte
-  `vacation INTEGER NOT NULL DEFAULT 0`. **Beide Werte teilen sich eine Zeile**
-  — Stunden-Carryover und Urlaubstage-Carryover werden gemeinsam upserted
-  (`CarryoverEntity`, `dao/src/carryover.rs:5-14`).
+- `20241231065409_add_employee-yearly-vacation-carryover.sql` — additive
+  column `vacation INTEGER NOT NULL DEFAULT 0`. **Both values share one
+  row** — the hour Carryover and the vacation-day Carryover are upserted
+  together (`CarryoverEntity`, `dao/src/carryover.rs:5-14`).
 - `20260503000002_create-employee-yearly-carryover-pre-cutover-backup.sql`
-  (Milestone 4 Cutover) — Snapshot-Table für Rollback vor Absence-Cutover;
-  in Prod nie befüllt.
+  (Milestone 4 cutover) — snapshot table for rollback before the Absence
+  cutover; never populated in production.
 - `20260611000001_drop-employee-yearly-carryover-pre-cutover-backup.sql`
-  (Milestone 8.6, D-04) — Löschung der Backup-Tabelle. Forward-only.
+  (Milestone 8.6, D-04) — removal of the backup table. Forward-only.
 - `20260629000000_create-vacation-entitlement-offset.sql` (Milestone 28,
-  VAC-OFFSET-01, D-28-01) — neue Tabelle `vacation_entitlement_offset` mit
-  eigenem `id`-PK und `UNIQUE INDEX WHERE deleted IS NULL` auf
+  VAC-OFFSET-01, D-28-01) — new table `vacation_entitlement_offset` with
+  its own `id`-PK and `UNIQUE INDEX WHERE deleted IS NULL` on
   `(sales_person_id, year)`.
 
-### Beziehungen
+### Relationships
 
 - `employee_yearly_carryover.sales_person_id` → `sales_person(id)` (FK).
 - `vacation_entitlement_offset.sales_person_id` → `sales_person(id)` (FK).
-- Beide Tabellen sind an `SalesPerson` gebunden, nicht an
-  `EmployeeWorkDetails` (also NICHT an einen bestimmten Vertragsabschnitt).
-- Zwei separate Carryover-Konzepte teilen **eine** Zeile mit **zwei** Spalten
-  (`carryover_hours` für die Stundenbilanz, `vacation` für Urlaubstage). Das
-  ist bewusst so — beide werden vom selben nächtlichen Update-Pfad
-  (`shiftplan_edit.update_carryover`, s. Kap. 4) gemeinsam neu geschrieben.
+- Both tables are bound to `SalesPerson`, not to `EmployeeWorkDetails`
+  (i.e. NOT to a specific contract segment).
+- Two separate Carryover concepts share **one** row with **two** columns
+  (`carryover_hours` for the hour balance, `vacation` for vacation days).
+  This is deliberate — both are rewritten together by the same nightly
+  update path (`shiftplan_edit.update_carryover`, see §4).
 
-## 4. Service-API
+## 4. Service API
 
 ### Traits
 
 **`service::vacation_balance::VacationBalanceService`** — Business-Logic-Tier
-(kombiniert Cross-Entity-Daten aus 4 anderen Domain-Services).
+(combines cross-entity data from 4 other domain services).
 
 ```rust
 #[async_trait]
@@ -229,7 +231,7 @@ pub trait VacationBalanceService {
 ```
 
 **`service::vacation_entitlement_offset::VacationEntitlementOffsetService`** —
-Basic-Tier (Entity-Manager, KEIN Domain-Service als Dep).
+Basic-Tier (entity manager, NO domain service as dep).
 
 ```rust
 async fn get   (&self, sales_person_id: Uuid, year: u32, ctx, tx)
@@ -250,34 +252,35 @@ async fn set_carryover(&self, carryover: &Carryover, ctx, tx)
     -> Result<(), ServiceError>;                          // upsert
 ```
 
-### Auth-Gates
+### Auth gates
 
 | Op | Gate | Ref |
 | --- | --- | --- |
 | `VacationBalanceService::get` | HR ∨ self | `vacation_balance.rs:114-128` |
 | `VacationBalanceService::get_team` | HR-only | `vacation_balance.rs:147-149` |
 | `VacationEntitlementOffsetService::get/set/delete` | HR-only | `vacation_entitlement_offset.rs:39,63,116` |
-| `CarryoverService::get/set_carryover` | **kein Gate** — Kontext ignoriert; darf nur intern (Scheduler / Reporting) aufgerufen werden | `carryover.rs:31,45` |
+| `CarryoverService::get/set_carryover` | **no gate** — context ignored; may only be called internally (scheduler / reporting) | `carryover.rs:31,45` |
 
-### TX-Verhalten
+### Transaction behaviour
 
-- Beide Services öffnen eine TX per `transaction_dao.use_transaction(tx)`,
-  arbeiten atomar und committen am Ende — Standard-Pattern.
-- `VacationBalanceService::get_team` iteriert über alle bezahlten Sales
-  Persons und ruft `compute_balance` innerhalb *einer* TX auf
-  (`vacation_balance.rs:157-161`). Bei einem Fehler an *einer* Person bricht
-  die ganze Team-Abfrage ab (kein Partial-Result).
-- `VacationEntitlementOffsetService::set` ist upsert-atomar (Find →
-  Update/Create → Commit in einer TX).
-- **Scheduler-Update** (`shiftplan_edit.update_carryover_all_employees`)
-  läuft in *einer* Master-TX über alle Mitarbeiter
-  (`shiftplan_edit.rs:414-440`). Fehlt ein Bericht für einen Mitarbeiter,
-  bricht der gesamte Nightly-Run ab. **[Zu prüfen]** ob das gewünschtes
-  Verhalten ist oder ob per-Person-TX robuster wäre.
+- Both services open a transaction via `transaction_dao.use_transaction(tx)`,
+  work atomically, and commit at the end — standard pattern.
+- `VacationBalanceService::get_team` iterates over all paid Sales Persons
+  and calls `compute_balance` within *one* transaction
+  (`vacation_balance.rs:157-161`). On a failure for *one* person, the
+  entire team query aborts (no partial result).
+- `VacationEntitlementOffsetService::set` is upsert-atomic (find →
+  update/create → commit in one transaction).
+- **Scheduler update** (`shiftplan_edit.update_carryover_all_employees`)
+  runs in *one* master transaction over all employees
+  (`shiftplan_edit.rs:414-440`). If a report is missing for one
+  employee, the entire nightly run aborts. **[To verify]** whether this
+  is intended behaviour or whether a per-person transaction would be
+  more robust.
 
-### Cron-Trigger für Carryover
+### Cron trigger for Carryover
 
-Zwei Cron-Jobs im `SchedulerServiceImpl`
+Two cron jobs in `SchedulerServiceImpl`
 (`service_impl/src/scheduler.rs:59-74`):
 
 ```rust
@@ -285,30 +288,30 @@ shiftplan_edit_service.update_carryover_all_employees(year - 1, Full, None)
 shiftplan_edit_service.update_carryover_all_employees(year, Full, None)
 ```
 
-- Cron-Expression: **`"0 * * * * *"`** (`scheduler.rs:45`) — **[Zu prüfen]**:
-  die Notation ist 6-stellig; die Kommentare im Cluster sprechen von
-  „nächtlich", der Ausdruck wirkt aber wie „jede Minute im Sekundenslot 0".
-  Der Codepfad ist gleichwohl idempotent (Upsert), also unproblematisch,
-  aber der Intent gehört geklärt.
-- Warum zwei Jahre? Rückwirkende Änderungen am Vorjahr (z. B. neu erfasste
-  Krankheit für Dezember) sollen den Vorjahres-Carryover korrigieren, ohne
-  auf einen manuellen Trigger zu warten.
+- Cron expression: **`"0 * * * * *"`** (`scheduler.rs:45`) — **[To verify]**:
+  the notation is 6-part; the cluster comments talk about "nightly", but
+  the expression looks like "every minute at second-slot 0". The code
+  path is idempotent anyway (upsert), so it is not harmful, but the
+  intent should be clarified.
+- Why two years? Retroactive changes to the previous year (e.g. newly
+  recorded sick leave for December) should correct the previous-year
+  Carryover without waiting for a manual trigger.
 
-### `update_carryover(sales_person_id, year)` — der Rechen-Kern
+### `update_carryover(sales_person_id, year)` — the compute core
 
-`service_impl/src/shiftplan_edit.rs:362-407` (nicht in
-`service_impl/src/carryover.rs`; das ist bewusst — der Rechen-Kern gehört
-zur Business-Logic-Schicht des Shiftplan-Aggregats, siehe D-04 im
-Service-Tier-Modell):
+`service_impl/src/shiftplan_edit.rs:362-407` (not in
+`service_impl/src/carryover.rs`; that is deliberate — the compute core
+belongs to the business-logic layer of the Shiftplan aggregate, see D-04
+in the service tier model):
 
-1. Holt `employee_report = reporting_service.get_report_for_employee(sp_id,
+1. Fetches `employee_report = reporting_service.get_report_for_employee(sp_id,
    year, weeks_in_year, Full, tx)`.
 2. `new_carryover_hours = employee_report.balance_hours`
 3. `new_vacation_entitlement = floor(vacation_entitlement − vacation_days) as
-   i32` — der Urlaubstage-Übertrag ist der **abgerundete** Rest aus dem
-   Reporting.
-4. Beide Werte gemeinsam als `Carryover{ carryover_hours, vacation }` per
-   `set_carryover` (Upsert) persistieren.
+   i32` — the vacation-day Carryover is the **floored** remainder from
+   reporting.
+4. Persist both values together as `Carryover{ carryover_hours, vacation }`
+   via `set_carryover` (upsert).
 
 ### Dependencies
 
@@ -318,67 +321,68 @@ Service-Tier-Modell):
   `PermissionService`, `ClockService`, `TransactionDao`.
 - `VacationEntitlementOffsetServiceImpl` (`vacation_entitlement_offset.rs:14-22`):
   `VacationEntitlementOffsetDao`, `PermissionService`, `ClockService`,
-  `UuidService`, `TransactionDao` — **keine Domain-Service-Dependency**
-  (D-28-06, Anti-Zyklen-Regel: `VacationBalance` konsumiert Offset, also
-  darf Offset keinen Business-Logic-Service konsumieren).
+  `UuidService`, `TransactionDao` — **no domain service dependency**
+  (D-28-06, anti-cycle rule: `VacationBalance` consumes Offset, so
+  Offset must not consume a business-logic service).
 - `CarryoverServiceImpl` (`carryover.rs:14-19`): `CarryoverDao`,
-  `TransactionDao` — minimal, kein Permission-Gate im Service.
+  `TransactionDao` — minimal, no permission gate in the service.
 
-## 5. REST-Endpoints
+## 5. REST endpoints
 
-| Methode | Pfad | Beschreibung | DTO In | DTO Out | Wichtige Fehler |
+| Method | Path | Description | DTO in | DTO out | Key errors |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/vacation-balance/{sales_person_id}/{year}` | Resturlaub für eine Person | — | `VacationBalanceTO` | 403 (kein HR + nicht self), 404 |
-| `GET` | `/vacation-balance/team/{year}` | Aggregat über alle bezahlten Sales Persons | — | `[VacationBalanceTO]` | 403 |
-| `POST` | `/vacation-entitlement-offset` | Upsert des HR-Offsets | `VacationEntitlementOffsetTO` | `VacationEntitlementOffsetTO` | 403, 500 |
-| `DELETE` | `/vacation-entitlement-offset/{sales_person_id}/{year}` | Soft-Delete des Offsets | — | 204 no content | 403, 404 |
+| `GET` | `/vacation-balance/{sales_person_id}/{year}` | Remaining vacation for a person | — | `VacationBalanceTO` | 403 (no HR + not self), 404 |
+| `GET` | `/vacation-balance/team/{year}` | Aggregate over all paid Sales Persons | — | `[VacationBalanceTO]` | 403 |
+| `POST` | `/vacation-entitlement-offset` | Upsert the HR offset | `VacationEntitlementOffsetTO` | `VacationEntitlementOffsetTO` | 403, 500 |
+| `DELETE` | `/vacation-entitlement-offset/{sales_person_id}/{year}` | Soft-delete the offset | — | 204 no content | 403, 404 |
 
-Registrierung: `rest/src/lib.rs:36, 590-591, 657-660`.
+Registration: `rest/src/lib.rs:36, 590-591, 657-660`.
 
-**Route-Reihenfolge:** `/vacation-balance/team/{year}` **muss vor**
-`/vacation-balance/{sales_person_id}/{year}` registriert werden, sonst
-matcht Axum `"team"` als Uuid-Parse → 400 statt der Team-Route
+**Route order:** `/vacation-balance/team/{year}` **must be registered
+before** `/vacation-balance/{sales_person_id}/{year}`; otherwise Axum
+matches `"team"` as a Uuid parse → 400 instead of the team route
 (`rest/src/vacation_balance.rs:34-42`).
 
 `VacationBalanceTO` (`rest-types/src/lib.rs:2158-2178`):
 
 ```
 sales_person_id, year,
-entitled_days: f32,          // effektiv (round(base) + offset)
+entitled_days: f32,          // effective (round(base) + offset)
 carryover_days: i32,
 used_days: f32,
 planned_days: f32,
 remaining_days: f32,
-offset_days: Option<i32>,            // HR-only, sonst None
-computed_entitled_days: Option<f32>, // HR-only, sonst None
+offset_days: Option<i32>,            // HR-only, otherwise None
+computed_entitled_days: Option<f32>, // HR-only, otherwise None
 ```
 
-`VacationEntitlementOffsetTO` (`rest-types/src/lib.rs:2224-2230`): reines
-Plain-DTO ohne `id`/`version` — der Endpoint ist upsert-basiert und der
-Client identifiziert die Row über `(sales_person_id, year)`.
+`VacationEntitlementOffsetTO` (`rest-types/src/lib.rs:2224-2230`): plain
+DTO without `id`/`version` — the endpoint is upsert-based and the client
+identifies the row via `(sales_person_id, year)`.
 
-**Keine REST-Endpoints für `CarryoverService`.** Der Service wird nur
-serverintern (Scheduler + Reporting) aufgerufen; ein direkter Client-Zugriff
-auf Carryover-Rows ist nicht vorgesehen.
+**No REST endpoints for `CarryoverService`.** The service is only called
+server-internally (scheduler + reporting); direct client access to
+Carryover rows is not intended.
 
-## 6. Frontend-Integration
+## 6. Frontend integration
 
-- **Pages / Components:**
+- **Pages / components:**
   - `shifty-dioxus/src/page/absences.rs:394-472` — `VacationEntitlementCard`
-    (5 Stat-Kacheln, self/team-Modus, HR-Toggle für Inline-Offset-Editor).
+    (5 stat tiles, self/team mode, HR toggle for inline offset editor).
   - `shifty-dioxus/src/page/absences.rs:750-…` — `VacationPerPersonList`
-    (HR-Aggregat-Liste).
-  - `shifty-dioxus/src/component/employee_view.rs:186-442` — Carryover-Balance
-    und Vacation-Carryover werden als Read-only-Felder im Employee-Details-View
-    angezeigt (Basis: HR-Employee-Report, nicht der VacationBalance-Endpoint).
-- **Service:** `shifty-dioxus/src/service/vacation_balance.rs` — Coroutine
-  mit `VacationBalanceAction`-Kanal, Store für Self und Team.
-- **State:** `shifty-dioxus/src/state/vacation_balance.rs` — Frontend-Domain
-  (`From<&VacationBalanceTO>`).
-- **API-Client:** `shifty-dioxus/src/api.rs:638-694` — `get_vacation_balance`
-  und `get_team_vacation_balance`.
-- **Loader:** `shifty-dioxus/src/loader.rs:841-860` — Dünne Wrapper.
-- **i18n-Keys (`shifty-dioxus/src/i18n/mod.rs:491-508`):**
+    (HR aggregate list).
+  - `shifty-dioxus/src/component/employee_view.rs:186-442` — Carryover
+    balance and Vacation Carryover are displayed as read-only fields in
+    the employee details view (source: HR employee report, not the
+    VacationBalance endpoint).
+- **Service:** `shifty-dioxus/src/service/vacation_balance.rs` — coroutine
+  with `VacationBalanceAction` channel, store for self and team.
+- **State:** `shifty-dioxus/src/state/vacation_balance.rs` — frontend
+  domain (`From<&VacationBalanceTO>`).
+- **API client:** `shifty-dioxus/src/api.rs:638-694` — `get_vacation_balance`
+  and `get_team_vacation_balance`.
+- **Loader:** `shifty-dioxus/src/loader.rs:841-860` — thin wrappers.
+- **i18n keys (`shifty-dioxus/src/i18n/mod.rs:491-508`):**
   `VacationCardSelfTitle`, `VacationCardSelfSubtitle`, `VacationCardTeamTitle`,
   `VacationCardTeamSubtitle`, `VacationStatContract`, `VacationStatCarryover`,
   `VacationStatUsed`, `VacationStatPending`, `VacationStatRemaining`,
@@ -388,157 +392,159 @@ auf Carryover-Rows ist nicht vorgesehen.
 - **Proxy** (`shifty-dioxus/Dioxus.toml:99-102`):
   - `backend = "http://localhost:3000/vacation-balance"`
   - `backend = "http://localhost:3000/vacation-entitlement-offset"`
-  Beide sind eingetragen — Standardfehler bei neuen Endpoints
-  („Dioxus.toml Proxy vergessen") ist hier NICHT aktiv.
+  Both are registered — the standard mistake for new endpoints ("forgot
+  Dioxus.toml proxy") does NOT apply here.
 
-## 7. Randfälle
+## 7. Edge cases
 
-Für die zentrale Randfall-Referenz siehe
-[`../domain/edge-cases.md`](../domain/edge-cases.md), Sektion
-[Stundenkonto](../domain/edge-cases.md#1-stundenkonto).
+For the central edge-case reference see
+[`../domain/edge-cases.md`](../domain/edge-cases.md), section
+[Hour account](../domain/edge-cases.md#1-stundenkonto).
 
-- **Rückwirkende Änderung im abgeschlossenen Jahr driftet den Carryover.**
-  Wird eine `AbsencePeriod` im letzten Dezember nachträglich eingetragen
-  (z. B. Krankheitsnachweis für alten Zeitraum), stimmt der Vorjahres-
-  Carryover nicht mehr. Der Scheduler adressiert das mit dem
-  „(year - 1)"-Job (`scheduler.rs:60`), der pro Tick beide Jahre neu
-  berechnet. Solange der Backend-Prozess läuft, konvergiert der Carryover
-  von selbst — nach einem Server-Restart erst mit dem nächsten Cron-Tick.
-- **Mitte-Jahr-Neueinstellung.** `vacation_days_for_year` liefert einen
-  aliquoten `f32` (z. B. 15,25). Erst nach Aggregation über alle
-  Vertragsabschnitte wird `.round()` angewandt
-  (`vacation_balance.rs:195-200`). Der HR-Offset wird DANACH addiert
-  (D-28-02) — ein `-1`-Offset kann also nicht durch Rundung
-  „verpuffen".
-- **Jahresrollover-Race.** Läuft der Cron am 01.01. genau nach dem
-  Datumswechsel, wird zunächst `update_carryover_all_employees(prev_year,
-  …)` (finaler Snapshot) und dann `(current_year, …)` (initialer Snapshot)
-  aufgerufen. `set_carryover` ist upsert, also idempotent — mehrfache
-  Ausführungen sind ungefährlich. Ein manueller `POST` auf Absence während
-  des Cron-Ticks kann jedoch zu einem „veralteten" Snapshot für ein paar
-  Sekunden führen (bis zum nächsten Tick).
-- **`representative_hours_per_day` bei Vertragswechsel mitten im Jahr.**
-  Modell A (Decision 2026-06-12) wählt einen *einzigen* repräsentativen
-  `hours_per_day` pro Jahr — den jüngsten Vertragsabschnitt, der `year`
-  berührt (`vacation_balance.rs:78-97`). Bei zwei Verträgen mit
-  unterschiedlichem `hours_per_day` ist die Stunden→Tage-Umrechnung eine
-  Approximation. Aktuell wird `hours_per_day` nur noch defensiv berechnet;
-  die Tageszahlen kommen exakt aus `ResolvedAbsence.days`.
-- **Carryover-Year-Off-by-one.** Historischer Bug: die alte Implementierung
-  las `carryover(sp, year)` statt `carryover(sp, year - 1)`. Ergebnis: der
-  Übertrag *aus* dem laufenden Jahr (den es noch gar nicht gab) wurde
-  gelesen → immer 0. Der Modul-Doc-Kommentar in `vacation_balance.rs:30-35`
-  beschreibt den Fix, Test `carryover_read_uses_prior_year`
-  (`test/vacation_balance.rs:892`) hält Regression fest.
-- **Offset ganztägig, nie fraktional.** `offset_days: i32` — es gibt keine
-  Möglichkeit, einen halben Tag als Offset einzutragen. Ist bewusst so, um
-  API-Hiding einfach zu halten (`i32` serialisiert konsistent auch bei
-  self-only, dort ist es aber `None`).
-- **Kein Permission-Gate im `CarryoverService`.** Der Service akzeptiert
-  jeden `Authentication<Ctx>` und ignoriert ihn. Da es keinen REST-Endpoint
-  gibt, ist das aktuell akzeptabel — sollte jedoch beim Auftauchen eines
-  Admin-UIs für Carryover-Overrides nachgezogen werden.
-- **`get_report_for_employee` als Abhängigkeit.** Der Rechen-Kern
-  (`shiftplan_edit.update_carryover`) baut auf dem *vollen*
-  Employee-Report. Änderungen an der Report-Formel wirken sich sofort auf
-  den geschriebenen `carryover_hours`/`vacation`-Wert aus. Es gibt kein
-  Snapshot-Schema-Versioning für die Carryover-Tabelle. **[Zu prüfen]**
-  ob das bewusst so ist oder ob analog zum Billing-Period-Snapshot
-  (siehe `CLAUDE.md` — Snapshot-Schema-Versioning) auch für Carryover eine
-  Version-Spalte gebraucht wird.
+- **Retroactive change in a closed year drifts the Carryover.**
+  If an `AbsencePeriod` is retroactively entered for last December
+  (e.g. sick certificate for a past range), the previous-year Carryover
+  no longer matches. The scheduler addresses this with the `(year - 1)`
+  job (`scheduler.rs:60`), which recomputes both years per tick. As long
+  as the backend process is running, the Carryover converges by itself
+  — after a server restart, only with the next cron tick.
+- **Mid-year new hire.** `vacation_days_for_year` returns an aliquot
+  `f32` (e.g. 15.25). Only after aggregating over all contract segments
+  is `.round()` applied (`vacation_balance.rs:195-200`). The HR offset is
+  added AFTERWARDS (D-28-02) — a `-1` offset therefore cannot "evaporate"
+  through rounding.
+- **Year rollover race.** If the cron runs on Jan 1st just after the
+  date switch, first `update_carryover_all_employees(prev_year, …)`
+  (final snapshot) and then `(current_year, …)` (initial snapshot) is
+  invoked. `set_carryover` is upsert, so idempotent — multiple runs are
+  harmless. A manual `POST` on Absence during the cron tick can however
+  lead to a "stale" snapshot for a few seconds (until the next tick).
+- **`representative_hours_per_day` on contract change mid-year.**
+  Model A (decision 2026-06-12) picks a *single* representative
+  `hours_per_day` per year — the most recent contract segment that
+  touches `year` (`vacation_balance.rs:78-97`). With two contracts of
+  different `hours_per_day`, the hours→days conversion is an
+  approximation. Currently `hours_per_day` is only computed defensively;
+  the day numbers come exactly from `ResolvedAbsence.days`.
+- **Carryover year off-by-one.** Historical bug: the old implementation
+  read `carryover(sp, year)` instead of `carryover(sp, year - 1)`.
+  Result: the Carryover *from* the current year (which did not exist
+  yet) was read → always 0. The module doc comment in
+  `vacation_balance.rs:30-35` describes the fix; the test
+  `carryover_read_uses_prior_year` (`test/vacation_balance.rs:892`)
+  locks in the regression.
+- **Offset is whole-day, never fractional.** `offset_days: i32` — there
+  is no way to enter a half day as an offset. This is deliberate to
+  keep API hiding simple (`i32` serialises consistently even for
+  self-only, where it is `None`).
+- **No permission gate in `CarryoverService`.** The service accepts any
+  `Authentication<Ctx>` and ignores it. Since there is no REST endpoint,
+  this is currently acceptable — but should be tightened if an admin UI
+  for Carryover overrides ever appears.
+- **`get_report_for_employee` as dependency.** The compute core
+  (`shiftplan_edit.update_carryover`) builds on the *full* employee
+  report. Changes to the report formula immediately affect the written
+  `carryover_hours`/`vacation` value. There is no snapshot schema
+  versioning for the Carryover table. **[To verify]** whether this is
+  intentional or whether, analogous to the Billing Period Snapshot
+  (see `CLAUDE.md` — Snapshot Schema Versioning), Carryover also needs
+  a version column.
 
 ## 8. Tests
 
 - **Unit — VacationBalance** (`service_impl/src/test/vacation_balance.rs`,
-  1 113 Zeilen, mock-basiert):
-  - Happy Path self (`get_returns_entitlement_minus_used_minus_planned`,
-    Z. 238),
-  - Happy Path HR (`get_with_hr_succeeds`, Z. 314),
-  - AuthZ (`get_other_sales_person_without_hr_is_forbidden` Z. 364,
-    `get_team_without_hr_is_forbidden` Z. 393),
-  - Team-Aggregat (`get_team_aggregates_per_paid_sales_person`, Z. 409),
-  - Edge (`get_with_no_active_contract_returns_zero_entitlement` Z. 489,
-    `get_rounds_aliquot_entitlement_to_whole_number` Z. 542,
-    `get_year_without_carryover_returns_zero_carryover` Z. 593),
-  - Halbtag (`half_day_vacation_counts_as_half_day`, Z. 667),
-  - Days-Field-Direct (`part_time_contract_used_days_come_from_days_field`,
-    Z. 693),
-  - Used/Planned-Split (`active_period_splits_used_and_planned_at_today`,
-    Z. 714),
-  - Kategorie-Filter (`non_vacation_categories_are_ignored`, Z. 741),
-  - Carryover-Year-Semantik (`get_carryover_is_called_with_previous_year`
-    Z. 796, `carryover_from_previous_year_is_included_in_balance` Z. 835,
-    `carryover_read_uses_prior_year` Z. 892),
-  - Offset (`offset_calc` Z. 975, `offset_delta` Z. 1013,
-    `offset_api_hiding` Z. 1033).
+  1 113 lines, mock-based):
+  - Happy path self (`get_returns_entitlement_minus_used_minus_planned`,
+    l. 238),
+  - Happy path HR (`get_with_hr_succeeds`, l. 314),
+  - AuthZ (`get_other_sales_person_without_hr_is_forbidden` l. 364,
+    `get_team_without_hr_is_forbidden` l. 393),
+  - Team aggregate (`get_team_aggregates_per_paid_sales_person`, l. 409),
+  - Edge (`get_with_no_active_contract_returns_zero_entitlement` l. 489,
+    `get_rounds_aliquot_entitlement_to_whole_number` l. 542,
+    `get_year_without_carryover_returns_zero_carryover` l. 593),
+  - Half day (`half_day_vacation_counts_as_half_day`, l. 667),
+  - Days-field-direct (`part_time_contract_used_days_come_from_days_field`,
+    l. 693),
+  - Used/planned split (`active_period_splits_used_and_planned_at_today`,
+    l. 714),
+  - Category filter (`non_vacation_categories_are_ignored`, l. 741),
+  - Carryover year semantics (`get_carryover_is_called_with_previous_year`
+    l. 796, `carryover_from_previous_year_is_included_in_balance` l. 835,
+    `carryover_read_uses_prior_year` l. 892),
+  - Offset (`offset_calc` l. 975, `offset_delta` l. 1013,
+    `offset_api_hiding` l. 1033).
 - **Unit — VacationEntitlementOffset**
-  (`service_impl/src/test/vacation_entitlement_offset.rs`, 331 Zeilen):
-  `get`/`set`/`delete` Happy Path, HR-Gate-Denial, Upsert-Semantik,
-  Soft-Delete-Semantik.
-- **Unit — Carryover** (`service_impl/src/test/carryover.rs`, 187 Zeilen):
-  `get_carryover_found/not_found`, DAO-Error-Propagation,
-  `set_carryover_success`, DAO-Error auf Set.
-- **Frontend** (`shifty-dioxus/src/page/absences.rs:3531+`): Snapshot-Tests
-  für `VacationEntitlementCard` mit `selected_person` (HR-Detail-Ansicht).
-- **Bekannte Lücken:**
-  - Kein Integration-Test (In-Mem-SQLite Roundtrip) für den
-    Scheduler-Zyklus `update_carryover_all_employees` — die Interaktion
-    Reporting↔Carryover↔VacationBalance ist nur mock-basiert abgedeckt.
-  - Kein Test für den Race-Fall „Absence-Änderung während laufendem
-    Cron-Tick" (praktisch schwer reproduzierbar; **[Zu prüfen]**).
-  - **[Zu prüfen]** Regressionstest für die Off-by-one im
-    Vertragsstart-Abzug (D-28-04): `vacation_days_for_year` bei
-    `from_date = 01.01.` — der Test-Nachweis liegt in
+  (`service_impl/src/test/vacation_entitlement_offset.rs`, 331 lines):
+  `get`/`set`/`delete` happy path, HR gate denial, upsert semantics,
+  soft-delete semantics.
+- **Unit — Carryover** (`service_impl/src/test/carryover.rs`, 187 lines):
+  `get_carryover_found/not_found`, DAO-error propagation,
+  `set_carryover_success`, DAO error on set.
+- **Frontend** (`shifty-dioxus/src/page/absences.rs:3531+`): snapshot tests
+  for `VacationEntitlementCard` with `selected_person` (HR detail view).
+- **Known gaps:**
+  - No integration test (in-memory SQLite round-trip) for the scheduler
+    cycle `update_carryover_all_employees` — the interaction
+    Reporting↔Carryover↔VacationBalance is only mock-covered.
+  - No test for the race case "Absence change during a running cron
+    tick" (hard to reproduce in practice; **[To verify]**).
+  - **[To verify]** Regression test for the off-by-one in the
+    contract-start deduction (D-28-04): `vacation_days_for_year` with
+    `from_date = 01.01.` — the test evidence lives in
     `service/src/employee_work_details.rs:287+ (mod vacation_days_for_year_tests)`
-    laut Grep, aber die genaue Coverage sollte bei Änderungen an
-    `vacation_days_for_year` geprüft werden.
+    per grep, but the exact coverage should be checked whenever
+    `vacation_days_for_year` changes.
 
-## 9. Historie & Kontext
+## 9. History & context
 
-- **Ende 2024 — Basis-Carryover.**
-  `20241215063132_add_employee-yearly-carryover.sql` legt die
-  Stundenbilanz-Carryover-Tabelle an (nur `carryover_hours`).
-  `20241231065409_add_employee-yearly-vacation-carryover.sql` (2 Wochen
-  später) ergänzt additiv die `vacation`-Spalte. Es war eine bewusste
-  Design-Entscheidung, Stunden- und Urlaubstage-Carryover in **einer** Row
-  zu halten, weil beide vom gleichen Nightly-Job aus dem gleichen Report
-  geschrieben werden.
-- **Milestone 4 — Cutover-Backup.** Kurz vor dem Absence-Cutover wurde ein
-  Backup-Table (`…_pre_cutover_backup`) angelegt, um im Notfall auf den
-  pre-cutover-Zustand zurückzurollen. In Prod wurde er nie befüllt und ist
-  in Milestone 8.6 (D-04) wieder entfernt — forward-only.
-- **Milestone 8 — Vacation-Balance-Endpoint.** Der Business-Logic-Service
-  `VacationBalanceService` (D-04 in `08-CONTEXT.md`) wurde als
-  Aggregations-Layer eingeführt, um die Frontend-`VacationEntitlementCard`
-  und `VacationPerPersonList` mit einem einzigen Roundtrip zu bedienen.
-  Wave-4 lieferte den Endpoint, Wave-5 den Frontend-Wire-Up.
-- **Milestone 28 — Vacation-Entitlement-Offset (VAC-OFFSET-01).**
-  Fach-Anforderung: HR muss den Vertragsanspruch einzelfallweise korrigieren
-  können, ohne den Vertrag zu ändern (Prämien, Sonderabzüge, gerichtliche
-  Anordnungen). Design-Entscheidungen:
-  - D-28-01: Eigene Tabelle `vacation_entitlement_offset` mit `id`-PK
-    (nicht als Spalte an `employee_yearly_carryover`, um Domain-Grenzen zu
-    wahren).
-  - D-28-02: Offset NACH `.round()` addieren.
-  - D-28-03: API-Hiding für Nicht-HR — nur der effektive Wert ist sichtbar.
-  - D-28-04: Fix des Off-by-one im Vertragsstart-Abzug.
-  - D-28-06/06b: Basic-Tier für Offset-Service (kein Domain-Dep, sonst
-    Zyklus mit VacationBalance).
-  - D-28-07: Frontend-Inline-Editor nur auf HR-Detail-Pfad, nie in der
-    Employee-Selbstansicht.
-- **Kontext-Reads:**
-  - `.planning/phases/08-…` — Vacation-Balance-Foundation (Business-Logic-
-    Service-Klassifizierung, Test-Coverage-Anforderungen).
-  - `.planning/phases/28-…` — VAC-OFFSET-01-Design.
-  - `.planning/phases/*-51*` — Toggle-Service-Full-Context-Bypass (Auswirkung
-    auf `derive_hours_for_range`, das VacationBalance intern konsumiert).
+- **End of 2024 — basic Carryover.**
+  `20241215063132_add_employee-yearly-carryover.sql` creates the hour
+  Carryover table (only `carryover_hours`).
+  `20241231065409_add_employee-yearly-vacation-carryover.sql` (two weeks
+  later) additively adds the `vacation` column. It was a conscious
+  design decision to keep hour and vacation-day Carryover in **one**
+  row, because both are written by the same nightly job from the same
+  report.
+- **Milestone 4 — cutover backup.** Shortly before the Absence cutover, a
+  backup table (`…_pre_cutover_backup`) was created to allow rollback to
+  the pre-cutover state in an emergency. It was never populated in
+  production and was removed again in Milestone 8.6 (D-04) —
+  forward-only.
+- **Milestone 8 — Vacation-Balance endpoint.** The business-logic service
+  `VacationBalanceService` (D-04 in `08-CONTEXT.md`) was introduced as
+  an aggregation layer to serve the frontend `VacationEntitlementCard`
+  and `VacationPerPersonList` with a single round-trip. Wave-4
+  delivered the endpoint, wave-5 the frontend wire-up.
+- **Milestone 28 — Vacation Entitlement Offset (VAC-OFFSET-01).**
+  Domain requirement: HR must be able to correct the contract
+  entitlement case by case without changing the contract itself (bonuses,
+  special deductions, court orders). Design decisions:
+  - D-28-01: Separate table `vacation_entitlement_offset` with `id`-PK
+    (not as a column on `employee_yearly_carryover`, to preserve domain
+    boundaries).
+  - D-28-02: Add offset AFTER `.round()`.
+  - D-28-03: API hiding for non-HR — only the effective value is visible.
+  - D-28-04: Fix of the off-by-one in the contract-start deduction.
+  - D-28-06/06b: Basic-Tier for the Offset service (no domain dep, else
+    cycle with VacationBalance).
+  - D-28-07: Frontend inline editor only on HR detail path, never in the
+    employee self view.
+- **Context reads:**
+  - `.planning/phases/08-…` — Vacation-Balance foundation (business-logic
+    service classification, test coverage requirements).
+  - `.planning/phases/28-…` — VAC-OFFSET-01 design.
+  - `.planning/phases/*-51*` — ToggleService Full-Context bypass (effect
+    on `derive_hours_for_range`, which VacationBalance consumes
+    internally).
 
 ---
 
-**Fazit:** F06 löst die Trias Anspruch → Verbrauch → Übertrag pro
-Mitarbeiter/Jahr mit einem stundenbasierten Kern (`derive_hours_for_range`)
-und einem HR-Ganzzahl-Offset ohne die Rundung zu zerstören. Der Cron-getriebene
-Carryover-Rewrite hält Vor- und Aktuellesjahr kontinuierlich konsistent — ein
-Snapshot-Versioning wie bei Billing-Period fehlt derzeit bewusst.
+**Summary:** F06 solves the triad entitlement → usage → carryover per
+employee/year with an hours-based core (`derive_hours_for_range`) and an
+HR integer offset without destroying the rounding. The cron-driven
+Carryover rewrite keeps previous and current year continuously
+consistent — a snapshot versioning like the Billing Period one is
+currently deliberately absent.
 
-*Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
+*Last verification against code:* see git blame of this file.

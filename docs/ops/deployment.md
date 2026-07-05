@@ -1,82 +1,83 @@
 # Deployment
 
-## Prod-Deploy via `shifty-nix`
+## Prod deploy via `shifty-nix`
 
-Shifty wird als NixOS-Modul deployed. Das Nachbar-Repo `shifty-nix`
-enthält:
+Shifty is deployed as a NixOS module. The sibling repo `shifty-nix`
+contains:
 
-- Die Systemd-Service-Definition für das Backend.
-- Die statische Ausliefung des Dioxus-WASM-Bundles.
-- Die Nix-Pin auf die zu deployende Backend-Commit-Version.
+- The systemd service definition for the backend.
+- Static delivery of the Dioxus WASM bundle.
+- The Nix pin on the backend commit version to deploy.
 
-**Deploy selbst ist manuell.** `/release-version` bereitet den Release
-vor (Tag, Nix-Pin), das eigentliche `nixos-rebuild switch` auf dem
-Server macht der User selbst.
+**The deploy itself is manual.** `/release-version` prepares the release
+(tag, Nix pin); the actual `nixos-rebuild switch` on the server is done
+by the user.
 
-## Release-Fluss (`/release-version`)
+## Release flow (`/release-version`)
 
-Der Skill:
+The skill:
 
-1. Leitet die SemVer-Version aus dem GSD-Milestone
-   (`.planning/STATE.md`) und existierenden Git-Tags ab.
-2. Fragt Bestätigung.
-3. Generiert Release Notes aus den Commits seit dem letzten Tag.
-4. Ruft `./update_versions.sh` mit den Notes als Annotated-Tag-Message.
-5. Updated und taggt den Deploy-Pin in `../shifty-nix`.
+1. Derives the SemVer version from the GSD milestone
+   (`.planning/STATE.md`) and existing git tags.
+2. Asks for confirmation.
+3. Generates release notes from the commits since the last tag.
+4. Invokes `./update_versions.sh` with the notes as the annotated-tag
+   message.
+5. Updates and tags the deploy pin in `../shifty-nix`.
 
-**Was NICHT passiert:** Push auf den Server. Das machst du.
+**What does NOT happen:** a push to the server. That's on you.
 
-## Versionierung — SemVer ab v2.0
+## Versioning — SemVer from v2.0 onwards
 
-Historie:
+History:
 
-- **v1.x — v2.x:** SemVer. MAJOR.MINOR aus GSD-Milestone, PATCH aus
-  Git-Tags.
-- **CalVer `v2026.x`:** Eingefrorene Insel — nicht umbenennen, weil
-  `shifty-nix` diese Tag-Namen pinnt.
-- **GSD-Auto-Tag:** Deaktiviert (`git.create_tag = false`). Releases
-  ausschließlich via `/release-version`.
+- **v1.x — v2.x:** SemVer. MAJOR.MINOR from the GSD milestone, PATCH
+  from git tags.
+- **CalVer `v2026.x`:** Frozen island — do not rename, since
+  `shifty-nix` pins these tag names.
+- **GSD auto-tag:** disabled (`git.create_tag = false`). Releases go
+  exclusively through `/release-version`.
 
-## Feature-Flags im Build
+## Feature flags at build time
 
-- **`mock_auth`:** Development. Fest verdrahteter Admin-User.
-- **`oidc`:** Production. OpenID Connect gegen externen IdP.
+- **`mock_auth`:** development. Hard-wired admin user.
+- **`oidc`:** production. OpenID Connect against an external IdP.
 
-Genau eine der beiden Auth-Flags ist beim Build aktiv.
+Exactly one of these two auth flags is active in a build.
 
-- **`local_logging`:** Text-Logging, für Dev/Local.
-- **`json_logging`:** Strukturiertes JSON-Logging, für Prod.
+- **`local_logging`:** text logging, for dev/local.
+- **`json_logging`:** structured JSON logging, for production.
 
-## Prod-Startup-Prüfliste
+## Production startup checklist
 
-Wenn ein neues Deployment ausgerollt wird:
+When a new deployment rolls out:
 
-1. **Migrations gelaufen?** — `sqlx migrate run` gegen die Prod-DB.
-2. **`.sqlx/`-Cache passend?** — Wenn CI grün war, ja.
-3. **OIDC-Config aktuell?** — Client-ID / Secret / Redirect-URI.
-4. **Feature-Flags korrekt?** — `oidc`, `json_logging`.
-5. **Backup vorher gemacht?** — SQLite-DB-Datei sichern.
-6. **Nach Deploy:** Login-Flow testen, ein Report öffnen.
+1. **Migrations applied?** — `sqlx migrate run` against the prod DB.
+2. **`.sqlx/` cache in sync?** — if CI was green, yes.
+3. **OIDC config current?** — client ID / secret / redirect URI.
+4. **Feature flags correct?** — `oidc`, `json_logging`.
+5. **Backup taken beforehand?** — snapshot the SQLite DB file.
+6. **After deploy:** exercise the login flow, open a report.
 
 ## Rollback
 
-Bei kaputtem Deploy:
+If a deploy is broken:
 
-1. `../shifty-nix`-Pin zurück auf den letzten funktionierenden Commit.
-2. `nixos-rebuild switch` auf dem Server.
-3. Datenbank-Rollback: **Nur wenn Migration rückwärts-kompatibel.**
-   Sonst DB aus Backup wiederherstellen.
+1. Roll the `../shifty-nix` pin back to the last working commit.
+2. `nixos-rebuild switch` on the server.
+3. Database rollback: **only if the migration is backwards-compatible.**
+   Otherwise restore the DB from backup.
 
-**Wichtig:** SQLx-Migrations haben in Shifty kein down-Skript. Rückwärts
-funktioniert nur bei rein additiven Änderungen. Bei Schema-Änderungen,
-die alte Software nicht mehr lesen kann: aus Backup.
+**Important:** SQLx migrations in Shifty have no down script. Going
+backwards only works for purely additive changes. For schema changes
+that old software can no longer read: restore from backup.
 
 ## Monitoring
 
-**[Zu prüfen]** — was ist in Prod eingerichtet? Log-Aggregation,
-Health-Check-Endpoint, Alerting?
+**[To verify]** — what is set up in production? Log aggregation,
+health check endpoint, alerting?
 
-## Verwandte Randfälle
+## Related edge cases
 
-Siehe [`../domain/edge-cases.md#10-migrations--sqlx-offline-cache`](../domain/edge-cases.md#10-migrations--sqlx-offline-cache)
-für Deploy-relevante Kanten.
+See [`../domain/edge-cases.md#10-migrations--sqlx-offline-cache`](../domain/edge-cases.md#10-migrations--sqlx-offline-cache)
+for deploy-relevant edges.

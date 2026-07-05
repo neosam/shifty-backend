@@ -1,88 +1,87 @@
-# Service-Tiers — Basic vs Business-Logic
+# Service Tiers — Basic vs Business-Logic
 
-Shifty trennt Service-Implementierungen in zwei Schichten. Diese Trennung
-verhindert zyklische DI-Kopplung und hält die Konstruktionsreihenfolge in
-`shifty_bin/src/main.rs` deterministisch.
+Shifty separates service implementations into two tiers. This separation
+prevents cyclic DI coupling and keeps the construction order in
+`shifty_bin/src/main.rs` deterministic.
 
-## Basic Services (Entity-Manager)
+## Basic Services (entity managers)
 
-Ein **Basic Service** verwaltet genau ein Fach-Objekt:
+A **Basic Service** manages exactly one domain object:
 
-- CRUD + Validation + Permission-Gates für sein Aggregat.
-- Konsumiert **nur** DAOs, `PermissionService`, `TransactionDao`.
-- Konsumiert **keine** anderen Domain-Services.
+- CRUD + validation + permission gates for its aggregate.
+- Consumes **only** DAOs, `PermissionService`, `TransactionDao`.
+- Consumes **no** other domain services.
 
-**Beispiele:**
+**Examples:**
 
 - `BookingService`
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
 - `SlotService`
-- `ShiftplanService` (Stamm-Daten)
+- `ShiftplanService` (master data)
 - `SpecialDayService`
 
 ## Business-Logic Services
 
-Ein **Business-Logic Service** kombiniert mehrere Aggregate oder pflegt
-Cross-Entity-Invarianten:
+A **Business-Logic Service** combines multiple aggregates or maintains
+cross-entity invariants:
 
-- Konsumiert Basic Services und andere Business-Logic Services — solange
-  kein zyklisches Coupling entsteht.
-- Aggregiert oft Read-Only-Daten aus mehreren Basic-Services (dann
-  meist mit `Authentication::Full` intern, siehe
+- Consumes Basic Services and other Business-Logic Services — as long as
+  no cyclic coupling arises.
+- Often aggregates read-only data from multiple Basic Services (typically
+  with `Authentication::Full` internally, see
   [`04-auth.md`](./04-auth.md)).
 
-**Beispiele:**
+**Examples:**
 
-- `AbsenceService` — Multi-Tag-Range, Kategorie-Logik, Konflikt-Lookups.
-- `ShiftplanViewService` — Read-Aggregat über Slot + Booking + Absence.
-- `ShiftplanEditService` — Write-Aggregat mit Booking-Migration bei
-  Slot-Änderungen.
-- `ReportingService` — Balance-Rechnung über Booking + ExtraHours +
+- `AbsenceService` — multi-day range, category logic, conflict lookups.
+- `ShiftplanViewService` — read aggregate over Slot + Booking + Absence.
+- `ShiftplanEditService` — write aggregate with booking migration on
+  slot changes.
+- `ReportingService` — balance calculation over Booking + ExtraHours +
   Absence + Carryover + SpecialDay.
-- `BookingInformationService` — Angereicherte Booking-Ansichten.
-- `CarryoverService` — Jahresend-Snapshot mit Cross-Year-Konsistenz.
-- `WorkingHoursService` — Erwartungs-Rechnung.
-- `BillingPeriodReportService` — Snapshot-Erzeugung.
+- `BookingInformationService` — enriched booking views.
+- `CarryoverService` — year-end snapshot with cross-year consistency.
+- `WorkingHoursService` — expected-hours calculation.
+- `BillingPeriodReportService` — snapshot creation.
 
-## Regeln
+## Rules
 
-1. **Wenn zwei Services sich gegenseitig brauchen:** Einer ist Basic,
-   einer ist Business-Logic. Der Basic kennt den Business-Logic-Service
-   nicht. Bei Bedarf wandert die Cross-Entity-Operation in einen
-   dritten Service eine Schicht höher.
-2. **DI-Konstruktion in `main.rs`:** erst alle Basic Services, dann die
-   Business-Logic-Schicht — keine `OnceLock`-/Forward-Decl-Tricks.
-3. **Faustregel zur Klassifizierung:** Dependencies zählen.
-   - Nur DAOs + Permission + Transaction → Basic.
-   - Sobald ein anderer Domain-Service als Dep auftaucht → Business-Logic.
+1. **If two services need each other:** one is Basic, one is
+   Business-Logic. The Basic one does not know the Business-Logic
+   service. If needed, the cross-entity operation moves into a
+   third service one tier higher.
+2. **DI construction in `main.rs`:** first all Basic Services, then the
+   Business-Logic tier — no `OnceLock` / forward-declaration tricks.
+3. **Rule of thumb for classification:** count dependencies.
+   - Only DAOs + Permission + Transaction → Basic.
+   - As soon as another domain service appears as a dep → Business-Logic.
 
-## Warum zwei Tiers?
+## Why two tiers?
 
-**Ohne die Trennung** landet man schnell in zyklischen Deps:
+**Without the separation** you quickly end up in cyclic dependencies:
 
-- `BookingService` will beim Löschen einen Absence-Konflikt prüfen →
-  ruft `AbsenceService`.
-- `AbsenceService` will beim Löschen einer Absence checken, ob eine
-  Booking sich darauf bezieht → ruft `BookingService`.
+- `BookingService` wants to check for an absence conflict on deletion →
+  calls `AbsenceService`.
+- `AbsenceService` wants to check on absence deletion whether a booking
+  refers to it → calls `BookingService`.
 
-Mit Tiers wird der Zyklus explizit gebrochen: `BookingService` bleibt
-Basic, kennt `AbsenceService` **nicht**. Der Cross-Entity-Check wandert
-in einen dritten Service (z.B. `ShiftplanEditService`), der beide
-konsumiert.
+With tiers the cycle is broken explicitly: `BookingService` stays Basic
+and does **not** know `AbsenceService`. The cross-entity check moves into
+a third service (e.g. `ShiftplanEditService`) that consumes both.
 
-## Der Service-Graph
+## The service graph
 
-Die tatsächliche DI-Verdrahtung aus `shifty_bin/src/main.rs` ist als
-Mermaid-Diagramm in
-[`diagrams/service-graph-runtime.mmd`](./diagrams/service-graph-runtime.mmd)
-generiert. Die Trait-Deklarations-Version (was jeder Service als
-Abhängigkeit **fordert**, unabhängig von der Reihenfolge) liegt in
+The actual DI wiring from `shifty_bin/src/main.rs` is generated as a
+Mermaid diagram in
+[`diagrams/service-graph-runtime.mmd`](./diagrams/service-graph-runtime.mmd).
+The trait-declaration version (what every service **demands** as a
+dependency, independent of ordering) lives in
 [`diagrams/service-graph-traits.mmd`](./diagrams/service-graph-traits.mmd).
 
-## Historie
+## History
 
-Die Tier-Konvention wurde nachträglich formalisiert, nachdem zwei
-Refactoring-Zyklen mit versteckten Zyklen gescheitert waren. Sie steht
-verbindlich in `shifty-backend/CLAUDE.md` und wird bei
-Service-Reviews aktiv geprüft.
+The tier convention was formalized after the fact, after two refactoring
+cycles failed due to hidden cycles. It is codified normatively in
+`shifty-backend/CLAUDE.md` and is actively enforced during service
+reviews.

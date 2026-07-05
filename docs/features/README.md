@@ -1,52 +1,53 @@
-# Features — Ein Dokument pro Domäne
+# Features — One Document per Domain
 
-Diese Sektion ist die **Feature-Referenz**. Jede Datei beschreibt ein
-Feature-Cluster von Shifty vollständig: fachlich, technisch, mit
-Randfällen und Test-Coverage.
+This section is the **feature reference**. Each file fully describes a
+feature cluster of Shifty: business context, technical details, edge
+cases, and test coverage.
 
-## Struktur einer Feature-Doku
+## Structure of a Feature Doc
 
-Jedes Feature-Dokument folgt derselben Gliederung:
+Every feature document follows the same outline:
 
-1. **Was ist das?** — Fachliche Kurzbeschreibung, Zielgruppe im UI.
-2. **Fachliche Regeln** — Alle Business-Constraints ausformuliert.
-3. **Datenmodell** — Tabellen, Spalten, Beziehungen, relevante Migrations.
-4. **Service-API** — Trait-Methoden, Auth-Gates, TX-Verhalten.
-5. **REST-Endpoints** — Pfade, Methoden, DTOs, Fehlerfälle.
-6. **Frontend-Integration** — Welche Pages / Components das Feature nutzen.
-7. **Randfälle** — Verweise auf `../domain/edge-cases.md` + feature-spezifische.
-8. **Tests** — Wo Unit/Integration-Coverage liegt, was NICHT abgedeckt ist.
-9. **Historie** — Milestone-Kontext, warum das Feature so aussieht (Cutover,
-   Toggle-Rollout, etc.).
+1. **What is it?** — Short business description, target user group in the UI.
+2. **Business rules** — All business constraints spelled out.
+3. **Data model** — Tables, columns, relationships, relevant migrations.
+4. **Service API** — Trait methods, auth gates, TX behavior.
+5. **REST endpoints** — Paths, methods, DTOs, error cases.
+6. **Frontend integration** — Which pages / components use the feature.
+7. **Edge cases** — References to `../domain/edge-cases.md` + feature-specific ones.
+8. **Tests** — Where unit/integration coverage lives, what is NOT covered.
+9. **History** — Milestone context, why the feature looks like this (Cutover,
+   toggle rollout, etc.).
 
-## Feature-Cluster
+## Feature Clusters
 
-| # | Cluster | Datei |
+| # | Cluster | File |
 | --- | --- | --- |
-| F01 | Employee Management (Sales Person, Kontrakt, Unavailability) | [F01-employee-management.md](./F01-employee-management.md) |
-| F02 | Shiftplan Core (Slots, Katalog, Editor, Ansicht) | [F02-shiftplan-core.md](./F02-shiftplan-core.md) |
-| F03 | Booking (Zuweisung, Log, Information) | [F03-booking.md](./F03-booking.md) |
-| F04 | Extra Hours — Legacy Zeit-Erfassung + Custom-Kategorien | [F04-extra-hours.md](./F04-extra-hours.md) |
-| F05 | Absence System (Range-basiert, v1.0+) | [F05-absence-system.md](./F05-absence-system.md) |
-| F06 | Vacation Management (Balance, Offset, Carryover) | [F06-vacation-management.md](./F06-vacation-management.md) |
-| F07 | Reporting & Balance-Berechnung | [F07-reporting-balance.md](./F07-reporting-balance.md) |
-| F08 | Billing Period (Snapshot + Versioning) | [F08-billing-period.md](./F08-billing-period.md) |
-| F09 | Special Days, Week Status, Week Message, Warning | [F09-week-metadata.md](./F09-week-metadata.md) |
-| F10 | Templates & Kommunikation (Text-Templates, User Invitation) | [F10-templates-communication.md](./F10-templates-communication.md) |
-| F11 | Export (PDF-Shiftplan, iCal, WebDAV, Scheduler) | [F11-export.md](./F11-export.md) |
-| F12 | Auth & Session (OIDC, Mock, Impersonation, Permissions) | [F12-auth-session.md](./F12-auth-session.md) |
-| F13 | System-Infrastruktur (Feature Flags, Toggles, Scheduler, Clock, UUID) | [F13-system-infrastructure.md](./F13-system-infrastructure.md) |
+| F01 | Employee Management (Sales Person, contract, unavailability) | [F01-employee-management.md](./F01-employee-management.md) |
+| F02 | Shiftplan Core (Slots, catalog, editor, view) | [F02-shiftplan-core.md](./F02-shiftplan-core.md) |
+| F03 | Booking (assignment, log, information) | [F03-booking.md](./F03-booking.md) |
+| F04 | Extra Hours — legacy time recording + custom categories | [F04-extra-hours.md](./F04-extra-hours.md) |
+| F05 | Absence System (range-based, v1.0+) | [F05-absence-system.md](./F05-absence-system.md) |
+| F06 | Vacation Management (Balance, offset, Carryover) | [F06-vacation-management.md](./F06-vacation-management.md) |
+| F07 | Reporting & Balance calculation | [F07-reporting-balance.md](./F07-reporting-balance.md) |
+| F08 | Billing Period (Snapshot + versioning) | [F08-billing-period.md](./F08-billing-period.md) |
+| F09 | Special Days, week status, week message, warning | [F09-week-metadata.md](./F09-week-metadata.md) |
+| F10 | Templates & communication (text templates, user invitation) | [F10-templates-communication.md](./F10-templates-communication.md) |
+| F11 | Export (PDF shiftplan, iCal, WebDAV, scheduler) | [F11-export.md](./F11-export.md) |
+| F12 | Auth & session (OIDC, mock, impersonation, permissions) | [F12-auth-session.md](./F12-auth-session.md) |
+| F13 | System infrastructure (Feature Flags, Toggles, scheduler, clock, UUID) | [F13-system-infrastructure.md](./F13-system-infrastructure.md) |
 
-## Verhältnis zu bestehenden Docs
+## Relation to Existing Docs
 
-Einige Features haben schon ältere, spezialisierte Docs im Verzeichnis
-`docs/`:
+Some features already have older, specialized docs in the `docs/`
+directory:
 
-- `absence-feature-frontend.md` → wird in `F05-absence-system.md` referenziert.
-- `employee-management.md` / `_de.md` → wird in `F01-employee-management.md`
-  referenziert und ergänzt.
-- `block-report-templates/`, `template-examples/`, `test-examples/` → Referenz
-  aus `F07-reporting-balance.md` bzw. `F10-templates-communication.md`.
+- `absence-feature-frontend.md` → referenced in `F05-absence-system.md`.
+- `employee-management.md` / `_de.md` → referenced and supplemented in
+  `F01-employee-management.md`.
+- `block-report-templates/`, `template-examples/`, `test-examples/` →
+  referenced from `F07-reporting-balance.md` and
+  `F10-templates-communication.md`, respectively.
 
-Die neuen Feature-Dokumente sind **die verbindliche Referenz**. Die älteren
-Dokumente werden schrittweise reingezogen.
+The new feature documents are **the authoritative reference**. The older
+documents will be pulled in incrementally.

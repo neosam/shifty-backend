@@ -1,142 +1,140 @@
-# Erste Woche als Dev auf Shifty
+# First Week as a Dev on Shifty
 
-Ein pragmatischer Leitfaden vom leeren Laptop zum ersten Merge.
+A pragmatic guide from a blank laptop to your first merge.
 
-## Tag 1 — Setup
+## Day 1 — Setup
 
 ### Toolchain
 
-- **Rust:** Stable, via `rustup`. Der Backend-Workspace pinnt Version
-  in der `rust-toolchain.toml` (falls vorhanden).
-- **Nix:** Für reproduzierbare Builds. `nix develop` gibt dir eine
-  Shell mit allen Tools (`sqlx`, `cargo-watch`, etc.).
-- **`sqlx-cli`:** In der `nix develop`-Shell verfügbar. Wenn du außerhalb
-  arbeitest: `cargo install sqlx-cli`.
-- **`dx` (Dioxus CLI):** Version **0.6.x** — im `flake.nix` gepinnt.
-  Nicht auf 0.7.x updaten, sonst startet das Frontend nicht.
+- **Rust:** Stable, via `rustup`. The backend workspace pins the version
+  in `rust-toolchain.toml` (if present).
+- **Nix:** For reproducible builds. `nix develop` gives you a shell with
+  all tools (`sqlx`, `cargo-watch`, etc.).
+- **`sqlx-cli`:** Available in the `nix develop` shell. If you work outside
+  of it: `cargo install sqlx-cli`.
+- **`dx` (Dioxus CLI):** Version **0.6.x** — pinned in `flake.nix`.
+  Do not update to 0.7.x, otherwise the frontend will not start.
 
-### Repo klonen
+### Clone the Repo
 
 ```bash
 git clone <repo> && cd shifty-backend
 ```
 
-Das ist der aktive Monorepo. Nicht das externe `shifty-dioxus/` klonen —
-das ist Legacy.
+This is the active monorepo. Do not clone the external `shifty-dioxus/` —
+that is legacy.
 
-### Backend starten
+### Start the Backend
 
 ```bash
 cd shifty-backend
-cp env.example .env         # anpassen wenn nötig
-nix develop                 # Shell mit Tools
-sqlx database reset --source migrations/sqlite  # ⚠ destruktiv, nur first-run
-cargo run                   # Backend auf Port 3000
+cp env.example .env         # adjust if needed
+nix develop                 # shell with tools
+sqlx database reset --source migrations/sqlite  # ⚠ destructive, first-run only
+cargo run                   # backend on port 3000
 ```
 
-**Vorsicht:** `sqlx database reset` löscht die DB. Für inkrementelle
-Migrations später: `sqlx migrate run --source migrations/sqlite`.
+**Careful:** `sqlx database reset` wipes the DB. For incremental migrations
+later: `sqlx migrate run --source migrations/sqlite`.
 
-### Frontend starten
+### Start the Frontend
 
-In einem zweiten Terminal:
+In a second terminal:
 
 ```bash
 cd shifty-backend/shifty-dioxus
-npx tailwindcss -i ./input.css -o ./assets/tailwind.css --watch  # Terminal A
-# In Terminal B:
-dx serve --hot-reload       # Frontend auf Port 8080
+npx tailwindcss -i ./input.css -o ./assets/tailwind.css --watch  # terminal A
+# in terminal B:
+dx serve --hot-reload       # frontend on port 8080
 ```
 
-Öffne `http://localhost:8080`. Im Dev-Modus (`mock_auth`) bist du
-automatisch als Admin eingeloggt.
+Open `http://localhost:8080`. In dev mode (`mock_auth`) you are
+automatically logged in as admin.
 
-### Sanity-Check
+### Sanity Check
 
-- Öffne den Shiftplan.
-- Öffne Employees.
-- Wenn beide Seiten was zeigen, läuft der Stack.
+- Open the shiftplan.
+- Open Employees.
+- If both pages show something, the stack is running.
 
-## Tag 2 — Architektur verstehen
+## Day 2 — Understand the Architecture
 
-Lies in dieser Reihenfolge:
+Read in this order:
 
-1. [Layered Architecture](../architecture/01-layered.md) — Warum REST →
+1. [Layered Architecture](../architecture/01-layered.md) — Why REST →
    Service → DAO → SQLite.
 2. [Service Tiers](../architecture/02-service-tiers.md) — Basic vs
-   Business-Logic. Sehr wichtig, damit du keine zyklischen Deps baust.
-3. [Transactions](../architecture/05-transactions.md) — Das
-   `Option<Transaction>`-Pattern.
-4. [Auth](../architecture/04-auth.md) — v.a. der `Full`-Bypass.
-5. [Testing](../architecture/07-testing.md) — Mockall, In-Mem-SQLite,
-   Clippy-Gate.
+   Business-Logic. Very important so you do not create cyclic deps.
+3. [Transactions](../architecture/05-transactions.md) — The
+   `Option<Transaction>` pattern.
+4. [Auth](../architecture/04-auth.md) — especially the `Full` bypass.
+5. [Testing](../architecture/07-testing.md) — Mockall, in-mem SQLite,
+   clippy gate.
 
-## Tag 3 — Fach verstehen
+## Day 3 — Understand the Domain
 
-Lies:
+Read:
 
-1. [Glossary](../domain/glossary.md) — die Begriffe.
-2. [Time Accounting](../domain/time-accounting.md) — wie die Balance
-   rechnet. Kernwissen.
-3. [Billing Period](../domain/billing-period.md) — der Snapshot-Vertrag.
-4. [Absence System](../domain/absence-system.md) — v1.0+ Range-basiert.
+1. [Glossary](../domain/glossary.md) — the terminology.
+2. [Time Accounting](../domain/time-accounting.md) — how balance is
+   computed. Core knowledge.
+3. [Billing Period](../domain/billing-period.md) — the snapshot contract.
+4. [Absence System](../domain/absence-system.md) — v1.0+ range-based.
 
-Dann klick die Frontend-Pages durch und verstehe, welches Fach hinter
-welchem UI steht.
+Then click through the frontend pages and understand which domain sits
+behind which UI.
 
-## Tag 4 — Erste kleine Änderung
+## Day 4 — First Small Change
 
-Wähl dir eine kleine Aufgabe — z.B. ein Text-Label ändern oder ein
-kleines Feld hinzufügen. Nutz den Flow:
+Pick a small task — e.g. change a text label or add a small field. Use the
+flow:
 
-1. `cargo build --workspace` — sicherstellen, dass alles kompiliert.
-2. Änderung machen.
-3. `cargo build && cargo test` — grün?
-4. `cargo clippy --workspace -- -D warnings` — Clippy grün? (**Pflicht**,
-   sonst failt `nix build`.)
-5. Wenn du SQL geändert hast: `cargo sqlx prepare --workspace` und
-   `.sqlx/` mitcommitten.
-6. `jj commit -m "..."` — dieses Repo läuft auf jj (siehe
+1. `cargo build --workspace` — make sure everything compiles.
+2. Make the change.
+3. `cargo build && cargo test` — green?
+4. `cargo clippy --workspace -- -D warnings` — clippy green? (**Mandatory**,
+   otherwise `nix build` fails.)
+5. If you changed SQL: `cargo sqlx prepare --workspace` and commit the
+   `.sqlx/` directory along.
+6. `jj commit -m "..."` — this repo runs on jj (see
    `CLAUDE.local.md`).
 7. Push.
 
-## Tag 5 — Konventionen und Randfälle
+## Day 5 — Conventions and Edge Cases
 
-- [Edge Cases](../domain/edge-cases.md) — **einmal komplett durchlesen**.
-  Nicht auswendig lernen, aber wissen, wo du sie findest.
-- Root-`CLAUDE.md` — die Kurzform der Konventionen.
-- `shifty-backend/CLAUDE.md` — Backend-Spezifika (Service-Tier-Regeln,
-  Snapshot-Versioning-Vertrag, Clippy-Gate).
+- [Edge Cases](../domain/edge-cases.md) — **read through once completely**.
+  Do not memorize, but know where to find them.
+- Root `CLAUDE.md` — the short form of the conventions.
+- `shifty-backend/CLAUDE.md` — backend specifics (service tier rules,
+  snapshot versioning contract, clippy gate).
 
-## Häufige Fehler in Woche 1
+## Common Mistakes in Week 1
 
-1. **`cargo test` läuft, `nix build` failt.** Fast immer Clippy-Warnings.
-   Lauf `cargo clippy --workspace -- -D warnings` vor dem Push.
-2. **Neuer Endpoint gibt 404 im Dev.** Du hast den Backend-Endpoint
-   angelegt, aber `shifty-dioxus/Dioxus.toml` hat keinen
-   `[[web.proxy]]`-Eintrag dafür.
-3. **Neuer Query, Build failt in CI.** Du hast `query!`/`query_as!`
-   verwendet, aber vergessen `cargo sqlx prepare --workspace` zu laufen.
-4. **UI-Änderung sieht gut aus, aber Backend hat nichts.** Der
-   Roundtrip wurde nicht getestet — Edit-Pfad ist nicht Create-Pfad.
-   Testen.
-5. **Auth-Fehler nach mock_auth-Wechsel.** OIDC-Modus hat andere
-   Rollen. Wenn du Deny-Pfade testen willst: expliziter Unit-Test mit
-   Auth-Context ohne Admin.
-6. **`Authentication::Full` in einem REST-Handler.** Katastrophaler
-   Auth-Bypass. Nie machen.
+1. **`cargo test` passes, `nix build` fails.** Almost always clippy
+   warnings. Run `cargo clippy --workspace -- -D warnings` before pushing.
+2. **New endpoint returns 404 in dev.** You created the backend endpoint
+   but `shifty-dioxus/Dioxus.toml` has no `[[web.proxy]]` entry for it.
+3. **New query, build fails in CI.** You used `query!`/`query_as!` but
+   forgot to run `cargo sqlx prepare --workspace`.
+4. **UI change looks good but the backend has nothing.** The roundtrip
+   was not tested — the edit path is not the create path. Test it.
+5. **Auth error after switching mock_auth.** OIDC mode has different
+   roles. If you want to test deny paths: write an explicit unit test
+   with an auth context that is not admin.
+6. **`Authentication::Full` in a REST handler.** Catastrophic auth
+   bypass. Never do this.
 
-## Wenn was hängt
+## When Something Hangs
 
-- **Backend startet nicht:** `.env` fehlt? DB-URL falsch? Migrations
-  nicht gelaufen?
-- **Frontend zeigt weiße Seite:** Tailwind-Watcher läuft nicht? dx-CLI
-  auf 0.7.x? Style-Pfad in `Dioxus.toml` falsch?
-- **Test hängt:** In-Memory-DB nicht geleaked; wahrscheinlich eine TX,
-  die nicht committet.
+- **Backend does not start:** `.env` missing? DB URL wrong? Migrations
+  not run?
+- **Frontend shows a blank page:** Tailwind watcher not running? dx CLI
+  on 0.7.x? Style path in `Dioxus.toml` wrong?
+- **Test hangs:** In-memory DB not leaked; probably a transaction that
+  never commits.
 
-## Slash-Commands
+## Slash Commands
 
-Das Repo nutzt GSD (`.planning/`). Wenn du in Claude Code arbeitest,
-sind Skills wie `/gsd-progress`, `/gsd-plan-phase`, `/release-version`
-verfügbar. `/gsd-progress` gibt dir einen Situationsbericht.
+The repo uses GSD (`.planning/`). When you work in Claude Code, skills like
+`/gsd-progress`, `/gsd-plan-phase`, `/release-version` are available.
+`/gsd-progress` gives you a situational report.

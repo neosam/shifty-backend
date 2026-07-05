@@ -1,148 +1,149 @@
-# Absence-System (Fachlich)
+# Absence System (Domain)
 
-Diese Datei erklärt das range-basierte Abwesenheits-System aus Fach-Sicht.
-Für die technische Referenz siehe
+This file explains the range-based absence system from the domain
+perspective. For the technical reference see
 [F05 Absence System](../features/F05-absence-system.md).
 
-## Was ist eine Absence?
+## What is an Absence?
 
-Eine **Absence** ist eine Abwesenheitsperiode eines Sales Person mit
-einem **Beginn**, einem **Ende** und einer **Kategorie** (Urlaub,
-Krank, Unbezahlt, Ehrenamt, …).
+An **Absence** is an absence period of a Sales Person with a **start**,
+an **end**, and a **category** (Vacation, SickLeave, UnpaidLeave,
+VolunteerWork, …).
 
-**Range-Semantik:** beidseitig inklusiv — `[from, to]`. Ein Range
-`from=2026-06-01`, `to=2026-06-01` ist "genau ein Tag Urlaub".
+**Range semantics:** inclusive on both sides — `[from, to]`. A range
+`from=2026-06-01`, `to=2026-06-01` is "exactly one day of vacation".
 
-## Warum Range statt einzelne Tage?
+## Why ranges instead of single days?
 
-Vor v1.0 wurden Abwesenheiten als **Extra-Hours-Zeilen pro Tag**
-geführt. Das führte zu:
+Before v1.0 absences were maintained as **Extra Hours rows per day**.
+That led to:
 
-- **Datenexplosion:** Zwei Wochen Urlaub = 14 Zeilen.
-- **Änderungs-Aufwand:** Urlaub um einen Tag verlängern = neue Zeile
-  einfügen und Aggregate refreshen.
-- **Semantik-Verlust:** "Diese 14 Zeilen gehören zusammen" war nur im
-  Kopf des Users.
+- **Data explosion:** Two weeks of vacation = 14 rows.
+- **Change overhead:** Extending vacation by one day = inserting a new
+  row and refreshing aggregates.
+- **Loss of semantics:** "These 14 rows belong together" was only in the
+  user's head.
 
-Das Absence-System macht daraus **eine Zeile**, die 14 Tage abdeckt.
+The Absence system turns this into **a single row** covering 14 days.
 
-## Kategorien
+## Categories
 
-Absences haben dieselben Kategorien wie Extra Hours (siehe
+Absences use the same categories as Extra Hours (see
 [`glossary.md`](./glossary.md)):
 
-- **Vacation** — Urlaub. Zählt als "gearbeitet" für Balance.
-- **SickLeave** — Krank. Zählt als "gearbeitet" für Balance.
-- **UnpaidLeave** — Unbezahlt. Senkt die Erwartung, addiert nichts.
-- **VolunteerWork** — Ehrenamt. Zählt als "gearbeitet".
-- **Unavailable** — Verfügbarkeits-Sperre.
-- **Holiday** — Feiertag als individuelle Absence (selten; meist über
-  Special Days).
+- **Vacation** — Vacation. Counts as "worked" for the Balance.
+- **SickLeave** — Sick leave. Counts as "worked" for the Balance.
+- **UnpaidLeave** — Unpaid leave. Reduces the expectation, adds nothing.
+- **VolunteerWork** — Volunteer work. Counts as "worked".
+- **Unavailable** — Availability block.
+- **Holiday** — Public holiday as an individual Absence (rare; usually
+  handled via Special Days).
 
-Die Semantik für die Balance-Rechnung ist identisch mit Extra Hours —
-Reporting aggregiert beide Quellen.
+The semantics for the Balance calculation are identical to Extra Hours
+— reporting aggregates both sources.
 
-## Cutover-Historie
+## Cutover history
 
-Der Wechsel von Extra-Hours-basierten Single-Day-Zeilen zu Absence-
-Ranges heißt **Cutover** und passierte in Milestone v1.0.
+The transition from Extra-Hours-based single-day rows to Absence ranges
+is called the **cutover** and happened in Milestone v1.0.
 
-Vor Cutover: Alle Abwesenheiten in `extra_hours`.
-Ab Cutover: Neue Abwesenheiten in `absence_period`. Alte bleiben in
-`extra_hours` und werden nicht migriert (Ausnahme: `absence_conversion`
-für explizite Konvertierung).
+Before cutover: All absences in `extra_hours`.
+From cutover onwards: New absences in `absence_period`. Old ones remain
+in `extra_hours` and are not migrated (exception: `absence_conversion`
+for explicit conversion).
 
-**Konsequenz für Reporting:** Alle Reader-Pfade, die
-Absence-relevante Kategorien aggregieren (Vacation, SickLeave,
-UnpaidLeave, VolunteerWork), MÜSSEN aus **beiden** Quellen lesen und
-zusammenführen — sonst fehlen historische Zeilen.
+**Consequence for reporting:** All reader paths that aggregate
+Absence-relevant categories (Vacation, SickLeave, UnpaidLeave,
+VolunteerWork) MUST read from **both** sources and merge them —
+otherwise historical rows are missing.
 
-## Konflikt-Semantik
+## Conflict semantics
 
 ### Absence-vs-Absence (Overlap)
 
-- **Same-Category-Overlap:** Verboten — z.B. zwei überlappende Urlaubs-
-  Ranges für denselben Sales Person. Der Service lehnt den Insert ab.
-- **Cross-Category-Overlap:** Erlaubt mit Priorität —
-  `SickLeave > Vacation > UnpaidLeave`. Das heißt: Wenn Urlaub und
-  Krank sich überlappen, wird der überlappende Zeitraum als
-  Krankheit gezählt.
+- **Same-category overlap:** Forbidden — e.g. two overlapping Vacation
+  ranges for the same Sales Person. The service rejects the insert.
+- **Cross-category overlap:** Allowed with priority —
+  `SickLeave > Vacation > UnpaidLeave`. That means: if Vacation and
+  SickLeave overlap, the overlapping range is counted as SickLeave.
 
 ### Absence-vs-Booking
 
-Nicht-blockierend. Es gibt eine **Warning** ("Da ist ein Booking
-während der Absence"), aber der Insert wird nicht abgelehnt. Der User
-kann entscheiden, ob die Booking gelöscht werden soll.
+Non-blocking. There is a **warning** ("There is a Booking during the
+Absence"), but the insert is not rejected. The user can decide whether
+the Booking should be deleted.
 
-Fach-Motivation: In der Praxis werden Bookings oft im Voraus geplant,
-und ein spontaner Kranktag soll nicht das Anlegen der Absence
-verhindern.
+Domain motivation: In practice, Bookings are often planned in advance,
+and a spontaneous sick day should not prevent the Absence from being
+created.
 
-### Absence über Nicht-Arbeitstag
+### Absence over a non-working day
 
-Ein Urlaubs-Range, der einen Sonntag einschließt, den der Sales Person
-per Contract nicht arbeitet, zählt für den Sonntag **0 Stunden**. Der
-Range ist trotzdem gültig.
+A Vacation range that includes a Sunday which the Sales Person does not
+work per contract counts as **0 hours** for the Sunday. The range is
+still valid.
 
-## Auth-Modell
+## Auth model
 
-- **HR** kann Absences für alle anlegen, ändern, löschen.
-- **Sales Person selbst** kann eigene Absences anlegen, ändern,
-  löschen (mit gewissen Einschränkungen; **[Zu prüfen]** genaue
-  Regeln in F05).
-- **`find_all`** ist ausschließlich HR — Sales-Person-eigene Reads sind
-  gefiltert auf eigene Zeilen.
+- **HR** can create, modify, delete Absences for everyone.
+- **Sales Person themselves** can create, modify, delete their own
+  Absences (with certain restrictions; **[To verify]** exact rules in
+  F05).
+- **`find_all`** is HR-only — Sales-Person-owned reads are filtered to
+  their own rows.
 
-## Konvertierung: Legacy → Absence
+## Conversion: Legacy → Absence
 
-Der `AbsenceConversionService` (`service_impl/src/absence_conversion.rs`)
-ist der Weg, um Alt-Extra-Hours-Zeilen aktiv in Absence-Ranges zu
-überführen. Nur ein einmaliger Datenumzug — nicht Teil des
-Live-Reporting-Pfads.
+The `AbsenceConversionService` (`service_impl/src/absence_conversion.rs`)
+is the way to actively transfer legacy Extra Hours rows into Absence
+ranges. Only a one-time data move — not part of the live reporting
+path.
 
-## Toggle-Rollout-Kette
+## Toggle rollout chain
 
-Das Feature-Rollout D-51-07/HCFG-02 nutzt Toggles mit Stichtag: Vor
-Stichtag alte Semantik (nur Extra Hours), nach Stichtag neue Semantik
-(Absence-System aktiv).
+The feature rollout D-51-07/HCFG-02 uses toggles with an effective date:
+before the effective date the old semantics apply (only Extra Hours),
+after the effective date the new semantics apply (Absence system
+active).
 
-**Konvention (aus Memory):** Pro Konsumkette wird bei "Toggle aus" die
-alte Semantik im Gate-aus-Zweig rekonstruiert — nicht blind "None →
-raw" annehmen.
+**[Convention]** (from memory): Per consumer chain, the "toggle off"
+branch reconstructs the old semantics — do not blindly assume "None →
+raw".
 
-## Balance-Rechnung mit Absence
+## Balance calculation with Absence
 
-Für einen Zeitraum + Sales Person zählt Reporting:
+For a time range + Sales Person the reporting counts:
 
-1. Alle Bookings (immer).
-2. Alle Extra-Hours-Zeilen (immer, auch nach Cutover für Legacy-Daten).
-3. Alle Absences (nach Cutover).
+1. All Bookings (always).
+2. All Extra Hours rows (always, including after cutover for legacy
+   data).
+3. All Absences (after cutover).
 
-Die Kategorien werden in ihrer Standard-Semantik behandelt (siehe
+Categories are treated with their standard semantics (see
 [`time-accounting.md`](./time-accounting.md)):
 
-- Vacation/SickLeave/VolunteerWork/Unavailable/Holiday: addieren auf
-  Ist-Seite.
-- UnpaidLeave: senkt Erwartung.
+- Vacation/SickLeave/VolunteerWork/Unavailable/Holiday: add to the
+  actual side.
+- UnpaidLeave: reduces expectation.
 
-## Randfall-Referenzen
+## Edge-case references
 
-Siehe [`edge-cases.md#2-absence--extra-hours`](./edge-cases.md#2-absence--extra-hours):
+See [`edge-cases.md#2-absence--extra-hours`](./edge-cases.md#2-absence--extra-hours):
 
-- Range über Billing-Period-Grenze (Split?).
-- Range über Jahreswechsel (Carryover-Interaktion).
-- Cross-Category-Overlap (Priorität).
-- Absence auf Nicht-Arbeitstag.
-- Absence gegen Booking-Konflikt (Warning, nicht Block).
+- Range across a Billing Period boundary (split?).
+- Range across the year boundary (Carryover interaction).
+- Cross-category overlap (priority).
+- Absence on a non-working day.
+- Absence vs Booking conflict (warning, not block).
 
-## PR-Review-Muster
+## PR review pattern
 
-**Bei Änderungen an `reporting.rs` oder `absence.rs`:**
+**On changes to `reporting.rs` or `absence.rs`:**
 
-1. Werden **beide** Quellen (`extra_hours` + `absence_period`) für
-   Absence-relevante Kategorien gelesen?
-2. Ist der Toggle-Rollout-Gate-aus-Zweig für die betroffene
-   Konsumkette gepflegt?
-3. Gibt es Tests für Jahreswechsel-Ranges und Carryover-Interaktion?
+1. Are **both** sources (`extra_hours` + `absence_period`) read for
+   Absence-relevant categories?
+2. Is the toggle rollout's "toggle off" branch maintained for the
+   affected consumer chain?
+3. Are there tests for year-boundary ranges and Carryover interaction?
 
-Ohne diese Checks driftet die Cutover-Konsistenz still.
+Without these checks, cutover consistency drifts silently.

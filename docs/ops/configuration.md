@@ -1,66 +1,65 @@
-# Konfiguration
+# Configuration
 
-Shifty wird zur Laufzeit über Environment-Variablen und beim Build
-über Feature-Flags konfiguriert.
+Shifty is configured at runtime via environment variables and at build
+time via feature flags.
 
-## Environment-Variablen
+## Environment variables
 
-Basis-Template: `env.example`. Für Dev: `cp env.example .env`.
+Base template: `env.example`. For dev: `cp env.example .env`.
 
-**[Zu prüfen]** — vollständige Env-Var-Liste aus `service_impl/src/config.rs`
-oder Startup-Code. Typisch sind:
+**[To verify]** — complete env-var list from `service_impl/src/config.rs`
+or the startup code. Typical entries:
 
-- `DATABASE_URL` — SQLite-Pfad.
-- `PORT` — Backend-Port (Default 3000).
-- OIDC-Config im `oidc`-Feature — `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
+- `DATABASE_URL` — SQLite path.
+- `PORT` — backend port (default 3000).
+- OIDC config under the `oidc` feature — `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
   `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`.
-- Logging-Level (`RUST_LOG`).
+- Logging level (`RUST_LOG`).
 
-## Feature-Flags
+## Feature flags
 
-Feature-Flags werden bei `cargo build --features "..."` aktiviert.
+Feature flags are activated via `cargo build --features "..."`.
 
-### Auth-Modi (exklusiv)
+### Auth modes (mutually exclusive)
 
-- **`mock_auth`** — Development. Mocked Admin-User bei jedem Request.
-- **`oidc`** — Production. Externer OpenID Connect Provider.
+- **`mock_auth`** — development. Mocked admin user on every request.
+- **`oidc`** — production. External OpenID Connect provider.
 
-### Logging-Modi
+### Logging modes
 
-- **`local_logging`** — Menschen-lesbarer Text.
-- **`json_logging`** — Strukturiertes JSON für Log-Aggregation.
+- **`local_logging`** — human-readable text.
+- **`json_logging`** — structured JSON for log aggregation.
 
 ## `config.rs`
 
-Die zentrale Config-Struktur liegt in `service_impl/src/config.rs`.
-Sie liest Env-Vars beim Startup und stellt sie den Services zur
-Verfügung.
+The central config struct lives in `service_impl/src/config.rs`. It
+reads env vars on startup and exposes them to services.
 
-## OIDC-Setup
+## OIDC setup
 
-Für Prod-Deployment:
+For a production deployment:
 
-1. IdP registrieren (Client anlegen, Redirect-URI setzen).
-2. `OIDC_*`-Env-Vars in `.env` bzw. Systemd-Environment eintragen.
-3. Build mit `--features oidc`.
-4. Beim ersten Login wird der User in Shifty angelegt (**[Zu prüfen]**
-   ob explizite Invitation notwendig, siehe
+1. Register with the IdP (create a client, set the redirect URI).
+2. Enter the `OIDC_*` env vars in `.env` or the systemd environment.
+3. Build with `--features oidc`.
+4. On first login the user is created inside Shifty (**[To verify]**
+   whether an explicit invitation is required — see
    [F10](../features/F10-templates-communication.md)).
 
 ## Nextcloud / WebDAV
 
-Falls PDF-Export nach Nextcloud aktiv:
+If PDF export to Nextcloud is active:
 
-- WebDAV-URL, Username, Token in Config.
+- WebDAV URL, username, token in the configuration.
 - Details: [F11 Export](../features/F11-export.md).
 
-## Scheduler-Konfiguration
+## Scheduler configuration
 
-Der Scheduler läuft aktuell mit fest verdrahteter Cron-Expression
-`"0 * * * * *"` (siehe `service_impl/src/scheduler.rs:45`). Konfigurierbar
-ist er derzeit nur über Code-Änderung.
+The scheduler currently runs with the hard-wired cron expression
+`"0 * * * * *"` (see `service_impl/src/scheduler.rs:45`). It is only
+configurable via code change today.
 
-## Verwandte Randfälle
+## Related edge cases
 
-- Toggle- und Feature-Flag-Verhalten →
+- Toggle and feature-flag behaviour →
   [`../domain/edge-cases.md#9-feature-toggles--stichtag-rollouts`](../domain/edge-cases.md#9-feature-toggles--stichtag-rollouts).

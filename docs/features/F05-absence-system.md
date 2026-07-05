@@ -1,135 +1,135 @@
-# Feature: Absence System (Range-basierte Abwesenheiten)
+# Feature: Absence System (Range-based Absences)
 
-> **Kurzform:** Urlaub, Krank, unbezahlter Urlaub und ähnliche Abwesenheiten
-> werden als **Zeiträume** (`from_date`–`to_date`) modelliert. Die Ist-Stunden
-> werden zur Reporting-Zeit aus dem am jeweiligen Tag gültigen Vertrag
-> abgeleitet — statt aus fixen Tages-Postings in `extra_hours`.
+> **In short:** Vacation, sick leave, unpaid leave, and similar absences are
+> modelled as **date ranges** (`from_date`–`to_date`). The actual hours are
+> derived at reporting time from the contract active on each individual day —
+> instead of from fixed per-day postings in `extra_hours`.
 
-**Cluster-ID:** F05
-**Status:** produktiv
-**Erstmalig eingeführt:** v1.0 (2026-05-03, Phasen 1–4 — siehe
-`docs/absence-feature-frontend.md` Kopf)
-**Zuständige Crates:** `service::absence`, `service::absence_conversion`,
+**Cluster ID:** F05
+**Status:** production
+**First introduced:** v1.0 (2026-05-03, phases 1–4 — see
+`docs/absence-feature-frontend.md` header)
+**Responsible crates:** `service::absence`, `service::absence_conversion`,
 `service_impl::absence`, `service_impl::absence_conversion`, `dao::absence`,
 `dao_impl_sqlite::absence`, `rest::absence`, `shifty-dioxus::page::absences`
 
 ---
 
-## 1. Was ist das? (Fachlich)
+## 1. What is this? (Domain view)
 
-Vor v1.0 wurde jede Form von Abwesenheit als **einzelner Tageseintrag mit
-Stundenbetrag** in `extra_hours` erfasst (Kategorien `Vacation`, `SickLeave`,
-`UnpaidLeave`, plus freiwilliger Dienst). Das brachte drei Probleme mit sich
-(siehe `docs/absence-feature-frontend.md:6–13`):
+Before v1.0, every form of absence was recorded as a **single-day entry with
+an hour amount** in `extra_hours` (categories `Vacation`, `SickLeave`,
+`UnpaidLeave`, plus volunteer work). This caused three problems (see
+`docs/absence-feature-frontend.md:6–13`):
 
-1. Vertragsänderungen (z. B. Wechsel von 40 h auf 30 h pro Woche) verändern die
-   Ist-Stunden vergangener Urlaubstage — die Buchhaltung musste nacharbeiten.
-2. Für denselben Tag entstand eine Doppel-Eintragung: einmal `extra_hours`
-   (Stunden-Betrag) und einmal `sales_person_unavailable` (Schichtplan-Sicht).
-3. Feiertage mussten manuell aus Urlaubs-Postings herausgerechnet werden.
+1. Contract changes (e.g. switching from 40 h to 30 h per week) altered the
+   actual hours of past vacation days — accounting had to rework them.
+2. For the same day, a double entry arose: once in `extra_hours` (hour
+   amount) and once in `sales_person_unavailable` (shift plan view).
+3. Public holidays had to be manually subtracted from vacation postings.
 
-Das **Absence-System** modelliert einen Zeitraum genau einmal (Tabelle
-`absence_period`). Die Stunden pro Tag werden **erst beim Report** aus dem am
-jeweiligen Tag aktiven Vertrag abgeleitet
-(`service::absence::AbsenceService::derive_hours_for_range`, definiert in
-`service/src/absence.rs:250–258`, Impl in
-`service_impl/src/absence.rs:387–556`). Feiertage bekommen 0 h, ohne
-gesonderte Buchhaltungs-Zeile.
+The **Absence System** models a range exactly once (table `absence_period`).
+The hours per day are derived **only at reporting time** from the contract
+active on that day (`service::absence::AbsenceService::derive_hours_for_range`,
+defined in `service/src/absence.rs:250–258`, implementation in
+`service_impl/src/absence.rs:387–556`). Public holidays get 0 h, without a
+separate accounting entry.
 
-**Beispiel-Workflow aus User-Sicht:**
+**Example workflow from the user perspective:**
 
-1. Mitarbeiter*in öffnet `/absences`, klickt "Neue Abwesenheit", wählt
-   Kategorie (Urlaub / Krank / Unbezahlt), Von-Datum, Bis-Datum und
-   optional Halbtag.
-2. Backend prüft Range-Reihenfolge, Self-Overlap innerhalb derselben
-   Kategorie und Permission (HR ∨ self), persistiert den Datensatz.
-3. Backend berechnet Forward-Warnings: existierende Bookings oder manuelle
-   `sales_person_unavailable`-Einträge im neuen Range werden als
-   **nicht-blockierender Hinweis** ausgeliefert (Wrapper
-   `AbsencePeriodCreateResultTO`).
-4. Frontend zeigt die neue Range in der Übersicht und rendert die Warnings
-   als Banner-Liste unter dem Dialog — der Datensatz ist bereits gespeichert.
-5. Reporting-Fluss (F06) fragt später
-   `derive_hours_for_range(from, to, sales_person_id)` und bekommt eine
-   `BTreeMap<Date, ResolvedAbsence>` mit den pro Tag gültigen Stunden.
+1. An employee opens `/absences`, clicks "New Absence", picks a category
+   (Vacation / Sick Leave / Unpaid Leave), from-date, to-date, and
+   optionally half day.
+2. The backend validates range order, self-overlap within the same category,
+   and permissions (HR ∨ self), then persists the record.
+3. The backend computes forward warnings: existing bookings or manual
+   `sales_person_unavailable` entries within the new range are returned as
+   a **non-blocking hint** (wrapper `AbsencePeriodCreateResultTO`).
+4. The frontend displays the new range in the overview and renders the
+   warnings as a banner list beneath the dialog — the record is already
+   saved.
+5. Later, the reporting flow (F06) calls
+   `derive_hours_for_range(from, to, sales_person_id)` and receives a
+   `BTreeMap<Date, ResolvedAbsence>` with the hours applicable per day.
 
-## 2. Fachliche Regeln
+## 2. Domain rules
 
-Alle Regeln aus `docs/absence-feature-frontend.md:16–30` verifiziert gegen
-den Code:
+All rules from `docs/absence-feature-frontend.md:16–30` verified against
+the code:
 
-- **Granularität:** Ganztag oder Halbtag pro Periode einheitlich
+- **Granularity:** Full day or half day, uniform per period
   (`DayFraction::{Full, Half}`, `service/src/absence.rs:61–66`,
-  Migration `20260517120000` bringt die Spalte). Halbtage werden in
-  `derive_hours_for_range` mit Faktor 0.5 verrechnet
+  migration `20260517120000` adds the column). Half days are applied with
+  factor 0.5 in `derive_hours_for_range`
   (`service_impl/src/absence.rs:538–541`).
-- **Range-Semantik `[from_date, to_date]` — inklusiv beidseitig** (D-05).
-  DB-CHECK `to_date >= from_date` in
-  `migrations/sqlite/20260502170000_create-absence-period.sql:28`. Der Service
-  wickelt Ranges via `shifty_utils::DateRange::new` — Inversion → typisierter
-  Fehler `ServiceError::DateOrderWrong(from, to)`
+- **Range semantics `[from_date, to_date]` — inclusive on both sides** (D-05).
+  DB CHECK `to_date >= from_date` in
+  `migrations/sqlite/20260502170000_create-absence-period.sql:28`. The service
+  processes ranges via `shifty_utils::DateRange::new` — inversion → typed
+  error `ServiceError::DateOrderWrong(from, to)`
   (`service_impl/src/absence.rs:189–190`).
-- **Kategorien:** Genau drei (`Vacation`, `SickLeave`, `UnpaidLeave`). Der
-  DAO-Enum `AbsenceCategoryEntity` ist bewusst kleiner als
-  `ExtraHoursCategoryEntity`, damit der Compiler ungültige Kategorien
-  ausschließt (`dao/src/absence.rs:9–21`).
-- **Self-Overlap same-category ist verboten:** Der Create-Pfad ruft
+- **Categories:** Exactly three (`Vacation`, `SickLeave`, `UnpaidLeave`). The
+  DAO enum `AbsenceCategoryEntity` is deliberately smaller than
+  `ExtraHoursCategoryEntity` so the compiler rules out invalid categories
+  (`dao/src/absence.rs:9–21`).
+- **Self-overlap same-category is forbidden:** The create path calls
   `find_overlapping(sales_person_id, category, range, None, tx)`
-  (`service_impl/src/absence.rs:193–207`) und antwortet
-  `ValidationError([OverlappingPeriod(logical_id)])`. Der Update-Pfad ruft
-  dieselbe DAO-Methode mit `exclude_logical_id = Some(logical_id)`, damit
-  die Row nicht mit sich selbst kollidiert
+  (`service_impl/src/absence.rs:193–207`) and responds with
+  `ValidationError([OverlappingPeriod(logical_id)])`. The update path calls
+  the same DAO method with `exclude_logical_id = Some(logical_id)` so the
+  row does not collide with itself
   (`service_impl/src/absence.rs:281–290`).
-- **Cross-Category-Overlap ist erlaubt und wird per Priorität aufgelöst:**
-  `SickLeave > Vacation > UnpaidLeave` (BUrlG §9-konform,
-  `service_impl/src/absence.rs:65–74`, D-Phase2-03). Anwendung im
-  Reporting-Fluss über `derive_hours_for_range` → `max_by_key(priority)`
+- **Cross-category overlap is allowed and resolved by priority:**
+  `SickLeave > Vacation > UnpaidLeave` (BUrlG §9-compliant,
+  `service_impl/src/absence.rs:65–74`, D-Phase2-03). Applied in the
+  reporting flow via `derive_hours_for_range` → `max_by_key(priority)`
   (`service_impl/src/absence.rs:507–512`).
-- **Berechtigung:** Für alle Read-/Write-Operationen gilt **HR ∨ self**
-  (D-10 Option A). Umgesetzt via
+- **Permissions:** For all read/write operations, **HR ∨ self** applies
+  (D-10 Option A). Implemented via
   `tokio::join!(check_permission(HR), verify_user_is_sales_person(sp_id))`
-  gefolgt von `hr.or(sp)?`
-  (`service_impl/src/absence.rs:110–119`, analog in `find_by_id`, `create`,
+  followed by `hr.or(sp)?`
+  (`service_impl/src/absence.rs:110–119`, analogous in `find_by_id`, `create`,
   `update`, `delete`, `find_overlapping_for_booking`,
-  `derive_hours_for_range`). Ausnahme: `find_all` erwartet **HR only**
-  (`service_impl/src/absence.rs:94–96`) — der By-Sales-Person-Pfad ist der
-  Selbst-Sicht-Endpoint.
-- **Booking-Konflikt ist NICHT blockierend:** Weder `create` noch `update`
-  brechen bei überlappenden Bookings ab; sie liefern Forward-Warnings vom
-  Typ `Warning::AbsenceOverlapsBooking` /
+  `derive_hours_for_range`). Exception: `find_all` requires **HR only**
+  (`service_impl/src/absence.rs:94–96`) — the by-sales-person path is the
+  self-view endpoint.
+- **Booking conflict is NOT blocking:** Neither `create` nor `update`
+  aborts on overlapping bookings; they return forward warnings of type
+  `Warning::AbsenceOverlapsBooking` /
   `Warning::AbsenceOverlapsManualUnavailable`
-  (`service_impl/src/absence.rs:837–927`, D-Phase3-16 "kein Auto-Cleanup").
-- **Sales-Person-ID ist auf Update nicht änderbar:** Modification-Guard in
-  `service_impl/src/absence.rs:265–269`, sonst `ValidationError`.
-- **Optimistic Locking:** `version` (Uuid). PUT liefert `409 EntityConflicts`
-  bei Stale-Version (`service_impl/src/absence.rs:270–276`).
-- **Update rotiert die physische Row (Tombstone + Insert):** `logical_id`
-  bleibt stabil, externe Referenzen überleben Updates (D-07,
-  `service_impl/src/absence.rs:297–331`). Analog `extra_hours`-Pattern.
-- **Soft-Delete:** `delete` setzt nur `deleted`
-  (`service_impl/src/absence.rs:354–385`). Kein physisches Row-Drop —
-  Audit-Trail bleibt bestehen.
-- **Wochen-Deckelung im Reporting-Aggregator:** Pro ISO-Woche werden
-  maximal `workdays_per_week` Urlaubstage gezählt, auch wenn der Vertrag
-  an mehr Wochentagen verfügbar ist (siehe langer Kommentar
-  `service_impl/src/absence.rs:462–472`). Bug-Motivation:
+  (`service_impl/src/absence.rs:837–927`, D-Phase3-16 "no auto-cleanup").
+- **Sales Person ID is not modifiable on update:** modification guard in
+  `service_impl/src/absence.rs:265–269`, otherwise `ValidationError`.
+- **Optimistic locking:** `version` (Uuid). PUT returns `409 EntityConflicts`
+  on stale version (`service_impl/src/absence.rs:270–276`).
+- **Update rotates the physical row (tombstone + insert):** `logical_id`
+  stays stable; external references survive updates (D-07,
+  `service_impl/src/absence.rs:297–331`). Analogous to the `extra_hours`
+  pattern.
+- **Soft delete:** `delete` only sets `deleted`
+  (`service_impl/src/absence.rs:354–385`). No physical row drop —
+  audit trail is preserved.
+- **Weekly cap in the reporting aggregator:** Per ISO week, at most
+  `workdays_per_week` vacation days are counted, even if the contract
+  covers more weekdays (see the long comment in
+  `service_impl/src/absence.rs:462–472`). Bug motivation:
   `vacation-hours-overcounted`.
-- **Feiertage kürzen den Anspruch:** In `derive_hours_for_range` werden
-  Tage mit `SpecialDayType::Holiday` übersprungen — kein Eintrag in der
-  Map (`service_impl/src/absence.rs:437–458, 501–503`).
-- **REST-`path-id wins` auf PUT:** Body-`id` wird überschrieben mit dem
-  Path-Segment (`rest/src/absence.rs:373`).
+- **Public holidays reduce entitlement:** In `derive_hours_for_range`,
+  days with `SpecialDayType::Holiday` are skipped — no entry in the
+  map (`service_impl/src/absence.rs:437–458, 501–503`).
+- **REST `path-id wins` on PUT:** Body `id` is overwritten with the
+  path segment (`rest/src/absence.rs:373`).
 
-## 3. Datenmodell
+## 3. Data model
 
-### Tabellen
+### Tables
 
-| Tabelle | Zweck | Wichtige Spalten |
+| Table | Purpose | Key columns |
 | --- | --- | --- |
-| `absence_period` | Persistierter Range pro `(sales_person, kategorie)` | `id`, `logical_id`, `sales_person_id`, `category`, `from_date`, `to_date`, `description`, `created`, `deleted`, `update_version`, `day_fraction` |
-| `absence_period_migration_source` | Backlink `extra_hours_id → absence_period_id`, damit Convert-Vorgänge nachvollziehbar sind | `extra_hours_id`, `absence_period_id`, `migrated_at` |
+| `absence_period` | Persisted range per `(sales_person, category)` | `id`, `logical_id`, `sales_person_id`, `category`, `from_date`, `to_date`, `description`, `created`, `deleted`, `update_version`, `day_fraction` |
+| `absence_period_migration_source` | Back-link `extra_hours_id → absence_period_id`, so conversion operations remain traceable | `extra_hours_id`, `absence_period_id`, `migrated_at` |
 
-Schema-Auszug (`migrations/sqlite/20260502170000_create-absence-period.sql:14–43`):
+Schema excerpt (`migrations/sqlite/20260502170000_create-absence-period.sql:14–43`):
 
 ```sql
 CREATE TABLE absence_period (
@@ -150,58 +150,58 @@ CREATE TABLE absence_period (
 );
 ```
 
-Indexe:
+Indexes:
 
 - `idx_absence_period_logical_id_active` — UNIQUE, WHERE `deleted IS NULL`.
-  Garantiert, dass pro `logical_id` immer nur eine lebende Row existiert
-  (Tombstone-Pattern).
-- `idx_absence_period_sales_person_from` — für den by-sales-person-Read und
+  Guarantees that at most one live row exists per `logical_id`
+  (tombstone pattern).
+- `idx_absence_period_sales_person_from` — for the by-sales-person read and
   `find_overlapping_for_booking`.
-- `idx_absence_period_self_overlap` — für den Self-Overlap-Check im
-  Create/Update-Pfad.
+- `idx_absence_period_self_overlap` — for the self-overlap check in the
+  create/update path.
 
 ### Migrations
 
-Chronologisch:
+Chronologically:
 
-- `20260502170000_create-absence-period.sql` — Basistabelle + drei Indexe
-  (Phase 1, Recovery aus Phase-1-Worktree-Verlust).
-- `20260503000000_create-absence-migration-quarantine.sql` — Cutover-
-  Quarantäne-Tabelle (später wieder entfernt).
-- `20260503000001_create-absence-period-migration-source.sql` — Backlink
-  von `extra_hours` zu neu erzeugten `absence_period`-Rows.
-- `20260517120000_add-day-fraction-to-absence-period.sql` — Additiv:
+- `20260502170000_create-absence-period.sql` — base table + three indexes
+  (phase 1, recovery from the phase 1 worktree loss).
+- `20260503000000_create-absence-migration-quarantine.sql` — cutover
+  quarantine table (later removed again).
+- `20260503000001_create-absence-period-migration-source.sql` — back-link
+  from `extra_hours` to newly created `absence_period` rows.
+- `20260517120000_add-day-fraction-to-absence-period.sql` — additive:
   `day_fraction TEXT NOT NULL DEFAULT 'full' CHECK (day_fraction IN
-  ('full', 'half'))` (Phase 8.3, No-Drift für Bestandsdaten).
-- `20260611000000_drop-absence-migration-quarantine.sql` — Quarantäne-
-  Tabelle nach abgeschlossenem Cutover entfernt.
-- `20260611000002_delete-absence-range-source-active-seed.sql` — Toggle-
-  Seed `absence_range_source_active` entfernt (M-03: kein Quellen-Schalter
-  mehr, siehe `service_impl/src/test/reporting_additive_merge.rs:5`).
+  ('full', 'half'))` (phase 8.3, no-drift for existing data).
+- `20260611000000_drop-absence-migration-quarantine.sql` — quarantine
+  table removed after the cutover was completed.
+- `20260611000002_delete-absence-range-source-active-seed.sql` — Toggle
+  seed `absence_range_source_active` removed (M-03: no more source
+  switch, see `service_impl/src/test/reporting_additive_merge.rs:5`).
 
-### Beziehungen
+### Relationships
 
 - `absence_period.sales_person_id → sales_person.id` (FK).
 - `absence_period_migration_source.absence_period_id → absence_period.id`
-  (Backlink zu Convert-Vorgang; Write in
+  (back-link to conversion operation; write in
   `service_impl/src/absence_conversion.rs:151–160`).
-- Kein FK auf `booking` oder `sales_person_unavailable` — Konflikte sind
-  Warnings, keine harten Verweise.
+- No FK on `booking` or `sales_person_unavailable` — conflicts are
+  warnings, not hard references.
 
-## 4. Service-API
+## 4. Service API
 
-Absence ist **Business-Logic-Tier** (siehe CLAUDE.md
-"Service-Tier-Konventionen"): `AbsenceServiceImpl` konsumiert neben DAOs
-und `PermissionService` auch `SalesPersonService`, `SpecialDayService`,
+Absence is **Business-Logic-Tier** (see CLAUDE.md
+"Service tier conventions"): `AbsenceServiceImpl` consumes, in addition to
+DAOs and `PermissionService`, also `SalesPersonService`, `SpecialDayService`,
 `EmployeeWorkDetailsService`, `BookingService`,
-`SalesPersonUnavailableService` und `SlotService`
-(`service_impl/src/absence.rs:46–63`). Das ist bewusst — Absence kombiniert
-Sales-Person + Slot + Booking und braucht die Cross-Aggregate-Sicht für
-Forward-Warnings.
+`SalesPersonUnavailableService`, and `SlotService`
+(`service_impl/src/absence.rs:46–63`). This is deliberate — Absence combines
+Sales Person + Slot + Booking and needs the cross-aggregate view for
+forward warnings.
 
 ### Trait `AbsenceService`
 
-Definition: `service/src/absence.rs:181–302`. Die wichtigsten Methoden:
+Definition: `service/src/absence.rs:181–302`. The most important methods:
 
 ```rust
 pub trait AbsenceService {
@@ -229,319 +229,323 @@ pub trait AbsenceService {
 }
 ```
 
-### `AbsenceCategory` und `DayFraction`
+### `AbsenceCategory` and `DayFraction`
 
-Domain-Enums in `service/src/absence.rs:27–51` bzw. `61–84`, jeweils mit
-`From<&…Entity>`-Konvertern. `DayFraction::default() == Full` (Zeile 63);
-Bestandsdaten kommen so ohne Backfill aus.
+Domain enums in `service/src/absence.rs:27–51` and `61–84` respectively,
+each with `From<&…Entity>` converters. `DayFraction::default() == Full`
+(line 63); existing data therefore works without a backfill.
 
-### `ResolvedAbsence` und `AbsencePeriodCreateResult`
+### `ResolvedAbsence` and `AbsencePeriodCreateResult`
 
-- `ResolvedAbsence { category, hours, days }` — pro Tag bereits conflict-
-  resolved (`service/src/absence.rs:160–165`). `hours = days * hours_per_day`,
-  Halbtag / Wochen-Deckelung sind eingerechnet.
-- `AbsencePeriodCreateResult { absence, warnings: Arc<[Warning]> }` — Wrapper
-  für Create/Update-Antworten (`service/src/absence.rs:174–177`).
+- `ResolvedAbsence { category, hours, days }` — per day already
+  conflict-resolved (`service/src/absence.rs:160–165`).
+  `hours = days * hours_per_day`, half-day / weekly cap are already
+  factored in.
+- `AbsencePeriodCreateResult { absence, warnings: Arc<[Warning]> }` — wrapper
+  for create/update responses (`service/src/absence.rs:174–177`).
 
-### Auth-Gates
+### Auth gates
 
-| Methode | Gate |
+| Method | Gate |
 | --- | --- |
 | `find_all` | HR only |
 | `find_by_sales_person` / `find_by_id` / `find_overlapping_for_booking` / `derive_hours_for_range` / `derive_days_for_hourly_markers` / `suggest_convert_ranges_for_markers` | HR ∨ self |
 | `create` / `update` / `delete` | HR ∨ self |
 
-Verifiziert im Test `test_create_other_sales_person_without_hr_is_forbidden`
-(`service_impl/src/test/absence.rs:403–425`), analog für find_all-non-HR
-(`test_find_all_non_hr_is_forbidden`, Zeile 804).
+Verified in the test `test_create_other_sales_person_without_hr_is_forbidden`
+(`service_impl/src/test/absence.rs:403–425`), analogous for find_all-non-HR
+(`test_find_all_non_hr_is_forbidden`, line 804).
 
-### TX-Verhalten
+### Transaction behaviour
 
-Alle Methoden öffnen bei `tx = None` selbst eine Transaktion via
-`transaction_dao.use_transaction(tx).await?` und committen erst nach
-erfolgreicher Business-Logik. Der Forward-Warning-Loop läuft **nach** dem
-DAO-Persist und **vor** `commit` — falls ein Warning-Lookup fehlschlägt,
-wird die neue Absence-Row zusammen mit den bereits geschriebenen Änderungen
-zurückgerollt (`service_impl/src/absence.rs:220–235, 333–347`).
+All methods open their own transaction on `tx = None` via
+`transaction_dao.use_transaction(tx).await?` and commit only after the
+business logic succeeds. The forward-warning loop runs **after** the
+DAO persist and **before** `commit` — if a warning lookup fails, the new
+absence row is rolled back together with the changes already written
+(`service_impl/src/absence.rs:220–235, 333–347`).
 
-Der Update-Pfad ist Composite (Tombstone alte Row + Insert neue Row +
-Warning-Loop) und läuft **atomar** in einer einzigen Transaktion
+The update path is composite (tombstone old row + insert new row +
+warning loop) and runs **atomically** in a single transaction
 (`service_impl/src/absence.rs:297–347`).
 
 ### `AbsenceConversionService`
 
-Zweiter Trait im Cluster (`service/src/absence_conversion.rs:26–48`).
-Konvertiert eine lebende `extra_hours`-Row (Kategorie ∈
-{Vacation, SickLeave, UnpaidLeave}) atomar in eine `absence_period`:
+Second trait in the cluster (`service/src/absence_conversion.rs:26–48`).
+Converts a live `extra_hours` row (category ∈
+{Vacation, SickLeave, UnpaidLeave}) atomically into an `absence_period`:
 
-1. HR-Privileg prüfen (**HR only**, kein Self-Bypass — D-05).
-2. `extra_hours`-Row via `find_by_logical_id` laden.
-3. Range-Validierung + Overlap-Check gegen bestehende `absence_period`.
-4. `absence_dao.create(...)` (Write 1).
-5. `migration_source_dao.upsert_migration_source(...)` — Backlink (Write 2).
-6. `extra_hours_service.soft_delete_bulk(...)` — **über die physische
-   `entity.id`, nicht die `logical_id`** (Kommentar
-   `service_impl/src/absence_conversion.rs:164–171`, CR-01: sonst
-   Doppelzählung, weil versionierte Rows physisch unterschiedliche IDs
-   haben).
+1. Check HR privilege (**HR only**, no self-bypass — D-05).
+2. Load the `extra_hours` row via `find_by_logical_id`.
+3. Range validation + overlap check against existing `absence_period`.
+4. `absence_dao.create(...)` (write 1).
+5. `migration_source_dao.upsert_migration_source(...)` — back-link (write 2).
+6. `extra_hours_service.soft_delete_bulk(...)` — **via the physical
+   `entity.id`, not the `logical_id`** (comment
+   `service_impl/src/absence_conversion.rs:164–171`, CR-01: otherwise
+   double counting, because versioned rows have physically different
+   IDs).
 
-Alle drei Writes laufen in einer gemeinsamen Transaktion. Kein Snapshot-
-Bump nötig (D-16), weil Reporting seit 8.4 additiv aus beiden Quellen
-summiert.
+All three writes run in a shared transaction. No snapshot bump needed
+(D-16), because reporting has been additively summing from both sources
+since 8.4.
 
-### `absence_conversion` als Konverter zur Reporting-Tagesreihe
+### `absence_conversion` as converter to the reporting daily series
 
-Anmerkung zur Aufgabenbeschreibung: Der eigentliche Konverter zwischen
-Absence-Range und Reporting-Tagesreihe ist **nicht** `absence_conversion.rs`,
-sondern `AbsenceService::derive_hours_for_range`
-(`service_impl/src/absence.rs:387–556`). `absence_conversion.rs` bezieht
-sich ausschließlich auf den einmaligen Datenumzug einer Legacy-`extra_hours`-
-Row in eine neue Absence-Periode und ist eng verwandt mit dem historischen
-`CutoverService` aus v1.0 (siehe Kommentar-Kopf
-`service_impl/src/absence_conversion.rs:1–9`). Beide Wege enden in
-`absence_period`-Rows, die dann vom Reporting einheitlich behandelt werden.
+Note on the task description: the actual converter between absence range
+and the reporting daily series is **not** `absence_conversion.rs`, but
+`AbsenceService::derive_hours_for_range`
+(`service_impl/src/absence.rs:387–556`). `absence_conversion.rs` refers
+exclusively to the one-time data move of a legacy `extra_hours` row into
+a new Absence period and is closely related to the historical
+`CutoverService` from v1.0 (see comment header
+`service_impl/src/absence_conversion.rs:1–9`). Both paths end in
+`absence_period` rows, which reporting then handles uniformly.
 
 ### Dependencies
 
-- DAOs: `AbsenceDao`, `MigrationSourceDao` (nur im Conversion-Service),
-  `ExtraHoursDao` (nur im Conversion-Service), `TransactionDao`.
-- Services (nur `AbsenceService`, Basic-Konsumenten):
+- DAOs: `AbsenceDao`, `MigrationSourceDao` (only in the conversion service),
+  `ExtraHoursDao` (only in the conversion service), `TransactionDao`.
+- Services (only `AbsenceService`, Basic consumers):
   `PermissionService`, `SalesPersonService`, `ClockService`,
   `UuidService`, `SpecialDayService`, `EmployeeWorkDetailsService`,
   `BookingService`, `SalesPersonUnavailableService`, `SlotService`.
-- Services (nur `AbsenceConversionService`): `ExtraHoursService`,
+- Services (only `AbsenceConversionService`): `ExtraHoursService`,
   `PermissionService`.
 
-## 5. REST-Endpoints
+## 5. REST endpoints
 
-Route-Basispfad `/absence-period`, montiert in `rest/src/lib.rs:656`.
+Route base path `/absence-period`, mounted in `rest/src/lib.rs:656`.
 
-| Methode | Pfad | Beschreibung | DTO In | DTO Out | Wichtige Fehler |
+| Method | Path | Description | DTO in | DTO out | Key errors |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/absence-period` | Neue Periode anlegen | `AbsencePeriodTO` | `201 AbsencePeriodCreateResultTO` | 403 (Auth), 422 (Range invers, Self-Overlap, id/version/created/deleted preset) |
-| `GET`  | `/absence-period` | Alle Perioden **+ lebende Legacy-Marker** aller Personen (HR-Sicht) | — | `200 AbsenceListWithProjectionTO` | 403 |
-| `GET`  | `/absence-period/{id}` | Einzelne Periode | — | `200 AbsencePeriodTO` | 403, 404 |
-| `PUT`  | `/absence-period/{id}` | Periode ändern (`path-id wins`) | `AbsencePeriodTO` | `200 AbsencePeriodCreateResultTO` | 403, 404, 409 (Version), 422 |
-| `DELETE` | `/absence-period/{id}` | Soft-Delete | — | `204` | 403, 404 |
-| `GET`  | `/absence-period/by-sales-person/{sales_person_id}` | Perioden + Marker einer Person | — | `200 AbsenceListWithProjectionTO` | 403 |
+| `POST` | `/absence-period` | Create new period | `AbsencePeriodTO` | `201 AbsencePeriodCreateResultTO` | 403 (auth), 422 (range inverted, self-overlap, id/version/created/deleted preset) |
+| `GET`  | `/absence-period` | All periods **+ live legacy markers** for all persons (HR view) | — | `200 AbsenceListWithProjectionTO` | 403 |
+| `GET`  | `/absence-period/{id}` | Single period | — | `200 AbsencePeriodTO` | 403, 404 |
+| `PUT`  | `/absence-period/{id}` | Modify period (`path-id wins`) | `AbsencePeriodTO` | `200 AbsencePeriodCreateResultTO` | 403, 404, 409 (version), 422 |
+| `DELETE` | `/absence-period/{id}` | Soft delete | — | `204` | 403, 404 |
+| `GET`  | `/absence-period/by-sales-person/{sales_person_id}` | Periods + markers for one person | — | `200 AbsenceListWithProjectionTO` | 403 |
 
-Handler in `rest/src/absence.rs:163–174` (Router), `188–210`
+Handlers in `rest/src/absence.rs:163–174` (router), `188–210`
 (`create_absence_period`), `222–314` (`get_all_absence_periods`), `328–346`
 (`get_absence_period`), `363–386` (`update_absence_period`), `400–413`
 (`delete_absence_period`), `426–521` (`get_absence_periods_for_sales_person`).
 
-**Verwandter Convert-Endpoint** (in Cluster F04 dokumentiert, hier nur
-verlinkt): `POST /extra-hours/{id}/convert-to-absence` in
+**Related convert endpoint** (documented in cluster F04, only linked here):
+`POST /extra-hours/{id}/convert-to-absence` in
 `rest/src/extra_hours.rs:32,203`. Body `ConvertExtraHoursRequestTO`,
-dispatcht in `AbsenceConversionService::convert_extra_hours_to_absence`.
+dispatches into `AbsenceConversionService::convert_extra_hours_to_absence`.
 
-**Deprecation-Sonderfall:** Ein `POST /extra-hours` mit Kategorie
-`Vacation`/`SickLeave`/`UnpaidLeave` liefert nach Cutover-Flip `403
-ExtraHoursCategoryDeprecatedErrorTO` (`rest/src/lib.rs:284–295`, Body:
+**Deprecation special case:** A `POST /extra-hours` with category
+`Vacation`/`SickLeave`/`UnpaidLeave` returns, after the cutover flip, `403
+ExtraHoursCategoryDeprecatedErrorTO` (`rest/src/lib.rs:284–295`, body:
 `{"error":"extra_hours_category_deprecated","category":"vacation","message":"Use POST /absence-period for this category"}`).
-Frontend erkennt den Fehler an `error == "extra_hours_category_deprecated"`.
+The frontend recognises this error by `error == "extra_hours_category_deprecated"`.
 
-**Wrapper-Details:** `AbsencePeriodCreateResultTO` trägt `.absence`
-(persistierte Periode) und `.warnings` (Forward-Warnings —
-`AbsenceOverlapsBooking` und `AbsenceOverlapsManualUnavailable`,
-`rest-types/src/lib.rs:1942–1970`). `AbsenceListWithProjectionTO` bündelt
-`absence_periods` und `hourly_markers` — Marker sind lebende Legacy-
-`extra_hours`-Rows der drei Absence-Kategorien, angereichert um
-`derived_days`, `suggested_end` und `is_full_week`
-(`rest-types/src/lib.rs:1872–1916`, Handler
+**Wrapper details:** `AbsencePeriodCreateResultTO` carries `.absence`
+(persisted period) and `.warnings` (forward warnings —
+`AbsenceOverlapsBooking` and `AbsenceOverlapsManualUnavailable`,
+`rest-types/src/lib.rs:1942–1970`). `AbsenceListWithProjectionTO` bundles
+`absence_periods` and `hourly_markers` — markers are live legacy
+`extra_hours` rows of the three Absence categories, enriched with
+`derived_days`, `suggested_end`, and `is_full_week`
+(`rest-types/src/lib.rs:1872–1916`, handler
 `rest/src/absence.rs:250–307`).
 
-DTOs zusammengefasst in `rest-types/src/lib.rs:1719–2040`.
+DTOs summarised in `rest-types/src/lib.rs:1719–2040`.
 
-## 6. Frontend-Integration
+## 6. Frontend integration
 
-- **Page:** `shifty-dioxus/src/page/absences.rs` (~4085 Zeilen). Route
-  `/absences`. HR- vs Employee-Branch via `auth.has_privilege("hr")`
+- **Page:** `shifty-dioxus/src/page/absences.rs` (~4085 lines). Route
+  `/absences`. HR vs. employee branch via `auth.has_privilege("hr")`
   (`shifty-dioxus/src/page/absences.rs:1–17`).
-- **Services:** `shifty-dioxus/src/service/absence.rs` (CRUD-Coroutine,
+- **Services:** `shifty-dioxus/src/service/absence.rs` (CRUD coroutine,
   `ABSENCE_STORE`, `ABSENCE_MODAL_EVENT`, `ABSENCE_REFRESH`,
-  `ABSENCE_HOURLY_STORE`) und
-  `shifty-dioxus/src/service/absence_marker.rs` (Legacy-Marker-Store).
+  `ABSENCE_HOURLY_STORE`) and
+  `shifty-dioxus/src/service/absence_marker.rs` (legacy marker store).
 - **State:** `shifty-dioxus/src/state/absence_period.rs`
   (`AbsencePeriod`, `AbsenceCategory`, `DayFraction`, `ExtraHoursMarker`).
-- **Zusatz-Komponenten:** `AbsenceModal`, `AbsenceConvertModal`,
+- **Additional components:** `AbsenceModal`, `AbsenceConvertModal`,
   `ExtraHoursModal`, `WarningList`/`WarningsList`, `CategoryBadge`,
   `StatusPill`, `VacationEntitlementCard`, `VacationPerPersonList`,
   `AbsenceList`, `AbsenceFilterBar`, `StatsGrid`, `DeleteConfirmDialog`
   (`shifty-dioxus/src/page/absences.rs:5–52`).
-- **Warnings:** Werden als nicht-blockierende Liste unter dem Modal
-  gerendert — passt zum User-Wunsch "Inline-Warnungen statt Bestätigungs-
-  Dialog" (Memory `feedback_warnings_inline_not_dialog.md`).
-- **i18n-Keys:** Kategorie-Labels (`vacation`/`sickleave`/`unpaidleave`),
-  Warning-Texte, Deprecation-Hinweis für Legacy-Marker — jeweils in `De`,
+- **Warnings:** Rendered as a non-blocking list beneath the modal —
+  matches the user preference "inline warnings instead of confirmation
+  dialog" (memory `feedback_warnings_inline_not_dialog.md`).
+- **i18n keys:** Category labels (`vacation`/`sickleave`/`unpaidleave`),
+  warning texts, deprecation hint for legacy markers — each in `De`,
   `En`, `Cs`.
-- **Proxy:** `shifty-dioxus/Dioxus.toml:98` mappt
-  `/absence-period` → `http://localhost:3000/absence-period`. Der Convert-
-  Endpoint läuft mit über den bestehenden `/extra-hours`-Proxy (F04). Ohne
-  diesen Eintrag würde `dx serve` 404 zurückgeben (Memory
+- **Proxy:** `shifty-dioxus/Dioxus.toml:98` maps
+  `/absence-period` → `http://localhost:3000/absence-period`. The convert
+  endpoint runs via the existing `/extra-hours` proxy (F04). Without
+  this entry, `dx serve` would return 404 (memory
   `feedback_dioxus_proxy_for_new_backend_endpoints.md`).
-- **Referenz-Doku:** Der ausführliche Integrations-Brief liegt in
-  `docs/absence-feature-frontend.md` (v1.0 Frontend-Migration).
+- **Reference doc:** The detailed integration brief lives in
+  `docs/absence-feature-frontend.md` (v1.0 frontend migration).
 
-## 7. Randfälle
+## 7. Edge cases
 
-Für die zentrale Randfall-Referenz siehe
-[`../domain/edge-cases.md`](../domain/edge-cases.md), Sektion
+For the central edge-case reference see
+[`../domain/edge-cases.md`](../domain/edge-cases.md), section
 [§2 Absence & Extra Hours](../domain/edge-cases.md#2-absence--extra-hours).
 
-- **Range spannt Billing-Period-Grenze:** Reporting fragt pro Billing-
-  Period seinen Range gegen `derive_hours_for_range` — die Map deckt nur
-  die abgefragten Tage ab. Beide Perioden bekommen ihren Anteil, keine
-  Doppelzählung. **[Zu prüfen]** ob der Aggregator `billing_period_report`
-  die Absence pro Billing-Range clippt (siehe
+- **Range spans a Billing Period boundary:** Reporting queries per Billing
+  Period its range against `derive_hours_for_range` — the map covers only
+  the queried days. Both periods get their share, no double counting.
+  **[To verify]** whether the aggregator `billing_period_report` clips
+  the Absence per Billing range (see
   `docs/domain/edge-cases.md#22-range-randfälle`).
-- **Range spannt Jahreswechsel (Carryover):** Der Anteil vor dem 31.12.
-  muss in den Carryover einfließen. Wenn Carryover VOR dem Absence-Insert
-  gerechnet wurde, fehlt der Anteil. In der Praxis passiert Carryover
-  jährlich einmalig; nachträgliche Absence-Änderungen im Vorjahr müssen
-  einen Carryover-Refresh triggern
+- **Range spans year change (Carryover):** The share before Dec 31 must
+  flow into the Carryover. If Carryover was computed BEFORE the Absence
+  insert, the share is missing. In practice, Carryover runs once a year;
+  retroactive Absence changes in the previous year must trigger a
+  Carryover refresh
   ([`edge-cases.md#22`](../domain/edge-cases.md#2-absence--extra-hours)).
-- **Overlap zwei Absences derselben Person:** Same-category ist verboten
-  (422). Cross-category ist erlaubt und wird per Priorität `SickLeave >
-  Vacation > UnpaidLeave` aufgelöst
+- **Overlap of two Absences for the same person:** Same-category is
+  forbidden (422). Cross-category is allowed and resolved by priority
+  `SickLeave > Vacation > UnpaidLeave`
   (`service_impl/src/absence.rs:65–74, 507–512`).
-- **Absence vs Booking im gleichen Range:** Erzeugt einen nicht-
-  blockierenden `Warning::AbsenceOverlapsBooking` beim Anlegen der
-  Absence (Forward-Warning, `service_impl/src/absence.rs:837–893`) bzw.
-  einen `Warning::BookingOnAbsenceDay` beim Anlegen eines Bookings über
-  `POST /shiftplan-edit/booking` (Reverse-Warning, siehe
-  `docs/absence-feature-frontend.md:60–69`). **Kein Auto-Cleanup**
-  (D-Phase3-16). Reporting muss aufpassen, dass Absence-Tag und Booking-
-  Tag nicht doppelt gutgeschrieben werden (Reporting-Detail in F06).
-- **Absence auf Feiertag:** In `derive_hours_for_range` wird der Tag
-  komplett übersprungen (kein Map-Eintrag,
-  `service_impl/src/absence.rs:501–503, 437–458`). Der Feiertag bekommt
-  seine eigene Gutschrift über den Holiday-Auto-Credit-Pfad (HCFG-02).
-- **Absence auf Nicht-Arbeitstag:** Der Vertrag definiert
-  `has_day_of_week(weekday)` und `workdays_per_week`. Fällt ein Range-Tag
-  auf einen Wochentag, an dem die Person nicht arbeitet, entsteht kein
-  Map-Eintrag (`service_impl/src/absence.rs:498–500`).
-- **Vertragsänderung während der Range:** Wechselt der Vertrag mitten in
-  einer Absence, wird pro Tag der am jeweiligen Tag aktive Vertrag
-  gewählt (`service_impl/src/absence.rs:480–493`). Alte Perioden bleiben
-  damit prospektiv unverändert (siehe
+- **Absence vs. Booking in the same range:** Generates a non-blocking
+  `Warning::AbsenceOverlapsBooking` when creating the Absence (forward
+  warning, `service_impl/src/absence.rs:837–893`) and a
+  `Warning::BookingOnAbsenceDay` when creating a Booking via
+  `POST /shiftplan-edit/booking` (reverse warning, see
+  `docs/absence-feature-frontend.md:60–69`). **No auto-cleanup**
+  (D-Phase3-16). Reporting must be careful not to credit both the
+  Absence day and the Booking day (reporting detail in F06).
+- **Absence on a public holiday:** In `derive_hours_for_range`, the day
+  is skipped entirely (no map entry,
+  `service_impl/src/absence.rs:501–503, 437–458`). The public holiday
+  gets its own credit via the Holiday auto-credit path (HCFG-02).
+- **Absence on a non-working day:** The contract defines
+  `has_day_of_week(weekday)` and `workdays_per_week`. If a range day
+  falls on a weekday on which the person does not work, no map entry
+  is produced (`service_impl/src/absence.rs:498–500`).
+- **Contract change during the range:** If the contract changes mid-Absence,
+  the contract active on each individual day is selected
+  (`service_impl/src/absence.rs:480–493`). Past periods therefore remain
+  prospectively unchanged (see
   `docs/absence-feature-frontend.md:22`).
-- **Wochen-Deckelung > Verfügbarkeit:** `workdays_per_week` (z. B. 2)
-  begrenzt die Wochensumme, auch wenn `has_day_of_week` an mehr Tagen
-  `true` liefert (`service_impl/src/absence.rs:462–472, 523–533`).
-  Regression-Test: `service_impl/src/test/absence_derive_hours_range.rs`
-  Zeilen 701–815.
-- **Halbtag an der Deckelungsgrenze:** Der Halbtag-Anteil (0.5) wird
-  zusätzlich auf `remaining` gedeckelt
-  (`service_impl/src/absence.rs:538–543`), damit Wochen mit teilweise
-  ausgeschöpftem Kontingent nicht überzählen.
-- **Update ändert `sales_person_id`:** Wird abgelehnt mit
+- **Weekly cap > availability:** `workdays_per_week` (e.g. 2) caps the
+  weekly sum even if `has_day_of_week` returns `true` on more days
+  (`service_impl/src/absence.rs:462–472, 523–533`). Regression test:
+  `service_impl/src/test/absence_derive_hours_range.rs`
+  lines 701–815.
+- **Half day at the cap boundary:** The half-day share (0.5) is
+  additionally capped at `remaining`
+  (`service_impl/src/absence.rs:538–543`), so weeks with a partially
+  exhausted allowance do not over-count.
+- **Update changes `sales_person_id`:** Rejected with
   `ValidationError(ModificationNotAllowed)`
   (`service_impl/src/absence.rs:265–269`).
-- **Convert einer Legacy-`extra_hours`-Row auf bereits belegtem Range:**
-  Der Overlap-Check in `absence_conversion.rs:112–126` verhindert das mit
-  `ValidationError(OverlappingPeriod)`.
-- **Soft-Delete-Race:** Zwei parallele PUT auf dieselbe Row → einer sieht
-  Stale-Version → `409 EntityConflicts`
+- **Convert a legacy `extra_hours` row onto an already-occupied range:**
+  The overlap check in `absence_conversion.rs:112–126` prevents this
+  with `ValidationError(OverlappingPeriod)`.
+- **Soft-delete race:** Two parallel PUTs on the same row → one sees a
+  stale version → `409 EntityConflicts`
   (`service_impl/src/absence.rs:270–276`).
 
 ## 8. Tests
 
-- **Unit / Mock-Tests Absence:** `service_impl/src/test/absence.rs`
-  (1323 Zeilen). Deckt Create-Happy-Path, Range-Inversion, Self-Overlap
-  gleich- und verschieden-kategorial, ID/Version-Preset-Guards, Update-
-  Happy-Path (Tombstone+Insert), Overlap-Exkludierung mit `Some(logical_id)`,
-  Unknown-ID, Sales-Person-ID-Immutability, Stale-Version, Delete,
-  Find-by-ID/Sales-Person/All, Permission-Verletzungen. Ab Zeile 864
-  Forward-Warning-Tests (Booking, ManualUnavailable). Ab Zeile 1097
-  Convert-Range-Vorschläge (Suggest UV-01/UV-02, Halbtag, Wochenende,
-  Feiertag).
-- **Unit-Tests Derive-Hours:** `service_impl/src/test/absence_derive_hours_range.rs`
-  (1178 Zeilen). Deckt Basisfall, Feiertag=0, Vertragsänderung,
-  Halbtag-Varianten (Full-Day-Vertrag, 2-Tages-Range, SickLeave), Lump-
-  Sum-Range mit Feiertag, Overcounting-Regression und User-Szenarien
-  ("Mo–Mi bei 2 Workdays cap = 2 Tage / 10 h").
-- **Unit-Tests Conversion:** `service_impl/src/test/absence_conversion.rs`
-  (649 Zeilen). Happy-Path, physische-ID-Soft-Delete (CR-01-Regression),
-  Range-Inversion, Overlap-Reject, HR-Gate, plus Integrations-Test gegen
-  in-memory SQLite ab Zeile 428.
-- **REST-Tests:** Pure Summier-Logik `derived_days_from_map` inline in
-  `rest/src/absence.rs:548–643` (Wochen-Deckelung, Halbtag, Out-of-Range,
-  fehlende Map). Snapshot-Locking der OpenAPI-Surface läuft über die
-  `insta`-Snapshots seit Phase 4 (siehe
+- **Unit / mock tests Absence:** `service_impl/src/test/absence.rs`
+  (1323 lines). Covers create happy path, range inversion, self-overlap
+  same- and cross-category, ID/version preset guards, update happy path
+  (tombstone+insert), overlap exclusion with `Some(logical_id)`,
+  unknown ID, sales-person-ID immutability, stale version, delete,
+  find-by-ID/sales-person/all, permission violations. From line 864
+  forward-warning tests (Booking, ManualUnavailable). From line 1097
+  convert-range suggestions (Suggest UV-01/UV-02, half day, weekend,
+  public holiday).
+- **Unit tests derive-hours:** `service_impl/src/test/absence_derive_hours_range.rs`
+  (1178 lines). Covers base case, public holiday = 0, contract change,
+  half-day variants (full-day contract, 2-day range, SickLeave), lump-sum
+  range with public holiday, overcounting regression, and user scenarios
+  ("Mon–Wed with 2 workdays cap = 2 days / 10 h").
+- **Unit tests conversion:** `service_impl/src/test/absence_conversion.rs`
+  (649 lines). Happy path, physical-ID soft-delete (CR-01 regression),
+  range inversion, overlap reject, HR gate, plus integration test against
+  in-memory SQLite from line 428.
+- **REST tests:** Pure summation logic `derived_days_from_map` inline in
+  `rest/src/absence.rs:548–643` (weekly cap, half day, out-of-range,
+  missing map). Snapshot locking of the OpenAPI surface runs via the
+  `insta` snapshots since phase 4 (see
   `docs/absence-feature-frontend.md:167`).
-- **Frontend-Tests:** Snapshot-Tests im `#[cfg(test)]`-Block am Ende von
-  `shifty-dioxus/src/page/absences.rs` (Plan-05 Task 3).
-- **DAO-Round-Trip:** `dao_impl_sqlite/src/absence.rs:28–68` mappt
-  `AbsencePeriodDb → AbsencePeriodEntity` und wird via SQLx-Prepare +
-  In-Memory-Pool im Integration-Test (Conversion-Impl) mitgeprüft.
+- **Frontend tests:** Snapshot tests in the `#[cfg(test)]` block at the
+  end of `shifty-dioxus/src/page/absences.rs` (Plan-05 Task 3).
+- **DAO round-trip:** `dao_impl_sqlite/src/absence.rs:28–68` maps
+  `AbsencePeriodDb → AbsencePeriodEntity` and is covered via SQLx-Prepare
+  + in-memory pool in the integration test (Conversion impl).
 
-**Bekannte Lücken:**
+**Known gaps:**
 
-- Explizite End-to-End-Absicherung für "Range spannt Jahreswechsel →
-  Carryover-Refresh" ist im Absence-Cluster **nicht** abgedeckt (Carryover
-  hat seine eigenen Tests, aber kein gemeinsamer Test triggert nach einer
-  Absence-Änderung im Vorjahr eine Carryover-Neuberechnung). **[Zu prüfen]**
-- Cross-Konfigurations-Test "Booking + Absence am gleichen Tag → Reporting
-  zählt einmal" liegt im Reporting-Cluster (F06).
+- Explicit end-to-end coverage for "range spans year change →
+  Carryover refresh" is **not** covered in the Absence cluster
+  (Carryover has its own tests, but no shared test triggers a
+  Carryover recomputation after an Absence change in the previous year).
+  **[To verify]**
+- The cross-configuration test "Booking + Absence on the same day →
+  reporting counts once" lives in the reporting cluster (F06).
 
-## 9. Historie & Kontext
+## 9. History & context
 
-- **v1.0 (2026-05-03) — Phasen 1–4:** Grüne Wiese. Neuer Range-Aggregat,
-  neuer REST-Layer, Reporting-Integration mit Snapshot-Bump 2→3, Cross-
-  Source-Warnings, Cutover-Service mit Heuristik-Migration + Drift-Gate.
-  Frontend-Umstellung auf `/absence-period` (siehe
+- **v1.0 (2026-05-03) — phases 1–4:** Green field. New range aggregate,
+  new REST layer, reporting integration with snapshot bump 2→3, cross-source
+  warnings, cutover service with heuristic migration + drift gate.
+  Frontend switch to `/absence-period` (see
   `docs/absence-feature-frontend.md:1–8, 32–43`).
-- **Cutover-Historie zu Legacy-`extra_hours` (F04):** Vor dem Cutover
-  schrieben Frontends weiter auf `extra_hours` mit Kategorien
-  `Vacation`/`SickLeave`/`UnpaidLeave`. Der einmalige `CutoverService`
-  migrierte lebende Rows heuristisch in Ranges (Drift-Gate < 0.01 h pro
-  `(sales_person, kategorie, jahr)`). Nach dem Flip liefert `POST
-  /extra-hours` für diese drei Kategorien `403
-  ExtraHoursCategoryDeprecatedErrorTO` (`rest/src/lib.rs:284–295`). Die
-  Convert-per-Row-Variante lebt weiter im
-  `AbsenceConversionService` (Phase 8.5, `service_impl/src/absence_conversion.rs:1–9`).
-- **Phase 8.3 (Halbtag-Support):** Additive Migration
+- **Cutover history to legacy `extra_hours` (F04):** Before the cutover,
+  frontends kept writing to `extra_hours` with categories
+  `Vacation`/`SickLeave`/`UnpaidLeave`. The one-off `CutoverService`
+  heuristically migrated live rows into ranges (drift gate < 0.01 h per
+  `(sales_person, category, year)`). After the flip, `POST /extra-hours`
+  returns `403 ExtraHoursCategoryDeprecatedErrorTO` for these three
+  categories (`rest/src/lib.rs:284–295`). The convert-per-row variant
+  lives on in the `AbsenceConversionService` (phase 8.5,
+  `service_impl/src/absence_conversion.rs:1–9`).
+- **Phase 8.3 (half-day support):** Additive migration
   `20260517120000_add-day-fraction-to-absence-period.sql`. Default `full`
-  garantiert No-Drift für Bestandsdaten (Kommentar
+  guarantees no-drift for existing data (comment
   `dao/src/absence.rs:23–33`).
-- **Phase 8.5/8.6 (Convert-Service-Extraktion):** Cutover-Maschinerie in
-  einen schlanken BL-Tier-Service `AbsenceConversionService` extrahiert;
-  der historische `CutoverService` konnte damit gelöscht werden ohne den
-  neuen Service anzupassen (`service_impl/src/absence_conversion.rs:1–9`).
-- **Toggle-Rollout D-51-07 (Phase 51, ShortDay-Slot-Kürzung) und
-  HCFG-02 (v1.7, `holiday_auto_credit`):** Zwei nachfolgende Stichtag-
-  Toggles, die den Reporting-Aggregator gegen historische Perioden
-  absichern. Semantik (siehe Memory
-  `feedback_stichtag_rollout_legacy_semantics.md`): **pro Konsumkette wird
-  im Gate-aus-Zweig die alte Semantik vor Feature-Einführung
-  rekonstruiert** — nicht "None → raw" annehmen. Für Absences relevant,
-  weil `derive_hours_for_range` in Reporting-Aggregaten (Chain C
-  BookingInformation, Chain D ShiftplanReport) mitläuft: der Toggle
-  entscheidet nicht über die Absence-Range selbst, aber über wie die
-  Absence-Tage mit ShortDay-Slot-Kürzung interagieren
-  (`service_impl/src/shortday_gate.rs:1–71`). Der frühere Seed
-  `absence_range_source_active` wurde in Migration
-  `20260611000002_delete-absence-range-source-active-seed.sql` entfernt —
-  seit M-03 ist Reporting additiv aus beiden Quellen ohne Quellen-
-  Schalter (`service_impl/src/test/reporting_additive_merge.rs:5`).
-- **Planning-Artefakte:** `.planning/milestones/v1.0-ROADMAP.md`,
+- **Phase 8.5/8.6 (convert-service extraction):** The cutover machinery
+  was extracted into a slim business-logic-tier service
+  `AbsenceConversionService`; the historical `CutoverService` could
+  therefore be deleted without touching the new service
+  (`service_impl/src/absence_conversion.rs:1–9`).
+- **Toggle rollout D-51-07 (phase 51, ShortDay slot shortening) and
+  HCFG-02 (v1.7, `holiday_auto_credit`):** Two subsequent cutover-date
+  toggles that protect the reporting aggregator against historical
+  periods. Semantics (see memory
+  `feedback_stichtag_rollout_legacy_semantics.md`): **per consumption
+  chain, the old semantics before the feature was introduced are
+  reconstructed in the gate-off branch** — do not assume "None → raw".
+  Relevant for Absences because `derive_hours_for_range` participates in
+  reporting aggregates (Chain C BookingInformation, Chain D
+  ShiftplanReport): the Toggle does not decide over the Absence range
+  itself, but over how the Absence days interact with ShortDay slot
+  shortening (`service_impl/src/shortday_gate.rs:1–71`). The former seed
+  `absence_range_source_active` was removed in migration
+  `20260611000002_delete-absence-range-source-active-seed.sql` —
+  since M-03, reporting is additive from both sources without a source
+  switch (`service_impl/src/test/reporting_additive_merge.rs:5`).
+- **Planning artefacts:** `.planning/milestones/v1.0-ROADMAP.md`,
   `.planning/phases/01-absence-domain-foundation/`,
-  `.planning/phases/02-.../`, `.planning/phases/03-.../` und
-  `.planning/phases/04-.../` (Deep-Kontext-Reads für D-Decisions).
-- **ToggleService Full-Context-Bypass** (Memory
-  `reference_toggle_service_full_context_bypass.md`): Interne Aggregate,
-  die Absences konsumieren, rufen den Toggle mit `Authentication::Full` —
-  seit Phase 51 Gap-Closure werden diese als all-rights-Bypass behandelt,
-  damit die Reporting-Pipeline nicht an fehlenden HR-Rechten scheitert.
+  `.planning/phases/02-.../`, `.planning/phases/03-.../`, and
+  `.planning/phases/04-.../` (deep-context reads for D-Decisions).
+- **ToggleService Full-Context bypass** (memory
+  `reference_toggle_service_full_context_bypass.md`): Internal aggregates
+  that consume Absences call the Toggle with `Authentication::Full` —
+  since the phase-51 gap closure these are treated as an all-rights
+  bypass, so the reporting pipeline does not fail on missing HR
+  privileges.
 
 ---
 
-**Fazit:** Absences sind die Range-basierte Nachfolge-Aggregation für
-Urlaub / Krank / Unbezahlt und ersetzen die Legacy-Tages-Postings aus
-`extra_hours`. Die Stunden werden **nicht persistiert**, sondern zur
-Reporting-Zeit über `derive_hours_for_range` aus dem am jeweiligen Tag
-gültigen Vertrag abgeleitet — mit Wochen-Deckelung, Priorität `SickLeave >
-Vacation > UnpaidLeave`, Feiertag=0 und HR ∨ self-Gate.
+**Summary:** Absences are the range-based successor aggregate for
+vacation / sick leave / unpaid leave and replace the legacy per-day
+postings from `extra_hours`. The hours are **not persisted**, but are
+derived at reporting time via `derive_hours_for_range` from the contract
+active on each individual day — with weekly cap, priority `SickLeave >
+Vacation > UnpaidLeave`, public holiday = 0, and HR ∨ self gate.
 
-*Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
+*Last verification against code:* see git blame of this file.

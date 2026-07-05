@@ -1,21 +1,21 @@
-# Feature: Extra Hours — Legacy Zeit-Erfassung & Custom-Kategorien
+# Feature: Extra Hours — legacy time recording & custom categories
 
-> **Kurzform:** Single-Day-Zeitzeilen für Überstunden, Urlaub, Krankheit,
-> Feiertag, Unverfügbarkeit, unbezahlte Freistellung, Freiwilligenarbeit und
-> beliebige betriebs-definierte Zusatzkategorien — das ursprüngliche
-> Zeit-Erfassungs-Aggregat, das für Absenz-Kategorien (Vacation/SickLeave/
-> UnpaidLeave) mit v1.0 vom neuen Range-basierten Absence-System (F05)
-> **koexistiert** wird.
+> **Short form:** Single-day time rows for overtime, Vacation, sickness,
+> holiday, unavailability, unpaid leave, volunteer work, and arbitrary
+> business-defined additional categories — the original time-recording
+> aggregate that, for absence categories (Vacation/SickLeave/UnpaidLeave)
+> starting with v1.0, **coexists** with the new range-based Absence system
+> (F05).
 
-**Cluster-ID:** F04
-**Status:** produktiv (Legacy für Absence-Kategorien, weiterhin führend für
-Overtime / Volunteer / Custom)
-**Erstmalig eingeführt:** initiale HR-Iteration (Migration `20240618125847_paid-sales-persons.sql`)
-**Zuständige Crates:**
+**Cluster ID:** F04
+**Status:** production (legacy for Absence categories, still authoritative for
+overtime / volunteer / custom)
+**First introduced:** initial HR iteration (migration `20240618125847_paid-sales-persons.sql`)
+**Responsible crates:**
 - `service::extra_hours`, `service::custom_extra_hours`
 - `service_impl::extra_hours`, `service_impl::custom_extra_hours`
-- `dao::extra_hours`, `dao::custom_extra_hours` (plus die konkrete
-  SQLite-Implementierung in `dao_impl_sqlite`)
+- `dao::extra_hours`, `dao::custom_extra_hours` (plus the concrete
+  SQLite implementation in `dao_impl_sqlite`)
 - `rest::extra_hours`, `rest::custom_extra_hours`
 - `rest_types::{ExtraHoursTO, ExtraHoursCategoryTO, CustomExtraHoursTO,
   ConvertExtraHoursRequestTO}`
@@ -23,179 +23,180 @@ Overtime / Volunteer / Custom)
 
 ---
 
-## 1. Was ist das? (Fachlich)
+## 1. What is it? (Business context)
 
-Extra Hours sind **Einzeltag-Zeitzeilen**, mit denen HR (oder ein Mitarbeitender
-für sich selbst) Zeiten außerhalb des normal geplanten Schichtplans festhält:
+Extra Hours are **single-day time rows** with which HR (or an employee for
+themselves) records times outside the regularly planned shift plan:
 
-- Überstunden (`ExtraWork`)
-- Urlaub (`Vacation`) — Legacy: einzelne Tage; ab v1.0 üblicherweise als
-  Absence-Range (F05)
-- Krankheit (`SickLeave`) — dito
-- Feiertag (`Holiday`)
-- Unverfügbarkeit (`Unavailable`) — reine Verfügbarkeits-Markierung, ohne
-  Stunden-Auswirkung auf die Bilanz
-- Unbezahlte Freistellung (`UnpaidLeave`) — dito Legacy → Absence-Range;
-  senkt die Erwartung
-- Freiwilligenarbeit (`VolunteerWork`) — dokumentiert, aber nicht bilanzwirksam
-- Custom-Kategorien (`CustomExtraHours(id)`) — vom Betrieb selbst definiert
+- Overtime (`ExtraWork`)
+- Vacation (`Vacation`) — legacy: individual days; as of v1.0 usually as
+  Absence range (F05)
+- Sickness (`SickLeave`) — same
+- Holiday (`Holiday`)
+- Unavailability (`Unavailable`) — pure availability marker, without
+  hour impact on the balance
+- Unpaid leave (`UnpaidLeave`) — same legacy → Absence range;
+  lowers expectation
+- Volunteer work (`VolunteerWork`) — documented, but not balance-affecting
+- Custom categories (`CustomExtraHours(id)`) — defined by the business itself
 
-**Custom Extra Hours** sind ein zweiter, orthogonaler Katalog: HR kann beliebig
-viele eigene Buchungskategorien anlegen (z.B. "Fortbildung", "Betriebsrat",
-"Notdienst-Bereitschaft"), sie einer Menge von Sales Persons zuweisen und pro
-Kategorie entscheiden, ob sie die Stunden-Bilanz beeinflusst (`modifies_balance`).
-Die eigentlichen Zeitzeilen liegen weiterhin in `extra_hours`, referenzieren
-über `custom_extra_hours_id` aber eine Zeile aus `custom_extra_hours`.
+**Custom Extra Hours** are a second, orthogonal catalog: HR can define
+arbitrarily many custom booking categories (e.g. "Training", "Works Council",
+"Emergency on-call"), assign them to a set of Sales Persons, and decide per
+category whether it influences the hours balance (`modifies_balance`).
+The actual time rows still live in `extra_hours` but reference via
+`custom_extra_hours_id` a row from `custom_extra_hours`.
 
-**Beispiel-Workflow aus User-Sicht:**
+**Example workflow from a user's perspective:**
 
-1. HR öffnet die Employee-Detail-Seite und trägt "05.05.2025 — 4h Überstunden"
-   ein (`ExtraWork`) — landet direkt im Report als positive Balance.
-2. Ein Mitarbeitender bucht selbst "12.05.2025 — 8h Urlaub" (`Vacation`) —
-   Legacy-Pfad; ab v1.0 legt das UI stattdessen einen `AbsencePeriod` an.
-3. HR legt in "Custom Extra Hours Management" (siehe Frontend) eine Kategorie
-   "Fortbildung" an, `modifies_balance=true`, zugewiesen an alle Verkäufer*innen.
-   Ab jetzt ist "Fortbildung" als Kategorie beim Anlegen einer Extra-Hours-Zeile
-   verfügbar und zählt wie Arbeitsstunden.
+1. HR opens the employee detail page and enters "05.05.2025 — 4h overtime"
+   (`ExtraWork`) — lands directly in the report as positive balance.
+2. An employee books "12.05.2025 — 8h Vacation" (`Vacation`) themselves —
+   legacy path; as of v1.0 the UI creates an `AbsencePeriod` instead.
+3. HR creates a category "Training" in "Custom Extra Hours Management" (see
+   frontend), `modifies_balance=true`, assigned to all sales staff.
+   From now on "Training" is available as a category when creating an Extra
+   Hours row and counts as work hours.
 
-## 2. Fachliche Regeln
+## 2. Business rules
 
-- **Kategorien-Enum** ist gepinnt in `service::extra_hours::ExtraHoursCategory`
-  (`service/src/extra_hours.rs:41-50`) und im DAO-Layer als
-  `ExtraHoursCategoryEntity` (`dao/src/extra_hours.rs:9-18`). Neue Fixed-Enum-
-  Werte sind ein Breaking-Change; für neue Kategorien ist der Custom-Pfad
-  vorgesehen.
-- **`as_report_type()`** klassifiziert jede Kategorie in einen ReportType
+- **Category enum** is pinned in `service::extra_hours::ExtraHoursCategory`
+  (`service/src/extra_hours.rs:41-50`) and in the DAO layer as
+  `ExtraHoursCategoryEntity` (`dao/src/extra_hours.rs:9-18`). New fixed enum
+  values are a breaking change; for new categories the Custom path is
+  intended.
+- **`as_report_type()`** classifies each category into a ReportType
   (`service/src/extra_hours.rs:51-73`):
-  - `ExtraWork` → `WorkingHours` (zählt als gearbeitet)
+  - `ExtraWork` → `WorkingHours` (counts as worked)
   - `Vacation`, `SickLeave`, `Holiday`, `UnpaidLeave` → `AbsenceHours`
-    (zählen als abwesend, senken erwartete Stunden entsprechend Kategorie-
-    Semantik)
-  - `Unavailable` → `None` (keine Bilanz-Wirkung, nur Verfügbarkeit)
-  - `VolunteerWork` → `Documented` (weder Balance noch Erwartung)
-  - `CustomExtraHours(…)` → `WorkingHours` falls `modifies_balance=true`,
-    sonst `None` (fällt bei nicht geladenem `LazyLoad` auf `None` zurück)
-- **`availability()`** entscheidet, ob diese Zeile die Sales Person am Tag als
-  verfügbar oder blockiert markiert (`service/src/extra_hours.rs:75-96`).
-- **`UnpaidLeave` (Unbezahlte Freistellung) — Sonderrolle:**
-  - `as_report_type() == AbsenceHours` und `availability() == Unavailable`
-    (verifiziert via Tests in `service/src/extra_hours.rs:255-268`).
-  - **Senkt die Erwartung**: Der Reporting-Pfad filtert `UnpaidLeave` explizit
-    aus (`service_impl/src/reporting.rs:562`, `:974`), sodass die für diese
-    Zeit erwarteten Stunden aus der Wochenerwartung herausgerechnet werden —
-    ein UnpaidLeave-Tag ist damit weder gearbeitet noch geschuldet, die
-    Balance bleibt neutral.
-- **Custom-Kategorien-Effekt hängt an `modifies_balance`:** Nur wenn die
-  Definition geladen und `modifies_balance=true` ist, zählt die Zeile in die
-  Balance — sonst wird sie ignoriert (auch bei Availability). Die
-  Lazy-Load-Semantik ist damit "safe by default": ungeladene Custom-Kategorien
-  wirken nicht.
-- **Autor- und Selbstbedienung:** HR (`HR_PRIVILEGE`) darf für jede Sales
-  Person schreiben; ein Sales-Person-Account darf für sich selbst schreiben.
-  Das ist ein OR-Gate (`service_impl/src/extra_hours.rs:118-127` und
+    (count as absent, lower expected hours according to category
+    semantics)
+  - `Unavailable` → `None` (no balance effect, only availability)
+  - `VolunteerWork` → `Documented` (neither balance nor expectation)
+  - `CustomExtraHours(…)` → `WorkingHours` if `modifies_balance=true`,
+    otherwise `None` (falls back to `None` on unloaded `LazyLoad`)
+- **`availability()`** decides whether this row marks the Sales Person as
+  available or blocked for the day (`service/src/extra_hours.rs:75-96`).
+- **`UnpaidLeave` (unpaid leave) — special role:**
+  - `as_report_type() == AbsenceHours` and `availability() == Unavailable`
+    (verified via tests in `service/src/extra_hours.rs:255-268`).
+  - **Lowers expectation**: the reporting path filters `UnpaidLeave`
+    explicitly out (`service_impl/src/reporting.rs:562`, `:974`), so that
+    the expected hours for this time are removed from the weekly
+    expectation — an UnpaidLeave day is thus neither worked nor owed, the
+    balance stays neutral.
+- **Custom-category effect depends on `modifies_balance`:** only if the
+  definition is loaded and `modifies_balance=true`, the row counts into the
+  balance — otherwise it is ignored (even for availability). The
+  lazy-load semantics are thus "safe by default": unloaded custom
+  categories have no effect.
+- **Author and self-service:** HR (`HR_PRIVILEGE`) may write for any Sales
+  Person; a Sales Person account may write for themselves. This is an
+  OR gate (`service_impl/src/extra_hours.rs:118-127` and
   `:187-196`, `:248-257`, `:322-345`).
-- **Update = soft-delete + insert:** Ein Update legt eine neue physische Zeile
-  mit gleichem `logical_id` an und markiert die alte als gelöscht
-  (`service_impl/src/extra_hours.rs:273-309`). Die stabile ID nach außen ist
-  `logical_id`, die physische `id` ändert sich pro Version. Die Migration
-  `20260428101456_add-logical-id-to-extra-hours.sql` erzwingt per Partial-Index
-  genau eine aktive Zeile pro `logical_id`.
-- **Version-Conflict:** Update vergleicht `request.version` gegen die aktuell
-  aktive Zeile; bei Mismatch → `ServiceError::EntityConflicts`
+- **Update = soft-delete + insert:** an update creates a new physical row
+  with the same `logical_id` and marks the old one as deleted
+  (`service_impl/src/extra_hours.rs:273-309`). The stable ID exposed
+  externally is `logical_id`; the physical `id` changes per version. The
+  migration `20260428101456_add-logical-id-to-extra-hours.sql` enforces via
+  partial index exactly one active row per `logical_id`.
+- **Version conflict:** update compares `request.version` against the
+  currently active row; on mismatch → `ServiceError::EntityConflicts`
   (`service_impl/src/extra_hours.rs:265-271`).
-- **`sales_person_id` ist unveränderlich:** Ein Update, das die Sales Person
-  wechselt, wird abgewiesen (`service_impl/src/extra_hours.rs:259-263` →
+- **`sales_person_id` is immutable:** an update that changes the Sales
+  Person is rejected (`service_impl/src/extra_hours.rs:259-263` →
   `ValidationFailureItem::ModificationNotAllowed`).
-- **Delete = Soft-Delete:** Setzt `deleted = NOW()` auf der aktiven Zeile
+- **Delete = soft delete:** sets `deleted = NOW()` on the active row
   (`service_impl/src/extra_hours.rs:315-359`).
-- **Bulk-Soft-Delete für Cutover:** `soft_delete_bulk` ist ein spezieller
-  Massenpfad, der ausschließlich vom Cutover-Prozess (F05 / Phase 4) benutzt
-  wird. Er verlangt `CUTOVER_ADMIN_PRIVILEGE`, prüft **vor** jeder DAO-Arbeit
-  und übernimmt die Transaktion vom Aufrufer (kein Commit hier —
-  `service_impl/src/extra_hours.rs:372-399`). Idempotent auf DAO-Ebene: bereits
-  gelöschte Zeilen werden übersprungen (`dao/src/extra_hours.rs:87-99`).
-- **Cutover-Konvergenz mit Absence (F05):** Nach Cutover werden für neue
-  Absence-Kategorien (`Vacation`, `SickLeave`, `UnpaidLeave`) primär
-  `AbsencePeriod`-Rows geschrieben; alte `extra_hours`-Zeilen dieser Kategorien
-  bleiben lesbar. Die frühere Schreibsperre in `create()` wurde in Phase 8.4
-  bewusst entfernt (`service_impl/src/extra_hours.rs:198-204`), damit
-  Koexistenz-Modell M-01 möglich ist.
-- **Konvertierungspfad:** REST-Endpoint `POST /extra-hours/{id}/convert-to-absence`
-  (siehe §5) delegiert an den `AbsenceConversionService` — dieser markiert die
-  Extra-Hours-Zeile intern als gelöscht und legt eine `AbsencePeriod`-Zeile an.
-- **Custom Extra Hours Constraints:**
-  - `HR_PRIVILEGE` für alle CUD-Operationen und `get_all`/`get_by_id`
+- **Bulk soft delete for Cutover:** `soft_delete_bulk` is a special mass
+  path used exclusively by the Cutover process (F05 / Phase 4). It
+  requires `CUTOVER_ADMIN_PRIVILEGE`, checks **before** any DAO work
+  and inherits the transaction from the caller (no commit here —
+  `service_impl/src/extra_hours.rs:372-399`). Idempotent at the DAO layer:
+  rows already deleted are skipped (`dao/src/extra_hours.rs:87-99`).
+- **Cutover convergence with Absence (F05):** After Cutover, for new
+  Absence categories (`Vacation`, `SickLeave`, `UnpaidLeave`) primarily
+  `AbsencePeriod` rows are written; old `extra_hours` rows of these
+  categories remain readable. The earlier write block in `create()` was
+  deliberately removed in Phase 8.4
+  (`service_impl/src/extra_hours.rs:198-204`), so that coexistence
+  model M-01 is possible.
+- **Conversion path:** REST endpoint `POST /extra-hours/{id}/convert-to-absence`
+  (see §5) delegates to the `AbsenceConversionService` — this marks the
+  Extra Hours row internally as deleted and creates an `AbsencePeriod` row.
+- **Custom Extra Hours constraints:**
+  - `HR_PRIVILEGE` for all CUD operations and `get_all`/`get_by_id`
     (`service_impl/src/custom_extra_hours.rs:38-79`, `:113-216`).
-  - `get_by_sales_person_id` erlaubt HR **oder** die betroffene Sales Person
+  - `get_by_sales_person_id` allows HR **or** the affected Sales Person
     (`service_impl/src/custom_extra_hours.rs:81-111`).
-  - Create verlangt leere `id`, `version`, kein `created`, kein `deleted`;
-    Delete = Soft-Delete via `deleted = NOW()`; Update prüft Version-Conflict.
-  - Assignment (Zuweisung zu Sales Persons) läuft über
-    `custom_extra_hours_sales_person`; das Array `assigned_sales_person_ids`
-    ist Teil des Aggregats (siehe Datenmodell). **[Zu prüfen]**, wie
-    Assignments beim Update konkret an die Link-Tabelle gemappt werden — die
-    Trait-Signatur behandelt sie als `Arc<[Uuid]>`, die Persistenz liegt im
-    SQLite-DAO.
+  - Create requires empty `id`, `version`, no `created`, no `deleted`;
+    delete = soft delete via `deleted = NOW()`; update checks version conflict.
+  - Assignment (mapping to Sales Persons) runs via
+    `custom_extra_hours_sales_person`; the array `assigned_sales_person_ids`
+    is part of the aggregate (see data model). **[To verify]** how
+    assignments are specifically mapped to the link table on update — the
+    trait signature treats them as `Arc<[Uuid]>`, the persistence lives in
+    the SQLite DAO.
 
-## 3. Datenmodell
+## 3. Data model
 
-### Tabellen
+### Tables
 
-| Tabelle | Zweck | Wichtige Spalten |
+| Table | Purpose | Important columns |
 | --- | --- | --- |
-| `extra_hours` | Einzeltag-Zeitzeile pro Sales Person | `id` (physisch), `logical_id`, `sales_person_id`, `amount`, `category`, `custom_extra_hours_id`, `description`, `date_time`, `created`, `deleted`, `update_process`, `update_timestamp`, `update_version` |
-| `custom_extra_hours` | Katalog vom Betrieb definierter Zusatzkategorien | `id`, `name`, `description`, `modifies_balance`, `created`, `deleted`, `update_version`, `update_process` |
-| `custom_extra_hours_sales_person` | N:M Zuweisung Custom-Kategorie ↔ Sales Person | `sales_person_id`, `custom_extra_hours_id` (Compound-PK), `created`, `deleted`, `update_process` |
+| `extra_hours` | Single-day time row per Sales Person | `id` (physical), `logical_id`, `sales_person_id`, `amount`, `category`, `custom_extra_hours_id`, `description`, `date_time`, `created`, `deleted`, `update_process`, `update_timestamp`, `update_version` |
+| `custom_extra_hours` | Catalog of business-defined additional categories | `id`, `name`, `description`, `modifies_balance`, `created`, `deleted`, `update_version`, `update_process` |
+| `custom_extra_hours_sales_person` | N:M mapping custom category ↔ Sales Person | `sales_person_id`, `custom_extra_hours_id` (compound PK), `created`, `deleted`, `update_process` |
 
 ### Migrations
 
-Chronologisch, so wie die Tabelle historisch gewachsen ist:
+Chronological, as the table has grown historically:
 
-- **`20240618125847_paid-sales-persons.sql`** — legt die Basistabelle
-  `extra_hours` an (mit `id`, `sales_person_id`, `amount`, `category`,
-  `description`, `date_time`, `created`, `deleted`, `update_*`), FK auf
+- **`20240618125847_paid-sales-persons.sql`** — creates the base table
+  `extra_hours` (with `id`, `sales_person_id`, `amount`, `category`,
+  `description`, `date_time`, `created`, `deleted`, `update_*`), FK on
   `sales_person`.
-- **`20250413073750_add-custom-extra-hours-table.sql`** — führt Custom-
-  Kategorien ein: `custom_extra_hours` + Verknüpfungstabelle
+- **`20250413073750_add-custom-extra-hours-table.sql`** — introduces custom
+  categories: `custom_extra_hours` + linking table
   `custom_extra_hours_sales_person`.
-- **`20250418200122_insert-custom-column-to-extra-hours.sql`** — fügt
-  `extra_hours.custom_extra_hours_id BLOB NOT NULL DEFAULT X'00…00'` hinzu.
-  Der Nil-UUID-Default markiert "keine Custom-Kategorie" und ist der Grund,
-  warum die DAO-Repräsentation `Custom(Uuid)` als expliziter Enum-Wert
-  serialisiert wird — nicht als `Option`.
-- **`20260428101456_add-logical-id-to-extra-hours.sql`** — führt
-  `logical_id` ein: nullable-Add, Backfill (`logical_id = id`), CREATE-neu
-  mit NOT-NULL-Rebuild, Partial-Unique-Index
+- **`20250418200122_insert-custom-column-to-extra-hours.sql`** — adds
+  `extra_hours.custom_extra_hours_id BLOB NOT NULL DEFAULT X'00…00'`.
+  The nil-UUID default marks "no custom category" and is the reason
+  why the DAO representation `Custom(Uuid)` is serialized as an explicit
+  enum value — not as `Option`.
+- **`20260428101456_add-logical-id-to-extra-hours.sql`** — introduces
+  `logical_id`: nullable-add, backfill (`logical_id = id`), CREATE-new
+  with NOT-NULL rebuild, partial unique index
   `idx_extra_hours_logical_id_active ON extra_hours(logical_id) WHERE
-  deleted IS NULL`. Ab hier folgt Update dem "soft-delete + insert-neu"-
-  Muster; die stabile API-ID ist `logical_id`, nicht mehr die physische
-  Row-ID.
+  deleted IS NULL`. From here on update follows the "soft-delete + insert-new"
+  pattern; the stable API ID is `logical_id`, no longer the physical
+  row ID.
 
-Zusätzlich relevant für die **Cutover-Interaktion mit F05**:
+Additionally relevant for the **Cutover interaction with F05**:
 
-- **`20260502170000_create-absence-period.sql`** — führt `absence_period` ein
-  (strikt additiv, `extra_hours` unangetastet).
-- **`20260503000000_create-absence-migration-quarantine.sql`** — Quarantäne-
-  Tabelle für Legacy-`extra_hours`-Zeilen, die nicht eindeutig migriert
-  werden konnten (FK auf `extra_hours.id`).
-- **`20260503000001_create-absence-period-migration-source.sql`** — Mapping-
-  Tabelle: `extra_hours_id → absence_period_id`, Idempotenz-Key ist die
-  Extra-Hours-Physical-ID.
+- **`20260502170000_create-absence-period.sql`** — introduces `absence_period`
+  (strictly additive, `extra_hours` untouched).
+- **`20260503000000_create-absence-migration-quarantine.sql`** — quarantine
+  table for legacy `extra_hours` rows that could not be migrated
+  unambiguously (FK on `extra_hours.id`).
+- **`20260503000001_create-absence-period-migration-source.sql`** — mapping
+  table: `extra_hours_id → absence_period_id`, idempotency key is the
+  Extra Hours physical ID.
 
-### Beziehungen
+### Relationships
 
 ```
 sales_person 1─┬─* extra_hours ──(0..1)── custom_extra_hours  (via custom_extra_hours_id)
                │
                *
                │
-       custom_extra_hours_sales_person  (N:M zwischen sales_person & custom_extra_hours)
+       custom_extra_hours_sales_person  (N:M between sales_person & custom_extra_hours)
 
-absence_period_migration_source: (extra_hours.id) ─→ absence_period.id     [Cutover-Mapping]
-absence_migration_quarantine:    (extra_hours.id) ─→ Quarantäne             [Cutover-Failed-Rows]
+absence_period_migration_source: (extra_hours.id) ─→ absence_period.id     [Cutover mapping]
+absence_migration_quarantine:    (extra_hours.id) ─→ quarantine             [Cutover failed rows]
 ```
 
-## 4. Service-API
+## 4. Service API
 
 ### Traits
 
@@ -220,227 +221,228 @@ pub trait ExtraHoursService {
 `service::custom_extra_hours::CustomExtraHoursService` (`service/src/custom_extra_hours.rs:60-105`):
 `get_all`, `get_by_id`, `get_by_sales_person_id`, `create`, `update`, `delete`.
 
-### Auth-Gates
+### Auth gates
 
-| Methode | Gate |
+| Method | Gate |
 | --- | --- |
-| `ExtraHoursService::find_by_sales_person_id_and_year(_range)` | HR **oder** self (`service_impl/src/extra_hours.rs:118-127`) |
-| `ExtraHoursService::find_by_week` | `check_only_full_authentication` — reiner Interner Pfad (Reporting/Scheduler) (`service_impl/src/extra_hours.rs:162-164`) |
-| `ExtraHoursService::create` | HR **oder** self für die Ziel-Sales-Person |
-| `ExtraHoursService::update` | HR **oder** self für die betroffene Zeile |
-| `ExtraHoursService::delete` | HR **oder** self (doppelt geprüft, einmal via `SALES_PRIVILEGE`, einmal via `verify_user_is_sales_person`) |
-| `ExtraHoursService::soft_delete_bulk` | `CUTOVER_ADMIN_PRIVILEGE` **vor** jeder DAO-Arbeit; nur der Cutover-Commit-Pfad ruft das |
+| `ExtraHoursService::find_by_sales_person_id_and_year(_range)` | HR **or** self (`service_impl/src/extra_hours.rs:118-127`) |
+| `ExtraHoursService::find_by_week` | `check_only_full_authentication` — pure internal path (Reporting/Scheduler) (`service_impl/src/extra_hours.rs:162-164`) |
+| `ExtraHoursService::create` | HR **or** self for the target Sales Person |
+| `ExtraHoursService::update` | HR **or** self for the affected row |
+| `ExtraHoursService::delete` | HR **or** self (double-checked, once via `SALES_PRIVILEGE`, once via `verify_user_is_sales_person`) |
+| `ExtraHoursService::soft_delete_bulk` | `CUTOVER_ADMIN_PRIVILEGE` **before** any DAO work; only the Cutover commit path calls this |
 | `CustomExtraHoursService::get_all` / `get_by_id` / `create` / `update` / `delete` | HR |
-| `CustomExtraHoursService::get_by_sales_person_id` | HR **oder** self |
+| `CustomExtraHoursService::get_by_sales_person_id` | HR **or** self |
 
-### TX-Verhalten
+### TX behavior
 
-- Alle Methoden akzeptieren `Option<Self::Transaction>` und ziehen bei `None`
-  eine eigene per `use_transaction`.
-- `create`, `update`, `delete` committen selbst.
-- `soft_delete_bulk` committet **nicht** — die Cutover-Kette hält die
-  Transaktion und committet erst am Ende
+- All methods accept `Option<Self::Transaction>` and, on `None`, pull
+  their own via `use_transaction`.
+- `create`, `update`, `delete` commit themselves.
+- `soft_delete_bulk` does **not** commit — the Cutover chain holds the
+  transaction and commits only at the end
   (`service_impl/src/extra_hours.rs:395-398`).
-- `update` läuft atomar: Soft-Delete der alten Zeile + Insert der neuen Zeile
-  in derselben Transaktion.
+- `update` runs atomically: soft delete of the old row + insert of the new row
+  in the same transaction.
 
 ### Dependencies
 
-`ExtraHoursServiceImpl` — Business-Logic-Tier (konsumiert einen anderen
-Domain-Service):
+`ExtraHoursServiceImpl` — Business-Logic-Tier (consumes another
+domain service):
 
 - DAOs: `ExtraHoursDao`, `TransactionDao`
-- Basic-Services: `PermissionService`, `SalesPersonService`
-- Business-Logic-Service (Lazy-Load-Auflösung): `CustomExtraHoursService`
-  — wird intern für das Nachladen der Custom-Definition mit
-  `Authentication::Full` aufgerufen (`service_impl/src/extra_hours.rs:51-54`);
-  dieser Full-Context-Bypass ist explizit dokumentiert und für interne
-  Aggregat-Konsumenten der Toggle- und Custom-Kategorie-Reads vorgesehen
-  (vgl. Memory "ToggleService Full-Context-Bypass").
-- Infrastruktur: `ClockService`, `UuidService`.
+- Basic services: `PermissionService`, `SalesPersonService`
+- Business-Logic service (lazy-load resolution): `CustomExtraHoursService`
+  — called internally for loading the custom definition with
+  `Authentication::Full` (`service_impl/src/extra_hours.rs:51-54`);
+  this Full-context bypass is explicitly documented and intended for
+  internal aggregate consumers of the toggle and custom-category reads
+  (cf. Memory "ToggleService Full-Context-Bypass").
+- Infrastructure: `ClockService`, `UuidService`.
 
-`CustomExtraHoursServiceImpl` — Basic-Tier (nur DAO + Permission +
-Transaction + `SalesPersonService` für den self-Check; kein weiterer
-Domain-Service):
+`CustomExtraHoursServiceImpl` — Basic-Tier (only DAO + Permission +
+Transaction + `SalesPersonService` for the self check; no further
+domain service):
 
 - DAO: `CustomExtraHoursDao`
-- Basic-Services: `PermissionService`, `SalesPersonService`
-- Infrastruktur: `ClockService`, `UuidService`, `TransactionDao`
+- Basic services: `PermissionService`, `SalesPersonService`
+- Infrastructure: `ClockService`, `UuidService`, `TransactionDao`
 
-## 5. REST-Endpoints
+## 5. REST endpoints
 
 ### Extra Hours
 
-Router: `rest/src/extra_hours.rs:22-35`, gemountet unter `/extra-hours`
+Router: `rest/src/extra_hours.rs:22-35`, mounted under `/extra-hours`
 (`rest/src/lib.rs:667`).
 
-| Methode | Pfad | Beschreibung | DTO In | DTO Out | Wichtige Fehler |
+| Method | Path | Description | DTO In | DTO Out | Important errors |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/extra-hours/by-sales-person/{id}?year=…&until_week=…` | Alle Zeilen einer Sales Person bis KW `until_week` im Jahr `year` | — | `Vec<ExtraHoursTO>` | 401, 404 |
-| `POST` | `/extra-hours` | Neue Zeile anlegen | `ExtraHoursTO` | `ExtraHoursTO` (Status 201) | 400 (Validation), 403 |
-| `PUT` | `/extra-hours/{id}` | Zeile updaten (Logical-ID im Pfad); versioniert | `ExtraHoursTO` | `ExtraHoursTO` | 400, 403, 404, 409 |
-| `DELETE` | `/extra-hours/{id}` | Soft-Delete (Logical-ID) | — | 204 | 404 |
-| `POST` | `/extra-hours/{id}/convert-to-absence` | Legacy-Zeile in `AbsencePeriod` konvertieren | `ConvertExtraHoursRequestTO` | `AbsencePeriodTO` | 403 (HR), 404 (Soft-Deleted/Unknown), 422 (`DateOrderWrong`, `OverlappingPeriod`) |
+| `GET` | `/extra-hours/by-sales-person/{id}?year=…&until_week=…` | All rows of a Sales Person up to CW `until_week` in year `year` | — | `Vec<ExtraHoursTO>` | 401, 404 |
+| `POST` | `/extra-hours` | Create new row | `ExtraHoursTO` | `ExtraHoursTO` (status 201) | 400 (validation), 403 |
+| `PUT` | `/extra-hours/{id}` | Update row (logical ID in path); versioned | `ExtraHoursTO` | `ExtraHoursTO` | 400, 403, 404, 409 |
+| `DELETE` | `/extra-hours/{id}` | Soft delete (logical ID) | — | 204 | 404 |
+| `POST` | `/extra-hours/{id}/convert-to-absence` | Convert legacy row into `AbsencePeriod` | `ConvertExtraHoursRequestTO` | `AbsencePeriodTO` | 403 (HR), 404 (soft-deleted/unknown), 422 (`DateOrderWrong`, `OverlappingPeriod`) |
 
-DTOs siehe `rest_types` (`rest-types/src/lib.rs:797-870, 1859-…`).
+DTOs see `rest_types` (`rest-types/src/lib.rs:797-870, 1859-…`).
 
 ### Custom Extra Hours
 
-Router: `rest/src/custom_extra_hours.rs:17-28`, gemountet unter
+Router: `rest/src/custom_extra_hours.rs:17-28`, mounted under
 `/custom-extra-hours` (`rest/src/lib.rs:644`).
 
-| Methode | Pfad | Beschreibung | DTO In | DTO Out |
+| Method | Path | Description | DTO In | DTO Out |
 | --- | --- | --- | --- | --- |
-| `GET` | `/custom-extra-hours` | Alle Custom-Kategorien | — | `Vec<CustomExtraHoursTO>` |
-| `GET` | `/custom-extra-hours/{id}` | Einzelne Kategorie | — | `CustomExtraHoursTO` |
-| `GET` | `/custom-extra-hours/by-sales-person/{sales_person_id}` | Nur die der Sales Person zugewiesenen | — | `Vec<CustomExtraHoursTO>` |
-| `POST` | `/custom-extra-hours` | Anlegen | `CustomExtraHoursTO` | `CustomExtraHoursTO` (201) |
+| `GET` | `/custom-extra-hours` | All custom categories | — | `Vec<CustomExtraHoursTO>` |
+| `GET` | `/custom-extra-hours/{id}` | Single category | — | `CustomExtraHoursTO` |
+| `GET` | `/custom-extra-hours/by-sales-person/{sales_person_id}` | Only those assigned to the Sales Person | — | `Vec<CustomExtraHoursTO>` |
+| `POST` | `/custom-extra-hours` | Create | `CustomExtraHoursTO` | `CustomExtraHoursTO` (201) |
 | `PUT` | `/custom-extra-hours/{id}` | Update | `CustomExtraHoursTO` | `CustomExtraHoursTO` |
-| `DELETE` | `/custom-extra-hours/{id}` | Soft-Delete | — | 204 |
+| `DELETE` | `/custom-extra-hours/{id}` | Soft delete | — | 204 |
 
-**Hinweis Doku-Drift:** Die utoipa-Annotation für DELETE nennt `/custom-extra-hours/{id}`
-(`rest/src/custom_extra_hours.rs:212`), was dem Router-Mount zusammen ergibt.
-Der Handler nutzt `Path<Uuid>`; der Effektpfad ist unverändert
+**Note doc drift:** the utoipa annotation for DELETE names `/custom-extra-hours/{id}`
+(`rest/src/custom_extra_hours.rs:212`), which together with the router mount adds up.
+The handler uses `Path<Uuid>`; the effective path is unchanged
 `DELETE /custom-extra-hours/{id}`.
 
-## 6. Frontend-Integration
+## 6. Frontend integration
 
-- **Pages:** `shifty-dioxus/src/page/custom_extra_hours_management.rs` — HR-Seite
-  zum Verwalten der Custom-Kategorien (Anlegen/Editieren/Löschen). Extra-Hours-
-  Einzelzeilen werden aktuell nicht auf einer eigenen Page verwaltet, sondern
-  aus den Employee-Details-Seiten heraus.
-- **API-Client:** `shifty-dioxus/src/api.rs` — `get_custom_extra_hours_by_sales_person`,
+- **Pages:** `shifty-dioxus/src/page/custom_extra_hours_management.rs` — HR page
+  for managing custom categories (create/edit/delete). Extra Hours
+  individual rows are currently not managed on a dedicated page but
+  from the employee details pages.
+- **API client:** `shifty-dioxus/src/api.rs` — `get_custom_extra_hours_by_sales_person`,
   `post_custom_extra_hours`, `put_custom_extra_hours`, `delete_custom_extra_hours`
-  (Aufrufsites in `custom_extra_hours_management.rs:73-140`).
-- **State-Objekte:** `shifty-dioxus/src/state/employee.rs` —
-  `CustomExtraHoursDefinition` als Frontend-View-Model (Signatur:
+  (call sites in `custom_extra_hours_management.rs:73-140`).
+- **State objects:** `shifty-dioxus/src/state/employee.rs` —
+  `CustomExtraHoursDefinition` as frontend view model (signature:
   `custom_extra_hours_management.rs:12`).
-- **i18n-Keys** (`custom_extra_hours_management.rs:49-58`):
+- **i18n keys** (`custom_extra_hours_management.rs:49-58`):
   `CustomExtraHoursManagement`, `Name`, `Description`, `ModifiesBalance`,
   `Actions`, `AddNew`, `Save`, `Cancel`, `Edit`, `Delete`.
 - **Proxy** (`shifty-dioxus/Dioxus.toml:57-58, 71-72`):
   - `/custom-extra-hours` → `http://localhost:3000/custom-extra-hours`
   - `/extra-hours` → `http://localhost:3000/extra-hours`
-- **Bekannte Frontend-Lücken:**
-  - Assignment "Custom-Kategorie ↔ Sales Person" ist im aktuellen UI mit
-    `assigned_sales_person_ids: vec![]` hartcodiert
-    (`custom_extra_hours_management.rs:190,197`); der Kommentar dort dokumentiert
-    das explizit als offenes Feature.
-  - `Load` wird nach jeder mutierenden Aktion nachgetriggert
-    (`custom_extra_hours_management.rs:205, 330`), um den State zu
-    synchronisieren.
+- **Known frontend gaps:**
+  - Assignment "custom category ↔ Sales Person" is currently hard-coded in the
+    UI with `assigned_sales_person_ids: vec![]`
+    (`custom_extra_hours_management.rs:190,197`); the comment there
+    explicitly documents this as an open feature.
+  - `Load` is re-triggered after each mutating action
+    (`custom_extra_hours_management.rs:205, 330`), to synchronize the
+    state.
 
-## 7. Randfälle
+## 7. Edge cases
 
-Zentrale Randfall-Referenz: [`../domain/edge-cases.md#2-absence--extra-hours`](../domain/edge-cases.md#2-absence--extra-hours)
-sowie [Section 8 "Soft-Delete-Konsistenz"](../domain/edge-cases.md#8-soft-delete-konsistenz).
+Central edge-case reference: [`../domain/edge-cases.md#2-absence--extra-hours`](../domain/edge-cases.md#2-absence--extra-hours)
+and [Section 8 "Soft-Delete-Konsistenz"](../domain/edge-cases.md#8-soft-delete-konsistenz).
 
-Feature-spezifisch:
+Feature-specific:
 
-- **Cutover-Split Vacation/SickLeave/UnpaidLeave (F04 × F05):** Nach Cutover
-  können für dieselbe Person und denselben Zeitraum **beide** Datenquellen
-  existieren — alte Zeilen in `extra_hours` (nicht gelöscht, sondern
-  konvertiert oder stehen gelassen) und neue in `absence_period`. Jeder
-  Report-/Balance-Pfad muss **beide** Quellen aggregieren, sonst kippt die
-  Bilanz. Das ist der prominenteste Randfall des Clusters — siehe
-  `../domain/edge-cases.md#21-cutover-historie`.
-- **`UnpaidLeave` senkt die Erwartung:** Reporting muss `UnpaidLeave`-Zeilen
-  explizit ausfiltern und die Wochenerwartung entsprechend reduzieren
-  (`service_impl/src/reporting.rs:562`, `:974`). Wer die Kategorie in einem
-  neuen Aggregat vergisst, rechnet zu viel Erwartung — d.h. die Sales Person
-  erscheint mit einem Minus in der Balance, das gar nicht existiert.
-- **Custom-Kategorie ungeladen → keine Bilanz-Wirkung:** Wenn
-  `load_custom_extra_hours_definitions` fehlschlägt (Definition gelöscht /
-  nicht gefunden), fällt `LazyLoad.get()` auf `None`, und beide Semantik-
-  Funktionen (`as_report_type`, `availability`) liefern `None`. Zeile ist
-  effektiv unsichtbar für die Bilanz. Der Log-Warn-Pfad markiert das als
-  Integrity-Issue (`service_impl/src/extra_hours.rs:60-72`), stoppt aber die
-  Abfrage nicht.
-- **`Unavailable`-Zeilen brauchen kein Amount, um zu wirken:** Sie sind reine
-  Verfügbarkeits-Marker; ihre `amount` beeinflusst nichts in der Balance.
-  Trotzdem wird `amount` mitgeschrieben und in Reports mit `Documented`-
-  Semantik durchgereicht.
-- **Snapshot-Drift bei Löschen/Update:** Wird eine `extra_hours`-Zeile
-  gelöscht, deren Beitrag bereits in einem persistierten `billing_period`-
-  Snapshot enthalten ist, driftet die Live-Ansicht gegen den Snapshot. Ohne
-  Version-Bump von `CURRENT_SNAPSHOT_SCHEMA_VERSION` ist der Diff nicht als
-  echter Delete identifizierbar. Siehe `../domain/edge-cases.md#23-legacy-extra-hours--delete-semantik`.
-- **`logical_id`-Reuse verboten:** Der Partial-Unique-Index
-  `idx_extra_hours_logical_id_active` erzwingt "eine aktive Zeile pro
-  logical_id". Wer im Test bei einer Neuanlage eine `logical_id` einer
-  soft-deleted Zeile setzt, kollidiert nicht — bei einer aktiven **schon**.
-- **`convert-to-absence` verlangt gültiges Range:** Der REST-Endpoint mappt
-  `DateOrderWrong` / `OverlappingPeriod` auf 422; die eigentliche
-  Konvertierungs-Semantik lebt in `AbsenceConversionService` (F05).
+- **Cutover split Vacation/SickLeave/UnpaidLeave (F04 × F05):** After Cutover
+  **both** data sources can exist for the same person and the same time
+  range — old rows in `extra_hours` (not deleted, but either converted or
+  left as-is) and new ones in `absence_period`. Every
+  report/balance path must aggregate **both** sources, otherwise the
+  balance tips. This is the most prominent edge case of the cluster —
+  see `../domain/edge-cases.md#21-cutover-historie`.
+- **`UnpaidLeave` lowers expectation:** reporting must filter `UnpaidLeave`
+  rows explicitly and reduce the weekly expectation accordingly
+  (`service_impl/src/reporting.rs:562`, `:974`). Anyone forgetting the
+  category in a new aggregate computes too much expectation — i.e., the
+  Sales Person appears with a deficit in the balance that does not
+  actually exist.
+- **Custom category unloaded → no balance effect:** if
+  `load_custom_extra_hours_definitions` fails (definition deleted /
+  not found), `LazyLoad.get()` falls back to `None`, and both semantic
+  functions (`as_report_type`, `availability`) return `None`. The row is
+  effectively invisible for the balance. The log-warn path marks this as an
+  integrity issue (`service_impl/src/extra_hours.rs:60-72`), but does not
+  stop the query.
+- **`Unavailable` rows do not need an amount to take effect:** they are pure
+  availability markers; their `amount` does not influence the balance.
+  Still, `amount` is written and passed through in reports with `Documented`
+  semantics.
+- **Snapshot drift on delete/update:** if an `extra_hours` row is
+  deleted whose contribution is already included in a persisted `billing_period`
+  snapshot, the live view drifts against the snapshot. Without a
+  version bump of `CURRENT_SNAPSHOT_SCHEMA_VERSION`, the diff cannot be
+  identified as a real delete. See `../domain/edge-cases.md#23-legacy-extra-hours--delete-semantik`.
+- **`logical_id` reuse forbidden:** the partial unique index
+  `idx_extra_hours_logical_id_active` enforces "one active row per
+  logical_id". Setting in a test on a new insert a `logical_id` of a
+  soft-deleted row does not collide — on an active one **it does**.
+- **`convert-to-absence` requires valid range:** the REST endpoint maps
+  `DateOrderWrong` / `OverlappingPeriod` to 422; the actual
+  conversion semantics live in `AbsenceConversionService` (F05).
 
 ## 8. Tests
 
-- **Unit / Service-Tests:**
-  - `service_impl/src/test/extra_hours.rs` (748 Zeilen) deckt die
-    Update-Semantik "soft-delete + insert" ab, den OR-Permission-Flow (HR vs.
-    self), Version-Conflict, den Reject bei geändertem `sales_person_id`,
-    NotFound bei unbekannter/gelöschter Zeile, und den Phase-4-Bulk-Delete-
-    Pfad (Happy-Path + Elevation-of-Privilege-Guard, der explizit
-    `MockExtraHoursDao::expect_soft_delete_bulk().times(0)` einpint, bevor
-    das Permission-Gate ablehnt).
-  - `service_impl/src/test/custom_extra_hours.rs` (620 Zeilen) deckt CRUD +
-    die Sales-Person-Zuweisungs-Filter für `get_by_sales_person_id` ab.
-  - `service::extra_hours`-interne Tests
-    (`service/src/extra_hours.rs:254-268`) pinnen die `UnpaidLeave`-
-    Klassifikation.
-  - DAO-Trait-Default-Tests
-    (`dao/src/custom_extra_hours.rs:172-221`) belegen `find_all` /
-    `find_by_id` / `find_by_sales_person_id` inkl. Soft-Delete-Filter.
-- **Integration:** In-Mem-SQLite-Runs des DAO-Impl liegen in
-  `dao_impl_sqlite/src/…` (verkabelt über die üblichen
-  `sqlx::sqlite::SqlitePool::connect(":memory:")`-Harnesses).
-- **Bekannte Lücken:**
-  - **[Zu prüfen]** ob es einen dedizierten Test gibt, der die
-    Reporting-Aggregation über `extra_hours` **und** `absence_period` an
-    einer Cutover-überspannenden Periode misst; das wäre der
-    hoch-Wert-Regressionsguard aus Randfall §7.
-  - **[Zu prüfen]** ob der `convert-to-absence`-Endpoint einen
-    Ende-zu-Ende-Roundtrip-Test hat, der auf die `AbsenceConversionService`-
-    Impl draufgeht (nicht nur Mock-Layer).
+- **Unit / service tests:**
+  - `service_impl/src/test/extra_hours.rs` (748 lines) covers the
+    update semantics "soft-delete + insert", the OR permission flow (HR vs.
+    self), version conflict, the reject on changed `sales_person_id`,
+    NotFound on unknown/deleted row, and the Phase 4 bulk-delete
+    path (happy path + elevation-of-privilege guard, which explicitly
+    pins `MockExtraHoursDao::expect_soft_delete_bulk().times(0)` before
+    the permission gate rejects).
+  - `service_impl/src/test/custom_extra_hours.rs` (620 lines) covers CRUD +
+    the Sales Person assignment filters for `get_by_sales_person_id`.
+  - `service::extra_hours` internal tests
+    (`service/src/extra_hours.rs:254-268`) pin the `UnpaidLeave`
+    classification.
+  - DAO trait default tests
+    (`dao/src/custom_extra_hours.rs:172-221`) prove `find_all` /
+    `find_by_id` / `find_by_sales_person_id` including soft-delete filter.
+- **Integration:** in-memory SQLite runs of the DAO impl live in
+  `dao_impl_sqlite/src/…` (wired via the usual
+  `sqlx::sqlite::SqlitePool::connect(":memory:")` harnesses).
+- **Known gaps:**
+  - **[To verify]** whether there is a dedicated test measuring the
+    reporting aggregation across `extra_hours` **and** `absence_period` on
+    a Cutover-spanning period; that would be the
+    high-value regression guard from edge case §7.
+  - **[To verify]** whether the `convert-to-absence` endpoint has an
+    end-to-end roundtrip test that reaches into the `AbsenceConversionService`
+    impl (not only the mock layer).
 
-## 9. Historie & Kontext
+## 9. History & context
 
-- **Initial (2024-06):** Migration `20240618125847_paid-sales-persons.sql`
-  legt `extra_hours` und `working_hours` gemeinsam an — der ursprüngliche
-  Zeit-Erfassungs-Baustein für HR & Reporting.
-- **2025-04 — Custom Extra Hours eingeführt:**
-  - `20250413073750_add-custom-extra-hours-table.sql` (Katalog +
-    N:M-Zuweisung),
-  - `20250418200122_insert-custom-column-to-extra-hours.sql` (Foreign-Key-
-    Spalte in `extra_hours`).
-  - Motivation: Betriebs-definierte Kategorien ohne Enum-Extension.
-- **v1.0 / Cutover (2026-05, Phase 4):** Range-basiertes Absence-Aggregat
-  (`absence_period`) übernimmt die Kategorien Vacation/SickLeave/UnpaidLeave
-  im Neu-Fall. Bestehende `extra_hours`-Zeilen dieser Kategorien werden
-  entweder migriert (`absence_period_migration_source`), in Quarantäne
-  gelegt (`absence_migration_quarantine`) oder — im Koexistenz-Modell — als
-  historische Zeilen belassen. `soft_delete_bulk` ist der Massenpfad, mit
-  dem der Cutover-Commit gemappte Legacy-Zeilen final aus dem Live-Read
-  ausblendet.
-- **v1.3 / Phase 8.4:** Die Schreibsperre für die deprecated-Kategorien
-  wurde entfernt (`service_impl/src/extra_hours.rs:198-204`) — Koexistenz
-  M-01 ist die endgültige Modellentscheidung, nicht "Absence löst
-  Extra-Hours ab". Neue Zeilen dieser Kategorien sind wieder ohne
-  Feature-Gate anlegbar, u.a. für Korrekturen historischer Daten.
-- **Phase 51 / Toggle-Bypass:** Die interne Nutzung von
-  `Authentication::Full` beim Nachladen der Custom-Definition ist
-  konsistent mit dem in Phase 51 dokumentierten Bypass für
-  Internal-Aggregate-Konsumenten (Memory "ToggleService Full-Context-Bypass").
-- **Verweise auf `.planning/phases/…`** für den Cutover-Kontext:
-  `.planning/phases/04-*` (Migration & Cutover) und `.planning/phases/08-*`
-  (Koexistenz-Nachjustierung). [Zu prüfen] konkrete Phase-IDs im aktuellen
-  Milestone-Cleanup-Stand.
+- **Initial (2024-06):** migration `20240618125847_paid-sales-persons.sql`
+  creates `extra_hours` and `working_hours` together — the original
+  time-recording building block for HR & Reporting.
+- **2025-04 — Custom Extra Hours introduced:**
+  - `20250413073750_add-custom-extra-hours-table.sql` (catalog +
+    N:M mapping),
+  - `20250418200122_insert-custom-column-to-extra-hours.sql` (foreign-key
+    column in `extra_hours`).
+  - Motivation: business-defined categories without enum extension.
+- **v1.0 / Cutover (2026-05, Phase 4):** range-based Absence aggregate
+  (`absence_period`) takes over the categories Vacation/SickLeave/UnpaidLeave
+  for the new case. Existing `extra_hours` rows of these categories are
+  either migrated (`absence_period_migration_source`), quarantined
+  (`absence_migration_quarantine`), or — in the coexistence model — left
+  as historical rows. `soft_delete_bulk` is the mass path with
+  which the Cutover commit finally hides mapped legacy rows from the live
+  read.
+- **v1.3 / Phase 8.4:** the write block for the deprecated categories
+  was removed (`service_impl/src/extra_hours.rs:198-204`) — coexistence
+  M-01 is the definitive model decision, not "Absence replaces
+  Extra Hours". New rows of these categories can be created without
+  feature gate again, e.g. for corrections of historical data.
+- **Phase 51 / Toggle bypass:** the internal use of
+  `Authentication::Full` when loading the custom definition is
+  consistent with the bypass documented in Phase 51 for
+  internal aggregate consumers (Memory "ToggleService Full-Context-Bypass").
+- **References to `.planning/phases/…`** for the Cutover context:
+  `.planning/phases/04-*` (migration & Cutover) and `.planning/phases/08-*`
+  (coexistence retuning). [To verify] concrete phase IDs in the current
+  milestone cleanup state.
 
 ---
 
-**Fazit:** `extra_hours` ist die dauerhaft führende Datenquelle für Overtime,
-Volunteer und Custom-Kategorien; für Vacation/SickLeave/UnpaidLeave ist es
-Legacy-Koexistent zu `absence_period` (F05) — jeder Report muss beide Quellen
-lesen, sonst kippt die Balance.
+**Conclusion:** `extra_hours` is the permanently authoritative data source for
+overtime, volunteer and custom categories; for Vacation/SickLeave/UnpaidLeave
+it is legacy-coexistent with `absence_period` (F05) — every report must
+read both sources, otherwise the balance tips.
 
-*Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
+*Last verified against code:* see git blame of this file.

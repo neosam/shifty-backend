@@ -1,55 +1,55 @@
 # Feature: {{Name}}
 
-> **Kurzform:** Ein Satz, was das Feature liefert und für wen.
+> **Short form:** One sentence stating what the feature delivers and for whom.
 
-**Cluster-ID:** F??
-**Status:** produktiv / experimentell / deprecated
-**Erstmalig eingeführt:** Milestone / Datum
-**Zuständige Crates:** `service::…`, `service_impl::…`, `dao::…`, `rest::…`
+**Cluster ID:** F??
+**Status:** production / experimental / deprecated
+**First introduced:** milestone / date
+**Responsible crates:** `service::…`, `service_impl::…`, `dao::…`, `rest::…`
 
 ---
 
-## 1. Was ist das? (Fachlich)
+## 1. What is it? (Business context)
 
-Fließtext, verständlich für nicht-technische Stakeholder. Wer benutzt das
-Feature im UI, welchen Zweck erfüllt es im Geschäftsprozess, was für ein
-Datenobjekt entsteht dabei?
+Prose text, understandable for non-technical stakeholders. Who uses the
+feature in the UI, which purpose does it serve in the business process, what
+data object is produced?
 
-**Beispiel-Workflow aus User-Sicht:**
+**Example workflow from a user's perspective:**
 
 1. …
 2. …
 3. …
 
-## 2. Fachliche Regeln
+## 2. Business rules
 
-Alle Business-Regeln als Bullet-Liste. Jede Regel wird in Kapitel 4/5 in Code
-gemappt.
+All business rules as a bullet list. Each rule is mapped to code in
+chapters 4/5.
 
-- Regel A: …
-- Regel B: …
-- Invariante: …
+- Rule A: …
+- Rule B: …
+- Invariant: …
 
-## 3. Datenmodell
+## 3. Data model
 
-### Tabellen
+### Tables
 
-| Tabelle | Zweck | Wichtige Spalten |
+| Table | Purpose | Important columns |
 | --- | --- | --- |
 | `foo` | … | `id`, `deleted`, … |
 
 ### Migrations
 
-Chronologische Liste der Migrations, die das Feature aufgebaut haben:
+Chronological list of migrations that built up the feature:
 
-- `2024xxxxxxxx_...sql` — Basistabelle
-- `2025xxxxxxxx_...sql` — Erweiterung um Spalte X
+- `2024xxxxxxxx_...sql` — base table
+- `2025xxxxxxxx_...sql` — extension by column X
 
-### Beziehungen
+### Relationships
 
-Kurzer Text oder Ausschnitt aus dem ER-Diagramm.
+Short text or excerpt from the ER diagram.
 
-## 4. Service-API
+## 4. Service API
 
 ### Trait
 
@@ -66,58 +66,58 @@ pub trait FooService {
 }
 ```
 
-### Auth-Gates
+### Auth gates
 
-Welche Permissions welche Methode aufrufen darf.
+Which permissions may call which method.
 
-### TX-Verhalten
+### TX behavior
 
-- Öffnet TX selbst wenn `tx=None`.
-- Composite-Op X-Y-Z läuft atomar.
-- Rollback-Verhalten wenn Y fehlschlägt.
+- Opens TX itself when `tx=None`.
+- Composite op X-Y-Z runs atomically.
+- Rollback behavior when Y fails.
 
 ### Dependencies
 
 - DAO(s): `FooDao`, `PermissionDao`
-- Andere Services: (nur wenn Business-Logic-Tier)
+- Other services: (only if Business-Logic-Tier)
 
-## 5. REST-Endpoints
+## 5. REST endpoints
 
-| Methode | Pfad | Beschreibung | DTO In | DTO Out | Wichtige Fehler |
+| Method | Path | Description | DTO In | DTO Out | Important errors |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/foo` | Liste | — | `Vec<FooTO>` | 401 |
-| `POST` | `/foo` | Anlegen | `FooCreateTO` | `FooTO` | 400, 403, 409 |
+| `GET` | `/foo` | List | — | `Vec<FooTO>` | 401 |
+| `POST` | `/foo` | Create | `FooCreateTO` | `FooTO` | 400, 403, 409 |
 
-DTOs siehe `rest-types::foo`.
+DTOs see `rest-types::foo`.
 
-## 6. Frontend-Integration
+## 6. Frontend integration
 
 - **Pages:** `shifty-dioxus/src/page/…`
 - **Services:** `shifty-dioxus/src/service/…`
 - **State:** `shifty-dioxus/src/state/…`
-- **i18n-Keys:** …
-- **Proxy:** `Dioxus.toml` — welche Pfade müssen gemappt sein?
+- **i18n keys:** …
+- **Proxy:** `Dioxus.toml` — which paths must be mapped?
 
-## 7. Randfälle
+## 7. Edge cases
 
-Feature-spezifische Kanten. Für die zentrale Randfall-Referenz siehe
-[`../domain/edge-cases.md`](../domain/edge-cases.md), Sektion "…".
+Feature-specific edges. For the central edge-case reference see
+[`../domain/edge-cases.md`](../domain/edge-cases.md), section "…".
 
-- Randfall A: …
-- Randfall B: …
+- Edge case A: …
+- Edge case B: …
 
 ## 8. Tests
 
-- **Unit:** `service_impl/src/test/foo/*.rs` — welche Szenarien abgedeckt.
-- **Integration:** `service_impl/src/test/…` — In-Mem-SQLite Roundtrip.
-- **Bekannte Lücken:** …
+- **Unit:** `service_impl/src/test/foo/*.rs` — which scenarios are covered.
+- **Integration:** `service_impl/src/test/…` — in-memory SQLite roundtrip.
+- **Known gaps:** …
 
-## 9. Historie & Kontext
+## 9. History & context
 
-- Milestone-Verweis, warum dieses Feature so aussieht.
-- Cutover-Historie (wenn abgelöst).
-- Verweise auf `.planning/phases/…` für Kontext-Reads.
+- Milestone reference, why this feature looks the way it does.
+- Cutover history (if superseded).
+- References to `.planning/phases/…` for context reads.
 
 ---
 
-*Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
+*Last verified against code:* see git blame of this file.

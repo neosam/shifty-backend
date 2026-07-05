@@ -1,58 +1,58 @@
-# Layer-Architektur
+# Layered Architecture
 
-Shifty folgt einer klassischen 3-Schichten-Architektur mit klaren Grenzen.
+Shifty follows a classic three-layer architecture with clear boundaries.
 
 ```
 ┌───────────────────────────────────────────────┐
-│  REST-Layer      rest/         (Axum)         │  HTTP-Handler, DTO-Mapping,
-│                                               │  Error → HTTP-Status
+│  REST layer      rest/         (Axum)         │  HTTP handlers, DTO mapping,
+│                                               │  Error → HTTP status
 ├───────────────────────────────────────────────┤
-│  Service-Layer   service/, service_impl/      │  Business-Logik, Auth-Gates,
-│                                               │  TX-Management, Cross-Domain
+│  Service layer   service/, service_impl/      │  Business logic, auth gates,
+│                                               │  TX management, cross-domain
 ├───────────────────────────────────────────────┤
-│  DAO-Layer       dao/, dao_impl_sqlite/       │  SQLx-Queries, Row → Entity
-│                                               │  Konvertierung
+│  DAO layer       dao/, dao_impl_sqlite/       │  SQLx queries, row → entity
+│                                               │  conversion
 ├───────────────────────────────────────────────┤
-│  Storage         SQLite (migrations/sqlite/)  │  Schema, Views, Indices
+│  Storage         SQLite (migrations/sqlite/)  │  Schema, views, indices
 └───────────────────────────────────────────────┘
 ```
 
-Cross-Cutting-Concerns wie DTOs (`rest-types`) und Utils (`shifty-utils`)
-sitzen daneben.
+Cross-cutting concerns like DTOs (`rest-types`) and utilities (`shifty-utils`)
+sit alongside the layers.
 
-## Warum diese Trennung?
+## Why this separation?
 
-- **REST-Layer** kennt keine Datenbank. Er ist beliebig austauschbar
-  (heute Axum, morgen actix-web).
-- **Service-Layer** kennt kein HTTP. Er ist über Trait-Interfaces auch
-  aus CLI, Job-Runner oder Test-Harness aufrufbar.
-- **DAO-Layer** kennt keine Business-Regeln. Er liefert Rows und Entities;
-  Auth, Validation und Composition sind Sache der Services.
-- **Fat Backend, Thin Client** (siehe Root-README): Sämtliche
-  Business-Regeln liegen im Service-Layer. Das Frontend rendert
-  Ergebnisse — es rechnet keine Balance selbst.
+- The **REST layer** knows nothing about the database. It is freely
+  replaceable (today Axum, tomorrow actix-web).
+- The **service layer** knows nothing about HTTP. Via its trait interfaces
+  it is callable from a CLI, a job runner, or a test harness.
+- The **DAO layer** knows no business rules. It returns rows and entities;
+  auth, validation, and composition are the services' job.
+- **Fat backend, thin client** (see root README): all business rules live
+  in the service layer. The frontend renders results — it does not compute
+  balances on its own.
 
-## Trait-First-Prinzip
+## Trait-first principle
 
-Jeder Service und jeder DAO ist zuerst ein **Trait** in `service/` bzw.
-`dao/`. Die Implementierung sitzt in `service_impl/` bzw.
+Every service and every DAO is first a **trait** in `service/` respectively
+`dao/`. The implementation lives in `service_impl/` respectively
 `dao_impl_sqlite/`.
 
-Konsequenz:
+Consequences:
 
-- **Testbarkeit.** Unit-Tests mocken die Trait-Grenze (via `mockall`),
-  ohne Datenbank oder HTTP.
-- **Austauschbarkeit.** Ein Postgres-DAO wäre eine parallele Impl neben
-  `dao_impl_sqlite/`, ohne Service-Code anzufassen.
-- **Explizite Abhängigkeiten.** Die Trait-Deklaration listet
-  `type Context`, `type Transaction`, Rückgabe-Fehler-Typ. Nichts ist
-  implizit.
+- **Testability.** Unit tests mock at the trait boundary (via `mockall`),
+  without a database or HTTP.
+- **Replaceability.** A Postgres DAO would be a parallel implementation
+  next to `dao_impl_sqlite/`, without touching any service code.
+- **Explicit dependencies.** The trait declaration lists
+  `type Context`, `type Transaction`, and the return error type. Nothing is
+  implicit.
 
-## Das `gen_service_impl!`-Makro
+## The `gen_service_impl!` macro
 
-Service-Implementierungen werden nicht per Hand als Structs verdrahtet.
-Das Makro `gen_service_impl!` (deklariert in
-`service_impl/src/macros.rs`) übernimmt:
+Service implementations are not wired up by hand as structs. The
+`gen_service_impl!` macro (declared in `service_impl/src/macros.rs`)
+takes care of it:
 
 ```rust
 gen_service_impl! {
@@ -64,43 +64,42 @@ gen_service_impl! {
 }
 ```
 
-Das erzeugt:
+This generates:
 
-- Ein `struct BookingServiceImpl<Deps: BookingServiceDeps>` mit typisierten
-  Feldern für jede Dependency.
-- Ein Trait `BookingServiceDeps`, das Konsumenten in `main.rs` implementieren,
-  damit der DI-Container die konkreten Impls einsetzen kann.
-- Konsistente `Arc`- und `Clone`-Behandlung, wo die Async-Grenze das
-  verlangt.
+- A `struct BookingServiceImpl<Deps: BookingServiceDeps>` with typed
+  fields for every dependency.
+- A trait `BookingServiceDeps` that consumers in `main.rs` implement, so
+  the DI container can plug in the concrete implementations.
+- Consistent `Arc` and `Clone` handling wherever the async boundary
+  requires it.
 
-## Fehler-Mapping
+## Error mapping
 
-- **`DaoError`** bei DAO-Aufrufen (SQL-Fehler, DB-Constraints).
-- **`ServiceError`** bei Service-Aufrufen; wraps `DaoError`, ergänzt
-  Business-Fehler (Forbidden, Conflict, Validation).
-- **HTTP-Status** wird im REST-Layer über einen zentralen
-  `error_handler`-Wrapper aus `ServiceError` abgeleitet.
+- **`DaoError`** for DAO calls (SQL errors, DB constraints).
+- **`ServiceError`** for service calls; wraps `DaoError`, adds business
+  errors (Forbidden, Conflict, Validation).
+- The **HTTP status** is derived in the REST layer via a central
+  `error_handler` wrapper from `ServiceError`.
 
-Der Effekt: eine einzige Fehler-Konvention pro Layer, keine
-Konvertierungs-Explosion.
+The effect: one error convention per layer, no conversion explosion.
 
-## Auth-Weitergabe
+## Auth propagation
 
-`Authentication<Context>` ist der Auth-Kontext, den REST-Handler an
-Services übergeben. Er wandert durch die gesamte Service-Kette bis zu
-den Permission-Checks. Details siehe [`04-auth.md`](./04-auth.md).
+`Authentication<Context>` is the auth context that REST handlers pass to
+services. It flows through the whole service chain down to the permission
+checks. Details in [`04-auth.md`](./04-auth.md).
 
-## Transaktionen
+## Transactions
 
-Jede Service-Methode nimmt `Option<Self::Transaction>` entgegen. Wenn `None`,
-öffnet der Service selbst eine Transaktion. Wenn `Some`, fährt er in der
-äußeren TX mit. Details siehe [`05-transactions.md`](./05-transactions.md).
+Every service method takes `Option<Self::Transaction>`. If `None`, the
+service opens a transaction itself. If `Some`, it continues inside the
+outer TX. Details in [`05-transactions.md`](./05-transactions.md).
 
-## Vertiefung
+## Deeper reading
 
 - [02-service-tiers.md](./02-service-tiers.md) — Basic vs Business-Logic,
-  Deps-Regeln.
-- [03-data-model.md](./03-data-model.md) — Wie DAOs mit dem Schema
-  arbeiten.
-- [07-testing.md](./07-testing.md) — Wie das Trait-First-Prinzip
-  Tests trägt.
+  dependency rules.
+- [03-data-model.md](./03-data-model.md) — How DAOs interact with the
+  schema.
+- [07-testing.md](./07-testing.md) — How the trait-first principle
+  carries the tests.

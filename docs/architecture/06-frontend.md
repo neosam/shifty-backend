@@ -1,131 +1,131 @@
-# Frontend-Architektur
+# Frontend Architecture
 
-Das Frontend liegt in `shifty-backend/shifty-dioxus/` und ist ein
-eigener Cargo-Workspace, der zu WebAssembly kompiliert wird.
+The frontend lives in `shifty-backend/shifty-dioxus/` and is its own
+Cargo workspace, compiled to WebAssembly.
 
-## Tech-Stack
+## Tech Stack
 
 - **Framework:** [Dioxus](https://dioxuslabs.com/) 0.6.x.
-- **Sprache:** Rust → WASM.
-- **CSS:** Tailwind, kompiliert nach `assets/tailwind.css`.
-- **Dev-Server:** `dx serve` mit Hot-Reload.
-- **Deploy:** Statisches Bundle in `dist/`, ausgeliefert vom Backend
-  oder einem Reverse-Proxy.
+- **Language:** Rust → WASM.
+- **CSS:** Tailwind, compiled to `assets/tailwind.css`.
+- **Dev server:** `dx serve` with hot reload.
+- **Deploy:** Static bundle in `dist/`, served by the backend or a
+  reverse proxy.
 
-## Verzeichnisstruktur
+## Directory Structure
 
 ```
 shifty-dioxus/src/
-├── main.rs            # Entry Point
-├── app.rs             # Root-Component + Router-Setup
-├── router.rs          # Route-Definitions
-├── auth.rs            # Login/Logout/Session-State
-├── api.rs             # HTTP-Client gegen Backend
-├── loader.rs          # Async-Data-Loading-Muster
-├── base_types.rs      # Kern-Typen (z.B. Wrapper um rest-types)
-├── error.rs           # Frontend-Fehler-Behandlung
-├── js.rs              # JS-Interop
-├── page/              # Ein Rust-File pro Route
-├── component/         # Wiederverwendbare UI-Bausteine
-├── service/           # Frontend-Services (Wrapper um API)
-├── state/             # Signal-basierter globaler State
-├── i18n/              # Übersetzungen (En, De, Cs)
+├── main.rs            # Entry point
+├── app.rs             # Root component + router setup
+├── router.rs          # Route definitions
+├── auth.rs            # Login/logout/session state
+├── api.rs             # HTTP client against backend
+├── loader.rs          # Async data loading pattern
+├── base_types.rs      # Core types (e.g. wrappers around rest-types)
+├── error.rs           # Frontend error handling
+├── js.rs              # JS interop
+├── page/              # One Rust file per route
+├── component/         # Reusable UI building blocks
+├── service/           # Frontend services (wrappers around API)
+├── state/             # Signal-based global state
+├── i18n/              # Translations (En, De, Cs)
 └── tests/
 ```
 
 ## Fat Backend, Thin Client
 
-**Kernprinzip:** Sämtliche Business-Logik lebt im Backend. Das Frontend:
+**Core principle:** All business logic lives in the backend. The frontend:
 
-- rendert Ergebnisse,
-- validiert Input **nur** für UX-Feedback (nicht als Autorität),
-- sendet Requests, hört Responses,
-- zeigt Fehler an.
+- renders results,
+- validates input **only** for UX feedback (not as the authority),
+- sends requests, listens for responses,
+- displays errors.
 
-Es rechnet **keine** Balance, keine Konflikte, keine Snapshot-Werte.
+It computes **no** balance, no conflicts, no snapshot values.
 
-Warum: Ein Zweit-Client (Mobile-App, CLI, Automation-Skript) soll
-niemals eine Domain-Regel duplizieren müssen. Alles was zählt, kommt
-vom Backend über REST.
+Why: A second client (mobile app, CLI, automation script) should
+never have to duplicate a domain rule. Everything that counts comes
+from the backend via REST.
 
-## API-Kopplung: `rest-types`
+## API Coupling: `rest-types`
 
-DTOs werden aus dem Crate `rest-types` konsumiert — dieselbe
-Definitions-Quelle wie das Backend. Feld-Umbenennungen im Backend
-zwingen den Frontend-Build zum Fehler (was gewollt ist).
+DTOs are consumed from the `rest-types` crate — the same source of
+truth as the backend. Field renames in the backend force the frontend
+build to fail (which is intended).
 
-## Dev-Proxy — `Dioxus.toml`
+## Dev Proxy — `Dioxus.toml`
 
-Im Dev-Modus läuft `dx serve` auf Port 8080, während das Backend auf
-Port 3000 hört. Die HTTP-Proxy-Konfiguration in `shifty-dioxus/Dioxus.toml`
-leitet API-Pfade an das Backend weiter:
+In dev mode `dx serve` runs on port 8080 while the backend listens on
+port 3000. The HTTP proxy configuration in `shifty-dioxus/Dioxus.toml`
+forwards API paths to the backend:
 
 ```toml
 [[web.proxy]]
 backend = "http://localhost:3000/api/..."
 ```
 
-**Randfall (2× real passiert):** Wenn du einen neuen Backend-Endpoint
-anlegst, den das Frontend ansprechen soll, MUSST du auch einen
-`[[web.proxy]]`-Eintrag hinzufügen. Ohne den bekommst du im Dev-Modus
-einen 404 vom `dx serve`, obwohl das Backend läuft. Prod funktioniert
-trotzdem (statisches Bundle geht durch den Reverse-Proxy).
+**Edge case (happened 2× for real):** When you create a new backend
+endpoint that the frontend should reach, you MUST also add a
+`[[web.proxy]]` entry. Without it you get a 404 from `dx serve` in dev
+mode even though the backend is running. Prod still works (the static
+bundle goes through the reverse proxy).
 
-Betroffene Phases: 28 und 49 haben's beide vergessen.
+Affected phases: both 28 and 49 forgot this.
 
-## dx-CLI-Version-Pin
+## dx CLI Version Pin
 
-**Wichtig:** shifty-dioxus verlangt dx-CLI **0.6.x** (das Crate `dioxus`
-ist auf 0.6.3 gepinnt). Wenn nixpkgs auf 0.7.x rollt, startet die App
-nicht und das Design ist gestrippt. Der Pin ist in `flake.nix`
-festgezurrt.
+**Important:** shifty-dioxus requires dx CLI **0.6.x** (the `dioxus`
+crate is pinned to 0.6.3). When nixpkgs rolls to 0.7.x, the app does
+not start and the design is stripped. The pin is locked down in
+`flake.nix`.
 
-Wenn du die App lokal startest und weißes Layout siehst:
+If you start the app locally and see a blank layout:
 
-- `dx --version` prüfen.
-- Sicherstellen, dass `Dioxus.toml` `style = "/assets/tailwind.css"`
-  setzt.
-- Tailwind-Watcher läuft und schreibt tatsächlich in `assets/tailwind.css`.
+- Check `dx --version`.
+- Make sure `Dioxus.toml` sets `style = "/assets/tailwind.css"`.
+- Verify the Tailwind watcher is running and actually writing to
+  `assets/tailwind.css`.
 
-## State-Management
+## State Management
 
-Signal-basiert (`dioxus::signals`). Globaler State in `state/`:
-Auth-State, aktueller User, ausgewählte Sales Person, aktuelle Kalender-Woche.
+Signal-based (`dioxus::signals`). Global state in `state/`: auth
+state, current user, selected Sales Person, current calendar week.
 
-## Loader-Pattern
+## Loader Pattern
 
-Async-Data-Loading nutzt einen Loader-Trait, der `Loading` / `Loaded` /
-`Error` liefert. Pages zeigen entsprechenden UI-State an.
+Async data loading uses a Loader trait that yields `Loading` /
+`Loaded` / `Error`. Pages render the corresponding UI state.
 
-**Randfall:** Bei Programmatik-Datepickern (`<input type=date>`)
-triggern JS-Injects die Dioxus-Signale nicht — Submit-Buttons bleiben
-inaktiv. Für Automation-Tests lieber Werte-Verifikation per cargo-Test
-machen, nicht per Browser-Automation. Siehe Memory
+**Edge case:** For programmatic date pickers (`<input type=date>`),
+JS injects do not trigger Dioxus signals — submit buttons stay
+inactive. For automation tests, prefer value verification via cargo
+test instead of browser automation. See memory
 `reference_dioxus_browser_test_date_inputs`.
 
 ## i18n
 
-Drei Sprachen: **En, De, Cs**. Jeder neue Text braucht Einträge in
-allen drei Locales.
+Three languages: **En, De, Cs**. Every new text needs entries in all
+three locales.
 
-Detail: [`08-i18n.md`](./08-i18n.md).
+Details: [`08-i18n.md`](./08-i18n.md).
 
-## Testing im Frontend
+## Frontend Testing
 
-- WASM-Build-Gate: `cargo build --target wasm32-unknown-unknown` im
-  `shifty-dioxus/`-Verzeichnis.
-- **Clippy:** Aus dem Backend-CI-Clippy ausgeschlossen (198 pre-existing
-  Lints). Muss manuell laufen, und aus dem Backend-Shell — dioxus-Shell
-  ist mit E0514 kaputt.
+- WASM build gate: `cargo build --target wasm32-unknown-unknown` in
+  the `shifty-dioxus/` directory.
+- **Clippy:** Excluded from the backend CI clippy run (198 pre-existing
+  lints). Must be run manually, and from the backend shell — the
+  dioxus shell is broken with E0514.
 
-## Backend-Roundtrip verifizieren
+## Verify Backend Roundtrip
 
-**Konvention:** Frontend-Phasen mit "Backend existiert bereits"-Annahme
-MÜSSEN im Browser e2e verifiziert werden — Create-Pfad ist nicht
-Edit-Pfad. Phase 23 hat gelernt, dass `modify_slot` `max_paid_employees`
-fallen ließ, obwohl `create_slot` es korrekt setzte. Nur Browser-Test
-hat das gefunden.
+**[Convention]** Frontend phases with a "backend already exists"
+assumption MUST be verified end-to-end in the browser — the create
+path is not the edit path. Phase 23 learned that `modify_slot`
+dropped `max_paid_employees` even though `create_slot` set it
+correctly. Only a browser test caught this.
 
-## Verwandte Randfälle
+## Related edge cases
 
-Siehe [`../domain/edge-cases.md#11-frontend-backend-kopplung`](../domain/edge-cases.md#11-frontend-backend-kopplung).
+See [`../domain/edge-cases.md#11-frontend-backend-kopplung`](../domain/edge-cases.md#11-frontend-backend-kopplung).

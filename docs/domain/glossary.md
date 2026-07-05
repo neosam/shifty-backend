@@ -1,212 +1,206 @@
-# Glossar — Domain-Begriffe in Shifty
+# Glossary — Domain Terms in Shifty
 
-Dieses Glossar ist die Wahrheitsquelle für Begriffe. Wenn zwei
-Dokumente denselben Begriff unterschiedlich verwenden, hat dieses hier
-Recht — oder es ist ein Widerspruch, den es aufzulösen gilt.
+This glossary is the source of truth for terms. When two documents use the
+same term differently, this one is right — or it is a contradiction that
+needs to be resolved.
 
 ## A
 
-**Absence.** Range-basierte Abwesenheit (v1.0+), z.B. Urlaub, Krank,
-Unbezahlt. Ersetzt Single-Day-Extra-Hours nach Cutover. Range ist
-**inklusiv beidseitig** `[from, to]`. Detail: [F05](../features/F05-absence-system.md).
+**Absence.** Range-based absence (v1.0+), e.g. Vacation, SickLeave,
+UnpaidLeave. Replaces single-day Extra Hours after cutover. Range is
+**inclusive on both sides** `[from, to]`. Details: [F05](../features/F05-absence-system.md).
 
-**Absence Period.** Konkrete Zeile in der `absence_period`-Tabelle,
-identifiziert einen Range + Kategorie + Sales Person.
+**Absence Period.** A concrete row in the `absence_period` table,
+identifying a range + category + Sales Person.
 
-**Aggregat.** Fachliche Gruppierung mehrerer Entities, die zusammen
-konsistent sein müssen (klassisch nach DDD). Siehe
-[Architektur-Diagramme](../architecture/diagrams/domain-aggregates.mmd).
+**Aggregate.** Domain-level grouping of multiple entities that must remain
+consistent together (classic DDD). See
+[architecture diagrams](../architecture/diagrams/domain-aggregates.mmd).
 
-**Authentication::Full.** Auth-Enum-Variante, die alle
-Permission-Checks passieren lässt. **Ausschließlich für interne
-Aggregat-Reads** durch Business-Logic-Services. Details:
+**Authentication::Full.** Auth enum variant that lets all permission
+checks pass. **Exclusively for internal aggregate reads** by
+business-logic services. Details:
 [04-auth.md](../architecture/04-auth.md).
 
 ## B
 
-**Balance / Balance-Hours.** Die berechnete Differenz aus tatsächlich
-gearbeiteten und vertraglich erwarteten Stunden, plus/minus Extras
-(Urlaub, Krank, Feiertag). Formel:
+**Balance / Balance Hours.** The calculated difference between actual
+worked hours and contractually expected hours, plus/minus extras
+(vacation, sick leave, holidays). Formula:
 `balance = worked − expected + carryover`. Details:
 [time-accounting.md](./time-accounting.md).
 
-**Basic Service.** Service-Klasse, die genau ein Fach-Objekt verwaltet
-und keine anderen Domain-Services konsumiert. Siehe
+**Basic Service.** Service class that manages exactly one domain object
+and does not consume other domain services. See
 [02-service-tiers.md](../architecture/02-service-tiers.md).
 
-**Billing Period.** Abrechnungsperiode, in der die Balance/Urlaub/Stunden
-eines Sales Person zu einem Snapshot eingefroren wird. Details:
-[billing-period.md](./billing-period.md) und
+**Billing Period.** Billing time range in which the balance/vacation/hours
+of a Sales Person are frozen into a Snapshot. Details:
+[billing-period.md](./billing-period.md) and
 [F08](../features/F08-billing-period.md).
 
-**Block.** Zeitscheibe für Reports (üblicherweise Kalenderwoche).
-`My Block` = benutzereigene Sicht. `Block Report` = HR-Sicht mit
-Aggregation.
+**Block.** Time slice for reports (usually a calendar week).
+`My Block` = user's own view. `Block Report` = HR view with aggregation.
 
-**Booking.** Zuweisung *Sales Person × Slot × Datum* — der Kern der
-Schichtplanung. Details: [F03](../features/F03-booking.md).
+**Booking.** Assignment *Sales Person × Slot × date* — the core of shift
+planning. Details: [F03](../features/F03-booking.md).
 
-**Booking Log.** Read-only Audit-Trail auf `bookings_view`, inklusive
-Soft-Deletes. Zeigt, wer eine Booking wann angelegt/geändert hat.
+**Booking Log.** Read-only audit trail on `bookings_view`, including
+soft-deletes. Shows who created/modified a Booking and when.
 
-**Business-Logic Service.** Service-Klasse, die mehrere Aggregate
-kombiniert oder Cross-Entity-Invarianten pflegt. Darf andere
-Domain-Services konsumieren.
+**Business-Logic Service.** Service class that combines multiple
+aggregates or maintains cross-entity invariants. May consume other
+domain services.
 
 ## C
 
-**Carryover.** Am Jahresende persistierter Saldo (Stunden und/oder
-Urlaubstage), der ins Folgejahr rollt. Wird vom Scheduler wöchentlich
-für Vor- und aktuelles Jahr aktualisiert. Vermeidet Rekalkulation
-historischer Zeiträume.
+**Carryover.** Balance persisted at year-end (hours and/or vacation days)
+that rolls into the following year. Updated by the scheduler weekly for
+the previous and current year. Avoids recomputing historical time ranges.
 
-**Contract.** Eine Zeile in `employee_work_details` mit Wochenstunden,
-Wochentagen, gültig ab/bis. Ein Sales Person kann mehrere Contract-Zeilen
-über die Zeit haben.
+**Contract.** A row in `employee_work_details` with weekly hours,
+weekdays, valid-from/valid-to. A Sales Person can have multiple contract
+rows over time.
 
-**Custom Extra Hours.** Vom Betrieb definierte Extra-Kategorie
-zusätzlich zu den Standard-Enum-Werten. Wird pro Zeile referenziert.
+**Custom Extra Hours.** Extra category defined by the operation in
+addition to the standard enum values. Referenced per row.
 
 ## E
 
-**Expected Hours.** Vertraglich erwartete Stunden pro Zeitraum. Ergibt
-sich aus Contract × Tage − SpecialDays − UnpaidLeave.
+**Expected Hours.** Contractually expected hours per time range. Derived
+from Contract × days − Special Days − UnpaidLeave.
 
-**Extra Hours (Legacy).** Single-Day-Zeitzeilen für Überstunden,
-Urlaub, Krank etc. Wird nach Cutover durch das Absence-System ersetzt,
-existiert aber weiter für historische Daten. Kategorien:
+**Extra Hours (Legacy).** Single-day time rows for overtime, vacation,
+sick leave, etc. Replaced by the Absence system after cutover, but
+continues to exist for historical data. Categories:
 `ExtraWork`, `Vacation`, `SickLeave`, `Holiday`, `Unavailable`,
 `UnpaidLeave`, `VolunteerWork`, `CustomExtraHours`.
 
 ## F
 
-**Fat Backend, Thin Client.** Kernprinzip: Business-Logik ausschließlich
-im Backend. Frontend rendert nur.
+**Fat Backend, Thin Client.** Core principle: business logic lives
+exclusively in the backend. Frontend only renders.
 
-**Feature Flag.** Statischer / boolean-orientierter Schalter, meist
-vom Admin gesetzt. Unterschied zum Toggle: kein Stichtag, kein
-User-Kontext. Detail: [F13](../features/F13-system-infrastructure.md).
+**Feature Flag.** Static / boolean-oriented switch, usually set by the
+admin. Difference from Toggle: no effective date, no user context.
+Details: [F13](../features/F13-system-infrastructure.md).
 
 ## G
 
-**gen_service_impl!.** Makro (`service_impl/src/macros.rs`), das
-Service-Implementierungen mit ihren typisierten Dependencies
-verdrahtet.
+**gen_service_impl!.** Macro (`service_impl/src/macros.rs`) that wires
+service implementations with their typed dependencies.
 
 ## H
 
-**HR-Gate.** Auth-Regel, die eine Operation auf User mit HR-Rolle
-einschränkt (z.B. Anlegen von Billing-Perioden, Bearbeiten fremder
-Absences).
+**HR Gate.** Auth rule that restricts an operation to users with the HR
+role (e.g. creating Billing Periods, editing others' absences).
 
 ## I
 
-**Impersonation.** Admin-Feature, mit dem sich ein Support-User als
-anderer User verhält, um dessen Sicht zu reproduzieren. Session hält
-`impersonate`-Flag.
+**Impersonation.** Admin feature that lets a support user act as another
+user in order to reproduce their view. Session holds an `impersonate`
+flag.
 
 ## O
 
-**OIDC.** OpenID Connect. Produktions-Auth-Modus.
+**OIDC.** OpenID Connect. Production auth mode.
 
 ## P
 
-**Permission Service.** Zentrale Prüfstelle für Rollen-basierte
-Autorisierung. Kern-Bypass: `Authentication::Full`.
+**Permission Service.** Central checkpoint for role-based authorization.
+Core bypass: `Authentication::Full`.
 
 ## R
 
-**Report.** Aggregat aus Bookings + Extra Hours + Absence + Carryover +
-Special Days, das eine Balance und weitere Kennzahlen liefert. Details:
+**RBAC.** Role-Based Access Control. Shifty's roles are defined in
+migrations; details: [F12](../features/F12-auth-session.md).
+
+**Report.** Aggregate of Bookings + Extra Hours + Absence + Carryover +
+Special Days that yields a Balance and further metrics. Details:
 [F07](../features/F07-reporting-balance.md).
 
-**Re-Point.** Datenumzug: Bookings werden von einem Slot auf einen
-anderen umgehängt (z.B. bei Slot-Split). MUSS atomar in einer TX
-laufen, sonst Doppelzählung.
-
-**RBAC.** Role-Based Access Control. Shifty-Rollen sind in Migrations
-definiert, Details: [F12](../features/F12-auth-session.md).
+**Re-Point.** Data move: Bookings are re-attached from one Slot to
+another (e.g. on slot split). MUST run atomically in a single
+transaction, otherwise double-counting occurs.
 
 ## S
 
-**Sales Person.** Mitarbeiter-Entität mit Contract-Historie, Farbwahl,
-Verfügbarkeits-Fenster. Details: [F01](../features/F01-employee-management.md).
+**Sales Person.** Employee entity with contract history, color choice,
+availability windows. Details: [F01](../features/F01-employee-management.md).
 
-**Session.** Login-Zustand des Users. Cookie-basiert, ggf.
-`impersonate`-markiert. 365-Tage-Expiry.
+**Session.** User's login state. Cookie-based, optionally marked
+`impersonate`. 365-day expiry.
 
-**Shiftplan.** Aggregat aus Slots + Special Days + Katalog + Editor.
-Kein Domain-Objekt, sondern die Anwendungssicht auf "Wer arbeitet
-wann".
+**Shiftplan.** Aggregate of Slots + Special Days + catalog + editor. Not
+a domain object but the application's view of "who works when".
 
-**Shiftplan Edit.** Business-Logic-Service zum Bearbeiten von
-Shiftplänen inkl. Slot-Split, Booking-Migration, Wochen-Sperre-Check.
+**Shiftplan Edit.** Business-logic service for editing shift plans
+including slot split, booking migration, week-lock check.
 
-**Slot.** Zeitfenster mit Kapazität (`min_resources`,
-`max_paid_employees`) pro Wochentag. Buchungen füllen Slots.
+**Slot.** Time window with capacity (`min_resources`,
+`max_paid_employees`) per weekday. Bookings fill slots.
 
-**Snapshot.** Eingefrorene Sicht auf Balance/Stunden/Urlaub in einer
-Billing Period. Write-once, mit
-`snapshot_schema_version` versioniert. Der Vertrag bei Formeländerung
-ist streng — siehe
+**Snapshot.** Frozen view of Balance/hours/vacation in a Billing Period.
+Write-once, versioned with `snapshot_schema_version`. The contract for
+formula changes is strict — see
 [billing-period.md](./billing-period.md).
 
 **Snapshot Schema Version.** `pub const u32` in
 `service_impl::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION`.
-Aktuell **12**. Bump-Regeln in
+Currently **12**. Bump rules in
 [F08](../features/F08-billing-period.md).
 
-**Soft-Delete.** Löschung durch Setzen einer `deleted`-Timestamp-Spalte
-statt `DELETE FROM`. Reader filtern `WHERE deleted IS NULL`.
+**Soft-Delete.** Deletion by setting a `deleted` timestamp column
+instead of `DELETE FROM`. Readers filter `WHERE deleted IS NULL`.
 
-**Special Day.** Feiertag oder betrieblicher Sondertag, der die
-Expected-Hours-Berechnung beeinflusst.
+**Special Day.** Public holiday or operational special day that
+influences the Expected Hours calculation.
 
-**Stichtag-Rollout.** Muster für Toggle-Features: Ab Datum X gilt neue
-Semantik; davor bleibt alte Semantik gültig. Reporting muss beide
-Semantiken über die Zeitachse hinweg konsistent behandeln.
+**Stichtag Rollout (Effective-Date Rollout).** Pattern for Toggle
+features: from date X the new semantics apply; before that the old
+semantics remain valid. Reporting must handle both semantics
+consistently across the timeline.
 
 ## T
 
-**Toggle.** User- und/oder datumsabhängiger Schalter, oft für
-Stichtag-Rollouts (z.B. D-51-07). Unterschied zum Feature Flag:
-zeit- und kontextabhängig.
+**Toggle.** User- and/or date-dependent switch, often used for
+effective-date rollouts (e.g. D-51-07). Difference from Feature Flag:
+time- and context-dependent.
 
-**Transaction (Option\<Transaction\>).** Muster, in dem jede
-Service-Methode `Option<Self::Transaction>` akzeptiert — öffnet
-selbst, wenn `None`, fährt in äußerer TX mit, wenn `Some`.
+**Transaction (Option\<Transaction\>).** Pattern in which every service
+method accepts `Option<Self::Transaction>` — opens its own if `None`,
+joins the outer transaction if `Some`.
 
 ## U
 
-**UnpaidLeave.** Extra-Hours-Kategorie mit spezieller Semantik:
-**senkt Erwartung, addiert nichts** auf die Ist-Seite. Andere Kategorien
-(Vacation, SickLeave, Holiday) senken NICHT die Erwartung, sondern
-addieren auf die Ist-Seite.
+**UnpaidLeave.** Extra Hours category with special semantics:
+**reduces expectation, adds nothing** to the actual side. Other
+categories (Vacation, SickLeave, Holiday) do NOT reduce expectation but
+instead add to the actual side.
 
 ## V
 
-**Vacation Balance.** Aktueller Urlaubsstand: Anspruch + Übertrag −
-Verbraucht − Geplant. Formel:
+**Vacation Balance.** Current vacation balance: entitlement + carryover
+− used − planned. Formula:
 `balance = entitled + carryover(year−1) − (used + planned)`. Details:
 [F06](../features/F06-vacation-management.md).
 
-**Vacation Entitlement Offset.** Manuelle Korrektur des
-Urlaubsanspruchs (Boni, Abzüge). HR-only änderbar, nur HR-sichtbar.
+**Vacation Entitlement Offset.** Manual correction of the vacation
+entitlement (bonuses, deductions). HR-only editable, HR-only visible.
 
-**value_type.** Enum-Spalte in `billing_period_sales_person`, die
-identifiziert, was für ein Wert eine Zeile trägt (z.B.
-`WorkedHours`, `VacationDaysUsed`, `Balance`). Erweiterungen erzwingen
-Snapshot-Version-Bump.
+**value_type.** Enum column in `billing_period_sales_person` that
+identifies what kind of value a row carries (e.g. `WorkedHours`,
+`VacationDaysUsed`, `Balance`). Extensions force a snapshot version
+bump.
 
 ## W
 
-**Week Message.** Info-Text pro Kalenderwoche, wird im Shiftplan
-angezeigt.
+**Week Message.** Info text per calendar week, shown in the Shiftplan.
 
-**Week Status.** Freigabezustand einer Woche (`Unset`, `Planned`,
-`Locked`, `Released`). Steuert, wer noch Änderungen machen darf.
+**Week Status.** Release state of a week (`Unset`, `Planned`, `Locked`,
+`Released`). Controls who is still allowed to make changes.
 
-**Working Days.** Wochentag-Flags im Contract, die definieren, an
-welchen Tagen der Sales Person grundsätzlich arbeitet.
+**Working Days.** Weekday flags in the contract that define on which
+days the Sales Person fundamentally works.
 
-**Working Hours.** Vertraglich erwartete Stunden pro Woche.
+**Working Hours.** Contractually expected hours per week.

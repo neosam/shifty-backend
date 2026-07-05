@@ -1,137 +1,133 @@
-# Billing Period — Snapshot & Versionierung (Fachlich)
+# Billing Period — Snapshot & Versioning (Domain)
 
-Diese Datei erklärt das Billing-Period-Konzept aus Fach-Sicht. Für die
-technische Referenz siehe
+This file explains the Billing Period concept from the domain perspective.
+For the technical reference see
 [F08 Billing Period](../features/F08-billing-period.md).
 
-## Was ist eine Billing Period?
+## What is a Billing Period?
 
-Eine **Billing Period** ist ein abgegrenzter Abrechnungszeitraum,
-für den zu einem bestimmten Zeitpunkt ein **Snapshot** der
-Balance-, Stunden- und Urlaubs-Zahlen jedes Sales Person erzeugt und
-in der Datenbank eingefroren wird.
+A **Billing Period** is a bounded billing time range for which, at a
+specific point in time, a **Snapshot** of every Sales Person's Balance,
+hours, and vacation figures is generated and frozen in the database.
 
-**Zweck:** Eine Abrechnung / ein Ausdruck / eine Auszahlung soll nicht
-davon abhängen, wann der Report genau geöffnet wird. Wenn die
-HR-Person am 3. des Monats den Snapshot für den Vormonat erzeugt hat,
-soll er am 30. desselben Monats denselben Wert zeigen — auch wenn in
-der Zwischenzeit rückwirkend Bookings korrigiert wurden.
+**Purpose:** A billing document / printout / payout must not depend on
+exactly when the report is opened. If the HR person generated the
+Snapshot for the previous month on the 3rd, it must display the same
+value on the 30th of the same month — even if Bookings were corrected
+retroactively in the meantime.
 
-## Vertrag: Write-Once + Versioniert
+## Contract: Write-Once + Versioned
 
-Zwei Regeln machen den Snapshot verlässlich:
+Two rules make the Snapshot reliable:
 
-### Regel 1: Write-Once
+### Rule 1: Write-Once
 
-Wenn eine Billing Period einmal geschrieben ist, ist ihr Inhalt fix.
-Nachträgliche Bookings, Absences, Extra-Hours werden **nicht**
-zurück in den Snapshot geschrieben. Das ist absichtlich.
+Once a Billing Period is written, its contents are fixed. Subsequent
+Bookings, Absences, Extra Hours are **not** written back into the
+Snapshot. This is intentional.
 
-**Konsequenz für User:** Der Live-Report (Weekly Overview, My Shifts)
-kann von der Billing-Period abweichen, wenn nachträglich Daten
-geändert wurden. Beide Zahlen sind valide — die eine ist "was am 3.
-war", die andere "was heute ist".
+**Consequence for the user:** The live report (Weekly Overview, My
+Shifts) may deviate from the Billing Period if data was changed after
+the fact. Both numbers are valid — one is "what it was on the 3rd", the
+other is "what it is today".
 
-### Regel 2: Versionierung (`snapshot_schema_version`)
+### Rule 2: Versioning (`snapshot_schema_version`)
 
-Jede Billing-Period-Zeile trägt eine Versions-Nummer:
-`snapshot_schema_version: u32`, aktuell **12**.
+Every Billing Period row carries a version number:
+`snapshot_schema_version: u32`, currently **12**.
 
-Diese Zahl sagt: "Zum Zeitpunkt, als dieser Snapshot geschrieben
-wurde, galten diese Rechenregeln."
+This number says: "At the time this Snapshot was written, these
+calculation rules were in effect."
 
-**Wenn sich die Rechenregeln ändern** (neue Kategorie, andere Formel,
-anderer Input-Set), muss die Version um 1 erhöht werden. Der Grund:
-Ein Validator, der Live-Rechnung gegen Snapshot vergleicht, kann
-sonst nicht unterscheiden zwischen:
+**If the calculation rules change** (new category, different formula,
+different input set), the version must be incremented by 1. The reason:
+A validator that compares the live calculation against the Snapshot
+would otherwise be unable to distinguish between:
 
-- "Der Snapshot ist falsch" (echter Datenbug) und
-- "Der Snapshot wurde unter alten Regeln geschrieben" (erwarteter
-  Diff wegen Regeländerung).
+- "The Snapshot is wrong" (real data bug) and
+- "The Snapshot was written under the old rules" (expected diff due to
+  a rule change).
 
-Ohne Version wären alle Alt-Snapshots nach einer Formeländerung
-plötzlich "falsch" — jedes Post-Mortem wäre sinnlos.
+Without the version, all old Snapshots would suddenly be "wrong" after a
+formula change — any post-mortem would be pointless.
 
-**Mit Version:** Validator liest die Version des Snapshots. Wenn
-niedriger als aktuelle Konstante → alte Regeln, Diff erwartet.
-Wenn gleich → aktuelle Regeln, Diff ist ein Bug.
+**With the version:** The validator reads the Snapshot's version. If
+lower than the current constant → old rules, diff expected. If equal →
+current rules, diff is a bug.
 
-## Wann eine Bump-Pflicht besteht
+## When a bump is required
 
-**Bumpe die Version wenn du:**
+**Bump the version when you:**
 
-1. Einen neuen persistierten `value_type` zu `billing_period_sales_person`
-   hinzufügst.
-2. Einen bestehenden `value_type` entfernst oder umbenennst.
-3. Die Berechnung eines existierenden `value_type` änderst.
-4. Den Input-Set änderst (z.B. eine neue Extra-Hours-Kategorie mit-
-   aggregierst).
+1. Add a new persisted `value_type` to `billing_period_sales_person`.
+2. Remove or rename an existing `value_type`.
+3. Change the computation of an existing `value_type`.
+4. Change the input set (e.g. co-aggregate a new Extra Hours category).
 
-**Bumpe NICHT wenn du:**
+**Do NOT bump when you:**
 
-1. Rein additive Änderungen machst, die keinen `value_type` berühren
-   (neue REST-Endpoints, Frontend-Änderungen, neue Spalten auf
-   unrelated Tabellen).
-2. Interne Refactorings machst, die identisches Ergebnis liefern.
+1. Make purely additive changes that do not touch any `value_type` (new
+   REST endpoints, frontend changes, new columns on unrelated tables).
+2. Do internal refactorings that produce identical output.
 
-**Technische Referenz:** Die Konstante ist
+**Technical reference:** The constant is
 `service_impl::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION`
-und wird vom Writer in
-`build_and_persist_billing_period_report()` gestempelt. Siehe
-[F08](../features/F08-billing-period.md) für den Code-Nachweis.
+and is stamped by the writer in
+`build_and_persist_billing_period_report()`. See
+[F08](../features/F08-billing-period.md) for the code reference.
 
-## Vier Report-Sichten pro Snapshot
+## Four report views per Snapshot
 
-Ein Snapshot enthält vier Aggregat-Sichten:
+A Snapshot contains four aggregate views:
 
-- **`value_ytd_from`** — Year-to-date bis zum Start der Periode.
-- **`value_ytd_to`** — Year-to-date bis zum Ende der Periode.
-- **`value_full_year`** — Ganzjahressumme.
-- **`value_delta`** — Differenz Ende − Start (= das, was in der Periode
-  passierte).
+- **`value_ytd_from`** — Year-to-date up to the start of the period.
+- **`value_ytd_to`** — Year-to-date up to the end of the period.
+- **`value_full_year`** — Full-year sum.
+- **`value_delta`** — Difference end − start (= what happened during the
+  period).
 
-Für jeden `value_type` (Balance, Worked Hours, Vacation Used, …) gibt
-es diese vier Sichten.
+For every `value_type` (Balance, Worked Hours, Vacation Used, …) these
+four views exist.
 
-## Wer welchen Snapshot lesen darf
+## Who is allowed to read which Snapshot
 
-- **HR:** Alle Billing Periods sehen und anlegen.
-- **Sales Person:** Nur eigene Historie in Billing Period Details.
-- **[Zu prüfen]** genaue Auth-Gates — siehe F08.
+- **HR:** See and create all Billing Periods.
+- **Sales Person:** Only their own history in Billing Period Details.
+- **[To verify]** exact auth gates — see F08.
 
-## Wann Snapshots ins Bild kommen
+## When Snapshots come into play
 
-- **Monatsende / Quartalsende:** HR erzeugt den Snapshot für die
-  vergangene Periode. Ab dem Moment ist die Zahl "offiziell".
-- **Jahresende:** Der Ganzjahres-Snapshot dient als Basis für den
-  Carryover ins Folgejahr.
-- **Ad-hoc:** HR kann jederzeit einen Zeitraum-Snapshot erzeugen — für
-  Zeugnisse, Abrechnungen, Kontrollen.
+- **End of month / end of quarter:** HR generates the Snapshot for the
+  past period. From that moment on the number is "official".
+- **End of year:** The full-year Snapshot serves as the basis for the
+  Carryover into the following year.
+- **Ad-hoc:** HR can generate a time-range Snapshot at any time — for
+  reference letters, billing statements, audits.
 
-## Was NICHT im Snapshot ist
+## What is NOT in the Snapshot
 
-- **Booking-Details** — es wird nur die Aggregat-Stunde persistiert,
-  keine Zeile-für-Zeile-Sicht.
-- **Absence-Details** — nur die Summen.
-- **Textliche Kommentare** — Warnings, Week Messages sind live-only.
+- **Booking details** — only the aggregated hour is persisted, not a
+  row-by-row view.
+- **Absence details** — only the sums.
+- **Textual comments** — warnings, Week Messages are live-only.
 
-## Randfall-Referenzen
+## Edge-case references
 
-Siehe [`edge-cases.md#3-billing-period--snapshots`](./edge-cases.md#3-billing-period--snapshots)
-für die scharfen Kanten:
+See [`edge-cases.md#3-billing-period--snapshots`](./edge-cases.md#3-billing-period--snapshots)
+for the sharp edges:
 
-- Alter Snapshot auf neuem Code.
-- Bump-Vergessen nach Formeländerung.
-- Race Snapshot ↔ paralleler Write.
-- Kein Snapshot vorhanden — Live-Rechnung fällt ein.
-- Toggle-basierte Semantik-Änderung — MUSS bumpen.
+- Old Snapshot on new code.
+- Forgotten bump after a formula change.
+- Race Snapshot ↔ parallel write.
+- No Snapshot present — live calculation falls back in.
+- Toggle-based semantic change — MUST bump.
 
-## PR-Review-Muster
+## PR review pattern
 
-**Verpflichtender Check bei Änderungen an `billing_period_report.rs`:**
+**Mandatory check for changes to `billing_period_report.rs`:**
 
-1. Wurde `CURRENT_SNAPSHOT_SCHEMA_VERSION` gebumpt?
-2. Wenn ja, ist im PR-Text dokumentiert, warum?
-3. Wenn nein, ist geklärt, dass die Änderung wirklich additiv ist?
+1. Was `CURRENT_SNAPSHOT_SCHEMA_VERSION` bumped?
+2. If yes, is the PR text documenting why?
+3. If no, has it been clarified that the change is truly additive?
 
-Ohne diese Prüfung driftet die Snapshot-Semantik still.
+Without this check, Snapshot semantics drift silently.

@@ -1,102 +1,100 @@
-# Datenmodell
+# Data Model
 
-## Physisches Schema (ER)
+## Physical schema (ER)
 
-Das aktuelle ER-Modell wird automatisch aus den `migrations/sqlite/`-
-Dateien generiert und ist in
-[`diagrams/db-schema-er.mmd`](./diagrams/db-schema-er.mmd) als
-Mermaid-Diagramm hinterlegt.
+The current ER model is generated automatically from the
+`migrations/sqlite/` files and lives as a Mermaid diagram in
+[`diagrams/db-schema-er.mmd`](./diagrams/db-schema-er.mmd).
 
-## Logisches Modell (Aggregate)
+## Logical model (aggregates)
 
-Die Aggregat-Sicht — welche Objekte fachlich zusammengehören und wie
-Business-Regeln die Grenzen ziehen — ist in
+The aggregate view — which objects belong together from a domain
+perspective and how business rules draw the boundaries — is in
 [`diagrams/domain-aggregates.mmd`](./diagrams/domain-aggregates.mmd).
 
-Kern-Aggregate:
+Core aggregates:
 
 - **Employee** — Sales Person + Work Details (Contract) + Unavailable + Vacation Offset.
 - **Shiftplan** — Slots + Catalog + Special Days.
 - **Booking** — Booking + Booking Log.
-- **Absence** (v1.0+) — range-basierte Abwesenheiten.
-- **Legacy Extra Hours** (vor Cutover) — Single-Day-Zeilen + Custom-Kategorien.
+- **Absence** (v1.0+) — range-based absences.
+- **Legacy Extra Hours** (pre-cutover) — single-day rows + custom categories.
 - **Accounting** — Carryover + Vacation Balance + Report.
-- **Billing Period** — Snapshot mit `snapshot_schema_version`.
+- **Billing Period** — snapshot with `snapshot_schema_version`.
 - **Week Metadata** — Week Status + Week Message.
 - **Auth & Session** — User + Role + Session + Invitation.
 - **System** — Feature Flag + Toggle + Scheduler.
 
-## Konventionen im Schema
+## Schema conventions
 
-### Soft-Delete
+### Soft delete
 
-Fast jede Tabelle hat eine `deleted` (nullable timestamp) Spalte. Reader
-filtern **immer** `WHERE deleted IS NULL`. Das ist eine Konvention, kein
-DB-Constraint — d.h. Reviewer müssen prüfen, dass jeder neue
-`query!`/`query_as!` diesen Filter setzt.
+Almost every table has a `deleted` (nullable timestamp) column. Readers
+**always** filter `WHERE deleted IS NULL`. This is a convention, not a
+DB constraint — meaning reviewers must confirm that every new
+`query!` / `query_as!` sets that filter.
 
-### Time-Spalten
+### Time columns
 
-- **`from` / `to` (Date):** Halb-offene Ranges? Geschlossene? Konvention
-  variiert pro Tabelle. **[Zu prüfen]** in `absence`, `employee_work_details`,
-  `sales_person`.
-- **Timestamps:** Speichern SQLite-native. Zeitzone: **[Zu prüfen]**
-  (UTC vs Local-Berlin).
+- **`from` / `to` (Date):** Half-open ranges? Closed ranges? The
+  convention varies per table. **[To verify]** in `absence`,
+  `employee_work_details`, `sales_person`.
+- **Timestamps:** stored SQLite-native. Timezone: **[To verify]**
+  (UTC vs local Berlin).
 
-### Foreign Keys
+### Foreign keys
 
-SQLite prüft FKs nur, wenn `PRAGMA foreign_keys = ON` aktiv ist. Ob
-Shifty das global setzt: **[Zu prüfen]** im Startup-Pfad.
+SQLite enforces FKs only if `PRAGMA foreign_keys = ON` is active. Whether
+Shifty sets this globally: **[To verify]** in the startup path.
 
 ### Views
 
-Manche Aggregat-Reads gehen über Views (`bookings_view` — Migration
-`20240728155625_add-bookings-view.sql`, erweitert um User-Tracking in
-`20250115000001_update-bookings-view-add-user-tracking.sql`). Views sind
-komfortabel, aber ändern sich mit ihren zugrunde liegenden Tabellen —
-Migration-Ordnung beachten.
+Some aggregate reads go through views (`bookings_view` — migration
+`20240728155625_add-bookings-view.sql`, extended with user tracking in
+`20250115000001_update-bookings-view-add-user-tracking.sql`). Views are
+convenient but shift with their underlying tables — mind the
+migration order.
 
-### Enum-Spalten
+### Enum columns
 
-Kategorien wie `ExtraHoursCategory` werden als `TEXT` mit Enum-Namen
-persistiert (z.B. `"ExtraWork"`, `"Vacation"`). Neue Varianten brauchen
-sowohl Code-Change (Enum-Erweiterung + Konvertierung) als auch
-DB-Migration, wenn ein Constraint / Check die Werte einschränkt.
+Categories like `ExtraHoursCategory` are persisted as `TEXT` with the
+enum names (e.g. `"ExtraWork"`, `"Vacation"`). New variants require both
+a code change (enum extension + conversion) and a DB migration if a
+constraint / check restricts the values.
 
-**[Zu prüfen]** — ob es explizite CHECK-Constraints auf Category-Spalten
-gibt.
+**[To verify]** — whether there are explicit CHECK constraints on
+category columns.
 
-## Migration-Historie (High-Level)
+## Migration history (high level)
 
-Chronologisch geordnet — Details siehe die einzelnen Feature-Dokus:
+Chronologically ordered — details in the individual feature docs:
 
-| Zeitraum | Meilenstein |
+| Period | Milestone |
 | --- | --- |
-| 2024-04 | User & Rollen, initiale RBAC. |
-| 2024-05 – 2024-07 | Slot + Sales Person + Booking + Booking-View. |
-| 2024-08 | `min_resources`-Spalte. |
-| 2024-10 | Special-Days-Tabelle, Weekday + Vacation auf Working Days. |
-| 2024-11 | Session-Tabelle, Constraint-Verschärfung. |
-| 2024-12 | Yearly Carryover (Hours + Vacation). |
-| 2025-01 | User-Tracking auf Bookings + View, Week-Message. |
-| 2025-04 | Custom Extra Hours. |
-| 2025-08 | Billing Period, Text Template. |
-| 2025-10 | User Invitation, Session-Tracking. |
-| 2026+ | Absence-System-Cutover, Multi-Plan-Support. |
+| 2024-04 | Users & roles, initial RBAC. |
+| 2024-05 – 2024-07 | Slot + Sales Person + Booking + Booking view. |
+| 2024-08 | `min_resources` column. |
+| 2024-10 | Special-days table, weekday + vacation on working days. |
+| 2024-11 | Session table, constraint tightening. |
+| 2024-12 | Yearly carryover (hours + vacation). |
+| 2025-01 | User tracking on bookings + view, week message. |
+| 2025-04 | Custom extra hours. |
+| 2025-08 | Billing period, text template. |
+| 2025-10 | User invitation, session tracking. |
+| 2026+ | Absence-system cutover, multi-plan support. |
 
-Die vollständige Liste steht in `migrations/sqlite/` — Dateinamen sind
-sortiert nach Zeitstempel-Prefix.
+The complete list lives in `migrations/sqlite/` — file names are sorted
+by their timestamp prefix.
 
-## Wo das Datenmodell "spricht"
+## Where the data model "speaks"
 
-- **Basic-Service-DAOs** kennen ihre Tabelle direkt.
-- **Business-Logic-Services** kennen keine DAOs außer die transitiv
-  über konsumierte Basic-Services.
-- **Reporting** liest über mehrere Aggregate hinweg und ist damit die
-  Stelle, an der Schema-Änderungen am schnellsten Kontakt zur
-  Balance-Rechnung bekommen.
+- **Basic-service DAOs** know their table directly.
+- **Business-Logic Services** know no DAOs beyond what is transitively
+  reached through the Basic Services they consume.
+- **Reporting** reads across several aggregates and is therefore the
+  place where schema changes hit the balance calculation the fastest.
 
-## Verwandte Randfälle
+## Related edge cases
 
-- Soft-Delete-Konsistenz → [`../domain/edge-cases.md#8-soft-delete-konsistenz`](../domain/edge-cases.md#8-soft-delete-konsistenz)
-- `.sqlx`-Cache und Migrations → [`../domain/edge-cases.md#10-migrations--sqlx-offline-cache`](../domain/edge-cases.md#10-migrations--sqlx-offline-cache)
+- Soft-delete consistency → [`../domain/edge-cases.md#8-soft-delete-konsistenz`](../domain/edge-cases.md#8-soft-delete-konsistenz)
+- `.sqlx` cache and migrations → [`../domain/edge-cases.md#10-migrations--sqlx-offline-cache`](../domain/edge-cases.md#10-migrations--sqlx-offline-cache)

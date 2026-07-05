@@ -1,19 +1,19 @@
-# Testing — Konventionen & Gates
+# Testing — Conventions & Gates
 
-## Zwei Test-Ebenen
+## Two Test Levels
 
-- **Unit-Tests** — Mocken die Trait-Grenzen. Kein Datenbank-, kein
-  HTTP-Zugriff. Test-Runtime in Millisekunden. Fokus: einzelne Business-Regel.
-- **Integration-Tests** — In-Memory-SQLite, echte DAOs, echte Services.
-  Testen ganze Aggregat-Flows: Booking anlegen → Log geschrieben →
-  Report zeigt es korrekt.
+- **Unit tests** — Mock the trait boundaries. No database, no HTTP
+  access. Test runtime in milliseconds. Focus: a single business rule.
+- **Integration tests** — In-memory SQLite, real DAOs, real services.
+  Test entire aggregate flows: create booking → log written → report
+  shows it correctly.
 
-## Unit-Tests mit `mockall`
+## Unit Tests with `mockall`
 
-Jeder Trait in `service/` und `dao/` hat ein `#[cfg_attr(test, automock)]`.
-Das erzeugt `MockFooService` etc.
+Every trait in `service/` and `dao/` has a `#[cfg_attr(test, automock)]`.
+This generates `MockFooService` etc.
 
-**Muster:**
+**Pattern:**
 
 ```rust
 #[tokio::test]
@@ -32,97 +32,97 @@ async fn create_booking_denies_without_role() {
 }
 ```
 
-Test-Dateien liegen unter `service_impl/src/test/` — ein Modul pro
-Domäne (`test/booking.rs`, `test/absence.rs`, …).
+Test files live under `service_impl/src/test/` — one module per
+domain (`test/booking.rs`, `test/absence.rs`, …).
 
-## Integration-Tests
+## Integration Tests
 
-**In-Memory-SQLite** wird über SQLx-Setup mit `sqlite::memory:` gestartet.
-Migrations laufen beim Test-Start. Danach: echte Services über echte
+**In-memory SQLite** is started via SQLx setup with `sqlite::memory:`.
+Migrations run at test startup. After that: real services over real
 DAOs.
 
-**Helper-Traits** wie `NoneTypeExt` bauen `Authentication`-Kontexte für
-Tests kompakt zusammen.
+**Helper traits** like `NoneTypeExt` compose `Authentication` contexts
+for tests concisely.
 
-## Test-Coverage-Erwartung
+## Test Coverage Expectation
 
-- **Neue Business-Regel:** Immer ein Unit-Test, der die Regel isoliert
-  prüft (auch die Deny-Fälle).
-- **Neuer REST-Endpoint:** OpenAPI-Annotation + mindestens ein
-  Integration-Test für Happy-Path + einen Fehlerfall.
-- **Neue Migration mit Semantik-Änderung:** Regression-Test, der beweist,
-  dass alte Daten nach Migration weiter funktionieren.
-- **Re-Point-Op (Slot-Split, Booking-Migration):** Test gegen
-  Doppelzählung im Report. **Verpflichtend**, siehe
+- **New business rule:** Always a unit test that checks the rule in
+  isolation (including the deny cases).
+- **New REST endpoint:** OpenAPI annotation + at least one integration
+  test for the happy path plus one error case.
+- **New migration with semantic change:** Regression test that proves
+  old data continues to work after the migration.
+- **Re-point op (slot split, booking migration):** Test against
+  double-counting in the report. **Mandatory**, see
   [`../domain/edge-cases.md#7-transaktionen--atomarität`](../domain/edge-cases.md#7-transaktionen--atomarität).
-- **Snapshot-Erzeugung mit neuem `value_type`:** Bump von
-  `CURRENT_SNAPSHOT_SCHEMA_VERSION` und Test, dass Alt-Snapshot noch
-  gelesen wird.
+- **Snapshot generation with a new `value_type`:** Bump
+  `CURRENT_SNAPSHOT_SCHEMA_VERSION` and add a test that the old
+  snapshot can still be read.
 
-## Test-Gates (was CI und `nix build` erzwingen)
+## Test Gates (what CI and `nix build` enforce)
 
-Die Pipeline besteht aus mehreren Stufen. **Nur die letzte ist
-verbindlich:**
+The pipeline consists of several stages. **Only the last one is
+binding:**
 
-| Stufe | Was läuft | Genug? |
+| Stage | What runs | Enough? |
 | --- | --- | --- |
-| `cargo build` | Kompiliert | **Nein** |
-| `cargo test` | Führt Unit + Integration aus | **Nein** |
-| `cargo clippy --workspace -- -D warnings` | Lint-Check | **Nein** allein |
-| `SQLX_OFFLINE=true cargo test` | Test mit Offline-Cache | **Nein** allein |
-| **`nix build`** | Alle Stufen + Reproducibility-Check | **Ja** |
+| `cargo build` | Compiles | **No** |
+| `cargo test` | Runs unit + integration | **No** |
+| `cargo clippy --workspace -- -D warnings` | Lint check | **No** alone |
+| `SQLX_OFFLINE=true cargo test` | Test with offline cache | **No** alone |
+| **`nix build`** | All stages + reproducibility check | **Yes** |
 
-**Wichtig:** `cargo test` alleine reicht **nicht**. `nix build` erzwingt
-`cargo clippy -- --deny warnings`. Jedes Phase-Gate (auch autonome
-Phase-Execution) MUSS `cargo clippy --workspace -- -D warnings`
-mitfahren, sonst schlägt der finale Build fehl.
+**Important:** `cargo test` alone is **not** enough. `nix build`
+enforces `cargo clippy -- --deny warnings`. Every phase gate (including
+autonomous phase execution) MUST run `cargo clippy --workspace -- -D warnings`
+alongside, otherwise the final build fails.
 
-Siehe `.github/workflows/rust.yml` für die CI-Definition.
+See `.github/workflows/rust.yml` for the CI definition.
 
-## sqlx-Offline-Cache
+## sqlx Offline Cache
 
-CI läuft mit `SQLX_OFFLINE=true`. SQLx greift dann auf den `.sqlx/`-Cache
-zurück statt auf eine echte Datenbank.
+CI runs with `SQLX_OFFLINE=true`. SQLx then falls back to the
+`.sqlx/` cache instead of a real database.
 
-**Regel:** Nach jeder neuen `query!`/`query_as!`-Verwendung muss
-`cargo sqlx prepare --workspace` laufen und der `.sqlx/`-Cache
-mitcommittet werden.
+**Rule:** After every new `query!`/`query_as!` usage, run
+`cargo sqlx prepare --workspace` and commit the `.sqlx/` cache.
 
-Wenn du das vergisst:
+If you forget:
 
-- Inkrementeller Build kann grün sein (Cache noch da).
-- Clean-Build (CI) failt.
-- `cargo test --doc` failt (nutzt anderes Target).
-- Phase 33 hat das mit "wieso ist CI rot obwohl alles grün" gefunden.
+- Incremental build may be green (cache still there).
+- Clean build (CI) fails.
+- `cargo test --doc` fails (uses a different target).
+- Phase 33 found this with "why is CI red even though everything is green".
 
-## Toolchain-Split (Backend vs Frontend)
+## Toolchain Split (Backend vs Frontend)
 
-Der Backend-Workspace nutzt eine andere Rust-Toolchain und einen
-anderen Clippy-Level als `shifty-dioxus/`:
+The backend workspace uses a different Rust toolchain and a different
+clippy level than `shifty-dioxus/`:
 
 - Backend: Strict, `clippy -D warnings`.
-- Frontend: Aus dem Backend-CI-Clippy **ausgeschlossen** — enthält
-  ~198 pre-existing Lints, die als Backlog geführt werden.
-- Clippy im dioxus-Shell ist zusätzlich funktional kaputt (E0514) und
-  muss aus dem Backend-Shell heraus laufen, wenn man ihn braucht.
+- Frontend: **Excluded** from the backend CI clippy — contains ~198
+  pre-existing lints tracked as backlog.
+- Clippy in the dioxus shell is additionally functionally broken (E0514)
+  and must be run from the backend shell if you need it.
 
-**Konsequenz:** Neue Frontend-Lints driften unbemerkt. Wenn du im
-Frontend arbeitest, führe Clippy manuell durch — es fährt kein Gate.
+**Consequence:** New frontend lints drift unnoticed. If you work in
+the frontend, run clippy manually — no gate runs it.
 
-## Test-Isolation
+## Test Isolation
 
-- **Nicht parallelisieren, wenn DB-Fixtures geteilt.** SQLite-In-Memory-DBs
-  sind pro Test isoliert; nur wenn ein Test-Fixture explizit geteilt wird
-  (was in Shifty nicht der Fall ist), können Race-Condition-Tests entstehen.
-- **Time-Sensitive-Tests:** Verwenden `MockClockService`, um "heute"
-  deterministisch zu setzen.
+- **Do not parallelize if DB fixtures are shared.** SQLite in-memory
+  DBs are isolated per test; only when a test fixture is explicitly
+  shared (which is not the case in Shifty) can race-condition tests
+  arise.
+- **Time-sensitive tests:** Use `MockClockService` to set "today"
+  deterministically.
 
-## Was NICHT getestet ist
+## What is NOT Tested
 
-- **RBAC-Deny-Pfade in Dev.** Weil `mock_auth` immer Admin ist, laufen
-  Deny-Wege in E2E-Dev nie durch. **Konvention:** Explizite Unit-Tests
-  für "kein Admin, nur Rolle X" sind Pflicht.
-- **UI-E2E.** Es gibt keine automatische Browser-Test-Suite. Frontend-Änderungen
-  werden manuell verifiziert; für kritische Flows im Zweifel Browser-Automation
-  einsetzen (siehe [`06-frontend.md`](./06-frontend.md)).
-- **Load / Concurrency.** Kein systematischer Load-Test.
+- **RBAC deny paths in dev.** Because `mock_auth` is always Admin,
+  deny paths never fire in E2E dev. **[Convention]** Explicit unit
+  tests for "not admin, only role X" are mandatory.
+- **UI E2E.** There is no automated browser test suite. Frontend
+  changes are verified manually; for critical flows, use browser
+  automation when in doubt (see [`06-frontend.md`](./06-frontend.md)).
+- **Load / concurrency.** No systematic load test.

@@ -1,81 +1,80 @@
-# OpenAPI & Swagger-UI
+# OpenAPI & Swagger UI
 
-## Wo das Schema lebt
+## Where the schema lives
 
-Das OpenAPI-Schema wird über [utoipa](https://docs.rs/utoipa)
-zur Compile-Zeit aus Rust-Code generiert:
+The OpenAPI schema is generated from Rust code at compile time via
+[utoipa](https://docs.rs/utoipa):
 
-- **Route-Annotationen** — `#[utoipa::path(...)]` auf jedem
-  REST-Handler.
-- **Schema-Ableitung** — `#[derive(ToSchema)]` auf jedem DTO in
+- **Route annotations** — `#[utoipa::path(...)]` on every REST handler.
+- **Schema derivation** — `#[derive(ToSchema)]` on every DTO in
   `rest-types/src/`.
-- **Zusammensetzen** — `ApiDoc` in `rest/src/lib.rs` oder ähnlich
-  aggregiert alle annotierten Handler und Schemas.
+- **Aggregation** — `ApiDoc` in `rest/src/lib.rs` or equivalent gathers
+  all annotated handlers and schemas.
 
-## Swagger-UI
+## Swagger UI
 
-Im laufenden Backend erreichbar unter:
+Reachable on a running backend at:
 
 ```
 http://<host>:<port>/swagger-ui
 ```
 
-**[Zu prüfen]** — genauer Pfad.
+**[To verify]** — exact path.
 
-Für Zweit-Client-Devs ist Swagger-UI die verbindliche Referenz für
-Endpoint-Signaturen, DTOs und Beispiele.
+For second-client developers, Swagger UI is the authoritative reference
+for endpoint signatures, DTOs, and examples.
 
-## Authentifizierung im API
+## API authentication
 
-- **`mock_auth`-Build:** Keine echte Auth — jeder Request wird als
-  Admin behandelt. Nur für Dev.
-- **`oidc`-Build:** OpenID Connect. Bearer-Token im `Authorization`-Header.
+- **`mock_auth` build:** no real auth — every request is treated as
+  admin. Dev only.
+- **`oidc` build:** OpenID Connect. Bearer token in the `Authorization`
+  header.
 
 Details: [`../architecture/04-auth.md`](../architecture/04-auth.md).
 
-## Error-Mapping
+## Error mapping
 
-Alle REST-Handler routen `ServiceError` durch einen zentralen
-`error_handler`-Wrapper. Die Mapping-Tabelle:
+All REST handlers route `ServiceError` through a central `error_handler`
+wrapper. Mapping table:
 
-| ServiceError | HTTP-Status | Wann |
+| ServiceError | HTTP status | When |
 | --- | --- | --- |
-| `Unauthorized` | 401 | Kein / ungültiger Auth-Token |
-| `Forbidden` | 403 | Auth ok, aber Rolle reicht nicht |
-| `NotFound` | 404 | Entity existiert nicht (oder soft-deleted) |
-| `ValidationError(...)` | 400 | Bad Request Body / Params |
-| `Conflict(...)` | 409 | Duplikat, Overlap, Race |
-| `InternalError(...)` | 500 | Alles andere |
+| `Unauthorized` | 401 | Missing / invalid auth token |
+| `Forbidden` | 403 | Auth ok, but role insufficient |
+| `NotFound` | 404 | Entity does not exist (or is soft-deleted) |
+| `ValidationError(...)` | 400 | Bad request body / params |
+| `Conflict(...)` | 409 | Duplicate, overlap, race |
+| `InternalError(...)` | 500 | Everything else |
 
-**[Zu prüfen]** — genaue Enum-Varianten in `service/src/lib.rs` oder
+**[To verify]** — exact enum variants in `service/src/lib.rs` or
 `service_impl/src/lib.rs`.
 
-## DTO-Konventionen
+## DTO conventions
 
-- **Naming:** DTOs enden auf `TO` (Transport Object), z.B. `BookingTO`,
+- **Naming:** DTOs end with `TO` (transport object), e.g. `BookingTO`,
   `SalesPersonTO`.
-- **Wire-Format:** JSON.
-- **UUIDs:** Als String (hyphenated).
+- **Wire format:** JSON.
+- **UUIDs:** as string (hyphenated).
 - **Dates:** ISO 8601 (`YYYY-MM-DD`).
-- **Timestamps:** ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`) — **[Zu prüfen]**
-  ob mit Zeitzone.
-- **Enums:** Als String (Variant-Name).
+- **Timestamps:** ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`) — **[To verify]**
+  whether with timezone.
+- **Enums:** as string (variant name).
 
 ## Pagination
 
-**[Zu prüfen]** — ob Shifty offset-basierte oder cursor-basierte
-Pagination verwendet. In vielen Endpoints scheint es aktuell keine
-zu geben (Full-Liste).
+**[To verify]** — whether Shifty uses offset-based or cursor-based
+pagination. Many endpoints currently appear to have none (full list).
 
-## Idempotenz
+## Idempotency
 
-**[Zu prüfen]** — welche Endpoints sind idempotent (safe retry), welche
-nicht.
+**[To verify]** — which endpoints are idempotent (safe to retry) and
+which are not.
 
-## Feature-Endpoint-Übersicht
+## Per-feature endpoint overview
 
-Pro Feature-Cluster gibt es eine eigene REST-Tabelle in der jeweiligen
-Feature-Doku:
+Each feature cluster has its own REST table in the corresponding feature
+doc:
 
 - [F01 Employee Management](../features/F01-employee-management.md#5-rest-endpoints)
 - [F02 Shiftplan Core](../features/F02-shiftplan-core.md#5-rest-endpoints)
@@ -91,17 +90,18 @@ Feature-Doku:
 - [F12 Auth & Session](../features/F12-auth-session.md#5-rest-endpoints)
 - [F13 System Infrastructure](../features/F13-system-infrastructure.md#5-rest-endpoints)
 
-## Für Zweit-Client-Entwickler
+## For second-client developers
 
-Wenn du einen eigenen Client baust (Mobile, CLI, Automation):
+If you build your own client (mobile, CLI, automation):
 
-1. Lies [`../README.md`](../README.md) und speziell das Prinzip
-   "Fat Backend, Thin Client".
-2. Generiere Client-Code aus dem OpenAPI-Schema (viele Sprachen haben
-   Generator-Tools).
-3. Beachte, dass Balance-Rechnung, Konflikt-Prüfung und Snapshot-Semantik
-   **nicht** im Client dupliziert werden — immer über die Backend-API.
-4. Für Ist-Zustand (Live-Report) einen Endpoint mit hinreichend
-   spezifischer Zeitraum-Selektion nutzen.
-5. Für Historie (Abrechnung) IMMER Billing-Period-Endpoints — nie
-   Live-Rechnung, weil diese driftet.
+1. Read [`../README.md`](../README.md), especially the "Fat Backend,
+   Thin Client" principle.
+2. Generate client code from the OpenAPI schema (most languages have
+   generator tooling).
+3. Note that balance calculation, conflict checks, and snapshot
+   semantics are **not** to be duplicated in the client — always go
+   through the backend API.
+4. For current state (live report), use an endpoint with a sufficiently
+   specific date-range selection.
+5. For history (billing), ALWAYS use the billing-period endpoints —
+   never a live recomputation, since it drifts.

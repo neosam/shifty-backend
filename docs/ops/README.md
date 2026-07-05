@@ -1,52 +1,52 @@
-# Operations — Betrieb, Deployment, Konfiguration
+# Operations — Running, Deployment, Configuration
 
-Diese Sektion richtet sich an alle, die Shifty **betreiben**, deployen,
-migrieren oder konfigurieren.
+This section targets everyone who **operates** Shifty, deploys it,
+migrates it, or configures it.
 
-## Kapitel
+## Chapters
 
-- **[deployment.md](./deployment.md)** — NixOS-Deployment über
-  `shifty-nix`, Release-Prozess (`/release-version`), Version-Pinning.
-- **[database.md](./database.md)** — SQLx-Migrations, `sqlx migrate run` vs
-  `sqlx database reset`, `.sqlx/`-Cache für Offline-Builds, Backup-Strategie.
-- **[configuration.md](./configuration.md)** — Environment-Variablen,
-  Feature-Flags (`mock_auth`, `oidc`, Logging-Modi), OIDC-Setup.
+- **[deployment.md](./deployment.md)** — NixOS deployment via
+  `shifty-nix`, release process (`/release-version`), version pinning.
+- **[database.md](./database.md)** — SQLx migrations, `sqlx migrate run` vs
+  `sqlx database reset`, `.sqlx/` cache for offline builds, backup strategy.
+- **[configuration.md](./configuration.md)** — Environment variables,
+  feature flags (`mock_auth`, `oidc`, logging modes), OIDC setup.
 
-## Kurzüberblick
+## Short Overview
 
-### Zwei Deploy-Formen
+### Two Deploy Forms
 
-1. **Development.** Backend läuft lokal auf Port 3000, Frontend via
-   `dx serve` auf Port 8080. Frontend proxied REST-Requests laut
-   `shifty-dioxus/Dioxus.toml`.
-2. **Production.** NixOS-Modul aus dem Nachbar-Repo `shifty-nix` deployed
-   das Backend als Systemd-Service. Das Frontend wird als statisches
-   WASM-Bundle ausgeliefert.
+1. **Development.** Backend runs locally on port 3000, frontend via
+   `dx serve` on port 8080. The frontend proxies REST requests according
+   to `shifty-dioxus/Dioxus.toml`.
+2. **Production.** The NixOS module from the neighboring `shifty-nix` repo
+   deploys the backend as a systemd service. The frontend is shipped as a
+   static WASM bundle.
 
-### Release-Fluss
+### Release Flow
 
-Der `/release-version`-Skill:
+The `/release-version` skill:
 
-1. Leitet die neue Version aus dem GSD-Milestone (`.planning/STATE.md`) und
-   den existierenden Git-Tags nach SemVer ab.
-2. Fragt Bestätigung, erzeugt Release Notes aus den Commits seit dem letzten
-   Tag.
-3. Ruft `./update_versions.sh` mit den Notes als Annotated-Tag-Message auf.
-4. Aktualisiert die Deploy-Pin in `../shifty-nix` und taggt sie.
+1. Derives the new version from the GSD milestone (`.planning/STATE.md`) and
+   the existing git tags following SemVer.
+2. Asks for confirmation, generates release notes from commits since the last
+   tag.
+3. Calls `./update_versions.sh` with the notes as the annotated tag message.
+4. Updates the deploy pin in `../shifty-nix` and tags it.
 
-Deploy selbst ist **manuell** — Push auf den Server erfolgt außerhalb dieser
-Automatik.
+The deploy itself is **manual** — pushing to the server happens outside this
+automation.
 
-### Kritische Ops-Randfälle
+### Critical Ops Edge Cases
 
-Siehe [`../domain/edge-cases.md`](../domain/edge-cases.md), speziell die
-Sektionen "Migrations & Schema" und "Snapshot-Versioning".
+See [`../domain/edge-cases.md`](../domain/edge-cases.md), especially the
+"Migrations & Schema" and "Snapshot Versioning" sections.
 
-Kurzfassung der schmerzhaftesten:
+Short version of the most painful ones:
 
-- **`sqlx database reset` ist destruktiv.** Nur additive `sqlx migrate run`
-  benutzen, außer wenn explizit die Dev-DB wegsoll.
-- **Nach neuer `query!/query_as!`-Query** muss `cargo sqlx prepare --workspace`
-  laufen und der `.sqlx/`-Cache mitcommittet werden — sonst failt CI.
-- **`nix build`** erzwingt `cargo clippy -- --deny warnings`. `cargo test`
-  alleine ist nicht ausreichend.
+- **`sqlx database reset` is destructive.** Use only additive `sqlx migrate run`,
+  except when you explicitly want to wipe the dev DB.
+- **After a new `query!/query_as!` query**, `cargo sqlx prepare --workspace`
+  must run and the `.sqlx/` cache must be committed — otherwise CI fails.
+- **`nix build`** enforces `cargo clippy -- --deny warnings`. `cargo test`
+  alone is not sufficient.

@@ -1,39 +1,39 @@
-# Onboarding — Neue Entwickler:innen
+# Onboarding — New Developers
 
-Diese Sektion bringt dich vom leeren Laptop zum ersten Merge.
+This section takes you from a blank laptop to your first merge.
 
-## Reihenfolge
+## Order
 
-1. **[first-week.md](./first-week.md)** — Was du in den ersten Tagen brauchst:
-   Repo klonen, Toolchain, Editor-Setup, Backend + Frontend starten, erster
-   Fake-Bug-Fix.
-2. **Architektur verstehen** — Bevor du Code schreibst, lies:
-   - [`../architecture/01-layered.md`](../architecture/01-layered.md) — Warum REST → Service → DAO → SQLite.
-   - [`../architecture/02-service-tiers.md`](../architecture/02-service-tiers.md) — Basic vs Business-Logic; wann welcher Service?
-   - [`../architecture/05-transactions.md`](../architecture/05-transactions.md) — Das `Option<Transaction>`-Pattern.
-3. **Fach kennen lernen** — Ohne Fach ist Code Roulette:
+1. **[first-week.md](./first-week.md)** — What you need in the first few days:
+   clone the repo, toolchain, editor setup, start backend + frontend, first
+   fake bug fix.
+2. **Understand the architecture** — Before you write code, read:
+   - [`../architecture/01-layered.md`](../architecture/01-layered.md) — Why REST → Service → DAO → SQLite.
+   - [`../architecture/02-service-tiers.md`](../architecture/02-service-tiers.md) — Basic vs Business-Logic; which service goes where?
+   - [`../architecture/05-transactions.md`](../architecture/05-transactions.md) — The `Option<Transaction>` pattern.
+3. **Learn the domain** — Without domain knowledge, code is roulette:
    - [`../domain/glossary.md`](../domain/glossary.md) — Sales Person, Slot, Booking, Absence, Balance, Billing Period.
-   - [`../domain/time-accounting.md`](../domain/time-accounting.md) — Wie das Stundenkonto berechnet wird.
-   - [`../domain/edge-cases.md`](../domain/edge-cases.md) — Die scharfen Kanten. Bitte lesen, bevor du am Reporting anfasst.
-4. **Konventionen respektieren**:
-   - [`../architecture/07-testing.md`](../architecture/07-testing.md) — Mockall, In-Mem-SQLite, `cargo sqlx prepare`, Clippy-Gate.
-   - [`../architecture/08-i18n.md`](../architecture/08-i18n.md) — Neue Strings brauchen En/De/Cs.
+   - [`../domain/time-accounting.md`](../domain/time-accounting.md) — How the time account is calculated.
+   - [`../domain/edge-cases.md`](../domain/edge-cases.md) — The sharp edges. Please read before touching reporting.
+4. **Respect conventions**:
+   - [`../architecture/07-testing.md`](../architecture/07-testing.md) — Mockall, in-mem SQLite, `cargo sqlx prepare`, clippy gate.
+   - [`../architecture/08-i18n.md`](../architecture/08-i18n.md) — New strings need En/De/Cs.
 
-## Wichtige Grundhaltung
+## Important Baseline Attitude
 
-- **Kein Fachwissen im Frontend duplizieren.** Rechnest du im UI Stunden aus,
-  ist der falsche Fluss. Rechne im Backend, sende das Ergebnis.
-- **Kein Hard-Delete.** Alle Löschungen sind Soft-Delete. Reader filtern
+- **Do not duplicate domain knowledge in the frontend.** If you are computing
+  hours in the UI, the flow is wrong. Compute in the backend, send the result.
+- **No hard-delete.** All deletions are soft-delete. Readers filter
   `deleted IS NULL`.
-- **Kein direkter `git commit`.** Dieses Repo läuft auf **jj** (co-located mit
-  git). Der GSD-Executor committet automatisch via git; manuelle Commits
-  gehen ausschließlich über `jj`.
-- **Kein Backend-Endpoint ohne `Dioxus.toml`-Proxy-Eintrag**, wenn das Frontend
-  ihn ansprechen soll — sonst 404 im `dx serve`-Dev-Modus.
+- **No direct `git commit`.** This repo runs on **jj** (co-located with
+  git). The GSD executor commits automatically via git; manual commits
+  go exclusively through `jj`.
+- **No backend endpoint without a `Dioxus.toml` proxy entry** if the frontend
+  is supposed to call it — otherwise you get 404 in `dx serve` dev mode.
 
-## Hilfe
+## Help
 
-- `.planning/` — GSD-Planungsartefakte für aktuelle und vergangene Phasen. Das
-  ist Kontext, warum ein Feature so aussieht, wie es aussieht.
-- `CLAUDE.md` (Repo-Root) — Kurzform der wichtigsten Konventionen.
-- Diese Doku ist das nachschlagbare Langformat davon.
+- `.planning/` — GSD planning artifacts for current and past phases. This
+  is context for why a feature looks the way it does.
+- `CLAUDE.md` (repo root) — short form of the most important conventions.
+- This documentation is the reference long-form of that.

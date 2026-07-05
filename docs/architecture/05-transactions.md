@@ -1,9 +1,9 @@
-# Transaktionen — `Option<Transaction>` überall
+# Transactions — `Option<Transaction>` everywhere
 
-Shifty verwaltet Transaktionen konsequent auf der Service-Ebene. Jede
-Service-Methode akzeptiert `Option<Self::Transaction>`.
+Shifty manages transactions consistently at the service layer. Every
+service method accepts `Option<Self::Transaction>`.
 
-## Das Kanonische Pattern
+## The Canonical Pattern
 
 ```rust
 async fn do_something(
@@ -14,40 +14,40 @@ async fn do_something(
 ) -> Result<T, ServiceError> {
     let tx = self.transaction_dao.use_transaction(tx).await?;
 
-    // ... business logic + DAO calls, jedes Mal tx.clone() ...
+    // ... business logic + DAO calls, tx.clone() each time ...
 
     self.transaction_dao.commit(tx).await?;
     Ok(result)
 }
 ```
 
-### Verhalten von `use_transaction`
+### Behavior of `use_transaction`
 
-- **`tx == None`:** Es wird eine neue TX geöffnet. Der Service ist
-  Owner. Am Ende committet er selbst.
-- **`tx == Some(existing)`:** Die äußere TX wird durchgereicht. Der
-  Service ist **nicht** Owner. Der Commit-Aufruf am Ende ist dann ein
-  No-op oder ein Delegate, das nicht wirklich committet.
+- **`tx == None`:** A new TX is opened. The service is the owner.
+  It commits itself at the end.
+- **`tx == Some(existing)`:** The outer TX is passed through. The
+  service is **not** the owner. The commit call at the end is then a
+  no-op or a delegate that does not actually commit.
 
-**[Zu prüfen]** Die exakte Semantik in der `TransactionDao`-Impl —
-konkret ob `commit` bei durchgereichtem TX kein tatsächliches SQL
-`COMMIT` fährt. Das ist die kritische Invariante, ohne die das Pattern
-kaputt ist.
+**[To verify]** The exact semantics in the `TransactionDao` impl —
+specifically whether `commit` on a passed-through TX runs no actual
+SQL `COMMIT`. This is the critical invariant without which the pattern
+is broken.
 
-## Warum so?
+## Why this way?
 
-Der Vorteil: **Komposition ohne Neu-Öffnung**.
+The advantage: **composition without re-opening**.
 
-Ein Business-Logic-Service kann drei Basic-Services in Folge aufrufen
-und muss sich nicht darum kümmern, ob jeder von denen eine eigene TX
-öffnet. Er öffnet **einmal** außen und reicht durch:
+A business-logic service can call three basic services in sequence
+without having to worry about whether each of them opens its own TX.
+It opens **once** on the outside and passes it through:
 
 ```rust
-// Business-Logic:
+// Business logic:
 async fn create_booking_with_conflict_check(...) -> Result<..., ServiceError> {
     let tx = self.transaction_dao.use_transaction(None).await?;
 
-    // Alle 3 Aufrufe fahren in derselben TX
+    // All 3 calls run in the same TX
     self.absence_service.assert_no_conflict(sp, date, tx.clone()).await?;
     let booking = self.booking_service.create(dto, ctx.clone(), Some(tx.clone())).await?;
     self.booking_log_service.log_create(&booking, ctx.clone(), Some(tx.clone())).await?;
@@ -57,43 +57,44 @@ async fn create_booking_with_conflict_check(...) -> Result<..., ServiceError> {
 }
 ```
 
-Wenn der Absence-Check den Konflikt findet, rollt die gesamte
-Operation zurück — Booking wurde nicht angelegt, Log auch nicht.
+If the absence check finds the conflict, the entire operation rolls
+back — the booking was not created, nor was the log.
 
-## Re-Point-Atomarität
+## Re-Point Atomicity
 
-Dieselbe Regel gilt für **Datenumzüge**: Slot-Split, Booking-Migration,
-alles, was Zeilen von einem Aggregat-Parent zu einem anderen bewegt.
+The same rule applies to **data moves**: slot splits, booking
+migrations, anything that moves rows from one aggregate parent to
+another.
 
-**Regel:** Alles in EINER Transaktion. Bei Fehler mid-way: Rollback,
-alle Zeilen bleiben am Ursprung.
+**Rule:** Everything in ONE transaction. On mid-way failure: rollback,
+all rows stay at the origin.
 
-Ohne diese Regel gibt es Zwischenzustände, die Reports doppelt zählen
-oder Zeilen unsichtbar machen. Phase 23 hat das schmerzlich gefunden:
-`modify_slot` ließ `max_paid_employees` fallen, weil der Update-Pfad
-nicht mit dem Create-Pfad harmonisiert war.
+Without this rule you get intermediate states that double-count in
+reports or make rows invisible. Phase 23 found this the hard way:
+`modify_slot` dropped `max_paid_employees` because the update path
+was not harmonized with the create path.
 
-**Konvention:** Für jede Re-Point-Op gibt es einen expliziten Test
-gegen Doppelzählung im Reporting.
+**[Convention]** For every re-point op there is an explicit test
+against double-counting in reporting.
 
-## SQLite-Spezifika
+## SQLite Specifics
 
-SQLite serialisiert Writes. Zwei parallele TX, die beide schreiben
-wollen, führen dazu, dass die zweite `BUSY` erhält.
+SQLite serializes writes. Two parallel TXs that both want to write
+lead to the second one receiving `BUSY`.
 
-- **Konsequenz:** Long-running-Reports in einer TX blockieren Writer.
-  Read-Ops nur dann in eine TX bündeln, wenn Konsistenz zwischen
-  mehreren Reads das erfordert (z.B. Snapshot-Erzeugung).
-- **[Zu prüfen]** Retry-Verhalten und Timeouts in der `TransactionDao`-Impl.
+- **Consequence:** Long-running reports in a TX block writers. Only
+  bundle read ops into a TX when consistency between multiple reads
+  requires it (e.g. snapshot generation).
+- **[To verify]** Retry behavior and timeouts in the `TransactionDao` impl.
 
-## Fehler & Rollback
+## Errors & Rollback
 
-- **`Result::Err`:** Ownership-Kette bricht ab, TX wird nicht committet.
-  SQLite rollt bei Drop implizit zurück. **[Zu prüfen]** ob explizites
-  `Rollback` auf Drop läuft.
-- **`panic!`:** Sollte in Services nicht vorkommen. Falls doch, ist die
-  Drop-Semantik der TX kritisch. **[Zu prüfen]**
+- **`Result::Err`:** The ownership chain breaks, the TX is not
+  committed. SQLite rolls back implicitly on Drop. **[To verify]**
+  whether an explicit `Rollback` runs on Drop.
+- **`panic!`:** Should not occur in services. If it does, the Drop
+  semantics of the TX are critical. **[To verify]**
 
-## Verwandte Randfälle
+## Related edge cases
 
-Siehe [`../domain/edge-cases.md#7-transaktionen--atomarität`](../domain/edge-cases.md#7-transaktionen--atomarität).
+See [`../domain/edge-cases.md#7-transaktionen--atomarität`](../domain/edge-cases.md#7-transaktionen--atomarität).
