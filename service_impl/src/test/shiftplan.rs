@@ -1278,12 +1278,16 @@ async fn test_current_paid_count_correct_for_non_hr_caller() {
 
 // ---- Phase-51 Chain B: Stichtag-Gate + effective_to (D-51-06, D-51-07, D-51-09) ----
 
-/// D-51-07: Vor Stichtag (`booking_date < active_from`) greift die
-/// ShortDay-Kürzung nicht. Ergebnis: Slot bleibt roh, `effective_to == slot.to`.
+/// D-51-07 + Gap-Closure (Chain B Legacy-Modus):
+/// Vor Stichtag (`booking_date < active_from`) greift die moderne Kürzung nicht,
+/// aber der Legacy-Filter (Pre-Phase-51) greift: ein Overlap-Slot mit
+/// `slot.to > cutoff` wird verworfen (Chain B / C ist Anzeige- + Aggregat-
+/// Ebene; Chain A' / Chain D bleiben in Modern-Mode → dort Keep(raw)).
 ///
 /// Fixture: ISO-Woche 2026-W31 → Tuesday = 2026-07-28. Stichtag 2026-08-01.
+/// Slot 12:00–15:00, Cutoff 14:00 → `slot.to > cutoff` → Drop.
 #[test]
-fn test_build_shiftplan_day_effective_to_unclipped_before_stichtag() {
+fn test_build_shiftplan_day_before_stichtag_legacy_drops_overlap() {
     let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
     let sp = default_sales_person();
     let short_day = SpecialDay {
@@ -1314,16 +1318,56 @@ fn test_build_shiftplan_day_effective_to_unclipped_before_stichtag() {
     )
     .unwrap();
 
+    assert!(
+        result.slots.is_empty(),
+        "Gap-Closure Chain B: Overlap-Slot vor Stichtag muss über Legacy-Filter \
+         gedroppt werden (slot.to > cutoff), got {} slots",
+        result.slots.len()
+    );
+}
+
+/// D-51-07 + Gap-Closure Companion:
+/// Vor Stichtag + Slot der spätestens am Cutoff endet (`slot.to <= cutoff`) →
+/// bleibt roh. Beweis dass der Legacy-Filter granular ist und nicht alle
+/// ShortDay-Slots hart droppt.
+#[test]
+fn test_build_shiftplan_day_before_stichtag_legacy_keeps_pre_cutoff() {
+    // Slot Tuesday 09:00–12:00, ShortDay-Cutoff 14:00 → slot.to (12:00) < cutoff.
+    let early_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 9, 12);
+    let sp = default_sales_person();
+    let short_day = SpecialDay {
+        id: Uuid::new_v4(),
+        year: 2026,
+        calendar_week: 31,
+        day_of_week: DayOfWeek::Tuesday,
+        day_type: SpecialDayType::ShortDay,
+        time_of_day: Some(Time::from_hms(14, 0, 0).unwrap()),
+        created: None,
+        deleted: None,
+        version: Uuid::new_v4(),
+    };
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+    let active_from = Some(Date::from_calendar_date(2026, Month::August, 1).unwrap());
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Tuesday,
+        std::slice::from_ref(&early_slot),
+        &[],
+        &[sp],
+        &[short_day],
+        None,
+        &paid_ids,
+        2026,
+        31,
+        active_from,
+    )
+    .unwrap();
+
     assert_eq!(result.slots.len(), 1);
     assert_eq!(
-        result.slots[0].slot.to,
-        Time::from_hms(15, 0, 0).unwrap(),
-        "slot.to raw"
-    );
-    assert_eq!(
         result.slots[0].effective_to,
-        Time::from_hms(15, 0, 0).unwrap(),
-        "vor Stichtag: effective_to == slot.to"
+        Time::from_hms(12, 0, 0).unwrap(),
+        "vor Stichtag + slot.to<=cutoff: Legacy-Keep → effective_to == raw slot.to"
     );
 }
 
@@ -1378,10 +1422,15 @@ fn test_build_shiftplan_day_effective_to_clipped_at_stichtag() {
     );
 }
 
-/// D-51-07 Legacy: `active_from = None` → Kürzung deaktiviert. Selbst mit
-/// vorhandenem ShortDay bleibt der Slot roh.
+/// D-51-07 + Gap-Closure (Chain B Legacy-Filter): `active_from = None`
+/// → moderne Kürzung aus, aber Legacy-Filter greift wenn ShortDay existiert
+/// UND `slot.to > cutoff`.
+///
+/// Vor Gap-Closure war die Erwartung: "Slot bleibt roh". Nach Gap-Closure
+/// (siehe P51 SUMMARY): der historische Filter (Pre-Phase-51) läuft für
+/// Chain B/C weiter, d.h. der Overlap-Slot wird gedroppt.
 #[test]
-fn test_build_shiftplan_day_none_active_from_no_clip() {
+fn test_build_shiftplan_day_none_active_from_legacy_drop() {
     let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
     let sp = default_sales_person();
     let short_day = SpecialDay {
@@ -1407,7 +1456,38 @@ fn test_build_shiftplan_day_none_active_from_no_clip() {
         &paid_ids,
         2026,
         31,
-        None, // Legacy: kein Stichtag → nie clippen.
+        None, // Kein Stichtag → Gate aus, aber Legacy-Filter aktiv.
+    )
+    .unwrap();
+
+    assert!(
+        result.slots.is_empty(),
+        "Gap-Closure Chain B: kein Stichtag + ShortDay + slot.to > cutoff \
+         → Legacy-Drop, got {} slots",
+        result.slots.len()
+    );
+}
+
+/// D-51-07 + Gap-Closure Companion: `active_from = None` + kein ShortDay
+/// für den Wochentag → Slot bleibt roh. Beweis dass ohne ShortDay-Zeile der
+/// Legacy-Filter neutral bleibt.
+#[test]
+fn test_build_shiftplan_day_none_active_from_no_shortday_keeps_raw() {
+    let overlap_slot = slot_with_day_and_time(DayOfWeek::Tuesday, 12, 15);
+    let sp = default_sales_person();
+    let paid_ids: HashSet<Uuid> = HashSet::new();
+
+    let result = build_shiftplan_day(
+        DayOfWeek::Tuesday,
+        std::slice::from_ref(&overlap_slot),
+        &[],
+        &[sp],
+        &[], // Kein ShortDay.
+        None,
+        &paid_ids,
+        2026,
+        31,
+        None, // Kein Stichtag.
     )
     .unwrap();
 
@@ -1415,7 +1495,7 @@ fn test_build_shiftplan_day_none_active_from_no_clip() {
     assert_eq!(
         result.slots[0].effective_to,
         Time::from_hms(15, 0, 0).unwrap(),
-        "Legacy: effective_to == slot.to auch bei ShortDay"
+        "Kein ShortDay + kein Stichtag: Slot bleibt raw"
     );
 }
 
@@ -1517,7 +1597,9 @@ fn test_build_shiftplan_day_preserves_bookings_on_clipped_slot() {
 ///
 /// Wenn `ToggleService::get_toggle_value` `ServiceError::Unauthorized` liefert,
 /// darf `get_shiftplan_week` NICHT mit 401 durchschlagen. Statt dessen: Gate
-/// inaktiv (Legacy) → Slot wird nicht geclippt.
+/// inaktiv (Legacy) → Chain B/C wenden den Pre-Phase-51-Legacy-Filter an
+/// (siehe Gap-Closure Phase 51). Der Fixture-Slot 9:00–17:00 mit ShortDay-Cutoff
+/// 12:00 wird deshalb gedroppt (`slot.to > cutoff`) statt geclippt.
 ///
 /// Regression-Guard für den zentralen `shortday_gate::read_active_from`-Fallback.
 #[tokio::test]
@@ -1564,13 +1646,14 @@ async fn test_get_shiftplan_week_tolerates_toggle_unauthorized() {
         .await
         .expect("Unauthorized-Toleranz: get_shiftplan_week muss Ok liefern (Legacy off)");
 
-    // Slot bleibt ungeklippt: identisch mit dem Fixture (9:00–17:00).
+    // Gap-Closure Chain B Legacy: Unauthorized → active_from = None (kein 401),
+    // aber der historische Legacy-Filter droppt Slots mit `slot.to > cutoff`.
+    // Slot 9:00–17:00 mit Cutoff 12:00 → Drop.
     let monday = &shiftplan.days[0];
-    assert_eq!(monday.slots.len(), 1);
-    let slot = &monday.slots[0];
-    assert_eq!(
-        slot.slot.to,
-        Time::from_hms(17, 0, 0).unwrap(),
-        "Legacy: Slot.to unverändert (kein Clip auf 12:00)"
+    assert!(
+        monday.slots.is_empty(),
+        "Gap-Closure: Unauthorized → Legacy-Filter → Overlap-Slot gedroppt, \
+         got {} slots",
+        monday.slots.len()
     );
 }

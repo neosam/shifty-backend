@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::gen_service_impl;
 use crate::shortday_gate;
-use crate::shortday_gate::{clip_slot_for_week, ClipOutcome};
+use crate::shortday_gate::{clip_slot_for_week, ClipOutcome, ShortdayMode};
 use dao::TransactionDao; // import your transaction trait
 use time::Time;
 
@@ -114,12 +114,15 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             {
                 // Chain A' — pro-Slot-Clip vor dem Merge-Loop. Reihenfolge kritisch
                 // (Research §Risks 4): erst clippen, dann `slot.from == to`-Merge.
+                // Modern-Mode: Gate aus + ShortDay ⇒ Slot bleibt roh (Legacy-Filter
+                // für Chain A' historisch nicht vorhanden).
                 let slot = match clip_slot_for_week(
                     &slot,
                     &special_days,
                     year,
                     week,
                     active_from,
+                    ShortdayMode::Modern,
                 ) {
                     ClipOutcome::Keep(s) => s,
                     ClipOutcome::Drop => continue,
@@ -294,12 +297,15 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
         // `&Slot`), weil `clip_to` einen neuen Slot produziert.
         let mut day_map: BTreeMap<DayOfWeek, Vec<Slot>> = BTreeMap::new();
         for slot in all_slots.iter() {
+            // Chain A' (block.rs): Modern-Mode — Gate aus + ShortDay ⇒ Slot bleibt
+            // roh (Legacy-Filter für Chain A' historisch nicht vorhanden).
             let clipped = match clip_slot_for_week(
                 slot,
                 &special_days,
                 year,
                 week,
                 active_from,
+                ShortdayMode::Modern,
             ) {
                 ClipOutcome::Keep(s) => s,
                 ClipOutcome::Drop => continue,

@@ -19,7 +19,7 @@ use service::{
     ServiceError,
 };
 
-use crate::shortday_gate;
+use crate::shortday_gate::{self, ClipOutcome, ShortdayMode};
 use shifty_utils::DayOfWeek;
 use tokio::join;
 use uuid::Uuid;
@@ -44,28 +44,6 @@ pub(crate) fn build_shiftplan_day(
         sd.day_of_week == day_of_week && sd.day_type == SpecialDayType::Holiday
     });
 
-    // Find short day cutoff if applicable
-    let short_day_cutoff = special_days.iter().find_map(|sd| {
-        if sd.day_of_week == day_of_week
-            && sd.day_type == SpecialDayType::ShortDay
-            && sd.time_of_day.is_some()
-        {
-            sd.time_of_day
-        } else {
-            None
-        }
-    });
-
-    // Phase 51 (D-51-07): Stichtag-Gate — Kürzung greift nur, wenn das
-    // Buchungsdatum am/nach `active_from` liegt. Vor Stichtag oder ohne
-    // `active_from` bleibt der Slot roh (Legacy).
-    let day_date = time::Date::from_iso_week_date(year as i32, week, day_of_week.into()).ok();
-    let effective_cutoff = short_day_cutoff.filter(|_| {
-        day_date
-            .map(|d| shortday_gate::should_clip(d, active_from))
-            .unwrap_or(false)
-    });
-
     let mut day_slots = Vec::new();
 
     if !is_holiday {
@@ -74,21 +52,28 @@ pub(crate) fn build_shiftplan_day(
                 continue;
             }
 
-            // Phase 51 (D-51-06 Chain B): clip statt filter. Pre-existing bug
-            // (D-04 Zeile 4 verletzt) fixt sich mit.
-            let effective_to = if let Some(cutoff) = effective_cutoff {
-                match slot.clip_to(cutoff) {
-                    // Slot komplett hinter Cutoff → aus Vec weglassen
-                    // (D-04 Zeile 3).
-                    None => continue,
-                    // Slot gekürzt oder unverändert → `effective_to = clipped.to`
-                    // (D-04 Zeilen 1, 2, 4). `slot.clone()` bleibt weiter roh
-                    // (D-51-09, `SlotTO` bidirektional).
-                    Some(clipped) => clipped.to,
-                }
-            } else {
-                // Kein Gate / kein ShortDay → view-layer `to` == persistenz-`to`.
-                slot.to
+            // Phase 51 (D-51-06 Chain B): pro-Slot-Clip via zentralem Helper.
+            //
+            // Modus = `Legacy` (Gap-Closure Phase 51):
+            // - Gate aktiv → geclippt auf Cutoff (D-04, D-51-09).
+            // - Gate aus + kein ShortDay → Slot bleibt roh.
+            // - Gate aus + ShortDay + `slot.to > cutoff` → Slot verworfen
+            //   (Pre-Phase-51-Verhalten, `shiftplan.rs:62-66` vor 8d12645).
+            // - Gate aus + ShortDay + `slot.to <= cutoff` → Slot bleibt roh.
+            //
+            // `effective_to` = `Keep(s).to` — bei aktivem Gate gleich Cutoff,
+            // sonst gleich raw `slot.to`. `slot.clone()` (unten) bleibt
+            // persistenz-treu (D-51-09).
+            let effective_to = match shortday_gate::clip_slot_for_week(
+                slot,
+                special_days,
+                year,
+                week,
+                active_from,
+                ShortdayMode::Legacy,
+            ) {
+                ClipOutcome::Keep(s) => s.to,
+                ClipOutcome::Drop => continue,
             };
 
             // Find bookings for this slot

@@ -145,27 +145,61 @@ pub(crate) enum ClipOutcome {
     Drop,
 }
 
+/// Behandlung des Slots, wenn das Stichtag-Gate **inaktiv** ist
+/// (`active_from == None` oder `booking_date < active_from`).
+///
+/// - `Modern` — Slot bleibt roh und ungefiltert (aktueller Status Chain A'/D).
+///   Verwendung: `block.rs` (Chain A'), `shiftplan_report.rs` (Chain D).
+/// - `Legacy` — Legacy-Filter-Semantik (Pre-Phase-51): existiert ein `ShortDay`
+///   für den Wochentag, wird der Slot **verworfen**, sobald `slot.to > cutoff`.
+///   Endet er spätestens am Cutoff (`slot.to <= cutoff`), bleibt er roh drin.
+///   Verwendung: `shiftplan.rs` (Chain B), `booking_information.rs` (Chain C).
+///
+/// Historische Herleitung siehe Gap-Closure Phase 51:
+/// - Chain B alt (Commit `8d12645^`, `shiftplan.rs:62-66`):
+///   `if slot.to > cutoff { continue; }`
+/// - Chain C alt (Commit `62a2f35^`, `booking_information.rs:394-401`):
+///   `.filter(|slot| !special_days.iter().any(|day| day.day_of_week == slot.day_of_week
+///                   && (Holiday || (ShortDay && cutoff && slot.to > cutoff))))`
+///
+/// Wenn das Gate **aktiv** ist (`booking_date >= active_from`), ist der Modus
+/// irrelevant — es wird immer via `Slot::clip_to` geclippt (D-04, D-51-09).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ShortdayMode {
+    /// Chain A' / Chain D: Gate aus + ShortDay → Slot bleibt trotzdem roh.
+    Modern,
+    /// Chain B / Chain C: Gate aus + ShortDay → Slot droppen wenn
+    /// `slot.to > cutoff` (Pre-Phase-51-Verhalten).
+    Legacy,
+}
+
 /// Wendet den ShortDay-Cutoff pro Wochentag + Stichtag-Gate auf einen Slot an.
 ///
-/// Zentraler Helper für alle Aggregat-Konsumenten (Chain A' Block, Chain C
-/// BookingInformation). Keine DB-Zugriffe — reine In-Memory-Kombi aus
-/// `special_days`-Snapshot pro Woche, ISO-Datum-Konstruktion und
-/// [`Slot::clip_to`] (P01). Wenn Gate inaktiv oder kein `ShortDay`-Cutoff für
-/// den Wochentag konfiguriert ist, wird der Slot unverändert weitergegeben.
+/// Zentraler Helper für alle Aggregat-Konsumenten (Chain A' Block, Chain B
+/// Shiftplan, Chain C BookingInformation, Chain D ShiftplanReport). Keine
+/// DB-Zugriffe — reine In-Memory-Kombi aus `special_days`-Snapshot pro Woche,
+/// ISO-Datum-Konstruktion und [`Slot::clip_to`] (P01).
+///
+/// # Semantik
+///
+/// - **Gate aktiv** (`booking_date >= active_from`): Slot wird via `clip_to`
+///   geclippt (D-04, D-51-09). Modus egal.
+/// - **Gate inaktiv** (`active_from == None` oder `booking_date < active_from`):
+///   - Kein `ShortDay` für den Wochentag → `Keep(raw)`.
+///   - `ShortDay` mit cutoff für den Wochentag:
+///     - `mode == Modern` → `Keep(raw)` (aktuelles Verhalten Chain A'/D).
+///     - `mode == Legacy` → Wenn `slot.to > cutoff` → `Drop`; sonst `Keep(raw)`
+///       (historisches Filter-Verhalten Chain B/C, Gap-Closure Phase 51).
 pub(crate) fn clip_slot_for_week(
     slot: &Slot,
     special_days: &[SpecialDay],
     year: u32,
     week: u8,
     active_from: Option<Date>,
+    mode: ShortdayMode,
 ) -> ClipOutcome {
-    // Stichtag-Gate: greift das Gate für diesen Wochentag überhaupt?
-    let gate_active = resolve_active_from_for_week(year, week, slot.day_of_week, active_from);
-    if !gate_active {
-        return ClipOutcome::Keep(slot.clone());
-    }
-
-    // Cutoff aus SpecialDay (nur ShortDay mit `time_of_day`) für diesen dow.
+    // Cutoff aus SpecialDay (nur ShortDay mit `time_of_day`) für diesen dow —
+    // wird sowohl im aktiven als auch im Legacy-Zweig gebraucht.
     let cutoff = special_days.iter().find_map(|sd| {
         if sd.day_of_week == slot.day_of_week && sd.day_type == SpecialDayType::ShortDay {
             sd.time_of_day
@@ -174,6 +208,27 @@ pub(crate) fn clip_slot_for_week(
         }
     });
 
+    // Stichtag-Gate: greift das Gate für diesen Wochentag überhaupt?
+    let gate_active = resolve_active_from_for_week(year, week, slot.day_of_week, active_from);
+    if !gate_active {
+        // Gate aus. Modus entscheidet über Legacy-Filter.
+        return match (mode, cutoff) {
+            // Modern: immer Keep(raw) — unabhängig davon, ob ShortDay existiert.
+            (ShortdayMode::Modern, _) => ClipOutcome::Keep(slot.clone()),
+            // Legacy ohne ShortDay: Keep(raw).
+            (ShortdayMode::Legacy, None) => ClipOutcome::Keep(slot.clone()),
+            // Legacy mit ShortDay: Pre-Phase-51-Filter — Drop wenn slot.to > cutoff.
+            (ShortdayMode::Legacy, Some(cutoff)) => {
+                if slot.to > cutoff {
+                    ClipOutcome::Drop
+                } else {
+                    ClipOutcome::Keep(slot.clone())
+                }
+            }
+        };
+    }
+
+    // Gate aktiv → Standard-Clip (D-04, D-51-09).
     let Some(cutoff) = cutoff else {
         return ClipOutcome::Keep(slot.clone());
     };
@@ -279,5 +334,147 @@ mod tests {
             DayOfWeek::Monday,
             active_from
         ));
+    }
+
+    // ─── Gap-Closure Phase 51: Legacy-Filter-Semantik (Chain B/C) ───────────
+    //
+    // Sanity-Tests direkt am Helper — die Chain-B/C-Integration-Tests
+    // (test/shiftplan.rs, test/booking_information_chain_c.rs) prüfen den
+    // gleichen Contract oben auf der Aggregat-Ebene.
+
+    use service::slot::Slot;
+    use service::special_days::{SpecialDay, SpecialDayType};
+    use time::Time;
+    use uuid::Uuid;
+
+    fn t(h: u8, m: u8) -> Time {
+        Time::from_hms(h, m, 0).expect("valid test time")
+    }
+
+    fn slot_for(dow: DayOfWeek, from: Time, to: Time) -> Slot {
+        Slot {
+            id: Uuid::new_v4(),
+            day_of_week: dow,
+            from,
+            to,
+            min_resources: 1,
+            max_paid_employees: None,
+            valid_from: Date::from_calendar_date(2020, Month::January, 1).unwrap(),
+            valid_to: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+            shiftplan_id: None,
+        }
+    }
+
+    fn shortday_for(dow: DayOfWeek, cutoff: Time, year: u32, week: u8) -> SpecialDay {
+        SpecialDay {
+            id: Uuid::new_v4(),
+            year,
+            calendar_week: week,
+            day_of_week: dow,
+            day_type: SpecialDayType::ShortDay,
+            time_of_day: Some(cutoff),
+            created: None,
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    /// Modern-Mode + Gate aus: Slot bleibt roh (aktuelles Chain A'/D-Verhalten).
+    #[test]
+    fn clip_slot_modern_gate_off_keeps_raw_even_with_shortday() {
+        let slot = slot_for(DayOfWeek::Monday, t(14, 0), t(15, 0));
+        let sd = shortday_for(DayOfWeek::Monday, t(14, 30), 2026, 31);
+        let outcome = clip_slot_for_week(&slot, &[sd], 2026, 31, None, ShortdayMode::Modern);
+        match outcome {
+            ClipOutcome::Keep(s) => {
+                assert_eq!(s.from, t(14, 0));
+                assert_eq!(s.to, t(15, 0), "Modern + Gate off → raw slot.to");
+            }
+            ClipOutcome::Drop => panic!("Modern + Gate off must never drop"),
+        }
+    }
+
+    /// Legacy-Mode + Gate aus + ShortDay + `slot.to > cutoff` → Slot droppen
+    /// (Pre-Phase-51-Semantik: `if slot.to > cutoff { continue }`).
+    #[test]
+    fn clip_slot_legacy_gate_off_drops_when_slot_to_after_cutoff() {
+        // Slot 14:00–15:00, cutoff 14:30 → slot.to (15:00) > 14:30 → Drop.
+        let slot = slot_for(DayOfWeek::Monday, t(14, 0), t(15, 0));
+        let sd = shortday_for(DayOfWeek::Monday, t(14, 30), 2026, 31);
+        let outcome = clip_slot_for_week(&slot, &[sd], 2026, 31, None, ShortdayMode::Legacy);
+        assert!(
+            matches!(outcome, ClipOutcome::Drop),
+            "Legacy + Gate off + slot.to > cutoff must Drop"
+        );
+    }
+
+    /// Legacy-Mode + Gate aus + ShortDay + `slot.to == cutoff` → Slot bleibt
+    /// (endet genau am Cutoff → historisch in slot_hours / slots enthalten).
+    #[test]
+    fn clip_slot_legacy_gate_off_keeps_when_slot_to_equals_cutoff() {
+        // Slot 12:00–14:30, cutoff 14:30 → slot.to == cutoff → Keep(raw).
+        let slot = slot_for(DayOfWeek::Monday, t(12, 0), t(14, 30));
+        let sd = shortday_for(DayOfWeek::Monday, t(14, 30), 2026, 31);
+        let outcome = clip_slot_for_week(&slot, &[sd], 2026, 31, None, ShortdayMode::Legacy);
+        match outcome {
+            ClipOutcome::Keep(s) => {
+                assert_eq!(s.to, t(14, 30), "Legacy + Gate off + slot.to==cutoff → raw");
+            }
+            ClipOutcome::Drop => {
+                panic!("Legacy + Gate off + slot.to == cutoff must Keep, not Drop")
+            }
+        }
+    }
+
+    /// Legacy-Mode + Gate aus + ShortDay + `slot.to < cutoff` → Slot bleibt roh.
+    #[test]
+    fn clip_slot_legacy_gate_off_keeps_when_slot_ends_before_cutoff() {
+        let slot = slot_for(DayOfWeek::Monday, t(9, 0), t(12, 0));
+        let sd = shortday_for(DayOfWeek::Monday, t(14, 30), 2026, 31);
+        let outcome = clip_slot_for_week(&slot, &[sd], 2026, 31, None, ShortdayMode::Legacy);
+        assert!(matches!(outcome, ClipOutcome::Keep(_)));
+    }
+
+    /// Legacy-Mode + Gate aus + **kein** ShortDay → Slot bleibt roh
+    /// (Legacy-Filter greift nicht ohne ShortDay-Zeile).
+    #[test]
+    fn clip_slot_legacy_gate_off_keeps_when_no_shortday() {
+        let slot = slot_for(DayOfWeek::Monday, t(14, 0), t(15, 0));
+        let outcome = clip_slot_for_week(&slot, &[], 2026, 31, None, ShortdayMode::Legacy);
+        assert!(matches!(outcome, ClipOutcome::Keep(_)));
+    }
+
+    /// Legacy-Mode + Gate **aktiv** + ShortDay-Overlap: verhält sich identisch
+    /// zum Modern-Mode (Clip via `Slot::clip_to`, kein Legacy-Drop-Path). Beweis
+    /// dass der Modus-Parameter nur den Gate-off-Fall verändert.
+    #[test]
+    fn clip_slot_legacy_gate_on_behaves_like_modern_clip() {
+        let slot = slot_for(DayOfWeek::Monday, t(12, 0), t(15, 0));
+        let sd = shortday_for(DayOfWeek::Monday, t(14, 0), 2026, 31);
+        // Gate aktiv: active_from lange vor 2026-W31.
+        let active = Some(d(2020, Month::January, 1));
+        let legacy = clip_slot_for_week(
+            &slot,
+            std::slice::from_ref(&sd),
+            2026,
+            31,
+            active,
+            ShortdayMode::Legacy,
+        );
+        let modern = clip_slot_for_week(&slot, &[sd], 2026, 31, active, ShortdayMode::Modern);
+        match (legacy, modern) {
+            (ClipOutcome::Keep(l), ClipOutcome::Keep(m)) => {
+                assert_eq!(l.to, t(14, 0));
+                assert_eq!(m.to, t(14, 0));
+            }
+            other => panic!("expected both Keep(clipped), got {:?}", match other {
+                (ClipOutcome::Keep(_), ClipOutcome::Drop) => "(Keep, Drop)",
+                (ClipOutcome::Drop, ClipOutcome::Keep(_)) => "(Drop, Keep)",
+                (ClipOutcome::Drop, ClipOutcome::Drop) => "(Drop, Drop)",
+                _ => "unreachable",
+            }),
+        }
     }
 }

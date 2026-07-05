@@ -257,17 +257,19 @@ async fn test_get_weekly_summary_clips_slot_hours_at_shortday() {
     );
 }
 
-// ─── Test B: get_weekly_summary ohne Gate → kein Clip ──────────────────────
+// ─── Test B: get_weekly_summary ohne Gate → Legacy-Filter (Gap-Closure) ─────
 
-/// D-51-07: `active_from = None` → Slot bleibt ungeclippt (Legacy 1h statt 0,5h).
+/// D-51-07 + Gap-Closure (Chain C Legacy-Filter):
+/// `active_from = None` + ShortDay + `slot.to > cutoff` → Slot fällt weg
+/// (Pre-Phase-51-Verhalten, `booking_information.rs:394-401` vor 62a2f35).
+/// Slot 14:00–15:00, Cutoff 14:30 → 15:00 > 14:30 → `required_hours = 0`.
 #[tokio::test]
-async fn test_get_weekly_summary_ungated_no_clip() {
+async fn test_get_weekly_summary_ungated_legacy_drops_overlap() {
     let s = slot(
         DayOfWeek::Monday,
         time::Time::from_hms(14, 0, 0).unwrap(),
         time::Time::from_hms(15, 0, 0).unwrap(),
     );
-    // ShortDay ist zwar konfiguriert, aber ohne Toggle greift das Gate nicht.
     let sd = shortday(DayOfWeek::Monday, time::Time::from_hms(14, 30, 0).unwrap());
     let service = build_service(vec![s], vec![sd], None);
 
@@ -282,8 +284,40 @@ async fn test_get_weekly_summary_ungated_no_clip() {
         .expect("W31 must be present in year-view");
 
     assert!(
-        approx(w.required_hours, 1.0),
-        "D-51-07 Gate off: Slot 14:00–15:00 muss volle 1,0h liefern, got {}",
+        approx(w.required_hours, 0.0),
+        "Gap-Closure Chain C: Legacy-Drop (slot.to > cutoff) → required_hours = 0, got {}",
+        w.required_hours
+    );
+}
+
+/// D-51-07 + Gap-Closure Companion (Chain C Legacy-Keep):
+/// `active_from = None` + ShortDay + `slot.to <= cutoff` → Slot bleibt roh.
+/// Beweis dass der Legacy-Filter nur droppen kann, wenn Slot echt hinter
+/// Cutoff hinausragt.
+#[tokio::test]
+async fn test_get_weekly_summary_ungated_legacy_keeps_pre_cutoff() {
+    // Slot 12:00–14:30 endet exakt am Cutoff (14:30) → nicht `> cutoff` → Keep.
+    let s = slot(
+        DayOfWeek::Monday,
+        time::Time::from_hms(12, 0, 0).unwrap(),
+        time::Time::from_hms(14, 30, 0).unwrap(),
+    );
+    let sd = shortday(DayOfWeek::Monday, time::Time::from_hms(14, 30, 0).unwrap());
+    let service = build_service(vec![s], vec![sd], None);
+
+    let summaries = service
+        .get_weekly_summary(YEAR, Authentication::Full, None)
+        .await
+        .expect("get_weekly_summary must succeed");
+
+    let w = summaries
+        .iter()
+        .find(|s| s.year == YEAR && s.week == WEEK)
+        .expect("W31 must be present in year-view");
+
+    assert!(
+        approx(w.required_hours, 2.5),
+        "Gap-Closure Chain C: Legacy-Keep (slot.to == cutoff) → volle 2,5h, got {}",
         w.required_hours
     );
 }
@@ -376,12 +410,14 @@ async fn test_get_summery_for_week_required_hours_by_day_respects_clip() {
 
 // ─── Test E: Stichtag-Boundary ─────────────────────────────────────────────
 
-/// D-51-07 / SHC-06 Grenzfall: `active_from` inklusiv am Tag.
-/// - `booking_date == active_from - 1 day` → ungeclippt (1,0h).
-/// - `booking_date == active_from` → geclippt (0,5h).
+/// D-51-07 / SHC-06 Grenzfall + Gap-Closure (Chain C Legacy-Filter):
+/// `active_from` inklusiv am Tag.
+/// - `booking_date == active_from - 1 day` → Gate aus + Legacy-Drop (0h),
+///   weil `slot.to (15:00) > cutoff (14:30)` (Pre-Phase-51-Verhalten).
+/// - `booking_date == active_from` → Gate an → geclippt (0,5h).
 ///
 /// Konkret: 2026-W31-Mo = 2026-07-27. Wir schalten das Gate mit `active_from`
-/// einmal auf 2026-07-28 (=> W31-Mo liegt einen Tag davor → ungeclippt) und
+/// einmal auf 2026-07-28 (=> W31-Mo liegt einen Tag davor → Legacy-Drop) und
 /// einmal auf 2026-07-27 (=> W31-Mo == active_from → geclippt).
 #[tokio::test]
 async fn test_get_summery_for_week_stichtag_boundary() {
@@ -392,19 +428,20 @@ async fn test_get_summery_for_week_stichtag_boundary() {
     );
     let sd = shortday(DayOfWeek::Monday, time::Time::from_hms(14, 30, 0).unwrap());
 
-    // Fall 1: active_from = 2026-07-28 (Di), W31-Mo (2026-07-27) < active_from → ungeclippt.
+    // Fall 1: active_from = 2026-07-28 (Di), W31-Mo (2026-07-27) < active_from
+    // → Gate aus, aber Chain-C-Legacy-Filter greift (slot.to > cutoff) → Drop.
     let service_before = build_service(vec![s.clone()], vec![sd.clone()], Some("2026-07-28"));
     let summary_before = service_before
         .get_summery_for_week(YEAR, WEEK, Authentication::Full, None)
         .await
         .expect("must succeed");
     assert!(
-        approx(summary_before.required_hours, 1.0),
-        "SHC-06 boundary (booking_date < active_from): ungeclippt 1,0h, got {}",
+        approx(summary_before.required_hours, 0.0),
+        "SHC-06 + Gap-Closure (booking_date < active_from): Legacy-Drop → 0h, got {}",
         summary_before.required_hours
     );
 
-    // Fall 2: active_from = 2026-07-27 (=W31-Mo), inklusiv → geclippt.
+    // Fall 2: active_from = 2026-07-27 (=W31-Mo), inklusiv → Gate aktiv → geclippt.
     let service_at = build_service(vec![s], vec![sd], Some("2026-07-27"));
     let summary_at = service_at
         .get_summery_for_week(YEAR, WEEK, Authentication::Full, None)
@@ -421,7 +458,8 @@ async fn test_get_summery_for_week_stichtag_boundary() {
 
 /// Wenn `ToggleService::get_toggle_value` `ServiceError::Unauthorized` liefert,
 /// darf `get_weekly_summary` NICHT mit 401 durchschlagen. Statt dessen: Gate
-/// inaktiv (Legacy) → Slot bleibt ungeklippt → volle `required_hours`.
+/// inaktiv (Legacy) → Chain-C-Legacy-Filter → Slot mit `slot.to > cutoff`
+/// wird gedroppt (Gap-Closure Phase 51).
 ///
 /// Live-Symptom: `GET /booking-information/weekly-resource-report/{year}`
 /// gab 401 zurück, weil der Endpoint intern `Authentication::Full` an den
@@ -430,9 +468,8 @@ async fn test_get_summery_for_week_stichtag_boundary() {
 /// das jetzt ab.
 #[tokio::test]
 async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
-    // Slot Mo 14:00–15:00 mit ShortDay-Cutoff 14:30. Wenn das Gate greifen
-    // würde, wäre `required_hours = 0.5`. Bei Legacy-off (Unauthorized → None)
-    // erwarten wir die vollen 1.0.
+    // Slot Mo 14:00–15:00 mit ShortDay-Cutoff 14:30. Gap-Closure: Legacy-Filter
+    // → Slot mit slot.to (15:00) > cutoff (14:30) fällt weg → required_hours = 0.
     let s = slot(
         DayOfWeek::Monday,
         time::Time::from_hms(14, 0, 0).unwrap(),
@@ -554,8 +591,9 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
         .expect("W31 must be present in year-view");
 
     assert!(
-        approx(w.required_hours, 1.0),
-        "Legacy off: Slot 14:00–15:00 ungeklippt = 1.0h, got {}",
+        approx(w.required_hours, 0.0),
+        "Gap-Closure: Unauthorized → Legacy-Filter → Overlap-Slot gedroppt \
+         → required_hours = 0, got {}",
         w.required_hours
     );
 }

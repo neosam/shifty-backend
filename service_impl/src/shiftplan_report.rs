@@ -78,12 +78,15 @@ fn hours_for_row(
     active_from: Option<Date>,
 ) -> f32 {
     let slot = slot_from_row(row);
+    // Chain D: Modern-Mode — Gate aus + ShortDay ⇒ Slot bleibt roh (SQL-Aggregat
+    // hatte historisch kein ShortDay-Wissen → alte Logik == raw slot).
     match shortday_gate::clip_slot_for_week(
         &slot,
         special_days,
         row.year,
         row.calendar_week,
         active_from,
+        shortday_gate::ShortdayMode::Modern,
     ) {
         shortday_gate::ClipOutcome::Keep(clipped) => {
             let secs = (clipped.to - clipped.from).as_seconds_f32();

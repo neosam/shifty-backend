@@ -26,7 +26,7 @@ use service::{
 };
 
 use crate::shortday_gate;
-use crate::shortday_gate::ClipOutcome;
+use crate::shortday_gate::{ClipOutcome, ShortdayMode};
 use shifty_utils::DayOfWeek;
 use tokio::join;
 use uuid::Uuid;
@@ -419,12 +419,18 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     })
                 })
                 .filter_map(|slot| {
+                    // Chain C: Legacy-Mode — Gate aus + ShortDay ⇒ Slot droppen wenn
+                    // slot.to > cutoff. Wiederherstellung Pre-Phase-51-Semantik
+                    // (Commit 62a2f35^, `.filter(...ShortDay && slot.to > cutoff)`),
+                    // damit `required_hours` in historischen Wochen (vor Stichtag /
+                    // ohne Stichtag) mit v1.x-Backend identisch bleibt.
                     match shortday_gate::clip_slot_for_week(
                         slot,
                         &special_days,
                         year,
                         week,
                         active_from,
+                        ShortdayMode::Legacy,
                     ) {
                         ClipOutcome::Keep(s) => Some(s),
                         ClipOutcome::Drop => None,
@@ -551,12 +557,15 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 })
             })
             .filter_map(|slot| {
+                // Chain C: Legacy-Mode — Gate aus + ShortDay ⇒ Slot droppen wenn
+                // slot.to > cutoff. Siehe Kommentar in `get_weekly_summary`.
                 match shortday_gate::clip_slot_for_week(
                     slot,
                     &special_days,
                     year,
                     week,
                     active_from,
+                    ShortdayMode::Legacy,
                 ) {
                     ClipOutcome::Keep(s) => Some(s),
                     ClipOutcome::Drop => None,
