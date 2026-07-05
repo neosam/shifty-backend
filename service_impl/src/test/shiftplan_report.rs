@@ -464,3 +464,97 @@ fn test_snapshot_schema_version_unchanged() {
         "Phase 51 Chain D darf die Snapshot-Version NICHT bumpen (D-03 Snapshot-Immunität)"
     );
 }
+
+// ─── Gap-Closure Regression (Chain D) ───────────────────────────────────────
+
+/// Wenn `ToggleService::get_toggle_value` `ServiceError::Unauthorized` liefert,
+/// darf `extract_shiftplan_report_for_week` NICHT mit 401 durchschlagen.
+/// Statt dessen: Gate inaktiv (Legacy) → Slot bleibt ungeklippt → volle
+/// Stunden im Aggregat.
+///
+/// **Live-Symptom vor Fix:** `GET /report/week/{year}/{week}` gab 401 zurück,
+/// weil das REST-Handler-context via mock-auth oder als `Authentication::Full`
+/// durchgereicht wurde und der `ToggleService.current_user_id → None →
+/// Unauthorized` zurücklieferte. Der zentrale
+/// `shortday_gate::read_active_from`-Helper fängt das jetzt in ALLEN drei
+/// `ShiftplanReportService`-Methoden ab (nicht mehr nur in
+/// `extract_shiftplan_report`).
+#[tokio::test]
+async fn test_extract_for_week_tolerates_toggle_unauthorized() {
+    // Slot Mo 14:00–15:00 mit ShortDay-Cutoff 14:30. Bei aktivem Gate:
+    // 0,5h. Bei Legacy (Unauthorized → None): volle 1,0h.
+    let sp = Uuid::new_v4();
+    let row = raw_row(
+        sp,
+        YEAR,
+        WEEK,
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+    let sd = shortday(
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 30, 0).unwrap(),
+        YEAR,
+        WEEK,
+    );
+
+    // Custom-Setup wie `build_service_for_week`, aber Toggle liefert Unauthorized.
+    let rows_arc: Arc<[ShiftplanReportRawRow]> = Arc::from(vec![row]);
+    let mut shiftplan_report_dao = MockShiftplanReportDao::new();
+    let rows_clone = rows_arc.clone();
+    shiftplan_report_dao
+        .expect_extract_raw_shiftplan_report_for_week()
+        .returning(move |year, week, _| {
+            if year == YEAR && week == WEEK {
+                Ok(rows_clone.clone())
+            } else {
+                Ok(Arc::from(Vec::<ShiftplanReportRawRow>::new()))
+            }
+        });
+
+    let sd_clone = vec![sd];
+    let mut special_day_service = MockSpecialDayService::new();
+    special_day_service
+        .expect_get_by_week()
+        .returning(move |year, week, _| {
+            if year == YEAR && week == WEEK {
+                Ok(Arc::from(sd_clone.clone()))
+            } else {
+                Ok(Arc::from(Vec::<SpecialDay>::new()))
+            }
+        });
+
+    // Kernstück des Regression-Guards: Toggle → Unauthorized.
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Err(service::ServiceError::Unauthorized));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let service = ShiftplanReportServiceImpl::<TestDeps> {
+        shiftplan_report_dao: Arc::new(shiftplan_report_dao),
+        special_day_service: Arc::new(special_day_service),
+        toggle_service: Arc::new(toggle_service),
+        transaction_dao: Arc::new(transaction_dao),
+    };
+
+    let out = service
+        .extract_shiftplan_report_for_week(YEAR, WEEK, Authentication::Full, None)
+        .await
+        .expect(
+            "Unauthorized-Toleranz: extract_shiftplan_report_for_week muss Ok liefern (Legacy off, kein 401)",
+        );
+
+    assert_eq!(out.len(), 1);
+    assert!(
+        approx(out[0].hours, 1.0),
+        "Legacy off: 14:00–15:00 ungeklippt = 1.0h, got {}",
+        out[0].hours
+    );
+}

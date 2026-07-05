@@ -966,3 +966,80 @@ async fn test_get_unsufficiently_booked_blocks_without_shortday_lists_slot() {
     assert_eq!(blocks[0].from, Time::from_hms(16, 0, 0).unwrap());
     assert_eq!(blocks[0].to, Time::from_hms(18, 0, 0).unwrap());
 }
+
+/// Gap-Closure Regression (Chain A' Block):
+///
+/// Wenn `ToggleService::get_toggle_value` `ServiceError::Unauthorized` liefert
+/// (typisch für `Authentication::Full` in Cross-Service-Calls und mock-auth),
+/// darf der Block-Aggregat-Aufruf NICHT mit 401 durchschlagen. Er MUSS
+/// stattdessen wie bei `active_from = None` in Legacy-Semantik fahren:
+/// kein Clip, Slots bleiben roh — HTTP 200, korrektes Aggregat.
+///
+/// Regression-Guard, der das Live-401-Symptom (siehe Commit-Message zum
+/// zugehörigen refactor(51) fangen würde.
+#[tokio::test]
+async fn test_get_blocks_tolerates_toggle_unauthorized() {
+    let post_cutoff_slot_id = default_slot_id();
+    let booking = Booking {
+        id: default_booking_id(),
+        sales_person_id: default_sales_person_id(),
+        slot_id: post_cutoff_slot_id,
+        calendar_week: 31,
+        year: 2026,
+        created: None,
+        deleted: None,
+        created_by: None,
+        deleted_by: None,
+        version: Uuid::nil(),
+    };
+
+    let mut deps = build_dependencies();
+    deps.booking_service
+        .expect_get_for_week()
+        .with(eq(31), eq(2026), always(), always())
+        .returning(move |_, _, _, _| Ok(vec![booking.clone()].into()));
+    // Slot 16:00–18:00 — würde vom Cutoff 15:00 gedroppt, WENN das Gate aktiv
+    // wäre. Erwartetes Verhalten: Gate inaktiv (Unauthorized → None) → Slot
+    // bleibt komplett drin.
+    deps.slot_service.expect_get_slot().returning(move |id, _, _| {
+        Ok(slot_at(
+            *id,
+            Time::from_hms(16, 0, 0).unwrap(),
+            Time::from_hms(18, 0, 0).unwrap(),
+        ))
+    });
+
+    // ShortDay-Konfiguration ist da (würde clippen), aber der Toggle-Aufruf
+    // scheitert mit Unauthorized — der Helper toleriert das als "kein Stichtag".
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::new([shortday_monday(Time::from_hms(15, 0, 0).unwrap())])));
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Err(ServiceError::Unauthorized));
+
+    let service = deps.build_service();
+    let blocks = service
+        .get_blocks_for_sales_person_week(default_sales_person_id(), 2026, 31, ().auth(), None)
+        .await
+        .expect("Unauthorized-Toleranz: Aggregat muss Ok liefern (Legacy off)");
+
+    assert_eq!(
+        blocks.len(),
+        1,
+        "Legacy-Verhalten: Slot bleibt unverändert (kein Clip, kein Drop)"
+    );
+    let block = &blocks[0];
+    assert_eq!(
+        block.from,
+        Time::from_hms(16, 0, 0).unwrap(),
+        "Slot.from unverändert (roh, ungeclippt)"
+    );
+    assert_eq!(
+        block.to,
+        Time::from_hms(18, 0, 0).unwrap(),
+        "Slot.to unverändert (roh, ungeclippt)"
+    );
+}

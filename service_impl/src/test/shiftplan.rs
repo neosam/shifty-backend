@@ -1512,3 +1512,65 @@ fn test_build_shiftplan_day_preserves_bookings_on_clipped_slot() {
     // Paid-Count wird nicht durch das Clipping verändert.
     assert_eq!(view.current_paid_count, 1);
 }
+
+/// Gap-Closure Regression (Chain B Shiftplan):
+///
+/// Wenn `ToggleService::get_toggle_value` `ServiceError::Unauthorized` liefert,
+/// darf `get_shiftplan_week` NICHT mit 401 durchschlagen. Statt dessen: Gate
+/// inaktiv (Legacy) → Slot wird nicht geclippt.
+///
+/// Regression-Guard für den zentralen `shortday_gate::read_active_from`-Fallback.
+#[tokio::test]
+async fn test_get_shiftplan_week_tolerates_toggle_unauthorized() {
+    let mut deps = build_dependencies();
+
+    // Permission grant (sonst Forbidden vor Toggle-Aufruf).
+    deps.permission_service.checkpoint();
+    deps.permission_service = MockPermissionService::new();
+    deps.permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    deps.booking_service
+        .expect_get_for_week()
+        .returning(|_, _, _, _| Ok(Arc::new([])));
+
+    // ShortDay-Konfiguration ist da, würde ohne Gap-Closure clippen. Erwartet:
+    // Toggle → Unauthorized → None → Slot bleibt roh (9:00–17:00).
+    deps.special_day_service.checkpoint();
+    deps.special_day_service = MockSpecialDayService::new();
+    deps.special_day_service.expect_get_by_week().returning(|_, _, _| {
+        Ok(Arc::new([SpecialDay {
+            id: Uuid::nil(),
+            year: 2024,
+            calendar_week: 3,
+            day_of_week: DayOfWeek::Monday,
+            day_type: SpecialDayType::ShortDay,
+            time_of_day: Some(Time::from_hms(12, 0, 0).unwrap()),
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+        }]))
+    });
+    deps.toggle_service.checkpoint();
+    deps.toggle_service = MockToggleService::new();
+    deps.toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Err(service::ServiceError::Unauthorized));
+
+    let service = deps.build_service();
+    let shiftplan = service
+        .get_shiftplan_week(Uuid::nil(), 2024, 3, ().auth(), None)
+        .await
+        .expect("Unauthorized-Toleranz: get_shiftplan_week muss Ok liefern (Legacy off)");
+
+    // Slot bleibt ungeklippt: identisch mit dem Fixture (9:00–17:00).
+    let monday = &shiftplan.days[0];
+    assert_eq!(monday.slots.len(), 1);
+    let slot = &monday.slots[0];
+    assert_eq!(
+        slot.slot.to,
+        Time::from_hms(17, 0, 0).unwrap(),
+        "Legacy: Slot.to unverändert (kein Clip auf 12:00)"
+    );
+}

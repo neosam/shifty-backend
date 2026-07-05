@@ -36,6 +36,7 @@ use service::special_days::{MockSpecialDayService, SpecialDay, SpecialDayType};
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
+use service::ServiceError;
 use shifty_utils::DayOfWeek;
 
 use crate::booking_information::{BookingInformationServiceDeps, BookingInformationServiceImpl};
@@ -413,5 +414,148 @@ async fn test_get_summery_for_week_stichtag_boundary() {
         approx(summary_at.required_hours, 0.5),
         "SHC-06 boundary (booking_date == active_from, inklusiv): geclippt 0,5h, got {}",
         summary_at.required_hours
+    );
+}
+
+// ─── Gap-Closure Regression (Chain C) ───────────────────────────────────────
+
+/// Wenn `ToggleService::get_toggle_value` `ServiceError::Unauthorized` liefert,
+/// darf `get_weekly_summary` NICHT mit 401 durchschlagen. Statt dessen: Gate
+/// inaktiv (Legacy) → Slot bleibt ungeklippt → volle `required_hours`.
+///
+/// Live-Symptom: `GET /booking-information/weekly-resource-report/{year}`
+/// gab 401 zurück, weil der Endpoint intern `Authentication::Full` an den
+/// `ToggleService` durchreichte und der `current_user_id → None → Unauthorized`
+/// zurücklieferte. Der zentrale `shortday_gate::read_active_from`-Helper fängt
+/// das jetzt ab.
+#[tokio::test]
+async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
+    // Slot Mo 14:00–15:00 mit ShortDay-Cutoff 14:30. Wenn das Gate greifen
+    // würde, wäre `required_hours = 0.5`. Bei Legacy-off (Unauthorized → None)
+    // erwarten wir die vollen 1.0.
+    let s = slot(
+        DayOfWeek::Monday,
+        time::Time::from_hms(14, 0, 0).unwrap(),
+        time::Time::from_hms(15, 0, 0).unwrap(),
+    );
+    let sd = shortday(DayOfWeek::Monday, time::Time::from_hms(14, 30, 0).unwrap());
+
+    // Custom-Setup wie in `build_service`, aber Toggle liefert Unauthorized.
+    let mut permission_service = MockPermissionService::new();
+    permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::sales_person::SalesPerson>::new())));
+
+    let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+    employee_work_details_service
+        .expect_all()
+        .returning(|_, _| {
+            Ok(Arc::from(Vec::<
+                service::employee_work_details::EmployeeWorkDetails,
+            >::new()))
+        });
+
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
+
+    let sd_clone = vec![sd];
+    let mut special_day_service = MockSpecialDayService::new();
+    special_day_service
+        .expect_get_by_week()
+        .returning(move |year, week, _| {
+            if year == YEAR && week == WEEK {
+                Ok(Arc::from(sd_clone.clone()))
+            } else {
+                Ok(Arc::from(Vec::<SpecialDay>::new()))
+            }
+        });
+
+    let mut reporting_service = MockReportingService::new();
+    reporting_service
+        .expect_get_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(Vec::<service::reporting::ShortEmployeeReport>::new()))
+        });
+
+    let mut shiftplan_report_service = MockShiftplanReportService::new();
+    shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(Vec::<service::shiftplan_report::ShiftplanReportDay>::new()))
+        });
+
+    let slots_clone = vec![s];
+    let mut slot_service = MockSlotService::new();
+    slot_service
+        .expect_get_slots_for_week_all_plans()
+        .returning(move |year, week, _, _| {
+            if year == YEAR && week == WEEK {
+                Ok(Arc::from(slots_clone.clone()))
+            } else {
+                Ok(Arc::from(Vec::<service::slot::Slot>::new()))
+            }
+        });
+
+    // Kernstück des Regression-Guards: Toggle → Unauthorized.
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Err(ServiceError::Unauthorized));
+
+    let mut sales_person_unavailable_service = MockSalesPersonUnavailableService::new();
+    sales_person_unavailable_service
+        .expect_get_by_week()
+        .returning(|_, _, _, _| {
+            Ok(Arc::from(Vec::<
+                service::sales_person_unavailable::SalesPersonUnavailable,
+            >::new()))
+        });
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let service = BookingInformationServiceImpl::<TestDeps> {
+        shiftplan_report_service: Arc::new(shiftplan_report_service),
+        slot_service: Arc::new(slot_service),
+        booking_service: Arc::new(MockBookingService::new()),
+        sales_person_service: Arc::new(sales_person_service),
+        sales_person_unavailable_service: Arc::new(sales_person_unavailable_service),
+        reporting_service: Arc::new(reporting_service),
+        special_day_service: Arc::new(special_day_service),
+        toggle_service: Arc::new(toggle_service),
+        employee_work_details_service: Arc::new(employee_work_details_service),
+        absence_service: Arc::new(absence_service),
+        permission_service: Arc::new(permission_service),
+        clock_service: Arc::new(MockClockService::new()),
+        uuid_service: Arc::new(MockUuidService::new()),
+        transaction_dao: Arc::new(transaction_dao),
+    };
+
+    let summaries = service
+        .get_weekly_summary(YEAR, Authentication::Full, None)
+        .await
+        .expect(
+            "Unauthorized-Toleranz: get_weekly_summary muss Ok liefern (Legacy off, kein 401)",
+        );
+
+    let w = summaries
+        .iter()
+        .find(|s| s.year == YEAR && s.week == WEEK)
+        .expect("W31 must be present in year-view");
+
+    assert!(
+        approx(w.required_hours, 1.0),
+        "Legacy off: Slot 14:00–15:00 ungeklippt = 1.0h, got {}",
+        w.required_hours
     );
 }
