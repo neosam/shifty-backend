@@ -773,6 +773,18 @@ und hat entsprechend viele Rewrites hinter sich. Die wichtigsten Meilensteine:
 - **Phase 51 (D-51-06/07):** ShortDay-Cutoff pro Wochentag + Stichtag-Gate
   in `BlockService`. `ToggleService`-Full-Context-Bypass für interne
   Aggregat-Aufrufer (siehe Memory-Notiz).
+- **Phase 52 (WOP-01/02, D-52-06/D-52-08):** Additive Batch-Trait-Methode
+  `ReportingService::get_year(year)` sowie
+  `ShiftplanReportService::extract_shiftplan_report_for_year(year)` /
+  `ExtraHoursService::find_by_year(year)`. Balance-Formel, CVC-06
+  Cap-Semantik, `is_paid`-Filter und der `assemble_weeks`-Per-Woche-
+  Aggregations-Body bleiben unverändert. Byte-Identität zwischen
+  Batch- und Einzel-Woche-Aufruf ist strukturell garantiert durch den
+  gemeinsamen `pub(crate) assemble_weeks`-Helper. Konsument:
+  `BookingInformationServiceImpl::get_weekly_summary` nutzt diese
+  Bulk-Loads jetzt, um ~55 sequenzielle Service-Calls durch 7
+  konstante Bulk-Loads zu ersetzen (byte-identisch, ~2× Latenz-
+  Reduktion auf Dev-DB).
 
 ### Fat-Backend-Prinzip
 

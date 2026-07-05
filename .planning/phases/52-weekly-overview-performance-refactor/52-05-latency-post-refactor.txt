@@ -1,0 +1,101 @@
+# Phase 52 Wave 5 — Latency Post-Refactor
+# Endpoint: GET /booking-information/weekly-resource-report/2026
+# Auth: unauthenticated (Dev-Setup, mock_auth Feature-Flag; Session-Cookie
+#       automatisch beim ersten Request angelegt — Endpoint offen).
+# Build-Profil: dev (`cargo run` ohne --release, identisch zu Wave-0-Baseline).
+# DB: localdb.sqlite3 (454656 bytes, identisch zu Wave-0-Baseline).
+#
+# Kommando (nach 3 Warmup-Runs zur SQLite-Page-Cache-Wärme):
+#   for i in 1 2 3 4 5; do
+#     curl -s -o /dev/null -w "%{time_total}\n" \
+#       http://localhost:3000/booking-information/weekly-resource-report/2026
+#   done | sort -n
+#
+# Warmup-Runs (nicht in Median-Berechnung):
+#   1.030 s
+#   1.078 s
+#   1.044 s
+#
+# Runs (sorted ascending):
+# 1: 1.067352 s
+# 2: 1.125993 s
+# 3: 1.126388 s   ← median
+# 4: 1.145311 s
+# 5: 1.192290 s
+Median: 1.126388 s
+
+# Vergleich mit Wave-0-Baseline
+Baseline median (Wave 0): 2.330317 s
+Speedup factor: 2.07x
+
+# Zielwert-Check (WOP-04)
+Target (<0.500 s): FAIL
+
+# Metadaten
+Backend commit: 15a3a0e (Wave-5-Task-1 refactor committed)
+Measured: 2026-07-05T20:20:00+00:00
+Dev-DB path: shifty-backend/localdb.sqlite3
+Dev-DB size: 454656 bytes
+Hostname: NixOS Dev-Machine (neosam)
+
+# Zielwert-Analyse
+# --------------------------------------------------------------------
+# Wave-5-Task-1 (Bulk-Load-Refactor) hat die 55 sequenziellen
+# Wochen-Service-Calls gegen `reporting.get_week`, `special_day.get_by_week`,
+# `shiftplan_report.extract_shiftplan_report_for_week` und
+# `slot.get_slots_for_week_all_plans` durch 7 konstante Bulk-Loads
+# ersetzt. Latenz-Median auf Dev-DB fällt von 2.33 s auf 1.13 s
+# (Faktor 2.07x). Byte-Identität ist strukturell garantiert
+# (Wave-1-Fixtures 8/8 grün).
+#
+# Zielwert (<0.500 s) wird NICHT erreicht. Byte-identischer Refactor
+# ist die Kernaufgabe dieser Phase; per Plan `<action>` Punkt B ist das
+# als Follow-Up dokumentiert, NICHT als Phase-Blocker (D-52-16
+# Zielwert-Check-Regel):
+#
+# > "Als Follow-Up dokumentieren, NICHT diese Phase blocken. Der
+# > byte-identische Refactor ist die Kernaufgabe; wenn die Latenz nicht
+# > erreicht wird, kann eine Zusatz-Optimierung folgen."
+#
+# Follow-Up-Kandidaten (aus RESEARCH.md Q2 / R3 / A2, priorisiert nach
+# erwartetem Impact):
+#
+# 1. **Load-once für `sales_person_service.get_all` im `assemble_weeks`-
+#    Helper** (RESEARCH Q2 Perf-Anmerkung + A2). Aktuell wird pro
+#    Person pro Woche `sales_person_service.get(sp_id, ...)` aufgerufen —
+#    das sind ~N_persons × 55 Roundtrips. `get_all` existiert bereits
+#    und wird in `booking_information.get_weekly_summary` schon
+#    verwendet. Der `assemble_weeks`-Helper könnte einen HashMap-Index
+#    `HashMap<Uuid, SalesPerson>` als zusätzlichen Slice-Input bekommen.
+#    Byte-identisch. Geschätzter Impact: 30-40% zusätzlicher Speedup.
+#
+# 2. **Batching für `absence_service.derive_hours_for_range` und
+#    `reporting.build_derived_holiday_map`** (RESEARCH R3). Beide werden
+#    aktuell pro Person pro Woche gerufen. Ein Jahres-Bulk-Load-Muster
+#    (analog `find_by_year`) würde die Anzahl der DAO-Roundtrips
+#    weiter reduzieren. Höherer Refactor-Aufwand — separater Task.
+#
+# 3. **DB-Indices** (RESEARCH Q3). `booking(year, calendar_week)`,
+#    `extra_hours(date_time)`, `working_hours(from_year, to_year)`
+#    haben aktuell KEINE Indices. Die Full-Scans in
+#    `extract_shiftplan_report_for_year` sind heute schon der teuerste
+#    Bulk-Load. `CREATE INDEX booking_year_cw` würde als Migration
+#    kommen (Nicht-Ziel für Phase 52; separater Task).
+#
+# 4. **`working_hours`-Row-Filter O(N_wh × 55 × N_persons) reduzieren**.
+#    `find_working_hours_for_calendar_week` läuft im
+#    `assemble_weeks`-Helper linear pro (Person, Woche). Ein
+#    `HashMap<Uuid, Vec<&EmployeeWorkDetails>>`-Voraufbau würde jeder
+#    Person-Iteration O(1)-Zugriff geben statt O(N_wh) Filter. Kein
+#    neuer DAO-Call, nur In-Memory-Umbau. Byte-identisch.
+#
+# Anmerkungen zur Messung
+# --------------------------------------------------------------------
+# - 3 Warmup-Runs VOR der Messung, damit SQLite-Page-Cache und
+#   Query-Compile eingespielt sind. Nachfolgende 5 Runs sind stabil
+#   im Bereich 1.07-1.19 s (Spanne 0.12 s = 11% relative Streuung).
+# - Wave-0-Baseline hatte 1.55-3.15 s (Spanne 1.60 s = 68% relative
+#   Streuung). Der Refactor hat die Wochen-Loop-Serialisierung deutlich
+#   reduziert, was die Streuung senkt — bulk-loads dominieren jetzt.
+# - Erste-Anfrage-Warmup (Server-Start + INSERT INTO session): ca. 40 s,
+#   davor gemessen; die 5 Runs oben sind ALLE nach den 3 Warmup-Runs.

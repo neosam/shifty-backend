@@ -779,6 +779,17 @@ milestones:
 - **Phase 51 (D-51-06/07):** ShortDay cutover per weekday + cutover
   gate in `BlockService`. `ToggleService` Full-Context bypass for
   internal aggregate callers (see memory note).
+- **Phase 52 (WOP-01/02, D-52-06/D-52-08):** Additive batch trait
+  `ReportingService::get_year(year)` and
+  `ShiftplanReportService::extract_shiftplan_report_for_year(year)` /
+  `ExtraHoursService::find_by_year(year)`. Balance formula, CVC-06 cap
+  semantics, `is_paid` filter, and the `assemble_weeks` per-week
+  aggregation body are unchanged. Byte-identity between batch and
+  single-week paths is structurally guaranteed through the shared
+  `pub(crate) assemble_weeks` helper. Consumer:
+  `BookingInformationServiceImpl::get_weekly_summary` now uses these
+  bulk loads to replace ~55 sequential service calls with 7 constant
+  bulk loads (byte-identical, ~2× latency reduction on Dev-DB).
 
 ### Fat-backend principle
 
