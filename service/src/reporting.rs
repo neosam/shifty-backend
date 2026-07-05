@@ -402,6 +402,24 @@ pub trait ReportingService {
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError>;
 
+    /// Batch-Variante von `get_week`: liefert alle Wochen des Jahres in einem Rutsch.
+    ///
+    /// - Vec strikt aufsteigend nach `calendar_week` (1..=weeks_in_year(year));
+    ///   leere Wochen erscheinen mit leerem `Arc<[]>` (D-52-03) — Consumer nutzt
+    ///   1-basierten Index direkt (`result[week - 1]`).
+    /// - Nimmt genau EIN `year`; Spillover (`year+1`) ist Consumer-Sache
+    ///   (D-52-04): Wave 4 Plan 05 ruft `get_year(y) + get_year(y+1)`.
+    /// - Impl delegiert auf denselben `assemble_weeks`-Helper wie `get_week`
+    ///   (WOP-02) — byte-identisches Verhalten zu 55×`get_week` ist strukturell
+    ///   garantiert (D-52-08 / D-52-09).
+    /// - Additiv zu `get_week`, dessen Signatur unverändert bleibt (D-52-06 / D-52-10).
+    async fn get_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[(u8, Arc<[ShortEmployeeReport]>)]>, ServiceError>;
+
     /// Returns average worked hours per week (A-22-1) for the current year up
     /// to today, for the given sales person. HR-gated (STAT-01/D-22-05).
     async fn get_employee_weekly_statistics(

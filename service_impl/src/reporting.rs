@@ -1198,6 +1198,53 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .unwrap_or_else(|| Arc::from(Vec::<ShortEmployeeReport>::new())))
     }
 
+    async fn get_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[(u8, Arc<[ShortEmployeeReport]>)]>, ServiceError> {
+        // Phase 52 (WOP-02): Batch-Variante von `get_week`. Drei Bulk-Load-
+        // Roundtrips für das ganze Jahr statt 55×3, dann Delegation auf den
+        // gemeinsamen `assemble_weeks`-Helper mit einem Vec über alle
+        // ISO-Wochen des Jahres. Byte-Identität zu 55×`get_week` ist strukturell
+        // garantiert (D-52-08 / D-52-09) — beide Pfade rufen denselben Helper mit
+        // denselben Slice-Referenzen pro Woche auf.
+        //
+        // Wie `get_week` läuft dieser Pfad OHNE eigenen Transaction-Envelope
+        // (kein `use_transaction`/`commit`): der Consumer entscheidet über
+        // die TX-Lebenszeit; `tx.clone()` wird an die drei Bulk-Loads und an
+        // `assemble_weeks` durchgereicht.
+        let work_details = self
+            .employee_work_details_service
+            .all(Authentication::Full, tx.clone())
+            .await?;
+        let shiftplan_reports = self
+            .shiftplan_report_service
+            .extract_shiftplan_report_for_year(year, Authentication::Full, tx.clone())
+            .await?;
+        let extra_hours = self
+            .extra_hours_service
+            .find_by_year(year, Authentication::Full, tx.clone())
+            .await?;
+        info!("Extra hours (year batch): {:?}", &extra_hours);
+
+        let weeks_in_year = time::util::weeks_in_year(year as i32);
+        let weeks: Vec<(u32, u8)> = (1..=weeks_in_year).map(|w| (year, w)).collect();
+
+        let assembled = self
+            .assemble_weeks(
+                &weeks,
+                &work_details,
+                &shiftplan_reports,
+                &extra_hours,
+                context,
+                tx,
+            )
+            .await?;
+
+        Ok(assembled.into())
+    }
 
     async fn get_employee_weekly_statistics(
         &self,
