@@ -240,6 +240,272 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
 
         Ok(result)
     }
+
+    /// Phase 52 (WOP-02): Per-week aggregation helper — single source of truth
+    /// for the `get_week` / `get_year` output semantics.
+    ///
+    /// Input contract:
+    /// - `weeks`: list of `(year, iso_week)` tuples to aggregate over. Order is
+    ///   preserved in the return value.
+    /// - `work_details`, `shiftplan_reports`, `extra_hours`: three fully-loaded
+    ///   slice references. The helper filters each slice per-week internally.
+    ///   Callers own the bulk load (single-week callers may pass the week's own
+    ///   query result; year-batch callers pass a year's worth in one shot).
+    ///
+    /// Per-week semantics (byte-identical to the pre-refactor `get_week` body,
+    /// D-52-08/09):
+    /// - `find_working_hours_for_calendar_week` selects contract rows.
+    /// - `apply_weekly_cap` fires PER-WEEK against the raw shiftplan hours,
+    ///   NEVER aggregated across the year (CVC-06).
+    /// - `derive_hours_for_range` (async DAO, per-person per-week).
+    /// - `build_derived_holiday_map` (async, per-person per-week).
+    /// - `sales_person_service.get` + `is_paid` filter run per-person per-week
+    ///   (R9 / D-06 / CVC-10). This is intentionally NOT hoisted out.
+    /// - No `shortday_gate` toggle read — Chain-C gating remains in
+    ///   `booking_information.get_weekly_summary` (D-52-09, R8).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn assemble_weeks(
+        &self,
+        weeks: &[(u32, u8)],
+        work_details: &[EmployeeWorkDetails],
+        shiftplan_reports: &[ShiftplanReportDay],
+        extra_hours: &[ExtraHours],
+        context: Authentication<Deps::Context>,
+        tx: Option<Deps::Transaction>,
+    ) -> Result<Vec<(u8, Arc<[ShortEmployeeReport]>)>, ServiceError> {
+        let mut assembled: Vec<(u8, Arc<[ShortEmployeeReport]>)> =
+            Vec::with_capacity(weeks.len());
+
+        for &(year, week) in weeks {
+            let working_hours = work_details
+                .iter()
+                .cloned()
+                .collect_to_hash_map_by(|wh| wh.sales_person_id);
+            let shiftplan_report = shiftplan_reports
+                .iter()
+                .filter(|r| r.year == year && r.calendar_week == week)
+                .collect_to_hash_map_by(|r| r.sales_person_id);
+            let extra_hours_bucket = extra_hours
+                .iter()
+                .filter(|eh| {
+                    let sw = eh.to_date().as_shifty_week();
+                    sw.year == year && sw.week == week
+                })
+                .collect_to_hash_map_by(|eh| eh.sales_person_id);
+
+            let mut result: Vec<ShortEmployeeReport> = Vec::new();
+
+            for (sales_person_id, working_hours) in working_hours {
+                let raw_shiftplan_hours = shiftplan_report
+                    .get(&sales_person_id)
+                    .map(|r| r.iter().map(|r| r.hours).sum::<f32>())
+                    .unwrap_or(0.0);
+                let employee_extra_hours = extra_hours_bucket.get(&sales_person_id);
+                let extra_working_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category.availability() == Availability::Available)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let abense_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category.availability() == Availability::Unavailable)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let vacation_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let sick_leave_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let holiday_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let unavailable_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::Unavailable)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let unpaid_leave_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let manual_volunteer_hours = employee_extra_hours
+                    .map(|eh| {
+                        eh.iter()
+                            .filter(|eh| eh.category == ExtraHoursCategory::VolunteerWork)
+                            .map(|eh| eh.amount)
+                            .sum::<f32>()
+                    })
+                    .unwrap_or(0.0);
+                let custom_absence_hours: Arc<[CustomExtraHours]> = {
+                    let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
+                    if let Some(eh_list) = employee_extra_hours {
+                        for eh_entry in eh_list.iter() {
+                            if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
+                                &eh_entry.category
+                            {
+                                if let Some(custom_def) = lazy_load_custom_def.get() {
+                                    let key = (custom_def.id, custom_def.name.clone());
+                                    *map.entry(key).or_insert(0.0) += eh_entry.amount;
+                                }
+                            }
+                        }
+                    }
+                    map.into_iter()
+                        .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
+                        .collect::<Vec<_>>()
+                        .into()
+                };
+                // See `get_week` for the has_contract_row / no-contract-volunteer
+                // rationale (quick-260624-ujk). In the year-batch path the same
+                // invariant holds: `all_for_year` returns only contract rows.
+                let has_contract_row =
+                    find_working_hours_for_calendar_week(&working_hours, year, week)
+                        .next()
+                        .is_some();
+                let (planned_hours, dynamic_hours): (f32, f32) =
+                    find_working_hours_for_calendar_week(&working_hours, year, week)
+                        .map(|wh| weight_for_week(year, week, wh))
+                        .map(|wfw| (wfw.0, wfw.1))
+                        .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
+                let cap_active = find_working_hours_for_calendar_week(&working_hours, year, week)
+                    .any(|wh| wh.cap_planned_hours_to_expected);
+                // Gap 1 (Phase 8.4 / CR-01) + Gap 2 (WR-01): additiver
+                // absence_period-Merge, derived VOR apply_weekly_cap.
+                let derived = self
+                    .absence_service
+                    .derive_hours_for_range(
+                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday).to_date(),
+                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday).to_date(),
+                        sales_person_id,
+                        context.clone(),
+                        tx.clone(),
+                    )
+                    .await?;
+                let mut absence_derived_vacation_hours = 0.0_f32;
+                let mut absence_derived_sick_leave_hours = 0.0_f32;
+                let mut absence_derived_unpaid_leave_hours = 0.0_f32;
+                for resolved in derived.values() {
+                    match resolved.category {
+                        AbsenceCategory::Vacation => {
+                            absence_derived_vacation_hours += resolved.hours
+                        }
+                        AbsenceCategory::SickLeave => {
+                            absence_derived_sick_leave_hours += resolved.hours
+                        }
+                        AbsenceCategory::UnpaidLeave => {
+                            absence_derived_unpaid_leave_hours += resolved.hours
+                        }
+                    }
+                }
+                let abense_hours_for_balance = if !has_contract_row || planned_hours <= 0.0 {
+                    0.0f32
+                } else {
+                    abense_hours
+                };
+                let absence_derived_balance_total = if !has_contract_row || planned_hours <= 0.0 {
+                    0.0f32
+                } else {
+                    absence_derived_vacation_hours
+                        + absence_derived_sick_leave_hours
+                        + absence_derived_unpaid_leave_hours
+                };
+                // 4th injection point (Phase 34 / HSP-01/02, D-34-01).
+                let employee_extra_hours_owned: Vec<ExtraHours> = employee_extra_hours
+                    .map(|arc| arc.iter().map(|r| (*r).clone()).collect())
+                    .unwrap_or_default();
+                let derived_holiday_map = self
+                    .build_derived_holiday_map(
+                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday),
+                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday),
+                        &working_hours,
+                        &employee_extra_hours_owned,
+                        context.clone(),
+                    )
+                    .await?;
+                let derived_holiday_for_week: f32 = derived_holiday_map.values().sum();
+                let holiday_derived_gated = if !has_contract_row || planned_hours <= 0.0 {
+                    0.0f32
+                } else {
+                    derived_holiday_for_week
+                };
+                let holiday_hours = holiday_hours + holiday_derived_gated;
+                // HSP-03 band guard / CR-01 — see `get_week` doc.
+                let expected_hours_for_cap =
+                    planned_hours - abense_hours_for_balance - absence_derived_balance_total;
+                let (shiftplan_hours, auto_volunteer_hours) =
+                    apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours_for_cap);
+                let expected_hours = expected_hours_for_cap - holiday_derived_gated;
+                let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
+                let no_contract_volunteer = if has_contract_row {
+                    0.0
+                } else {
+                    shiftplan_hours
+                };
+                let volunteer_hours =
+                    manual_volunteer_hours + auto_volunteer_hours + no_contract_volunteer;
+                let dynamic_hours =
+                    dynamic_hours - abense_hours_for_balance - absence_derived_balance_total;
+                let overall_hours = shiftplan_paid + extra_working_hours;
+                let balance_hours = overall_hours - expected_hours;
+                // D-06 / CVC-10: is_paid-Filter — MUST stay per-person per-week
+                // (R9 / T-52-03 mitigation).
+                let sales_person = self
+                    .sales_person_service
+                    .get(sales_person_id, Authentication::Full, tx.clone())
+                    .await?;
+                if !sales_person.is_paid.unwrap_or(false) {
+                    continue;
+                }
+                result.push(ShortEmployeeReport {
+                    sales_person: Arc::new(sales_person),
+                    balance_hours,
+                    dynamic_hours,
+                    expected_hours,
+                    overall_hours,
+                    vacation_hours: vacation_hours + absence_derived_vacation_hours,
+                    sick_leave_hours: sick_leave_hours + absence_derived_sick_leave_hours,
+                    holiday_hours,
+                    unavailable_hours,
+                    unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
+                    volunteer_hours,
+                    custom_absence_hours,
+                });
+            }
+
+            assembled.push((week, result.into()));
+        }
+
+        Ok(assembled)
+    }
 }
 
 #[async_trait]
@@ -888,276 +1154,50 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShortEmployeeReport]>, ServiceError> {
-        // Auth check is done by working_hours_service
-        let working_hours = self
+        // Phase 52 (WOP-02): thin wrapper. All aggregation semantics live in
+        // `assemble_weeks` (single source of truth shared with `get_year` in
+        // Wave 4). We load the same three inputs as before, then delegate on a
+        // 1-element `weeks` slice. Byte-identity is structural — no code path
+        // change.
+        //
+        // Note: pre-refactor `get_week` did NOT run its own transaction envelope
+        // (no `use_transaction` / `commit`) — it forwarded whatever `tx` the
+        // caller passed to each DAO call and returned. We preserve that exact
+        // shape here so mock-based unit tests (which do not stub `commit`) stay
+        // byte-identical.
+        //
+        // Auth check is done by working_hours_service.
+        let work_details = self
             .employee_work_details_service
             .all_for_week(week, year, context.clone(), tx.clone())
-            .await?
-            .iter()
-            .cloned()
-            .collect_to_hash_map_by(|wh| wh.sales_person_id);
+            .await?;
         let shiftplan_report = self
             .shiftplan_report_service
             .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone())
             .await?;
-        let shiftplan_report = shiftplan_report
-            .iter()
-            .collect_to_hash_map_by(|r| r.sales_person_id);
         let extra_hours = self
             .extra_hours_service
             .find_by_week(year, week, Authentication::Full, tx.clone())
             .await?;
         info!("Extra hours: {:?}", &extra_hours);
-        let extra_hours = extra_hours
-            .iter()
-            .collect_to_hash_map_by(|eh| eh.sales_person_id);
 
-        let mut result = Vec::new();
+        let mut assembled = self
+            .assemble_weeks(
+                &[(year, week)],
+                &work_details,
+                &shiftplan_report,
+                &extra_hours,
+                context,
+                tx,
+            )
+            .await?;
 
-        for (sales_person_id, working_hours) in working_hours {
-            let raw_shiftplan_hours = shiftplan_report
-                .get(&sales_person_id)
-                .map(|r| r.iter().map(|r| r.hours).sum::<f32>())
-                .unwrap_or(0.0);
-            let employee_extra_hours = extra_hours.get(&sales_person_id);
-            let extra_working_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category.availability() == Availability::Available)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let abense_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category.availability() == Availability::Unavailable)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let vacation_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category == ExtraHoursCategory::Vacation)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let sick_leave_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category == ExtraHoursCategory::SickLeave)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let holiday_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category == ExtraHoursCategory::Holiday)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let unavailable_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category == ExtraHoursCategory::Unavailable)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let unpaid_leave_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category == ExtraHoursCategory::UnpaidLeave)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let manual_volunteer_hours = employee_extra_hours
-                .map(|eh| {
-                    eh.iter()
-                        .filter(|eh| eh.category == ExtraHoursCategory::VolunteerWork)
-                        .map(|eh| eh.amount)
-                        .sum::<f32>()
-                })
-                .unwrap_or(0.0);
-            let custom_absence_hours: Arc<[CustomExtraHours]> = {
-                let mut map: HashMap<(Uuid, Arc<str>), f32> = HashMap::new();
-                if let Some(eh_list) = employee_extra_hours {
-                    for eh_entry in eh_list.iter() {
-                        if let ExtraHoursCategory::CustomExtraHours(lazy_load_custom_def) =
-                            &eh_entry.category
-                        {
-                            if let Some(custom_def) = lazy_load_custom_def.get() {
-                                let key = (custom_def.id, custom_def.name.clone());
-                                *map.entry(key).or_insert(0.0) += eh_entry.amount;
-                            }
-                        }
-                    }
-                }
-                map.into_iter()
-                    .map(|((id, name), hours)| CustomExtraHours { id, name, hours })
-                    .collect::<Vec<_>>()
-                    .into()
-            };
-            // User-Regel (quick-260624-ujk): Eine KW OHNE EmployeeWorkDetails-Zeile bedeutet,
-            // dass der Mitarbeiter in dieser Woche KEINEN Vertrag hat. Geleistete Shiftplan-Stunden
-            // sind dann Ehrenamt (volunteer), kein bezahltes Soll=Ist.
-            //
-            // Wichtig fuer get_week: `all_for_week` liefert nur Persons MIT Vertragszeile fuer
-            // diese KW — d.h. Personen OHNE Zeile iteriert diese Schleife gar nicht. Falls solche
-            // Personen Shiftplan-Stunden in dieser KW leisten, tauchen sie hier nicht auf. Die
-            // no-contract-Faelle sind deshalb in get_reports_for_all_employees und hours_per_week
-            // abgedeckt; hier ist has_contract_row implizit immer true. Der Guard bleibt fuer
-            // Konsistenz und um den dynamic-Zweig (planned_hours==0, Zeile vorhanden) korrekt zu trennen.
-            //
-            // Abgrenzung booking_information-Band-Logik: Die booking_information-Baender
-            // (committed_voluntary Band 1, volunteer_surplus Band 2) sind auf is_paid=false
-            // (unbezahlte Freiwillige) gegated. Dieser Pfad betrifft bezahlte Mitarbeiter.
-            // Beide Pfade sind disjunkt — keine Doppelzaehlung.
-            let has_contract_row =
-                find_working_hours_for_calendar_week(&working_hours, year, week)
-                    .next()
-                    .is_some();
-            let (planned_hours, dynamic_hours): (f32, f32) =
-                find_working_hours_for_calendar_week(&working_hours, year, week)
-                    .map(|wh|  weight_for_week(year, week, wh))
-                    .map(|wfw| (wfw.0, wfw.1))
-                    .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
-            let cap_active = find_working_hours_for_calendar_week(&working_hours, year, week)
-                .any(|wh| wh.cap_planned_hours_to_expected);
-            // Gap 1 (Phase 8.4 / CR-01): additiver absence_period-Merge fuer die Woche.
-            // Gap 2 (Phase 8.4 / WR-01): derived wird VOR apply_weekly_cap berechnet, damit
-            // die symmetrische Balance-Reduktion die Cap-Logik korrekt einbezieht.
-            let derived = self
-                .absence_service
-                .derive_hours_for_range(
-                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday).to_date(),
-                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday).to_date(),
-                    sales_person_id,
-                    context.clone(),
-                    tx.clone(),
-                )
-                .await?;
-            let mut absence_derived_vacation_hours = 0.0_f32;
-            let mut absence_derived_sick_leave_hours = 0.0_f32;
-            let mut absence_derived_unpaid_leave_hours = 0.0_f32;
-            for resolved in derived.values() {
-                match resolved.category {
-                    AbsenceCategory::Vacation => absence_derived_vacation_hours += resolved.hours,
-                    AbsenceCategory::SickLeave => absence_derived_sick_leave_hours += resolved.hours,
-                    AbsenceCategory::UnpaidLeave => absence_derived_unpaid_leave_hours += resolved.hours,
-                }
-            }
-            // Gap (Phase 8.4 / WR-01): dynamic-Guard auf BEIDEN Absence-Beitraegen fuer die Balance.
-            // Bei dynamischen Wochen liefert weight_for_week planned_hours = 0.0 — weder abense_hours
-            // noch absence_derived duerfen expected_hours reduzieren (sonst negatives expected,
-            // aufgeblasene balance). Symmetrisch zu get_reports_for_all_employees (Z.263: absense_hours
-            // 0.0 im dynamic-Zweig) und zur Referenz hours_per_week (Z.988: absence_hours + derived
-            // beide mit `if working_hours_for_week <= 0.0 { 0.0 }`-Guard).
-            // Display-Merge (vacation/sick/unpaid_leave Zeilen unten) bleibt ungegate additiv.
-            //
-            // no-contract (quick-260624-ujk): Bei !has_contract_row sind absence_hours irrelevant
-            // (kein Soll => kein Abzug). In der Praxis ist has_contract_row hier immer true (s.o.),
-            // aber der Guard ist explizit fuer Konsistenz mit den anderen Pfaden.
-            let abense_hours_for_balance = if !has_contract_row || planned_hours <= 0.0 { 0.0f32 } else { abense_hours };
-            let absence_derived_balance_total = if !has_contract_row || planned_hours <= 0.0 {
-                0.0f32
-            } else {
-                absence_derived_vacation_hours + absence_derived_sick_leave_hours + absence_derived_unpaid_leave_hours
-            };
-            // ── 4th injection point (Phase 34 / HSP-01/02, D-34-01) ──────────────────
-            // Build derived-holiday map for this employee + this single week.
-            // Reuses build_derived_holiday_map (same logic as injection points 1a/1b).
-            // Stichtag gate + manual-wins conflict check are built into the helper (D-25-03/05).
-            //
-            // Type note: `extra_hours` in get_week is collected via .iter() which yields
-            // &ExtraHours references, so the per-employee bucket is Arc<[&ExtraHours]>.
-            // build_derived_holiday_map expects &[ExtraHours] (owned items), so we clone
-            // each &ExtraHours into ExtraHours. ExtraHours: Clone.
-            let employee_extra_hours_owned: Vec<ExtraHours> = employee_extra_hours
-                .map(|arc| arc.iter().map(|r| (*r).clone()).collect())
-                .unwrap_or_default();
-            let derived_holiday_map = self
-                .build_derived_holiday_map(
-                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday),
-                    ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday),
-                    &working_hours,
-                    &employee_extra_hours_owned,
-                    context.clone(),
-                )
-                .await?;
-            let derived_holiday_for_week: f32 = derived_holiday_map.values().sum();
-            // Dynamic-week guard (same pattern as absence_derived_balance_total):
-            // If planned_hours <= 0.0, the week is dynamic → holiday credit must not
-            // reduce expected further (no negative expected, no inflated balance, Pitfall 2).
-            let holiday_derived_gated =
-                if !has_contract_row || planned_hours <= 0.0 { 0.0f32 } else { derived_holiday_for_week };
-            // HSP-02: Update holiday_hours to include derived contribution (additive to manual).
-            // Manual-wins is already handled inside build_derived_holiday_map (D-25-03).
-            let holiday_hours = holiday_hours + holiday_derived_gated;
-            // ── End 4th injection point ───────────────────────────────────────────────
-            // HSP-03 band guard / CR-01: the derived holiday must NOT enter the
-            // apply_weekly_cap baseline. The authoritative year-view
-            // (get_reports_for_all_employees, see the apply_weekly_cap call ~Z.428) caps
-            // against the RAW expected and applies the holiday to the balance separately.
-            // If we fed the holiday-reduced expected into the cap here, a binding cap would
-            // convert the holiday delta into auto_volunteer_hours — leaking the holiday into
-            // the volunteer_hours/paid bands (violating D-25-08, HSP-03) AND swallowing the
-            // balance credit (violating HSP-01, "konsistent zum Stundenkonto"). The cap
-            // baseline keeps the absence reduction (pre-existing Phase 8.4 behavior) but
-            // excludes holiday_derived_gated.
-            let expected_hours_for_cap =
-                planned_hours - abense_hours_for_balance - absence_derived_balance_total;
-            let (shiftplan_hours, auto_volunteer_hours) =
-                apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours_for_cap);
-            // HSP-01: the displayed/balance expected is the cap baseline minus the derived
-            // holiday credit. CRITICAL (HSP-03 band guard): holiday_derived_gated is ONLY
-            // subtracted here, NOT from dynamic_hours (line below). Folding it into
-            // abense_hours_for_balance would reduce dynamic_hours → the paid_hours band in
-            // booking_information would drop.
-            let expected_hours = expected_hours_for_cap - holiday_derived_gated;
-            // no-contract (quick-260624-ujk): Falls has_contract_row false waere, gehen Shiftplan-
-            // Stunden als Ehrenamt. In get_week ist has_contract_row implizit immer true (s.o.),
-            // aber der Guard bleibt als Absicherung konsistent mit den anderen Report-Pfaden.
-            let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
-            let no_contract_volunteer = if has_contract_row { 0.0 } else { shiftplan_hours };
-            let volunteer_hours = manual_volunteer_hours + auto_volunteer_hours + no_contract_volunteer;
-            let dynamic_hours = dynamic_hours - abense_hours_for_balance - absence_derived_balance_total;
-            let overall_hours = shiftplan_paid + extra_working_hours;
-            let balance_hours = overall_hours - expected_hours;
-            // D-06 / CVC-10: Fetch SalesPerson vor dem push und gate auf is_paid.
-            // Unbezahlte Freiwillige (is_paid=false, expected_hours=0) halten ab Phase 17
-            // einen EmployeeWorkDetails-Record, duerfen aber NICHT in paid_hours /
-            // WorkingHoursPerSalesPerson / Year-Summary lecken.
-            let sales_person = self
-                .sales_person_service
-                .get(sales_person_id, Authentication::Full, tx.clone())
-                .await?;
-            if !sales_person.is_paid.unwrap_or(false) {
-                continue;
-            }
-            result.push(ShortEmployeeReport {
-                sales_person: Arc::new(sales_person),
-                balance_hours,
-                dynamic_hours,
-                expected_hours,
-                overall_hours,
-                vacation_hours: vacation_hours + absence_derived_vacation_hours,
-                sick_leave_hours: sick_leave_hours + absence_derived_sick_leave_hours,
-                holiday_hours,
-                unavailable_hours,
-                unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
-                volunteer_hours,
-                custom_absence_hours,
-            });
-        }
-
-        Ok(result.into())
+        Ok(assembled
+            .pop()
+            .map(|(_, reports)| reports)
+            .unwrap_or_else(|| Arc::from(Vec::<ShortEmployeeReport>::new())))
     }
+
 
     async fn get_employee_weekly_statistics(
         &self,
