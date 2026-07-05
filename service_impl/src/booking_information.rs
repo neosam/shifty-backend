@@ -305,16 +305,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         // Method-Call holen (nicht pro Woche) — er hängt weder an `year` noch
         // an `week`. `Unauthorized` → None (Legacy off), analog reporting.rs
         // und Chain A' (block.rs).
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Gap-Closure: zentraler Helper mit `Unauthorized → None` (Legacy off).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
         for week in 1..=(weeks_in_year + 3) {
             let (year, week) = if week > weeks_in_year {
                 (year + 1, week - weeks_in_year)
@@ -543,16 +536,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         // Phase 51 (D-51-06 Chain C + D-51-07): pro-Slot-Clip vor Filter-Anti-
         // Pattern. Toggle-Prefetch für dieses (year, week) einmalig; `required_hours_by_day`
         // (unten) foldet auto-korrekt über die geclippte `slots`-Variable.
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Gap-Closure: zentraler Helper mit `Unauthorized → None` (Legacy off).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
         let slots: Arc<[Slot]> = self
             .slot_service
             .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())

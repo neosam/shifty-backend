@@ -16,7 +16,6 @@ use service::{
     shiftplan_catalog::ShiftplanService,
     slot::{Slot, SlotService},
     special_days::{SpecialDay, SpecialDayService, SpecialDayType},
-    toggle::ToggleService,
     ServiceError,
 };
 
@@ -270,20 +269,12 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_by_week(year, week, context.clone())
             .await?;
 
-        // Phase 51 (D-51-07): Stichtag für ShortDay-Slot-Kürzung. Muster verbatim
-        // aus reporting.rs:164-180 (holiday_auto_credit-Toggle). `Unauthorized`
-        // → als "Legacy off" behandeln, weil die Sichten auch mit reduzierten
-        // Auth-Kontexten (z. B. Mock-Auth in Tests) aufrufbar sind.
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Phase 51 (D-51-07): Stichtag für ShortDay-Slot-Kürzung. Zentraler
+        // Helper in `shortday_gate::read_active_from` — toleriert `Unauthorized`
+        // als "Legacy off" (mock-auth / Integration-Tests / Cross-Service-Calls
+        // mit `Authentication::Full`). Muster verbatim aus `reporting.rs:164-180`.
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         let slots = self
             .slot_service
@@ -377,17 +368,10 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_by_week(year, week, context.clone())
             .await?;
 
-        // Phase 51 (D-51-07): Stichtag-Toggle.
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Phase 51 (D-51-07): Stichtag-Toggle — zentraler Helper mit
+        // `Unauthorized → None` Fallback (Gap-Closure).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         let bookings = self
             .booking_service
@@ -516,17 +500,10 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_by_week(year, week, context.clone())
             .await?;
 
-        // Phase 51 (D-51-07): Stichtag-Toggle.
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Phase 51 (D-51-07): Stichtag-Toggle — zentraler Helper mit
+        // `Unauthorized → None` Fallback (Gap-Closure).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         let slots = self
             .slot_service
@@ -656,17 +633,10 @@ impl<Deps: ShiftplanViewServiceDeps> ShiftplanViewService for ShiftplanViewServi
             .get_by_week(year, week, context.clone())
             .await?;
 
-        // Phase 51 (D-51-07): Stichtag-Toggle.
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Phase 51 (D-51-07): Stichtag-Toggle — zentraler Helper mit
+        // `Unauthorized → None` Fallback (Gap-Closure).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         let bookings = self
             .booking_service

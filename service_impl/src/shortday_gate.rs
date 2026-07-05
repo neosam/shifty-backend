@@ -25,8 +25,11 @@
 //! (HCFG-02 `holiday_auto_credit` in v1.7).
 
 use service::{
+    ServiceError,
+    permission::Authentication,
     slot::Slot,
     special_days::{SpecialDay, SpecialDayType},
+    toggle::ToggleService,
 };
 use shifty_utils::DayOfWeek;
 use time::{Date, format_description::well_known::Iso8601};
@@ -64,6 +67,52 @@ pub fn should_clip(booking_date: Date, active_from: Option<Date>) -> bool {
     match active_from {
         None => false,
         Some(cutoff) => booking_date >= cutoff,
+    }
+}
+
+/// Liest den Stichtag-Toggle einmal und toleriert `Unauthorized` als
+/// "Gate inaktiv / Legacy-Verhalten" — analog HCFG-02 in `reporting.rs:164-172`.
+///
+/// **Warum die Toleranz nötig ist:** Die vier Aggregat-Konsumenten (Chain A'
+/// Block, Chain B Shiftplan, Chain C BookingInformation, Chain D
+/// ShiftplanReport) werden aus unterschiedlichen Auth-Kontexten aufgerufen:
+///
+/// - Vom REST-Layer mit vollem User-Kontext (Standardfall) → Toggle-DB-Lookup
+///   ergibt `Ok(raw)`.
+/// - Aus anderen Services mit `Authentication::Full` (z. B. `BookingInformation`
+///   ruft `ShiftplanReport` mit `Full` auf). `ToggleService::get_toggle_value`
+///   verlangt aber eine echte User-ID; `Authentication::Full` liefert
+///   `current_user_id → Ok(None)` → `Err(Unauthorized)`.
+/// - Aus mock-auth Development-Setups + Integration-Tests, ebenfalls ohne
+///   echte User-ID.
+///
+/// In allen drei Fällen ist "kein Stichtag konfiguriert" semantisch identisch
+/// mit "kein Stichtag gesetzt" → `Ok(None)` → Legacy-Verhalten (kein Clip).
+/// Ohne diese Toleranz schlagen ansonsten funktionierende Endpoints (z. B.
+/// `GET /report/week/{year}/{week}`, `GET /booking-information/weekly-resource-report/{year}`)
+/// mit HTTP 401 fehl.
+///
+/// # Ablauf im Konsumenten (Wave 2 / Gap-Closure)
+///
+/// ```ignore
+/// let active_from = shortday_gate::read_active_from(
+///     self.toggle_service.as_ref(),
+///     context.clone(),
+/// ).await?;
+/// // active_from == None → Gate inaktiv → Legacy
+/// // active_from == Some(date) → Gate greift ab date (inklusiv)
+/// ```
+pub(crate) async fn read_active_from<S: ToggleService + ?Sized>(
+    toggle_service: &S,
+    context: Authentication<S::Context>,
+) -> Result<Option<Date>, ServiceError> {
+    match toggle_service
+        .get_toggle_value(TOGGLE_NAME, context, None)
+        .await
+    {
+        Ok(raw) => Ok(parse_active_from(raw.as_deref())),
+        Err(ServiceError::Unauthorized) => Ok(None),
+        Err(e) => Err(e),
     }
 }
 

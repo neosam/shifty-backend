@@ -63,29 +63,6 @@ fn slot_from_row(row: &ShiftplanReportRawRow) -> Slot {
     }
 }
 
-/// Liest den Stichtag-Toggle und toleriert `Unauthorized` (Muster:
-/// `reporting.rs:164-172`, HCFG-02).
-///
-/// Der `ShiftplanReportService` wird von unterschiedlichen Kontexten aufgerufen,
-/// u. a. aus Integration-Tests + mock-auth. Der `ToggleService` verlangt eine
-/// echte User-ID; ohne die schlägt `get_toggle_value` mit `Unauthorized` fehl.
-/// Semantisch bedeutet das genauso wie ein leerer Toggle: **kein Stichtag,
-/// Legacy-Verhalten (kein Clip)**. Deshalb hier die identische Behandlung wie
-/// bei HCFG-02: `Unauthorized` → `None` → Gate inaktiv.
-async fn read_active_from<S: ToggleService>(
-    toggle_service: &S,
-    context: Authentication<S::Context>,
-) -> Result<Option<Date>, ServiceError> {
-    match toggle_service
-        .get_toggle_value(shortday_gate::TOGGLE_NAME, context, None)
-        .await
-    {
-        Ok(raw) => Ok(shortday_gate::parse_active_from(raw.as_deref())),
-        Err(ServiceError::Unauthorized) => Ok(None),
-        Err(e) => Err(e),
-    }
-}
-
 /// Wendet Clip + Gate pro Row an und liefert die verbleibenden Stunden.
 ///
 /// Semantik (D-51-06 Chain D):
@@ -132,8 +109,10 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
         let tx = self.transaction_dao.use_transaction(tx).await?;
 
         // Toggle einmal fürs ganze Range (Rollout-Default None → Legacy).
-        // Unauthorized → None (mock-auth / integration-tests, siehe read_active_from).
-        let active_from = read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
+        // Unauthorized → None (mock-auth / integration-tests / Cross-Service-Calls
+        // mit `Authentication::Full`, siehe `shortday_gate::read_active_from`).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         // SpecialDays pro Woche cachen (Muster: reporting.rs:186-198).
         let mut special_days_by_week: HashMap<ShiftyWeek, Arc<[SpecialDay]>> = HashMap::new();
@@ -223,11 +202,10 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
     ) -> Result<Arc<[ShiftplanQuickOverview]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
 
-        let toggle_raw = self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await?;
-        let active_from = shortday_gate::parse_active_from(toggle_raw.as_deref());
+        // Gap-Closure: `Unauthorized` (Cross-Service-Calls mit Authentication::Full
+        // + mock-auth) → Legacy off. Siehe `shortday_gate::read_active_from`.
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         // SpecialDays für alle Wochen 1..=until_week (D-51-07 Gate-Check pro
         // Row braucht die Woche).
@@ -283,11 +261,10 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
 
-        let toggle_raw = self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await?;
-        let active_from = shortday_gate::parse_active_from(toggle_raw.as_deref());
+        // Gap-Closure: `Unauthorized` (Cross-Service-Calls mit Authentication::Full
+        // + mock-auth) → Legacy off. Siehe `shortday_gate::read_active_from`.
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         let special_days = self
             .special_day_service

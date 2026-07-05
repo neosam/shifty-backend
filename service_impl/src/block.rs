@@ -98,16 +98,9 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             .special_day_service
             .get_by_week(year, week, context.clone())
             .await?;
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Gap-Closure: zentraler Helper mit `Unauthorized → None` (Legacy off).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         // Collect each booking's associated slot. We'll later group by day-of-week.
         // (You could optimize this by building a single query or caching, but this
@@ -291,16 +284,9 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
             .special_day_service
             .get_by_week(year, week, context.clone())
             .await?;
-        let toggle_value = match self
-            .toggle_service
-            .get_toggle_value(shortday_gate::TOGGLE_NAME, context.clone(), None)
-            .await
-        {
-            Ok(v) => v,
-            Err(ServiceError::Unauthorized) => None,
-            Err(e) => return Err(e),
-        };
-        let active_from = shortday_gate::parse_active_from(toggle_value.as_deref());
+        // Gap-Closure: zentraler Helper mit `Unauthorized → None` (Legacy off).
+        let active_from =
+            shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
         // Group slots by day and sort by time. Slots werden pro-Slot geclippt
         // VOR dem Filter+Merge, damit die `slot.from == to`-Consecutive-Detection
