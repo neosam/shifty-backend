@@ -14,7 +14,7 @@ use service::{
         CustomExtraHours, EmployeeReport, ExtraHoursReportCategory, GroupedReportHours,
         ShortEmployeeReport, WorkingHoursDay,
     },
-    sales_person::SalesPersonService,
+    sales_person::{SalesPerson, SalesPersonService},
     shiftplan_report::{ShiftplanReportDay, ShiftplanReportService},
     special_days::SpecialDayService,
     toggle::ToggleService,
@@ -263,6 +263,20 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
     ///   (R9 / D-06 / CVC-10). This is intentionally NOT hoisted out.
     /// - No `shortday_gate` toggle read — Chain-C gating remains in
     ///   `booking_information.get_weekly_summary` (D-52-09, R8).
+    ///
+    /// Phase 52 Follow-Up (WOP-04): callers pass two in-memory indexes to
+    /// eliminate O(N_persons × N_weeks) per-iteration cost:
+    /// - `sales_person_index`: `HashMap<Uuid, SalesPerson>` — replaces per-person
+    ///   per-week `sales_person_service.get(sp_id, ...)` DAO roundtrip with an
+    ///   O(1) lookup. Callers build it from `sales_person_service.get_all(...)`.
+    /// - `working_hours_by_sp`: `HashMap<Uuid, Arc<[EmployeeWorkDetails]>>` —
+    ///   pre-bucketed by sales_person_id ONCE before the week loop, so
+    ///   `find_working_hours_for_calendar_week` runs against a small per-person
+    ///   slice instead of re-bucketing every week. Callers build it once from
+    ///   `work_details` before delegating.
+    ///
+    /// Both indexes are byte-identical to the pre-follow-up shape (same rows,
+    /// same order per-person after the internal grouping). No new DAO calls.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn assemble_weeks(
         &self,
@@ -270,17 +284,16 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
         work_details: &[EmployeeWorkDetails],
         shiftplan_reports: &[ShiftplanReportDay],
         extra_hours: &[ExtraHours],
+        sales_person_index: &HashMap<Uuid, SalesPerson>,
+        working_hours_by_sp: &HashMap<Uuid, Arc<[EmployeeWorkDetails]>>,
         context: Authentication<Deps::Context>,
         tx: Option<Deps::Transaction>,
     ) -> Result<Vec<(u8, Arc<[ShortEmployeeReport]>)>, ServiceError> {
+        let _ = work_details; // Retained in signature for byte-identity of caller shape (Wave-2 contract).
         let mut assembled: Vec<(u8, Arc<[ShortEmployeeReport]>)> =
             Vec::with_capacity(weeks.len());
 
         for &(year, week) in weeks {
-            let working_hours = work_details
-                .iter()
-                .cloned()
-                .collect_to_hash_map_by(|wh| wh.sales_person_id);
             let shiftplan_report = shiftplan_reports
                 .iter()
                 .filter(|r| r.year == year && r.calendar_week == week)
@@ -295,7 +308,9 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
 
             let mut result: Vec<ShortEmployeeReport> = Vec::new();
 
-            for (sales_person_id, working_hours) in working_hours {
+            for (sales_person_id, working_hours) in working_hours_by_sp.iter() {
+                let sales_person_id = *sales_person_id;
+                let working_hours: &[EmployeeWorkDetails] = working_hours.as_ref();
                 let raw_shiftplan_hours = shiftplan_report
                     .get(&sales_person_id)
                     .map(|r| r.iter().map(|r| r.hours).sum::<f32>())
@@ -388,15 +403,15 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                 // rationale (quick-260624-ujk). In the year-batch path the same
                 // invariant holds: `all_for_year` returns only contract rows.
                 let has_contract_row =
-                    find_working_hours_for_calendar_week(&working_hours, year, week)
+                    find_working_hours_for_calendar_week(working_hours, year, week)
                         .next()
                         .is_some();
                 let (planned_hours, dynamic_hours): (f32, f32) =
-                    find_working_hours_for_calendar_week(&working_hours, year, week)
+                    find_working_hours_for_calendar_week(working_hours, year, week)
                         .map(|wh| weight_for_week(year, week, wh))
                         .map(|wfw| (wfw.0, wfw.1))
                         .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
-                let cap_active = find_working_hours_for_calendar_week(&working_hours, year, week)
+                let cap_active = find_working_hours_for_calendar_week(working_hours, year, week)
                     .any(|wh| wh.cap_planned_hours_to_expected);
                 // Gap 1 (Phase 8.4 / CR-01) + Gap 2 (WR-01): additiver
                 // absence_period-Merge, derived VOR apply_weekly_cap.
@@ -446,7 +461,7 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     .build_derived_holiday_map(
                         ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday),
                         ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday),
-                        &working_hours,
+                        working_hours,
                         &employee_extra_hours_owned,
                         context.clone(),
                     )
@@ -478,10 +493,23 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                 let balance_hours = overall_hours - expected_hours;
                 // D-06 / CVC-10: is_paid-Filter — MUST stay per-person per-week
                 // (R9 / T-52-03 mitigation).
-                let sales_person = self
-                    .sales_person_service
-                    .get(sales_person_id, Authentication::Full, tx.clone())
-                    .await?;
+                //
+                // Phase 52 Follow-Up (WOP-04): resolve the sales person via the
+                // caller-provided in-memory index (built once from
+                // `sales_person_service.get_all(...)`) instead of a per-person
+                // per-week DAO roundtrip. Fallback to the legacy `.get(...)` DAO
+                // call preserves byte-identity when a sales_person_id shows up in
+                // `working_hours_by_sp` but not in the index (should not happen
+                // in practice — both feed from the same underlying tables — but
+                // the fallback keeps the pre-follow-up error shape).
+                let sales_person = match sales_person_index.get(&sales_person_id) {
+                    Some(sp) => sp.clone(),
+                    None => {
+                        self.sales_person_service
+                            .get(sales_person_id, Authentication::Full, tx.clone())
+                            .await?
+                    }
+                };
                 if !sales_person.is_paid.unwrap_or(false) {
                     continue;
                 }
@@ -1181,12 +1209,31 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .await?;
         info!("Extra hours: {:?}", &extra_hours);
 
+        // Phase 52 Follow-Up (WOP-04): pre-build the two in-memory indexes
+        // (sales_person load-once + working_hours bucketed by sp_id) before
+        // delegating. Single-week callers pay a small O(N_sp + N_wd) upfront
+        // cost but save the per-person DAO roundtrip inside `assemble_weeks`.
+        let all_sales_persons = self
+            .sales_person_service
+            .get_all(Authentication::Full, tx.clone())
+            .await?;
+        let sales_person_index: HashMap<Uuid, SalesPerson> = all_sales_persons
+            .iter()
+            .map(|sp| (sp.id, sp.clone()))
+            .collect();
+        let working_hours_by_sp: HashMap<Uuid, Arc<[EmployeeWorkDetails]>> = work_details
+            .iter()
+            .cloned()
+            .collect_to_hash_map_by(|wh| wh.sales_person_id);
+
         let mut assembled = self
             .assemble_weeks(
                 &[(year, week)],
                 &work_details,
                 &shiftplan_report,
                 &extra_hours,
+                &sales_person_index,
+                &working_hours_by_sp,
                 context,
                 tx,
             )
@@ -1229,6 +1276,28 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .await?;
         info!("Extra hours (year batch): {:?}", &extra_hours);
 
+        // Phase 52 Follow-Up (WOP-04): pre-build the two in-memory indexes
+        // ONCE, before iterating ~55 ISO weeks. This eliminates:
+        //   1. `sales_person_service.get(sp_id, ...)` per (person × week) —
+        //      replaced by `HashMap<Uuid, SalesPerson>` O(1) lookup.
+        //   2. `collect_to_hash_map_by` on `work_details` per week + linear
+        //      `find_working_hours_for_calendar_week` full-scans per (person,
+        //      week) — replaced by pre-bucketed `HashMap<Uuid, Arc<[EmployeeWorkDetails]>>`.
+        // Both indexes are pure in-memory rearrangements of data already loaded
+        // by the bulk-load preamble above — no new DAO calls, byte-identical.
+        let all_sales_persons = self
+            .sales_person_service
+            .get_all(Authentication::Full, tx.clone())
+            .await?;
+        let sales_person_index: HashMap<Uuid, SalesPerson> = all_sales_persons
+            .iter()
+            .map(|sp| (sp.id, sp.clone()))
+            .collect();
+        let working_hours_by_sp: HashMap<Uuid, Arc<[EmployeeWorkDetails]>> = work_details
+            .iter()
+            .cloned()
+            .collect_to_hash_map_by(|wh| wh.sales_person_id);
+
         let weeks_in_year = time::util::weeks_in_year(year as i32);
         let weeks: Vec<(u32, u8)> = (1..=weeks_in_year).map(|w| (year, w)).collect();
 
@@ -1238,6 +1307,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 &work_details,
                 &shiftplan_reports,
                 &extra_hours,
+                &sales_person_index,
+                &working_hours_by_sp,
                 context,
                 tx,
             )
