@@ -203,6 +203,12 @@ fn setup_common_mocks(mocks: &mut ReportingMocks) {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): `get_week` loads all sales persons ONCE
+    // via `get_all` and resolves per-week lookups from the in-memory index.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
 
     // employee_work_details + shiftplan_report: leer (isoliert Stunden-Aggregation).
     mocks
@@ -533,6 +539,11 @@ async fn test_get_week_additive_merge() {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     mocks
         .transaction_dao
         .expect_use_transaction()
@@ -702,6 +713,11 @@ fn build_parity_service(
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
 
     // Work-Details mit echten Vertragsstunden (8h Mo-Fr KW22-25/2024).
     mocks
@@ -814,6 +830,11 @@ fn build_parity_service_dynamic(
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
 
     // Dynamische Work-Details (is_dynamic=true).
     mocks
@@ -1067,6 +1088,10 @@ async fn test_balance_parity_dynamic_get_week() {
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
     mocks_a
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
+    mocks_a
         .transaction_dao
         .expect_use_transaction()
         .returning(|_| Ok(dao::MockTransaction));
@@ -1101,6 +1126,10 @@ async fn test_balance_parity_dynamic_get_week() {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    mocks_b
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     mocks_b
         .transaction_dao
         .expect_use_transaction()
@@ -1198,6 +1227,16 @@ async fn get_week_skips_unpaid_person() {
                 Err(service::ServiceError::EntityNotFound(id))
             }
         });
+    // Phase 52 Follow-Up (WOP-04): get_week resolves the sales_person_index via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                fixture_sales_person(),
+                unpaid_volunteer_sales_person(),
+            ]))
+        });
     mocks
         .transaction_dao
         .expect_use_transaction()
@@ -1281,6 +1320,16 @@ async fn get_week_unpaid_no_paid_hours_leak() {
             } else {
                 Err(service::ServiceError::EntityNotFound(id))
             }
+        });
+    // Phase 52 Follow-Up (WOP-04): get_week resolves the sales_person_index via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| {
+            Ok(Arc::from(vec![
+                fixture_sales_person(),
+                unpaid_volunteer_sales_person(),
+            ]))
         });
     mocks
         .transaction_dao

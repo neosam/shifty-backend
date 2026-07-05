@@ -80,6 +80,11 @@ fn build_service() -> ReportingServiceImpl<TestDeps> {
     sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week / get_year now load sales persons
+    // via `get_all` once and resolve the index in-memory.
+    sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
 
     let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
     employee_work_details_service
@@ -225,11 +230,18 @@ async fn test_get_year_empty_when_no_work_details() {
         .expect_get_toggle_value()
         .returning(|_, _, _| Ok(None));
 
+    // Phase 52 Follow-Up (WOP-04): get_year now calls get_all once for the
+    // in-memory sales_person_index. Empty work-details → empty index is fine.
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::sales_person::SalesPerson>::new())));
+
     let service: ReportingServiceImpl<TestDeps> = ReportingServiceImpl {
         extra_hours_service: Arc::new(extra_hours_service),
         shiftplan_report_service: Arc::new(shiftplan_report_service),
         employee_work_details_service: Arc::new(employee_work_details_service),
-        sales_person_service: Arc::new(MockSalesPersonService::new()),
+        sales_person_service: Arc::new(sales_person_service),
         carryover_service: Arc::new(MockCarryoverService::new()),
         permission_service: Arc::new(permission_service),
         clock_service: Arc::new(MockClockService::new()),

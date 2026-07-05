@@ -170,6 +170,11 @@ fn setup_holiday_common_mocks(mocks: &mut ReportingMocks) {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     // Work details: 8h/day Mon-Fri, valid KW22-25/2024. Covers the standard holiday date
     // 2024-06-03 (Monday of KW23/2024).
     mocks
@@ -564,6 +569,11 @@ async fn test_holiday_auto_credit_get_week_reduces_soll_bands_unchanged() {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     mocks
         .transaction_dao
         .expect_use_transaction()
@@ -657,6 +667,11 @@ async fn test_hsp04_before_cutoff() {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     mocks
         .transaction_dao
         .expect_use_transaction()
@@ -750,6 +765,11 @@ async fn test_hsp04_manual_wins() {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     mocks
         .transaction_dao
         .expect_use_transaction()
@@ -855,6 +875,11 @@ async fn test_hsp03_cap_active_holiday_no_band_leak() {
         .sales_person_service
         .expect_get()
         .returning(|_, _, _| Ok(fixture_sales_person()));
+    // Phase 52 Follow-Up (WOP-04): get_week now loads sales persons via get_all.
+    mocks
+        .sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![fixture_sales_person()])));
     mocks
         .transaction_dao
         .expect_use_transaction()
