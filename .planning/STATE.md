@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: (between milestones)
-current_phase: null
-status: between_milestones
-stopped_at: v2.4 shipped + archiviert 2026-07-05 (Phase 51, 6/6 Requirements SHC-01..06, Audit passed, override_closeout). Zwischen Milestones — nächste Iteration via /gsd-new-milestone.
-last_updated: "2026-07-05T09:00:00.000Z"
+milestone: v2.5
+milestone_name: Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+status: planning
+last_updated: "2026-07-05T15:12:43.904Z"
 last_activity: 2026-07-05
-last_activity_desc: /gsd-complete-milestone v2.4 durchgeführt. Milestone v2.4 (Kurzer-Tag-Slot-Kürzung, Phase 51, 8 Pläne) archiviert nach milestones/v2.4-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md + -phases/. ROADMAP kompaktiert. PROJECT.md fortgeschrieben. REQUIREMENTS.md gelöscht.
 progress:
   total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: null
 ---
 
 # Project State: Shifty Backend
@@ -33,9 +29,10 @@ current_phase_name: null
 
 ## Current Position
 
-Zwischen Milestones — kein aktiver Phase-Kontext.
-Last activity: 2026-07-05 — `/gsd-complete-milestone v2.4` durchgeführt. Milestone v2.4 (Kurzer-Tag-Slot-Kürzung, Phase 51, 8 Pläne, 6/6 Requirements) archiviert.
-Next: `/gsd-new-milestone` für nächste Iteration.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-05 — Milestone v2.5 started
 
 ## Quick Tasks Completed
 

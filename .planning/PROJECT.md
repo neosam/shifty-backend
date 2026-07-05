@@ -2,7 +2,7 @@
 type: project_charter
 last_updated: 2026-07-05
 last_milestone: v2.4 Kurzer-Tag-Slot-Kürzung (shipped 2026-07-05, Phase 51, 6/6 Requirements)
-current_milestone: (zwischen Milestones)
+current_milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten
 ---
 
 # Shifty — Project Charter
@@ -363,9 +363,34 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
-## Current Milestone
+## Current Milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten
 
-**Zwischen Milestones.** Nächste Iteration via `/gsd-new-milestone`.
+**Goal:** Die Jahresübersicht (`/weekly_overview/`) reagiert sub-Sekunde und
+listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
+
+**Target features:**
+- Performance-Refactor von
+  `BookingInformationServiceImpl::get_weekly_summary`: Bulk-Load für
+  `special_days` und `shiftplan_reports` fürs ganze Jahr; neue
+  `reporting_service.get_year`-Aggregation, die die pro-Woche-Iteration
+  ersetzt. Live-korrekt, kein Cache.
+- Freiwilligen-Abwesenheiten in `sales_person_absences`: Freiwillige mit
+  Vacation/SickLeave/UnpaidLeave in einer Kalenderwoche erscheinen in der
+  Absencen-Liste der Jahresansicht (heute nur bezahlte Mitarbeiter). Analog zu
+  bereits berechneter VFA-01-Whole-Week-Out-Logik.
+
+**Key context:**
+- Ergebnis der Perf-Optimierung muss **byte-identisch** zur alten
+  Wochen-Iteration sein (Property-Test als hartes Korrektheits-Gate).
+- Alle Chain-C/CVC-06/ShortDay-Tests bleiben grün.
+- **Kein Cache-Layer** — Live-Korrektheit ist Pflicht (User schauen sofort
+  nach Absence-Eintrag rein).
+- **Snapshot-Schema bleibt 12** — keine `billing_period.value_type`-
+  Änderungen erwartet.
+- **Fat Backend, Thin Client** — Freiwilligen-Absencen liefert das Backend
+  fertig geformt im DTO; FE rendert nur.
+- Beide Features hängen am selben Service (`booking_information.rs`).
+  Reihenfolge: Freiwilligen-Feature idealerweise **nach** dem Refactor.
 
 Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt
 separat via `/gsd-plan-phase 999.1`.
