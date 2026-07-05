@@ -220,3 +220,31 @@ The system handles sophisticated time calculations:
 This architecture ensures clean separation of concerns, comprehensive testing, and production-ready deployment capabilities while maintaining developer productivity through hot reload and mock authentication.
 - Always execute cargo build, cargo test and cargo run (with some timeout) when you implement new features.
 - **Clippy is a hard gate.** The `nix build` runs `cargo clippy -- --deny warnings`, so any clippy warning fails the build even when `cargo test`/`cargo build` pass. Every test gate (including autonomous phase execution) MUST also run `cargo clippy --workspace -- -D warnings` before committing — `cargo test` does NOT run clippy. CI (`.github/workflows/rust.yml`) enforces the same step.
+
+### Docs-Freshness-Gate
+
+Die technische Doku unter `docs/` ist verbindliche Referenz und wird bei
+jedem Milestone-Close geprüft (siehe `.planning/PROJECT.md` — hartes Gate).
+
+**Wenn du eine der folgenden Trigger-Dateien änderst, MUSS die passende
+`docs/`-Sektion im selben Commit/PR mit-aktualisiert werden:**
+
+| Änderung an … | → aktualisiere |
+| --- | --- |
+| `shifty_bin/src/main.rs` (DI-Verdrahtung) | `docs/architecture/02-service-tiers.md` + `docs/architecture/diagrams/service-graph-runtime.mmd` |
+| `service/**/*.rs` (Trait-Signaturen, Enum-Varianten) | Passende `docs/features/F*.md` — Auth-Gate-Tabelle, Trait-Auszug, Randfälle |
+| `dao/**/*.rs` (DAO-Traits) | Passende `docs/features/F*.md` — Datenmodell-Sektion |
+| `migrations/sqlite/*.sql` | `docs/architecture/03-data-model.md` + `docs/architecture/diagrams/db-schema-er.mmd` + passende `docs/features/F*.md` |
+| `service_impl/src/permission.rs` (Auth) | `docs/architecture/04-auth.md` + `docs/features/F12-auth-session.md` |
+| `service_impl/src/billing_period_report.rs` (Snapshot, insb. `CURRENT_SNAPSHOT_SCHEMA_VERSION`) | `docs/features/F08-billing-period.md` + `docs/domain/billing-period.md` — Bump-Historie + Version-Tabelle |
+| `service_impl/src/reporting.rs` (Balance-Formel, Kategorie-Semantik) | `docs/features/F07-reporting-balance.md` + `docs/domain/time-accounting.md` |
+
+**Regel:** Jede beide Sprachen — englische `foo.md` UND deutsche `foo_de.md`
+— müssen synchron sein. Wenn du nur eine änderst, ist es Drift.
+
+**Hilfsmittel:** `/gsd-docs-update` verifiziert Doku-Behauptungen gegen die
+Codebase und zeigt Drift-Kandidaten.
+
+**PR-Review-Regel:** Reviewer prüfen aktiv, ob ein Diff eine Trigger-Datei
+berührt. Wenn ja: Doku-Änderung im selben PR erwarten oder Begründung
+verlangen ("nur additiv, keine Konvention berührt").

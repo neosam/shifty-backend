@@ -500,3 +500,74 @@ Dieses Dokument entwickelt sich an Phase-Übergängen und Milestone-Grenzen.
 2. Constraints-Audit: noch gültig?
 3. Bekannte Constraints: was wurde gelöst, was bleibt
 4. Backlog-Items aus STATE.md → in den Folgemilestone-Vorschau heben oder fallenlassen
+5. **Docs-Freshness-Gate** (siehe unten) — hartes Gate, blockiert Milestone-Close bei Drift.
+
+## Docs-Freshness-Gate
+
+Die technische Doku unter `docs/` ist **verbindliche Projekt-Referenz** und
+wird bei jedem Milestone-Close **hart geprüft**. Ein Milestone kann nicht
+geschlossen werden, wenn Docs-Drift gegen die Trigger-Dateien besteht.
+
+### Was ist Drift?
+
+Eine der folgenden Backend-Dateien wurde zwischen letztem Milestone-Close und
+jetzt geändert, aber die zugehörige Docs-Sektion **nicht**:
+
+| Trigger-Datei | → Docs-Sektion |
+| --- | --- |
+| `shifty_bin/src/main.rs` | `docs/architecture/02-service-tiers.md` + `diagrams/service-graph-runtime.mmd` |
+| `service/**/*.rs` (Trait-Änderungen) | passende `docs/features/F*.md` |
+| `dao/**/*.rs` (Trait-Änderungen) | passende `docs/features/F*.md` |
+| `migrations/sqlite/*.sql` | `docs/architecture/03-data-model.md` + `diagrams/db-schema-er.mmd` + passende `docs/features/F*.md` |
+| `service_impl/src/permission.rs` | `docs/architecture/04-auth.md` + `docs/features/F12-auth-session.md` |
+| `service_impl/src/billing_period_report.rs` | `docs/features/F08-billing-period.md` + `docs/domain/billing-period.md` |
+| `service_impl/src/reporting.rs` | `docs/features/F07-reporting-balance.md` + `docs/domain/time-accounting.md` |
+
+Beide Sprach-Varianten (`.md` und `_de.md`) müssen synchron sein — Änderung nur
+in einer Sprache = Drift.
+
+### Prüfvorgang bei Milestone-Close
+
+Ausführbar als Teil von `/gsd-audit-milestone` oder manuell durch die/den
+Milestone-Verantwortliche/n:
+
+1. **Trigger-Diff sammeln:**
+   ```bash
+   git diff --name-only <last-milestone-tag>..HEAD -- \
+     shifty_bin/src/main.rs \
+     'service/**/*.rs' \
+     'dao/**/*.rs' \
+     'migrations/sqlite/*.sql' \
+     service_impl/src/permission.rs \
+     service_impl/src/billing_period_report.rs \
+     service_impl/src/reporting.rs
+   ```
+2. **Docs-Diff sammeln:**
+   ```bash
+   git diff --name-only <last-milestone-tag>..HEAD -- 'docs/**/*.md' 'docs/**/*.mmd'
+   ```
+3. **Mapping-Check:** Für jede berührte Trigger-Datei prüfen, ob die
+   zugehörige Docs-Sektion (Tabelle oben) im Docs-Diff enthalten ist.
+4. **`/gsd-docs-update` optional** — verifiziert Doku-Behauptungen gegen
+   die Codebase; flagt inhaltliche Drift, die die reine Datei-Zuordnung
+   nicht fängt.
+
+### Ergebnis
+
+- **Kein Drift:** Milestone-Close geht durch.
+- **Drift gefunden:** Milestone-Close **blockiert**. Zwei Wege raus:
+  1. Docs im selben Milestone nachziehen (bevorzugt).
+  2. Explizite Begründung im MILESTONE-AUDIT.md („Trigger-Datei X wurde
+     geändert, aber nur additiv/keine Konvention betroffen, Doku bleibt
+     korrekt") — mit Reviewer-Ack.
+
+### Warum das hart ist
+
+Docs-Drift kumuliert schleichend. Nach zwei Milestones ohne Check ist die
+Doku unbrauchbar. Der harte Gate zwingt die Disziplin an genau dem Punkt,
+an dem alle Kontext-Fenster ohnehin auf den Milestone gerichtet sind.
+
+Historischer Bezug: Root-CLAUDE.md und `shifty-backend/CLAUDE.md` enthalten
+schon eine ähnliche Regel für den Snapshot-Version-Bump-Vertrag —
+Docs-Freshness folgt derselben Logik: eine kritische, sonst leicht
+übersehbare Kopplung zwischen Code-Änderung und Konvention.
