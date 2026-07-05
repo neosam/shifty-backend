@@ -1,0 +1,187 @@
+# Phase 52 Follow-Up (WOP-04) — Latency Post-Optimization
+# Endpoint: GET /booking-information/weekly-resource-report/2026
+# Auth: unauthenticated (Dev-Setup, mock_auth Feature-Flag).
+# Build-Profil: dev (`cargo run` ohne --release, identisch zu Wave-0-Baseline
+#                    und Wave-5-Post-Refactor).
+# DB: localdb.sqlite3 (462848 bytes; leicht gewachsen ggü Wave 5 — 454656 bytes —
+#     durch das Anlegen zusätzlicher User-Sessions bei den Wave-5-Messungen; die
+#     Domain-Daten (sales_person=6, employee_work_details=5) sind unverändert).
+#
+# Kommando (nach 3 Warmup-Runs zur SQLite-Page-Cache-Wärme):
+#   for i in 1 2 3 4 5; do
+#     curl -s -o /dev/null -w "%{time_total}\n" \
+#       http://localhost:3000/booking-information/weekly-resource-report/2026
+#   done | sort -n
+#
+# ─────────────────────────────────────────────────────────────────────
+# Messung 1 (direkt nach Server-Start + Endpoint-First-Compile-Warmup)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   1.193188 s
+#   1.305409 s
+#   1.090410 s
+# Runs (sorted):
+# 1: 1.076972 s
+# 2: 1.078623 s
+# 3: 1.180303 s   ← median
+# 4: 1.192960 s
+# 5: 1.199492 s
+Median (Messung 1): 1.180303 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Messung 2 (SQLite-Page-Cache voll aufgewärmt)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   1.091110 s
+#   0.971028 s
+#   0.924993 s
+# Runs (sorted):
+# 1: 0.893982 s
+# 2: 0.922899 s
+# 3: 0.969007 s   ← median
+# 4: 0.969744 s
+# 5: 1.053331 s
+Median (Messung 2): 0.969007 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Messung 3 (Konsistenz-Check nach voller Page-Cache-Wärme)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.936417 s
+#   0.990463 s
+#   1.136377 s
+# Runs (sorted):
+# 1: 0.892927 s
+# 2: 0.965086 s
+# 3: 0.975495 s   ← median
+# 4: 1.030986 s
+# 5: 1.073462 s
+Median (Messung 3): 0.975495 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Repräsentativer Median (Messungen 2+3, voller Cache-Wärme)
+# ─────────────────────────────────────────────────────────────────────
+Representative median: ~0.97 s (stabile Ausführung nach voller Cache-Wärme)
+Conservative median:   ~1.18 s (erste Messung mit Cache-Ramp-Up)
+
+# ─────────────────────────────────────────────────────────────────────
+# Vergleich mit Wave-Baselines
+# ─────────────────────────────────────────────────────────────────────
+Wave-0-Baseline median      : 2.330 s  (1.0×)
+Wave-5-Post-Refactor median : 1.126 s  (2.07× vs Baseline)
+Follow-Up-Post median (rep.): ~0.97 s  (2.40× vs Baseline, 1.16× vs Wave 5)
+
+# Delta zur Wave-5-Baseline: ~13-16% zusätzlicher Speedup bei voller Cache-Wärme.
+# Delta zur ersten Messung (Cache-Ramp): ~5% (im Rauschen der 1.13 s Wave-5-Median).
+
+# Zielwert-Check (WOP-04, D-52-16)
+Target (<0.500 s): FAIL
+Best measurement:  0.892927 s (single run, cold-hot boundary)
+Median (rep.):     ~0.97 s
+
+# Metadaten
+Backend commits (Follow-Up):
+  perf(52-followup): sales_person load-once + working_hours HashMap pre-index in assemble_weeks (WOP-04)
+Measured: 2026-07-05T20:47:00+00:00
+Dev-DB path: shifty-backend/localdb.sqlite3
+Dev-DB size: 462848 bytes
+Hostname: NixOS Dev-Machine (neosam)
+
+# ─────────────────────────────────────────────────────────────────────
+# Warum wird das <0.500-s-Ziel weiterhin nicht erreicht?
+# ─────────────────────────────────────────────────────────────────────
+# Der Follow-Up eliminiert die zwei aus RESEARCH.md Q2/A2 identifizierten
+# In-Helper-Roundtrips:
+#
+#   1. `sales_person_service.get(sp_id, ...)` pro (Person × Woche)
+#      → ersetzt durch HashMap<Uuid, SalesPerson> O(1)-Lookup.
+#   2. `find_working_hours_for_calendar_week` mit voller Re-Bucketing pro Woche
+#      → ersetzt durch einmalig gebauten HashMap<Uuid, Arc<[EWD]>> vor der
+#        Wochen-Schleife (55× einsparen).
+#
+# Verifikation via sqlx-Query-Log der Dev-Session (5 Requests + 3 Warmups +
+# 1 First-Request = 9 Anfragen):
+#
+#   FROM sales_person WHERE id = ?    :  12   (bedeutungslos — pre-Fix waren
+#                                              es 55 × 6 × 9 ≈ 3000+)
+#   FROM sales_person WHERE deleted…  :  29   (get_all Bulk-Load)
+#
+# Beweis: der sales_person-Bottleneck ist beseitigt.
+#
+# ABER: das Query-Log zeigt den echten Bottleneck der Dev-DB liegt woanders:
+#
+#   FROM sales_person_user            : 19020   ← User-Assignment-Lookup
+#   FROM special_day                  : 11466   ← per-Person per-Week
+#                                                  `special_day.get_by_week`
+#                                                  aus `build_derived_holiday_map`
+#   FROM toggle                       :  9588   ← per-Person per-Woche Toggle-Read
+#                                                  (holiday_auto_credit)
+#   FROM absence_period               :  4746   ← per-Person per-Week
+#                                                  `derive_hours_for_range`
+#
+# Bei ~9 Requests sind das ~2100 special_day-Queries pro Anfrage, ~1000
+# toggle-Queries und ~500 absence_period-Queries. Der Latenz-Rest kommt
+# aus dem SQLite-Roundtrip-Overhead dieser drei Chains — sie werden pro
+# (Person, Woche) in `build_derived_holiday_map` und `derive_hours_for_range`
+# im `assemble_weeks`-Helper aufgerufen (D-52-09-Constraint: bleiben im
+# Per-Person-Loop; nicht Teil dieses Follow-Ups).
+#
+# ─────────────────────────────────────────────────────────────────────
+# Nächste Speedup-Kandidaten (weiterhin offen als Follow-Up)
+# ─────────────────────────────────────────────────────────────────────
+#
+# 1. **special_day-Bulk-Load in `build_derived_holiday_map`.** Momentan
+#    ruft der Helper pro (Person × Woche) `special_day_service.get_by_week`
+#    auf — bei 6 Personen × 55 Wochen = 330 Roundtrips pro Anfrage. Ein
+#    Jahres-Bulk-Load mit In-Memory-Filter würde das auf 2 Roundtrips
+#    reduzieren. Byte-identisch, keine Schema-Änderung. Der Bulk-Load-Handle
+#    (`special_days_this`) existiert bereits im `booking_information`-
+#    Consumer und könnte an `assemble_weeks` durchgereicht werden.
+#
+# 2. **toggle-Cache/Batching für `holiday_auto_credit`.** Der Toggle-Value
+#    hängt weder an `year` noch an `week` — pro Anfrage wird er ~330 Mal
+#    neu gelesen. Ein Method-Local-Cache (Option<Option<time::Date>>)
+#    einmal am Anfang des `build_derived_holiday_map`-Batches würde das
+#    auf 1 Read pro Anfrage reduzieren. Byte-identisch (Toggle ist inhärent
+#    request-stabil), aber Cache-Invalidation-Risiko: der Fresh-Read pro
+#    (Person, Woche) macht Live-Toggle-Umschaltung mittendrin sichtbar —
+#    strukturell unbeobachtbar in `get_year`-Requests (< 1 s).
+#
+# 3. **absence_period `derive_hours_for_range` als Jahres-Bulk.** Der
+#    Consumer `booking_information.get_weekly_summary` lädt bereits
+#    `all_absences` per `find_all()` in der Präambel. Der `assemble_weeks`-
+#    Helper könnte diese Slice durchreichen und den Bulk-Load ersetzen.
+#    Höherer Refactor-Aufwand — der `derive_hours_for_range`-Trait-Contract
+#    liefert eine BTreeMap<Date, ResolvedAbsence>, die aus `absence_period`
+#    plus Katalog-Katgorien-Auflösung zusammengesetzt wird. Für dieses
+#    Follow-Up out-of-scope.
+#
+# 4. **DB-Indices** — bestehen aus RESEARCH.md Q3 als Migration-Kandidaten:
+#    booking(year, calendar_week), extra_hours(date_time),
+#    working_hours(from_year, to_year). Nicht Teil dieses Follow-Ups
+#    (Migration = separater Task, ADR-Kandidat).
+#
+# ─────────────────────────────────────────────────────────────────────
+# Bewertung des Follow-Ups
+# ─────────────────────────────────────────────────────────────────────
+#
+# - Byte-Identität: bewahrt (Wave-1-Fixtures 8/8 grün, kompletter
+#   Workspace-Test grün, Clippy -D warnings grün).
+# - Zusätzlicher Speedup: 1.13 s → ~0.97 s = 13-16% zusätzlich; kumulativ
+#   von der Baseline 2.33 s → 0.97 s = 2.40× schneller.
+# - WOP-04 <0.500 s: weiterhin nicht erreicht — die verbleibende Latenz
+#   lebt in `special_day` + `toggle` + `absence_period` innerhalb des
+#   `assemble_weeks`-Per-Person-Loops. Diese Chains sind D-52-09-erhaltend
+#   im Loop verankert und benötigen einen weiteren Refactor (Follow-Up #1
+#   oder #2 oben).
+#
+# Anmerkungen zur Messung
+# --------------------------------------------------------------------
+# - 3 Warmup-Runs VOR jeder Messung. Die erste Messung nach Server-Start
+#   war noch nicht voll cache-warm (1.18 s median); die anschließenden
+#   Messungen 2+3 zeigen die stabile ~0.97 s-Wallclock-Latenz. Die
+#   Streuung liegt im Bereich 0.89-1.20 s (0.31 s = 27% relative Streuung).
+# - Wave-5-Baseline hatte 1.07-1.19 s (0.12 s = 11% relative Streuung).
+#   Die etwas höhere Streuung im Follow-Up-Fenster spiegelt sowohl die
+#   Cache-Ramp-Up-Phase (Messung 1) als auch grundsätzliches SQLite-
+#   Cache-Timing wider — nicht die neuen HashMap-Lookups.
