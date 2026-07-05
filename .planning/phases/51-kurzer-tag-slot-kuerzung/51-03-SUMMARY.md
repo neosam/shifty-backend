@@ -148,3 +148,41 @@ Refactor zieht nur die Wiederholung des HCFG-02-Patterns aus vier Konsumenten
 in einen Ort. Regression-Guard: `test_get_shiftplan_week_tolerates_toggle_unauthorized`.
 - Refactor-Commit: `6088cd0`.
 - Test-Commit: `5aee47e`.
+
+## Gap-Closure — Legacy-Filter (User-Report, 2026-07-05)
+
+**Problem:** User meldete, dass bei kurzen Tagen VOR dem Stichtag (oder wenn
+kein Stichtag gesetzt ist) gar keine ShortDay-Semantik mehr griff. Chain B
+verwarf/clippte die betroffenen Slots nicht — der WeekView + PDF-Rendering
+zeigten den vollen Raw-Slot statt der historischen Sicht.
+
+**Historische Semantik (Pre-Phase-51, git-verifiziert, `shiftplan.rs:62-66`
+vor Commit `8d12645`):**
+```rust
+if slot.to > cutoff { continue; }  // Slot komplett verwerfen
+```
+
+**Ursache der Regression:** In diesem Plan wurde der Legacy-Filter durch
+`Slot::clip_to(cutoff)` ersetzt, aber der Chain B `build_shiftplan_day`-Code
+umging den Clip bei inaktivem Stichtag-Gate (`should_clip == false`) → Slot
+blieb roh drin, statt wie historisch verworfen zu werden.
+
+**Fix (Follow-up-Commit):** Der zentrale Helper `shortday_gate::clip_slot_for_week`
+bekommt einen `ShortdayMode`-Parameter (`Modern` / `Legacy`). Chain B
+(shiftplan.rs) migriert von der Inline-Logik auf den Helper mit `Legacy`.
+Bei Gate aus + ShortDay + `slot.to > cutoff` → `ClipOutcome::Drop`, wodurch
+der Slot aus `ShiftplanDay.slots` fällt. `Slot::clip_to` bleibt weiter der
+Pfad bei aktivem Gate. Chain A' (block.rs) und Chain D (shiftplan_report.rs)
+bleiben in `Modern`-Modus (historisch keine ShortDay-Logik).
+
+**Test-Anpassungen:**
+- `test_build_shiftplan_day_effective_to_unclipped_before_stichtag` →
+  `test_build_shiftplan_day_before_stichtag_legacy_drops_overlap` (erwartet
+  jetzt Drop statt Keep-raw)
+- `test_build_shiftplan_day_none_active_from_no_clip` →
+  `test_build_shiftplan_day_none_active_from_legacy_drop`
+- `test_get_shiftplan_week_tolerates_toggle_unauthorized`: Assert auf
+  `slots.is_empty()` (Legacy-Drop bei Unauthorized-Fallback)
+- Neue Companion-Tests für Legacy-Keep (`slot.to <= cutoff` bleibt drin)
+
+**Fix-Commit:** `1b863e8`.

@@ -186,3 +186,51 @@ umgestellt — identisches Verhalten, Duplizierung des HCFG-02-Patterns entfernt
 Regression-Guard: `test_get_weekly_summary_tolerates_toggle_unauthorized`.
 - Refactor-Commit: `6088cd0`.
 - Test-Commit: `5aee47e`.
+
+## Gap-Closure — Legacy-Filter (User-Report, 2026-07-05)
+
+**Problem:** User meldete, dass bei kurzen Tagen VOR dem Stichtag (oder wenn
+kein Stichtag gesetzt ist) `slot_hours` / `required_hours` die vollen Slot-
+Zeiten enthielten, obwohl die alte v1.x-Backend-Aggregation den Slot komplett
+verworfen hätte. Balance-Rechnung und WeeklySummary wichen dadurch für
+historische Wochen von der Pre-v2.4-Baseline ab.
+
+**Historische Semantik (Pre-Phase-51, git-verifiziert,
+`booking_information.rs:394-401` + `:512-519` vor Commit `62a2f35`):**
+```rust
+.filter(|slot| !special_days.iter().any(|day|
+    day.day_of_week == slot.day_of_week
+    && (day.day_type == Holiday
+        || (day.day_type == ShortDay && cutoff.is_some() && slot.to > cutoff))))
+```
+D. h. ShortDay-Slots wurden nur dann behalten, wenn `slot.to <= cutoff`.
+
+**Ursache der Regression:** Der Umbau auf `clip_slot_for_week` (P05, Task 1)
+bewahrte die Semantik nur bei aktivem Gate. Bei inaktivem Gate ließ der
+Helper den Slot ungefiltert durch — `slot_hours` sah damit auch für
+historische Wochen den vollen Slot.
+
+**Fix (Follow-up-Commit):** `clip_slot_for_week` bekommt einen `ShortdayMode`-
+Parameter. Chain C's 2 Konsum-Sites (`get_weekly_summary`,
+`get_summery_for_week`) schalten auf `ShortdayMode::Legacy`. Bei Gate aus
++ ShortDay + `slot.to > cutoff` → `ClipOutcome::Drop` → Slot wird aus dem
+`slots: Arc<[Slot]>`-Vec gefiltert → `slot_hours` sinkt entsprechend.
+Chain A' (block.rs) und Chain D (shiftplan_report.rs) bleiben in
+`Modern`-Modus (historisch keine ShortDay-Logik in ihren Aggregaten).
+
+**Test-Anpassungen in `test/booking_information_chain_c.rs`:**
+- `test_get_weekly_summary_ungated_no_clip` →
+  `test_get_weekly_summary_ungated_legacy_drops_overlap` (jetzt 0h statt 1h)
+- `test_get_weekly_summary_ungated_legacy_keeps_pre_cutoff` (neu, Companion:
+  `slot.to == cutoff` bleibt drin)
+- `test_get_summery_for_week_stichtag_boundary`: Grenzfall-Assertions
+  auf Legacy-Semantik angepasst (vor Stichtag = 0h statt 1h).
+- `test_get_weekly_summary_tolerates_toggle_unauthorized`: Assert auf 0h
+  (Legacy-Drop bei Unauthorized).
+
+**Verifikation:**
+- `cargo test --workspace` grün (689 lib tests).
+- `cargo clippy --workspace --all-targets -- -D warnings` grün.
+- `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12 (kein persistierter value_type).
+
+**Fix-Commit:** `1b863e8`.
