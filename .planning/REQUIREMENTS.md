@@ -123,16 +123,16 @@ Vorarbeit: Explore-Session 2026-07-05 (siehe
   Unterscheidung (Farbe, Icon, Suffix) gewünscht ist, wird sie in
   discuss-phase entschieden. Kein Frontend-Redesign.
 
-## Traceability (wird beim Roadmapping befüllt)
+## Traceability
 
 | REQ-ID | Phase |
 | --- | --- |
-| WOP-01 | — |
-| WOP-02 | — |
-| WOP-03 | — |
-| WOP-04 | — |
-| WOP-05 | — |
-| VAA-01 | — |
-| VAA-02 | — |
-| VAA-03 | — |
-| VAA-04 | — |
+| WOP-01 | 52 |
+| WOP-02 | 52 |
+| WOP-03 | 52 |
+| WOP-04 | 52 |
+| WOP-05 | 52 |
+| VAA-01 | 53 |
+| VAA-02 | 53 |
+| VAA-03 | 53 |
+| VAA-04 | 53 |

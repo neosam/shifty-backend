@@ -23,7 +23,53 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
 ## Next Milestone
 
-Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
+### v2.5 — Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+
+**Goal:** Die Jahresübersicht (`/weekly_overview/`) reagiert sub-Sekunde und
+listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
+
+**Requirements:** `.planning/REQUIREMENTS.md` (9 Requirements: WOP-01..05, VAA-01..04).
+
+**Phases:**
+
+- [ ] **Phase 52: Weekly-Overview Performance-Refactor** — Requirements WOP-01, WOP-02, WOP-03, WOP-04, WOP-05
+
+  **Goal:** `BookingInformationServiceImpl::get_weekly_summary` konsumiert
+  Jahres-Aggregate: `special_days` und `shiftplan_reports` einmalig
+  vorgeladen (analog zum existierenden `all_work_details`/`all_absences`-
+  Muster), plus eine neue `reporting_service.get_year`-Aggregation, die die
+  ~55 sequenziellen `get_week`-Calls ersetzt. Ergebnis byte-identisch zur
+  alten Wochen-Iteration (Property-Test als hartes Gate). End-to-End-Latenz
+  von `GET /booking-information/weekly-resource-report/{year}` <500ms auf
+  Dev-DB. Alle bestehenden Tests grün (insb.
+  `booking_information_chain_c.rs`, Reporting-Tests). Snapshot bleibt 12,
+  keine Migration, keine neue Cargo-Dep. `reporting_service.get_week`
+  bleibt für andere Call-Sites bestehen.
+
+  **Success criteria:**
+  1. Jahresansicht in Dev-DB antwortet <500ms (heute mehrere Sekunden), gemessen im PLAN.
+  2. Property-Test grün: neue vs. alte Implementierung bit-exakt identisch über generierte Szenarien (Feiertage, ShortDays, Freiwilligen-Absencen, CVC-06-Cap, `shortday_gate.active_from` on/off).
+  3. `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün.
+  4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55).
+  5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12.
+
+- [ ] **Phase 53: Freiwilligen-Abwesenheiten in Jahresansicht** — Requirements VAA-01, VAA-02, VAA-03, VAA-04
+
+  **Goal:** In `sales_person_absences` der Jahresansicht erscheinen zusätzlich
+  zu bezahlten Mitarbeitern auch Freiwillige mit aktiver
+  Vacation/SickLeave/UnpaidLeave-Period in der jeweiligen Kalenderwoche.
+  Backend liefert Name + Stunden-Wert (Kandidat: `committed_voluntary` der
+  Person; exakte Semantik in discuss-phase fixiert) fertig im DTO. Frontend
+  rendert mit bestehender Zeile in `page/weekly_overview.rs`. Fat Backend,
+  Thin Client — kein Merge im FE. Baut auf der neuen Assembly aus Phase 52
+  auf.
+
+  **Success criteria:**
+  1. Freiwilliger mit `Vacation`-Period, die Kalenderwoche N überlappt → erscheint in `sales_person_absences` von Woche N (Backend-Test verifiziert).
+  2. Freiwilliger ohne aktive Period → nicht in der Liste.
+  3. Bezahlter Mitarbeiter bleibt unverändert (keine Regression).
+  4. Angezeigter Stunden-Wert ist in discuss-phase entschieden und dokumentiert.
+  5. Frontend rendert Freiwilligen-Zeilen visuell konsistent mit bezahlten (kein Redesign).
 
 ## Backlog
 
@@ -53,4 +99,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-07-05 — **v2.4 geshipt + archiviert** (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06, Audit `passed`, override_closeout). Kurzer-Tag-Slot-Kürzung: dynamische View-Layer-Kürzung an ShortDays über vier BE-Aggregat-Ketten + FE-Loader-Collapse + PDF-Renderer + Admin-Settings Card 2b. Admin-Stichtag als Gate schützt historische Balance-Views. Kein Snapshot-Bump (bleibt 12), nur additive Toggle-Seed-Migration, keine neue Cargo-Dep. Drei pre-existing Bugs mitgeräumt (Filter-statt-Clip, `/60.0`-SQL, Toggle-Full-Context-Bypass). Details: `milestones/v2.4-ROADMAP.md`. Zwischen Milestones.*
+*Last updated: 2026-07-05 — **v2.5 gestartet** (Weekly-Overview Performance & Freiwilligen-Abwesenheiten, 2 Phasen, 9 Requirements WOP-01..05 + VAA-01..04). Reihenfolge 52 → 53 (Perf-Refactor zuerst, Freiwilligen-Anzeige auf neuer Assembly). Constraints: byte-identisches Ergebnis (Property-Test), <500ms Latenz, live-korrekt (kein Cache), Snapshot bleibt 12, keine neue Cargo-Dep. Vorarbeit: `notes/weekly-overview-perf-analyse.md`, `seeds/weekly-overview-perf.md`, `research/questions.md` Q-02. Zuvor: v2.4 geshipt + archiviert (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06, Audit `passed`). Details: `milestones/v2.4-ROADMAP.md`.*
