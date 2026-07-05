@@ -1,0 +1,40 @@
+# Phase 52 Wave 1 — Latency Baseline (vor Refactor)
+# Endpoint: GET /booking-information/weekly-resource-report/2026
+# Auth: unauthenticated (Session-Cookie wird beim ersten Request angelegt,
+#       Endpoint antwortet auf localhost ohne Login-Guard — Dev-Setup, kein
+#       explizites Auth-Header nötig).
+# Build-Profil: dev (`cargo run` ohne --release). Release-Profil war während
+#       der Messung nicht kompiliert; Wave-4-Vergleich MUSS mit demselben
+#       Build-Profil (dev) laufen, sonst Apfel-Birnen.
+# DB: localdb.sqlite3 (454 KiB), User: `neosam` reale Dev-Daten.
+#
+# Kommando:
+#   for i in 1 2 3 4 5; do
+#     curl -s -o /dev/null -w "%{time_total}\n" \
+#       http://localhost:3000/booking-information/weekly-resource-report/2026
+#   done
+#
+# Runs (sorted ascending):
+# 1: 1.552791 s
+# 2: 2.266341 s
+# 3: 2.330317 s   ← median
+# 4: 2.979340 s
+# 5: 3.151468 s
+Median: 2.330317 s
+
+# Metadaten
+Backend commit: a88ea80e36200debd9cce3ea51493da37253e1b6
+Measured: 2026-07-05T19:12:00+00:00
+Dev-DB path: shifty-backend/localdb.sqlite3
+Dev-DB size: 454656 bytes
+Hostname: NixOS Dev-Machine (neosam)
+
+# Anmerkungen
+# - Median 2.33 s bestätigt die REQUIREMENTS.md-Analyse "heute mehrere Sekunden".
+# - Zielwert WOP-04: Median < 0.500 s auf Dev-DB. Erforderlicher Speedup ~5x.
+# - Der 1. Run (1.55 s) war der schnellste — vermutlich reine Cold-Cache-Streuung,
+#   nicht warm/cold-Effekt: nachfolgende Runs sind langsamer, was zeigt dass
+#   SQLite-Page-Cache & Query-Compile hier nicht dominieren; die ~55 sequentiellen
+#   Roundtrips pro Endpoint-Abruf dominieren.
+# - Erste Anfrage nach Server-Start: 40s Warmup (Server startet, INSERT INTO session).
+#   Die 5 Runs oben sind ALLE POST-Startup, direkt nacheinander.
