@@ -17,6 +17,7 @@ use service::{
     reporting::ReportingService,
     sales_person::SalesPersonService,
     sales_person_unavailable::SalesPersonUnavailableService,
+    shiftplan_catalog::ShiftplanService,
     shiftplan_report::ShiftplanReportService,
     slot::{Slot, SlotService},
     special_days::SpecialDayService,
@@ -112,6 +113,13 @@ gen_service_impl! {
     struct BookingInformationServiceImpl: BookingInformationService = BookingInformationServiceDeps {
         ShiftplanReportService: ShiftplanReportService<Transaction = Self::Transaction> = shiftplan_report_service,
         SlotService: SlotService<Transaction = Self::Transaction> = slot_service,
+        // Phase 52 (WOP-01, D-52-01): ShiftplanService (catalog, Basic-Tier) für den
+        // In-Memory-Filter `shiftplan.is_planning`-Semantik in `get_weekly_summary`.
+        // Bulk-Load-Ersatz für den DAO-JOIN gegen `shiftplan` in
+        // `SlotDao::get_slots_for_week_all_plans` — planning-Shiftplan-Ids werden
+        // einmal pro Endpoint-Abruf geladen und im Slot-Filter angewandt. Kein
+        // Zyklus: ShiftplanService konsumiert keine BookingInformationService.
+        ShiftplanService: ShiftplanService<Transaction = Self::Transaction> = shiftplan_service,
         BookingService: BookingService<Transaction = Self::Transaction> = booking_service,
         SalesPersonService: SalesPersonService<Transaction = Self::Transaction> = sales_person_service,
         SalesPersonUnavailableService: SalesPersonUnavailableService<Transaction = Self::Transaction> = sales_person_unavailable_service,
@@ -306,14 +314,96 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         // an `week`. `Unauthorized` → None (Legacy off), analog reporting.rs
         // und Chain A' (block.rs).
         // Gap-Closure: zentraler Helper mit `Unauthorized → None` (Legacy off).
+        // D-52-09 / R8: MUST-preserve. Toggle-Read bleibt HIER in
+        // `get_weekly_summary`, NIE in `assemble_weeks`/`get_year`.
         let active_from =
             shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
+
+        // ─── Phase 52 (WOP-01/WOP-02, D-52-01/D-52-04/D-52-06) — Bulk-Load-Präambel ───
+        //
+        // Ersetzt ~55×3 sequenzielle DAO-Roundtrips durch **konstant viele**
+        // Bulk-Loads: 2× `get_year` (year + year+1 Spillover), 2×
+        // `special_day.get_by_year`, 2× `extract_shiftplan_report_for_year`,
+        // 1× `slot_service.get_slots` (jahresagnostisch — In-Memory-Filter
+        // im Loop), 1× `shiftplan_service.get_all` (für `is_planning`-Filter
+        // in Slot-Selektion, spiegelt DAO-JOIN aus
+        // `SlotDao::get_slots_for_week_all_plans`).
+        //
+        // Byte-Identität ist strukturell garantiert:
+        // - `year_reports[week - 1].1` == `reporting_service.get_week(year, week)`
+        //   (Wave-4 `assemble_weeks`-Delegation, Wave-1-Fixtures 8 grün).
+        // - Per-Woche-In-Memory-Filter auf `special_days` / `shiftplan_reports`
+        //   entspricht exakt `_for_week`-Filter (kein Semantik-Diff).
+        // - Slot-In-Memory-Filter reproduziert DAO-`WHERE`-Klausel aus
+        //   `dao_impl_sqlite/src/slot.rs:151-168` bit-genau (R1).
+        let year_plus_1 = year + 1;
+        let year_reports = self
+            .reporting_service
+            .get_year(year, Authentication::Full, tx.clone().into())
+            .await?;
+        let next_year_reports = self
+            .reporting_service
+            .get_year(year_plus_1, Authentication::Full, tx.clone().into())
+            .await?;
+        let special_days_this = self
+            .special_day_service
+            .get_by_year(year, Authentication::Full)
+            .await?;
+        let special_days_next = self
+            .special_day_service
+            .get_by_year(year_plus_1, Authentication::Full)
+            .await?;
+        let shiftplan_reports_this = self
+            .shiftplan_report_service
+            .extract_shiftplan_report_for_year(year, Authentication::Full, tx.clone().into())
+            .await?;
+        let shiftplan_reports_next = self
+            .shiftplan_report_service
+            .extract_shiftplan_report_for_year(
+                year_plus_1,
+                Authentication::Full,
+                tx.clone().into(),
+            )
+            .await?;
+        let all_slots = self
+            .slot_service
+            .get_slots(Authentication::Full, tx.clone().into())
+            .await?;
+        // is_planning-Bulk (Set): Slot ohne shiftplan_id ODER Slot mit
+        // shiftplan_id, dessen Shiftplan `is_planning=false` ist, wird
+        // berücksichtigt — spiegelt `(shiftplan.is_planning = 0 OR
+        // shiftplan.is_planning IS NULL)` aus DAO-JOIN.
+        let planning_shiftplan_ids: std::collections::HashSet<Uuid> = self
+            .shiftplan_service
+            .get_all(Authentication::Full, tx.clone().into())
+            .await?
+            .iter()
+            .filter(|sp| sp.is_planning)
+            .map(|sp| sp.id)
+            .collect();
+
+        let outer_year = year;
         for week in 1..=(weeks_in_year + 3) {
             let (year, week) = if week > weeks_in_year {
-                (year + 1, week - weeks_in_year)
+                (outer_year + 1, week - weeks_in_year)
             } else {
-                (year, week)
+                (outer_year, week)
             };
+            // Wähle Vec-Slice für die Zielwoche pro D-52-04-Spillover-Regel.
+            let (year_reports_source, special_days_source, shiftplan_reports_source) =
+                if year == outer_year {
+                    (
+                        &year_reports,
+                        &special_days_this,
+                        &shiftplan_reports_this,
+                    )
+                } else {
+                    (
+                        &next_year_reports,
+                        &special_days_next,
+                        &shiftplan_reports_next,
+                    )
+                };
             // VFA-01 (D-26-01 / D-26-03): build the set of volunteers absent in this calendar week.
             // Uses pre-loaded all_absences (load-once pattern). Category-agnostic: find_all returns
             // all three categories (Vacation, SickLeave, UnpaidLeave). Whole-week-out: any overlap
@@ -342,14 +432,25 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                     std::collections::HashSet::new()
                 };
             let mut working_hours_per_sales_person = vec![];
-            let week_report = self
-                .reporting_service
-                .get_week(year, week, Authentication::Full, tx.clone().into())
-                .await?;
-            let special_days = self
-                .special_day_service
-                .get_by_week(year, week, Authentication::Full)
-                .await?;
+            // Phase 52 (WOP-02, D-52-03/D-52-04): `week_report` per Vec-Index
+            // aus dem passenden `get_year`-Ergebnis. R6 Off-by-one-Guard:
+            // Wave-4 garantiert `year_reports[week - 1].1 == get_week(year,
+            // week)` byte-identisch (assemble_weeks-Delegation). Fixture 8
+            // (Spillover W53→W55) fängt Off-by-one am Übergang ab.
+            let week_report = year_reports_source
+                .get((week - 1) as usize)
+                .map(|(_, reports)| reports.clone())
+                .unwrap_or_else(|| Arc::from(Vec::new()));
+            // Phase 52 (WOP-01, D-52-01): In-Memory-Filter statt
+            // `special_day_service.get_by_week(year, week)`. Semantik
+            // identisch: die DAO liefert Rows `WHERE year = ? AND
+            // calendar_week = ?` (soft-delete-Filter passiert im
+            // Service-Layer bereits beim `get_by_year`-Bulk-Load).
+            let special_days: Arc<[service::special_days::SpecialDay]> = special_days_source
+                .iter()
+                .filter(|d| d.year == year && d.calendar_week == week)
+                .cloned()
+                .collect();
             // Band 2 (D-05 / CVC-04 / CR-01 fix): per-person surplus = Σ max(actual_p − committed_p, 0).
             // CRITICAL: `extract_shiftplan_report_for_week` returns ONE ROW PER (person, day) because
             // the DAO query groups by `sales_person_id, year, day_of_week`. We MUST aggregate
@@ -357,15 +458,20 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             //   Buggy per-day form: max(3−5,0) + max(4−5,0) = 0 when actual=7, committed=5.
             //   Correct per-week:   max(7−5, 0) = 2.
             // volunteer_surplus_band2 accumulates per-day rows into per-person weekly totals first.
-            let shiftplan_reports = self
-                .shiftplan_report_service
-                .extract_shiftplan_report_for_week(
-                    year,
-                    week,
-                    Authentication::Full,
-                    tx.clone().into(),
-                )
-                .await?;
+            //
+            // Phase 52 (WOP-01, D-52-01): In-Memory-Filter statt
+            // `extract_shiftplan_report_for_week(year, week)`. Der Bulk-Load
+            // `extract_shiftplan_report_for_year` liefert dieselben
+            // `ShiftplanReportDay`-Rows (`(sales_person_id, year,
+            // calendar_week, day_of_week, hours)`) — Filter `year ==
+            // target_year && calendar_week == target_week` reproduziert die
+            // Per-Woche-Auswahl bit-genau.
+            let shiftplan_reports: Arc<[service::shiftplan_report::ShiftplanReportDay]> =
+                shiftplan_reports_source
+                    .iter()
+                    .filter(|r| r.year == year && r.calendar_week == week)
+                    .cloned()
+                    .collect();
             let per_day_actuals = shiftplan_reports
                 .iter()
                 .filter(|report| volunteer_ids.contains(&report.sales_person_id))
@@ -406,10 +512,44 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             // verworfen — `slot_hours` unten sieht dann die geclippten Zeiten
             // (D-04 Zeile 4). Legacy-Verhalten (Toggle aus / Gate inaktiv):
             // `clip_slot_for_week` gibt den Slot unverändert weiter.
-            let slots: Arc<[Slot]> = self
-                .slot_service
-                .get_slots_for_week_all_plans(year, week, Authentication::Full, tx.clone().into())
-                .await?
+            //
+            // Phase 52 (WOP-01, D-52-01, R1): In-Memory-Filter statt
+            // `slot_service.get_slots_for_week_all_plans(year, week)`.
+            // Reproduziert exakt die DAO-`WHERE`-Klausel aus
+            // `dao_impl_sqlite/src/slot.rs:151-168`:
+            //   1. `slot.deleted IS NULL`
+            //   2. `slot.valid_from <= sunday_of_week`
+            //   3. `slot.valid_to IS NULL OR slot.valid_to >= monday_of_week`
+            //   4. `shiftplan.is_planning = 0 OR shiftplan.is_planning IS NULL`
+            //      (in-memory via `planning_shiftplan_ids`-Set: slot OHNE
+            //      `shiftplan_id` ODER slot mit shiftplan_id, dessen
+            //      Shiftplan NICHT planning ist).
+            // Bei ISO-Wochen-Datum-Konstruktions-Fehler (praktisch nie): leere
+            // Slot-Liste, wie DAO-Fehler-Pfad.
+            let slots_for_week: Vec<Slot> = if let (Ok(monday_of_week), Ok(sunday_of_week)) = (
+                time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday),
+                time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday),
+            ) {
+                all_slots
+                    .iter()
+                    .filter(|slot| slot.deleted.is_none())
+                    .filter(|slot| slot.valid_from <= sunday_of_week)
+                    .filter(|slot| {
+                        slot.valid_to
+                            .map(|vt| vt >= monday_of_week)
+                            .unwrap_or(true)
+                    })
+                    .filter(|slot| {
+                        slot.shiftplan_id
+                            .map(|sid| !planning_shiftplan_ids.contains(&sid))
+                            .unwrap_or(true)
+                    })
+                    .cloned()
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            let slots: Arc<[Slot]> = slots_for_week
                 .iter()
                 .filter(|slot| {
                     !special_days.iter().any(|day| {

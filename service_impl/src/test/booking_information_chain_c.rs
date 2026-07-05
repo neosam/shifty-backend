@@ -50,6 +50,9 @@ impl BookingInformationServiceDeps for TestDeps {
     type Transaction = dao::MockTransaction;
     type ShiftplanReportService = MockShiftplanReportService;
     type SlotService = MockSlotService;
+    // Phase 52 (WOP-01, D-52-01): ShiftplanService (catalog) für `is_planning`
+    // -Filter im Slot-Bulk-Load in `get_weekly_summary`.
+    type ShiftplanService = service::shiftplan_catalog::MockShiftplanService;
     type BookingService = MockBookingService;
     type SalesPersonService = MockSalesPersonService;
     type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
@@ -136,12 +139,28 @@ fn build_service(
     // SpecialDays: für passende (year, week) → gefixte Liste; für andere Wochen (year-view
     // durchläuft weeks_in_year + 3) → leer.
     let sd_clone = special_days_for_week.clone();
+    let sd_year_this: Vec<SpecialDay> = sd_clone
+        .iter()
+        .filter(|d| d.year == YEAR)
+        .cloned()
+        .collect();
     let mut special_day_service = MockSpecialDayService::new();
     special_day_service
         .expect_get_by_week()
         .returning(move |year, week, _| {
             if year == YEAR && week == WEEK {
                 Ok(Arc::from(sd_clone.clone()))
+            } else {
+                Ok(Arc::from(Vec::<SpecialDay>::new()))
+            }
+        });
+    // Phase 52 (WOP-01): Bulk-Load je Jahr — der In-Memory-Filter im
+    // Consumer wählt die (year, week)-Rows.
+    special_day_service
+        .expect_get_by_year()
+        .returning(move |year, _| {
+            if year == YEAR {
+                Ok(Arc::from(sd_year_this.clone()))
             } else {
                 Ok(Arc::from(Vec::<SpecialDay>::new()))
             }
@@ -156,6 +175,17 @@ fn build_service(
                 service::reporting::ShortEmployeeReport,
             >::new()))
         });
+    // Phase 52 (WOP-02): Bulk-Variante liefert einen Vec von (week, empty)
+    // — Wave-4-Delegation garantiert byte-identisches Verhalten zu 55×get_week.
+    reporting_service
+        .expect_get_year()
+        .returning(|year, _, _| {
+            let weeks_in_year = time::util::weeks_in_year(year as i32);
+            let out: Vec<(u8, Arc<[service::reporting::ShortEmployeeReport]>)> = (1..=weeks_in_year)
+                .map(|w| (w, Arc::from(Vec::new())))
+                .collect();
+            Ok(Arc::from(out))
+        });
 
     // ShiftplanReport: leer.
     let mut shiftplan_report_service = MockShiftplanReportService::new();
@@ -166,9 +196,31 @@ fn build_service(
                 service::shiftplan_report::ShiftplanReportDay,
             >::new()))
         });
+    shiftplan_report_service
+        .expect_extract_shiftplan_report_for_year()
+        .returning(|_, _, _| {
+            Ok(Arc::from(Vec::<
+                service::shiftplan_report::ShiftplanReportDay,
+            >::new()))
+        });
 
     // Slots: nur für die Ziel-Woche liefern; andere Wochen leer.
+    // Phase 52 (WOP-01): Bulk `get_slots()` liefert alle Slots mit
+    // korrigiertem `valid_from`/`valid_to` gegen die Zielwoche, damit der
+    // In-Memory-Filter im Consumer (year, week) korrekt selektiert.
     let slots_clone = slots.clone();
+    let target_monday = time::Date::from_iso_week_date(YEAR as i32, WEEK, time::Weekday::Monday)
+        .expect("YEAR/WEEK must map to a valid ISO week Monday");
+    let target_sunday = time::Date::from_iso_week_date(YEAR as i32, WEEK, time::Weekday::Sunday)
+        .expect("YEAR/WEEK must map to a valid ISO week Sunday");
+    let bulk_slots: Vec<Slot> = slots_clone
+        .iter()
+        .map(|s| Slot {
+            valid_from: target_monday,
+            valid_to: Some(target_sunday),
+            ..s.clone()
+        })
+        .collect();
     let mut slot_service = MockSlotService::new();
     slot_service
         .expect_get_slots_for_week_all_plans()
@@ -179,6 +231,17 @@ fn build_service(
                 Ok(Arc::from(Vec::<Slot>::new()))
             }
         });
+    slot_service
+        .expect_get_slots()
+        .returning(move |_, _| Ok(Arc::from(bulk_slots.clone())));
+
+    // Phase 52 (WOP-01, D-52-01): ShiftplanService.get_all — leer (kein
+    // planning-Shiftplan → alle Slots ohne shiftplan_id oder mit
+    // shiftplan_id passieren den `is_planning`-Filter).
+    let mut shiftplan_service_mock = service::shiftplan_catalog::MockShiftplanService::new();
+    shiftplan_service_mock
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::shiftplan_catalog::Shiftplan>::new())));
 
     // Toggle: die parametrische Antwort.
     let toggle_val: Option<String> = toggle_active_from.map(String::from);
@@ -206,6 +269,7 @@ fn build_service(
     BookingInformationServiceImpl::<TestDeps> {
         shiftplan_report_service: Arc::new(shiftplan_report_service),
         slot_service: Arc::new(slot_service),
+        shiftplan_service: Arc::new(shiftplan_service_mock),
         booking_service: Arc::new(MockBookingService::new()),
         sales_person_service: Arc::new(sales_person_service),
         sales_person_unavailable_service: Arc::new(sales_person_unavailable_service),
@@ -503,12 +567,22 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
         .returning(|_, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
 
     let sd_clone = vec![sd];
+    let sd_year: Vec<SpecialDay> = sd_clone.clone();
     let mut special_day_service = MockSpecialDayService::new();
     special_day_service
         .expect_get_by_week()
         .returning(move |year, week, _| {
             if year == YEAR && week == WEEK {
                 Ok(Arc::from(sd_clone.clone()))
+            } else {
+                Ok(Arc::from(Vec::<SpecialDay>::new()))
+            }
+        });
+    special_day_service
+        .expect_get_by_year()
+        .returning(move |year, _| {
+            if year == YEAR {
+                Ok(Arc::from(sd_year.clone()))
             } else {
                 Ok(Arc::from(Vec::<SpecialDay>::new()))
             }
@@ -520,6 +594,15 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
         .returning(|_, _, _, _| {
             Ok(Arc::from(Vec::<service::reporting::ShortEmployeeReport>::new()))
         });
+    reporting_service
+        .expect_get_year()
+        .returning(|year, _, _| {
+            let weeks_in_year = time::util::weeks_in_year(year as i32);
+            let out: Vec<(u8, Arc<[service::reporting::ShortEmployeeReport]>)> = (1..=weeks_in_year)
+                .map(|w| (w, Arc::from(Vec::new())))
+                .collect();
+            Ok(Arc::from(out))
+        });
 
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
@@ -527,8 +610,25 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
         .returning(|_, _, _, _| {
             Ok(Arc::from(Vec::<service::shiftplan_report::ShiftplanReportDay>::new()))
         });
+    shiftplan_report_service
+        .expect_extract_shiftplan_report_for_year()
+        .returning(|_, _, _| {
+            Ok(Arc::from(Vec::<service::shiftplan_report::ShiftplanReportDay>::new()))
+        });
 
     let slots_clone = vec![s];
+    let target_monday_2 =
+        time::Date::from_iso_week_date(YEAR as i32, WEEK, time::Weekday::Monday).unwrap();
+    let target_sunday_2 =
+        time::Date::from_iso_week_date(YEAR as i32, WEEK, time::Weekday::Sunday).unwrap();
+    let bulk_slots_2: Vec<Slot> = slots_clone
+        .iter()
+        .map(|s| Slot {
+            valid_from: target_monday_2,
+            valid_to: Some(target_sunday_2),
+            ..s.clone()
+        })
+        .collect();
     let mut slot_service = MockSlotService::new();
     slot_service
         .expect_get_slots_for_week_all_plans()
@@ -539,6 +639,14 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
                 Ok(Arc::from(Vec::<service::slot::Slot>::new()))
             }
         });
+    slot_service
+        .expect_get_slots()
+        .returning(move |_, _| Ok(Arc::from(bulk_slots_2.clone())));
+
+    let mut shiftplan_service_mock_2 = service::shiftplan_catalog::MockShiftplanService::new();
+    shiftplan_service_mock_2
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::shiftplan_catalog::Shiftplan>::new())));
 
     // Kernstück des Regression-Guards: Toggle → Unauthorized.
     let mut toggle_service = MockToggleService::new();
@@ -564,6 +672,7 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
     let service = BookingInformationServiceImpl::<TestDeps> {
         shiftplan_report_service: Arc::new(shiftplan_report_service),
         slot_service: Arc::new(slot_service),
+        shiftplan_service: Arc::new(shiftplan_service_mock_2),
         booking_service: Arc::new(MockBookingService::new()),
         sales_person_service: Arc::new(sales_person_service),
         sales_person_unavailable_service: Arc::new(sales_person_unavailable_service),

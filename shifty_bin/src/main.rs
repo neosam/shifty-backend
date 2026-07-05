@@ -213,6 +213,10 @@ impl service_impl::booking_information::BookingInformationServiceDeps
     type Transaction = Transaction;
     type ShiftplanReportService = ShiftplanReportService;
     type SlotService = SlotService;
+    // Phase 52 (WOP-01, D-52-01): ShiftplanCatalog für `is_planning`-Filter
+    // im Slot-Bulk-Load in `get_weekly_summary`. Basic-Tier-Dep, keine
+    // Zyklen (ShiftplanCatalog konsumiert keine BookingInformation).
+    type ShiftplanService = ShiftplanCatalogService;
     type BookingService = BookingService;
     type SalesPersonService = SalesPersonService;
     type SalesPersonUnavailableService = SalesPersonUnavailableService;
@@ -1106,10 +1110,28 @@ impl RestStateImpl {
             toggle_service: toggle_service.clone(),
         });
 
+        // Phase 52 (WOP-01, D-52-01): ShiftplanCatalogService wird VOR
+        // BookingInformationService konstruiert, damit dieser den
+        // `is_planning`-Filter für Bulk-Slot-Lookup in `get_weekly_summary`
+        // konsumieren kann. Kein Zyklus — ShiftplanCatalog konsumiert keine
+        // BookingInformation. Zusätzliche Konsumenten (shiftplan_view_service
+        // etc.) werden weiter unten mit dem gleichen Arc versorgt.
+        let shiftplan_dao = Arc::new(ShiftplanDao::new(pool.clone()));
+        let shiftplan_service = Arc::new(service_impl::shiftplan_catalog::ShiftplanServiceImpl {
+            shiftplan_dao: shiftplan_dao.clone(),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
         let booking_information_service = Arc::new(
             service_impl::booking_information::BookingInformationServiceImpl {
                 shiftplan_report_service: shiftplan_report_service.clone(),
                 slot_service: slot_service.clone(),
+                // Phase 52 (WOP-01, D-52-01): ShiftplanCatalog für
+                // is_planning-Filter im Slot-Bulk-Load.
+                shiftplan_service: shiftplan_service.clone(),
                 booking_service: booking_service.clone(),
                 sales_person_service: sales_person_service.clone(),
                 sales_person_unavailable_service: sales_person_unavailable_service.clone(),
@@ -1161,14 +1183,9 @@ impl RestStateImpl {
                 // NEU für Phase 40 (D-40-01): Wochen-Sperre-Gate.
                 week_status_service: week_status_service.clone(),
             });
-        let shiftplan_dao = Arc::new(ShiftplanDao::new(pool.clone()));
-        let shiftplan_service = Arc::new(service_impl::shiftplan_catalog::ShiftplanServiceImpl {
-            shiftplan_dao: shiftplan_dao.clone(),
-            permission_service: permission_service.clone(),
-            clock_service: clock_service.clone(),
-            uuid_service: uuid_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
+        // Phase 52 (WOP-01, D-52-01): `shiftplan_dao` / `shiftplan_service`
+        // sind jetzt weiter oben (VOR `booking_information_service`) konstruiert
+        // — hier keine Doppel-Konstruktion.
 
         let shiftplan_view_service = Arc::new(service_impl::shiftplan::ShiftplanViewServiceImpl {
             slot_service: slot_service.clone(),

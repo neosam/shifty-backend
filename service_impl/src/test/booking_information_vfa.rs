@@ -49,6 +49,8 @@ impl BookingInformationServiceDeps for TestDeps {
     type Transaction = dao::MockTransaction;
     type ShiftplanReportService = MockShiftplanReportService;
     type SlotService = MockSlotService;
+    // Phase 52 (WOP-01, D-52-01): ShiftplanService für `is_planning`-Filter.
+    type ShiftplanService = service::shiftplan_catalog::MockShiftplanService;
     type BookingService = MockBookingService;
     type SalesPersonService = MockSalesPersonService;
     type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
@@ -224,6 +226,7 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
     // ── special_day_service: Holiday returned ONLY for HOLIDAY_WEEK; empty otherwise ──
     // D-26-04: the holiday code path does NOT touch committed_voluntary_hours (only slots).
     let holiday_clone = holiday.clone();
+    let holiday_year: Vec<SpecialDay> = vec![holiday_clone.clone()];
     let mut special_day_service = MockSpecialDayService::new();
     special_day_service
         .expect_get_by_week()
@@ -234,24 +237,56 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
                 Ok(Arc::from(vec![]))
             }
         });
+    // Phase 52 (WOP-01): Bulk-Load pro Jahr (In-Memory-Filter im Consumer).
+    special_day_service
+        .expect_get_by_year()
+        .returning(move |year, _| {
+            if year == YEAR {
+                Ok(Arc::from(holiday_year.clone()))
+            } else {
+                Ok(Arc::from(vec![]))
+            }
+        });
 
     // ── reporting_service: empty week reports (isolates committed_voluntary band) ──
     let mut reporting_service = MockReportingService::new();
     reporting_service
         .expect_get_week()
         .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    // Phase 52 (WOP-02): Bulk-Variante liefert leere Reports pro Woche.
+    reporting_service
+        .expect_get_year()
+        .returning(|year, _, _| {
+            let weeks_in_year = time::util::weeks_in_year(year as i32);
+            let out: Vec<(u8, Arc<[service::reporting::ShortEmployeeReport]>)> = (1..=weeks_in_year)
+                .map(|w| (w, Arc::from(Vec::new())))
+                .collect();
+            Ok(Arc::from(out))
+        });
 
     // ── shiftplan_report_service: no actuals (isolates Band-1 committed pledge) ──
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
         .expect_extract_shiftplan_report_for_week()
         .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    shiftplan_report_service
+        .expect_extract_shiftplan_report_for_year()
+        .returning(|_, _, _| Ok(Arc::from(vec![])));
 
     // ── slot_service: no slots (removes slot_hours from the equation) ──
     let mut slot_service = MockSlotService::new();
     slot_service
         .expect_get_slots_for_week_all_plans()
         .returning(|_, _, _, _| Ok(Arc::from(vec![])));
+    slot_service
+        .expect_get_slots()
+        .returning(|_, _| Ok(Arc::from(vec![])));
+
+    // Phase 52 (WOP-01, D-52-01): ShiftplanService.get_all — leer.
+    let mut shiftplan_service_mock = service::shiftplan_catalog::MockShiftplanService::new();
+    shiftplan_service_mock
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::shiftplan_catalog::Shiftplan>::new())));
 
     // ── transaction_dao: passthrough ──
     let mut transaction_dao = dao::MockTransactionDao::new();
@@ -269,6 +304,7 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
     let service = BookingInformationServiceImpl::<TestDeps> {
         shiftplan_report_service: Arc::new(shiftplan_report_service),
         slot_service: Arc::new(slot_service),
+        shiftplan_service: Arc::new(shiftplan_service_mock),
         booking_service: Arc::new(MockBookingService::new()),
         sales_person_service: Arc::new(sales_person_service),
         sales_person_unavailable_service: Arc::new(MockSalesPersonUnavailableService::new()),

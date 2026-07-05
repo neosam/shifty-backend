@@ -57,6 +57,9 @@ impl BookingInformationServiceDeps for TestDeps {
     type Transaction = dao::MockTransaction;
     type ShiftplanReportService = MockShiftplanReportService;
     type SlotService = MockSlotService;
+    // Phase 52 (WOP-01, D-52-01): ShiftplanService (catalog) für den
+    // `is_planning`-Filter im Slot-Bulk-Load.
+    type ShiftplanService = service::shiftplan_catalog::MockShiftplanService;
     type BookingService = MockBookingService;
     type SalesPersonService = MockSalesPersonService;
     type SalesPersonUnavailableService = MockSalesPersonUnavailableService;
@@ -357,45 +360,141 @@ fn build_service_with(config: FixtureConfig) -> BookingInformationServiceImpl<Te
         .expect_find_all()
         .returning(move |_, _| Ok(abs_arc.clone()));
 
+    // Phase 52 (WOP-01, D-52-01): SpecialDays — sowohl `get_by_week` (Legacy
+    // für sekundäre Konsumenten wie `get_summery_for_week`) als auch
+    // `get_by_year` (neuer Bulk-Load) werden gemockt. Der Bulk-Load flached
+    // die (year, week)-Map zu einem Vec pro Jahr; der In-Memory-Filter im
+    // Consumer selektiert die Zielwoche.
     let sd_map = config.special_days_by_week;
+    let sd_by_year: std::collections::HashMap<u32, Vec<SpecialDay>> = {
+        let mut acc: std::collections::HashMap<u32, Vec<SpecialDay>> = Default::default();
+        for ((y, _), v) in sd_map.iter() {
+            acc.entry(*y).or_default().extend(v.iter().cloned());
+        }
+        acc
+    };
+    let sd_map_for_week = sd_map.clone();
     let mut special_day_service = MockSpecialDayService::new();
     special_day_service
         .expect_get_by_week()
         .returning(move |year, week, _| {
             Ok(Arc::from(
-                sd_map.get(&(year, week)).cloned().unwrap_or_default(),
+                sd_map_for_week
+                    .get(&(year, week))
+                    .cloned()
+                    .unwrap_or_default(),
             ))
         });
+    special_day_service
+        .expect_get_by_year()
+        .returning(move |year, _| {
+            Ok(Arc::from(sd_by_year.get(&year).cloned().unwrap_or_default()))
+        });
 
+    // Phase 52 (WOP-02): ReportingService — `get_week` (Legacy) + `get_year`
+    // (Bulk). Der Bulk baut einen Vec pro Woche 1..=weeks_in_year(year), leere
+    // Wochen erscheinen mit leerem `Arc<[]>` (D-52-03).
     let wr_map = config.week_reports;
+    let wr_map_for_week = wr_map.clone();
     let mut reporting_service = MockReportingService::new();
     reporting_service
         .expect_get_week()
         .returning(move |year, week, _, _| {
             Ok(Arc::from(
-                wr_map.get(&(year, week)).cloned().unwrap_or_default(),
+                wr_map_for_week
+                    .get(&(year, week))
+                    .cloned()
+                    .unwrap_or_default(),
             ))
         });
+    reporting_service
+        .expect_get_year()
+        .returning(move |year, _, _| {
+            let weeks_in_year = time::util::weeks_in_year(year as i32);
+            let out: Vec<(u8, Arc<[ShortEmployeeReport]>)> = (1..=weeks_in_year)
+                .map(|w| {
+                    let rows = wr_map.get(&(year, w)).cloned().unwrap_or_default();
+                    (w, Arc::from(rows))
+                })
+                .collect();
+            Ok(Arc::from(out))
+        });
 
+    // Phase 52 (WOP-01): ShiftplanReport — `_for_week` + `_for_year` (Bulk).
     let sr_map = config.shiftplan_reports_by_week;
+    let sr_by_year: std::collections::HashMap<u32, Vec<ShiftplanReportDay>> = {
+        let mut acc: std::collections::HashMap<u32, Vec<ShiftplanReportDay>> = Default::default();
+        for ((y, _), v) in sr_map.iter() {
+            acc.entry(*y).or_default().extend(v.iter().cloned());
+        }
+        acc
+    };
+    let sr_map_for_week = sr_map.clone();
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
         .expect_extract_shiftplan_report_for_week()
         .returning(move |year, week, _, _| {
             Ok(Arc::from(
-                sr_map.get(&(year, week)).cloned().unwrap_or_default(),
+                sr_map_for_week
+                    .get(&(year, week))
+                    .cloned()
+                    .unwrap_or_default(),
             ))
         });
+    shiftplan_report_service
+        .expect_extract_shiftplan_report_for_year()
+        .returning(move |year, _, _| {
+            Ok(Arc::from(sr_by_year.get(&year).cloned().unwrap_or_default()))
+        });
 
+    // Phase 52 (WOP-01, D-52-01, R1): Slots — `get_slots_for_week_all_plans`
+    // (Legacy) + `get_slots` (Bulk). Der Bulk konfiguriert für JEDEN Slot
+    // `valid_from = monday_of_target_week` und `valid_to = Some(sunday_of_target_week)`,
+    // damit der In-Memory-DAO-Semantik-Filter im Consumer den Slot nur in
+    // seiner (year, week) selektiert — reproduziert die Per-Woche-Auswahl aus
+    // `get_slots_for_week_all_plans` byte-genau.
     let slots_map = config.slots_by_week;
+    let bulk_slots: Vec<Slot> = slots_map
+        .iter()
+        .flat_map(|((y, w), slot_vec)| {
+            let monday =
+                time::Date::from_iso_week_date(*y as i32, *w, time::Weekday::Monday).ok();
+            let sunday =
+                time::Date::from_iso_week_date(*y as i32, *w, time::Weekday::Sunday).ok();
+            slot_vec
+                .iter()
+                .map(move |s| Slot {
+                    valid_from: monday.unwrap_or(s.valid_from),
+                    valid_to: sunday,
+                    ..s.clone()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let slots_map_for_week = slots_map.clone();
     let mut slot_service = MockSlotService::new();
     slot_service
         .expect_get_slots_for_week_all_plans()
         .returning(move |year, week, _, _| {
             Ok(Arc::from(
-                slots_map.get(&(year, week)).cloned().unwrap_or_default(),
+                slots_map_for_week
+                    .get(&(year, week))
+                    .cloned()
+                    .unwrap_or_default(),
             ))
         });
+    slot_service
+        .expect_get_slots()
+        .returning(move |_, _| Ok(Arc::from(bulk_slots.clone())));
+
+    // Phase 52 (WOP-01, D-52-01): ShiftplanService.get_all — leer. Alle
+    // Fixture-Slots haben `shiftplan_id = None`, damit passiert der
+    // `is_planning`-Filter automatisch (siehe R1: `shiftplan.is_planning IS
+    // NULL` bei LEFT-JOIN ohne Zeile).
+    let mut shiftplan_service_mock = service::shiftplan_catalog::MockShiftplanService::new();
+    shiftplan_service_mock
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::shiftplan_catalog::Shiftplan>::new())));
 
     let toggle_val: Option<String> = config.toggle_active_from.map(String::from);
     let mut toggle_service = MockToggleService::new();
@@ -421,6 +520,7 @@ fn build_service_with(config: FixtureConfig) -> BookingInformationServiceImpl<Te
     BookingInformationServiceImpl::<TestDeps> {
         shiftplan_report_service: Arc::new(shiftplan_report_service),
         slot_service: Arc::new(slot_service),
+        shiftplan_service: Arc::new(shiftplan_service_mock),
         booking_service: Arc::new(MockBookingService::new()),
         sales_person_service: Arc::new(sales_person_service),
         sales_person_unavailable_service: Arc::new(sales_person_unavailable_service),
