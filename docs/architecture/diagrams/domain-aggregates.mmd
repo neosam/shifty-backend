@@ -1,0 +1,103 @@
+%% Domain-Aggregate-Diagramm — logisches Modell (keine FKs, keine physische Struktur).
+%% Zeigt, welche Objekte fachlich zusammengehören und wie Business-Rules die
+%% Aggregate-Grenzen ziehen.
+graph LR
+    subgraph Employee["Employee Aggregate"]
+        SP[Sales Person]
+        WD[Work Details<br/>Contract-Zeilen]
+        Unav[Unavailable<br/>Wochentag-Sperre]
+        VOffset[Vacation Entitlement<br/>Offset]
+    end
+
+    subgraph ShiftplanAgg["Shiftplan Aggregate"]
+        Slot[Slot<br/>Zeitfenster + Kapazität]
+        SpecialDay[Special Day<br/>Feiertag]
+        Catalog[Shiftplan Catalog<br/>Vorlagen]
+    end
+
+    subgraph BookingAgg["Booking Aggregate"]
+        Booking[Booking<br/>Person × Slot × Datum]
+        BookingLog[Booking Log<br/>Audit-Trail]
+    end
+
+    subgraph AbsenceAgg["Absence Aggregate v1.0+"]
+        Absence[Absence Range<br/>Kategorie + from-to]
+    end
+
+    subgraph LegacyEH["Legacy Extra Hours - vor Cutover"]
+        ExtraHours[Extra Hours<br/>Single-Day]
+        CustomEH[Custom Category<br/>Definition]
+    end
+
+    subgraph AccountingAgg["Accounting Aggregate"]
+        Carryover[Carryover<br/>Jahresend-Saldo]
+        VBalance[Vacation Balance<br/>Anspruch/Rest]
+        Report[Report Output<br/>Live-Rechnung]
+    end
+
+    subgraph BillingAgg["Billing Period Aggregate"]
+        BP[Billing Period<br/>Zeitraum]
+        BPSPValue[Billing Period Value<br/>eingefrorener value_type]
+        SnapshotVer[snapshot_schema_version<br/>u32]
+    end
+
+    subgraph WeekAgg["Week Metadata"]
+        WStatus[Week Status]
+        WMsg[Week Message]
+    end
+
+    subgraph AuthAgg["Auth & Session"]
+        User[User]
+        Role[Role]
+        Session[Session]
+        Invite[Invitation]
+    end
+
+    subgraph SystemAgg["System"]
+        FF[Feature Flag]
+        Toggle[Toggle<br/>Stichtag-basiert]
+        Sched[Scheduler]
+    end
+
+    SP -.hat.-> WD
+    SP -.hat.-> Unav
+    SP -.hat.-> VOffset
+
+    Slot -.gehört zu.-> Catalog
+
+    Booking -.zuweist.-> SP
+    Booking -.füllt.-> Slot
+    BookingLog -.protokolliert.-> Booking
+
+    Absence -.betrifft.-> SP
+    ExtraHours -.betrifft.-> SP
+    ExtraHours -.hat Kategorie.-> CustomEH
+
+    Report -.aggregiert.-> Booking
+    Report -.aggregiert.-> Absence
+    Report -.aggregiert.-> ExtraHours
+    Report -.beachtet.-> SpecialDay
+    Report -.beachtet.-> WD
+    Report -.startet mit.-> Carryover
+    VBalance -.beachtet.-> Absence
+    VBalance -.beachtet.-> VOffset
+    VBalance -.startet mit.-> Carryover
+
+    BP -.friert ein.-> Report
+    BPSPValue -.gehört zu.-> BP
+    SnapshotVer -.trägt.-> BP
+
+    Session -.identifiziert.-> User
+    User -.hat.-> Role
+    Invite -.erzeugt.-> User
+
+    Sched -.triggert.-> Carryover
+
+    Toggle -.gate für.-> Report
+    Toggle -.gate für.-> Absence
+    FF -.gate für.-> AuthAgg
+
+    classDef legacy fill:#f9e0e0,stroke:#c00
+    class ExtraHours,CustomEH legacy
+    classDef critical fill:#fff3c4,stroke:#a80
+    class Report,BP,SnapshotVer,Carryover critical

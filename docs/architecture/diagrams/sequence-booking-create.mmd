@@ -1,0 +1,38 @@
+%% Sequence-Diagramm: Ein Client legt eine Booking (Sales Person → Slot @ Datum) an.
+%% Zeigt Auth-Weitergabe, TX-Öffnung, Permission-Check und Cascade zu Booking-Log.
+sequenceDiagram
+    autonumber
+    actor User as Client (Frontend)
+    participant REST as REST-Handler<br/>rest/booking.rs
+    participant BookingSvc as BookingService<br/>service_impl/booking.rs
+    participant Perm as PermissionService
+    participant TX as TransactionDao
+    participant BookingDao as BookingDao
+    participant LogSvc as BookingLogService
+    participant DB as SQLite
+
+    User->>+REST: POST /booking<br/>{sales_person_id, slot_id, date}
+    Note over REST: Session-Middleware liefert<br/>Authentication<Context>
+    REST->>+BookingSvc: create(dto, auth, tx=None)
+    BookingSvc->>+TX: use_transaction(None)
+    TX->>DB: BEGIN
+    TX-->>-BookingSvc: tx
+    BookingSvc->>+Perm: require_role(auth, ShiftplanEdit)
+    Perm-->>-BookingSvc: Ok / Err(Forbidden)
+    Note over BookingSvc: Konflikt-Check:<br/>bestehende Booking? Absence?
+    BookingSvc->>+BookingDao: find_conflict(sales_person, date, tx)
+    BookingDao->>DB: SELECT ... WHERE deleted IS NULL
+    BookingDao-->>-BookingSvc: []
+    BookingSvc->>+BookingDao: insert(booking, created_by=auth.user, tx)
+    BookingDao->>DB: INSERT
+    BookingDao-->>-BookingSvc: BookingEntity
+    BookingSvc->>+LogSvc: log_create(booking, auth, tx)
+    LogSvc->>DB: INSERT booking_log
+    LogSvc-->>-BookingSvc: Ok
+    BookingSvc->>+TX: commit(tx)
+    TX->>DB: COMMIT
+    TX-->>-BookingSvc: Ok
+    BookingSvc-->>-REST: Booking
+    REST-->>-User: 201 Created<br/>BookingTO
+
+    Note over BookingSvc,DB: Bei Fehler in irgendeinem Schritt:<br/>TX rollt zurück, keine Zombie-Zeilen.

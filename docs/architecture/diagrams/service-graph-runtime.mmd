@@ -1,0 +1,180 @@
+%% Service-Runtime-Graph — abgeleitet aus shifty_bin/src/main.rs
+%% (Dependency-Injection via gen_service_impl!-Macro).
+%%
+%% Kanten: Consumer --> Dependency
+%% Nur Domain-Service-Kanten sind gezeichnet. Ubiquitäre Deps (ClockService,
+%% UuidService, PermissionService, TransactionDao, DAOs) sind absichtlich
+%% ausgeblendet — sonst wird der Graph unlesbar. Ausnahme: PermissionService
+%% ist als Root-Utility unter "Infrastructure" gelistet.
+%%
+%% Tier-Klassifikation folgt shifty-backend/CLAUDE.md
+%% ("Service-Tier-Konventionen: Basic vs. Business-Logic Services").
+%% Bei Diskrepanz zwischen Doc-Liste und strikter "keine Domain-Service-
+%% Dependency"-Regel folgt der Graph der Doc-Liste (die kanonisch ist).
+graph TD
+    subgraph Infra["Infrastructure & Basic Utilities"]
+        Clock[Clock Service]
+        Uuid[Uuid Service]
+        Config[Config Service]
+        Ical[Ical Service]
+        User[User Service]
+        Permission[Permission Service]
+        Session[Session Service]
+    end
+
+    subgraph Basic["Basic Services (Entity-Manager)"]
+        SalesPerson[Sales Person Service]
+        Slot[Slot Service]
+        SpecialDay[Special Day Service]
+        SalesPersonUnavailable[Sales Person Unavailable Service]
+        SalesPersonShiftplan[Sales Person Shiftplan Service]
+        Booking[Booking Service]
+        BookingLog[Booking Log Service]
+        ShiftplanCatalog[Shiftplan Catalog Service]
+        WorkingHours[Working Hours Service<br/>a.k.a. EmployeeWorkDetails]
+        CustomExtraHours[Custom Extra Hours Service]
+        ExtraHours[Extra Hours Service]
+        WeekMessage[Week Message Service]
+        WeekStatus[Week Status Service]
+        SpecialDayText[Text Template Service]
+        BillingPeriod[Billing Period Service]
+        Carryover[Carryover Service]
+        Toggle[Toggle Service]
+        FeatureFlag[Feature Flag Service]
+        ShiftplanReport[Shiftplan Report Service]
+        VacationOffset[Vacation Entitlement<br/>Offset Service]
+        PdfExportConfig[PDF Export Config Service]
+        UserInvitation[User Invitation Service]
+    end
+
+    subgraph Business["Business-Logic Services"]
+        Absence[Absence Service]
+        AbsenceConversion[Absence Conversion Service]
+        VacationBalance[Vacation Balance Service]
+        Reporting[Reporting Service]
+        BookingInformation[Booking Information Service]
+        ShiftplanEdit[Shiftplan Edit Service]
+        ShiftplanView[Shiftplan View Service]
+        Block[Block Service]
+        BlockReport[Block Report Service]
+        BillingPeriodReport[Billing Period Report Service]
+        PdfShiftplan[PDF Shiftplan Service]
+        PdfExportScheduler[PDF Export Scheduler]
+        Scheduler[Scheduler Service]
+    end
+
+    %% Infrastructure edges (session)
+    Session --> Clock
+    Session --> Uuid
+    Permission --> User
+    UserInvitation --> Permission
+    UserInvitation --> Session
+
+    %% Basic-Service inter-links (mostly SalesPerson lookups)
+    SalesPersonUnavailable --> SalesPerson
+    SalesPersonShiftplan --> SalesPerson
+    Booking --> SalesPerson
+    Booking --> Slot
+    Booking --> SalesPersonShiftplan
+    CustomExtraHours --> SalesPerson
+    ExtraHours --> SalesPerson
+    ExtraHours --> CustomExtraHours
+    WorkingHours --> SalesPerson
+    ShiftplanReport --> SpecialDay
+    ShiftplanReport --> Toggle
+    BillingPeriod --> SalesPerson
+
+    %% Absence Service (BL) deps
+    Absence --> SalesPerson
+    Absence --> SpecialDay
+    Absence --> WorkingHours
+    Absence --> Booking
+    Absence --> SalesPersonUnavailable
+    Absence --> Slot
+
+    %% Absence Conversion
+    AbsenceConversion --> ExtraHours
+
+    %% Reporting Service
+    Reporting --> ExtraHours
+    Reporting --> ShiftplanReport
+    Reporting --> WorkingHours
+    Reporting --> SalesPerson
+    Reporting --> Carryover
+    Reporting --> Absence
+    Reporting --> SpecialDay
+    Reporting --> Toggle
+
+    %% Vacation Balance
+    VacationBalance --> Absence
+    VacationBalance --> WorkingHours
+    VacationBalance --> Carryover
+    VacationBalance --> SalesPerson
+    VacationBalance --> VacationOffset
+
+    %% Booking Information (Aggregate Read-Sicht pro Woche)
+    BookingInformation --> ShiftplanReport
+    BookingInformation --> Slot
+    BookingInformation --> Booking
+    BookingInformation --> SalesPerson
+    BookingInformation --> SalesPersonUnavailable
+    BookingInformation --> Reporting
+    BookingInformation --> SpecialDay
+    BookingInformation --> Toggle
+    BookingInformation --> WorkingHours
+    BookingInformation --> Absence
+
+    %% Shiftplan Edit (Write-Aggregat)
+    ShiftplanEdit --> Slot
+    ShiftplanEdit --> Booking
+    ShiftplanEdit --> Carryover
+    ShiftplanEdit --> Reporting
+    ShiftplanEdit --> SalesPerson
+    ShiftplanEdit --> WorkingHours
+    ShiftplanEdit --> ExtraHours
+    ShiftplanEdit --> SalesPersonUnavailable
+    ShiftplanEdit --> Absence
+    ShiftplanEdit --> Toggle
+    ShiftplanEdit --> WeekStatus
+
+    %% Shiftplan View (Read-Aggregat)
+    ShiftplanView --> Slot
+    ShiftplanView --> Booking
+    ShiftplanView --> SalesPerson
+    ShiftplanView --> SpecialDay
+    ShiftplanView --> ShiftplanCatalog
+    ShiftplanView --> Absence
+    ShiftplanView --> SalesPersonUnavailable
+    ShiftplanView --> Toggle
+
+    %% Block Service (day-block builder)
+    Block --> Slot
+    Block --> Booking
+    Block --> SalesPerson
+    Block --> Ical
+    Block --> ShiftplanView
+    Block --> Config
+    Block --> SpecialDay
+    Block --> Toggle
+
+    %% Block Report
+    BlockReport --> Block
+    BlockReport --> SpecialDayText
+
+    %% Billing Period Report
+    BillingPeriodReport --> BillingPeriod
+    BillingPeriodReport --> Reporting
+    BillingPeriodReport --> SalesPerson
+    BillingPeriodReport --> WorkingHours
+    BillingPeriodReport --> SpecialDayText
+
+    %% PDF pipeline (Phase 48/49)
+    PdfShiftplan --> ShiftplanView
+    PdfShiftplan --> SalesPerson
+    PdfShiftplan --> WeekStatus
+    PdfExportScheduler --> PdfExportConfig
+    PdfExportScheduler --> PdfShiftplan
+    PdfExportScheduler --> ShiftplanCatalog
+
+    %% Cron-Scheduler (recompute-Trigger)
+    Scheduler --> ShiftplanEdit

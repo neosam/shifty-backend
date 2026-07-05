@@ -1,0 +1,43 @@
+%% Sequence-Diagramm: Reporting-Aufruf mit Carryover-Lookup.
+%% Zeigt Authentication::Full-Bypass für interne Aggregat-Reads.
+sequenceDiagram
+    autonumber
+    actor User as Client (Frontend)
+    participant REST as REST-Handler<br/>rest/report.rs
+    participant Reporting as ReportingService<br/>service_impl/reporting.rs
+    participant Perm as PermissionService
+    participant Carryover as CarryoverService
+    participant SalesPerson as SalesPersonService
+    participant Booking as BookingService
+    participant ExtraHours as ExtraHoursService
+    participant Absence as AbsenceService
+    participant CustomEH as CustomExtraHoursService
+    participant Toggle as ToggleService
+
+    User->>+REST: GET /report?person=X&from=2026-01-01&to=2026-06-30
+    REST->>+Reporting: employee_balance(auth: user, tx=None)
+    Reporting->>+Perm: check_role(auth, HR-Viewer)
+    Perm-->>-Reporting: Ok
+
+    Note over Reporting: Interne Aggregat-Reads:<br/>Auth wird auf Full hochgehebelt
+    Reporting->>+SalesPerson: get(id, Full)
+    SalesPerson-->>-Reporting: SalesPerson + Contract-Zeilen
+    Reporting->>+Carryover: get_yearly(id, year=2025, Full)
+    Note over Carryover,Reporting: Persistierter<br/>Vorjahres-Saldo
+    Carryover-->>-Reporting: Carryover(hours, vacation_days)
+    Reporting->>+Booking: list_by_person(id, range, Full)
+    Booking-->>-Reporting: [Booking...]
+    Reporting->>+ExtraHours: list_by_person(id, range, Full)
+    ExtraHours->>+CustomEH: get_by_id(uuid, Full)
+    CustomEH-->>-ExtraHours: CustomDefinition
+    ExtraHours-->>-Reporting: [ExtraHours...]
+    Reporting->>+Absence: list_by_person(id, range, Full)
+    Absence-->>-Reporting: [Absence-Range...]
+    Reporting->>+Toggle: is_enabled("D-51-07", Full)
+    Note over Toggle: Full-Bypass<br/>(Phase 51 Gap-Closure)
+    Toggle-->>-Reporting: true/false
+
+    Note over Reporting: Berechnung:<br/>Ist = Bookings + ExtraWork<br/>+ Absence-Anteil<br/>Erwartung = Contract × Tage<br/>− SpecialDays − UnpaidLeave<br/>Balance = Ist − Erwartung + Carryover
+
+    Reporting-->>-REST: ReportOutput
+    REST-->>-User: 200 OK<br/>ReportTO

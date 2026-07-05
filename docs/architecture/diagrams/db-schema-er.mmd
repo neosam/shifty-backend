@@ -1,0 +1,360 @@
+%% Datenbank-Schema (SQLite) — abgeleitet aus migrations/sqlite/*.sql (chronologisch).
+%% Enthält nur den STATUS-QUO nach allen Migrationen bis 2026-07-04.
+%%
+%% Konventionen:
+%%   - Nahezu alle Tabellen tragen die Audit-Spalten
+%%     `created`, `deleted` (NULL = aktiv, TEXT-Timestamp = soft-deleted),
+%%     `update_timestamp`, `update_process`, `update_version`.
+%%     Diese sind zur besseren Lesbarkeit meist NICHT einzeln aufgeführt —
+%%     %% deleted TEXT nullable %% ist implizit, wo nicht anders angegeben.
+%%   - Spaltentypen sind SQLite-affinity-Namen (BLOB(16) = UUID, TEXT = ISO-Datum/Zeit).
+%%   - Kardinalitäten:
+%%       ||--o{  1 : 0..N
+%%       ||--|{  1 : 1..N
+%%       }o--||  0..N : 1
+%%
+%% Für sinngebende Details siehe migrations/sqlite/ und die Domain-Docs.
+erDiagram
+    USER {
+        text name PK
+        text update_process
+    }
+
+    ROLE {
+        text name PK
+        text update_process
+    }
+
+    PRIVILEGE {
+        text name PK
+        text update_process
+    }
+
+    USER_ROLE {
+        text user_name FK
+        text role_name FK
+        text update_process
+    }
+
+    ROLE_PRIVILEGE {
+        text role_name FK
+        text privilege_name FK
+        text update_process
+    }
+
+    SESSION {
+        text id PK
+        text user_id FK
+        integer expires
+        integer created
+        text impersonate_user_id "nullable"
+    }
+
+    USER_INVITATION {
+        text id PK
+        text username FK
+        text token UK
+        text expiration_date
+        text session_id "nullable"
+        text session_revoked_at "nullable"
+    }
+
+    SALES_PERSON {
+        blob id PK
+        text name
+        boolean inactive
+        boolean is_paid
+        text background_color "hex; added later"
+        text deleted "nullable soft-delete"
+    }
+
+    SALES_PERSON_USER {
+        blob sales_person_id PK,FK
+        text user_id PK,FK
+    }
+
+    SLOT {
+        blob id PK
+        integer day_of_week
+        text time_from
+        text time_to
+        text valid_from
+        text valid_to "nullable"
+        integer min_resources "nullable"
+        integer max_paid_employees "nullable"
+        blob shiftplan_id FK "nullable, backfilled"
+        text deleted "nullable"
+    }
+
+    BOOKING {
+        blob id PK
+        blob sales_person_id FK
+        blob slot_id FK
+        integer calendar_week
+        integer year
+        text created
+        text created_by "nullable, user-tracking"
+        text deleted "nullable"
+        text deleted_by "nullable"
+    }
+
+    SALES_PERSON_UNAVAILABLE {
+        blob id PK
+        blob sales_person_id FK
+        integer year
+        integer calendar_week
+        integer day_of_week
+        text deleted "nullable"
+    }
+
+    SHIFTPLAN {
+        blob id PK
+        text name
+        integer is_planning
+        text deleted "nullable"
+    }
+
+    SALES_PERSON_SHIFTPLAN {
+        blob sales_person_id PK,FK
+        blob shiftplan_id PK,FK
+        text permission_level "available or planner_only"
+    }
+
+    SPECIAL_DAY {
+        blob id PK
+        integer year
+        integer calendar_week
+        integer day_of_week
+        text day_type "e.g. Holiday, ShortDay"
+        text time_of_day "nullable, for ShortDay"
+        text deleted "nullable"
+    }
+
+    EMPLOYEE_WORK_DETAILS {
+        blob id PK
+        blob sales_person_id FK
+        float expected_hours
+        integer from_calendar_week
+        integer from_year
+        integer to_calendar_week
+        integer to_year
+        integer workdays_per_week
+        integer monday
+        integer tuesday
+        integer wednesday
+        integer thursday
+        integer friday
+        integer saturday
+        integer sunday
+        integer from_day_of_week
+        integer to_day_of_week
+        integer vacation_days
+        integer has_hour_cap "Phase 26"
+        integer is_dynamic "Phase auto-Vertrag"
+        integer committed_voluntary "Phase 34"
+        text deleted "nullable"
+    }
+
+    EXTRA_HOURS {
+        blob id PK
+        blob sales_person_id FK
+        blob logical_id "range-source stable id"
+        float amount
+        text category "Vacation, SickLeave, Overtime, Custom, ..."
+        text description "nullable"
+        text date_time
+        blob custom_extra_hours_id FK "nullable, when category=Custom"
+        text deleted "nullable"
+    }
+
+    CUSTOM_EXTRA_HOURS {
+        blob id PK
+        text name
+        text description "nullable"
+        boolean modifies_balance
+        text deleted "nullable"
+    }
+
+    CUSTOM_EXTRA_HOURS_SALES_PERSON {
+        blob sales_person_id PK,FK
+        blob custom_extra_hours_id PK,FK
+        text deleted "nullable"
+    }
+
+    EMPLOYEE_YEARLY_CARRYOVER {
+        blob sales_person_id PK,FK
+        integer year PK
+        real carryover_hours
+        integer vacation "vacation days carry"
+        text deleted "nullable"
+    }
+
+    ABSENCE_PERIOD {
+        blob id PK
+        blob logical_id "stable across edits"
+        blob sales_person_id FK
+        text category "Vacation, SickLeave, UnpaidLeave, ..."
+        text from_date
+        text to_date
+        text description "nullable"
+        real day_fraction "Phase 17 half-day"
+        text deleted "nullable"
+    }
+
+    ABSENCE_PERIOD_MIGRATION_SOURCE {
+        blob extra_hours_id PK
+        blob absence_period_id FK
+        text migrated_at
+    }
+
+    VACATION_ENTITLEMENT_OFFSET {
+        blob id PK
+        blob sales_person_id FK
+        integer year
+        integer offset_days "signed"
+        text deleted "nullable"
+    }
+
+    WEEK_MESSAGE {
+        blob id PK
+        integer year
+        integer calendar_week
+        text message
+        text deleted "nullable"
+    }
+
+    WEEK_STATUS {
+        blob id PK
+        integer year
+        integer calendar_week
+        text status "InPlanning, Planned, Locked"
+        text deleted "nullable"
+    }
+
+    BILLING_PERIOD {
+        blob id PK
+        text from_date_time
+        text to_date_time
+        text created_by
+        text deleted "nullable"
+        text deleted_by "nullable"
+        integer snapshot_schema_version "bump per persisted-value-type change"
+    }
+
+    BILLING_PERIOD_SALES_PERSON {
+        blob id PK
+        blob billing_period_id FK
+        blob sales_person_id FK
+        text value_type
+        float value_delta
+        float value_ytd_from
+        float value_ytd_to
+        float value_full_year
+        text deleted_at "nullable"
+    }
+
+    TEXT_TEMPLATE {
+        blob id PK
+        text template_type
+        text name "nullable, added later"
+        text template_text
+        text template_engine "default: tera"
+        text deleted "nullable"
+    }
+
+    TOGGLE {
+        text name PK
+        integer enabled
+        text value "nullable, added Phase 51"
+        text description "nullable"
+    }
+
+    TOGGLE_GROUP {
+        text name PK
+        text description "nullable"
+    }
+
+    TOGGLE_GROUP_TOGGLE {
+        text toggle_group_name PK,FK
+        text toggle_name PK,FK
+    }
+
+    FEATURE_FLAG {
+        text key PK
+        integer enabled
+        text description "nullable"
+    }
+
+    PDF_EXPORT_CONFIG {
+        blob id PK "singleton row"
+        integer enabled
+        text nextcloud_url "nullable"
+        text webdav_user "nullable"
+        text webdav_app_token "nullable, plaintext"
+        text target_folder "nullable"
+        integer weeks_horizon
+        text cron_schedule
+        text last_success_at "nullable"
+        text last_error_at "nullable"
+        text last_error_message "nullable"
+    }
+
+    %% ================ Relationships ================
+
+    USER ||--o{ USER_ROLE : "has"
+    ROLE ||--o{ USER_ROLE : "granted-to"
+    ROLE ||--o{ ROLE_PRIVILEGE : "carries"
+    PRIVILEGE ||--o{ ROLE_PRIVILEGE : "granted-by"
+
+    USER ||--o{ SESSION : "authenticated-as"
+    USER ||--o{ USER_INVITATION : "invitee"
+    USER ||--o| SALES_PERSON_USER : "maps-to"
+    SALES_PERSON ||--o| SALES_PERSON_USER : "maps-to"
+
+    SALES_PERSON ||--o{ BOOKING : "assigned-to"
+    SLOT ||--o{ BOOKING : "filled-by"
+    SHIFTPLAN ||--o{ SLOT : "contains"
+    SHIFTPLAN ||--o{ SALES_PERSON_SHIFTPLAN : "member-of"
+    SALES_PERSON ||--o{ SALES_PERSON_SHIFTPLAN : "assigned-plans"
+
+    SALES_PERSON ||--o{ SALES_PERSON_UNAVAILABLE : "blocks-day"
+    SALES_PERSON ||--o{ EMPLOYEE_WORK_DETAILS : "contract-history"
+    SALES_PERSON ||--o{ EXTRA_HOURS : "logs"
+    SALES_PERSON ||--o{ ABSENCE_PERIOD : "on-leave"
+    SALES_PERSON ||--o{ EMPLOYEE_YEARLY_CARRYOVER : "year-carry"
+    SALES_PERSON ||--o{ VACATION_ENTITLEMENT_OFFSET : "entitlement-adj"
+
+    CUSTOM_EXTRA_HOURS ||--o{ EXTRA_HOURS : "categorises"
+    CUSTOM_EXTRA_HOURS ||--o{ CUSTOM_EXTRA_HOURS_SALES_PERSON : "assigned-to"
+    SALES_PERSON ||--o{ CUSTOM_EXTRA_HOURS_SALES_PERSON : "receives"
+
+    ABSENCE_PERIOD ||--o| ABSENCE_PERIOD_MIGRATION_SOURCE : "converted-from-legacy"
+
+    BILLING_PERIOD ||--o{ BILLING_PERIOD_SALES_PERSON : "snapshot-per-person"
+    SALES_PERSON ||--o{ BILLING_PERIOD_SALES_PERSON : "snapshotted"
+
+    TOGGLE_GROUP ||--o{ TOGGLE_GROUP_TOGGLE : "contains"
+    TOGGLE ||--o{ TOGGLE_GROUP_TOGGLE : "member-of"
+
+%% ============================================================================
+%% VIEWS (nicht als Entity im ER-Diagramm — Mermaid erDiagram unterstützt keine Views)
+%% ----------------------------------------------------------------------------
+%% * bookings_view
+%%     Read-optimierter Join: booking ⨝ sales_person ⨝ slot ⨝ shiftplan.
+%%     Liefert UUIDs formatted (hex+dash) + booking.year/calendar_week +
+%%     slot.day_of_week + slot.time_from/to + sales_person.name +
+%%     shiftplan.name + booking.created_by/deleted_by (User-Tracking).
+%%     Wurde in mehreren Migrationen neu erzeugt (2024-07-28, 2025-01-15,
+%%     2026-03-30) — jeweils DROP + CREATE.
+%%
+%% * V_UUID_V4
+%%     Trigger-Helper zum Erzeugen zufälliger UUID-v4-Strings via SQL
+%%     (aus 20240426150045_user-roles.sql).
+%% ============================================================================
+%%
+%% GELÖSCHTE TABELLEN (nur historisch — nicht mehr im aktuellen Schema):
+%%   * working_hours       -> umbenannt zu employee_work_details (2024-10-23)
+%%   * session (initial)   -> ersetzt durch session_new mit NOT-NULL id (2024-11-18)
+%%   * extra_hours (initial)-> ersetzt durch extra_hours_new mit logical_id (2026-04-28)
+%%   * absence_migration_quarantine        -> DROP nach Phase 8 (2026-06-11)
+%%   * employee_yearly_carryover_pre_cutover_backup -> DROP nach Phase 8 (2026-06-11)
