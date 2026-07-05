@@ -413,6 +413,7 @@ pub trait ReportingService {
     ///   (WOP-02) — byte-identisches Verhalten zu 55×`get_week` ist strukturell
     ///   garantiert (D-52-08 / D-52-09).
     /// - Additiv zu `get_week`, dessen Signatur unverändert bleibt (D-52-06 / D-52-10).
+    #[allow(clippy::type_complexity)]
     async fn get_year(
         &self,
         year: u32,

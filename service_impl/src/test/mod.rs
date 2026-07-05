@@ -45,6 +45,8 @@ pub mod reporting_no_contract_volunteer;
 #[cfg(test)]
 pub mod reporting_phase2_fixtures;
 #[cfg(test)]
+pub mod reporting_get_year;
+#[cfg(test)]
 pub mod sales_person;
 #[cfg(test)]
 pub mod sales_person_shiftplan;
