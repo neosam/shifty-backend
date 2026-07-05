@@ -29,10 +29,25 @@ impl<Deps: ToggleServiceDeps> ToggleService for ToggleServiceImpl<Deps> {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<bool, ServiceError> {
-        // Requires authentication (user must be logged in)
-        let user_id = self.permission_service.current_user_id(context).await?;
-        if user_id.is_none() {
-            return Err(ServiceError::Unauthorized);
+        // Read-Op Auth-Gate (Phase 51 Gap-Closure):
+        //
+        // Toggles sind reines Config-Read (keine user-scoped Daten). Der
+        // historische `current_user_id`-Guard sollte "eine echte Session muss
+        // dahinter stehen" erzwingen — bricht aber, sobald ein interner Consumer
+        // mit `Authentication::Full` reinruft (`Full → current_user_id → None →
+        // Unauthorized`). Chain C (`booking_information.rs`) und Chain D
+        // (`reporting.rs`, `shiftplan_report.rs`) tun genau das, um HR-Bypass zu
+        // haben.
+        //
+        // Fix: `Full` als all-rights-Kontext werten (bypass), analog zum
+        // Write-Path (`check_permission(TOGGLE_ADMIN_PRIVILEGE, Full) → Ok`).
+        // Für alle anderen Kontexte bleibt der User-ID-Guard bestehen.
+        // Siehe Phase 51 D-51-07 / shortday_gate::read_active_from-Doc.
+        if !matches!(context, Authentication::Full) {
+            let user_id = self.permission_service.current_user_id(context).await?;
+            if user_id.is_none() {
+                return Err(ServiceError::Unauthorized);
+            }
         }
 
         let tx = self.transaction_dao.use_transaction(tx).await?;
@@ -46,10 +61,13 @@ impl<Deps: ToggleServiceDeps> ToggleService for ToggleServiceImpl<Deps> {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Toggle]>, ServiceError> {
-        // Requires authentication (user must be logged in)
-        let user_id = self.permission_service.current_user_id(context).await?;
-        if user_id.is_none() {
-            return Err(ServiceError::Unauthorized);
+        // Requires authentication; `Authentication::Full` bypasses the user-id
+        // check (see is_enabled doc for the rationale — Phase 51 Gap-Closure).
+        if !matches!(context, Authentication::Full) {
+            let user_id = self.permission_service.current_user_id(context).await?;
+            if user_id.is_none() {
+                return Err(ServiceError::Unauthorized);
+            }
         }
 
         let tx = self.transaction_dao.use_transaction(tx).await?;
@@ -64,10 +82,13 @@ impl<Deps: ToggleServiceDeps> ToggleService for ToggleServiceImpl<Deps> {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Option<Toggle>, ServiceError> {
-        // Requires authentication (user must be logged in)
-        let user_id = self.permission_service.current_user_id(context).await?;
-        if user_id.is_none() {
-            return Err(ServiceError::Unauthorized);
+        // Requires authentication; `Authentication::Full` bypasses the user-id
+        // check (see is_enabled doc for the rationale — Phase 51 Gap-Closure).
+        if !matches!(context, Authentication::Full) {
+            let user_id = self.permission_service.current_user_id(context).await?;
+            if user_id.is_none() {
+                return Err(ServiceError::Unauthorized);
+            }
         }
 
         let tx = self.transaction_dao.use_transaction(tx).await?;
@@ -158,10 +179,20 @@ impl<Deps: ToggleServiceDeps> ToggleService for ToggleServiceImpl<Deps> {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Option<Arc<str>>, ServiceError> {
-        // Requires authentication (user must be logged in)
-        let user_id = self.permission_service.current_user_id(context).await?;
-        if user_id.is_none() {
-            return Err(ServiceError::Unauthorized);
+        // Requires authentication; `Authentication::Full` bypasses the user-id
+        // check (see is_enabled doc for the rationale — Phase 51 Gap-Closure).
+        //
+        // Wirkung: Cross-Service-Calls wie Chain C (`booking_information.rs`)
+        // und Chain D (`reporting.rs`, `shiftplan_report.rs`) reichen intern
+        // `Authentication::Full` an `shortday_gate::read_active_from` durch —
+        // ohne den Bypass hier würde der Toggle stumm auf `Unauthorized → None`
+        // fallen und die konfigurierte Slot-Kürzung (`shortday_slot_clipping_active_from`)
+        // nie greifen, obwohl sie im Toggle-DAO gesetzt ist.
+        if !matches!(context, Authentication::Full) {
+            let user_id = self.permission_service.current_user_id(context).await?;
+            if user_id.is_none() {
+                return Err(ServiceError::Unauthorized);
+            }
         }
 
         let tx = self.transaction_dao.use_transaction(tx).await?;
