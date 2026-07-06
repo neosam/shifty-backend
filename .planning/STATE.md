@@ -1,16 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.5
-milestone_name: Weekly-Overview Performance & Freiwilligen-Abwesenheiten
-status: In progress — Phase 52 complete
-last_updated: "2026-07-06T00:00:00.000Z"
+milestone_name: — Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+current_phase: 53
+current_phase_name: freiwilligen-abwesenheiten-jahresansicht
+status: executing
+stopped_at: "Phase 52 verified + committed. 5 Pläne + 2 Follow-ups landed. Verification report: `.planning/phases/52-weekly-overview-performance-refactor/52-VERIFICATION.md`."
+last_updated: "2026-07-06T11:23:32.428Z"
 last_activity: 2026-07-06
+last_activity_desc: Phase 53 execution started
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
-  percent: 50
+  total_plans: 8
+  completed_plans: 9
+  percent: 33
 ---
 
 # Project State: Shifty Backend
@@ -29,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 53 — Freiwilligen-Abwesenheiten in Jahresansicht
-Plan: 01–03 (Wave 1→2→3, sequenziell)
-Status: **Phase 53 PLANNED (2026-07-06)** — 3 PLAN.md-Files geschrieben, Plan-Checker VERIFICATION PASSED (0 Blocker/Warnings), Requirement-Coverage 4/4 (VAA-01..04), Decision-Coverage 6/6 (D-53-01..06). Ready to execute. Empfehlung: `/gsd-execute-phase 53`.
-Last activity: 2026-07-06 — Phase 52 komplett + 3 Follow-ups. Kumulativer Speedup **~19×** (2.33s → 0.09s, WOP-04 <500ms um >5× übertroffen). Byte-Identity via 8/8 Wave-1-Fixtures + 16 Year-Boundary-Regression-Gates grün. **Follow-up #3 fixt eine Klasse Jahresübergangs-Bugs** (User-Report 2026-07-06): drei neue `_iso_year`-Bulk-Methoden (`ExtraHours::find_by_iso_year`, `SpecialDayService::get_by_iso_year`, `ShiftplanReport::_for_iso_year`) ersetzen die kalender-jahr-scharfen Wave-3/FU2-Varianten. Der SC#4-Override aus dem Verify wird durch die neuen `_iso_year`-Methoden formal aufgelöst. Kein Snapshot-Bump, keine Migration, keine neue Dep.
+Phase: 53 (freiwilligen-abwesenheiten-jahresansicht) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-07-06 — Phase 53 execution started
 
 ## Quick Tasks Completed
 
@@ -200,6 +204,7 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 **Resume file:** None
 
 **Phase 52 Follow-Ups (nicht blockierend, für Milestone-Close-Audit):**
+
 1. ✅ **Erledigt via Follow-up #3 (2026-07-06):** `SpecialDayService::get_by_iso_year` + `ExtraHoursService::find_by_iso_year` + `ShiftplanReportService::extract_shiftplan_report_for_iso_year` als ISO-Wochenjahr-Bulk-Varianten eingeführt; alte kalender-jahr-Methoden bei ExtraHours+ShiftplanReport gelöscht (grep-verifiziert keine externen Konsumenten); SpecialDay's `get_by_year` bleibt für REST-Endpoint `/special-days/year/{y}`. SC#4-Override formal aufgelöst.
 2. DB-Indices aus RESEARCH.md Q3 (`booking(year, calendar_week)`, `extra_hours(date_time)`, `working_hours(from_year, to_year)`) — separater Task, benötigt Migration.
 3. F07-Doku für neue crate-private In-Memory-Helper (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`) nachziehen — Balance-Formel selbst unverändert.
