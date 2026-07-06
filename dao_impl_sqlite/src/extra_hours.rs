@@ -165,29 +165,42 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .collect::<Result<Arc<[_]>, _>>()?)
     }
 
-    async fn find_by_year(
+    async fn find_by_iso_year(
         &self,
         year: u32,
         tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError> {
-        // Phase 52 (WOP-01, D-52-06): kalendarisches Jahr, nicht ISO-Woche.
+        // Phase 52 Follow-up #3: ISO-Wochenjahr, nicht Kalender-Jahr.
+        // Range = `[ISO-Mo(year, 1), ISO-Su(year, weeks_in_year(year)) + 1d)`.
+        // Max ±3 Tage weiter als das Kalender-Jahr, aber deckt genau die ISO-
+        // Wochen ab, die zu `year` gehören — der Konsument in
+        // `assemble_weeks` bucketet Rows per `ShiftyDate` in ISO-Wochen, und
+        // ohne diese Range verschwinden Rows an KW 1 (die im Vorjahr startet)
+        // oder KW 53 (die ins Folgejahr reicht) aus dem Bulk-Load.
         // `date_time` liegt als ISO-8601-TEXT vor → String-Range-Filter
         // reicht (lexikografisch == zeitlich für ISO-8601).
-        let year_start = time::PrimitiveDateTime::new(
-            time::Date::from_calendar_date(year as i32, time::Month::January, 1)?,
+        let weeks_in_year = time::util::weeks_in_year(year as i32);
+        let iso_start = time::PrimitiveDateTime::new(
+            time::Date::from_iso_week_date(year as i32, 1, time::Weekday::Monday)?,
             time::Time::MIDNIGHT,
         );
-        let next_year_start = time::PrimitiveDateTime::new(
-            time::Date::from_calendar_date((year as i32) + 1, time::Month::January, 1)?,
+        let iso_last_sunday =
+            time::Date::from_iso_week_date(year as i32, weeks_in_year, time::Weekday::Sunday)?;
+        let iso_end_exclusive = time::PrimitiveDateTime::new(
+            iso_last_sunday.next_day().ok_or_else(|| {
+                DaoError::EnumValueNotFound(
+                    format!("iso_year end overflow for year {}", year).into(),
+                )
+            })?,
             time::Time::MIDNIGHT,
         );
-        let year_start_str = year_start.format(&Iso8601::DATE_TIME)?;
-        let next_year_start_str = next_year_start.format(&Iso8601::DATE_TIME)?;
+        let iso_start_str = iso_start.format(&Iso8601::DATE_TIME)?;
+        let iso_end_str = iso_end_exclusive.format(&Iso8601::DATE_TIME)?;
         Ok(query_as!(
             ExtraHoursDb,
             "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
-            year_start_str,
-            next_year_start_str,
+            iso_start_str,
+            iso_end_str,
         ).fetch_all(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?

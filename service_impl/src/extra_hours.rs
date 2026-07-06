@@ -177,21 +177,21 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
         Ok(extra_hours_list.into())
     }
 
-    async fn find_by_year(
+    async fn find_by_iso_year(
         &self,
         year: u32,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError> {
-        // Phase 52 (WOP-01, D-52-06 / OQ-1 Option a) — Jahres-Batch analog
-        // zu `find_by_week`. Auth-Gate 1:1 identisch (T-52-05 Mitigation).
+        // Phase 52 Follow-up #3 — ISO-Wochenjahr-Batch analog zu
+        // `find_by_week`. Auth-Gate 1:1 identisch (T-52-05 Mitigation).
         let tx = self.transaction_dao.use_transaction(tx).await?;
         self.permission_service
             .check_only_full_authentication(context)
             .await?;
         let mut extra_hours_list = self
             .extra_hours_dao
-            .find_by_year(year, tx.clone())
+            .find_by_iso_year(year, tx.clone())
             .await?
             .iter()
             .map(ExtraHours::from)

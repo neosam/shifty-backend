@@ -214,17 +214,22 @@ pub trait ExtraHoursService {
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ExtraHours]>, ServiceError>;
 
-    /// Phase 52 (WOP-01, D-52-06 / OQ-1 Option a) — Jahres-Batch analog zu
+    /// Phase 52 Follow-up #3 — ISO-Wochenjahr-Batch analog zu
     /// [`Self::find_by_week`].
     ///
-    /// Liefert alle nicht-gelöschten `ExtraHours` deren `date_time` im
-    /// Kalenderjahr `year` liegt. Symmetrisch zum `find_by_week`-Pattern,
-    /// gedacht als Bulk-Load-Fundament für Wave 4 (`get_weekly_summary`),
-    /// wo heute 55×`find_by_week` sequenziell iteriert werden.
+    /// Liefert alle nicht-gelöschten `ExtraHours` deren `date_time` in einer
+    /// der ISO-Wochen von `year` liegt (`[ISO-Mo(y,1), ISO-Su(y,weeks_in_year(y))+1d)`).
+    /// Symmetrisch zum `find_by_week`-Pattern, gedacht als Bulk-Load-Fundament
+    /// für Wave 4 (`get_weekly_summary` / `reporting.get_year`), wo heute
+    /// 55×`find_by_week` sequenziell iteriert werden.
+    ///
+    /// Ersetzt das alte `find_by_year` (Kalender-Jahr) aus Phase 52 Wave 3:
+    /// dessen Kalender-Range verschluckte an KW 1 / KW 53 Rows, deren
+    /// Kalender-Datum ≠ ISO-Wochenjahr ist.
     ///
     /// Auth: identisch zu `find_by_week` — `check_only_full_authentication`
     /// (Cross-Service-Konsumenten mit `Authentication::Full`).
-    async fn find_by_year(
+    async fn find_by_iso_year(
         &self,
         year: u32,
         context: Authentication<Self::Context>,

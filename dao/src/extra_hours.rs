@@ -66,10 +66,18 @@ pub trait ExtraHoursDao {
         tx: Self::Transaction,
     ) -> Result<Arc<[ExtraHoursEntity]>, crate::DaoError>;
 
-    /// Phase 52 (WOP-01, D-52-06) — Jahres-Batch analog zu
-    /// [`Self::find_by_week`]. Filter: `date_time ∈ [year-01-01, (year+1)-01-01)`
+    /// Phase 52 Follow-up #3 — ISO-Wochenjahr-Batch analog zu
+    /// [`Self::find_by_week`]. Filter:
+    /// `date_time ∈ [ISO-Mo(year, 1), ISO-Su(year, weeks_in_year(year)) + 1d)`
     /// und `deleted IS NULL`. EIN SQL-Roundtrip statt 55×`find_by_week`.
-    async fn find_by_year(
+    ///
+    /// **ISO-Wochenjahr, nicht Kalender-Jahr:** die Range deckt genau die ISO-
+    /// Wochen ab, die zu `year` gehören — an Jahresübergängen bis zu ±3 Tage
+    /// weiter als das Kalender-Jahr. Symmetrisch zum ISO-Bucket-Filter im
+    /// Konsumenten `assemble_weeks`, das Rows per `ShiftyDate` in ISO-Wochen
+    /// einordnet. Ersetzt das alte `find_by_year` (Kalender-Range), dessen
+    /// Semantik-Mismatch zum Konsumenten an KW 1 / KW 53 Rows verschluckte.
+    async fn find_by_iso_year(
         &self,
         year: u32,
         tx: Self::Transaction,
