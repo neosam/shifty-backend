@@ -1,0 +1,157 @@
+# Phase 52 Follow-Up #2 (WOP-04) — Latency Post-Optimization
+# Endpoint: GET /booking-information/weekly-resource-report/2026
+# Auth: unauthenticated (Dev-Setup, mock_auth Feature-Flag).
+# Build-Profil: dev (`cargo run` ohne --release, identisch zu Wave-0-Baseline,
+#                    Wave-5-Post-Refactor und Follow-Up #1).
+# DB: localdb.sqlite3 (462848 bytes; unverändert ggü Follow-Up #1).
+#
+# Kommando (nach 3 Warmup-Runs zur SQLite-Page-Cache-Wärme):
+#   for i in 1 2 3 4 5; do
+#     curl -s -o /dev/null -w "%{time_total}\n" \
+#       http://localhost:3000/booking-information/weekly-resource-report/2026
+#   done | sort -n
+#
+# ─────────────────────────────────────────────────────────────────────
+# Messung 1 (direkt nach Server-Start + Endpoint-First-Compile-Warmup)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.133396 s
+#   0.131843 s
+#   0.130337 s
+# Runs (sorted):
+# 1: 0.104137 s
+# 2: 0.113479 s
+# 3: 0.114396 s   ← median
+# 4: 0.131166 s
+# 5: 0.143038 s
+Median (Messung 1): 0.114396 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Messung 2 (SQLite-Page-Cache voll aufgewärmt)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.123898 s
+#   0.107543 s
+#   0.120296 s
+# Runs (sorted):
+# 1: 0.106375 s
+# 2: 0.141051 s
+# 3: 0.146842 s   ← median
+# 4: 0.147907 s
+# 5: 0.151388 s
+Median (Messung 2): 0.146842 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Messung 3 (Konsistenz-Check nach voller Page-Cache-Wärme)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.114149 s
+#   0.116363 s
+#   0.127039 s
+# Runs (sorted):
+# 1: 0.096384 s
+# 2: 0.098634 s
+# 3: 0.118798 s   ← median
+# 4: 0.162452 s
+# 5: 0.188503 s
+Median (Messung 3): 0.118798 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Repräsentativer Median (Messungen 1+2+3)
+# ─────────────────────────────────────────────────────────────────────
+Median-of-medians: 0.118798 s
+Representative median: ~0.12 s (stabile Ausführung; leichte Streuung durch
+                                gemeinsame Page-Cache-Ramp und OS-Scheduler)
+
+# ─────────────────────────────────────────────────────────────────────
+# Zielwert-Check (WOP-04, D-52-16)
+# ─────────────────────────────────────────────────────────────────────
+Target (<0.500 s): PASS ✅
+Best measurement:  0.096384 s
+Slowest median:    0.146842 s  (Messung 2)
+Fastest median:    0.114396 s  (Messung 1)
+Rep. median:       ~0.12 s      (< 0.5 s / 4× unter Ziel)
+
+# ─────────────────────────────────────────────────────────────────────
+# Vergleich mit Wave-Baselines
+# ─────────────────────────────────────────────────────────────────────
+Wave-0-Baseline median      : 2.330 s   (1.0×)
+Wave-5-Post-Refactor median : 1.126 s   (2.07× vs Baseline)
+Follow-Up #1-Post median    : ~0.97 s   (2.40× vs Baseline, 1.16× vs Wave 5)
+Follow-Up #2-Post median    : ~0.12 s   (19.4× vs Baseline, 9.4× vs Wave 5, 8.1× vs Follow-Up #1)
+
+# Delta zur Follow-Up-#1-Baseline: ~85% zusätzliche Reduktion (0.97 → 0.12 s).
+# Kumulativer Faktor vs Baseline: 2.33 s → 0.12 s = 19.4× schneller.
+
+# ─────────────────────────────────────────────────────────────────────
+# Metadaten
+# ─────────────────────────────────────────────────────────────────────
+Backend commits (Follow-Up #2):
+  perf(52): year-batch holiday map + hours-per-range in assemble_weeks (WOP-04)
+  test(52): add find_all + get_by_week expectations for assemble_weeks year-batch (WOP-04)
+Measured: 2026-07-06T (Dev-Session)
+Dev-DB path: shifty-backend/localdb.sqlite3
+Dev-DB size: 462848 bytes
+Hostname: NixOS Dev-Machine (neosam)
+
+# ─────────────────────────────────────────────────────────────────────
+# Was diese Optimierung eliminiert
+# ─────────────────────────────────────────────────────────────────────
+#
+# Follow-Up #1 hat den `sales_person`-Bottleneck strukturell gelöst
+# (per-(Person × Woche) DAO-Roundtrip → einmaliger `get_all`-Bulk + HashMap-
+# Lookup). Die verbleibende Latenz von ~0.97 s war auf drei nicht-batch-
+# geladene DAO-Chains zurückzuführen (siehe Follow-Up #1 Latenz-File):
+#
+#   Chain A: `special_day.get_by_week`  — 11466 Queries pro Anfrage
+#            (per-(Person × Woche) in `build_derived_holiday_map`)
+#   Chain B: `toggle.get_toggle_value`  —  9588 Queries pro Anfrage
+#            (per-(Person × Woche) in `build_derived_holiday_map`)
+#   Chain C: `absence_period.find_by_sales_person` — 4746 Queries pro Anfrage
+#            (per-(Person × Woche) in `derive_hours_for_range`)
+#
+# Follow-Up #2 hebt alle drei Chains AUS der Per-(Person × Woche)-Schleife
+# HERAUS in Year-Scope-Preloads am Kopf von `assemble_weeks`:
+#
+#   Chain A: `special_day.get_by_week` pro **unique (year, week)** in `weeks`
+#            — bei einem `get_year(2026)`-Request maximal 55 Aufrufe (statt
+#            6 Personen × 55 Wochen × ~35 = 11466). Weiter reduziert: bei
+#            leerem Absence-Set UND toggle=None fällt der Preload komplett
+#            weg (test-mock-freundlich).
+#
+#   Chain B: `holiday_auto_credit`-Toggle einmal pro `assemble_weeks`-Call
+#            (statt 6 × 55 × ~29 = 9588). Der Wert hängt weder an `year`
+#            noch an `week` — 100% Read-Cache-Rate.
+#
+#   Chain C: `absence_service.find_all` **einmal** in `get_week`/`get_year`
+#            (statt 6 × 55 × ~14 = 4746 async `derive_hours_for_range`-
+#            Chains). Die per-(person, week) BTreeMap-Ausgabe wird von einer
+#            reinen In-Memory-Funktion (`derive_hours_for_week_pure`)
+#            berechnet, die dieselbe Semantik hat wie
+#            `AbsenceServiceImpl::derive_hours_for_range` für eine einzelne
+#            ISO-Woche (Active-Contract-Auswahl, Dominant-Category-Resolver,
+#            Wochen-Deckelung, Halbtag-Support alles 1:1).
+#
+# ─────────────────────────────────────────────────────────────────────
+# Wave-1-Fixture-Ergebnis (Byte-Identity-Gate)
+# ─────────────────────────────────────────────────────────────────────
+#
+# Alle 8 Wave-1-Fixtures (`booking_information_weekly_summary_year_batch`)
+# bleiben byte-identisch grün — inklusive der Fixture 4 (Volunteer-Vacation)
+# und Fixture 5 (CVC-06-Cap), die die absence-derive-Semantik unmittelbar
+# treffen. IEEE-754-Sign-of-Zero-Muster (-0.0 vs +0.0) unverändert.
+#
+# ─────────────────────────────────────────────────────────────────────
+# Anmerkungen zur Messung
+# ─────────────────────────────────────────────────────────────────────
+# - 3 Warmup-Runs VOR jeder Messung. Die drei Messungen zeigen konsistent
+#   ~0.10-0.15 s pro Request; die Streuung liegt bei ~0.05 s (relativ ~35%),
+#   deutlich größer relativ zu Follow-Up #1 wegen niedrigem Absolutwert
+#   — der Cache-Miss/Hit-Delta wird bei ~100 ms proportional sichtbar.
+# - Auch die schlechteste einzelne Messung (0.188 s in Messung 3, Run 5)
+#   liegt weit unter dem 0.5-s-Zielwert. Kein Single-Run überschritt 0.19 s.
+# - Der Wechsel von Follow-Up #1 (~0.97 s) zu #2 (~0.12 s) ist ein
+#   ~85%-Sprung — größer als die kumulativen Waves 0→5 UND #1 zusammen.
+#   Erklärung: die drei eliminierten DAO-Chains waren die dominante Kosten-
+#   quelle; die SQLite-Roundtrip-Kosten pro Query summieren sich bei ~26k
+#   Queries auf ~0.85 s (~33 µs/Query auf lokaler NVMe = plausibel).
