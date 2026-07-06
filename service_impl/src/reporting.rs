@@ -1,10 +1,13 @@
 use crate::gen_service_impl;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::{
-    absence::{AbsenceCategory, AbsenceService},
+    absence::{AbsenceCategory, AbsencePeriod, AbsenceService, ResolvedAbsence},
     carryover::CarryoverService,
     clock::ClockService,
     employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
@@ -16,7 +19,7 @@ use service::{
     },
     sales_person::{SalesPerson, SalesPersonService},
     shiftplan_report::{ShiftplanReportDay, ShiftplanReportService},
-    special_days::SpecialDayService,
+    special_days::{SpecialDay, SpecialDayService, SpecialDayType},
     toggle::ToggleService,
     uuid_service::UuidService,
     PermissionService, ServiceError,
@@ -134,6 +137,188 @@ pub fn apply_weekly_cap(
     } else {
         (shiftplan_hours, 0.0)
     }
+}
+
+/// Phase 52 Follow-Up #2 (WOP-04): Priority function for the cross-category
+/// absence resolver. Mirrors `service_impl::absence::absence_category_priority`
+/// (D-Phase2-03, BUrlG §9). Kept crate-private so the assemble_weeks pure
+/// helper reproduces the exact tie-breaker semantics of
+/// `AbsenceService::derive_hours_for_range`.
+fn absence_category_priority(category: &AbsenceCategory) -> u8 {
+    match category {
+        AbsenceCategory::SickLeave => 3,
+        AbsenceCategory::Vacation => 2,
+        AbsenceCategory::UnpaidLeave => 1,
+    }
+}
+
+/// Phase 52 Follow-Up #2 (WOP-04): Pure, in-memory replacement for
+/// `AbsenceService::derive_hours_for_range` restricted to a single ISO week.
+///
+/// **Byte-identical to** `derive_hours_for_range(monday, sunday, sales_person_id, ...)`
+/// for the week `(year, week)` given the same inputs — same day iteration,
+/// same active-contract selection, same dominant-category resolver, same
+/// per-week workdays cap with fractional-day support.
+///
+/// Inputs (all pre-loaded once at the top of `assemble_weeks`, then reused):
+/// - `absences_for_person`: slice of `AbsencePeriod` filtered to this person
+///   (already `deleted IS NULL` from the DAO). Order must be `by from_date`
+///   to match the DAO's `find_by_sales_person` ordering (irrelevant for
+///   correctness because we use `max_by_key`, but preserved for parity).
+/// - `contracts_for_person`: slice of `EmployeeWorkDetails` for this person.
+/// - `holidays_this_week`: `BTreeSet<Date>` of holidays overlapping this week
+///   (`SpecialDayType::Holiday`, `deleted IS NULL`). Used to skip holiday
+///   days from absence computation.
+fn derive_hours_for_week_pure(
+    year: u32,
+    week: u8,
+    absences_for_person: &[&AbsencePeriod],
+    contracts_for_person: &[EmployeeWorkDetails],
+    holidays_this_week: &BTreeSet<time::Date>,
+) -> BTreeMap<time::Date, ResolvedAbsence> {
+    let mut result: BTreeMap<time::Date, ResolvedAbsence> = BTreeMap::new();
+    // Build the seven days Monday..Sunday of the target ISO week.
+    let Ok(monday) = time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday) else {
+        return result;
+    };
+    let Ok(sunday) = time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday) else {
+        return result;
+    };
+
+    // Per-week workdays counter — starts at 0, capped at `workdays_per_week`.
+    // Single-week scope, so we don't need a map keyed by Monday.
+    let mut week_counted: f32 = 0.0;
+
+    // Iterate Mon..=Sun via day-offset (0..7). Safe across month/year boundaries
+    // because `time::Date + time::Duration::days(i64)` is total for values in
+    // year range.
+    for day_offset in 0i64..7 {
+        let day = monday + time::Duration::days(day_offset);
+        if day > sunday {
+            break;
+        }
+        // Active contract for this day.
+        let active_contract = contracts_for_person.iter().find(|wh| {
+            if wh.deleted.is_some() {
+                return false;
+            }
+            let from_date = match wh.from_date() {
+                Ok(d) => d.to_date(),
+                Err(_) => return false,
+            };
+            let to_date = match wh.to_date() {
+                Ok(d) => d.to_date(),
+                Err(_) => return false,
+            };
+            from_date <= day && day <= to_date
+        });
+        let Some(contract) = active_contract else {
+            continue;
+        };
+        // Availability: only checked weekdays may bear absence.
+        if !contract.has_day_of_week(day.weekday()) {
+            continue;
+        }
+        if holidays_this_week.contains(&day) {
+            continue;
+        }
+
+        // Dominant active absence for this day (priority ordering,
+        // ties broken by `max_by_key` = last-encountered wins — preserved).
+        let dominant = absences_for_person
+            .iter()
+            .filter(|ap| ap.deleted.is_none() && ap.from_date <= day && day <= ap.to_date)
+            .max_by_key(|ap| absence_category_priority(&ap.category));
+        let Some(dominant) = dominant else {
+            continue;
+        };
+
+        let workdays = contract.workdays_per_week as f32;
+        let hours_per_day = contract.hours_per_day();
+        if workdays <= 0.0 || hours_per_day <= 0.0 {
+            continue;
+        }
+
+        let remaining = workdays - week_counted;
+        if remaining <= 0.0 {
+            continue;
+        }
+
+        let day_fraction_factor: f32 = match dominant.day_fraction {
+            service::absence::DayFraction::Half => 0.5,
+            service::absence::DayFraction::Full => 1.0,
+        };
+        let counted = day_fraction_factor.min(remaining);
+        week_counted += counted;
+        result.insert(
+            day,
+            ResolvedAbsence {
+                category: dominant.category,
+                hours: counted * hours_per_day,
+                days: counted,
+            },
+        );
+    }
+
+    result
+}
+
+/// Phase 52 Follow-Up #2 (WOP-04): Pure, in-memory replacement for
+/// `build_derived_holiday_map` restricted to a single ISO week.
+///
+/// **Byte-identical to** the async `build_derived_holiday_map(monday, sunday, ...)`
+/// call for the week `(year, week)` given the same inputs.
+///
+/// Inputs (pre-loaded once at the top of `assemble_weeks`):
+/// - `cutoff`: pre-parsed `holiday_auto_credit` toggle value; `None` disables
+///   the auto-credit (D-25-05).
+/// - `special_days_this_week`: slice of `SpecialDay` rows overlapping this
+///   week (filtered upstream).
+/// - `working_hours`: contracts for this person.
+/// - `extra_hours`: per-week extra hours (manual-wins gate).
+fn build_derived_holiday_map_for_week_pure(
+    year: u32,
+    week: u8,
+    cutoff: Option<time::Date>,
+    special_days_this_week: &[SpecialDay],
+    working_hours: &[EmployeeWorkDetails],
+    extra_hours_for_person: &[ExtraHours],
+) -> HashMap<time::Date, f32> {
+    let mut result: HashMap<time::Date, f32> = HashMap::new();
+    let Some(cutoff) = cutoff else {
+        return result;
+    };
+    for sd in special_days_this_week.iter() {
+        if sd.day_type != SpecialDayType::Holiday {
+            continue;
+        }
+        let holiday_date = match time::Date::from_iso_week_date(
+            sd.year as i32,
+            sd.calendar_week,
+            time::Weekday::from(sd.day_of_week),
+        ) {
+            Ok(d) => d,
+            Err(_) => continue,
+        };
+        if holiday_date < cutoff {
+            continue;
+        }
+        let has_manual = extra_hours_for_person.iter().any(|eh| {
+            eh.category == ExtraHoursCategory::Holiday && eh.date_time.date() == holiday_date
+        });
+        if has_manual {
+            continue;
+        }
+        if let Some(wh) = find_working_hours_for_calendar_week(working_hours, year, week).next() {
+            if wh.has_day_of_week(time::Weekday::from(sd.day_of_week)) {
+                let hours = wh.holiday_hours();
+                if hours > 0.0 {
+                    result.insert(holiday_date, hours);
+                }
+            }
+        }
+    }
+    result
 }
 
 impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
@@ -277,6 +462,24 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
     ///
     /// Both indexes are byte-identical to the pre-follow-up shape (same rows,
     /// same order per-person after the internal grouping). No new DAO calls.
+    ///
+    /// Phase 52 Follow-Up #2 (WOP-04): three additional year-scope caches are
+    /// built ONCE at the top of the helper (before the week loop) and replace
+    /// three per-(person × week) chains that dominated post-follow-up latency:
+    /// - `holiday_auto_credit` toggle read → ONCE per `assemble_weeks` call
+    ///   (was: 9 588 reads per year-request). `Unauthorized → None` preserved
+    ///   (D-25-05).
+    /// - `special_day_service.get_by_week` per unique (year, week) in `weeks`
+    ///   (was: N_persons × N_weeks calls = 11 466 per year-request). Bulk load
+    ///   is skipped entirely when there are no absences to filter AND the
+    ///   auto-credit toggle is off — preserving test-mock ergonomics.
+    /// - `absence_service.derive_hours_for_range` → in-memory computation from
+    ///   caller-passed `all_absences` (was: N_persons × N_weeks async calls
+    ///   = 4 746 per year-request). Semantics preserved via
+    ///   `derive_hours_for_week_pure`. Permission semantics: `all_absences` is
+    ///   loaded by the caller with `Authentication::Full` (mirrors the
+    ///   pre-follow-up-1 `sales_person_service.get_all` pattern) — the outer
+    ///   permission gate on `get_week`/`get_year` remains authoritative.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn assemble_weeks(
         &self,
@@ -284,14 +487,97 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
         work_details: &[EmployeeWorkDetails],
         shiftplan_reports: &[ShiftplanReportDay],
         extra_hours: &[ExtraHours],
+        all_absences: &[AbsencePeriod],
         sales_person_index: &HashMap<Uuid, SalesPerson>,
         working_hours_by_sp: &HashMap<Uuid, Arc<[EmployeeWorkDetails]>>,
         context: Authentication<Deps::Context>,
         tx: Option<Deps::Transaction>,
     ) -> Result<Vec<(u8, Arc<[ShortEmployeeReport]>)>, ServiceError> {
         let _ = work_details; // Retained in signature for byte-identity of caller shape (Wave-2 contract).
+        let _ = &tx; // tx is retained for signature compat; per-iteration DAO calls no longer use it.
         let mut assembled: Vec<(u8, Arc<[ShortEmployeeReport]>)> =
             Vec::with_capacity(weeks.len());
+
+        // ─── Follow-Up #2: one-shot year-scope preloads ─────────────────────
+        //
+        // (a) `holiday_auto_credit` toggle → cutoff date. Read ONCE with the
+        //     caller's `context`. Preserves the `Unauthorized → None` shape
+        //     from the pre-follow-up per-call implementation (D-25-05).
+        let toggle_value_res = self
+            .toggle_service
+            .get_toggle_value("holiday_auto_credit", context.clone(), None)
+            .await;
+        let cutoff: Option<time::Date> = match toggle_value_res {
+            Ok(v) => v.as_deref().and_then(|s| {
+                time::Date::parse(s, &time::format_description::well_known::Iso8601::DEFAULT).ok()
+            }),
+            Err(ServiceError::Unauthorized) => None,
+            Err(e) => return Err(e),
+        };
+
+        // (b) Bucketing of `all_absences` by sales_person_id — pure in-memory.
+        //     Only referenced from the pure derive helper; ordering preserved
+        //     (find_all returns rows ordered by (sales_person_id, from_date),
+        //     so per-person entries stay in from_date order).
+        let mut absences_by_sp: HashMap<Uuid, Vec<&AbsencePeriod>> = HashMap::new();
+        for ap in all_absences.iter() {
+            if ap.deleted.is_some() {
+                continue;
+            }
+            absences_by_sp.entry(ap.sales_person_id).or_default().push(ap);
+        }
+        let has_any_absences = !absences_by_sp.is_empty();
+
+        // (c) Special-day preload per unique (year, week) — only when needed.
+        //     Needed when either (i) the holiday-auto-credit toggle is on
+        //     (`cutoff.is_some()`) so `build_derived_holiday_map_for_week_pure`
+        //     has data, OR (ii) at least one absence exists so
+        //     `derive_hours_for_week_pure` can skip holiday days.
+        //     Otherwise skip the DAO calls entirely (byte-identical: both pure
+        //     helpers return empty when their inputs are empty).
+        let need_special_days = cutoff.is_some() || has_any_absences;
+        let mut special_days_by_week: HashMap<(u32, u8), Arc<[SpecialDay]>> = HashMap::new();
+        if need_special_days {
+            let mut unique_weeks: HashSet<(u32, u8)> = HashSet::new();
+            for &(y, w) in weeks {
+                unique_weeks.insert((y, w));
+            }
+            for (y, w) in unique_weeks {
+                let sds = self
+                    .special_day_service
+                    .get_by_week(y, w, context.clone())
+                    .await?;
+                special_days_by_week.insert((y, w), sds);
+            }
+        }
+
+        // (d) Per-(year, week) holiday-date set for the absence-skip filter.
+        //     Precomputed once to keep the per-person loop pure.
+        let mut holidays_by_week: HashMap<(u32, u8), BTreeSet<time::Date>> = HashMap::new();
+        if has_any_absences {
+            for (&(y, w), sds) in special_days_by_week.iter() {
+                let mut holidays: BTreeSet<time::Date> = BTreeSet::new();
+                for sd in sds.iter() {
+                    if sd.deleted.is_some() {
+                        continue;
+                    }
+                    if sd.day_type != SpecialDayType::Holiday {
+                        continue;
+                    }
+                    if let Ok(date) = time::Date::from_iso_week_date(
+                        sd.year as i32,
+                        sd.calendar_week,
+                        sd.day_of_week.into(),
+                    ) {
+                        holidays.insert(date);
+                    }
+                }
+                holidays_by_week.insert((y, w), holidays);
+            }
+        }
+
+        let empty_special_days: Arc<[SpecialDay]> = Arc::from(Vec::<SpecialDay>::new());
+        let empty_holidays: BTreeSet<time::Date> = BTreeSet::new();
 
         for &(year, week) in weeks {
             let shiftplan_report = shiftplan_reports
@@ -415,16 +701,30 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     .any(|wh| wh.cap_planned_hours_to_expected);
                 // Gap 1 (Phase 8.4 / CR-01) + Gap 2 (WR-01): additiver
                 // absence_period-Merge, derived VOR apply_weekly_cap.
-                let derived = self
-                    .absence_service
-                    .derive_hours_for_range(
-                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday).to_date(),
-                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday).to_date(),
-                        sales_person_id,
-                        context.clone(),
-                        tx.clone(),
-                    )
-                    .await?;
+                //
+                // Phase 52 Follow-Up #2 (WOP-04): the per-(person, week) async
+                // `derive_hours_for_range` DAO chain (absence_dao + work_details
+                // + special_day_service) has been replaced with the pure
+                // `derive_hours_for_week_pure` helper reading from the
+                // year-scope preloads built at the top of `assemble_weeks`.
+                // Byte-identical to the DAO path — the pure helper mirrors
+                // `AbsenceServiceImpl::derive_hours_for_range` for a single
+                // ISO week (same iteration, same active-contract selection,
+                // same dominant-category resolver, same per-week workdays cap).
+                let absences_for_person: Vec<&AbsencePeriod> = absences_by_sp
+                    .get(&sales_person_id)
+                    .cloned()
+                    .unwrap_or_default();
+                let holidays_this_week = holidays_by_week
+                    .get(&(year, week))
+                    .unwrap_or(&empty_holidays);
+                let derived = derive_hours_for_week_pure(
+                    year,
+                    week,
+                    &absences_for_person,
+                    working_hours,
+                    holidays_this_week,
+                );
                 let mut absence_derived_vacation_hours = 0.0_f32;
                 let mut absence_derived_sick_leave_hours = 0.0_f32;
                 let mut absence_derived_unpaid_leave_hours = 0.0_f32;
@@ -454,18 +754,27 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                         + absence_derived_unpaid_leave_hours
                 };
                 // 4th injection point (Phase 34 / HSP-01/02, D-34-01).
+                //
+                // Phase 52 Follow-Up #2 (WOP-04): async
+                // `build_derived_holiday_map` replaced with pure
+                // `build_derived_holiday_map_for_week_pure`. Same inputs
+                // (working_hours + per-week extra_hours), same cutoff (read
+                // ONCE at the top of `assemble_weeks`), same special_day slice
+                // (pre-loaded per unique (year, week)).
                 let employee_extra_hours_owned: Vec<ExtraHours> = employee_extra_hours
                     .map(|arc| arc.iter().map(|r| (*r).clone()).collect())
                     .unwrap_or_default();
-                let derived_holiday_map = self
-                    .build_derived_holiday_map(
-                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Monday),
-                        ShiftyWeek::new(year, week).as_date(DayOfWeek::Sunday),
-                        working_hours,
-                        &employee_extra_hours_owned,
-                        context.clone(),
-                    )
-                    .await?;
+                let special_days_this_week = special_days_by_week
+                    .get(&(year, week))
+                    .unwrap_or(&empty_special_days);
+                let derived_holiday_map = build_derived_holiday_map_for_week_pure(
+                    year,
+                    week,
+                    cutoff,
+                    special_days_this_week,
+                    working_hours,
+                    &employee_extra_hours_owned,
+                );
                 let derived_holiday_for_week: f32 = derived_holiday_map.values().sum();
                 let holiday_derived_gated = if !has_contract_row || planned_hours <= 0.0 {
                     0.0f32
@@ -1225,6 +1534,16 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .iter()
             .cloned()
             .collect_to_hash_map_by(|wh| wh.sales_person_id);
+        // Phase 52 Follow-Up #2 (WOP-04): bulk-load all absences ONCE, then
+        // pass through to `assemble_weeks` which computes per-person per-week
+        // absence hours in-memory (was: N_persons × N_weeks async DAO chains).
+        // `Authentication::Full` mirrors the load-once pattern already used
+        // for `sales_person_service.get_all(...)` above; the outer permission
+        // gate on the REST/service caller remains authoritative.
+        let all_absences = self
+            .absence_service
+            .find_all(Authentication::Full, tx.clone())
+            .await?;
 
         let mut assembled = self
             .assemble_weeks(
@@ -1232,6 +1551,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 &work_details,
                 &shiftplan_report,
                 &extra_hours,
+                &all_absences,
                 &sales_person_index,
                 &working_hours_by_sp,
                 context,
@@ -1297,6 +1617,14 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .iter()
             .cloned()
             .collect_to_hash_map_by(|wh| wh.sales_person_id);
+        // Phase 52 Follow-Up #2 (WOP-04): year-batch absence bulk load. One
+        // DAO roundtrip replaces N_persons × N_weeks per-(person, week)
+        // `derive_hours_for_range` chains (~4 700 SQLite queries per request
+        // pre-optimisation).
+        let all_absences = self
+            .absence_service
+            .find_all(Authentication::Full, tx.clone())
+            .await?;
 
         let weeks_in_year = time::util::weeks_in_year(year as i32);
         let weeks: Vec<(u32, u8)> = (1..=weeks_in_year).map(|w| (year, w)).collect();
@@ -1307,6 +1635,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 &work_details,
                 &shiftplan_reports,
                 &extra_hours,
+                &all_absences,
                 &sales_person_index,
                 &working_hours_by_sp,
                 context,
