@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: —
-milestone_name: (zwischen Milestones)
+milestone: v2.6
+milestone_name: Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: —
-status: Zwischen Milestones — v2.5 shipped 2026-07-06 (verified_closeout, Audit passed)
-stopped_at: "v2.5-Close abgeschlossen 2026-07-06 (9/9 Requirements, Phasen 52+53 archiviert unter milestones/v2.5-phases/). Nächste Iteration via /gsd-new-milestone."
-last_updated: "2026-07-06T16:00:00.000Z"
+status: planning
+stopped_at: ""
+last_updated: "2026-07-06T18:00:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Milestone v2.5 complete + archived
+last_activity_desc: Milestone v2.6 started
 progress:
   total_phases: 0
   completed_phases: 0
@@ -21,27 +21,22 @@ current_phase_name: —
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (zwischen Milestones; Backlog 999.1 erhalten)
-- **Requirements**: keine aktive `.planning/REQUIREMENTS.md` — wird bei nächstem `/gsd-new-milestone` frisch erzeugt
+- **Roadmap**: `.planning/ROADMAP.md` (v2.6 wird nach Roadmapper-Run frisch geschrieben; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` (wird in diesem Workflow nach Feature-Scoping erzeugt)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v2.5-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
-- **Current milestone**: — (zwischen Milestones)
-- **Current focus**: Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone`.
-- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.5 kein Bump — v2.4 rein additive View-Layer-Kürzung; v2.5 Performance-Refactor + additive DTO-Erweiterung, kein `BillingPeriodValueType` angefasst).
+- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (planning)
+- **Current focus**: Defining requirements + roadmap für v2.6 (F1–F5: Ist-Statistik, Freiwilliges-Stundenkonto, manuelle Umbuchung, Wochen-Cron Auto-Umbuchung, HR-Alert + Vorschlags-Modal).
+- **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 nur, falls v2.6 einen neuen `BillingPeriodValueType` persistiert — in discuss-phase klären.
 
 ## Current Position
 
-**Zwischen Milestones.** v2.5 abgeschlossen 2026-07-06 (verified_closeout, Milestone-Audit `passed`, 9/9 Requirements, 2/2 Phasen archiviert). Follow-up-Kandidaten für v2.6+ Backlog:
-
-- SDF-03 Semantik-Cleanup (`SpecialDayService::get_by_iso_year`)
-- DB-Indices (`booking(year,cw)`, `extra_hours(date_time)`, `working_hours(from_year,to_year)`)
-- F07-Doku für neue Pure-Helper aus Follow-Up #1+#2
-
-Nächste Iteration via `/gsd-new-milestone`.
-
-Last activity: 2026-07-06 — Milestone v2.5 complete + archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-06 — Milestone v2.6 started
 
 ## Quick Tasks Completed
 

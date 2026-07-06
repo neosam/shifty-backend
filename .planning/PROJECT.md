@@ -2,7 +2,7 @@
 type: project_charter
 last_updated: 2026-07-06
 last_milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten (shipped 2026-07-06, Phasen 52-53, 9/9 Requirements, Audit passed)
-current_milestone: — (zwischen Milestones; nächste Iteration via `/gsd-new-milestone`)
+current_milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (planning)
 ---
 
 # Shifty — Project Charter
@@ -442,11 +442,51 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
-## Current Milestone: — (zwischen Milestones)
+## Current Milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 
-Nächste Iteration wird via `/gsd-new-milestone` gestartet. Aktuell keine
-aktive Milestone-Requirements-Datei; siehe
-`.planning/milestones/v2.5-REQUIREMENTS.md` als jüngste Referenz.
+**Goal:** Gedeckelte Mitarbeiter (`cap_planned_hours_to_expected=true`), die
+freiwillig mitarbeiten, sollen ihre Freiwilligen-Stunden automatisch oder
+halbautomatisch als Ausgleich gegen ein negatives Stundenkonto einsetzen
+können. HR sieht ein Soll/Ist-Konto für Freiwilligkeit, wird proaktiv über
+Ausgleichsbedarf informiert und kann Umbuchungen bestätigen; die Software
+erledigt die Doppelbuchung (heute manuell: −N freiwillig / +N bezahlt).
+
+**Target features (F1–F5):**
+
+- **F1 — Ist-Statistik freiwillige Stunden**: Ø freiwillig geleistete
+  Stunden pro Vertragswoche (Nenner: Wochen mit gültigem
+  `working_hours`-Eintrag der Person), pro Jahr, im HR-Mitarbeiterreport
+  neben AVG-01.
+- **F2 — Freiwilliges Stundenkonto**: In `/employees/:sales_person_id`
+  unter „Freiwillige Stunden" zusätzlich die zugesagte Soll-Summe
+  (`committed_voluntary` × Vertragswochen) — HR-only → implizites
+  Soll/Ist-Konto.
+- **F3 — Manuelle Umbuchung Freiwillig ↔ Bezahlt**: FE-Aktion legt in
+  einer Transaktion zwei ExtraHours-Rows an (−N in Kategorie A / +N in
+  Kategorie B); ersetzt den heutigen Doppel-Eintrag-Workaround.
+- **F4 — Automatische Umbuchung (Wochen-Cron)**: Cron-Job verarbeitet die
+  Vorwoche; wenn `Ist > Soll + committed_voluntary` → Überschuss
+  automatisch als Ausgleich buchen; persistiert via Rebooking-Batch
+  (kind=`auto_cron`); rückwirkender Backfill-Command beim Rollout.
+- **F5 — HR-Alert + Vorschlags-Modal**: Für jede gedeckelte SalesPerson
+  mit negativem Stundenkonto Dauer-Warnzeile in Mitarbeiter-Übersicht;
+  Klick öffnet Modal mit IST vs. DANN (Konto, Freiw.-Ist, Freiw.-Soll,
+  Freiw.-Konto); HR approve/reject; persistiert via Rebooking-Batch
+  (kind=`hr_suggestion`) mit States `pending` / `approved` / `rejected`.
+
+**Key context:**
+
+- **Datenmodell**: 2 neue Tabellen `rebooking_batch` (Parent) +
+  `rebooking_batch_entry` (Children pro SalesPerson), gemeinsam für F4
+  und F5 (Kind-Feld unterscheidet Batch-Typ).
+- **Snapshot-Schema-Version**: potenzieller Bump 12→13 nur, falls ein
+  neuer `BillingPeriodValueType` persistiert wird — in discuss-phase
+  klären.
+- **Migration**: additiv (2 neue Tabellen, keine Umschreibung
+  bestehender Werte); Backfill-Command für rückwirkende Auto-Umbuchung.
+- **Fat Backend, Thin Client**: alle Berechnungen (Ist, Soll, Konto,
+  Auto-Umbuchungs-Logik) im Backend; FE zeigt vorbereitete DTOs.
+- **Scope**: Backend + Frontend voll enthalten in diesem Milestone.
 
 **Sichtbare Follow-up-Kandidaten aus v2.5** (Tech-Debt, nicht-blockierend,
 siehe `milestones/v2.5-MILESTONE-AUDIT.md`):
