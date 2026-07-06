@@ -287,10 +287,14 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
 
         let mut weekly_report = vec![];
         let weeks_in_year = time::util::weeks_in_year(year as i32);
-        let volunteer_ids: Arc<[Uuid]> = self
+        // VAA-01 (D-53-01/05, Pitfall 1): einmal laden, zweimal nutzen. `all_sales_persons`
+        // wird im Per-Woche-Loop fuer den Namens-Lookup der Freiwilligen-Absencen
+        // wiederverwendet — kein zweiter `get_all`-Aufruf.
+        let all_sales_persons = self
             .sales_person_service
             .get_all(Authentication::Full, tx.clone().into())
-            .await?
+            .await?;
+        let volunteer_ids: Arc<[Uuid]> = all_sales_persons
             .iter()
             .filter(|sales_person| !sales_person.is_paid.unwrap_or(false))
             .map(|sales_person| sales_person.id)
@@ -515,6 +519,40 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .filter(|wh| !absent_volunteer_ids.contains(&wh.sales_person_id)) // VFA-01 (D-26-03): absent → 0 for whole week
             .map(|wh| wh.committed_voluntary) // D-03 flat, no weight
             .sum();
+            // VAA-01/02 (D-53-01/02/03): pro abwesendem Freiwilligen einen
+            // Anzeige-Eintrag bauen. Cap-Gate-Formel identisch zu
+            // `committed_voluntary_hours` oben, aber OHNE den absent-Filter —
+            // hier sind gerade die Abwesenden gesucht. Pitfall 2:
+            // `wh.sales_person_id == sp_id`-Filter ist Pflicht, sonst summiert
+            // die personenuebergreifende Iteration ueber alle Personen.
+            let sales_person_absences: Arc<
+                [service::booking_information::SalesPersonAbsence],
+            > = absent_volunteer_ids
+                .iter()
+                .filter_map(|&sp_id| {
+                    let name = all_sales_persons
+                        .iter()
+                        .find(|sp| sp.id == sp_id)
+                        .map(|sp| sp.name.clone())?;
+                    let hours: f32 = find_working_hours_for_calendar_week(
+                        &all_work_details,
+                        year,
+                        week,
+                    )
+                    .filter(|wh| {
+                        wh.sales_person_id == sp_id
+                            && (wh.cap_planned_hours_to_expected
+                                || wh.expected_hours == 0.0)
+                    })
+                    .map(|wh| wh.committed_voluntary)
+                    .sum();
+                    Some(service::booking_information::SalesPersonAbsence {
+                        sales_person_id: sp_id,
+                        name,
+                        hours,
+                    })
+                })
+                .collect();
             // Phase 51 (D-51-06 Chain C + D-51-07): pro-Slot-Clip statt
             // Filter-Anti-Pattern. Holiday-Filter bleibt hart (kompletter Slot
             // raus); ShortDay-Slots werden via `Slot::clip_to` verkürzt statt
@@ -625,9 +663,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 volunteer_hours,
                 committed_voluntary_hours,
                 working_hours_per_sales_person: working_hours_per_sales_person.into(),
-                // Plan 02 (VAA-01) fuellt dieses Feld im Assembly-Loop mit den
-                // Freiwilligen-Absencen der Woche. Plan 01 legt nur den Traeger an.
-                sales_person_absences: Arc::from(Vec::<service::booking_information::SalesPersonAbsence>::new()),
+                // VAA-01/02 (D-53-01/02/05): pro Woche im Assembly-Loop gebautes
+                // Feld — Anzeige-Wert je Freiwilligem, cap-gated Wochen-Zusage.
+                sales_person_absences,
                 required_hours: slot_hours,
                 monday_available_hours: 0.0,
                 tuesday_available_hours: 0.0,
