@@ -19,7 +19,7 @@ Researcher-Outputs mit 2 explizit offenen Discuss-Decisions: Snapshot-Bump
 12→13 + Phase-Dekomposition-Wahl).
 
 **Snapshot-Schema-Version:** aktuell 12. Bump 12→13 offen — in F4-discuss-phase
-entscheiden (siehe Research SUMMARY.md Divergenz 2).
+(Phase 56) entscheiden (siehe Research SUMMARY.md Divergenz 2).
 
 **Scope:** Backend + Frontend voll enthalten. Fat Backend, Thin Client
 durchgängig — alle Berechnungen (F1-Ist, F2-Soll, F4-Excess, F5-DANN-Werte)
@@ -163,4 +163,35 @@ Explizit ausgeschlossen mit Begründung:
 
 ## Traceability
 
-Wird nach Roadmap-Approval durch `gsd-roadmapper` befüllt (Requirement → Phase).
+17 v1-Requirements → 3 Phasen (ARCHITECTURE-C 3-Phasen-Baseline aus Research
+SUMMARY, dokumentiert in ROADMAP.md). Coverage: 17/17.
+
+| Requirement    | Kategorie   | Phase    | Status  |
+|----------------|-------------|----------|---------|
+| VOL-STAT-01    | F1 Statistik | Phase 54 | Pending |
+| VOL-STAT-02    | F1 Statistik | Phase 54 | Pending |
+| VOL-ACCT-01    | F2 Konto    | Phase 54 | Pending |
+| VOL-ACCT-02    | F2 Konto    | Phase 54 | Pending |
+| VOL-ACCT-03    | F2 Konto    | Phase 54 | Pending |
+| REB-MANUAL-01  | F3 Manuell  | Phase 55 | Pending |
+| REB-MANUAL-02  | F3 Manuell  | Phase 55 | Pending |
+| REB-MANUAL-03  | F3 Manuell  | Phase 55 | Pending |
+| HR-ALERT-01    | F5 Alert    | Phase 55 | Pending |
+| HR-ALERT-02    | F5 Alert    | Phase 55 | Pending |
+| HR-ALERT-03    | F5 Alert    | Phase 55 | Pending |
+| HR-ALERT-04    | F5 Alert    | Phase 55 | Pending |
+| REB-AUTO-01    | F4 Cron     | Phase 56 | Pending |
+| REB-AUTO-02    | F4 Cron     | Phase 56 | Pending |
+| REB-AUTO-03    | F4 Cron     | Phase 56 | Pending |
+| REB-AUTO-04    | F4 Cron     | Phase 56 | Pending |
+| REB-AUTO-05    | F4 Cron     | Phase 56 | Pending |
+
+**Per-Phase Coverage:**
+- Phase 54 (Data-Model + F1 + F2): 5 Requirements
+  (VOL-STAT-01, VOL-STAT-02, VOL-ACCT-01, VOL-ACCT-02, VOL-ACCT-03)
+- Phase 55 (F3 + F5 Manuelle Umbuchung + HR-Alert-Modal): 7 Requirements
+  (REB-MANUAL-01/02/03, HR-ALERT-01/02/03/04)
+- Phase 56 (F4 Wochen-Cron + Backfill): 5 Requirements
+  (REB-AUTO-01/02/03/04/05)
+
+**Total:** 17/17 mapped, no orphans, no duplicates.

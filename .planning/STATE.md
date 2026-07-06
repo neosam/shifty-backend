@@ -2,41 +2,41 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: —
+current_phase: 54
 status: planning
 stopped_at: ""
-last_updated: "2026-07-06T18:00:00.000Z"
+last_updated: "2026-07-06T18:30:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Milestone v2.6 started
+last_activity_desc: Roadmap v2.6 created (Phasen 54-56, 17/17 Requirements mapped)
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase_name: —
+current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v2.6 wird nach Roadmapper-Run frisch geschrieben; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` (wird in diesem Workflow nach Feature-Scoping erzeugt)
+- **Roadmap**: `.planning/ROADMAP.md` (v2.6 aktiv: Phasen 54–56; Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` (17 REQ-IDs in 5 Kategorien: VOL-STAT, VOL-ACCT, REB-MANUAL, REB-AUTO, HR-ALERT)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v2.5-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
-- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (planning)
-- **Current focus**: Defining requirements + roadmap für v2.6 (F1–F5: Ist-Statistik, Freiwilliges-Stundenkonto, manuelle Umbuchung, Wochen-Cron Auto-Umbuchung, HR-Alert + Vorschlags-Modal).
-- **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 nur, falls v2.6 einen neuen `BillingPeriodValueType` persistiert — in discuss-phase klären.
+- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (planning; Roadmap 2026-07-06 geschrieben)
+- **Current focus**: Phase 54 discuss-phase — Data-Model + F1 + F2 (Migrations, RebookingBatchService Basic, VoluntaryStatsService BL, FE-Row im Employee-Detail-Report).
+- **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 in **Phase 56** discuss-phase zu pinnen (REB-AUTO-05; Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot).
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 54 (planning)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-06 — Milestone v2.6 started
+Status: Roadmap fertig, `/gsd-discuss-phase 54` als nächster Schritt
+Last activity: 2026-07-06 — Roadmap v2.6 created (Phasen 54-56, 17/17 Requirements mapped)
 
 ## Quick Tasks Completed
 
@@ -75,7 +75,23 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 | tech_debt | Phase 37: WR-02 toter `cancel_label`-Conditional `contract_modal.rs:77-81` (v1.11) | deferred | Code-Review WARNING, **pre-existing** (nicht im Phase-37-Diff): `if read_only {…} else {…}` mit identischen Branches (beide `Key::Cancel`) — vermutlich verlorenes „Close"-Label im Read-Only-Modal. Unabhängig von MOD-01/MOD-02. Kandidat für kleinen Folge-Fix (braucht `Close`-i18n-Key-Entscheidung). |
 | tech_debt | Phase 37: WR-01 Panel-`stop_propagation` blockt document-level Outside-Click (v1.11) | deferred | Code-Review WARNING: das für den MOD-01-Fix nötige Panel-`onmousedown`-`stop_propagation` verhindert, dass künftige generische Dialog-Kinder document-level Outside-Click-Detection nutzen. Inhärent zum gelockten D-01-Ansatz, aktuell kein Opfer. |
 
+## v2.5 Tech-Debt Backlog (bei v2.6-Milestone-Close-Audit prüfen)
+
+Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidaten für Backlog / spätere Milestones:
+
+- SDF-03-Semantik-Cleanup: `SpecialDayService::get_by_iso_year` als Follow-up, um die 55 `special_day.get_by_week`-Calls in `assemble_weeks` auf konstant 2 zu reduzieren. Nicht latenz-relevant.
+- DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`, `working_hours(from_year, to_year)` — RESEARCH-Q3 v2.5. Kein Bottleneck mehr nach Follow-up #2.
+- F07-Doku-Nachschärfung: neue Pure-Helper `derive_hours_for_week_pure` + `build_derived_holiday_map_for_week_pure` (aus Follow-Ups #1 + #2) in `docs/features/F07-reporting-balance.{md,_de.md}` dokumentieren.
+
 ## Shipped Milestones
+
+### v2.5 — Weekly-Overview Performance & Freiwilligen-Abwesenheiten (shipped 2026-07-06)
+
+- **Geliefert:** Phasen 52–53 (8 Pläne + 3 Follow-Ups). Performance: `get_weekly_summary` konsumiert Jahres-Aggregate; drei Chain-Preloads auf Year-Scope gehoben; End-to-End-Median 2.33s → 0.12s (19.4×). Follow-up #3 Jahresübergangs-Fix (3 neue `_iso_year`-Bulk-Methoden, 16 Regressions-Gates). Freiwilligen-Sichtbarkeit (VAA): `sales_person_absences` als Union bezahlt + Freiwillig; Backend liefert Name + cap-gated `committed_voluntary` fertig im DTO; FE reiner Union-Merge.
+- **Snapshot-Schema-Version:** bleibt **12**.
+- **Verifikation:** Phase 52 VERIFIED PASS (5/5 SC, 1 Override in Follow-up #3 formal aufgelöst); Phase 53 VERIFIED PASS (10/10 must-haves inkl. INT-Sightcheck); Milestone-Audit `passed` (9/9 Requirements, 2/2 E2E-Flows, 4 non-blocking Tech-Debt-Items).
+- **Closeout:** verified_closeout.
+- **Archiv:** `milestones/v2.5-ROADMAP.md`, `milestones/v2.5-REQUIREMENTS.md`, `milestones/v2.5-MILESTONE-AUDIT.md`, `milestones/v2.5-phases/`.
 
 ### v2.4 — Kurzer-Tag-Slot-Kürzung (shipped 2026-07-05)
 
@@ -174,60 +190,46 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 - **VCS**: Repository wird mit `jj` (co-located mit git) verwaltet. GSD-Auto-Commit ist **aktiv** (`commit_docs: true`, yolo-Mode) — GSD committet Phasen-Arbeit automatisch (Executor/Docs via git, von jj im co-located Repo automatisch importiert). Verifiziert 2026-06-30: Phasen 33+34 wurden so committet, Arbeitskopie sauber.
 - **NixOS**: Tools wie `sqlx-cli` via `nix develop` (NICHT `nix-shell`, shell.nix kaputt). DB-Befehle: `sqlx database reset` ist DESTRUCTIVE → für additive Migrationen `sqlx migrate run`.
-- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` (aktuell **12**) MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. **v1.10 erwartet KEINEN Bump** (Feature HSP speist sich aus `get_week`/`booking_information`, nicht aus dem `reporting.rs`-Snapshot-Pfad) — in Phase 34 verifizieren.
+- **Snapshot Versioning**: `CURRENT_SNAPSHOT_SCHEMA_VERSION` (aktuell **12**) MUSS gebumpt werden, sobald sich `value_type`-Berechnung oder -Input-Set ändert. **v2.6 Phase 56 discuss-phase pinnt die Entscheidung** (Divergenz-2 in Research SUMMARY): Ist die neue F4-Cron-Rebooking-ExtraHours-Quelle ein „Input-Set-Change" im Sinne CLAUDE.md-Klausel? Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot, byte-identisch.
 - **Clippy-Gate**: `cargo clippy --workspace -- -D warnings` ist Pflicht-Gate bei jedem Commit — `cargo test` allein reicht nicht.
-- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. HSP-Logik gehört in `ReportingService` / Business-Logic-Tier.
-- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. SPD-01..04 (Special-Days-UI) betreffen neue Texte.
-- **D-25-08-Grenze (für HSP zentral)**: Die Feiertags-Automatik darf in `get_week`/`booking_information` **nur** `expected_hours`/`holiday_hours`/`available_hours` reduzieren — `dynamic_hours`/`paid_hours`/`committed_voluntary_hours`/`volunteer_hours` bleiben unangetastet. HOL-03-Regressionstest `test_holiday_auto_credit_no_year_view_impact` wird in Phase 34 bewusst neu formuliert (Bänder unverändert, aber expected/available reduziert) — Decision in discuss-phase festhalten.
-- **WASM-Datepicker-Caveat (D-25-06)**: Programmatisches Setzen von `<input type=date>` triggert Dioxus-Signale nicht zuverlässig → Persistenz-/Anzeige-Loop von SPD-01 im echten Browser verifizieren.
+- **Service-Tier-Konvention**: Basic Services konsumieren nur DAO/Permission/Transaction; Business-Logic Services kombinieren Aggregate. `RebookingBatchService` = Basic; `RebookingReconciliationService`, `VoluntaryStatsService`, `VoluntaryRebookingScheduler` = BL.
+- **Fat Backend, Thin Client**: alle Berechnungen (F1-Ist, F2-Soll, F4-Excess, F5-DANN-Werte) im Backend; FE zeigt vorbereitete DTOs.
+- **Multi-Sprache (i18n)**: Alle benutzersichtbaren Texte in en/de/cs. F1..F5-neue-Labels betreffen neue Texte.
+- **Docs-Freshness-Gate (v2.6)**: Neu `docs/features/F14-rebooking.md` + `_de.md`; Update F07 + F08 + `02-service-tiers.md` + `03-data-model.md` (beide Sprachen synchron, gleicher Commit wie Code-Diff — MEMORY `feedback_docs_always_current_no_followup.md`).
 
 ### Roadmap Evolution
 
 - Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme, eskaliert aus Quick-Task 260627-vgo. Bleibt separat verfügbar via `/gsd-plan-phase 999.1`.
-- Milestone v1.9 + Phasen 29–32 (2026-06-29): 7 Requirements → 4 Phasen. Geshipt + archiviert.
-- **Milestone v1.10 + Phasen 33–34 angelegt (2026-06-30):** 8 Requirements (SPD-01..04, HSP-01..04) → 2 Phasen, abgeleitet aus den zwei sauber trennbaren Features.
-  - **Phase 33 = Special-Days-UI** (Backend-CRUD `POST/DELETE /special-days` + `for-week`-Read existiert seit v1.7). **Korrektur in discuss-phase (D-33-01..05):** **shiftplanner**-gated (nicht admin), **zwei Flächen** voll-CRUD (Schichtplan-Wochenraster Per-Tag-Dropdown + Settings-Sektion Kalenderdatum-Picker), **neuer Range/Jahr-Read-Endpoint** (Multi-Wochen-Item aus „deferred" gezogen). Kalenderdatum → `(year, iso_week, weekday)`-Mapping, Liste mit abgeleitetem Kontext (`15.08.2026 (Samstag, KW 33, 2026)`). Frontend-API `create_special_day`/`delete_special_day`/`get_special_days_for_year`. i18n de/en/cs. WASM-Datepicker-Caveat (D-25-06) auf der Settings-Fläche. Dir: `.planning/phases/33-special-days-ui-einstellungen/`.
-  - **Phase 34 = Feiertags-Soll im Schichtplan** (Backend-zentriert; Frontend-Tabelle rendert `report.expected_hours`/`holiday_hours` bereits — **keine neue API**). `get_week` (`reporting.rs:884`) bekommt einen vierten Injektionspunkt für den derived-Holiday via `build_derived_holiday_map`, reduziert nur `expected_hours`/`holiday_hours`/`available_hours`; Kapazitätsbänder per Regressions-Guard geschützt; HOL-03-Test neu formulieren; Snapshot-Bump in der Phase verifizieren (Default: kein Bump). Dir: `.planning/phases/34-feiertags-soll-schichtplan/`.
-  - Beide Features sind fachlich unabhängig; sequenzielle Reihenfolge 33→34 ist sinnvoll (SPD erzeugt die Einträge, die HSP in der Tabelle sichtbar macht), aber nicht hart erzwungen.
-- **Milestone v2.1 + Phasen 39–42 angelegt (2026-07-01):** 9 Requirements → 4 Phasen, abgeleitet aus 3 sauber trennbaren Features + der WST-Zweiteilung (Grundlage vs. Sperr-Durchsetzung).
-  - **Phase 39 = KW-Status Grundlage** (BE+FE, WST-01/02/05): neue `week_status`-Tabelle + Migration (TEXT-Enum analog `special_day`, ISO-(year,week) analog `week_message`, partial UNIQUE), `WeekStatusService` (Basic-Tier), Status-CRUD-REST, DI-Wiring, FE Badge + Set-Button (nur Schichtplaner). Discuss: wer setzt Status + erlaubte Übergänge; None-Variante ≠ `None` (Clippy).
-  - **Phase 40 = Wochen-Sperre durchsetzen** (BE+FE, WST-03/04): `assert_week_not_locked`-Helper in allen 6 Schreibpfaden (`ShiftplanEditService`), NEU `delete_booking` + Re-Routing `DELETE /booking/{id}` (schließt Basic-Tier-Bypass), `ServiceError::WeekLocked`→HTTP 423 (Default), Check in-Transaktion (TOCTOU), FE read-only + 423-Banner. Discuss: HTTP 423 vs 409.
-  - **Phase 41 = Ø-Anwesenheit flexible Stunden** (BE+FE, AVG-01/02/03): neue Read-Aggregat-Methode in `ReportingService`, KEIN Snapshot-Bump, kein neuer `BillingPeriodValueType`, HR-gated REST + FE-Report. Discuss: D-AVG-01..08 (Bezugsgröße, Zähler, Exclusion-Set — A-22-1 ist NICHT identisch, `is_dynamic`-Scope, Anzeige-Ort, No-Persist).
-  - **Phase 42 = Special-Days-„Anlegen"-Button-Bugfix** (FE-only, SDF-01): Reset-Block `settings.rs:458-459` entfernen (Option 2, nach Create nichts zurücksetzen) + SSR-/Komponenten-Test. Isoliert, zuletzt.
-  - Reihenfolge: WST (39→40) vor AVG (41, unabhängig, geringeres Risiko), SDF (42) zuletzt. Querschnitts-Gates pro Phase: sqlx prepare + `.sqlx` committen nach neuer Query, `cargo clippy --workspace -- -D warnings`, `cargo test --workspace`, FE WASM-Build + `cargo test -p shifty-dioxus`.
-- **Phase 35 hinzugefügt (2026-06-30):** „Slot-Werte nur für eine Woche ändern" (SWO-01..04, aus Todo `2026-06-26-einzelnen-slot-nur-fuer-eine-kw-aendern`). Bewusst in v1.10 aufgenommen (User-Entscheidung, statt Backlog), obwohl thematisch Schichtplan-**Struktur** (leicht off-theme zum Feiertags-Fokus). Mechanik **diskutiert + gewählt**: Ansatz **B (Split+Re-Merge)** — `modify_slot` um drittes Restore-Segment (3 Slot-Versionen) erweitern + UI-Wahl „nur diese Woche"/„ab dieser Woche"; Ansatz A (Override-Datenmodell) verworfen. Harte Constraints: **eine Transaktion/Rollback** + **harte Re-Point-Tests gegen Doppelzählung**. CONTEXT.md geschrieben (D-35-01..06). Gate `shiftplan.edit`. v1.10 jetzt 12/12 Requirements, Phasen 33–35.
+- **Milestone v2.6 + Phasen 54–56 angelegt (2026-07-06):** 17 Requirements → 3 Phasen (ARCHITECTURE-C Vertikal-Slice-Baseline aus Research SUMMARY-Divergenz-1 gewählt; Rationale in ROADMAP.md dokumentiert). Phase 54 = Data-Model + F1+F2 (5 Requirements: VOL-STAT/VOL-ACCT). Phase 55 = F3+F5 (7 Requirements: REB-MANUAL, HR-ALERT). Phase 56 = F4+Backfill (5 Requirements: REB-AUTO). Zwei offene Discuss-Decisions bleiben in den Phasen: Snapshot-Bump 12→13 in P56 (REB-AUTO-05), Denominator-Definition D-F1-01 + Mid-Week-Vertragswechsel D-F2-01 in P54.
 
 ## Session Continuity
 
 **Last session:** 2026-07-06
-**Stopped at:** Phase 52 verified + committed. 5 Pläne + 2 Follow-ups landed. Verification report: `.planning/phases/52-weekly-overview-performance-refactor/52-VERIFICATION.md`.
+**Stopped at:** Roadmap v2.6 written (Phasen 54–56, 17/17 Requirements mapped).
 **Resume file:** None
-
-**Phase 52 Follow-Ups (nicht blockierend, für Milestone-Close-Audit):**
-
-1. ✅ **Erledigt via Follow-up #3 (2026-07-06):** `SpecialDayService::get_by_iso_year` + `ExtraHoursService::find_by_iso_year` + `ShiftplanReportService::extract_shiftplan_report_for_iso_year` als ISO-Wochenjahr-Bulk-Varianten eingeführt; alte kalender-jahr-Methoden bei ExtraHours+ShiftplanReport gelöscht (grep-verifiziert keine externen Konsumenten); SpecialDay's `get_by_year` bleibt für REST-Endpoint `/special-days/year/{y}`. SC#4-Override formal aufgelöst.
-2. DB-Indices aus RESEARCH.md Q3 (`booking(year, calendar_week)`, `extra_hours(date_time)`, `working_hours(from_year, to_year)`) — separater Task, benötigt Migration.
-3. F07-Doku für neue crate-private In-Memory-Helper (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`) nachziehen — Balance-Formel selbst unverändert.
 
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (kompaktes Milestone-Grouping-Format; Backlog 999.1 erhalten)
-3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
-4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.4)
+2. Read `.planning/ROADMAP.md` (v2.6 Milestone-Sektion + Phasen 54–56 mit Details)
+3. Read `.planning/REQUIREMENTS.md` (17 REQ-IDs + Traceability)
+4. Read `.planning/research/SUMMARY.md` (2 offene Discuss-Decisions)
+5. Read `.planning/PROJECT.md` (Current Milestone: v2.6-Sektion)
 
-**Aktueller Stand:** Milestone v2.5 in Progress. Phase 52 (Weekly-Overview Performance-Refactor) am 2026-07-06 komplett + verifiziert. Phase 53 (Freiwilligen-Abwesenheiten in Jahresansicht) steht als nächstes offen — baut auf der neuen Assembly (`assemble_weeks` + `get_year`) aus Phase 52 auf.
+**Aktueller Stand:** Milestone v2.6 in Planning. ROADMAP.md fertig (Phasen 54–56).
+Snapshot-Version bleibt aktuell 12; Bump-Entscheidung in Phase 56 discuss-phase.
 
-**Next command**: `/gsd-execute-phase 53` (Phase 53 PLANNED 2026-07-06, 3 Pläne Wave 1→2→3, VERIFICATION PASSED 0 Blocker/0 Warnings).
+**Next command**: `/gsd-discuss-phase 54` (Data-Model + F1 + F2; Discuss-Points: D-F1-01
+Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Marker-Approach).
 
 ---
 
-*State updated: 2026-07-06 — **Phase 52 VERIFIED PASS + Follow-up #3 Jahresübergangs-Fix** (5 Pläne + 3 Follow-ups; 5/5 Success-Criteria erfüllt, SC#4-Override formal aufgelöst durch Follow-up #3; 9/9 Cross-Cutting-Must-haves grün; kumulativer Speedup ~19× 2.33s→0.09s; Byte-Identity 8/8 Wave-1-Fixtures + 16 Year-Boundary-Regression-Gates grün; Snapshot-Version bleibt 12). Follow-up #3 nach User-Report am 2026-07-06: 3 kalender-jahr-scharfe Bulk-Methoden (extra_hours + special_day + shiftplan_report) verursachten paid_hours/required_hours-Drift an KW 1 / KW 53 — gefixt via neue `_iso_year`-Varianten. VERIFICATION.md aus Verify + 2 DIAGNOSIS.md + 3 Follow-up-SUMMARY.md archiviert. Milestone v2.5 zu 50% (1/2 Phasen, 5/5 Pläne). Phase 53 offen.*
+*State updated: 2026-07-06 — Roadmap v2.6 created (Phasen 54–56, 17/17 Requirements mapped; ARCHITECTURE-C 3-Phasen-Baseline gewählt; Snapshot-Bump-Entscheidung + Stichtag-Toggle-Seed in korrekten Phasen zugeordnet; Docs-Freshness-Gate für F14 + F07 + F08 + Architektur-Docs vorgemerkt).*
 
 ## Operator Next Steps
 
-- Phase 53 ist geplant (3 Pläne Wave 1→2→3, alle Gates grün). Ausführen mit `/gsd-execute-phase 53`.
-- Optional: Phase-52-Follow-ups (DB-Indices, F07-Doku für Pure-Helper) als Todos in `.planning/todos/pending/` erfassen.
+- `/gsd-discuss-phase 54` starten (Discuss-Points aus ROADMAP.md Phase-54-Sektion).
+- Optional: v2.5 Tech-Debt (SDF-03-Cleanup, DB-Indices, F07-Doku) als Todos in `.planning/todos/pending/` erfassen.
 
 ## Decisions
 
