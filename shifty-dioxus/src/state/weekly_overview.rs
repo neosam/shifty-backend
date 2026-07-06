@@ -29,6 +29,43 @@ pub struct WeeklySummary {
 
 impl From<&WeeklySummaryTO> for WeeklySummary {
     fn from(summary: &WeeklySummaryTO) -> Self {
+        // Union-Merge (D-53-04): Bezahlten-Loop UNVERAENDERT (Regression-Lock
+        // VAA-03 #3), dann Freiwilligen-extend aus neuem DTO-Feld
+        // sales_person_absences, anschliessend case-insensitive Name-Sort.
+        let sales_person_absences = {
+            // (1) Bezahlten-Loop — inhaltlich unveraendert (Regression-Lock VAA-03 #3).
+            let mut v: Vec<SalesPersonAbsence> = summary
+                .working_hours_per_sales_person
+                .iter()
+                .filter_map(|sp| {
+                    let effective_absence =
+                        sp.absence_hours - sp.holiday_hours + sp.unavailable_hours;
+                    if effective_absence >= 0.1 {
+                        Some(SalesPersonAbsence {
+                            name: sp.sales_person_name.clone(),
+                            absence_hours: effective_absence,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            // (2) Freiwilligen-extend — Filter >= 0.1 faengt Zusage=0 ab (D-53-04).
+            v.extend(
+                summary
+                    .sales_person_absences
+                    .iter()
+                    .filter(|a| a.hours >= 0.1)
+                    .map(|a| SalesPersonAbsence {
+                        name: a.name.clone(),
+                        absence_hours: a.hours,
+                    }),
+            );
+            // (3) Sortierung — case-insensitive; Vec::sort_by ist stable,
+            // Namens-Duplikate behalten Insertion-Order (bezahlt zuerst).
+            v.sort_by(|x, y| x.name.to_lowercase().cmp(&y.name.to_lowercase()));
+            v
+        };
         Self {
             week: summary.week,
             year: summary.year,
@@ -44,22 +81,7 @@ impl From<&WeeklySummaryTO> for WeeklySummary {
             friday_available_hours: summary.friday_available_hours,
             saturday_available_hours: summary.saturday_available_hours,
             sunday_available_hours: summary.sunday_available_hours,
-            sales_person_absences: summary
-                .working_hours_per_sales_person
-                .iter()
-                .filter_map(|sp| {
-                    let effective_absence =
-                        sp.absence_hours - sp.holiday_hours + sp.unavailable_hours;
-                    if effective_absence >= 0.1 {
-                        Some(SalesPersonAbsence {
-                            name: sp.sales_person_name.clone(),
-                            absence_hours: effective_absence,
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
+            sales_person_absences,
         }
     }
 }
