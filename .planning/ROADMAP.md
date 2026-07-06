@@ -90,6 +90,11 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   4. Angezeigter Stunden-Wert ist in discuss-phase entschieden und dokumentiert.
   5. Frontend rendert Freiwilligen-Zeilen visuell konsistent mit bezahlten (kein Redesign).
 
+  **Plans:** 3 plans (planned 2026-07-06; 3 Waves strikt sequenziell — jeder Plan baut auf dem Struct/DTO bzw. Fill-Site des Vorgängers auf)
+  - [ ] 53-01-PLAN.md — **Wave 1**: `SalesPersonAbsence`(+`TO`) Structs + `sales_person_absences`-Feld auf `WeeklySummary`(+`TO`) mit `#[serde(default)]` + From-Impl-Erweiterung (VAA-01 Datenkontrakt)
+  - [ ] 53-02-PLAN.md — **Wave 2 (TDD)**: Backend-Fill-Sites `get_weekly_summary` + `get_summery_for_week` (D-53-02-Formel, D-53-05/06); neue Test-Datei `booking_information_vaa.rs` mit 3 VAA-03-Assertions (VAA-01+02+03)
+  - [ ] 53-03-PLAN.md — **Wave 3 (TDD)**: FE-Union-Merge in `state::WeeklySummary::from(&WeeklySummaryTO)` (Bezahlt-Loop UNVERÄNDERT + Freiwilligen-extend + case-insensitive Sort by name) + Rendering-Lock grep-Guard + WASM-Gate (VAA-04)
+
 ## Backlog
 
 Ungeplante / off-theme Arbeit, die NICHT zum aktiven Milestone gehört. Vor Ausführung

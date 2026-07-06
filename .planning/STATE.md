@@ -30,8 +30,8 @@ progress:
 ## Current Position
 
 Phase: 53 — Freiwilligen-Abwesenheiten in Jahresansicht
-Plan: — (ready to plan)
-Status: Phase 52 VERIFIED PASS + Jahresübergangs-Bugklasse gefixt (2026-07-06); Phase 53 als nächstes offen. Empfehlung: `/gsd-discuss-phase 53` starten.
+Plan: 01–03 (Wave 1→2→3, sequenziell)
+Status: **Phase 53 PLANNED (2026-07-06)** — 3 PLAN.md-Files geschrieben, Plan-Checker VERIFICATION PASSED (0 Blocker/Warnings), Requirement-Coverage 4/4 (VAA-01..04), Decision-Coverage 6/6 (D-53-01..06). Ready to execute. Empfehlung: `/gsd-execute-phase 53`.
 Last activity: 2026-07-06 — Phase 52 komplett + 3 Follow-ups. Kumulativer Speedup **~19×** (2.33s → 0.09s, WOP-04 <500ms um >5× übertroffen). Byte-Identity via 8/8 Wave-1-Fixtures + 16 Year-Boundary-Regression-Gates grün. **Follow-up #3 fixt eine Klasse Jahresübergangs-Bugs** (User-Report 2026-07-06): drei neue `_iso_year`-Bulk-Methoden (`ExtraHours::find_by_iso_year`, `SpecialDayService::get_by_iso_year`, `ShiftplanReport::_for_iso_year`) ersetzen die kalender-jahr-scharfen Wave-3/FU2-Varianten. Der SC#4-Override aus dem Verify wird durch die neuen `_iso_year`-Methoden formal aufgelöst. Kein Snapshot-Bump, keine Migration, keine neue Dep.
 
 ## Quick Tasks Completed
@@ -213,7 +213,7 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 **Aktueller Stand:** Milestone v2.5 in Progress. Phase 52 (Weekly-Overview Performance-Refactor) am 2026-07-06 komplett + verifiziert. Phase 53 (Freiwilligen-Abwesenheiten in Jahresansicht) steht als nächstes offen — baut auf der neuen Assembly (`assemble_weeks` + `get_year`) aus Phase 52 auf.
 
-**Next command**: `/gsd-discuss-phase 53`.
+**Next command**: `/gsd-execute-phase 53` (Phase 53 PLANNED 2026-07-06, 3 Pläne Wave 1→2→3, VERIFICATION PASSED 0 Blocker/0 Warnings).
 
 ---
 
@@ -221,8 +221,8 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 ## Operator Next Steps
 
-- Nächste Phase mit `/gsd-discuss-phase 53` starten (Freiwilligen-Abwesenheiten in Jahresansicht — VAA-01..04).
-- Optional: Follow-ups oben durchsehen und ggf. als Todos in `.planning/todos/pending/` erfassen.
+- Phase 53 ist geplant (3 Pläne Wave 1→2→3, alle Gates grün). Ausführen mit `/gsd-execute-phase 53`.
+- Optional: Phase-52-Follow-ups (DB-Indices, F07-Doku für Pure-Helper) als Todos in `.planning/todos/pending/` erfassen.
 
 ## Decisions
 
