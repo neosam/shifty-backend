@@ -1,0 +1,126 @@
+# Phase 52 Follow-Up #3 (Year-Boundary-Fix) — Latency Post-Fix
+# Endpoint: GET /booking-information/weekly-resource-report/2026
+# Auth: unauthenticated (Dev-Setup, mock_auth Feature-Flag).
+# Build-Profil: dev (`cargo run` ohne --release, identisch zu Wave-0-Baseline,
+#                    Wave-5-Post-Refactor und Follow-Up #1/#2).
+# DB: localdb.sqlite3 (Dev-DB unverändert).
+#
+# Zweck: nach dem Follow-up-#3-Fix (Kalender-Jahr → ISO-Wochenjahr bei drei
+# Bulk-Load-Methoden) sicherstellen, dass WOP-04 (<0.5s) weiter gilt.
+# Semantisch ist die Änderung neutral in der Range-Größe: die neue ISO-Range
+# ist maximal ±3 Tage weiter als die alte Kalender-Range — ~365 Tage ± 3.
+# Erwartung: Latenz essentiell unverändert zu Follow-Up #2.
+#
+# Kommando (3 Warmup-Runs zur SQLite-Page-Cache-Wärme, dann 5 gemessene Runs):
+#   for i in 1 2 3 4 5; do
+#     curl -s -o /dev/null -w "%{time_total}\n" \
+#       http://localhost:3000/booking-information/weekly-resource-report/2026
+#   done | sort -n
+#
+# ─────────────────────────────────────────────────────────────────────
+# Messung 1 (direkt nach Server-Start + Endpoint-First-Compile-Warmup)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.102786 s
+#   0.099785 s
+#   0.097756 s
+# Runs (sorted):
+# 1: 0.088728 s
+# 2: 0.098196 s
+# 3: 0.101512 s   ← median
+# 4: 0.103227 s
+# 5: 0.103499 s
+Median (Messung 1): 0.101512 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Messung 2 (SQLite-Page-Cache voll aufgewärmt)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.104099 s
+#   0.078241 s
+#   0.088509 s
+# Runs (sorted):
+# 1: 0.084041 s
+# 2: 0.087253 s
+# 3: 0.093475 s   ← median
+# 4: 0.100836 s
+# 5: 0.113385 s
+Median (Messung 2): 0.093475 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Messung 3 (Konsistenz-Check nach voller Page-Cache-Wärme)
+# ─────────────────────────────────────────────────────────────────────
+# Warmup-Runs:
+#   0.099617 s
+#   0.106125 s
+#   0.078871 s
+# Runs (sorted):
+# 1: 0.068804 s
+# 2: 0.081550 s
+# 3: 0.085112 s   ← median
+# 4: 0.088701 s
+# 5: 0.090465 s
+Median (Messung 3): 0.085112 s
+
+# ─────────────────────────────────────────────────────────────────────
+# Repräsentativer Median (Messungen 1+2+3)
+# ─────────────────────────────────────────────────────────────────────
+Medians:            0.101512 s, 0.093475 s, 0.085112 s
+Median-of-medians:  0.093475 s
+Representative median: ~0.09 s (stabile Ausführung; leicht schneller als
+                                Follow-Up #2, plausibel innerhalb der Streuung).
+
+# ─────────────────────────────────────────────────────────────────────
+# Zielwert-Check (WOP-04, D-52-16)
+# ─────────────────────────────────────────────────────────────────────
+Target (<0.500 s): PASS ✅
+Best measurement:  0.068804 s
+Slowest median:    0.101512 s  (Messung 1)
+Fastest median:    0.085112 s  (Messung 3)
+Rep. median:       ~0.093 s     (< 0.5 s / ~5× unter Ziel)
+
+# ─────────────────────────────────────────────────────────────────────
+# Vergleich mit Follow-Up-Baselines
+# ─────────────────────────────────────────────────────────────────────
+Wave-0-Baseline median      : 2.330 s   (1.0×)
+Wave-5-Post-Refactor median : 1.126 s   (2.07× vs Baseline)
+Follow-Up #1-Post median    : ~0.97 s   (2.40× vs Baseline, 1.16× vs Wave 5)
+Follow-Up #2-Post median    : ~0.12 s   (19.4× vs Baseline, 9.4× vs Wave 5)
+Follow-Up #3-Post median    : ~0.09 s   (25.9× vs Baseline)
+
+# Kommentar: die Latenz-Änderung Follow-Up-#2 → #3 (~0.12 → ~0.09 s) liegt
+# innerhalb der Mess-Streuung (~35% relativ zu Absolutwert bei ~100 ms).
+# Semantisch war Follow-Up-#3 latenz-neutral: die neue ISO-Range in
+# `extra_hours.find_by_iso_year` ist maximal ±3 Tage größer als die alte
+# Kalender-Range (Follow-Up-#2 hat den Chain-A/B/C-Bottleneck bereits eliminiert;
+# an dieser Stelle steht nichts mehr an Kosten offen, was durch ±6 Extra-Rows
+# messbar wäre). SpecialDay- und ShiftplanReport-`_iso_year`-Queries sind
+# byte-identisch zu ihren `_year`-Vorgängern (Spalte `year` IS ISO-Wochenjahr).
+#
+# ─────────────────────────────────────────────────────────────────────
+# Metadaten
+# ─────────────────────────────────────────────────────────────────────
+Backend commits (Follow-Up #3):
+  feat(52): find_by_iso_year on ExtraHours (fix year-boundary regression)
+  feat(52): get_by_iso_year on SpecialDayService (fix year-boundary regression)
+  feat(52): extract_shiftplan_report_for_iso_year (fix year-boundary regression)
+  refactor(52): switch assemble_weeks + get_weekly_summary to ISO-year bulk methods
+  test(52): convert year-boundary bug reproducers to regression gates
+Measured: 2026-07-06 (Dev-Session)
+Dev-DB path: shifty-backend/localdb.sqlite3
+Hostname: NixOS Dev-Machine (neosam)
+
+# ─────────────────────────────────────────────────────────────────────
+# Wave-1-Fixture-Ergebnis (Byte-Identity-Gate) — nach Follow-Up-#3
+# ─────────────────────────────────────────────────────────────────────
+#
+# Alle 8 Wave-1-Fixtures (`booking_information_weekly_summary_year_batch`)
+# bleiben byte-identisch grün. Fixture 8 (Spillover W53→W55) und Fixtures
+# 4/5 (Volunteer-Vacation, CVC-06-Cap) unverändert. IEEE-754-Sign-of-Zero-
+# Muster (-0.0 vs +0.0) unverändert. Der Fix ändert nur Rows an ISO-Wochenjahr-
+# Grenzen — intra-year-Rows sind bit-identisch.
+#
+# Alle Cross-Check-Tests (`booking_information_weekly_summary_year_boundary*`,
+# `reporting_year_boundary`) — 16 Tests — grün.
+# 4 Slot-Cross-Check-Tests unverändert (Slot-Filter war nie der Bug).
+# Chain-C-Toggle-Read-Invariant unverändert (`booking_information_chain_c`).
