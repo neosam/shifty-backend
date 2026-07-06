@@ -124,6 +124,30 @@ impl SpecialDayDao for SpecialDayDaoImpl {
         .map(SpecialDayEntity::try_from)
         .collect::<Result<_, _>>()?)
     }
+    async fn find_by_iso_year(&self, year: u32) -> Result<Arc<[SpecialDayEntity]>, DaoError> {
+        // Phase 52 Follow-up #3: DB-Spalte `year` speichert das ISO-Wochenjahr
+        // (siehe create-Pfad, `ShiftyDate::from_date(...)`). Ein direktes
+        // `WHERE year = ?` matched daher exakt das ISO-Wochenjahr — im
+        // Gegensatz zu `SpecialDayServiceImpl::get_by_year`, das eine
+        // Union(y, y-1)+Kalender-Jahr-Filter-Hackerei fürs Frontend fährt.
+        let year = year as i64;
+        Ok(query_as!(
+            SpecialDayDb,
+            r#"
+            SELECT id, year, calendar_week, day_of_week, day_type, time_of_day, created, deleted, update_version
+            FROM special_day
+            WHERE year = ? AND deleted IS NULL
+            ORDER BY calendar_week ASC, day_of_week ASC
+            "#,
+            year
+        )
+        .fetch_all(&*self.pool)
+        .await
+        .map_db_error()?
+        .iter()
+        .map(SpecialDayEntity::try_from)
+        .collect::<Result<_, _>>()?)
+    }
     async fn create(&self, entity: &SpecialDayEntity, process: &str) -> Result<(), DaoError> {
         let id = entity.id.as_bytes().to_vec();
         let version = entity.version.as_bytes().to_vec();

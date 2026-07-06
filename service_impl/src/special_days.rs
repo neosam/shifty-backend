@@ -114,6 +114,29 @@ impl<
 
         Ok(results.into())
     }
+    /// Phase 52 Follow-up #3 — direkter ISO-Wochenjahr-Batch für Konsumenten,
+    /// die per ISO-Wochenjahr bucketen (z.B. `get_weekly_summary`).
+    ///
+    /// Delegiert direkt an `SpecialDayDao::find_by_iso_year`, weil die DB-Spalte
+    /// `year` bereits das ISO-Wochenjahr speichert. Anders als `get_by_year`
+    /// (das für die REST-`/special-days/year/{y}`-Route Kalender-Jahr-basiert
+    /// filtert) macht diese Variante KEIN Union(y, y-1) und KEINEN
+    /// Kalender-Datum-Post-Filter — d.h. eine Row `(year=2026, week=53,
+    /// day=Fri)` (Kalender-Datum 2027-01-01) landet korrekt im
+    /// `iso_year=2026`-Bucket.
+    async fn get_by_iso_year(
+        &self,
+        year: u32,
+        _context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SpecialDay]>, ServiceError> {
+        Ok(self
+            .special_day_dao
+            .find_by_iso_year(year)
+            .await?
+            .iter()
+            .map(SpecialDay::from)
+            .collect())
+    }
     async fn create(
         &self,
         special_day: &SpecialDay,

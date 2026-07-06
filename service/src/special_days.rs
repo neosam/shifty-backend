@@ -93,6 +93,23 @@ pub trait SpecialDayService {
         year: u32,
         context: Authentication<Self::Context>,
     ) -> Result<Arc<[SpecialDay]>, ServiceError>;
+    /// Phase 52 Follow-up #3 — liefert alle nicht-gelöschten `SpecialDay`s
+    /// deren **ISO-Wochenjahr** `year` ist.
+    ///
+    /// Unterschied zu [`Self::get_by_year`] (das Kalender-Datum-basiert
+    /// filtert, weil das UI ISO-Wochenjahr-Buckets pro Kalender-Jahr
+    /// anzeigt): diese Variante delegiert direkt an `SpecialDayDao::find_by_iso_year`
+    /// (matched das DB-Feld `year` == ISO-Wochenjahr) — ohne Union(y, y-1)
+    /// und ohne Kalender-Jahr-Post-Filter. Für Konsumenten wie
+    /// `BookingInformationService::get_weekly_summary`, die pro (ISO-Wochenjahr,
+    /// Woche) bucketen, ist das der korrekte Bulk-Load: eine Row wie
+    /// `(year=2026, week=53, day=Fri)` (Kalender-Datum 2027-01-01) landet
+    /// dort korrekt im `iso_year=2026`-Bucket.
+    async fn get_by_iso_year(
+        &self,
+        year: u32,
+        context: Authentication<Self::Context>,
+    ) -> Result<Arc<[SpecialDay]>, ServiceError>;
     async fn create(
         &self,
         special_day: &SpecialDay,

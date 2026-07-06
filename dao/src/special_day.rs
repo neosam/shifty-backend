@@ -34,6 +34,16 @@ pub trait SpecialDayDao {
         calendar_week: u8,
     ) -> Result<Arc<[SpecialDayEntity]>, DaoError>;
     async fn find_by_year(&self, year: u32) -> Result<Arc<[SpecialDayEntity]>, DaoError>;
+    /// Phase 52 Follow-up #3 — ISO-Wochenjahr-Batch.
+    ///
+    /// **Wichtig:** die DB-Spalte `year` speichert bereits das ISO-Wochenjahr
+    /// (siehe `create`-Pfad: `ShiftyDate::from_date(...)`). D.h. das `WHERE
+    /// year = ?`-Filter matched semantisch das ISO-Wochenjahr — der einzige
+    /// Unterschied zu `find_by_year` ist der Vertrag ans Aufruferseite: ein
+    /// Konsument, der ISO-basierte Wochen-Buckets baut, muss diese Variante
+    /// nutzen, um Boundary-Rows (Feiertag am 2027-01-01 = ISO-2026-W53-Fri)
+    /// nicht zu verpassen.
+    async fn find_by_iso_year(&self, year: u32) -> Result<Arc<[SpecialDayEntity]>, DaoError>;
     async fn create(&self, entity: &SpecialDayEntity, process: &str) -> Result<(), DaoError>;
     async fn update(&self, entity: &SpecialDayEntity, process: &str) -> Result<(), DaoError>;
 }
