@@ -1586,13 +1586,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .employee_work_details_service
             .all(Authentication::Full, tx.clone())
             .await?;
+        // Follow-up #3: ISO-Wochenjahr-Batches (nicht Kalender-Jahr).
+        // `assemble_weeks` bucketet Rows per ISO-Wochenjahr; die alten
+        // `_for_year`/`find_by_year`-Methoden filterten kalendarisch und
+        // verschluckten Rows an KW 1 / KW 53. Siehe SUMMARY der Follow-up-3.
         let shiftplan_reports = self
             .shiftplan_report_service
-            .extract_shiftplan_report_for_year(year, Authentication::Full, tx.clone())
+            .extract_shiftplan_report_for_iso_year(year, Authentication::Full, tx.clone())
             .await?;
         let extra_hours = self
             .extra_hours_service
-            .find_by_year(year, Authentication::Full, tx.clone())
+            .find_by_iso_year(year, Authentication::Full, tx.clone())
             .await?;
         info!("Extra hours (year batch): {:?}", &extra_hours);
 

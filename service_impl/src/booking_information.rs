@@ -319,15 +319,24 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         let active_from =
             shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
-        // ─── Phase 52 (WOP-01/WOP-02, D-52-01/D-52-04/D-52-06) — Bulk-Load-Präambel ───
+        // ─── Phase 52 (WOP-01/WOP-02, D-52-01/D-52-04/D-52-06 + Follow-up #3) — Bulk-Load-Präambel ───
         //
         // Ersetzt ~55×3 sequenzielle DAO-Roundtrips durch **konstant viele**
         // Bulk-Loads: 2× `get_year` (year + year+1 Spillover), 2×
-        // `special_day.get_by_year`, 2× `extract_shiftplan_report_for_year`,
+        // `special_day.get_by_iso_year`, 2× `extract_shiftplan_report_for_iso_year`,
         // 1× `slot_service.get_slots` (jahresagnostisch — In-Memory-Filter
         // im Loop), 1× `shiftplan_service.get_all` (für `is_planning`-Filter
         // in Slot-Selektion, spiegelt DAO-JOIN aus
         // `SlotDao::get_slots_for_week_all_plans`).
+        //
+        // **Follow-up #3 (ISO-Wochenjahr):** Alle drei Batches (year_reports,
+        // special_days, shiftplan_reports) werden per ISO-Wochenjahr geladen —
+        // NICHT per Kalender-Jahr. Der In-Memory-Filter im Loop bucketet per
+        // `(year == outer_year_iso, week)`; Rows an KW 1 / KW 53, die kalendarisch
+        // in ein anderes Jahr fielen (z.B. Feiertag am 2027-01-01 = ISO-2026-W53-Fri),
+        // wurden zuvor verschluckt. Die neuen `_iso_year`-Varianten fixen das
+        // strukturell: die DAO/Service-Ebene liefert genau die Rows, deren
+        // ISO-Wochenjahr == `year` ist.
         //
         // Byte-Identität ist strukturell garantiert:
         // - `year_reports[week - 1].1` == `reporting_service.get_week(year, week)`
@@ -347,19 +356,19 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .await?;
         let special_days_this = self
             .special_day_service
-            .get_by_year(year, Authentication::Full)
+            .get_by_iso_year(year, Authentication::Full)
             .await?;
         let special_days_next = self
             .special_day_service
-            .get_by_year(year_plus_1, Authentication::Full)
+            .get_by_iso_year(year_plus_1, Authentication::Full)
             .await?;
         let shiftplan_reports_this = self
             .shiftplan_report_service
-            .extract_shiftplan_report_for_year(year, Authentication::Full, tx.clone().into())
+            .extract_shiftplan_report_for_iso_year(year, Authentication::Full, tx.clone().into())
             .await?;
         let shiftplan_reports_next = self
             .shiftplan_report_service
-            .extract_shiftplan_report_for_year(
+            .extract_shiftplan_report_for_iso_year(
                 year_plus_1,
                 Authentication::Full,
                 tx.clone().into(),
