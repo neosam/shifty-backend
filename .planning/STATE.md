@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 54
-status: planning
+status: ready-to-execute
 stopped_at: ""
-last_updated: "2026-07-06T20:00:00.000Z"
+last_updated: "2026-07-06T21:50:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Phase 54 discuss-phase abgeschlossen (4 Discuss-Points gepinnt, CONTEXT.md geschrieben)
+last_activity_desc: Phase 54 plan-phase abgeschlossen (6 Pläne, Waves 1-4, RESEARCH+VALIDATION+PLANs committet)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
@@ -33,10 +33,10 @@ current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
 
 ## Current Position
 
-Phase: 54 (planning)
-Plan: —
-Status: CONTEXT.md fertig, `/gsd-plan-phase 54` als nächster Schritt
-Last activity: 2026-07-06 — Phase 54 discuss-phase abgeschlossen (4 Discuss-Points gepinnt: D-F1-01 all-contract-weeks, D-F2-01 pro-rata, D-54-DM-01 global-UNIQUE, D-54-DM-02 source-string-enum)
+Phase: 54 (ready-to-execute)
+Plan: 6 Pläne erstellt (54-01..54-06, Waves 1-4)
+Status: RESEARCH+VALIDATION+PLANs committet; `/gsd-execute-phase 54` als nächster Schritt
+Last activity: 2026-07-06 — Phase 54 plan-phase abgeschlossen (6 Pläne: 01 Migrations/DAO, 02 RebookingBatchService Basic, 03 VoluntaryStatsService BL + Property-Test VOL-ACCT-03 [TDD], 04 REST-Endpoint, 05 FE-Row + i18n + Dioxus.toml-Proxy, 06 Docs-Freshness F14/02-service-tiers/03-data-model). Alle 5 REQ-IDs (VOL-STAT-01/02, VOL-ACCT-01/02/03) und alle 4 Decisions (D-F1-01, D-F2-01, D-54-DM-01, D-54-DM-02) coverage-verifiziert. Plan-Checker: VERIFICATION PASSED (12/12 Dimensionen grün).
 
 ## Quick Tasks Completed
 
@@ -228,7 +228,7 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 
 ## Operator Next Steps
 
-- `/gsd-discuss-phase 54` starten (Discuss-Points aus ROADMAP.md Phase-54-Sektion).
+- `/gsd-execute-phase 54` starten (Wave 1 = Plan 01 Migrations+DAO; danach Wave 2 = Plans 02+03 parallel; Wave 3 = Plans 04+05; Wave 4 = Plan 06 Docs).
 - Optional: v2.5 Tech-Debt (SDF-03-Cleanup, DB-Indices, F07-Doku) als Todos in `.planning/todos/pending/` erfassen.
 
 ## Decisions
