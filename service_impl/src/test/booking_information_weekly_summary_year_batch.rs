@@ -260,6 +260,9 @@ fn empty_summary(year: u32, week: u8) -> WeeklySummary {
         saturday_available_hours: 0.0,
         sunday_available_hours: 0.0,
         working_hours_per_sales_person: Arc::from(Vec::<WorkingHoursPerSalesPerson>::new()),
+        sales_person_absences: Arc::from(
+            Vec::<service::booking_information::SalesPersonAbsence>::new(),
+        ),
     }
 }
 
