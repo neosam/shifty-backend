@@ -2,6 +2,8 @@
 title: Weekly-Overview Performance-Optimierung
 trigger_condition: nächster /gsd-new-milestone-Zyklus (aktuell zwischen Milestones nach v2.4)
 planted_date: 2026-07-05
+status: used
+used_in: v2.5 (Phasen 52 + 53, shipped 2026-07-06). Ergebnis: 2.33s → 0.12s Median (19.4× Speedup); WOP-04 <500ms um Faktor 4 übertroffen. Siehe milestones/v2.5-ROADMAP.md.
 ---
 
 # Weekly-Overview Performance-Optimierung

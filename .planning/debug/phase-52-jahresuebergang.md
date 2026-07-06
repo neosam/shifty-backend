@@ -1,9 +1,11 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "KW 1 (Y+1): paid+required differ zwischen Old/New. KW 53: required differ. User im Test-Env geprüft. Ungewiss: Regression durch Phase 52 oder pre-existing?"
 created: 2026-07-06T00:00:00Z
 updated: 2026-07-06T00:00:00Z
-followup: "sessions/2026-07-06-phase-52-jahresuebergang/DIAGNOSIS-2026-blindsweep.md — required_hours-Bug BESTÄTIGT (SpecialDay-Bucket-Wahl, disjunkt vom ExtraHours-Bug)"
+resolved: 2026-07-06T00:00:00Z
+resolution: "Behoben in Phase-52-Follow-up #3 (year-boundary-fix) — drei kalender-jahr-scharfe Bulk-Methoden durch `_iso_year`-Varianten mit Range `[ISO-Mo(Y,1), ISO-Su(Y,weeks(Y))+1d]` ersetzt (ExtraHoursService::find_by_iso_year, ShiftplanReportService::extract_shiftplan_report_for_iso_year, SpecialDayService::get_by_iso_year). Alte kalender-jahr-Methoden bei ExtraHours+ShiftplanReport gelöscht (grep-verifiziert). 16 Regressions-Gates in reporting_year_boundary.rs + booking_information_weekly_summary_year_boundary*.rs. Siehe milestones/v2.5-phases/52-.../52-followup3-year-boundary-fix-SUMMARY.md + milestones/v2.5-MILESTONE-AUDIT.md."
+followup: "sessions/2026-07-06-phase-52-jahresuebergang/DIAGNOSIS-2026-blindsweep.md — required_hours-Bug BESTÄTIGT (SpecialDay-Bucket-Wahl, disjunkt vom ExtraHours-Bug); Fix in Follow-up #3 gelandet."
 ---
 
 ## Current Focus

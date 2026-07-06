@@ -749,3 +749,110 @@ via `/release-version` (`git.create_tag=false` in GSD-Config,
 Tags aus SemVer-Flow).
 
 ---
+
+## v2.5 — Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+
+**Shipped:** 2026-07-06
+**Phases:** 52–53 (2 phases, 8 plans + 3 Follow-Ups, 11 SUMMARYs)
+**Archive:** [`milestones/v2.5-ROADMAP.md`](milestones/v2.5-ROADMAP.md)
+**Audit:** [`milestones/v2.5-MILESTONE-AUDIT.md`](milestones/v2.5-MILESTONE-AUDIT.md) — status `passed` (9/9 Requirements, 1 SC-Override formal aufgelöst)
+
+**Delivered:**
+Zwei zusammenhängende Ergänzungen an der Jahresübersicht. **Performance:**
+`get_weekly_summary` konsumiert Jahres-Aggregate statt sequenzieller
+Wochen-Service-Calls; drei Chain-A/B/C-Preloads (`special_day`, `toggle`,
+`absence_period`) auf Year-Scope gehoben; 26 000 SQLite-Roundtrips pro
+Anfrage eliminiert; End-to-End-Median **2.33s → 0.12s (19.4×)**, WOP-04
+<500ms um Faktor 4 übertroffen; Byte-Identität durch 8 Golden-Snapshot-
+Fixtures über Feiertage/ShortDays/Volunteer-Absencen/CVC-06-Cap/`shortday_gate.active_from`-on/off gewährleistet; Jahresübergangs-Bug
+(paid_hours-Drift KW1/KW53 durch Kalender-Jahr vs. ISO-Woche) in
+Follow-up #3 mit drei `_iso_year`-Bulk-Methoden geschlossen (16 neue
+Regressions-Gates). **VAA:** Freiwillige mit aktiver Vacation/SickLeave/
+UnpaidLeave-Period erscheinen in `sales_person_absences` neben bezahlten
+Mitarbeitern; Backend liefert Name + cap-gated `committed_voluntary` im
+DTO; FE macht reinen Union-Merge + case-insensitive Sort; Rendering-Zeile
+wörtlich unverändert; INT-Browser-Sightcheck durch User bestätigt. Kein
+Snapshot-Bump (bleibt 12), keine Migration, keine neuen Cargo-Deps.
+
+**Key accomplishments:**
+
+1. **Wave 1 Golden-Snapshot-Baseline** (Plan 52-01) — 8 byte-identische
+   Fixture-Tests + Pre-Refactor-Latenz-Baseline 2.33s als hartes Gate für
+   alle folgenden Waves. Verhinderte stillen Semantik-Drift bei drei
+   Chain-Optimierungen.
+
+2. **Wave 2+3+4 additive Batch-Trait-Methoden** (Plans 52-02, 52-03,
+   52-04) — `assemble_weeks(weeks, ...)` als `pub(crate) async fn` in
+   `reporting.rs` (Wave 2, reiner Extract); `ExtraHoursService::find_by_year`
+   + `ShiftplanReportService::extract_shiftplan_report_for_year` mit
+   `sqlx prepare` (Wave 3); `ReportingService::get_year` mit drei
+   Bulk-Load-Roundtrips + Vec-Delegation (Wave 4). `get_week`-Signatur
+   unverändert — reiner Wrapper.
+
+3. **Wave 5 Bulk-Load-Präambel im Konsumenten** (Plan 52-05) — 7
+   konstante Bulk-Loads vor der Wochen-Schleife in
+   `BookingInformationServiceImpl::get_weekly_summary`; ersetzt die ~55×3
+   Per-Woche-Chains durch In-Memory-Filter. 8/8 Wave-1-Fixtures grün,
+   Latenz 2.33s → 1.13s (Faktor 2.07×).
+
+4. **Follow-Ups #1+#2 Chain-A/B/C-Elimination** (52-followup-wop04 +
+   52-followup2-wop04) — `sales_person` load-once via HashMap + `working_hours`
+   per-sp-gebucketet (F#1: 2.07× → 2.40×), dann Chain A (`special_day`),
+   Chain B (`toggle`), Chain C (`absence_period.derive_hours_for_range`)
+   in `assemble_weeks` auf Year-Scope-Preloads gehoben plus zwei pure
+   In-Memory-Helper (`derive_hours_for_week_pure`,
+   `build_derived_holiday_map_for_week_pure`). **19.4× kumulativ,
+   WOP-04-Ziel um 4× übertroffen (0.12s Median).**
+
+5. **Follow-up #3 Jahresübergangs-Fix** (52-followup3-year-boundary-fix) —
+   User-Report reproduziert: paid_hours/required_hours-Drift in KW 1 / KW 53
+   durch drei kalender-jahr-scharfe Bulk-Methoden mit falscher Range vs.
+   `booking(year, calendar_week)`-ISO-Semantik. Fix: neue `_iso_year`-
+   Varianten mit `[ISO-Mo(Y,1), ISO-Su(Y,weeks(Y))+1d]`; alte kalender-jahr-
+   Methoden bei ExtraHours + ShiftplanReport gelöscht (grep-verifiziert);
+   16 Regressions-Gates in `reporting_year_boundary.rs` +
+   `booking_information_weekly_summary_year_boundary*.rs`. Löste den
+   Phase-52-SC#4-Override formal auf.
+
+6. **VAA Datenkontrakt + zwei Fill-Sites** (Plans 53-01 + 53-02) —
+   `SalesPersonAbsence` (service) + `SalesPersonAbsenceTO` (rest-types)
+   Twin-Struct mit `#[serde(default)]`-Guard für Legacy-Wire-Compat;
+   `WeeklySummary{,TO}.sales_person_absences: Arc<[...]>` additiv;
+   D-53-02 cap-gated `committed_voluntary`-Formel an beiden Fill-Sites
+   (`get_weekly_summary` + `get_summery_for_week`) identisch gepinnt.
+   Sichtbarkeitskriterium = exakt `absent_volunteer_ids` aus VFA-01
+   whole-week-out (Phase 26). 3/3 `vaa03_*`-Backend-Tests grün.
+
+7. **VAA FE Union-Merge** (Plan 53-03) — `impl From<&WeeklySummaryTO> for
+   state::WeeklySummary` als Block-Expression: Bezahlten-Loop
+   unverändert (Regression-Lock VAA-03 #3), Freiwilligen-`extend` aus
+   DTO-Feld, case-insensitive Name-Sort. Rendering-Zeile in
+   `page/weekly_overview.rs:126` wörtlich unverändert (grep-verifiziert).
+   INT-Browser-Sightcheck durch User bestätigt.
+
+**Test verification:** Backend `cargo test --workspace` = 713+ Unit +
+64+ Integration + kleinere Suites, 0 failed. Backend `cargo clippy
+--workspace -- -D warnings` = 0 warnings. FE `cargo test` = 802 passed,
+0 failed. FE WASM-Build = exit 0. Byte-Identity-Fixtures = 8/8 grün.
+VAA-Tests = 3/3 grün. Regression-Locks (VFA-01, Chain-C, Legacy-Wire-Compat) alle grün.
+
+**Known deferred items (Tech-Debt für v2.6+ Backlog):**
+
+- SDF-03 Semantik-Cleanup: `SpecialDayService::get_by_iso_year` als
+  Follow-up, um die 55 `special_day.get_by_week`-Calls in `assemble_weeks`
+  auf konstant 2 zu reduzieren. Nicht latenz-relevant.
+- DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`,
+  `working_hours(from_year, to_year)` — RESEARCH-Q3 v2.5. Kein Bottleneck
+  mehr nach Follow-up #2.
+- F07-Doku: Follow-Ups #1+#2 haben die neuen Pure-Helper
+  (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`)
+  NICHT in `docs/features/F07-reporting-balance.{md,_de.md}` dokumentiert;
+  Balance-Formel selbst ist unverändert dokumentiert.
+- Historische Deferred-Items siehe `.planning/STATE.md` „Deferred
+  Items"-Sektion.
+
+**Hinweis:** v2.5 ist das interne Planungs-Label. Reale Release-Version
+via `/release-version` (`git.create_tag=false` in GSD-Config, Tags aus
+SemVer-Flow).
+
+---

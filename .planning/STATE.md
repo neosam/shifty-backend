@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.5
-milestone_name: Weekly-Overview Performance & Freiwilligen-Abwesenheiten
-current_phase: 53
-status: Ready for milestone-close — v2.5 komplett (Phasen 52+53)
-stopped_at: "Phase 53 verified + INT-Sightcheck bestätigt 2026-07-06. Alle 8 Pläne des Milestones landed. Ready für /gsd-ship oder /gsd-complete-milestone."
-last_updated: "2026-07-06T14:35:00.000Z"
+milestone: —
+milestone_name: (zwischen Milestones)
+current_phase: —
+status: Zwischen Milestones — v2.5 shipped 2026-07-06 (verified_closeout, Audit passed)
+stopped_at: "v2.5-Close abgeschlossen 2026-07-06 (9/9 Requirements, Phasen 52+53 archiviert unter milestones/v2.5-phases/). Nächste Iteration via /gsd-new-milestone."
+last_updated: "2026-07-06T16:00:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Phase 53 complete (INT-Sightcheck bestätigt)
+last_activity_desc: Milestone v2.5 complete + archived
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
-current_phase_name: freiwilligen-abwesenheiten-jahresansicht
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase_name: —
 ---
 
 # Project State: Shifty Backend
@@ -24,19 +24,24 @@ current_phase_name: freiwilligen-abwesenheiten-jahresansicht
 - **Roadmap**: `.planning/ROADMAP.md` (zwischen Milestones; Backlog 999.1 erhalten)
 - **Requirements**: keine aktive `.planning/REQUIREMENTS.md` — wird bei nächstem `/gsd-new-milestone` frisch erzeugt
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v2.4-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v2.5-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v2.4 Kurzer-Tag-Slot-Kürzung** (shipped + archiviert 2026-07-05, Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06, override_closeout, Audit `passed`)
+- **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
 - **Current milestone**: — (zwischen Milestones)
 - **Current focus**: Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone`.
-- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.4 kein Bump — v2.4 rein additive dynamische Live-Berechnung, kein `BillingPeriodValueType` angefasst).
+- **Snapshot-Schema-Version**: **12** (v1.7 Bump 10→11; v1.8 Bump 11→12; v1.9–v2.5 kein Bump — v2.4 rein additive View-Layer-Kürzung; v2.5 Performance-Refactor + additive DTO-Erweiterung, kein `BillingPeriodValueType` angefasst).
 
 ## Current Position
 
-Phase: 53 — Freiwilligen-Abwesenheiten in Jahresansicht (COMPLETE)
-Plan: 01-03 alle grün (Wave 1→2→3 sequenziell)
-Status: **Phase 53 VERIFIED + INT-BESTÄTIGT (2026-07-06)** — 3 Pläne + 4 Executor-Commits/Plan (11 feat/test/docs Commits + 1 VERIFICATION-Commit + 1 phase.complete). Alle 4 Requirements (VAA-01..04) und 6 Decisions (D-53-01..06) erfüllt. Gates: `cargo test --workspace` (732 BE + 802 FE, 0 failed), `cargo clippy --workspace -- -D warnings` grün, `cargo build --target wasm32-unknown-unknown` grün. Deviations semantisch-neutral (Import-Style + zusätzliche Test-Fill-Site + WOP-03-Golden-Fix + DAO-Round-Trip-Cleanup + FE-Clippy exkludiert). INT-Roundtrip bestätigt Browser-Union-Liste sortiert + Format-konsistent. **Milestone v2.5 zu 100 % (2/2 Phasen, 8/8 Pläne). Ready für Milestone-Close.**
-Last activity: 2026-07-06 — Phase 53 complete + INT-Sightcheck bestätigt
+**Zwischen Milestones.** v2.5 abgeschlossen 2026-07-06 (verified_closeout, Milestone-Audit `passed`, 9/9 Requirements, 2/2 Phasen archiviert). Follow-up-Kandidaten für v2.6+ Backlog:
+
+- SDF-03 Semantik-Cleanup (`SpecialDayService::get_by_iso_year`)
+- DB-Indices (`booking(year,cw)`, `extra_hours(date_time)`, `working_hours(from_year,to_year)`)
+- F07-Doku für neue Pure-Helper aus Follow-Up #1+#2
+
+Nächste Iteration via `/gsd-new-milestone`.
+
+Last activity: 2026-07-06 — Milestone v2.5 complete + archived
 
 ## Quick Tasks Completed
 

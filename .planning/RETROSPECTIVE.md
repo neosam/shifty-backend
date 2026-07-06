@@ -2,6 +2,124 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v2.5 — Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+
+**Shipped:** 2026-07-06
+**Phases:** 2 (52–53) | **Plans:** 8 + 3 Follow-Ups
+
+### What Was Built
+
+- **Performance-Refactor** `BookingInformationServiceImpl::get_weekly_summary`:
+  Fünf strikt sequenzielle Waves (Golden-Snapshot-Fixture → `assemble_weeks`-
+  Extract → Year-Batch Trait-Methoden → `ReportingService::get_year` →
+  Bulk-Load-Präambel) plus drei Follow-Ups. Ergebnis: 2.33s → **0.12s**
+  Median (**19.4× Speedup**, WOP-04 <500ms um Faktor 4 übertroffen). 26 000
+  SQLite-Roundtrips pro Anfrage eliminiert.
+- **Follow-up #3 Jahresübergangs-Fix:** drei kalender-jahr-scharfe
+  Bulk-Methoden durch `_iso_year`-Varianten ersetzt; alte kalender-jahr-
+  Methoden bei ExtraHours + ShiftplanReport gelöscht (grep-verifiziert); 16
+  neue Regressions-Gates.
+- **VAA-Anzeige:** Freiwillige mit aktiver Absence-Period erscheinen jetzt
+  in `sales_person_absences` neben bezahlten Mitarbeitern. Fat-Backend-
+  Contract (Backend liefert Name + cap-gated `committed_voluntary` im DTO;
+  FE macht reinen Union-Merge + case-insensitive Sort). Rendering-Zeile
+  wörtlich unverändert.
+- **Docs synchron:** F03-booking.md/_de.md (VAA-01 DTO-Erweiterung),
+  F07-reporting-balance.md/_de.md (Year-Batch-Muster).
+
+### What Worked
+
+- **Byte-Identität als hartes Gate vor dem Refactor.** 8 Golden-Snapshot-
+  Fixtures wurden in Wave 1 abgesetzt, bevor irgendwas an der Semantik
+  gedreht wurde. Jede der drei Chain-Optimierungen (`special_day`, `toggle`,
+  `absence`) hat das Gate ohne einen einzigen Diff-Byte überstanden. Kein
+  stiller Semantik-Drift trotz aggressiver Umstrukturierung.
+- **Strikt sequenzielle Wave-Ordnung.** Waves 1→5 haben nie parallel
+  gearbeitet — `reporting.rs` und `booking_information.rs` wurden in jeder
+  Wave anders angefasst, Parallelität wäre Merge-Chaos gewesen.
+- **Follow-up-statt-Blocker in Wave 5.** Als Wave 5 mit 1.13s statt <0.5s
+  landete, hat der Plan explizit "Follow-Up statt Wave-6" vorgesehen. Die
+  zwei Follow-Ups haben 2.07× → 2.40× → 19.4× kumulativ geliefert, ohne die
+  Wave-5-SUMMARY neu zu schreiben.
+- **User-Report → Follow-Up #3 innerhalb des Milestones.** Der
+  Jahresübergangs-Bug wurde vom User im Betrieb gemeldet, reproduziert,
+  diagnostiziert und mit drei neuen `_iso_year`-Bulk-Methoden geschlossen —
+  noch im selben Milestone-Fenster.
+- **Fat Backend, Thin Client als Default für VAA.** Backend liefert fertig
+  geformte `SalesPersonAbsenceTO` mit cap-gated Formel-Wert; FE macht nur
+  Union-Merge + Sort. Konsistent mit v2.4-Präzedenz (D-51-02).
+- **Reference-Memory rechtzeitig konsultiert.** VFA-01 whole-week-out
+  (Phase 26) war die kanonische Sichtbarkeits-Semantik für VAA-03 —
+  gefunden über `[[]]`-Links + Milestone-Archive; keine neue Semantik
+  erfunden.
+
+### What Was Inefficient
+
+- **SC#4-Wortlaut vs. Semantik-Drift.** WOP-02 hat "1 pro Endpoint-Abruf"
+  gefordert. Wave 5 lieferte "konstante Anzahl statt N_persons × N_weeks"
+  — semantisch das Gemeinte, wörtlich verfehlt. Musste als Override
+  dokumentiert werden, dann von Follow-up #3 strukturell aufgelöst.
+  Lektion: quantitative SCs mit vorsichtigen Größenordnungen formulieren.
+- **Doku-Follow-ups nicht sofort.** Follow-Ups #1 + #2 haben zwei neue
+  Pure-Helper hinzugefügt, aber F07 nicht mit-aktualisiert. Beim
+  Milestone-Close als Tech-Debt aufgetaucht. Regel: Neue *pure* Helper
+  sind F-Doku-relevant auch bei unveränderter Formel.
+- **Wave-5-Erwartung zu hoch angesetzt.** Zielte auf <0.5s, lieferte 1.13s
+  — nicht falsch, aber unrealistisch für einen einzelnen Wave-Schritt.
+  Bessere Wave-Sizing-Heuristik: pro Wave einen konkreten
+  Round-Trip-Reduktions-Vektor formulieren, nicht die Gesamt-Latenz.
+
+### Patterns Established
+
+- **`_iso_year`-Bulk-Methoden.** Muster für alle Bulk-Loads, die im
+  `booking(year, calendar_week)`-ISO-Semantik-Kontext laufen. Range
+  `[ISO-Mo(Y,1), ISO-Su(Y,weeks(Y))+1d]`.
+- **Byte-Identity-Fixture als Refactor-Gate.** Golden-Snapshot-Test-Datei
+  vor dem Refactor, N Fixtures über alle Kante-Cases. Jede Wave muss N/N
+  grün halten. Diff-Toleranz 0.
+- **Pure In-Memory-Helper als drop-in-Ersatz für DAO-Chains.** "Year-
+  Scope-Preload + pure Fn" repliziert byte-identisch die Semantik einer
+  async DAO-Chain ohne ISO-vs-Kalender-Jahr-Trade-Offs.
+- **Twin-Struct Service ↔ TO für additive DTO-Erweiterung.** Service-
+  Struct + TO-Struct mit From-Impl-Kette; `#[serde(default)]`-Guard für
+  Legacy-Wire-Compat.
+- **INT-Roundtrip statt Browser-Automation für Rendering-Sightcheck.**
+  Dioxus-WASM-Signal-Propagation ist headless nicht zuverlässig
+  automatisierbar. Deshalb: FE-Logik per cargo-Tests + grep-Locks;
+  visuelle Konsistenz per Live-INT-Roundtrip mit User.
+
+### Key Lessons
+
+- **User-Bug-Reports können mitten im Milestone-Close landen.** Follow-up
+  #3 war so einer. Der Milestone-Prozess hat das gut abgefangen. Regel:
+  Nach Verifier-PASS ist ein Milestone nicht "eingefroren", solange
+  `/gsd-complete-milestone` nicht gelaufen ist. Zwischenzeitliche
+  User-Reports sind kein Blocker für den Close, sondern Follow-up-
+  Kandidaten mit klarer Gate-Kette.
+- **Performance-Refactor-Milestones brauchen Latenz-Baseline VOR Wave 1.**
+  Ohne die 2.33s-Baseline wäre die 19.4×-Erfolgsmetrik nicht
+  reproduzierbar messbar gewesen. Bei Performance-Milestones ist Wave 1
+  = Fixture + Baseline.
+- **Anti-Pattern: milestone_complete markiert = fertig.** GSD-Auto-Commit
+  hat Phase-52-VERIFIED und Phase-53-VERIFIED sauber committed, aber der
+  Close-Workflow hat trotzdem substanzielle Handarbeit gebraucht
+  (Archive-Files, PROJECT.md-Evolution, RETROSPECTIVE.md, Todos-Cleanup,
+  Debug-Session-Status). Regel: `/gsd-complete-milestone` ist eine
+  substanzielle User-Interaktion, kein Rubber-Stamp.
+
+### Cost Observations
+
+- **Model:** Ausschließlich Opus 4.7 (per Memory
+  `feedback_executor_model_opus`).
+- **Sessions:** 3 (v2.5-Plan-Session 2026-07-05; v2.5-Execute-Session
+  2026-07-05/06; Follow-up #3 + Milestone-Close 2026-07-06).
+- **Notable:** Follow-Ups #1 + #2 waren reine Latenz-Optimierungen ohne
+  neue Requirements. Follow-Up #3 war "Executor als Debugger" — vom User
+  gemeldeten Bug reproduziert, diagnostiziert und atomar geschlossen
+  (Debug-Session + drei `_iso_year`-Methoden + 16 Regressions-Gates).
+
+---
+
 ## Milestone: v1.4 — Committed Voluntary Capacity
 
 **Shipped:** 2026-06-25

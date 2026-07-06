@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-07-05
-last_milestone: v2.4 Kurzer-Tag-Slot-Kürzung (shipped 2026-07-05, Phase 51, 6/6 Requirements)
-current_milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+last_updated: 2026-07-06
+last_milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten (shipped 2026-07-06, Phasen 52-53, 9/9 Requirements, Audit passed)
+current_milestone: — (zwischen Milestones; nächste Iteration via `/gsd-new-milestone`)
 ---
 
 # Shifty — Project Charter
@@ -159,7 +159,96 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Zuletzt geshipt: v2.4 Kurzer-Tag-Slot-Kürzung (2026-07-05)
+## Zuletzt geshipt: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten (2026-07-06)
+
+**Geliefert (as built):** 9/9 Requirements (WOP-01..05 + VAA-01..04) über zwei
+Phasen (52 + 53, 8 Pläne + 3 Follow-Ups). Zwei zusammenhängende Ergänzungen an
+der Jahresübersicht (`/weekly_overview/`, Backend
+`GET /booking-information/weekly-resource-report/{year}`):
+
+**Performance (WOP).** `BookingInformationServiceImpl::get_weekly_summary`
+konsumiert jetzt Jahres-Aggregate statt sequenzieller Wochen-Service-Calls.
+Der Pre-Refactor-Pfad rief pro Endpoint-Abruf drei Domain-Services
+sequenziell ~55×3 = 165× auf, plus Per-(Person × Woche)-Chains für
+`special_day`, `toggle`, `absence_period` — in Summe ~26 000 SQLite-
+Roundtrips pro Anfrage. Der neue Pfad läuft in fünf strikt sequenziellen
+Waves (Golden-Snapshot-Fixture → `assemble_weeks`-Extract → Year-Batch
+Trait-Methoden → `ReportingService::get_year` → `get_weekly_summary`-
+Bulk-Load-Präambel) plus drei Follow-Ups, die die verbliebenen Chain-A/B/C-
+Preloads auf Year-Scope heben und einen Jahresübergangs-Bug schließen. End-
+to-End-Median **2.33s → 0.12s (19.4× Speedup)**; WOP-04-Ziel <500ms um
+Faktor 4 übertroffen. Byte-Identität durch 8 Golden-Snapshot-Fixtures über
+Feiertage/ShortDays/Volunteer-Absencen/CVC-06-Cap/`shortday_gate.active_from`-
+on/off gewährleistet. `get_week`-Signatur unverändert (dünner Wrapper über
+`assemble_weeks`).
+
+**Follow-up #3 Jahresübergangs-Fix.** User-Report reproduzierte einen
+paid_hours/required_hours-Drift in KW 1 / KW 53, verursacht durch drei
+kalender-jahr-scharfe Bulk-Methoden mit falscher Range vs.
+`booking(year, calendar_week)`-ISO-Semantik. Fix: neue `_iso_year`-Varianten
+mit Range `[ISO-Mo(Y,1), ISO-Su(Y,weeks(Y))+1d]`. Alte kalender-jahr-
+Methoden bei ExtraHours + ShiftplanReport gelöscht (grep-verifiziert). 16
+neue Regressions-Gates in `reporting_year_boundary.rs` +
+`booking_information_weekly_summary_year_boundary*.rs`. Latenz 0.09s
+unverändert-gut. Löste den Phase-52-SC#4-Override (55 vs. 1
+`special_day.get_by_week`-Calls) formal auf.
+
+**Freiwilligen-Sichtbarkeit (VAA).** In `sales_person_absences` der
+Jahresansicht erscheinen jetzt Freiwillige mit aktiver
+Vacation/SickLeave/UnpaidLeave-Period zusätzlich zu bezahlten Mitarbeitern
+mit `absence_hours`. Fat-Backend-Contract (D-53-05/06): Backend liefert
+Name + cap-gated `committed_voluntary` fertig im DTO
+(`WeeklySummaryTO.sales_person_absences: Arc<[SalesPersonAbsenceTO]>`,
+additiv mit `#[serde(default)]`-Legacy-Wire-Compat-Guard). Sichtbarkeits-
+kriterium = exakt `absent_volunteer_ids` aus VFA-01 whole-week-out (Phase
+26). Stunden-Formel D-53-02 (`Σ filter(sales_person_id == sp_id && (cap ||
+expected == 0)).map(committed_voluntary)`) an beiden Fill-Sites
+(`get_weekly_summary` + `get_summery_for_week`) identisch gepinnt.
+`WorkingHoursPerSalesPerson` (Bezahlten-Vertrag) unangetastet — Regression-
+Lock. Frontend macht reinen Union-Merge in
+`state::WeeklySummary::from(&WeeklySummaryTO)` (Bezahlten-Loop unverändert +
+Freiwilligen-`extend` + case-insensitive Name-Sort). Rendering-Zeile in
+`page/weekly_overview.rs:126` wörtlich unverändert (grep-verifiziert). INT-
+Browser-Sightcheck durch User 2026-07-06 bestätigt visuelle Konsistenz
+Freiwillig↔Bezahlt.
+
+**Verifikation:** Phase 52 VERIFIED PASS (5/5 Success Criteria, 1
+dokumentierter Override, `behavior_unverified: 0`); Phase 53 VERIFIED PASS
+(10/10 must-haves inkl. INT-Sightcheck); Milestone-Audit `passed` (9/9
+Requirements, keine Cross-Phase-Gaps, 2/2 E2E-Flows grün, 4 Tech-Debt-Items
+nicht-blockierend). Backend `cargo test --workspace` = 713+ Unit + 64+
+Integration, 0 failed; `cargo clippy --workspace -- -D warnings` = 0
+warnings. FE `cargo test` = 802 passed; WASM-Build = exit 0. VAA-Backend-
+Tests = 3/3 grün. Byte-Identity-Fixtures = 8/8 grün.
+
+**Snapshot-Schema-Version:** bleibt 12 (grep-verifiziert; kein
+`billing_period.value_type` angefasst). Keine Migration. Keine neuen
+Cargo-Deps. **Docs synchron** in beiden Sprachen: F03-booking.md/_de.md
+in 5aed42c erweitert um `SalesPersonAbsenceTO`/`sales_person_absences`;
+F07-reporting-balance.md/_de.md in 4e85a2a um Year-Batch-Muster ergänzt.
+
+**Closeout:** verified_closeout — beide Phasen `phase_complete: true` +
+`verification_status: passed`; Milestone-Audit `passed` mit 1
+dokumentiertem Override (P52 SC#4 Wortlaut vs. Semantik, in Follow-up #3
+strukturell aufgelöst). Kein git tag hier — SemVer-Tag via `/release-version`.
+
+**Tech-Debt für v2.6+ Backlog (nicht-blockierend):**
+
+- SDF-03-Semantik-Cleanup: `SpecialDayService::get_by_iso_year` als
+  Follow-up, um die 55 `special_day.get_by_week`-Calls in `assemble_weeks`
+  auf konstant 2 zu reduzieren. Nicht latenz-relevant.
+- DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`,
+  `working_hours(from_year, to_year)` — RESEARCH-Q3 v2.5. Kein Bottleneck
+  mehr nach Follow-up #2.
+- F07-Doku-Nachschärfung: neue Pure-Helper `derive_hours_for_week_pure` +
+  `build_derived_holiday_map_for_week_pure` (aus Follow-Ups #1 + #2) in
+  `docs/features/F07-reporting-balance.{md,_de.md}` dokumentieren.
+
+**Archiv:** `milestones/v2.5-ROADMAP.md`, `milestones/v2.5-REQUIREMENTS.md`,
+`milestones/v2.5-MILESTONE-AUDIT.md`, `milestones/v2.5-phases/`.
+
+<details>
+<summary>✅ v2.4 Kurzer-Tag-Slot-Kürzung — SHIPPED 2026-07-05 (Phase 51)</summary>
 
 **Geliefert (as built):** 6/6 Requirements (SHC-01..SHC-06) über eine Phase (51,
 8 Pläne). An Kurzen Tagen (`special_day.ShortDay` mit Cutoff-Uhrzeit) werden
@@ -189,26 +278,16 @@ Cross-Phase Wirings, 6/6 E2E-Flows, 2 non-blocking Warnings). Backend `cargo
 test --workspace` + `cargo clippy --workspace -- -D warnings` grün; FE `cargo
 build --target wasm32-unknown-unknown` + FE-Clippy `-D warnings` grün.
 
-**Bonus-Bugfixes (pre-existing, nicht in Requirements):** Filter-statt-Clip in
-`shiftplan.rs` + `booking_information.rs` (ShortDay-Slots wurden ganz
-ausgefiltert statt am Cutoff gekürzt); `/60.0`-SQL-Bug in alten
-Chain-D-SUM-Queries (via Delete-Branch bei Rust-Layer-Refactor);
-`ToggleService`-Full-Context-Bypass für internal-Aggregate-Konsumenten
-(Gap-Closure via Fix-Commits `f654613`, `7f21bd4`, `1b863e8`, `5aee47e`,
-`9cbe151`).
-
-**Snapshot-Schema-Version:** bleibt 12 (grep-verifiziert; kein
-`billing_period.value_type` angefasst). Migration: additiver Toggle-Seed
-`20260704000001_seed-shortday-slot-clipping-toggle.sql` (`INSERT OR IGNORE`,
-`enabled=0`, `value=NULL`). Keine neue Cargo-Dep.
+**Snapshot-Schema-Version:** bleibt 12. Migration: additiver Toggle-Seed
+`20260704000001_seed-shortday-slot-clipping-toggle.sql`. Keine neue Cargo-Dep.
 
 **Closeout:** override_closeout (Milestone-Audit `passed` mit zwei non-blocking
-Warnings W1 P07-SUMMARY-Doc-Drift + W2 latent `From<&SlotTO> for Slot` ohne
-`effective_to`-Awareness; historische Deferred-Items acknowledged). Kein
-git tag hier — SemVer-Tag via `/release-version`.
+Warnings; historische Deferred-Items acknowledged).
 
 **Archiv:** `milestones/v2.4-ROADMAP.md`, `milestones/v2.4-REQUIREMENTS.md`,
 `milestones/v2.4-MILESTONE-AUDIT.md`, `milestones/v2.4-phases/`.
+
+</details>
 
 <details>
 <summary>✅ v2.3 PDF-Export — Browser-Look & Download-Button — SHIPPED 2026-07-04 (Phasen 49–50)</summary>
@@ -363,74 +442,71 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
-## Current Milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+## Current Milestone: — (zwischen Milestones)
 
-**Goal:** Die Jahresübersicht (`/weekly_overview/`) reagiert sub-Sekunde und
-listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
+Nächste Iteration wird via `/gsd-new-milestone` gestartet. Aktuell keine
+aktive Milestone-Requirements-Datei; siehe
+`.planning/milestones/v2.5-REQUIREMENTS.md` als jüngste Referenz.
 
-**Target features:**
-- Performance-Refactor von
-  `BookingInformationServiceImpl::get_weekly_summary`: Bulk-Load für
-  `special_days` und `shiftplan_reports` fürs ganze Jahr; neue
-  `reporting_service.get_year`-Aggregation, die die pro-Woche-Iteration
-  ersetzt. Live-korrekt, kein Cache.
-- Freiwilligen-Abwesenheiten in `sales_person_absences`: Freiwillige mit
-  Vacation/SickLeave/UnpaidLeave in einer Kalenderwoche erscheinen in der
-  Absencen-Liste der Jahresansicht (heute nur bezahlte Mitarbeiter). Analog zu
-  bereits berechneter VFA-01-Whole-Week-Out-Logik.
+**Sichtbare Follow-up-Kandidaten aus v2.5** (Tech-Debt, nicht-blockierend,
+siehe `milestones/v2.5-MILESTONE-AUDIT.md`):
 
-**Key context:**
-- Ergebnis der Perf-Optimierung muss **byte-identisch** zur alten
-  Wochen-Iteration sein (Property-Test als hartes Korrektheits-Gate).
-- Alle Chain-C/CVC-06/ShortDay-Tests bleiben grün.
-- **Kein Cache-Layer** — Live-Korrektheit ist Pflicht (User schauen sofort
-  nach Absence-Eintrag rein).
-- **Snapshot-Schema bleibt 12** — keine `billing_period.value_type`-
-  Änderungen erwartet.
-- **Fat Backend, Thin Client** — Freiwilligen-Absencen liefert das Backend
-  fertig geformt im DTO; FE rendert nur.
-- Beide Features hängen am selben Service (`booking_information.rs`).
-  Reihenfolge: Freiwilligen-Feature idealerweise **nach** dem Refactor.
+- SDF-03-Semantik-Cleanup: `SpecialDayService::get_by_iso_year` (analog zu
+  den Follow-up-#3 Bulk-Methoden) würde die 55
+  `special_day.get_by_week`-Calls in `assemble_weeks` auf konstant 2
+  reduzieren. Nicht latenz-relevant.
+- DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`,
+  `working_hours(from_year, to_year)` — RESEARCH-Q3 v2.5. Kein Bottleneck
+  mehr nach Follow-up #2.
+- F07-Doku: Follow-Ups #1+#2 haben die neuen Pure-Helper
+  (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`)
+  NICHT in `docs/features/F07-reporting-balance.{md,_de.md}` dokumentiert.
+  Balance-Formel selbst ist unverändert dokumentiert.
 
 Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt
 separat via `/gsd-plan-phase 999.1`.
 
 ## Current State
 
-**v2.4 shipped 2026-07-05** (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06,
-override_closeout, Audit `passed`). Geliefert: dynamische View-Layer-Kürzung
-an ShortDays über die kanonische pure Value-Methode `Slot::clip_to` auf
-`service::slot::Slot`; vier BE-Aggregat-Ketten (Chain A' BlockService, Chain B
-ShiftplanWeek/PDF, Chain C BookingInformation, Chain D ShiftplanReport
-Rust-Layer-Refactor) gaten am `shortday_gate::should_clip`;
-Admin-konfigurierbarer Stichtag `shortday_slot_clipping_active_from` (ISO-Datum
-via `ToggleService`, Präzedenz HCFG-02) schützt historische Balance-Views; DTO
-`ShiftplanSlotTO.effective_to` (Wrapper, D-51-09) trägt geclippten Wert ans FE +
-PDF, `SlotTO` bleibt bidirektional roh; FE-Loader collapst `effective_to` in
-`state::Slot.to`, damit WeekView + PDF-Renderer automatisch geclippte Werte
-sehen (Fat Backend, Thin Client — grep-verifiziert kein `clip_to`-Call im FE);
-Admin-Settings Card 2b analog HCFG-02-Blueprint + 6 neue i18n-Keys de/en/cs.
-Chain-D-Rust-Layer-Refactor räumte pre-existing `/60.0`-SQL-Bug in alten
-SUM-Queries ab; Filter-statt-Clip-Bug in `shiftplan.rs` + `booking_information.rs`
-gefixt; `ToggleService`-Full-Context-Bypass für internal-Aggregate-Konsumenten
-nachträglich als Gap-Closure gefixt (`f654613`, `7f21bd4`, `1b863e8`, `5aee47e`,
-`9cbe151`). Kein Snapshot-Bump (bleibt 12), keine neue Cargo-Dep, nur additive
-Toggle-Seed-Migration. Details: `milestones/v2.4-ROADMAP.md` / `-REQUIREMENTS.md`
-/ `-MILESTONE-AUDIT.md`. **Zwischen Milestones** — nächste Iteration via
+**v2.5 shipped 2026-07-06** (Phasen 52 + 53, 8 Pläne + 3 Follow-Ups, 9/9
+Requirements WOP-01..05 + VAA-01..04, verified_closeout, Milestone-Audit
+`passed`). Zwei zusammenhängende Ergänzungen an der Jahresübersicht:
+**Performance** — `get_weekly_summary` konsumiert Jahres-Aggregate statt
+sequenzieller Wochen-Service-Calls; drei Chain-A/B/C-Preloads
+(`special_day`, `toggle`, `absence_period`) auf Year-Scope gehoben;
+26 000 SQLite-Roundtrips pro Anfrage eliminiert; End-to-End-Median
+**2.33s → 0.12s (19.4×)**, WOP-04 <500ms um Faktor 4 übertroffen; 8
+Byte-Identity-Fixtures grün; Follow-up #3 hat einen Jahresübergangs-Bug
+(paid_hours-Drift KW 1 / KW 53 durch Kalender-Jahr vs. ISO-Woche) mit
+drei `_iso_year`-Bulk-Methoden geschlossen (16 neue Regressions-Gates).
+**Freiwilligen-Sichtbarkeit (VAA)** — `sales_person_absences` enthält
+jetzt Union aus bezahlten Mitarbeitern und Freiwilligen mit aktiver
+Vacation/SickLeave/UnpaidLeave-Period; Backend liefert Name + cap-gated
+`committed_voluntary` fertig im DTO (D-53-02-Formel identisch an beiden
+Fill-Sites gepinnt); FE macht reinen Union-Merge + case-insensitive
+Sort; Rendering-Zeile wörtlich unverändert; INT-Browser-Sightcheck durch
+User bestätigt. Snapshot-Version bleibt 12, keine Migration, keine
+neuen Cargo-Deps. Docs synchron (F03 + F07, EN + DE). Details:
+`milestones/v2.5-ROADMAP.md` / `-REQUIREMENTS.md` / `-MILESTONE-AUDIT.md`
+/ `-phases/`. **Zwischen Milestones** — nächste Iteration via
 `/gsd-new-milestone`.
 
-Zuvor: **v2.3 PDF-Export — Browser-Look & Download-Button** (shipped 2026-07-04,
-Phasen 49–50, 5/5 Requirements PDF-01..PDF-05, override_closeout, Post-Ship-Hotfix
-v2.3.1); **v2.2 Aufräumen, WebDAV-Export & Wochentag-Muster** (shipped 2026-07-03,
-Phasen 43–48, 16/16 Requirements, Audit `passed`); **v2.1 Schichtplan- &
-Reporting-Erweiterungen** (2026-07-02, Phasen 39–42); **v1.11 Stabilisierung &
-UX-Politur** (2026-07-01); **v1.10 Feiertage** (2026-06-30); **v1.9
+Zuvor: **v2.4 Kurzer-Tag-Slot-Kürzung** (shipped 2026-07-05, Phase 51,
+6/6 Requirements SHC-01..SHC-06, override_closeout, Audit `passed`);
+**v2.3 PDF-Export — Browser-Look & Download-Button** (shipped 2026-07-04,
+Phasen 49–50, 5/5 Requirements PDF-01..PDF-05, override_closeout,
+Post-Ship-Hotfix v2.3.1); **v2.2 Aufräumen, WebDAV-Export &
+Wochentag-Muster** (shipped 2026-07-03, Phasen 43–48, 16/16 Requirements,
+Audit `passed`); **v2.1 Schichtplan- & Reporting-Erweiterungen**
+(2026-07-02, Phasen 39–42); **v1.11 Stabilisierung & UX-Politur**
+(2026-07-01); **v1.10 Feiertage** (2026-06-30); **v1.9
 Admin-Impersonation** (2026-06-29); **v1.8 HR-UX** (2026-06-29); **v1.7
-Feiertage/VFA** (2026-06-29); **v1.6 Paid-Capacity** (2026-06-27) — alle
-archiviert (siehe MILESTONES.md).
+Feiertage/VFA** (2026-06-29); **v1.6 Paid-Capacity** (2026-06-27) —
+alle archiviert (siehe MILESTONES.md).
 
 **Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12;
-v1.9–v2.4 kein Bump — v2.4 rein additive Live-Berechnung, kein
+v1.9–v2.5 kein Bump — v2.4 rein additive View-Layer-Kürzung, v2.5
+Performance-Refactor + additive DTO-Erweiterung, kein
 `BillingPeriodValueType` angefasst).
 
 <details>
@@ -506,6 +582,8 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v2.3-ROADMAP.md`, `milestones/v2.3-REQUIREMENTS.md`.
 - v2.4 Kurzer-Tag-Slot-Kürzung — shipped 2026-07-05 (Phase 51).
   Archiv: `milestones/v2.4-ROADMAP.md`, `milestones/v2.4-REQUIREMENTS.md`, `milestones/v2.4-MILESTONE-AUDIT.md`, `milestones/v2.4-phases/`.
+- v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten — shipped 2026-07-06 (Phasen 52–53).
+  Archiv: `milestones/v2.5-ROADMAP.md`, `milestones/v2.5-REQUIREMENTS.md`, `milestones/v2.5-MILESTONE-AUDIT.md`, `milestones/v2.5-phases/`.
 
 Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
 
