@@ -192,7 +192,13 @@ existierendem Role-Gate), `shifty-dioxus/Dioxus.toml` (Proxy für neuen Endpoint
 MEMORY `feedback_dioxus_proxy_for_new_backend_endpoints.md`),
 `shifty-dioxus/i18n/{de,en,cs}/*.ftl` (Row-Labels).
 
-**Plans:** TBD
+**Plans:** 6 plans
+- [ ] 54-01-PLAN.md — Migrations + DAO-Skelett (rebooking_batch/entry, extra_hours.source, toggle-seed)
+- [ ] 54-02-PLAN.md — RebookingBatchService (Basic-Tier, HR-gated CRUD)
+- [ ] 54-03-PLAN.md — VoluntaryStatsService (BL) + pure fns F1/F2 + Property-Test VOL-ACCT-03
+- [ ] 54-04-PLAN.md — REST-Endpoint GET /report/{id}/voluntary-stats + VoluntaryStatsTO
+- [ ] 54-05-PLAN.md — Frontend Row + Loader + i18n de/en/cs
+- [ ] 54-06-PLAN.md — Docs-Freshness (F14 neu, F07/F08/02-service-tiers/03-data-model + Diagramme)
 
 **UI hint**: yes
 
@@ -406,7 +412,7 @@ Dry-Run-Vorschau-Header).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 54. Data-Model + Voluntary Statistics (F1 + F2) | 0/? | Not started | - |
+| 54. Data-Model + Voluntary Statistics (F1 + F2) | 0/6 | Not started | - |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 0/? | Not started | - |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
 
