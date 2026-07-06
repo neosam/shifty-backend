@@ -5,6 +5,8 @@ pub mod booking_information;
 #[cfg(test)]
 pub mod booking_information_vfa;
 #[cfg(test)]
+pub mod booking_information_vaa;
+#[cfg(test)]
 pub mod booking_information_chain_c;
 #[cfg(test)]
 pub mod booking_information_weekly_summary_year_batch;
