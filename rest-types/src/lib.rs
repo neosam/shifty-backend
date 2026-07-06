@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "service-impl")]
-use service::booking_information::{BookingInformation, WeeklySummary, WorkingHoursPerSalesPerson};
+use service::booking_information::{
+    BookingInformation, SalesPersonAbsence, WeeklySummary, WorkingHoursPerSalesPerson,
+};
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 #[cfg(feature = "service-impl")]
@@ -986,6 +988,28 @@ impl From<&WorkingHoursPerSalesPerson> for WorkingHoursPerSalesPersonTO {
     }
 }
 
+/// Freiwilligen-Absence-DTO fuer die Jahresansicht (VAA-01, D-53-01).
+///
+/// Traeger fuer die pro-Woche gefuellten Freiwilligen-Absencen im
+/// `WeeklySummaryTO.sales_person_absences`-Feld. Plan 02 fuellt die Liste
+/// im Backend-Assembly; Plan 03 konsumiert sie im FE-Union-Merge.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SalesPersonAbsenceTO {
+    pub sales_person_id: Uuid,
+    pub name: Arc<str>,
+    pub hours: f32,
+}
+#[cfg(feature = "service-impl")]
+impl From<&SalesPersonAbsence> for SalesPersonAbsenceTO {
+    fn from(sales_person_absence: &SalesPersonAbsence) -> Self {
+        Self {
+            sales_person_id: sales_person_absence.sales_person_id,
+            name: sales_person_absence.name.clone(),
+            hours: sales_person_absence.hours,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WeeklySummaryTO {
     pub year: u32,
@@ -1004,6 +1028,11 @@ pub struct WeeklySummaryTO {
     pub saturday_available_hours: f32,
     pub sunday_available_hours: f32,
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPersonTO]>,
+    /// Freiwilligen-Absencen der Woche (VAA-01, D-53-01). `#[serde(default)]`
+    /// haelt Legacy-JSON-Responses ohne dieses Feld wire-kompatibel
+    /// (Pitfall-3-Guard, Praezedenz: committed_voluntary_hours oben).
+    #[serde(default)]
+    pub sales_person_absences: Arc<[SalesPersonAbsenceTO]>,
 }
 #[cfg(feature = "service-impl")]
 impl From<&WeeklySummary> for WeeklySummaryTO {
@@ -1029,6 +1058,12 @@ impl From<&WeeklySummary> for WeeklySummaryTO {
                 .map(|working_hours_per_sales_person| {
                     WorkingHoursPerSalesPersonTO::from(working_hours_per_sales_person)
                 })
+                .collect::<Vec<_>>()
+                .into(),
+            sales_person_absences: weekly_summary
+                .sales_person_absences
+                .iter()
+                .map(SalesPersonAbsenceTO::from)
                 .collect::<Vec<_>>()
                 .into(),
         }
