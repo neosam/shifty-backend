@@ -1,7 +1,7 @@
 # Phase 52 Jahresübergang-Regression — Diagnose
 
 **Datum:** 2026-07-06
-**Session:** `.planning/debug/phase-52-jahresübergang.md`
+**Session:** `.planning/debug/phase-52-jahresuebergang.md`
 **Reporter:** User (Test-Env)
 **Kernproblem:** KW 1 (Y+1) `paid` **UND** `required` divergieren; KW 53 mindestens `required`.
 **Verdikt (kurz):** **REGRESSION durch Phase 52.** Bestätigt für `paid_hours`. `required_hours`-Diff nicht in Isolation reproduziert — braucht ggf. echte Test-Env-Daten.

@@ -3,7 +3,7 @@ status: diagnosed
 trigger: "KW 1 (Y+1): paid+required differ zwischen Old/New. KW 53: required differ. User im Test-Env geprüft. Ungewiss: Regression durch Phase 52 oder pre-existing?"
 created: 2026-07-06T00:00:00Z
 updated: 2026-07-06T00:00:00Z
-followup: "sessions/2026-07-06-phase-52-jahresübergang/DIAGNOSIS-2026-blindsweep.md — required_hours-Bug BESTÄTIGT (SpecialDay-Bucket-Wahl, disjunkt vom ExtraHours-Bug)"
+followup: "sessions/2026-07-06-phase-52-jahresuebergang/DIAGNOSIS-2026-blindsweep.md — required_hours-Bug BESTÄTIGT (SpecialDay-Bucket-Wahl, disjunkt vom ExtraHours-Bug)"
 ---
 
 ## Current Focus
@@ -98,7 +98,7 @@ fix: |
   Bevorzugt: DAO-Range in extra_hours.rs::find_by_year erweitern auf
   ISO-Wochenjahr-Bereich statt Kalender-Jahr. Nur ±3 Tage extra pro Jahr.
   NOCH NICHT IMPLEMENTIERT — wartet auf User-Greenlight.
-  Details siehe `.planning/debug/sessions/2026-07-06-phase-52-jahresübergang/DIAGNOSIS.md`.
+  Details siehe `.planning/debug/sessions/2026-07-06-phase-52-jahresuebergang/DIAGNOSIS.md`.
 verification: |
   Reproduktions-Tests in service_impl/src/test/reporting_year_boundary.rs
   (2 Tests green, dokumentieren den Bug-Zustand).
@@ -108,4 +108,4 @@ files_changed:
   - service_impl/src/test/reporting_year_boundary.rs (neu)
   - service_impl/src/test/booking_information_weekly_summary_year_boundary.rs (neu)
   - service_impl/src/test/mod.rs (module registrations)
-  - .planning/debug/sessions/2026-07-06-phase-52-jahresübergang/DIAGNOSIS.md (neu)
+  - .planning/debug/sessions/2026-07-06-phase-52-jahresuebergang/DIAGNOSIS.md (neu)
