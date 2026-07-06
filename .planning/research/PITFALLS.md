@@ -1,403 +1,417 @@
-# Pitfalls Research
+# Pitfalls Research — v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 
-**Domain:** Adding week-locking (WST-01) and attendance-averaging (AVG-01) to an existing Rust/Axum/SQLite shift-planning system (Shifty v2.1)
-**Researched:** 2026-07-01
-**Confidence:** HIGH — derived from direct code inspection of the live codebase, known CI failure patterns from MEMORY.md, and established v2.1 project constraints from PROJECT.md and CLAUDE.md.
+**Domain:** Adding voluntary-hours reconciliation (F1–F5) to Shifty's existing payroll-adjacent balance/reporting stack (Rust/Axum/SQLite, snapshot-versioned billing periods, range-based absences, weekly cron infrastructure).
+**Researched:** 2026-07-06
+**Confidence:** HIGH — derived from direct inspection of existing precedents (HCFG-02 Stichtag, VAC-OFFSET-01 HR-only redaction, VFA-01 whole-week-out, CVC-06 cap gating, WOP-Follow-up #3 ISO/Gregorian bug), `.planning/PROJECT.md`, `CLAUDE.md` snapshot-bump contract, `v1.7-REQUIREMENTS.md` HCFG-02, `v2.5-REQUIREMENTS.md` VAA cap-gated formula, `v2.2-REQUIREMENTS.md` EXP WebDAV cron precedent.
+
+The pitfalls below are grouped by severity. Every one is voluntary-reconciliation-specific — none are generic "Rust deadlock" boilerplate. Each names existing precedents the planner should reuse, and calls out which Requirement should exclude the trap and which Success Criterion should verify it.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: ISO-Week Year vs. Calendar Year Confusion in the Lock Key
+### Pitfall 1: Doppel-Zählung — F4-Rebooking-ExtraHours landen zusätzlich im F1-Ist und/oder im F2-Soll-Nutz
 
 **What goes wrong:**
-The `(year, calendar_week)` key used across the codebase — `BookingEntity.year: u32`, `WeekMessageEntity.year: u32 / calendar_week: u8`, and the new week-status table — must store the **ISO week year**, not the Gregorian calendar year. Jan 1 of any year can fall in ISO week 52 or 53 of the *previous* ISO year. If week-status rows are keyed by Gregorian year, then:
-- Dec 29–31, 2025 (which are in ISO week 1, **2026**) would be keyed `(2025, 53)` by one code path and `(2026, 1)` by another.
-- The lock gate would fail to find the lock row for those days, silently allowing writes to a "locked" week.
-- Queries on "week 53" in a year with only 52 ISO weeks will return zero rows rather than an error, masking bugs.
+F4 automatically writes two `ExtraHours` rows per rebooking: `−N Kategorie VolunteerWork` und `+N Kategorie ExtraWork` (or similar). Downstream aggregates that scan `ExtraHours`:
+- **F1 Ist-Statistik** (`Σ VolunteerWork hours / weeks_with_working_hours`): if the F4 `−N` correction row is *not* excluded, the average drops artificially every time HR "rescues" a capped employee — a person who legitimately worked 8h voluntary then rebooked 4h looks like they only did 4h.
+- **Balance / reporting.rs**: the existing balance formula sums extra_hours by category; if F4 shifts hours between two categories that both feed into `overall_hours`, the balance change happens twice (once via `−N` and once via `+N` of a different category with a different sign convention).
+- **F2 Soll-Nutz-Summierung**: F2's "committed_voluntary × Vertragswochen" is the Soll side. If F2 accidentally computes Ist by summing `VolunteerWork` extra_hours (including the F4 correction rows), the "verbleibendes Freiwilliges Konto" widens each time HR reconciles — the very act of "using" volunteer credit destroys the record of it having been given.
 
 **Why it happens:**
-`ShiftyDate::from_ymd` correctly calls `time::Date::to_iso_week_date()` which returns the ISO week year. But the raw `(year: u32, week: u8)` fields on REST DTOs and DAO entities are ambiguous — any caller that supplies `time::now().year()` (the Gregorian year) instead of the ISO week year when constructing the key will silently insert a wrong row. The existing `week_message` DAO uses the same `(year, calendar_week)` pattern, and that was the model WST-01 will follow. Week 53 only exists in some years (e.g., 2026 has 53 ISO weeks); a query for `(2027, 53)` against a 52-week year returns silently empty.
+`ExtraHours` is a single write-once ledger with a single `Category` enum. The v1.4 CVC precedent already showed this pattern is brittle: `committed_voluntary` was intentionally kept as a *separate* term on `EmployeeWorkDetails` (Variante B) precisely to avoid the trap of computing it via `extra_hours` sums. F4 breaks that decoupling if it stores rebooking deltas in the same ledger without a distinguishing marker. Precedents:
+- v1.5 UV-01..05 double-count fix (Snapshot bump 9→10) — the derived-absences / by_week fix cost a snapshot version bump because `vacation_days` was silently being counted twice after extra_hours→Absence conversion.
+- The v1.7 HOL-03 / VFA-02 asymmetry (holidays touch balance but not committed 🎯) is documented as a *regression guard* — with a CI test — because balance-formula authors reflexively forget which subset feeds each aggregate.
 
 **How to avoid:**
-- Derive the year field **exclusively** from `ShiftyDate::from_ymd(...).year()` or `ShiftyWeek::new(...)`, never from `date.year()` (Gregorian).
-- Add a DB-level CHECK constraint on the migration: `CHECK (calendar_week >= 1 AND calendar_week <= 53)`, plus a SQLite trigger or application-level validation that rejects `calendar_week = 53` when `year` does not have 53 ISO weeks (`time::util::weeks_in_year(year) < 53`).
-- Add a unit test: create status for (2020, 53) — a year with 53 weeks — and verify that `ShiftyWeek::new(2020, 53)` does not wrap to (2021, 1). Also test that `(2021, 53)` is rejected (2021 has only 52 ISO weeks).
-- In the REST DTO, document that `year` is the ISO week year.
+- Store F3/F4/F5 rebookings in a **dedicated `rebooking_batch_entry` table** with a foreign key to `rebooking_batch(kind)`, and add a **join-only column** `extra_hours.rebooking_batch_entry_id: Option<i64>` (or a `source: TEXT NOT NULL DEFAULT 'manual'` marker column). Every downstream aggregate — `reporting.rs::balance`, `booking_information.rs::get_weekly_summary`, F1 statistic, F2 Nutz-Summierung — MUST explicitly filter this marker.
+- Add three property tests up front, each of which mutates only via a rebooking API and asserts:
+  1. `balance_before == balance_after` (rebooking is balance-neutral — this is the *definition* of a rebooking).
+  2. `sum(F1_Ist)_before == sum(F1_Ist)_after` (rebooking preserves the historical volunteer record).
+  3. `F2_Soll_Nutz_before == F2_Soll_Nutz_after` (rebooking does not artificially widen the freiwilliges Konto).
+- Reuse the v1.5-Snapshot-9→10 lesson: single source of truth for each aggregate + explicit `by_week` split. Do **not** let two code paths compute F1 differently.
 
 **Warning signs:**
-- Lock gate passes for Dec 29–31 even though the week is locked.
-- Unit tests with `year = 2025, week = 53` succeed even though 2025 has only 52 ISO weeks (the SQLite query returns 0 rows).
-- Clippy or compiler does not catch this — it is a semantic, not syntactic, error.
+- Balance drift in existing golden-snapshot fixtures (WOP-03 style, 8 fixtures) after touching `reporting.rs` or `booking_information.rs`.
+- Any F4/F5 test that has to "compensate" or "reset" `ExtraHours` before asserting F1/F2 — that's a smell the aggregate isn't filtering rebookings out.
+- Test cases where "run F4 twice" changes user-visible numbers (idempotency is broken → double-count is happening).
 
-**Phase to address:**
-WST-01 data-model + migration phase (first WST-01 phase). Verification gate must test week-53 and year-boundary weeks explicitly.
+**Prevention:** Requirement should include a **Doppel-Zählungs-Ausschluss-Regel** ("F1 Ist-Statistik zählt `source != 'rebooking'` ExtraHours, F4/F5 Rebooking-Deltas sind für F1 unsichtbar; äquivalent für F2 Soll-Nutz"). Success Criterion: three property tests above, plus **golden-snapshot re-run** across all 8 existing WOP-03 fixtures (must remain byte-identical if no rebookings exist).
+
+**Which Phase:** The dedicated table + marker column MUST be introduced in the *first* backend phase (data-model), before F1/F2/F3/F4/F5. Any later phase that touches an aggregate MUST prove the filter is in place.
 
 ---
 
-### Pitfall 2: Lock Gate Check Outside the Write Transaction (Read-Check-Then-Write Race)
+### Pitfall 2: Snapshot-Vertragsbruch — F4 verändert die Balance-Formel-Input-Set ohne Bump 12→13
 
 **What goes wrong:**
-If the lock-status check is a separate DB read that happens *before* `BookingService::create` or `ShiftplanEditService::book_slot_with_conflict_check` opens/uses its transaction, two concurrent requests can both pass the lock check and both proceed to write — defeating the lock.
-
-SQLite with the project's async pool (sqlx) serializes writes but only within a single connection. Two concurrent HTTP requests using separate pooled connections can interleave: both read `status = Planned`, both proceed, both write their bookings.
+`build_and_persist_billing_period_report()` reads `ExtraHours` at write time and materialises per-value_type totals into `billing_period_sales_person`. If F4 runs a weekly cron that writes rebooking `ExtraHours` rows **between** the reporting week and the eventual billing-period-close, the persisted snapshot values will disagree with a fresh re-computation — a validator running the live formula against an old snapshot will see drift indistinguishable from a real data bug. `CLAUDE.md` § "Billing Period Snapshot Schema Versioning" is explicit: any change to the input set of an existing `value_type` REQUIRES a bump. F4 introduces exactly that: a new source of ExtraHours rows that feeds existing value_types (`extra_hours_by_category`, `overall_hours`, `balance`).
 
 **Why it happens:**
-The existing write paths pass `Option<Self::Transaction>` through all layers. A callee that does `self.lock_service.get_status(week, tx.clone().into()).await?` *before* passing `tx` to the actual write is safe — but only if the lock is read inside the *same* transaction that will do the write, using `BEGIN IMMEDIATE` or `BEGIN EXCLUSIVE` so SQLite serializes at the lock boundary. SQLite WAL mode (`BEGIN IMMEDIATE`) is the default for sqlx-sqlite; a plain `BEGIN` (deferred) still allows a TOCTOU window.
+The instinct is "F4 just automates what HR does manually — no new value_type, no bump." That reasoning **is wrong** if either:
+1. Historical billing periods (before F4 rollout) would have looked different under the new logic → snapshot disagreement.
+2. A new persisted value_type (e.g., `voluntary_reconciled_hours` for auditor traceability) is added.
+
+The v1.5 precedent (UV/YV, Snapshot 9→10) bumped for exactly this reason — the derived-absences merge changed the input set for `vacation_days`. The v1.8 precedent (VAC-OFFSET-01, Snapshot 11→12) bumped for `VacationEntitlement`. Missing a bump makes historical validators lie.
 
 **How to avoid:**
-- Enforce the lock check **inside** the business-logic service method, after `use_transaction(tx)` has been called, before any write — not in the REST layer before calling the service.
-- For SQLite, use `BEGIN IMMEDIATE` (not `BEGIN DEFERRED`) for any transaction that includes a lock-gate check + write. Confirm the sqlx pool is configured with `PRAGMA journal_mode=WAL` and that transactions are opened with `BEGIN IMMEDIATE`.
-- Alternatively, encode the lock as a DB-level constraint: a `week_status` row with `status = 'Locked'` could gate bookings via a SQLite trigger that raises an error if a booking insert targets a locked week and the actor is not shiftplanner. This moves atomicity to the DB engine.
-- Add an integration test: lock week, fire two concurrent booking creates for the same employee/slot/week, assert exactly one succeeds (or that both fail if the week is locked for non-shiftplanners).
+- **Stichtag guard (see Pitfall 3)**: F4 only runs for weeks with `booking_date >= voluntary_rebooking_active_from` (Toggle-Wert). Snapshots strictly before the Stichtag remain reproducible under old rules; snapshots strictly after use the new rules. Snapshots *straddling* the Stichtag are the danger zone.
+- **Decide in discuss-phase**: does F4 write a new `BillingPeriodValueType` (e.g., `VoluntaryReconciled`)? If YES → **Bump 12→13**, migration adds the column, `CURRENT_SNAPSHOT_SCHEMA_VERSION` incremented, docs `F08-billing-period.md` + `_de.md` + `docs/domain/billing-period.md` synced (Docs-Freshness-Gate).
+- **If NO new value_type**: still audit whether the Stichtag-guarded change of `reporting.rs`-input-set (F4 rebookings are visible to `balance`) triggers `CLAUDE.md` clause "Change the input set the computation reads from" — YES → **Bump 12→13 anyway**.
+- Golden-snapshot regression fixtures MUST cover a period straddling the Stichtag (analog to v2.4 SHC-04 `shortday_gate.active_from` on/off fixtures).
 
 **Warning signs:**
-- Lock check is implemented in the REST handler (`rest/src/`) rather than in `service_impl/src/shiftplan_edit.rs`.
-- Transaction passed as `None` to the lock-status lookup while the booking write opens its own transaction.
-- No `BEGIN IMMEDIATE` in the sqlx pool config.
+- Existing golden-snapshot tests still green but a fresh `build_and_persist_billing_period_report()` for a historical period produces different numbers.
+- Reviewer question "sollten wir bump?" left unanswered in Plan or DISCUSS.
+- No new fixture that crosses the F4 Stichtag.
 
-**Phase to address:**
-WST-01 service implementation phase. Must be part of the service-tier discussion (discuss-phase) decision log.
+**Prevention:** Requirement should include a **Snapshot-Impact-Entscheidung** (Yes/No + Justification, per Präzedenz v1.7 HSNAP-01). Success Criterion: "Snapshot version documented: bumped or explicitly not bumped with justification in phase's SUMMARY.md; docs `F08-billing-period.md` + `_de.md` synced if bumped." Cross-check against `service_impl/src/billing_period_report.rs::CURRENT_SNAPSHOT_SCHEMA_VERSION`.
+
+**Which Phase:** Decision belongs in the F4 discuss-phase. Bump commit belongs in the same phase that lands F4 (v1.8 precedent: VAC-OFFSET-01 bump + logic in same phase).
 
 ---
 
-### Pitfall 3: Incomplete Write-Path Audit — `modify_slot_single_week` Bypass
+### Pitfall 3: Stichtag-Rollout mit falscher Legacy-Semantik pro Chain
 
 **What goes wrong:**
-The lock gate is added to `ShiftplanEditService::book_slot_with_conflict_check` and `modify_slot`, but `modify_slot_single_week`, `remove_slot`, and `copy_week_with_conflict_check` are left ungated. A non-shiftplanner can then modify a slot for one week (single-week override), delete a slot, or copy a week's bookings into a locked week without hitting the gate.
+F4 (and possibly F3/F5) needs an admin-configurable `voluntary_rebooking_active_from: Option<Date>` toggle (analog HCFG-02 for holiday auto-crediting, SHC-04 `shortday_gate.active_from`, D-51-07). Without one, historical Balance-Views suddenly re-interpret past weeks — HR opens a 2024 employee report and sees numbers that changed because F4-logic now applies retroactively. Users perceive this as a data-corruption bug.
 
-This exact class of bypass was previously flagged for the paid-capacity gate (Phase 24 found that `modify_slot` propagated `max_paid_employees` incorrectly for the single-week path), demonstrating that multi-path coverage is a genuine Shifty failure mode.
+But the failure mode captured in MEMORY (`feedback_stichtag_rollout_legacy_semantics.md`) is subtler: when the toggle is *off* or the date is *before Stichtag*, the code must reconstruct **the pre-feature legacy semantic per consumption chain** — not blindly return raw input. Precedents:
+- v1.7 HCFG-01/02/03: pre-Stichtag, `special_day` holidays are visible in the settings UI but NOT auto-credited in reporting. Blindly "None → raw" would have surfaced `special_day` rows to a downstream aggregate that had never seen them before.
+- v2.4 SHC-04 `shortday_gate.active_from`: Chain A' (BlockService) + Chain B (WeekView/PDF) + Chain C (BookingInformation) + Chain D (ShiftplanReport) each had a legacy semantic; all four had to be threaded through the toggle, and Chain C in particular had a "legacy filter" branch that was NOT identical to Chain B pre-Stichtag.
+- D-51-07 (Kurzer-Tag-Slot-Kürzung): the toggle-off branch had to reproduce the exact pre-clipping behaviour for each of four chains, not the naive "no clipping".
+
+For F4, the affected chains are at least:
+- **Balance-Chain (reporting.rs)**: pre-Stichtag → balance ignores F4 rebooking entries entirely.
+- **F1-Ist-Statistik**: pre-Stichtag → F1 ignores F4 rebooking entries (they didn't exist as a concept then).
+- **F2-Soll/Nutz-Anzeige**: pre-Stichtag → F2 shows *only* the Soll and the raw Ist without Nutz-column. Or hide entirely.
+- **Cron F4 self-guard**: cron MUST NOT process weeks before Stichtag (backfill command may — but only intentionally).
 
 **Why it happens:**
-Developers naturally gate the most obvious write path (`book_slot_with_conflict_check`) and forget secondary paths. `modify_slot_single_week` is architecturally distinct from `modify_slot` (it creates three slot segments), so it can be independently missed. `copy_week_with_conflict_check` already requires `shiftplan.edit` but the lock gate for the *destination* week is a separate concern.
+Toggles look like a single boolean, but each aggregate has its own pre-feature invariant that must be preserved to avoid breaking historical golden snapshots. Author usually threads the toggle into one chain and forgets the others.
 
 **How to avoid:**
-- During the discuss-phase, enumerate every write path that touches booking or slot data for a given `(year, week)`:
-  1. `book_slot_with_conflict_check` — adds a booking
-  2. `remove_slot` — affects all bookings on that slot
-  3. `modify_slot` — splits a slot from a given week
-  4. `modify_slot_single_week` — creates a week-specific override
-  5. `copy_week_with_conflict_check` — adds bookings to the destination week
-  6. `add_vacation` / extra-hours writes that touch the week indirectly
-- Implement a shared internal helper `assert_week_not_locked(year, week, context, tx)` in `ShiftplanEditServiceImpl`, called at the top of every write method, so it cannot be forgotten on new paths.
-- Write a test matrix: one test per write path, one locked / one unlocked case per path.
+- **Chain audit** in the F4 planning phase: enumerate every code site that reads `ExtraHours` or writes to the balance formula, and specify per-site the toggle-off semantic. Precedent: v2.4-Phase-51 Chain A'/B/C/D matrix.
+- Toggle via existing `ToggleService` (`voluntary_rebooking_active_from: Option<Date>`), consumed via **`Full` context bypass** where internal aggregates (reporting, booking_information) don't have per-user auth (see `reference_toggle_service_full_context_bypass.md` MEMORY).
+- Property test: for a fixed dataset, `active_from = None` produces byte-identical result to a v2.5 snapshot (WOP-03-style fixture) — i.e., no rebookings applied.
+- Property test: `active_from = 2026-08-01` applies rebookings only for weeks with `booking_date >= 2026-08-01` — pre-Stichtag weeks unchanged.
 
 **Warning signs:**
-- `modify_slot_single_week` does not call any lock-status service.
-- The REST handler for slot modification (which calls `modify_slot` or `modify_slot_single_week`) skips a `week_status` lookup.
-- Integration test coverage exists for booking creates but not for slot modifications on locked weeks.
+- Any code branch that says "if toggle off → don't do anything special" without an explicit test that pre-Stichtag numbers match a saved baseline.
+- A single `if let Some(cutoff)` check in only one file — usually means the other chains are missing it.
 
-**Phase to address:**
-WST-01 service implementation phase. The "Looks Done But Isn't" checklist must enumerate all six write paths above.
+**Prevention:** Requirement should include an **HCFG-analog** ("voluntary_rebooking_active_from Toggle, pro Chain identifizierbare Legacy-Semantik, default = None → Feature aus"). Success Criterion: byte-identical golden-snapshot re-run with `active_from = None` (analog v2.4 SHC-04). Reference existing precedents HCFG-02, SHC-04, D-51-07 in the requirement text.
+
+**Which Phase:** Introduce the toggle + settings UI in the **first** F4 phase, before any rebooking logic ships. Precedent: v1.7 introduced HCFG-02 in Phase 25 before HOL-01 auto-crediting used it in the same phase.
 
 ---
 
-### Pitfall 4: Permission Model Ambiguity — Who Locks, Who Unlocks, Who Bypasses
+## Moderate Pitfalls
+
+### Pitfall 4: Cron-Idempotenz — mehrfaches Ausführen der gleichen Vorwoche schreibt N-fach
 
 **What goes wrong:**
-Three distinct permission questions are conflated:
-1. Who can **change** week status (None → InPlanning → Planned → Locked)?
-2. Who can **write booking/slot data to a locked week**?
-3. Who can **unlock** a previously locked week?
-
-If all three are answered with "shiftplanner," the model is consistent. But if, for example, HR can change status to Locked but cannot write to a locked week, or if the status setter role is undefined, then the discuss-phase decision is incomplete and the executor will guess — likely incorrectly.
-
-There is also a secondary risk: "Gesperrt-Wochen nur noch vom Schichtplaner änderbar" (from PROJECT.md) implies shiftplanner CAN write to locked weeks. But the gate must not block the shiftplanner's own lock-management write (status change). If the gate checks `status = Locked → reject unless shiftplanner` and the status-change endpoint itself requires the same check, a shiftplanner trying to unlock a week would hit their own gate — a logic loop.
+The weekly cron restarts (server restart, systemd unit restarts, cron overlap on slow DB). It iterates every SalesPerson, computes "IF Ist > Soll + committed_voluntary → book auto-rebooking". Without a per-(SalesPerson, ISO-Woche) processed-marker, each run creates fresh `rebooking_batch_entry` rows and doubles the correction. The v2.2 EXP-03 WebDAV cron precedent gives a partial guide (`repeated upload on transient failure`) but the destination there (WebDAV file) is naturally idempotent; the destination here (ExtraHours ledger) is NOT.
 
 **Why it happens:**
-RBAC gates are added incrementally. Each write path's gate is designed independently. The status-mutation path (setting `status = Locked`) and the data-mutation path (adding bookings to the week) share the same `(year, week)` but have different actors and different gate logic.
+Cron-Job authors default to "just re-run" because idempotence is rarely the top-of-mind failure mode. Backfill command amplifies this — running `backfill --from 2024-01 --to 2026-06` after F4 has already processed some weeks live silently duplicates.
 
 **How to avoid:**
-- Decide in the discuss-phase and record in the decision log: (a) status changes require `SHIFTPLANNER_PRIVILEGE`; (b) writes to locked weeks are rejected unless caller has `SHIFTPLANNER_PRIVILEGE`; (c) the status-mutation path is gated by shiftplanner but is NOT subject to the "locked week" data-write gate (since it is a status change, not a booking/slot write).
-- Use two separate gate functions: `check_week_writable(year, week, context)` (rejected for locked + non-shiftplanner) and `check_permission(SHIFTPLANNER_PRIVILEGE, context)` (for status mutation). Never apply `check_week_writable` to the status-change endpoint itself.
+- `rebooking_batch` table: UNIQUE index on `(kind, sales_person_id, iso_year, iso_week)` where kind=`auto_cron`. INSERT ... ON CONFLICT DO NOTHING pattern. Cron creates the batch row **first**; if the insert conflicts, skip this week for this person. Only after successful batch insert are `rebooking_batch_entry` + `ExtraHours` written, all in one transaction.
+- Backfill command reads the same UNIQUE constraint and reports "N weeks already processed, M would be processed" as a dry-run before writing.
+- Test: run cron twice back-to-back over the same fixture; assert exactly one `rebooking_batch` per (person, week).
+- Test: run cron, then backfill over same range → backfill is no-op.
 
 **Warning signs:**
-- The discuss-phase CONTEXT block has no explicit decision on who sets status vs. who bypasses locks.
-- `check_week_writable` is applied to the `update_week_status` service method.
-- An integration test for "shiftplanner locks a week then edits a booking in it" fails because the shiftplanner is also blocked.
+- Balance drift after `systemctl restart shifty`.
+- Backfill command shows "processed 500 weeks" the first time, "processed 500 weeks" the second time.
+- `rebooking_batch_entry` row count > 1× total weeks × capped-employee count.
 
-**Phase to address:**
-WST-01 discuss-phase must produce explicit decision log entries for all three permission questions.
+**Prevention:** Requirement should include **Cron-Idempotenz-Contract** ("F4-Cron is idempotent per (sales_person_id, ISO-Woche, kind=auto_cron); running twice produces at most one rebooking_batch row"). Success Criterion: dedicated test asserting UNIQUE-conflict behaviour.
+
+**Which Phase:** In the same phase that introduces `rebooking_batch` schema — the UNIQUE constraint IS the idempotency mechanism.
 
 ---
 
-### Pitfall 5: Stale Lock State in the WASM Frontend — SelectInput D-25-06 Class
+### Pitfall 5: ISO-Woche vs. Kalender-Woche im Cron-"Vorwoche"-Semantik
 
 **What goes wrong:**
-The week-status selector (None / In Planung / Geplant / Gesperrt) is a controlled `<select>` driven by a Dioxus signal. Two failure modes of the D-25-06 class apply here:
-
-(a) **Stale cached status on navigation:** The user navigates away from the week view and back. If the status signal is not reloaded from the server on re-entry, the badge shows the old status while the server state has changed (e.g., another user locked the week).
-
-(b) **Controlled-select desync after failed write:** A non-shiftplanner tries to edit a booking on a locked week. The server returns 403. The frontend signal rolls back, but the `<select>` DOM element does not, leaving the displayed status out of sync. The SDF-Desync fix pattern (Option 2: don't reset the form after create) avoids this in the Special-Days case by *not* resetting. But for week status, if the status selector resets its signal on success and the DOM has already moved to a new value, the controlled value attribute may not re-render because Dioxus diffing sees the same virtual DOM node.
+The cron runs weekly and processes "die Vorwoche". If "Vorwoche" is computed via `date - 7.days().calendar_week()`, the year boundary triggers the exact `paid_hours/required_hours`-Drift KW 1/KW 53 bug that WOP-Follow-up #3 fixed in v2.5 with `_iso_year`-Varianten. `booking(year, calendar_week)` is ISO — the cron MUST use ISO-week arithmetic (`time::util::weeks_in_year`, `Date::to_iso_week_date()`), NOT `Date::year() + Date::iso_week()` naively.
 
 **Why it happens:**
-Dioxus's VDOM diffing does not always re-apply `value=` attribute to `<select>` if the attribute value is unchanged from the previous render cycle, even if the DOM has drifted. This is the documented D-25-06 constraint. Setting a `SelectInput value=Some(current_status_string)` on re-render works only if the signal value actually changes to trigger a diff.
+`time::Date::iso_week()` returns a `u8` but the corresponding year is `iso_week_year()`, NOT `year()`. Around Jan 1, these disagree. The v2.5 WOP fix cost 16 new regression gates in `reporting_year_boundary.rs` + `booking_information_weekly_summary_year_boundary*.rs`.
 
 **How to avoid:**
-- Do not use `SelectInput` in controlled mode for the week-status selector if the status is only changed by a server call. Instead: display the status as a read-only badge + a separate action button (e.g., "Lock week") that fires a POST and on success reloads the week from the server. This avoids the desync entirely.
-- If a dropdown is required: on every successful status change (and on every failed booking attempt), force a signal refresh that changes the status signal to a placeholder (`""`) then back to the correct value in two consecutive render cycles, to guarantee DOM re-application. This is fragile; the badge+button approach is safer.
-- The SDF-Desync pattern from v2.1 (SDF item) applies: the safest fix is to never reset the controlled select — instead let the server response drive the next displayed value via a reload.
-- Add a frontend component test (cargo test on `shifty-dioxus`) that verifies the status badge renders the server-returned value after a round-trip, not the last user selection.
+- All F4 cron code uses `ShiftyWeek::previous()` semantic derived from `ShiftyDate` (analog to what `booking(year, calendar_week)` already uses).
+- Reuse the WOP-Follow-up #3 test fixtures — extend them to cover F4 cron scheduled on Jan 1 processing "the previous ISO week" that lives in the previous ISO year.
+- Test: cron runs on Mon 2027-01-04 → processes ISO week (2026, 53). Cron runs on Mon 2027-01-11 → processes (2027, 1).
 
 **Warning signs:**
-- The status selector is `SelectInput { value: Some(week_status_signal.read().to_string()) ... }` with a local signal that is mutated on user change before the server confirms.
-- No explicit reload of week status from server on booking 403.
-- No frontend component test for the lock badge.
+- Any use of `chrono::Datelike::year()` or `time::Date::year()` in cron time arithmetic — should be `iso_week_year()`.
+- Missing test around Jan 1 / Dec 31 boundary.
 
-**Phase to address:**
-WST-01 frontend phase. Discuss-phase should explicitly decide: read-only badge + action button vs. controlled dropdown.
+**Prevention:** Requirement should call out **ISO-Wochen-Semantik pro WOP-Follow-up #3 Präzedenz**. Success Criterion: regression test at year boundary.
+
+**Which Phase:** F4 phase; ideally reuse existing `_iso_year` helpers from v2.5 rather than rolling new arithmetic.
 
 ---
 
-### Pitfall 6: AVG-01 Denominator Definition — Vacation vs. All Absence Categories
+### Pitfall 6: TOCTOU zwischen Cron und Manual-F3
 
 **What goes wrong:**
-PROJECT.md specifies "Urlaub aus dem Nenner" (vacation excluded from denominator). The existing A-22-1 formula in `service/src/reporting.rs` excludes a week where `worked == 0.0 && (vacation + sick_leave + unpaid_leave + holiday) > 0.0`. These are different:
+HR clicks F3 "Manual rebooking for week 2026-W27" at 03:00:00. The weekly cron starts at 03:00:00 for the same person, same week. Both:
+1. Read `Ist` and `Soll` for the week.
+2. Both compute "overage exists".
+3. Both write rebooking rows → double correction.
 
-- A-22-1 (current): excludes fully-absent weeks for **any** category.
-- AVG-01 (specified): excludes weeks with **vacation** only.
-
-If AVG-01 reuses the existing `average_worked_hours_per_week` function directly, a week of sick leave where the employee worked 0 hours is excluded from the denominator — inflating the average. If the intent is "only vacation weeks are excluded from the denominator," sick leave weeks (where 0 hours were worked) would still count as 0 in the denominator, pulling the average down, which may be correct for attendance tracking but was not explicitly decided.
+Or worse: HR clicks F5-approve while cron is mid-transaction — F5 sees stale numbers.
 
 **Why it happens:**
-The discuss-phase for AVG-01 was explicitly deferred ("viele offene Definitionsfragen"). An autonomous executor that finds an existing formula that "looks right" will use it without checking whether it matches the specification. The existing `average_worked_hours_per_week` is already in the service trait and already tested — the temptation to call it directly is high.
+No serialisation between manual and automatic paths. SQLite's transaction isolation helps but does not prevent read-compute-write races across two distinct transactions.
 
 **How to avoid:**
-- The discuss-phase MUST produce a decision on the exact exclusion rule: which absence categories exclude a week from the denominator, and whether the exclusion applies only when worked=0 or always.
-- If the rule differs from A-22-1, implement a *separate* function rather than modifying `average_worked_hours_per_week` (modifying it would break STAT-01 behavior and could require a snapshot version bump).
-- Write a parametric unit test covering: (1) pure vacation week excluded, (2) sick leave week — included or excluded per decision, (3) week with partial vacation + some hours worked — denominator inclusion rule, (4) empty weeks (no bookings, no absences) — always included as 0.
+- **The Pitfall-4 UNIQUE index does most of the work**: F3 and F4 both try to insert `rebooking_batch(kind, sales_person_id, iso_year, iso_week)` — one wins, one gets `UNIQUE violation`, which the service MUST translate into a user-visible `ServiceError::WeekAlreadyReconciled` (HTTP 409, analog v1.6 `PaidLimitExceeded`).
+- F3 uses `kind='hr_manual'`, F4 uses `kind='auto_cron'`, F5 uses `kind='hr_suggestion'` — but the UNIQUE constraint is `(sales_person_id, iso_year, iso_week)` without kind, so a week can only be reconciled once by any path.
+- Alternative if the "one reconciliation per week per person" invariant is not desired: composite UNIQUE `(kind, sales_person_id, iso_year, iso_week)` PLUS a pre-flight query that rejects "already reconciled by another kind this week" — same net effect, clearer error message.
 
 **Warning signs:**
-- AVG-01 calls `average_worked_hours_per_week` without a new function or without verifying the exclusion set.
-- No unit test distinguishes vacation-only exclusion from all-absence exclusion.
-- The discuss-phase CONTEXT decisions block has no explicit statement on sick-leave week denominator treatment.
+- Any F3/F4/F5 test that doesn't exercise the "concurrent write" case.
+- Missing 409 mapping on rebooking endpoints.
 
-**Phase to address:**
-AVG-01 discuss-phase (must produce explicit decision); AVG-01 service implementation phase (tests must cover all four scenarios above).
+**Prevention:** Requirement includes **Konfliktregel-Contract** ("A given (sales_person_id, iso_year, iso_week) can be reconciled at most once; second attempt returns 409 with error code `week-already-reconciled`"). Success Criterion: test that runs F3 + F4 concurrently (or sequentially in same transaction) and asserts exactly one succeeds.
+
+**Which Phase:** F4 phase (introduces the constraint); F3 phase must consume the same constraint.
 
 ---
 
-### Pitfall 7: AVG-01 Snapshot Version Bump — Silently Skipped for a Persisted Computation
+### Pitfall 7: F5-Vorschlag wird stale, weil F4 die Woche schon ausgeglichen hat
 
 **What goes wrong:**
-If AVG-01 is implemented as a new `BillingPeriodValueType` (e.g., `AverageAttendanceHours`) written into billing-period snapshots, `CURRENT_SNAPSHOT_SCHEMA_VERSION` must be bumped from 12 to 13. If the executor skips the bump, old snapshots (written at version 12) will be compared by the billing-period validator against new live computations that include the new value type. The validator will see mismatches and flag drift for every historical billing period — but silently, since the schema version check is the guard that prevents the validator from running on mismatched snapshots.
-
-Worse: the bumped constant is the *only* mechanism that tells the system "re-validate these snapshots under the new rules." Without the bump, old snapshots appear valid (same version) even though the computation has changed, defeating the validator's purpose entirely.
-
-PROJECT.md already calls this out: "AVG-01 in discuss-phase prüfen (falls neue **persistierte** Berechnung → Bump nötig; reines Read-Aggregat → kein Bump)."
+F5 pre-computes a "HR-Vorschlag: rebook 4h for week 2026-W27, IST 12h → DANN 8h". User opens the modal Monday 09:00. Overnight, F4 cron ran and already reconciled that week. HR clicks "approve" at 09:05 — the system either double-books (Pitfall 6, but the UNIQUE constraint catches it) or, worse, the F5 modal shows numbers that don't match reality.
 
 **Why it happens:**
-The bump discipline requires the developer to recognize that adding a new `BillingPeriodValueType` variant is a persisted-computation change. An autonomous executor that implements AVG-01 as a live-compute REST endpoint with no new snapshot row correctly skips the bump. But if any refactoring also touches the billing-period report builder to write a new row, the bump becomes mandatory — and the two changes can happen in different commits without either commit triggering the bump.
+F5 is a read-side view; the underlying data (ExtraHours, rebooking state) is mutated by other paths (F3, F4). If F5 doesn't carry a version/hash of the state it saw, HR sees ghost suggestions.
 
 **How to avoid:**
-- The discuss-phase must explicitly decide: is AVG-01 a read-only aggregated REST endpoint (no new `BillingPeriodValueType`) or a persisted snapshot value? Record this as a decision in the CONTEXT block.
-- If persisted: the plan phase must include a task "bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` from 12 to 13" as a non-optional checklist item, with a companion integration test that verifies the constant is > 12.
-- If not persisted: the plan phase must explicitly state "no bump" with rationale, and the executor must not add any new `BillingPeriodValueType` variant.
-- CI cannot auto-detect a missing bump — it is a semantic rule, not a compiler rule. The only automated guard is a test that compares computed values for a known billing period against a snapshot written at the current constant.
+- F5 suggestion carries a `state_fingerprint` (e.g., latest `rebooking_batch.id` + latest `ExtraHours.id` for the person). On approve, backend checks fingerprint against current state; if different, return 409 `suggestion-stale` and the FE refreshes.
+- Simpler alternative: F5's `pending` state is written to `rebooking_batch(kind='hr_suggestion', state='pending')` at *suggestion generation time*. That immediately claims the UNIQUE (sales_person_id, iso_year, iso_week) slot; F4 cron thereafter sees the row and skips the week (also solving Pitfall 6 from the other direction).
+- Golden test: F5-suggest → F4-cron runs → F5-approve. Assert F4 was no-op and F5-approve succeeded (or F5 was cancelled with clear reason).
 
 **Warning signs:**
-- A new `BillingPeriodValueType::AverageAttendance` or similar variant appears in `billing_period_report.rs` but `CURRENT_SNAPSHOT_SCHEMA_VERSION` is still 12.
-- The billing-period snapshot builder's `build_and_persist_billing_period_report` writes rows with the new type but the comment "KEIN value_type-Change → KEIN CURRENT_SNAPSHOT_SCHEMA_VERSION-Bump" is left unchanged.
-- No test asserts the constant's current value.
+- F5 modal shows numbers that don't match a fresh employee-report load.
+- Approve button on F5 sometimes silently no-ops.
 
-**Phase to address:**
-AVG-01 discuss-phase (decision); AVG-01 service implementation phase (bump or explicit no-bump in plan).
+**Prevention:** Requirement includes **F5-Stale-Vorschlag-Erkennung** ("F5 suggestions are invalidated when the underlying state changes; approve returns 409 if stale"). Success Criterion: dedicated test for F4-cron-between-suggest-and-approve.
+
+**Which Phase:** F5 phase — but the choice between "fingerprint" and "claim on suggest" strategy must be made in F5 discuss-phase.
 
 ---
 
-### Pitfall 8: Missing `.sqlx` Offline Cache After Adding New Queries — CI Breaks Silently
+### Pitfall 8: HR-Only Feld leakt via geteiltes DTO an Nicht-HR-User
 
 **What goes wrong:**
-WST-01 requires a new `week_status` table and new `query!` / `query_as!` macros in `dao_impl_sqlite/src/`. SQLx compile-time checking requires a local database during `cargo build`. CI uses `SQLX_OFFLINE=true` and relies on `.sqlx/` metadata files committed to the repo. If the executor adds new `query!` macros but does not run `cargo sqlx prepare --workspace` and commit the generated `.sqlx/` files, the CI clean build fails even though `cargo test` on the developer's machine (with a live DB) is green. The overnight autonomous run cannot run `cargo sqlx prepare` without a live DB being available in CI.
-
-This is a documented pattern in MEMORY.md: "nach jeder neuen query!/query_as! cargo sqlx prepare --workspace + .sqlx committen."
+F2 shows the Soll-Anzeige (`committed_voluntary × Vertragswochen`). This is HR-only. But `SalesPersonReportTO` is shared between HR-view (`/employees/{id}/report`) and Self-view (`/my-report`). If the field is present with a value on Self-view, non-HR users see it.
 
 **Why it happens:**
-`cargo sqlx prepare` requires both a running database and the `sqlx-cli` tool, neither of which is available in CI. The executor can run the full test suite locally against the test DB, which uses in-memory SQLite and does not go through SQLX_OFFLINE mode, so local tests pass but CI fails. The `.sqlx/` directory is checked in, but only contains entries for previously-prepared queries.
+The v1.5 STAT-01/02 pattern used FE-level gating (component checks role) — but the field was still in the DTO. Non-HR could inspect the network response. v1.8 VAC-OFFSET-01 fixed this properly with **API-level hiding**: `Option<f32> = None` in the DTO for non-HR responses. Same fix needed here.
 
 **How to avoid:**
-- Every phase plan that adds any `query!` / `query_as!` / `query_scalar!` macro in `dao_impl_sqlite/` MUST include as the final step: "run `cargo sqlx prepare --workspace` in a nix-shell with sqlx-cli available, commit the updated `.sqlx/` directory."
-- The phase's pre-commit checklist must verify: `git status .sqlx/` shows the new query entries.
-- The gate command sequence for autonomous phases must be: `cargo test --workspace && cargo clippy --workspace -- -D warnings && (check .sqlx/ was updated)`.
-- In practice: use `nix develop` (not `nix-shell`, see MEMORY.md), then run `cargo sqlx prepare --workspace` before committing.
+- Field `voluntary_committed_soll: Option<f32>` on the DTO. Backend fills it only for HR-role responses; Self-view gets `None`. FE hides the row when None (falls back gracefully).
+- Test: hit `/my-report` as non-HR user → assert `voluntary_committed_soll: null` in JSON response. Hit same endpoint as HR user acting on their own record → assert value present.
+- Do NOT rely on FE `role.is_hr` check alone.
 
 **Warning signs:**
-- New files in `dao_impl_sqlite/src/` contain `query!` or `query_as!` macros but `.sqlx/` directory was not modified in the same commit.
-- CI fails with error: `error: failed to find data for query` or `error: offline mode is active but no offline data was found for the query`.
-- `cargo build` succeeds locally but CI fails.
+- Any non-HR test that only checks FE rendering, not JSON payload.
+- Serde-serialisation of the DTO without a role-conditional path in the service layer.
 
-**Phase to address:**
-WST-01 DAO implementation phase. Must be the last step before the commit. AVG-01 if it adds new DB queries.
+**Prevention:** Requirement includes **HR-Only-Redaction pro VAC-OFFSET-01-Präzedenz** ("F2 Soll-Anzeige ist HR-only, DTO-Feld Option<f32>=None für Non-HR, kein FE-only-Gate"). Success Criterion: API-level test as non-HR user asserting null response.
+
+**Which Phase:** F2 phase.
 
 ---
 
-### Pitfall 9: `cargo clippy --workspace -- -D warnings` Failures From Status Enum Patterns
+### Pitfall 9: Freiwilligen-Konto-Consistency — F1/F2/Balance schauen in verschiedene Wochen-Fenster
 
 **What goes wrong:**
-Adding a new `WeekStatus` enum (None/InPlanning/Planned/Locked) introduces exhaustive match requirements. If existing match arms anywhere in the codebase pattern-match on a related enum or use `_` wildcards in ways that Clippy flags as unreachable or redundant after the new variant is added, the build fails with `-D warnings`. Common Clippy failures in this scenario:
-- `unreachable_patterns` if existing match arms cover a superset after new variant addition.
-- `dead_code` if the status DAO module is added but a public function is never called from tests.
-- `clippy::match_wildcard_for_single_variants` if `_` covers only one remaining variant.
-- Naming: `None` as a variant name shadows `Option::None`; Clippy may warn about `clippy::enum_variant_names` if the variant names don't follow a consistent prefix.
+F2's "Freiwilliges Konto" = F2_Ist − F2_Soll. If F2_Ist counts weeks `[year-01-01, year-12-31]` (Gregorian) but F2_Soll counts weeks `[ISO(Y,1) - ISO(Y,weeks(Y))+1d]`, the delta drifts by up to 6 days of contract-time. Analog v2.5 Follow-up #3 bug.
 
-Note: The `shifty-dioxus` Clippy gate is broken (E0514 cross-compilation issue documented in MEMORY.md) and is not CI-gated. Only `cargo clippy --workspace -- -D warnings` in the backend workspace matters for CI.
+Additionally: F1-Statistik (Ø freiwillig / Vertragswoche), F2-Konto (Ist − Soll), and Balance (via `reporting.rs`) each have their own "window" concept. They MUST agree on which week is in scope, otherwise the same person shows three different volunteer totals in the same UI.
 
 **Why it happens:**
-The backend workspace runs a strict Clippy gate via `nix build`. The executor runs `cargo test` and `cargo build` as verification gates but may skip the explicit `cargo clippy --workspace -- -D warnings` step — which is the only way to catch these warnings before CI.
+Three separate code sites (F1 in report-stats, F2 in employee-view, balance in reporting.rs) usually get written by three different sub-plans of the milestone. Without a shared pure helper, they drift.
 
 **How to avoid:**
-- Every phase gate MUST include `cargo clippy --workspace -- -D warnings` as a required step, not optional. This is stated in CLAUDE.md.
-- Name the enum `WeekStatus` with variants `None` spelled as `Unset` or `Open` to avoid shadowing `Option::None` and triggering Clippy name warnings.
-- After adding the enum, run a grep for all match arms that could be affected: `grep -r "WeekStatus\|week_status" --include="*.rs"`.
-- Verify the test suite and `main.rs` DI wiring both reference the new service, so `dead_code` warnings are avoided.
+- Introduce a **shared pure helper** `voluntary_hours_for_person_in_range(person_id, start_iso, end_iso, extra_hours_slice) -> f32` in a common module (e.g., `service_impl/src/voluntary.rs`). F1, F2, and balance all call it. Analog to v2.5 Follow-up #1/#2 `derive_hours_for_week_pure` — the reason those helpers exist is exactly this class of drift.
+- Property test: for a fixed dataset with 3 volunteer weeks in Dec 2026 (which straddle ISO 2026 end), `F1_Ist == F2_Ist == balance_volunteer_contribution` (each scaled by their respective denominator).
+- Golden-snapshot: extend the existing 8 WOP-03 fixtures to include F1/F2/balance numbers; require byte-identity on re-run.
 
 **Warning signs:**
-- Phase commit message says "cargo test green" but does not mention `cargo clippy`.
-- The new `WeekStatus` enum has a variant named `None`.
-- New DAO module functions that are only called from tests are `pub` but not referenced in the service layer yet (dead_code warning).
+- F1 average and F2 Ist show different totals for the same person in the same year in the UI.
+- Any F1/F2/balance calculation that has its own bespoke `sum(extra_hours where category = VolunteerWork ...)` loop.
 
-**Phase to address:**
-All WST-01 and AVG-01 implementation phases. Clippy must be the last gate before every commit.
+**Prevention:** Requirement includes **Freiwilligen-Consistency-Guard** ("F1, F2, and balance compute Ist-Freiwilligen-Stunden via a single pure helper; any deviation is a bug"). Success Criterion: property test asserting F1 × F2 × balance agreement across an ISO-year boundary.
+
+**Which Phase:** F1 phase (introduces the helper); F2 and F4 phases consume it.
 
 ---
 
-### Pitfall 10: AVG-01 Employee Scope Leak — Flexible vs. Fixed Employees
+### Pitfall 10: Cap-Semantik-Grenzfall bei Wochenmitte-Vertragsänderung
 
 **What goes wrong:**
-AVG-01 is described as "Durchschnitts-Anwesenheit bei flexiblen Stunden Mitarbeitern" (average attendance for flexible-hours employees). If the computation runs over all employees but the result is displayed only for flexible employees in the UI, a backend endpoint that returns aggregated averages across all employees exposes fixed-contract employees' data in a context they should not appear in. Conversely, if the filtering happens in the frontend but the backend returns all employees, a UI bug or future API consumer could show wrong data.
+`EmployeeWorkDetails` is time-versioned. A person's `committed_voluntary` changes from 4h to 6h on Wednesday 2026-07-08 (mid-week). What is F2's Soll for that week?
+- Option A: pro-rata by weekday (4h × 3/7 + 6h × 4/7 = 5.14h).
+- Option B: latest-active-in-week (6h).
+- Option C: split into two "partial weeks" (4h for Mon-Tue, 6h for Wed-Sun) — each with its own Vertragswoche denominator, but then F1's "Vertragswochen"-Zähler explodes.
 
-Additionally, the definition of "flexible" employee in the data model is ambiguous: is it `expected_hours = 0.0`? Is it a flag? Is it the absence of a fixed contract? If different code paths use different definitions, some employees will be double-counted or excluded incorrectly.
+The v2.5 VAA formula (D-53-02) resolves ambiguity via `Σ filter(sales_person_id && (cap || expected==0)).map(committed_voluntary)` — but F2 across a whole year needs a stable per-week Soll.
 
 **Why it happens:**
-The discuss-phase for AVG-01 was deliberately deferred. An executor implementing AVG-01 without a finalized definition will pick the most obvious heuristic (`expected_hours == 0.0` or `is_paid = false`), which may not match the intended semantics. The `SalesPersonService` does not currently have a "is_flexible" flag.
+`WorkingHoursService` returns week-scoped values but the underlying `EmployeeWorkDetails` is date-scoped. Author picks one convention silently. Result: a mid-week contract change silently drops or double-counts.
 
 **How to avoid:**
-- The discuss-phase must define: (a) exactly which field or combination of fields identifies a "flexible" employee; (b) whether the filtering is server-side (only those employees are returned in the AVG-01 endpoint) or client-side (endpoint returns all, UI filters).
-- Server-side filtering is strongly preferred for access control: a HR-only average should not be computable by any non-HR client from raw per-employee data.
-- If a new "is_flexible" flag is needed, it belongs in `EmployeeWorkDetails` (already time-versioned), not as a separate table. Add it there to keep the data model consistent.
-- Unit tests must explicitly verify that a fixed-contract employee's weeks do not appear in the AVG-01 denominator or numerator.
+- **Decide in F2 discuss-phase** (list all three options + one more nobody has thought of); pin the choice as `D-F2-XX`.
+- Pin the choice in a **CI-guard test** with the exact scenario: contract change Wed, assert Soll = decided-value.
+- Reuse `working_hours_service::get_working_hours_for_week` semantics — whatever that already does, F2 MUST do too. If `get_working_hours_for_week` picks "latest active in week", F2 does too.
+- Ideally, F2's Soll uses the SAME derivation path as the existing v1.4 CVC display of `committed_voluntary_hours` in the year overview — that path already made the choice.
 
 **Warning signs:**
-- AVG-01 REST endpoint returns data for all employees without filtering.
-- The service implementation checks `expected_hours == 0.0` as the flexibility predicate without a recorded decision log entry.
-- No unit test asserts that a fixed-contract employee is excluded from the aggregate.
+- Any code in F2 that has its own "which contract applies this week" logic separate from `WorkingHoursService`.
+- No test with a contract-change-mid-week.
 
-**Phase to address:**
-AVG-01 discuss-phase (define "flexible"); AVG-01 service implementation phase (tests must include a mixed-employee set).
+**Prevention:** Requirement includes **F2-Soll-Berechnung reuses existing `WorkingHoursService::get_working_hours_for_week` semantic** (Fat-Backend, no FE arithmetic). Success Criterion: test with contract-change-mid-week matches the pinned decision.
 
----
-
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Reuse `average_worked_hours_per_week` for AVG-01 without reviewing exclusion logic | No new code | Wrong denominator if vacation-only exclusion differs from all-absence exclusion | Never — review first, then decide |
-| Skip `cargo sqlx prepare` and commit without updated `.sqlx/` | Faster commit | CI breaks on clean build; autonomous run has no human to fix it | Never for autonomous overnight runs |
-| Gate lock check in REST layer instead of service layer | Simpler service code | Bypassable if another client calls the service directly; violates layered-arch contract | Never |
-| Add `WeekStatus::None` variant name | Obvious naming | Shadows `Option::None`; Clippy `-D warnings` fails CI | Never |
-| Display lock badge without server reload on navigation | Simpler frontend state | Shows stale lock state; non-shiftplanner sees unlocked badge and attempts writes that fail with 403 | Never for production |
-| Omit week-53 test | Faster test implementation | Silent year-boundary bug that manifests only once per 5-6 years | Never — add the test |
+**Which Phase:** F2 phase.
 
 ---
 
-## Integration Gotchas
+### Pitfall 11: Frontend-Testbarkeit — Dioxus-Browser-Test unzuverlässig für Modal + Alert
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| SQLite lock gate | Read lock status before opening transaction, write booking in separate transaction | Read lock status and write booking inside one `BEGIN IMMEDIATE` transaction |
-| `cargo sqlx prepare` in NixOS | Run from default shell (sqlx not on PATH) | Run inside `nix develop` (not `nix-shell`, shell.nix is broken per MEMORY.md) |
-| Dioxus `SelectInput` for status | Drive with local signal mutated on user change, confirmed by server later | Drive with server-returned value; refresh signal after server confirms |
-| Billing period snapshot validator | Add new `BillingPeriodValueType` without bumping `CURRENT_SNAPSHOT_SCHEMA_VERSION` | Bump constant and record in plan; test that constant > previous known value |
-| `ShiftyWeek::new(year, week)` | Pass Gregorian year instead of ISO week year | Always derive year from `ShiftyDate::from_ymd(...).year()` or `date.to_iso_week_date().0` |
+**What goes wrong:**
+D-25-06 established that Dioxus-Browser-Tests are unreliable for `<input type=date>` (programmatic set doesn't trigger signals) and for complex read-flows (screenshots time out on WASM report pages). F5's alert + modal + approve flow is exactly this class. If phases rely on browser tests, verification will stall.
 
----
+**Why it happens:**
+Verifier defaults to "run the browser test" for anything UI-facing. But per user precedent, "strukturell reicht" is acceptable for this class (D-25-06).
 
-## Performance Traps
+**How to avoid:**
+- **Pure predicate tests**: extract `should_show_f5_alert(balance: f32, has_pending_suggestion: bool, is_capped: bool) -> bool` as a pure fn in `shifty-dioxus`. 8-case truth-table test analog to `should_show_pdf_button` (D-49-13).
+- **SSR component test** where possible — Dioxus supports SSR of components, assert on rendered HTML strings, not on browser DOM.
+- **Backend test doing the heavy lifting**: verifiy F5 numbers via `booking_information` or `reporting` service test, not via browser. FE test only asserts "the DTO field renders correctly".
+- **Human INT-Sightcheck as final gate** for visual polish (analog VAA-04 in v2.5).
+- Avoid programmatic `<input type=date>` setting; if F3/F5 modal has a date-input, use pure fn test for the state-transition + human sightcheck for the picker.
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Loading all bookings for all weeks to check lock status | Slow week-view load when many historical bookings exist | Keep week-status as a separate lightweight table; look up status by `(year, week)` only | At ~10k+ bookings per year |
-| AVG-01 scanning all weeks for all employees in one query | Slow billing-period report generation | Compute average on the already-loaded per-week slice (as A-22-1 does); do not add a new cross-week DB aggregation query | At ~50+ employees |
+**Warning signs:**
+- Any Plan that says "Dioxus browser test verifies F5-modal end-to-end".
+- Missing pure-predicate for alert-visibility.
 
----
+**Prevention:** Requirement includes **F5-Alert + F3/F5-Modal Testability-Strategy** ("F5 alert visibility is a pure predicate; approve flow verified by backend integration test + FE pure-predicate + human INT-Sightcheck"). Success Criterion: pure-predicate has ≥8-case truth-table + INT-Sightcheck logged in phase VERIFICATION.md.
 
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Lock gate enforced only in frontend (badge/disabled button) | Any HTTP client bypasses the gate and writes to locked weeks | Gate must be enforced in the service layer; frontend enforcement is only UX sugar |
-| `check_week_writable` skips `Authentication::Full` requests | Internal service-to-service calls bypass the lock gate | The lock gate should only apply to `Authentication::Context` calls; `Authentication::Full` is used for internal system operations and should not be blocked by week locks |
-| Week-status mutation endpoint lacks `SHIFTPLANNER_PRIVILEGE` check | Any authenticated user can lock or unlock any week | `check_permission(SHIFTPLANNER_PRIVILEGE, context)` required on all status-mutation paths |
+**Which Phase:** F5 phase.
 
 ---
 
-## UX Pitfalls
+### Pitfall 12: HR-Approve/Reject-Concurrency — zwei HR-User klicken gleichzeitig approve
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No visual distinction between "locked by shiftplanner" and "planned (not locked)" | Non-shiftplanners attempt booking and receive opaque 403 error | Show clear locked badge; disable booking controls proactively when status is Locked and user is not shiftplanner |
-| Status change confirmation requires page reload | Badge shows old status after shiftplanner locks a week; next booking from another tab succeeds (server-side blocked, but confusing) | After status change: immediately update local signal from server response, no full reload needed |
-| AVG-01 displayed alongside fixed-contract employees without a label | HR cannot distinguish flexible vs. fixed averages | Display AVG-01 only in the flexible-employee section; add "flexible employees only" label |
-| Week-53 displayed in the UI as a selectable week when the year has only 52 ISO weeks | Shiftplanner selects week 53 in a 52-week year; the status is saved to a nonexistent week key | Validate week numbers in the UI against `weeks_in_year(selected_year)` before allowing selection |
+**What goes wrong:**
+Two HR users open the same F5 suggestion. Both click Approve. Without a locking strategy, both trigger `ExtraHours` inserts → double reconciliation.
 
----
+**Why it happens:**
+F5 `pending → approved` state transition is a two-step read-then-write: "read state (pending), write extra_hours + state (approved)". Without SELECT ... FOR UPDATE or a state-conditional UPDATE, races happen.
 
-## "Looks Done But Isn't" Checklist
+**How to avoke:**
+- The rebooking table Pitfall 6 UNIQUE constraint handles it: only one `ExtraHours` insert can succeed because only one `rebooking_batch` row can be created for the week. Second click gets 409.
+- Additionally, use **state-conditional UPDATE**: `UPDATE rebooking_batch SET state = 'approved' WHERE id = ? AND state = 'pending'`. Check affected-row-count == 1; if 0, someone else beat you to it → return 409 `already-processed`.
+- Reject flow same treatment: `UPDATE ... WHERE state = 'pending'` for reject.
+- Test: spawn two concurrent approve requests over the same suggestion, assert exactly one succeeds with 200 and one gets 409.
 
-- [ ] **WST-01 lock gate:** Verify gate is applied to ALL six write paths: `book_slot_with_conflict_check`, `modify_slot`, `modify_slot_single_week`, `remove_slot`, `copy_week_with_conflict_check`, and any future slot-creating path. Not just the most obvious one.
-- [ ] **WST-01 ISO week year:** Confirm the `year` field in the migration, DAO entity, and REST DTO is the ISO week year, not the Gregorian year. Test with Dec 29–31 of a year that belongs to ISO week 1 of the next year.
-- [ ] **WST-01 week-53 validation:** Confirm the system rejects `(year, 53)` for years with only 52 ISO weeks.
-- [ ] **WST-01 `.sqlx/` cache:** Confirm `cargo sqlx prepare --workspace` was run and `.sqlx/` was updated after new queries were added.
-- [ ] **WST-01 Clippy:** Confirm `cargo clippy --workspace -- -D warnings` passes after all enum and match additions.
-- [ ] **WST-01 i18n:** Confirm all four status values (None, InPlanning, Planned, Locked) have translations in `de.rs`, `en.rs`, and `cs.rs`. Missing Czech translation is a common omission.
-- [ ] **AVG-01 denominator decision:** Confirm the discuss-phase produced an explicit decision on which absence categories exclude a week from the denominator.
-- [ ] **AVG-01 employee filter:** Confirm "flexible employee" is defined with a recorded decision and that the filter is server-side, not only client-side.
-- [ ] **AVG-01 snapshot version:** Confirm either (a) no new `BillingPeriodValueType` was added and `CURRENT_SNAPSHOT_SCHEMA_VERSION` is unchanged at 12, or (b) a new persisted type was added and the constant was bumped to 13.
-- [ ] **AVG-01 unit tests:** Confirm tests cover pure-vacation week excluded, sick-leave week (whatever was decided), partial-vacation week with hours, and empty week.
+**Warning signs:**
+- Any approve/reject handler that reads state, then writes without a WHERE-state-clause.
+- Missing 409-race test.
+
+**Prevention:** Requirement includes **F5-Approve-Idempotenz** ("F5 approve/reject is single-shot; concurrent second click returns 409"). Success Criterion: concurrent-race test.
+
+**Which Phase:** F5 phase.
 
 ---
 
-## Recovery Strategies
+## Minor Pitfalls
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Wrong ISO year in lock key (data already written) | HIGH | Write a migration that re-keys affected rows by converting Gregorian year to ISO week year; verify with known boundary dates; test before running on prod DB |
-| Missing `.sqlx/` cache breaks CI | LOW | Run `cargo sqlx prepare --workspace` in nix develop, commit updated `.sqlx/` — CI recovers on next push |
-| Snapshot version not bumped (AVG-01 persisted) | MEDIUM | Bump constant, add a migration that marks existing billing-period rows as stale (force re-validation), re-run billing-period validator for all affected periods |
-| Lock bypass via ungated write path | MEDIUM | Add missing gate call to the bypassed service method; add regression test for that specific path |
-| Stale lock badge in frontend | LOW | Force re-fetch of week status on mount/navigation; no data migration needed |
+### Pitfall 13: Docs-Drift trotz hartem Gate
+
+**What goes wrong:**
+`docs/features/F0X-*.md` (+ `_de.md`) MUST be updated in the same phase if `service_impl/src/reporting.rs`, `billing_period_report.rs`, or `migrations/sqlite/*.sql` are touched. F4 touches all three. Missing docs drift blocks milestone close (v2.6 audit gate).
+
+**Prevention:** Every F4/F2 phase plan checks the CLAUDE.md trigger-table. Add "docs synced (F07 + F08 + F0-new-freiwilligen-ausgleich, both EN + DE)" as Success Criterion literally on the phase.
+
+**Which Phase:** Every phase that touches a trigger file.
 
 ---
 
-## Pitfall-to-Phase Mapping
+### Pitfall 14: `Dioxus.toml` proxy fehlt für neue Backend-Routes
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| ISO-week year confusion (P1) | WST-01 data model + migration | Unit test for (2020, 53), (2021, 53 rejected), Dec 31 boundary |
-| Race condition on lock gate (P2) | WST-01 service implementation | Integration test: concurrent booking creates on locked week |
-| Incomplete write-path audit (P3) | WST-01 discuss-phase + service implementation | Test matrix: 6 write paths × locked/unlocked |
-| Permission model ambiguity (P4) | WST-01 discuss-phase | Decision log entries for 3 permission questions; shiftplanner-locks-then-edits test |
-| Stale lock state / SelectInput desync (P5) | WST-01 frontend phase | Component test: status badge after round-trip; reload after 403 |
-| AVG-01 denominator trap (P6) | AVG-01 discuss-phase + service implementation | Unit test with vacation-only and sick-only absent weeks |
-| Snapshot version bump (P7) | AVG-01 discuss-phase (decision) + service implementation | Assert `CURRENT_SNAPSHOT_SCHEMA_VERSION >= 12`; add test if bumped |
-| Missing `.sqlx` cache (P8) | WST-01 DAO implementation (last step) | `git diff --name-only .sqlx/` must show new entries |
-| Clippy failures from enum patterns (P9) | Every implementation phase | `cargo clippy --workspace -- -D warnings` in gate command |
-| Flexible employee scope leak (P10) | AVG-01 discuss-phase + service implementation | Unit test with mixed flexible/fixed employee set |
+**What goes wrong:**
+F3/F4/F5 REST endpoints (e.g., `/rebooking`, `/rebooking-suggestion/{id}/approve`) return 404 in `dx serve` dev mode because `[[web.proxy]]` in `shifty-dioxus/Dioxus.toml` was not extended. Precedent Phase 28 + 49 (twice forgotten in MEMORY).
+
+**Prevention:** Success Criterion in every FE-touching phase: "Dioxus.toml `[[web.proxy]]` updated for new backend routes; dev-server sightcheck passes."
+
+**Which Phase:** F3, F5 FE phases.
+
+---
+
+### Pitfall 15: Backend-Roundtrip nicht e2e verifiziert (create ≠ edit path)
+
+**What goes wrong:**
+Precedent Phase 23: `modify_slot` silently dropped `max_paid_employees` while `create_slot` kept it. In F4/F5, the "auto-cron creates rebooking" path and "HR-approve creates rebooking from suggestion" path may drop fields differently.
+
+**Prevention:** Every rebooking-creating path (F3 manual, F4 auto, F5 approve) round-trips through the same `RebookingService::create_batch(kind, ...)` function — no path-specific ExtraHours construction. Test: three input flows, one output shape, assert equality.
+
+**Which Phase:** F4 phase (introduces service); F3 and F5 phases consume it.
+
+---
+
+### Pitfall 16: WebDAV/Cron-Startup-Reihenfolge
+
+**What goes wrong:**
+Precedent v2.2 EXP: cron seed format was wrong (5-field vs. 6-field), post-ship hotfix v2.3.1. F4 introduces the second cron in Shifty. If the seed migration uses the wrong cron-syntax variant, cron silently doesn't run.
+
+**Prevention:** Seed format matches the existing v2.2 WebDAV cron pattern exactly (6-field). Success Criterion: startup log shows both crons scheduled with correct next-run time.
+
+**Which Phase:** F4 phase.
+
+---
+
+### Pitfall 17: Negative-Balance-Alert-Edge-Case
+
+**What goes wrong:**
+F5 shows alert "wenn negatives Stundenkonto UND `cap_planned_hours_to_expected=true`". Edge cases:
+- Person has `cap=false` but negative balance → no alert (correct, but reviewer will ask).
+- Person has `cap=true` but F2_Ist = 0 (no volunteer work ever) → alert would suggest rebooking 0h from nothing → nonsensical.
+- Person has `cap=true`, F2_Ist > 0, but balance just slightly negative < 0.5h → suggest 0.5h min? Or don't alert?
+
+**Prevention:** F5-alert-predicate is a pure fn with a truth-table test covering these edges (pinning decision from discuss-phase). Precedent D-49-13 8-case matrix.
+
+**Which Phase:** F5 phase.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| **F1 Ist-Statistik** | Denominator "Vertragswochen" ambiguity when contract changes mid-year (Pitfall 10 sibling); shared helper drift (Pitfall 9) | Reuse existing `WorkingHoursService` semantics; introduce `voluntary_hours_for_person_in_range` helper up front |
+| **F2 Freiwilliges Konto** | HR-Only leak via shared DTO (Pitfall 8); mid-week contract change (Pitfall 10); F1/F2/balance drift (Pitfall 9) | API-level `Option<f32>=None` redaction per VAC-OFFSET-01; pin week-derivation to `WorkingHoursService` |
+| **F3 Manuelle Umbuchung** | Transactional atomicity of two ExtraHours rows (Pitfall 1 partial); TOCTOU with F4 (Pitfall 6); rebooking marker column (Pitfall 1) | Single service fn creates rebooking_batch + entries + extra_hours in one tx; UNIQUE constraint enforces mutual exclusion |
+| **F4 Auto-Cron** | Idempotency (Pitfall 4); ISO-Woche (Pitfall 5); Snapshot bump (Pitfall 2); Stichtag legacy semantics per chain (Pitfall 3); backfill duplicates (Pitfall 4 sibling) | UNIQUE-conflict-first pattern; ISO-week helpers from v2.5; explicit bump decision in DISCUSS; chain audit + toggle-off golden snapshots |
+| **F5 HR-Alert + Modal** | Stale suggestion after F4 (Pitfall 7); approve-race (Pitfall 12); FE testability (Pitfall 11); alert edge cases (Pitfall 17); Dioxus.toml proxy (Pitfall 14) | Claim-on-suggest via rebooking_batch(state=pending); state-conditional UPDATE; pure-predicate + INT-Sightcheck; explicit truth-table |
+| **All phases** | Docs drift (Pitfall 13); backend roundtrip (Pitfall 15); Dioxus.toml proxy (Pitfall 14) | Add trigger-file→doc-file mapping to phase's Success Criteria upfront |
 
 ---
 
 ## Sources
 
-- Direct code inspection: `shifty-backend/shifty-utils/src/date_utils.rs` (ShiftyDate, ShiftyWeek ISO-week handling)
-- Direct code inspection: `shifty-backend/service/src/shiftplan_edit.rs` and `service_impl/src/shiftplan_edit.rs` (existing write paths and permission gates)
-- Direct code inspection: `shifty-backend/service/src/reporting.rs` (A-22-1 formula, EmployeeWeeklyStatistics)
-- Direct code inspection: `shifty-backend/service_impl/src/billing_period_report.rs` (`CURRENT_SNAPSHOT_SCHEMA_VERSION = 12`, `BillingPeriodValueType` variants)
-- Direct code inspection: `shifty-backend/shifty-dioxus/src/component/form/inputs.rs` (`SelectInput` controlled-mode implementation, D-05/D-07 props)
-- Project charter: `shifty-backend/.planning/PROJECT.md` (v2.1 scope, snapshot version discipline, SDF-Desync decision, WST-01 / AVG-01 requirements)
-- Project conventions: `shifty-backend/CLAUDE.md` (clippy hard gate, SQLx offline cache requirement, snapshot version bump rules)
-- Known issues memory: MEMORY.md entries on SQLx prepare, Clippy gate, SDF-Desync, D-25-06 class, service tier conventions
-- Prior milestone learnings: Phase 23 `modify_slot`/`max_paid_employees` single-week bypass; Phase 24 paid-capacity gate per-path discipline
-
----
-*Pitfalls research for: Shifty v2.1 — WST-01 week locking + AVG-01 attendance averaging*
-*Researched: 2026-07-01*
+- `.planning/PROJECT.md` — current milestone description (F1–F5 goals + rebooking_batch table sketch); v2.5 shipped notes (WOP-Follow-up #3 ISO-year bug, VAA D-53-02 formula); Snapshot version history (currently 12); Docs-Freshness-Gate contract. **Confidence: HIGH**.
+- `shifty-backend/CLAUDE.md` § "Billing Period Snapshot Schema Versioning" — hard contract for `CURRENT_SNAPSHOT_SCHEMA_VERSION` bumps. **Confidence: HIGH**.
+- `.planning/milestones/v1.7-REQUIREMENTS.md` — HCFG-01/02/03 Stichtag precedent; HSNAP-01 snapshot bump (10→11); HOL-03/VFA-02 asymmetry regression guard. **Confidence: HIGH**.
+- `.planning/milestones/v2.5-REQUIREMENTS.md` — VAA D-53-02 cap-gated formula for `committed_voluntary` filtering; WOP-Follow-up #3 `_iso_year` helpers as reusable pattern. **Confidence: HIGH**.
+- `.planning/milestones/v2.2-REQUIREMENTS.md` — EXP-01/02/03 WebDAV cron precedent (transient-failure retry, admin-gated, config via env vars); v2.3.1 post-ship hotfix (cron-seed 5- vs. 6-field). **Confidence: HIGH**.
+- MEMORY notes referenced inline: `feedback_stichtag_rollout_legacy_semantics.md`, `feedback_atomic_repoint_no_double_count.md`, `reference_toggle_service_full_context_bypass.md`, `feedback_verify_backend_roundtrip_e2e.md`, `feedback_dioxus_proxy_for_new_backend_endpoints.md`, `reference_dioxus_browser_test_date_inputs.md`, `feedback_docs_always_current_no_followup.md`. **Confidence: HIGH** (direct user observations).
+- Prior PITFALLS.md v2.1 (this file, overwritten) — pattern template for ISO-year vs Gregorian and lock-key traps. **Confidence: HIGH**.

@@ -1,323 +1,217 @@
-# Feature Research
+# Feature Landscape — v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 
-**Domain:** Shift-planning / Workforce Management — v2.1 new features only
-**Researched:** 2026-07-01
-**Confidence:** MEDIUM (industry conventions well-established; tool-specific lock semantics vary; AVG-01 definitional choices are product-owner decisions, not researchable facts)
-
----
-
-## Scope
-
-This document covers only the two new v2.1 features:
-
-- **WST-01** — Calendar-week workflow status (`None / In Planning / Planned / Locked`)
-- **AVG-01** — Average attendance reporting for flexible-hours employees, vacation excluded
-
-The existing Shifty capabilities (bookings, slots, absence periods, billing-period reports, carryover, volunteer hours, paid-capacity limits) are treated as given dependencies.
+**Domain:** HR / Time-Tracking — voluntary-vs-paid-hours reconciliation for capped employees
+**Researched:** 2026-07-06
+**Mode:** Ecosystem (project-internal — the "ecosystem" here is the existing Shifty backend + established GSD milestone patterns)
+**Overall confidence:** HIGH (all upstream services and DTOs read from repo; industry patterns for reconciliation batches well-established, cross-checked against Phase 22 AVG-01 + v1.7/v2.4 ToggleService precedent)
 
 ---
 
-## WST-01 — Calendar-Week Status / Lifecycle Gate
+## Executive summary
 
-### Background: How Tools Handle It
+v2.6 introduces a **five-feature reconciliation stack** on top of already-shipped primitives:
 
-Most shift-scheduling products (Planday, When I Work, Deputy, Shiftboard, Workday, Dayforce) follow a two- or three-state model at the schedule level:
+- v1.4 shipped `EmployeeWorkDetails.committed_voluntary` (time-versioned pledge, `f32`, gated on `cap_planned_hours_to_expected`).
+- v1.5 shipped the HR-only employee-year report `/employees/:sales_person_id` with balance rows (UV-04/05, YV-01..03).
+- v2.1 shipped AVG-01 as **pure read-aggregate in `ReportingService`** with HR-gate + `is_dynamic` filter (the direct template for F1).
+- v2.2 shipped RPT-01..03 (per-weekday attendance stats) — replaced v2.1 AVG-01 in the FE but kept the compute pattern; **F1 rides on this precedent again**.
+- v2.5 shipped VAA-01..04, wiring the "cap-gated volunteer sees committed" formula (`filter(cap || expected == 0).map(committed_voluntary)`) at two fill-sites in `booking_information.rs`.
+- v1.7 (HCFG-02), v2.4 (SHC-04) shipped `ToggleService`-gated admin cutoff dates — v2.6 will reuse this for the F4 cron rollout stichtag.
+- v2.2 (EXP-01) shipped a weekly `tokio_cron_scheduler` job with admin-gated on/off + last-error surface in Admin panel — F4 rides on the same infrastructure.
 
-| Tool convention | Analogous WST-01 state |
-|---|---|
-| Draft / Unpublished | "In Planning" (only planner sees it) |
-| Published | "Planned" (employees see, can be notified) |
-| Payroll-period locked | "Locked" (no writes except planner) |
-| (no status / unstarted) | "None" |
+**Net new work in v2.6:**
+- Two new tables: `rebooking_batch` (parent) + `rebooking_batch_entry` (children per SalesPerson), unified for F4 (auto-cron) and F5 (HR suggestion) via a `kind` discriminator.
+- One new **Business-Logic Service** `RebookingService` that assembles ExtraHours-pair-transactions and owns batch lifecycle.
+- Extension of `ReportingService` (F1) and the employee-year DTO (F2, F5-account fields).
+- One new REST family under `/rebooking-batch/*` (list/approve/reject) and `/employees/:id/voluntary-account` (read-model).
+- Backfill CLI command for retroactive F4 processing at rollout.
 
-A **four-state** model (None → In Planning → Planned → Locked) as WST-01 proposes is slightly richer than the typical two-state draft/publish but well within industry convention. Adding an explicit "None" sentinel and a "Planned" state between draft and lock is a natural refinement for a tool that runs a weekly planning cycle.
+**No new Cargo dependency required.** All primitives (transactions, cron, toggles, ExtraHours pair-writes, HR gate) are already in the codebase.
 
-### Table Stakes
-
-Features users of any scheduling tool expect around a week-status model.
-
-| Feature | Why Expected | Complexity | Notes |
-|---|---|---|---|
-| Visual week badge | Users need to know which week is in what state at a glance | LOW | Color-coded badge on week header: gray=None, blue/yellow=In Planning, green=Planned, red/orange=Locked. One badge per week in the week-selector or plan header. |
-| Status transition by planner role | The shift planner drives the lifecycle; other roles are consumers | LOW | Only Shiftplanner role sets the status. Triggered manually, not automatically. |
-| Locked week blocks booking/slot writes for non-planner roles | Core value of the lock: "this week is final for everyone else" | MEDIUM | Booking-create, booking-delete, slot-create, slot-edit paths check lock status pre-persist. Returns a distinct error (HTTP 409 or 403) with localized message. |
-| Locked week still readable by all roles | Employees must still see the schedule they are locked into | LOW | Read paths unaffected by lock. |
-| Planner can still write to Locked week | Planner needs to correct errors after lock | LOW | Permission gate: `is_locked AND role != Shiftplanner` → block. |
-| Retroactive edits by planner remain possible | Real operations require post-lock corrections | LOW | No auto-expiry; planner manually moves state if needed. |
-| i18n labels for all four states | Existing Shifty convention for all user-facing strings | LOW | de/en/cs translation keys needed. |
-
-### Differentiators
-
-Features that add value beyond baseline but are not expected by default.
-
-| Feature | Value Proposition | Complexity | Notes |
-|---|---|---|---|
-| Explicit "In Planning" state visible to planner (not employees) | Mirrors the actual planning workflow; planner can work freely before committing to "Planned" | LOW | Industry tools call this "Draft". Employees see nothing in this state, but planner has full edit rights — same as today's behavior before publish. |
-| Unlock to lower state | Allows correction: e.g., move Locked → Planned to allow employee changes, then re-lock | LOW | Reverse transitions must be permitted (any state to any lower state by planner). |
-| Warning on booking-edit when week is Planned (not yet Locked) | Soft "this week is published; your change will be visible immediately" UX nudge | MEDIUM | Not a hard block — just a visual warning. Skip for MVP; add if user feedback calls for it. |
-| State shown in week-selector dropdown | At-a-glance overview when navigating weeks | LOW | Useful for planners scanning multiple future/past weeks. |
-
-### Anti-Features
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---|---|---|---|
-| Auto-lock after billing-period close | "Payroll periods should lock automatically" | Timing varies, data corrections still needed post-close; removes planner control | Planner locks explicitly; billing-period close is independent |
-| Require explicit unlock to edit Locked week as planner | "Safety net" | Adds friction for correction flows; planner role already signals authority | Role-based gate is sufficient; no extra confirmation step needed |
-| Employee-facing status label (expose "Planned" to employees) | Transparency | Confusing to employees who cannot act on planning status | Employees see shifts or not — publication of individual shifts is enough |
-| Multi-step approval chain for lock | Enterprise governance | Out of scope for a small-team tool; Shifty has a single Shiftplanner role | Single-role lock is the right model for current scope |
-
-### State-Transition Map
-
-```
-None ──────────────────────────────────────────────────┐
-  │ planner sets                                        │
-  ▼                                                     │
-In Planning ──────────────────────────────────────────►─┤ (any state can go back
-  │ planner sets                                        │  to any lower state
-  ▼                                                     │  by planner only)
-Planned ──────────────────────────────────────────────►─┤
-  │ planner sets                                        │
-  ▼                                                     │
-Locked ◄──────────────────────────────────────────────-┘
-```
-
-**Permission rules:**
-- Any role: read in any state
-- Shiftplanner: write in any state; set any state transition
-- Non-Shiftplanner: write only when state is None, In Planning, or Planned
-- Non-Shiftplanner attempting write on Locked week → error (HTTP 409 with localized message)
-
-### Complexity Summary
-
-| Area | Estimate | Notes |
-|---|---|---|
-| Data model | LOW | New table `week_status(year, week, status_enum)` with upsert |
-| Migration | LOW | Single new SQLite table |
-| DAO + Service | LOW | CRUD on a simple keyed record; no join complexity |
-| Permission gate | MEDIUM | Must inject into all booking/slot write paths — identify all write endpoints |
-| REST + OpenAPI | LOW | Two endpoints: GET status for week, PUT/POST status |
-| Frontend badge | LOW | Inline badge in week header; no complex interaction |
-| Frontend permission guard | MEDIUM | Frontend must also reflect lock (disable booking buttons) and show badge state |
-| i18n | LOW | 4 state labels × 3 locales |
-
-### Dependencies on Existing Shifty Features
-
-- Booking create/delete paths (`ShiftplanEditService`, `BookingService`) — must add lock check
-- Slot create/edit paths (`SlotService`, `ShiftplanEditService`) — must add lock check
-- Shiftplanner role permission constant (already exists) — gate reuses existing RBAC
-- Week-navigation component in frontend — hosts the new status badge + selector
+**Snapshot-Schema-Version:** likely **stays at 12** — F1/F2/F5 are read-aggregates; F3/F4 write to the existing `extra_hours` table (already versioned inside snapshot). *Only* a bump would be needed if we choose to persist a new `BillingPeriodValueType` for the account balance (e.g. `VoluntaryCommitmentDelta`) — **default = no**, discuss-phase should confirm the "no persist" path (matches v1.4 CVC-05 precedent: derive-on-read wins).
 
 ---
 
-## AVG-01 — Average Attendance for Flexible-Hours Employees
+## Table stakes
 
-### Background: How Tools Handle It
+Features users **expect** as soon as the domain acknowledges "voluntary commitment" as a first-class concept. Missing = the reconciliation story is incomplete.
 
-"Average hours worked per week" or "average utilization" for variable-hours staff is a standard reporting metric in workforce analytics, but the **exact definition is not standardized** across tools. The key axes are:
+| Feature | Why expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| **F1 — Ø freiwillig geleistete Stunden / Vertragswoche / Jahr** | Every time-tracking tool that surfaces a pledge (`committed_voluntary`) has to also surface its *realization*. Users can already see AVG-01/RPT-01 for paid attendance; they will immediately ask for the mirror on voluntary. | Low | Read-aggregate on `ReportingService`, HR-only. Numerator: Σ ExtraHours(VolunteerWork).hours in period. Denominator: **weeks with a valid `working_hours` row for the person** (D-F1-01 to fix — probably matches AVG-01's "weeks with contract" nenner). No persistence. |
+| **F2 — Freiwilliges Stundenkonto (Soll / Ist)** | Once F1 exists ("here's your average") the immediate follow-up is "here's your promise vs. reality". Industry: every overtime-account / vacation-balance widget in HRIS tools (BambooHR, Personio, Factorial) shows Soll/Ist next to each other. | Low | Soll = Σ over calendar-year of `working_hours(week).committed_voluntary` (i.e. weekly pledge × contract-weeks). Ist = F1 numerator. Account = Ist − Soll. **HR-only** (matches CVC-06 no-leak precedent). Rendered in existing employee-year report next to the paid balance. |
+| **F3 — Manuelle Umbuchung Freiwillig ↔ Bezahlt (1-click)** | HR today does this by hand as two ExtraHours entries. The tool has to atomically write both or neither — a partial write breaks CVC-06 gating and balance semantics. 1-click is the whole point. | Medium | Single REST endpoint accepts `{ sales_person_id, hours, source_category, target_category, date }`, opens transaction, writes two `ExtraHours` rows (`-N source / +N target`), commits. Standard `ServiceError`. FE modal in employee-year report next to the account row. |
+| **F5 — HR-Alert bei gedeckeltem Mitarbeiter mit negativem Konto** | Without a proactive alert, F2 is a passive stat that HR forgets to check. Every payroll/overtime system with reconciliation ships a "you need to act on this" banner. | Medium | Persistent warning row in the employee-overview list (top-level `/employees`). Condition: `sales_person.cap_planned_hours_to_expected == true` AND balance_account (paid) < 0 AND voluntary_account (F2) > 0 (there's something to rebook). Click opens **suggestion modal**: shows IST (current balance, F1 Ist, F2 Soll, F2 Konto) vs. DANN (post-rebooking projection). HR approves/rejects. Approve → persist as `rebooking_batch` with `kind = 'hr_suggestion'`, one entry per person. Reject → persist rejection state (audit trail). |
 
-1. What is the **reference period** (denominator's time unit)?
-2. What goes in the **numerator** (hours booked, hours present, days present)?
-3. What is the **denominator** (total weeks in period, total weeks minus vacation weeks, total scheduled hours minus vacation hours)?
-4. Which **absence categories** are excluded?
-5. Which **employees** are in scope (only flexible-hours employees, or all)?
+**F1 dependency chain:**
+- Authoritative source for numerator: **`ExtraHoursService`** (already exposes `find_by_iso_year`, added in v2.5 Follow-up #3 for the boundary fix). Sum over category `VolunteerWork`.
+- Authoritative source for denominator: **`EmployeeWorkDetailsService`** (weeks with a `working_hours` row for the person in the year). AVG-01 formula A-22-1 is the reference — Phase 22 pinned "Jahr bis heute; worked = shiftplan+extrawork+volunteer; full-absence weeks removed".
+- Live in **`ReportingService`** (Business-Logic tier) as new pure fn `average_voluntary_hours_per_contract_week(sales_person_id, year)`, analogous to `average_hours_per_attendance_day`.
+- **DTO extension:** `EmployeeReportTO` / attendance-statistics response gets one new field `avg_voluntary_hours_per_contract_week: f32` (additive, `#[serde(default)]` for legacy-wire compat — the same guard used in v2.5 VAA-01).
 
-The existing Shifty v1.5 feature "HR-only Ø-Stunden/Woche-Statistik pro Person (urlaubsbereinigt, Regel A-22-1)" is the direct predecessor. AVG-01 extends or formalizes this into a proper reporting view.
+**F2 dependency chain:**
+- Same DTO extension gets: `voluntary_account: { soll: f32, ist: f32, delta: f32 }` (or three flat fields).
+- Soll compute: iterate `working_hours` rows in the report period, sum `committed_voluntary × weeks_covered_by_this_row` (same "period-slicing" pattern as `vacation_days_for_year` and CVC-04).
+- Ist compute: exactly the F1 numerator (share the pure fn).
+- **Renders in the existing `/employees/:sales_person_id` report** — no new page, just a new sub-block under the paid-balance block. Presedence: v1.5 YV-01..03 added new sub-blocks to the same page.
 
-Industry standard for flexible/variable-hour workers: most WFM tools compute a **per-week rolling average** over a measurement window (typically 4 weeks, 12 weeks, or a billing period), using actual worked/booked hours as the numerator, and excluding authorized leave from the denominator to avoid diluting the metric.
+**F3 dependency chain:**
+- Authoritative source: **`ExtraHoursService`** already handles create + delete under a `TransactionDao` (transaction-management pattern). F3 needs a new business-logic method `rebook_hours(sales_person_id, hours, source: ExtraHoursCategory, target: ExtraHoursCategory, date, reason, tx)` — either on `ExtraHoursService` itself or on a new `RebookingService` (Business-Logic tier).
+- **Recommended: put F3 on the new `RebookingService`** because F4 + F5 both need it and both wrap it in a batch. Keeps single Rebooking-write-path, single audit-log source.
+- FE: modal in employee-year report, dropdowns for source/target category (from `ExtraHoursCategory`), hours input, one confirm button.
 
-### Open Definitional Decision Points (Product-Owner Decisions)
-
-These are not researchable — the product owner must decide. They are listed here to drive the discuss-phase.
-
-**D-AVG-01: Reference period**
-Options:
-- A. Per billing period (most natural fit with existing Shifty billing structure)
-- B. Per calendar month (common in HR reporting)
-- C. Rolling N weeks (e.g., last 12 weeks)
-- D. Per calendar year (too coarse for operational decisions)
-*Recommendation: A (billing period) — aligns with existing `ReportingService` data already computed per billing period.*
-
-**D-AVG-02: Numerator definition**
-Options:
-- A. Sum of booked hours in the period (hours from `Booking` records linked to slots in paid weeks)
-- B. Count of days present
-- C. Sum of actual clocked hours (Shifty has no clock-in; N/A unless using bookings as proxy)
-*Recommendation: A — booked hours are already computed in Shifty; consistent with existing balance reporting.*
-
-**D-AVG-03: Denominator — what counts as a "present week"**
-Options:
-- A. All calendar weeks in the period (vacation drags the average down — the problem AVG-01 solves against)
-- B. All calendar weeks minus weeks where the employee had any vacation day
-- C. All calendar weeks minus weeks where the employee had a full-week vacation
-- D. Per-week denominator = (contracted expected hours) − (vacation hours that week); summed over period
-*Recommendation: B — simplest to explain and implement; most natural match to "exclude weeks you were on vacation".*
-
-**D-AVG-04: Which absence categories are excluded from the denominator**
-Options:
-- A. Vacation (Urlaub) only
-- B. Vacation + sick leave
-- C. Vacation + sick leave + public holidays
-- D. All authorized absence types (Vacation, Sick, Holiday, Unpaid Leave)
-*Recommendation: A (Vacation only) — this is the stated feature intent ("Urlaub aus dem Nenner gerechnet"). Sick leave, holidays, and unpaid leave are edge cases the product owner must decide; default to A unless stated otherwise. Including sick leave in exclusion has a "rewards absence" perception risk.*
-
-**D-AVG-05: Employee scope**
-Options:
-- A. Only employees with `expected_hours = 0` (pure flexible / no fixed contract)
-- B. Only employees with a "flexible hours" flag (if such a flag exists)
-- C. All employees (fixed + flexible) — show avg for everyone, filter in UI
-- D. All employees with `is_paid = true`
-*Recommendation: C — show for all employees but allow filtering by contract type. Avoids a separate scope concept; flexible employees just have more meaningful numbers.*
-
-**D-AVG-06: Display location**
-Options:
-- A. Inside the billing period report per employee (existing reporting view)
-- B. New standalone "Attendance" view
-- C. In the employee year view alongside existing balance
-- D. In multiple of the above
-*Recommendation: A — least new surface area; billing period report already aggregates per-employee per-period data in `ReportingService`.*
-
-**D-AVG-07: Minimum data threshold**
-How many non-vacation weeks are required before showing the average? (A zero-weeks denominator would be division-by-zero; a 1-week average is not meaningful.)
-*Recommendation: Show average only when ≥ 2 non-vacation weeks present in the period. Show "—" or "n/a" otherwise.*
-
-**D-AVG-08: Snapshot persistence**
-If the average attendance result is added to the billing period snapshot (`BillingPeriodValueType`), the `CURRENT_SNAPSHOT_SCHEMA_VERSION` must be bumped. If it is computed read-only (derive-on-read), no bump is needed.
-*Decision: Derive-on-read preferred for first implementation; avoids snapshot versioning complexity. Revisit if performance becomes an issue.*
-
-### Table Stakes
-
-| Feature | Why Expected | Complexity | Notes |
-|---|---|---|---|
-| Average hours per week (vacation weeks excluded) per employee per period | Core stated feature; Shifty v1.5 already has precursor (Regel A-22-1) | MEDIUM | `sum(booked_hours_in_non_vacation_weeks) / count(non_vacation_weeks_in_period)` |
-| HR-only access gate | Attendance analytics are sensitive; existing Shifty convention is HR-gated | LOW | Reuse existing `PermissionService` HR role check |
-| Display in billing period report | Natural home; avoids new surface | LOW | Add one new row/column to existing per-employee billing period table |
-| i18n labels | Shifty convention | LOW | de/en/cs translation keys |
-| Handle no-data case gracefully | Employee may have only vacation in the period | LOW | Return `null` / display "—" when ≤ 1 non-vacation week |
-
-### Differentiators
-
-| Feature | Value Proposition | Complexity | Notes |
-|---|---|---|---|
-| Side-by-side comparison: average vs. committed voluntary hours | Shows "promised" vs. "actual" attendance for flexible volunteers | MEDIUM | Committed voluntary is already in `EmployeeWorkDetails`; comparing gives gap visibility |
-| Trend over multiple billing periods | Shows if a flexible employee is attending more or less over time | HIGH | Requires multi-period query; defer to later milestone |
-| Configurable exclusion categories | Allow HR to choose whether sick leave is also excluded | MEDIUM | UI complexity high; hardcode for v2.1 per decision D-AVG-04 |
-
-### Anti-Features
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---|---|---|---|
-| Show average attendance for all employees regardless of contract | "Consistency" | Meaningless for fixed-hours employees whose expected hours are contractually defined | Filter/badge flexible employees; fixed employees already have balance hours metric |
-| Count attendance as binary present/absent days | "Simpler" | Loses information for employees who book fewer hours some days | Use booked hours as numerator (more accurate for shift workers) |
-| Include sick leave weeks in exclusion by default | "Fairness — employee can't control illness" | Creates a "bonus" effect that hides patterns; HR should see sick weeks in the denominator by default | Offer as a toggle (future enhancement); default to vacation-only exclusion per D-AVG-04 |
-| Persist as new BillingPeriodValueType in snapshot | "Consistency with other report metrics" | Triggers mandatory snapshot-schema-version bump + backward-compat concerns | Derive-on-read for v2.1; add to snapshot if needed later |
-
-### Computation Sketch (for requirements/planning reference)
-
-```
-For each employee E in billing period P:
-
-  weeks_in_period = all ISO calendar weeks overlapping P
-
-  for each week W in weeks_in_period:
-    vacation_hours_W = sum of AbsencePeriod hours of type Vacation
-                       that overlap week W for employee E
-    booked_hours_W   = sum of Booking hours for employee E in week W
-
-  non_vacation_weeks = { W : vacation_hours_W == 0 }
-  // (or: < full_week_threshold — per D-AVG-03 decision B)
-
-  avg_attendance = sum(booked_hours_W for W in non_vacation_weeks)
-                  / count(non_vacation_weeks)
-                  when count(non_vacation_weeks) >= 2, else null
-```
-
-**Dependencies on existing Shifty services:**
-- `AbsencePeriod` data (already in DAO layer) — to identify vacation weeks
-- `Booking` data per employee per week (already in `BookingInformationService`)
-- Billing period date range (already in `ReportingService`)
-- `ReportingService` (Business-Logic tier) — natural home for new computation
-- Snapshot schema version: no bump if derive-on-read (see D-AVG-08)
-
-### Complexity Summary
-
-| Area | Estimate | Notes |
-|---|---|---|
-| Data model | NONE | No new tables if derive-on-read |
-| Business logic | MEDIUM | New computation in `ReportingService`; requires joining booking + absence data per week |
-| REST | LOW | New field on existing billing-period-report response DTO |
-| Frontend display | LOW | New cell in existing billing-period-per-employee table |
-| Definitional decisions | HIGH (discussion) | Seven open decision points (D-AVG-01 through D-AVG-08) must be resolved in discuss-phase |
+**F5 dependency chain:**
+- Read side rides on F2's account math (same balance formulas).
+- Trigger: employee-overview list (top-level `/employees`) already shows all sales-persons — becomes overview-with-badge. Backend supplies `Vec<VoluntaryReconciliationAlertTO>` (or extends the existing list DTO with an optional field).
+- Write side: HR approve → `RebookingService::persist_hr_suggestion(sales_person_id, entries, tx)` writes one `rebooking_batch(kind='hr_suggestion', state='approved')` + N `rebooking_batch_entry` rows + calls F3's `rebook_hours` in the same tx. Reject → same batch row but `state='rejected'`, no ExtraHours writes.
+- **Read model for pending batches:** `GET /rebooking-batch?state=pending&kind=hr_suggestion` for a future queue view (not in v2.6 core scope, but the schema supports it).
 
 ---
 
-## Feature Dependencies (on Existing Shifty Capabilities)
+## Differentiators
 
-```
-WST-01 week status
-    └── requires ──> Booking write paths (ShiftplanEditService, BookingService)
-    └── requires ──> Slot write paths (SlotService, ShiftplanEditService)
-    └── requires ──> Shiftplanner RBAC role (exists)
-    └── requires ──> Week-navigation frontend component (exists)
+Features that raise the reconciliation story from "manual with tool assist" to "self-driving". Not expected — but each one meaningfully reduces HR toil.
 
-AVG-01 average attendance
-    └── requires ──> AbsencePeriod DAO (exists, v1.0+)
-    └── requires ──> Booking data per employee per week (exists, BookingInformationService)
-    └── requires ──> Billing period date ranges (exists, ReportingService)
-    └── enhances ──> Billing period report frontend (existing view, add new column)
-    └── relates to ──> v1.5 Regel A-22-1 "Ø-Stunden/Woche-Statistik" (precursor; check for reuse)
-```
+| Feature | Value proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **F4 — Automatische Umbuchung (Wochen-Cron)** | Turns a manual reconciliation from "HR checks weekly, HR clicks per person" into "HR reviews a weekly summary". Real productivity multiplier. Nobody expects this on day one but everyone loves it once shipped. | High | Weekly cron (Vorwoche = last completed ISO week). For each capped person: compute `Ist_last_week = Σ VolunteerWork(hours) in ISO-week`, `Soll_last_week = working_hours(week).committed_voluntary`. If `Ist > Soll + committed_voluntary` (i.e. Überschuss über Zusage), rebook the excess `excess = Ist − (Soll + committed_voluntary)` per week as pair-ExtraHours in one batch (`kind='auto_cron'`). Batch persistence groups all persons in one commit per run. |
+| **F4 rollout backfill CLI** | Without backfill, F4 only helps *going forward* — historical over-delivery stays broken. Standard practice for any "cutoff-date" feature (HCFG-02/SHC-04 precedent). | Medium | New Cargo binary or `shifty_bin` subcommand `backfill-voluntary-rebooking --from <date> --to <date> --dry-run`. Same F4 compute path, iterates historical ISO-weeks. Dry-run outputs what *would* be booked; live run persists as `kind='auto_backfill'`. Ships with rollout of the cron. |
 
----
+**F4 dependency chain:**
+- Cron scaffolding: **v2.2 `tokio_cron_scheduler`** (already registered in `shifty_bin/src/main.rs` for the WebDAV/PDF export). Add a second job — matches v2.2 precedent one-to-one.
+- Gate: new `ToggleService` toggle `voluntary_auto_rebooking_active_from` (ISO date, precedent HCFG-02 v1.7 + SHC-04 v2.4). Off (unset) = cron doesn't run. Set to a date = cron runs and only processes weeks with `booking_date >= active_from`.
+- Compute path: same pure fn as F1 (Ist per week) + `EmployeeWorkDetailsService` (Soll per week). Reuse — do not duplicate.
+- Write path: `RebookingService::persist_auto_cron_run(entries, run_id, tx)` — same table as F5, `kind='auto_cron'`, `state='applied'` (no HR gate on auto-runs).
+- **Idempotency:** F4 must not double-book if the cron runs twice for the same week. Enforce via **unique index** on `rebooking_batch_entry(sales_person_id, iso_year, iso_week, kind)` — a re-run for the same key is a no-op (SKIP existing). Aligns with atomicity precedent (feedback_atomic_repoint_no_double_count).
 
-## MVP Recommendation for v2.1
-
-### WST-01 — Build in full (low risk, clear scope)
-- Four states with simple badge
-- Planner-only state transitions
-- Lock gate on all booking/slot write paths for non-planner roles
-- i18n de/en/cs
-
-### AVG-01 — Resolve decisions first, then implement minimum viable version
-- Resolve D-AVG-01 through D-AVG-08 in discuss-phase
-- Implement derive-on-read computation in `ReportingService`
-- Display in billing period report, HR-gated
-- Vacation-only exclusion (D-AVG-04 option A)
-- Defer: trend view, configurable exclusion, snapshot persistence
-
-### Defer (not v2.1)
-- Publish-notification system for week status changes (employees notified when week moves to Planned)
-- Week-status bulk operations (lock all past weeks at once)
-- AVG-01 snapshot persistence
-- Side-by-side avg vs. committed hours trend
+**F4 rollout backfill CLI:**
+- Runs *once* at rollout, then archived. Same compute + persistence as F4.
+- Idempotency guard: the unique index above catches double-inserts even if the CLI is run twice. Dry-run mode required (precedent: milestone tooling).
 
 ---
 
-## Competitor Feature Analysis
+## Anti-features (explicit non-goals)
 
-| Feature | Planday | When I Work | Dayforce | Shifty v2.1 approach |
-|---|---|---|---|---|
-| Week/schedule states | Draft → Published → (Payroll Locked) | Draft → Published | Timesheet lock per pay period | Four states + explicit planner lock |
-| Who owns the lock | Admin only | Manager | Payroll admin | Shiftplanner (existing role) |
-| Retroactive planner edit after lock | No (requires support) | N/A | Via retroactive adjustment flow | Yes, Shiftplanner can always write |
-| Average attendance metric | Not found in documentation | Not found | Via workforce analytics module | New in v2.1, HR-gated |
-| Vacation excluded from avg denominator | Partial (PTO subtracted from utilization) | N/A | Configurable | Vacation weeks excluded from denominator |
+Explicit "we will NOT build this in v2.6" list, to prevent scope creep. Every one of these will get asked in discuss-phase; the answer is prepared.
+
+| Anti-feature | Why avoid | What to do instead |
+|--------------|-----------|--------------------|
+| **Retro-editing existing ExtraHours as "part of a rebooking batch"** | The rebooking-batch model is prospective (batches wrap **new** ExtraHours writes). Retro-linking old orphan rows would require a schema-level foreign-key or a repair CLI — huge scope, low value. | Pre-v2.6 ExtraHours stays orphan (no batch). Reports treat them exactly as today. |
+| **Employee-self-service view of the voluntary account** | Every existing voluntary/committed-related surface is HR-only (CVC-06 precedent). The account exposes commitment-vs-realization drift, which is inherently sensitive. | HR-only across F1, F2, F5. Add a self-view later as a separate milestone with a discuss-phase on privacy semantics. |
+| **Notifications (email / iCal / push) on F4 completion or F5 alert** | v2.6 has no notification channel infrastructure. Adding one is a milestone of its own. | Alerts are visible in the app only. F4 writes to a log line + surfaces in Admin-panel status (analog EXP-03). |
+| **Approval workflow / multi-role sign-off on F5 batches** | PROJECT.md notes: "Backend kennt heute keinen Approval-Schritt" (v1.4 out-of-scope). Two-step approval multiplies REST endpoints and state machine complexity. | Single-step HR approve/reject. Persist `approved_by = <HR user id>` + `approved_at` on the batch for audit only. |
+| **Undo/rollback of an applied batch** | Batch is a series of ExtraHours pair-writes. Undoing means writing inverse pairs — doable, but multiplies REST surface + UI complexity. High probability of drift bugs. | For v2.6, undo is manual (HR uses the existing ExtraHours-editor to delete rows one by one). Design the schema so a future undo can be added (batch has a stable id; entries reference it — reverse-pair write is straightforward if ever needed). |
+| **F4 compute over full year or over arbitrary range** | Weekly windowed compute is O(1) per person per run. Full-year every week is O(52) per person per run × cron cadence — waste. Also would double-book on partial-week edits. | F4 processes exactly last completed ISO week. Backfill CLI handles historical range. |
+| **UI to visualize the rebooking-batch history** | Adds a whole new screen. Every HR system has one eventually, but nobody needs it on day one — the ExtraHours-editor already shows the resulting pair rows. | Deferred to v2.7+. Schema (batch table + entries) supports a queue view without migration. |
+| **Alert on non-capped employees with voluntary Überschuss** | F5's alert is about *capped* employees whose paid balance is stuck at 0 (by cap) while they over-delivered voluntarily — that's the exact user-value case. Non-capped employees just get overtime paid normally; no rebooking needed. | Alert is gated on `sales_person.cap_planned_hours_to_expected == true`. Non-capped employees see nothing extra. |
+| **F4 as source-of-truth for the voluntary account** | If F4 alters the ExtraHours ledger AND the account math reads from that ledger, the account trivially reads zero after F4 runs — which is *correct semantically* but requires the frontend to also show "was rebooked" separately. Doing that inline in v2.6 doubles the state model. | Account math reads from the raw `VolunteerWork` ExtraHours (pre-rebook), so the account keeps meaning across F4 runs. Rebooking writes cancel out **paid balance** minus, not voluntary Ist. Discuss-phase must confirm this: **the account is a live "not yet reconciled" figure**, and rebook operations shrink it. This is the semantic that matches how HR thinks about it. |
+
+---
+
+## Feature dependencies
+
+```
+                             ┌─────────────────────────────────────────┐
+                             │  Existing (already shipped v1.4..v2.5)  │
+                             │                                         │
+                             │  committed_voluntary (EmployeeWorkDet.) │
+                             │  ExtraHoursService + VolunteerWork cat. │
+                             │  ReportingService (AVG-01 / RPT-01)     │
+                             │  ToggleService (HCFG-02 / SHC-04)       │
+                             │  tokio_cron_scheduler (EXP-01)          │
+                             │  HR gate + is_dynamic filter            │
+                             └─────────────────────────────────────────┘
+                                              │
+                                              │ new builds on
+                                              ▼
+                                    F1 (Ø voluntary / week)
+                                              │
+                                              │ shares pure fn
+                                              ▼
+                                    F2 (Soll/Ist/Konto)
+                                              │
+                                              │ account math feeds
+                                              ▼
+                          ┌──────────────┴──────────────┐
+                          ▼                             ▼
+                    F3 (manual 1-click)          F5 (HR alert + modal)
+                          │                             │
+                          │ pair-write primitive        │ writes batch entries
+                          │                             │ that call...
+                          ▼                             ▼
+                    RebookingService (new)  ──────────────┐
+                          ▲                             │
+                          │                             │
+                          │ writes same batch schema    │
+                          │                             │
+                    F4 (weekly cron)  + rollout backfill CLI
+```
+
+**Ordering implications for the roadmap:**
+
+1. **First phase:** F1 + F2 read-side + DTO. Cheapest, unlocks F3/F5 UI immediately. No new tables yet.
+2. **Second phase:** Table migration (`rebooking_batch` + `rebooking_batch_entry`) + `RebookingService` skeleton + F3 (manual pair-write). Isolated, testable, ships even if F4/F5 slip.
+3. **Third phase:** F5 (HR alert + suggestion modal + approve/reject persistence) — needs F3's `rebook_hours` primitive.
+4. **Fourth phase:** F4 (weekly cron + backfill CLI + toggle stichtag). Most complex; ships last so F1..F3+F5 can be verified against manual reality first.
+
+This order also matches the risk profile: F1/F2 are pure read (near-zero regression risk), F3 is bounded pair-write (transaction guarantees), F5 is UX-heavy but read-safe once state machine settled, F4 is the highest-blast-radius change and benefits from all previous work being validated.
+
+---
+
+## MVP recommendation (if scope has to shrink)
+
+If the milestone needs to be de-risked, ship **F1 + F2 + F3** as the MVP:
+
+- HR sees the account (F1/F2).
+- HR can act manually (F3).
+- Value delivered end-to-end without cron or auto-batch semantics.
+- No new toggle, no cron, no rollout stichtag, no backfill CLI.
+- Snapshot version stays 12 (guaranteed — no persistence changes beyond the additive ExtraHours pair-writes F3 already uses).
+
+Defer F4 + F5 to v2.7 — the schema (batch tables) can either be pre-created in v2.6 or deferred to v2.7 as well.
+
+**Recommendation:** Do NOT pre-create the tables if F4/F5 slip. Empty tables are drift-fuel; ship them when they're used.
+
+---
+
+## Cross-milestone dependencies (traceability)
+
+| v2.6 feature | Depends on shipped feature | Source-of-truth service | New DTO extension |
+|--------------|---------------------------|-------------------------|-------------------|
+| F1 | AVG-01 (v2.1) / RPT-01 (v2.2) pattern; `ExtraHoursService::find_by_iso_year` (v2.5) | `ReportingService` | `EmployeeReportTO.avg_voluntary_hours_per_contract_week` (additive, `#[serde(default)]`) |
+| F2 | `committed_voluntary` (v1.4 CVC-01/02); AVG-01 nenner (v2.1); `EmployeeWorkDetailsService.get_by_year`-style batch (v2.5 Follow-up #3 pattern) | `ReportingService` + `EmployeeWorkDetailsService` | `EmployeeReportTO.voluntary_account: { soll, ist, delta }` (additive) |
+| F3 | `ExtraHoursService::create` under existing `TransactionDao` | new `RebookingService` (Business-Logic tier) | new `RebookHoursRequestTO` (POST body) |
+| F4 | `tokio_cron_scheduler` (v2.2 EXP-01); `ToggleService` stichtag (v1.7 HCFG-02); F3 pair-write primitive | new `RebookingService` + `Scheduler`-registration | none FE-facing (backend log only); new REST GET on batches for future UI |
+| F5 | F2 account math; F3 pair-write; existing employee-overview list | new `RebookingService` | new `VoluntaryReconciliationAlertTO` + new `RebookingSuggestionTO` (approve/reject payload) |
+
+---
+
+## Confidence
+
+**HIGH** on:
+- Existing service/DTO map (read from repo directly, cross-checked against PROJECT.md + v2.5 REQUIREMENTS).
+- Pattern precedent for each feature (AVG-01, RPT-01, VAA-01, HCFG-02, SHC-04, EXP-01 — all quoted with concrete file/phase references).
+- Snapshot-version staying at 12 (matches CVC-05 revised decision from v1.4 — Achse-B / derive-on-read wins).
+
+**MEDIUM** on:
+- Exact denominator definition for F1 (AVG-01's "weeks with contract, absence-adjusted" vs. simpler "contract weeks in year"). **Decide in discuss-phase**, precedent A-22-1 is the reference.
+- Whether to persist a new `BillingPeriodValueType` for the voluntary account. Default: NO. Discuss-phase should confirm.
+- F4 idempotency exact key shape (`(sales_person_id, iso_year, iso_week, kind)` vs. `(sales_person_id, iso_year, iso_week)` — the latter lets HR-suggestion supersede an auto-cron; the former makes them independent). **Decide in discuss-phase.**
+- F5 IST→DANN modal formula for the "DANN" column — is it the account after applying the exact excess-per-week from F4, or a summed one-shot? Recommend: match F4's per-week excess semantics so manual F5 reconciles the same way F4 would.
 
 ---
 
 ## Sources
 
-- [Planday Draft Shifts documentation](https://help.planday.com/en/articles/30569-how-to-use-draft-shifts-in-planday) — schedule lifecycle states
-- [Planday Payroll Period Lock](https://help.planday.com/en/articles/30525-how-to-lock-a-payroll-period) — lock semantics, admin-only, visual lock icon
-- [When I Work Scheduling Basics](https://help.wheniwork.com/articles/scheduling-basics/) — draft vs. published states, diagonal-line visual for drafts
-- [Shiftboard Permission Levels](https://support.shiftboard.com/l/en/article/af94aqf3yk-permission-levels-overview) — coordinator/manager draft vs. publish permissions
-- [Dayforce Retroactive Adjustments](https://help.dayforce.com/r/manager-guide/Retroactive-Adjustments) — locked period retroactive edit access patterns
-- [Oyster HR — Absence Rate](https://www.oysterhr.com/glossary/absence-rate) — numerator/denominator definitions for attendance metrics
-- [Patriot Software — Absenteeism Rate](https://www.patriotsoftware.com/blog/payroll/how-to-calculate-absenteeism-rate/) — vacation exclusion from authorized leave calculations
-- [BASUSA — Variable Hour Employee Measurement Periods](https://www.basusa.com/blog/measurement-period-best-practices-for-variable-hour-employees) — 3–12 month measurement windows, ACA compliance lens
-- [Hubstaff — Utilization Rate](https://hubstaff.com/workforce-analytics/utilization-rate) — utilization = worked hours / available hours; vacation subtracted from denominator
-- [Zendesk — Workforce Management Metrics](https://www.zendesk.com/blog/workforce-management-metrics/) — standard WFM metrics catalogue
+- `.planning/PROJECT.md` (v2.6 charter section, line-verified 2026-07-06)
+- `.planning/milestones/v1.4-REQUIREMENTS.md` (committed_voluntary, CVC-05 no-bump precedent)
+- `.planning/milestones/v1.5-REQUIREMENTS.md` (employee-year report structure, YV-01..03, STAT-01/02, A-22-1 formula)
+- `.planning/milestones/v2.1-REQUIREMENTS.md` (AVG-01 read-aggregate pattern, HR gate + is_dynamic filter, "no snapshot bump" precedent)
+- `.planning/milestones/v2.2-REQUIREMENTS.md` (RPT-01..03 replaces AVG-01 in FE; EXP-01/02/03 for `tokio_cron_scheduler` + admin gate)
+- `.planning/milestones/v2.5-REQUIREMENTS.md` (VAA-01..04 additive-DTO precedent, `#[serde(default)]` legacy-wire-guard, D-53-02 formula for cap-gated volunteer sum, `find_by_iso_year` pattern)
+- `service/src/extra_hours.rs` (ExtraHoursCategory enum: `ExtraWork`, `Vacation`, `SickLeave`, `Holiday`, `Unavailable`, `UnpaidLeave`, `VolunteerWork`, `Custom(id)`)
+- `service_impl/src/` layout (existing `RebookingService` slot to fill — no naming conflict with existing services)
+- `feedback_atomic_repoint_no_double_count` (project MEMORY.md — atomicity + re-point-tests are precedent for F3/F4/F5 write paths)
+- `feedback_stichtag_rollout_legacy_semantics` (project MEMORY.md — F4 toggle stichtag needs pre-stichtag semantic reconstruction, matches HCFG-02 shape)
 
----
-
-*Feature research for: Shifty v2.1 — WST-01 and AVG-01*
-*Researched: 2026-07-01*
+**Confidence tags** on individual claims are inline; overall document = HIGH except where the four MEDIUM discuss-phase decisions above are called out.

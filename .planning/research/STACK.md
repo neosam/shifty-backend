@@ -1,178 +1,130 @@
-# Stack Research
+# Technology Stack — v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 
-**Domain:** Rust/Axum/SQLx/Dioxus shift-planning app — v2.1 feature additions
-**Researched:** 2026-07-01
-**Confidence:** HIGH (verified against actual workspace source, no web research needed — all patterns are already proven in this codebase)
+**Project:** shifty-backend (monorepo incl. shifty-dioxus)
+**Researched:** 2026-07-06
+**Scope:** ONLY new stack surface for F1–F5. Existing capabilities (Axum, layered
+architecture, `ExtraHoursService`, `ReportingService`, `ToggleService`, `sqlx`,
+`tokio_cron_scheduler`, Dioxus frontend) are treated as fixed baseline.
 
-## Verdict: Zero new dependencies required
+**Bottom line — NO NEW HARD DEPENDENCIES REQUIRED.** All five features can be
+built by reusing the stack that already ships in `v2.5.1-dev`. This is by design:
+`v2.6` is a business-logic / data-model milestone, not an infrastructure
+milestone. One optional additive (dev-dep `clap` for a backfill subcommand)
+is discussed below and is explicitly recommended AGAINST — a REST endpoint is
+the better path.
 
-Both WST-01 and AVG-01 are achievable entirely within the existing workspace. Every pattern they need already exists and is proven across 38+ phases.
+## Recommended Stack — for what changes in v2.6
 
----
+### Reuse without modification
 
-## Feature-by-Feature Stack Analysis
+| Concern | Reused component | Version (as pinned) | Why |
+|---|---|---|---|
+| Weekly cron loop (F4) | `tokio-cron-scheduler` | `0.15` (`0.15.1` in lockfile) | Already carries the `PdfExportScheduler` (v2.2/Phase 48). Same runtime, same `JobScheduler` pattern with dormant-boot + `reload_from_db` semantics, same TLS/rustls stance. No second scheduler needed. |
+| Persistence (2 new tables) | `sqlx` + `sqlx::migrate!` | `0.8.2` (`0.8.6` in lockfile) | Every previous milestone that added tables (v1.0 `absence_period`, v1.1 `slot.max_paid_employees`, v1.4 `committed_voluntary`, v2.1 `week_status`, v2.2 `pdf_export_config`) added them additively via `migrations/sqlite/YYYYMMDDHHMMSS_*.sql`. Two more additive files fit that path exactly. Compile-time query checking (`SQLX_OFFLINE=true` in CI + `cargo sqlx prepare --workspace` + committed `.sqlx/`) is already the workflow. |
+| Rebooking as 2 ExtraHours in one Tx (F3, F4, F5-approve) | `ExtraHoursService::create` + `TransactionDao` | current | Service-tier convention (`Option<Transaction>` → `use_transaction` → business logic → `commit`) is precisely what „−N in Kategorie A / +N in Kategorie B atomar" needs. No saga library, no outbox. Parent-batch-write + N-child-writes + Tx-commit = one flat sequence. |
+| Ist-Statistik F1 aggregation | `ReportingService` year-batch pattern | current | v2.5 lifted three Chain A/B/C preloads to `_iso_year` bulk methods; the pure helpers `derive_hours_for_week_pure` + `build_derived_holiday_map_for_week_pure` already have year-scope inputs. F1 = „Σ voluntary hours ÷ contract-weeks" — one more year-scoped pure fold. |
+| Soll-Berechnung F2 | `WorkingHoursService` + `committed_voluntary` field | current (v1.4 delivery) | Zeit-versioniertes Feld existiert; F2 multipliziert es mit den Vertragswochen des Jahres. Neuer Aggregate-Service, keine neuen Deps. |
+| HR-alert row + modal (F5) | Dioxus + `rest-types` union path | current | Zusätzliches DTO-Feld `NegativeBalanceAlertTO`/`RebookingSuggestionTO`, additiv mit `#[serde(default)]`-Guard (Präzedenz v2.5 D-53). Kein neuer Modal-Framework, kein neuer FE-State-Store. |
+| Auth-Gate HR-only (F1, F2, F5) | `PermissionService` mit `HR`-Privileg | current | Identisch zu AVG-01 (v2.1) und VAC-OFFSET-01 (v1.8). |
+| API-Level hiding von HR-Feldern | Existing pattern (`Self-View` sees `None`) | current | v1.8 VAC-OFFSET-01 hat den Präzedenzfall etabliert; F1+F2 folgen dem. |
+| Cutoff-Toggle (Rollout-Schutz, optional) | `ToggleService` | current | Falls F4 einen `active_from`-Stichtag braucht (analog `holiday_auto_credit_active_from` v1.7 und `shortday_slot_clipping_active_from` v2.4), ist der Blueprint fertig. Keine neue Dep. |
+| Observability | `tracing` + `warn!`/`error!`/`info!` | `0.1.40` | Existing scheduler-Muster (`pdf_export_scheduler.rs`) loggt Cron-Trigger, Errors, Skip-Reasons ohne Sensitive-Data. F4/F5 folgen 1:1. |
 
-### WST-01 — Calendar-Week Status
+### Additive (optional) — nur EIN Kandidat
 
-**What it needs:** a per-(year, ISO-week) workflow status enum `{None, InPlanning, Planned, Locked}` persisted to SQLite, with a Shiftplanner-only lock gate injected into booking/slot write paths.
+| Technology | Version | Purpose | Verdict |
+|---|---|---|---|
+| `clap` | `4.6.1` (derive-Feature) | Backfill-CLI-Subcommand für F4-Rollout (rückwirkende Auto-Umbuchung ab Datum X) | **NICHT empfohlen.** Heute parst `shifty_bin/src/main.rs` **keine** CLI-Args (grep-verifiziert: nur ein Kommentar-Match, kein `clap`/`env::args`/`std::env` in produktivem Code). Ein einmaliger Backfill kann als **admin-gated REST-Endpoint** (`POST /rebooking/backfill?from=YYYY-MM-DD&dry_run=true`) implementiert werden. Vorteile: (a) kein Deployment-Rebuild für einen One-Shot, (b) reuse des bestehenden Auth-Gates, (c) audit-trail via existierende Access-Logs, (d) `dry_run`-Modus trivial, (e) keine neue Crate. **Empfehlung: KEIN `clap`. Backfill = HR-Endpoint mit Dry-Run-Flag.** |
 
-#### Enum persistence in SQLite — use TEXT, manual match
+### NICHT neu einführen — explizit ausschließen
 
-The codebase uses a single consistent pattern for all enum columns: store as a `TEXT` column in SQLite, convert with a hand-written `match` block in the `TryFrom<&XxxDb>` impl and the `create`/`update` DAO methods.
+| Verlockung | Warum ablehnen |
+|---|---|
+| `chrono` (upgrade / weitere Nutzung) | `time = "0.3.36"` ist die kanonische Zeit-Bibliothek workspace-weit (`ShiftyDate`/`ShiftyWeek` in `shifty-utils`). `chrono` ist NUR Transitiv-Abhängigkeit von `tokio-cron` und `service_impl` (für `Local` in Legacy-`scheduler.rs`). Neue Zeit-Logik in F1/F4 muss `time` + `ShiftyDate`/`ShiftyWeek` nutzen. |
+| Ein zweites Scheduler-Framework (`apalis`, `sqlx-cron`, `cron`, …) | `tokio-cron-scheduler 0.15` deckt Wochen-Cron mit 6-Feld-Ausdrücken ab (Migration `20260704000000_fix-pdf-export-cron-6-field.sql` zeigt: das ist die etablierte Konvention). Ein Zweit-Scheduler bricht das Dormant-Boot- + Reload-from-DB-Muster und verdoppelt die Test-Fläche. |
+| `serde_yaml`, `toml` für Config | Cron-Ausdruck + Enable-Flag gehören in `rebooking_batch_config`-Tabelle (analog `pdf_export_config`, v2.2) — falls überhaupt konfigurierbar. Keine File-Config nötig. |
+| Neuer HTTP-Client / SSE / WebSocket für F5-Alerts | F5-Banner wird durch existierenden REST-Poll (`GET /employees/:id/rebooking-suggestions` o. ä.) versorgt — analog v1.6 Overage-Warn-Sektion. Live-Push ist Overkill für HR-Sichtbarkeit. |
+| „Batch-Job-Library" wie `sqlxmq`, `graphile-worker` | Batch = 1 Parent + N Children in einer SQLite-Tx. Kein Job-Queue-Substrat nötig; das ist ein reines Domänen-Aggregat, kein Distributed-Task-System. |
+| Neuer FE-State-Store (`dioxus-signals`-Erweiterung o. ä.) | Rebooking-Modal ist ephemeres Modal-State — der Präzedenzfall aus v1.5/v1.8 (Convert-Dialog, VAC-OFFSET-Editor) reicht: lokales `use_signal` im Component-Scope. |
+| `mockall` upgrade / Ersatz | `mockall = "0.13"` ist workspace-weit; alle neuen Services testen sich damit unverändert. |
+| Snapshot-Schema-Version-Bump „vorsorglich" | Nur bumpen, wenn F1/F2/F4/F5 einen neuen persistierten `BillingPeriodValueType` einführen. **Wahrscheinlich NICHT** — die 2 neuen Tabellen sind Domain-State-Tracking, kein Billing-Snapshot-Wert. In discuss-phase pinnen. |
 
-Evidence: `ExtraHoursCategoryEntity` in `dao_impl_sqlite/src/extra_hours.rs`, `SpecialDayTypeEntity` in `dao_impl_sqlite/src/special_day.rs`. Both use `String` on the `XxxDb` struct and `match entity.day_type.as_str() { "Holiday" => ..., "ShortDay" => ..., value => Err(DaoError::EnumValueNotFound(value.into())) }`.
+### Cargo.toml-Konflikt-Check
 
-Do NOT use `sqlx::Type` derive or `strum` for enum-string conversion. Those are valid approaches in other codebases but would be inconsistent here and are not needed.
+Ich habe die drei relevanten Manifeste (`shifty_bin`, `service_impl`, workspace-root) und `Cargo.lock` gegen die geplanten Reuse-Punkte gelesen:
 
-#### ISO-week composite key in SQLite — follow week_message exactly
+- `tokio-cron-scheduler = { version = "0.15", default-features = false }` in `service_impl/Cargo.toml` — bereits gepinnt, kein Konflikt.
+- `sqlx = "0.8.2"` in `shifty_bin` + `service_impl` (dev) + `dao_impl_sqlite` — alle drei alignen; Lockfile-Auflösung `0.8.6` (patch-innerhalb-0.8). Kein Konflikt.
+- `time = "0.3.36"` mit `local-offset` — reicht für F1-Aggregation (Woche-Berechnung, ISO-Kalender). Kein Feature-Bump nötig.
+- `mockall = "0.13"`, `async-trait = "0.1.80"`, `thiserror = "1"`, `tracing = "0.1.40"` — unverändert.
+- `printpdf`, `reqwest_dav`, `reqwest`, `tera`, `minijinja`, `wiremock` — v2.6-irrelevant, bleiben unverändert.
 
-`week_message` (created in `migrations/sqlite/20250123000000_add-week-message-table.sql`) already solves this:
+**Keine `Cargo.toml`-Konflikte erwartet.** F3/F4 fügen `sqlx::query!`/`query_as!`-Aufrufe für die 2 neuen Tabellen hinzu — reine Anwendungsschicht, keine Version-Bumps.
 
-```sql
-CREATE TABLE week_message (
-    id BLOB(16) NOT NULL,
-    year INTEGER NOT NULL,
-    calendar_week INTEGER NOT NULL,
-    ...
-    UNIQUE (year, calendar_week)
-);
-```
+## Alternativen erwogen
 
-The calendar-week status table should follow this schema exactly. Use a partial unique index (`WHERE deleted IS NULL`) to allow soft-delete history, mirroring the `vacation_entitlement_offset` pattern if historical status rows should be kept, or a plain `UNIQUE` constraint like `week_message` if only the current row matters. Given that status transitions are auditable data, the partial-unique-index / soft-delete approach (as in `vacation_entitlement_offset`) is preferable.
+| Bereich | Empfohlen | Alternative | Warum abgelehnt |
+|---|---|---|---|
+| F4 Cron-Trigger | `tokio-cron-scheduler` (reuse) | Neuer `apalis`/`sqlxmq`-Worker mit persistierter Queue | Wochen-Cron ist idempotent + read-heavy + write-batch — Queue-Substrat wäre Over-Engineering. Nach Crash: nächster Wochen-Trigger holt die vergessene Woche via Backfill-Endpoint nach. Präzedenzfall v2.2 PDF-Export läuft seit 2026-07-03 stabil mit demselben Muster. |
+| F5 Alert-Delivery | REST-Poll auf HR-Dashboard | Server-Sent Events / WebSocket-Push | Poll-Latenz irrelevant (HR-Team schaut alle paar Stunden); Push-Infra ist neuer Angriffs-/Test-Vektor. |
+| Batch-Persistenz (F4/F5) | 2 SQLite-Tabellen + Tx | Event-Sourcing über `extra_hours`-Historie | ExtraHours ist bereits das Log der Wahrheit; `rebooking_batch` = Parent-Metadaten (kind, created_by, state, source_week), `rebooking_batch_entry` = 1 Row pro SalesPerson mit Verweis auf die zwei erzeugten `extra_hours.id`s. Rebuild eines Batches = JOIN. Kein CQRS-Framework. |
+| Backfill-Trigger | HR-gated REST-Endpoint mit `?dry_run=true` | `clap`-Subcommand im Binary | Kein Rebuild + Deploy für einen One-Shot, kein neues Auth-Handling. |
+| Cutoff-Stichtag für F4 | `ToggleService` (falls überhaupt nötig) | Config-Datei / ENV-Var | `ToggleService` mit `active_from`-`value` ist der einzige workspace-etablierte Weg (v1.7 `holiday_auto_credit_active_from`, v2.4 `shortday_slot_clipping_active_from`). Analog D-51-07 / HCFG-02. In discuss-phase klären, ob überhaupt nötig — F4 könnte auch nur „Vorwoche == KW-1" ohne Toggle laufen und Rollout via Backfill-Endpoint handhaben. |
 
-Rust-side types: `year: u32` and `calendar_week: u8` in the entity; stored as `i64` in the `XxxDb` struct (SQLx maps SQLite `INTEGER` to `i64`); cast on both sides with `entity.year as i64` and `db.year as u32`. This is the exact pattern in `week_message.rs`, `special_day.rs`, `employee_work_details.rs`.
-
-No separate `chrono` or ISO-week library is needed. The `time` crate (`v0.3.36`, already in `dao_impl_sqlite` and `service_impl`) provides `Date::from_iso_week_date(year, week, weekday)` and `Date::to_iso_week_date()`, which are already used throughout the codebase (verified in `extra_hours.rs`, `shiftplan.rs`, `absence.rs`).
-
-#### Lock gate — use existing SHIFTPLANNER_PRIVILEGE
-
-The existing `SHIFTPLANNER_PRIVILEGE` constant (`"shiftplanner"`, defined in `service/src/permission.rs`) and the `check_permission(SHIFTPLANNER_PRIVILEGE, context)` call pattern (used in `service_impl/src/week_message.rs`, `booking_log.rs`, `shiftplan_edit.rs`) are the correct integration points. No new permission infrastructure is needed.
-
-The gate logic in the booking/slot write paths follows the same pattern already used for the `PaidLimitExceeded` check in `shiftplan_edit.rs`: query the status first, check the role, return a typed `ServiceError` variant mapped to an HTTP error code.
-
-#### Service tier classification
-
-`CalendarWeekStatusService` is a **Basic Service** (manages one aggregate, depends only on its DAO + `PermissionService` + `TransactionDao`). It does not need to depend on `BookingService` or `SlotService`. The lock check belongs in `ShiftplanEditService` (business-logic tier), which already has the booking and slot write paths and can consume the new `CalendarWeekStatusService` as a dep.
-
----
-
-### AVG-01 — Average actual attendance (flexible-hours employees, vacation excluded)
-
-**What it needs:** a new computation over existing booking/absence data, producing an average-hours-per-week figure with vacation weeks removed from the denominator.
-
-#### Computation home — extend ReportingService
-
-`ReportingService` is already the business-logic tier aggregator for worked-hours data. It already consumes `ShiftplanReportDao` (week-range queries using `year * 100 + calendar_week` arithmetic), `AbsenceService` (for per-week absence data, including vacation), and `EmployeeWorkDetailsService` (for `expected_hours`, used to identify flexible-hour employees). No new service-tier wiring is needed; the new average-attendance method lives directly in `ReportingService`.
-
-The denominator exclusion (drop vacation weeks) reuses the same per-week absence bucketing that `absence.rs` already implements via `day.to_iso_week_date()`. The `time` crate handles all date arithmetic.
-
-#### Numeric computation — no new math crate
-
-The existing `f32` arithmetic throughout the reporting stack is sufficient. Averaging hours over N weeks is `total_hours / denominator_weeks as f32`. No statistical library is needed.
-
-#### Snapshot-schema-version impact
-
-If AVG-01 produces a **read-only aggregate** (computed on request, not persisted to `billing_period_sales_person`) → **no bump** to `CURRENT_SNAPSHOT_SCHEMA_VERSION`.
-
-If discuss-phase decides to persist it as a new `BillingPeriodValueType` row → **bump required** (current baseline: 12). This decision must be made explicit in the discuss-phase before implementation begins.
-
----
-
-## Recommended Stack (unchanged from existing workspace)
-
-### Core Technologies
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Rust / Cargo workspace | edition 2021 | Backend language | Already in use; all features implementable within it |
-| SQLx | 0.8.2 | Compile-time-checked SQLite queries | Already in `dao_impl_sqlite`; use `query!` / `query_as!` macros |
-| Axum | 0.8.7 | REST HTTP layer | Already in `rest`; new endpoints follow existing router pattern |
-| utoipa | 5 | OpenAPI annotations | All new endpoints need `#[utoipa::path]` — already available |
-| time | 0.3.36 | Date/week arithmetic | ISO week support via `from_iso_week_date` / `to_iso_week_date` — already used |
-| Dioxus | 0.6.1 | Frontend WASM UI | Already pinned to 0.6.x; new status badge/selector follows existing patterns |
-| serde | 1.0 | JSON serialization for REST | Already in `rest-types`; new DTOs get `#[derive(Serialize, Deserialize, ToSchema)]` |
-
-### Supporting Libraries (already present, reused as-is)
-
-| Library | Version | Purpose | Used for v2.1 |
-|---------|---------|---------|--------------|
-| mockall | 0.13 | Mock generation for unit tests | New service traits get `#[automock]`; integration tests use in-memory SQLite |
-| uuid | 1.8.0 | Row identity | New `calendar_week_status` table rows carry `id BLOB(16)` PK |
-| async-trait | 0.1.80 | Async trait definitions | New service/DAO traits use `#[async_trait]` |
-| thiserror | 2.0 | Typed error variants | New `ServiceError::CalendarWeekLocked` (or similar) variant |
-| chrono | 0.4.39 | Already in service_impl | Not needed for new features; `time` crate handles ISO weeks |
-
-## Installation
-
-No new packages. Both features are implementable with zero `Cargo.toml` changes across all crates.
-
-After adding any new `query!` or `query_as!` macro call, run:
+## Installation — was tatsächlich neu geschrieben wird
 
 ```bash
-# From shifty-backend/ root, inside the nix develop shell:
-cargo sqlx prepare --workspace
-# Then commit the updated .sqlx/ directory.
+# Migrations (additiv, keine bestehende Zeile verändern):
+# migrations/sqlite/20260707000000_create-rebooking-batch.sql
+# migrations/sqlite/20260707000001_create-rebooking-batch-entry.sql
+# (evtl. 20260707000002_seed-auto-rebooking-active-from-toggle.sql, wenn ToggleService-Gate gewünscht)
+
+# Nach jedem neuen sqlx::query!/query_as! in DAO-Impls:
+cd shifty-backend
+cargo sqlx prepare --workspace   # committet .sqlx/*.json — CI läuft SQLX_OFFLINE=true
+
+# Keine Cargo-Änderungen erwartet.
 ```
 
-Skipping this step causes CI to fail with `SQLX_OFFLINE=true` even when the local build is green (established in project memory: `reference_sqlx_prepare_after_new_query.md`).
+## Integration mit bestehenden Services — konkrete Andockpunkte
 
-## Alternatives Considered
+| Neue Kapazität | Andockt an | Wie |
+|---|---|---|
+| F1 Statistik-Aggregation | `ReportingService` (existing) oder neuer thin **business-logic** `VoluntaryStatisticsService` | Konsumiert `ExtraHoursService` + `WorkingHoursService` + optional `SpecialDayService::get_by_iso_year` (wenn v2.5-Follow-up SDF-03 vorher ausgeführt wird — sonst reicht year-batch aus v2.5). |
+| F2 Soll-Aggregat | Neuer basic/business-logic Service (Klassifizierung in discuss-phase) | Liest `WorkingHours::committed_voluntary` × Vertragswochen; write-free. |
+| F3 Manuelle Umbuchung | Neuer **business-logic** `RebookingService` | Konsumiert `ExtraHoursService::create` (2×) + `TransactionDao` + `PermissionService`. Schreibt `rebooking_batch` (kind=`manual`) + `rebooking_batch_entry` mit Verweis auf die beiden erzeugten `extra_hours.id`s. |
+| F4 Automatischer Cron | Neuer `AutoRebookingScheduler` (analog `PdfExportSchedulerImpl`) | Reuse `JobScheduler`-Muster mit dormant-boot + `reload_from_db`; per Tick: iterate SalesPersonen mit `cap=true`, berechne `Ist > Soll + committed_voluntary`, delegiere Umbuchung an `RebookingService::rebook(..., kind=auto_cron)`. |
+| F5 HR-Alert-Feed | Erweiterung Employee-Overview-Endpoint + neuer `RebookingSuggestionService` | Business-Logic-Tier. Signals-Trigger: negatives `balance_hours` UND `cap=true`. Vorschlags-Rows in `rebooking_batch(kind=hr_suggestion, state=pending)`; approve/reject mutiert `state`; approve führt zusätzlich Rebooking aus (denselben Pfad wie F3). |
+| Backfill-CLI (F4-Rollout) | Neuer REST `POST /rebooking/backfill` (nicht `clap`) | HR-Admin-gated, `?dry_run=true` + `?from=YYYY-MM-DD` — schreibt Batches mit `kind=auto_cron_backfill`. |
 
-| Recommended | Alternative | Why Not |
-|-------------|-------------|---------|
-| TEXT discriminant + manual `match` for enum | `sqlx::Type` derive on enum | Inconsistent with all existing enum columns in this codebase; mixing approaches creates confusion |
-| TEXT discriminant + manual `match` for enum | `strum` crate for `Display`/`FromStr` | New dependency with zero benefit; the match blocks are 4-8 lines and are already the established pattern |
-| `time` crate ISO week methods | `chrono` for ISO week arithmetic | `chrono` is already in `service_impl` but only for legacy use; `time` is the primary date lib and fully covers ISO week needs |
-| Partial unique index (`WHERE deleted IS NULL`) for week status | Plain `UNIQUE (year, calendar_week)` | Soft-delete history is valuable for audit; partial index is the established pattern in `vacation_entitlement_offset` |
-| Extend `ReportingService` for AVG-01 | New dedicated `AttendanceService` | Unnecessary tier; `ReportingService` already aggregates exactly this kind of week-range worked-hours data |
+**Service-Tier-Klassifizierung (per CLAUDE.md-Konvention):**
 
-## What NOT to Add
+- `RebookingService` → **business-logic** (konsumiert `ExtraHoursService`, kombiniert mehrere Aggregate).
+- `AutoRebookingScheduler` → **business-logic** (konsumiert `RebookingService` + `WorkingHoursService` + `ReportingService`).
+- `VoluntaryStatisticsService` → **business-logic** (Read-Aggregat).
+- `RebookingSuggestionService` → **business-logic** (kombiniert Balance + Rebooking).
+- KEIN Basic-Service für die 2 neuen Tabellen nötig, wenn die DAO direkt aus `RebookingService` konsumiert wird — beide Tabellen sind ein einziges Aggregat mit einer Wurzel (`rebooking_batch.id`).
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| `sqlx::Type` derive on `CalendarWeekStatus` enum | Not used anywhere in codebase; SQLx's SQLite `TEXT` type inference with derive is available but inconsistent here | Manual `match` in `TryFrom` + DAO write methods |
-| `strum` / `strum_macros` | No existing usage; adds a new proc-macro dep for a 4-line match block | Manual `match` |
-| Any new numeric/stats crate (`statrs`, `nalgebra`, etc.) | AVG-01 is a simple mean over f32 values | `f32` arithmetic in the service method |
-| `chrono`'s `IsoWeek` for week-status keying | Would introduce a second date-type system for the same data that `time` already handles | `time::Date::from_iso_week_date()` and `Date::to_iso_week_date()` |
-| A separate REST crate just for the new endpoints | All domain REST modules live in `rest/src/` with a sub-module per domain | Add `rest/src/calendar_week_status.rs` and register in `rest/src/lib.rs` |
+## Beobachtbarkeit / Scheduler-Pattern zum Wiederverwenden
 
-## Integration Points (patterns to copy verbatim)
+Der `PdfExportSchedulerImpl` liefert das komplette Blueprint (F4 sollte dies 1:1 spiegeln):
 
-| Pattern needed | Copy from |
-|----------------|-----------|
-| Migration with soft-delete + partial unique index on `(year, calendar_week)` | `migrations/sqlite/20260629000000_create-vacation-entitlement-offset.sql` |
-| `XxxDb` struct with `i64` year/week + TEXT status, `TryFrom` impl | `dao_impl_sqlite/src/week_message.rs` + `dao_impl_sqlite/src/special_day.rs` |
-| `UNIQUE (year, calendar_week)` table constraint | `migrations/sqlite/20250123000000_add-week-message-table.sql` |
-| `find_by_year_and_week` DAO query | `dao_impl_sqlite/src/week_message.rs` |
-| `SHIFTPLANNER_PRIVILEGE` check in service method | `service_impl/src/week_message.rs` (lines ~79ff) |
-| `is_shiftplanner` capture + conditional hard-block in write path | `service_impl/src/shiftplan_edit.rs` (lines ~571ff) |
-| Basic-service `gen_service_impl!` with DAO + Permission + TransactionDao only | `service_impl/src/week_message.rs` |
-| Business-logic consumer of new Basic service | `service_impl/src/shiftplan_edit.rs` (add `CalendarWeekStatusService` dep) |
-| Week-range aggregation over booking hours | `dao_impl_sqlite/src/shiftplan_report.rs` (`extract_shiftplan_report`) |
-| Vacation-week extraction per sales person | `service_impl/src/absence.rs` (the `to_iso_week_date()` loops) |
-| Dioxus enum selector (badge/dropdown) | Existing `SpecialDay` day-type selector or `ExtraHours` category selector in the frontend |
-| `#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, ToSchema)]` on new DTO enum | `rest-types/src/lib.rs` line 242 (`ExtraHoursCategory`) |
+1. `Arc<Mutex<Option<JobScheduler>>>` — lazy-init in `start()`, tolerant gegenüber DB-Config-Fehlern beim Boot (dormant-Modus + `warn!`-Log, kein Boot-Fail).
+2. `reload_from_db()` — separate Methode, die per Config-Änderung (PUT-Endpoint) getriggert wird, alten Job removed, neuen Job registriert.
+3. `Job::new_async(cron_schedule.as_str(), move |_uuid, _lock| { … })` — 6-Feld-Cron-Ausdruck (siehe Migration `20260704000000_fix-pdf-export-cron-6-field.sql`).
+4. Per-Iteration: `Authentication::Full` für interne Aggregate (siehe `ToggleService`-Full-Context-Bypass in MEMORY-Referenz `reference_toggle_service_full_context_bypass.md`).
+5. Fehler in einem einzelnen Item werden per `record_error` + `return Ok(())` **skip-per-item** behandelt, nicht batch-fail (v2.3.1-Präzedenz Commit `754f94f`).
+6. Kein sensibles Feld loggen (Token-Leak-Guard) — F4 sollte SalesPerson-IDs loggen, aber keine Namen.
 
-## Version Compatibility
-
-No changes to existing dep versions. All new code uses the already-locked versions. The `sqlx prepare --workspace` step is the only post-implementation gate that touches the lockfile area (`.sqlx/` offline cache, not `Cargo.lock`).
+**Neuer Test-Modus, den F4 mitbringen sollte** (nicht als Dep, als Konvention): `RebookingService::compute_dry_run(week) -> DryRunReport` — dieselbe Berechnungsfunktion ohne DAO-Write, wiederverwendet vom Backfill-Endpoint UND F5-Modal-„DANN"-Zahl. Präzedenzfall: `PdfExportScheduler` hat kein Dry-Run, aber das `absence_service::compute_conflict`-Muster (v1.0) hat es — Ratschlag: von dort spiegeln.
 
 ## Sources
 
-All findings are verified directly from the workspace source files — no web research was required. Sources:
+- Repo-internal: `service_impl/src/pdf_export_scheduler.rs` (Zeilen 1–260, Blueprint für F4), `service_impl/src/scheduler.rs` (Legacy `tokio-cron`, NICHT als Vorlage), `service_impl/src/pdf_export_config.rs` (Config-Reload-Muster), `service_impl/Cargo.toml` (pinning-Präzedenz), `Cargo.lock` (transitive Auflösungen `tokio-cron-scheduler 0.15.1`, `sqlx 0.8.6`, `reqwest_dav 0.3.3`, `printpdf 0.7.0`).
+- Repo-internal: `CLAUDE.md` (Service-Tier-Konvention, `gen_service_impl!`, sqlx-prepare-Gate, Docs-Freshness-Gate, Snapshot-Schema-Version-Bump-Vertrag).
+- Repo-internal: `.planning/PROJECT.md` §„Current Milestone: v2.6" (F1–F5-Definition), §v2.5-Shipped (Fat-Backend-Präzedenz und Chain-A/B/C-year-scope), §v2.2-Shipped (WebDAV-Scheduler-Muster).
+- Repo-internal: `migrations/sqlite/*.sql` (Migration-Namenskonvention, additive-Präzedenz — 25 Einträge, alle additiv).
+- Web: [tokio-cron-scheduler 0.15.1 — crates.io](https://crates.io/crates/tokio-cron-scheduler) — bereits gepinnt, latest confirmed.
+- Web: [clap 4.6.1 — Docs.rs](https://docs.rs/crate/clap/latest) — nur als NICHT-empfohlene Alternative dokumentiert.
 
-- `dao_impl_sqlite/src/extra_hours.rs` — TEXT discriminant enum persistence pattern (HIGH)
-- `dao_impl_sqlite/src/special_day.rs` — TEXT discriminant + `(year, calendar_week, day_of_week)` keying (HIGH)
-- `dao_impl_sqlite/src/week_message.rs` — `(year, calendar_week)` unique composite key, full DAO pattern (HIGH)
-- `migrations/sqlite/20250123000000_add-week-message-table.sql` — week table schema (HIGH)
-- `migrations/sqlite/20260629000000_create-vacation-entitlement-offset.sql` — soft-delete + partial unique index pattern (HIGH)
-- `service/src/permission.rs` — `SHIFTPLANNER_PRIVILEGE` constant (HIGH)
-- `service_impl/src/week_message.rs` — Basic-service permission gate pattern (HIGH)
-- `service_impl/src/shiftplan_edit.rs` — `is_shiftplanner` + hard-block pattern in write path (HIGH)
-- `service_impl/src/absence.rs` — `to_iso_week_date()` / vacation-week bucketing (HIGH)
-- `dao_impl_sqlite/src/shiftplan_report.rs` — week-range worked-hours aggregation (HIGH)
-- `dao_impl_sqlite/Cargo.toml`, `service_impl/Cargo.toml`, `rest/Cargo.toml`, `rest-types/Cargo.toml`, `shifty-dioxus/Cargo.toml` — full dependency inventory (HIGH)
-
----
-*Stack research for: Shifty v2.1 — WST-01 Calendar-Week Status + AVG-01 Avg Attendance*
-*Researched: 2026-07-01*
+**Confidence:** HIGH — alle Empfehlungen stützen sich auf im Repo bereits gelieferte Präzedenzfälle (v1.0, v1.4, v1.7, v1.8, v2.2, v2.4, v2.5) statt auf externe Web-Behauptungen. Der einzige Web-Fakt (Version-Bestätigung `tokio-cron-scheduler 0.15.1` + `clap 4.6.1`) ist crates.io-verified.

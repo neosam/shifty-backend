@@ -1,475 +1,281 @@
-# Architecture Research
+# Architecture Patterns — v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 
-**Domain:** Shifty v2.1 — Feature integration into existing layered Rust + Dioxus monorepo
-**Researched:** 2026-07-01
-**Confidence:** HIGH (direct codebase inspection; no external sources needed)
+**Milestone:** v2.6 (subsequent, additive on shipped v2.5 baseline)
+**Researched:** 2026-07-06
+**Confidence:** HIGH (all decisions grounded in existing precedents: v1.4 committed_voluntary, v1.7 ToggleService gate, v2.2 tokio_cron_scheduler, v2.3 PDF-Assembler-BL, v2.5 Fat-Backend `sales_person_absences`)
 
-## Standard Architecture
+## Guiding Principles for This Milestone
 
-### System Overview (existing, unchanged)
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  shifty-dioxus (Dioxus/WASM)                                     │
-│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌────────────────┐  │
-│  │  Pages   │  │Components │  │  State   │  │  api.rs fns    │  │
-│  └────┬─────┘  └─────┬─────┘  └────┬─────┘  └───────┬────────┘  │
-└───────┴──────────────┴─────────────┴────────────────┴────────────┘
-                                                        │ HTTP/REST
-┌───────────────────────────────────────────────────────┴────────────┐
-│  shifty-backend (Axum / Cargo workspace)                           │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  REST Layer  (rest/)  #[utoipa::path], error_handler wrap  │   │
-│  └───────────────────────────────┬─────────────────────────────┘   │
-│                                  │ calls                           │
-│  ┌────────────────────────────────┴──────────────────────────────┐  │
-│  │  Service Layer  (service/ + service_impl/)                   │  │
-│  │  ┌──────────────────────────────────────────────────────┐    │  │
-│  │  │  Business-Logic Tier (may consume domain services)   │    │  │
-│  │  │  ShiftplanEditService, ReportingService,             │    │  │
-│  │  │  BookingInformationService, AbsenceService, …        │    │  │
-│  │  └──────────────────────────┬───────────────────────────┘    │  │
-│  │                             │ calls                          │  │
-│  │  ┌──────────────────────────┴───────────────────────────┐    │  │
-│  │  │  Basic Tier (entity managers — DAOs only)            │    │  │
-│  │  │  BookingService, SlotService, SalesPersonService,    │    │  │
-│  │  │  SpecialDayService, WeekStatusService (NEW)          │    │  │
-│  │  └──────────────────────────┬───────────────────────────┘    │  │
-│  └────────────────────────────┬┴───────────────────────────────┘   │
-│                               │ calls                              │
-│  ┌────────────────────────────┴──────────────────────────────────┐  │
-│  │  DAO Layer  (dao/ + dao_impl_sqlite/)                        │  │
-│  └────────────────────────────┬──────────────────────────────────┘  │
-│                               │                                     │
-│  ┌────────────────────────────┴──────────────────────────────────┐  │
-│  │  SQLite  (SQLx compile-time checked)                         │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────┘
-```
+1. **Fat Backend, Thin Client** (PROJECT.md §Architektur-Prinzipien) — every rebooking suggestion, statistics number, and account computation is a pre-computed field in the DTO. Frontend does zero arithmetic.
+2. **Service-Tier-Konvention** (CLAUDE.md) — Basic Services own single aggregates and consume only DAOs + Permission + Transaction. Business-Logic Services combine aggregates. Rebooking touches ExtraHours (Basic) + WorkingHours (Basic) + Reporting (BL) — it *must* be BL.
+3. **Additive Migrations** — precedent from v1.7 / v1.8 / v2.1 / v2.4 shows new tables + toggles ship without touching `billing_period_sales_person`. v2.6 follows suit.
+4. **Cron Scheduler Precedent** — `PdfExportSchedulerImpl` (v2.2/v2.3, `service_impl/src/pdf_export_scheduler.rs`) already owns the pattern: `tokio_cron_scheduler::JobScheduler` behind an `Arc<Mutex<Option<…>>>`, lazy-init in `start()`, DB-driven reload. Copy-paste-adapt shape, do not invent a new one.
 
 ---
 
-## WST-01: KW-Status — Integration Architecture
+## Recommended Architecture
 
-### Tier Classification
+### High-Level Data Flow (F1–F5)
 
-**WeekStatusService → Basic tier (entity manager)**
+```
+┌─ Wochen-Cron (tokio_cron_scheduler) ────────────────────────────────┐
+│  VoluntaryRebookingScheduler.start()  ───► run_once_for_previous_week
+│                                                     │                │
+│                                                     ▼                │
+└──────────────────────► RebookingReconciliationService (BL) ─────────┘
+                          │      │           │           │
+                          ▼      ▼           ▼           ▼
+                  ExtraHoursService  ReportingService  WorkingHoursService  RebookingBatchService
+                        (Basic)         (BL, read)        (Basic)                (Basic, entity-mgr)
+                          │                │                │                       │
+                          ▼                ▼                ▼                       ▼
+                    extra_hours       shiftplan_report  employee_work_details  rebooking_batch(_entry)
+                                                                                    (2 new tables)
 
-Rationale: It manages exactly one aggregate (the `week_status` table). It only needs `WeekStatusDao + PermissionService + TransactionDao`. It does NOT need to call any other domain service to do CRUD on week statuses. Per CLAUDE.md: "Nur DAOs + Permission + Transaction → basic."
-
-**Lock gate enforcement → Business-Logic tier, inside ShiftplanEditService**
-
-Rationale: Lock gate is a cross-entity invariant (a status on one entity constrains writes to other entities — bookings and slots). Cross-entity invariants live in the business-logic tier. `ShiftplanEditService` is already the business-logic write aggregate for shiftplan mutations.
-
-### New Components per Layer
-
-**Database layer — Migration (migrations/sqlite/)**
-
-```sql
--- New file: 20260701000000_create-week-status.sql
-CREATE TABLE week_status (
-    id          TEXT NOT NULL PRIMARY KEY,
-    year        INTEGER NOT NULL,
-    calendar_week INTEGER NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'None',  -- 'None' | 'InPlanning' | 'Planned' | 'Locked'
-    created     TEXT NOT NULL,
-    deleted     TEXT,
-    version     TEXT NOT NULL,
-    UNIQUE(year, calendar_week, deleted)        -- one live row per (year, week)
-);
+REST (Axum)
+├─ GET  /reporting/employee/{y}/{spid}         → ReportingService (existing, extended DTO)
+├─ GET  /reporting/employee/{y}/{spid}/voluntary-stats → VoluntaryStatsService (new, HR-gated)
+├─ POST /rebooking/manual                      → RebookingReconciliationService.rebook_manual (F3)
+├─ GET  /rebooking-suggestions?state=pending   → RebookingBatchService.list_pending (F5)
+├─ POST /rebooking-suggestions/{id}/approve    → RebookingReconciliationService.approve (F5)
+├─ POST /rebooking-suggestions/{id}/reject     → RebookingBatchService.reject (F5)
+└─ POST /admin/rebooking/backfill?from=YYYY-Www → RebookingReconciliationService.backfill (F4 rollout)
 ```
 
-**DAO layer**
+### Component Boundaries
 
-New trait `dao::week_status::WeekStatusDao` (mirrors `dao::week_message::WeekMessageDao` pattern):
-- `find_by_year_and_week(year, week, tx) -> Option<WeekStatusEntity>`
-- `find_by_year(year, tx) -> Vec<WeekStatusEntity>`
-- `create(entity, process, tx) -> ()`
-- `update(entity, process, tx) -> ()`
-- `delete(id, process, tx) -> ()`
+| Component | Tier | Responsibility | Consumes | Consumed By |
+|-----------|------|----------------|----------|-------------|
+| `RebookingBatchService` (NEW) | **Basic** (entity-manager) | CRUD `rebooking_batch` + `rebooking_batch_entry`; state transitions `pending→approved/rejected`; pure list/find queries | `RebookingBatchDao` (new), `PermissionService`, `TransactionDao` | `RebookingReconciliationService`, REST |
+| `RebookingReconciliationService` (NEW) | **Business-Logic** | orchestrates: compute account → decide rebooking → within one tx: create ExtraHours pair + create/update batch entry | `RebookingBatchService`, `ExtraHoursService`, `ReportingService`, `WorkingHoursService`, `SalesPersonService`, `PermissionService`, `TransactionDao` | REST + `VoluntaryRebookingScheduler` |
+| `VoluntaryStatsService` (NEW) | **Business-Logic** (read-only aggregate) | pure fn `voluntary_hours_per_contract_week(sp_id, year)` + `committed_voluntary_target(sp_id, year)` (Soll-Summe) — HR-gated read | `ExtraHoursService`, `WorkingHoursService`, `SalesPersonService`, `PermissionService`, `TransactionDao` | REST (F1, F2) |
+| `VoluntaryRebookingScheduler` (NEW) | **Business-Logic** | Wochen-Cron; delegates work to `RebookingReconciliationService.run_for_week(prev_week)`; DB-driven toggle-reload analog `PdfExportSchedulerImpl` | `RebookingReconciliationService`, `ToggleService`, `ClockService`, `PermissionService`, `TransactionDao` | boot in `shifty_bin/src/main.rs` |
+| `RebookingBatchDao` (NEW) | DAO | SQL against 2 new tables | pool | `RebookingBatchService` |
+| `ExtraHoursService` (existing, unchanged) | Basic | CRUD `extra_hours` — reused verbatim (F3/F4/F5 all persist the double-entry pair via existing `create`) | | reconciliation, everywhere |
+| `WorkingHoursService` (existing, unchanged) | Basic | `committed_voluntary` + `expected_hours` per week — already a Basic entity-manager; helper `committed_voluntary_for_calendar_week` (in `service_impl::reporting`) stays put | | reconciliation, stats |
+| `ReportingService` (existing, unchanged) | BL | already exposes `EmployeeReport.balance_hours` (existing balance formula = negative → trigger for F5) and `WorkingHoursPerSalesPerson.volunteer_hours` (per week) | | reconciliation (reads only) |
+| `ToggleService` (existing, unchanged) | Basic | `voluntary_rebooking_auto_active_from` toggle key (F4 Stichtag-Gate, precedent HCFG-02 / `shortday_slot_clipping_active_from`) | | scheduler + reconciliation |
 
-New impl `dao_impl_sqlite::week_status::WeekStatusDaoImpl`.
+**Zyklen-Freiheit-Check.** All new BL services depend on Basic services + `RebookingBatchService` (Basic). No new BL→BL edges (RebookingReconciliation reads `ReportingService`, another BL, but Reporting does not read RebookingReconciliation — same precedent as `BookingInformationService` reading `ReportingService`). Compiles cleanly under existing `gen_service_impl!` DI graph.
 
-**Service layer — Basic tier**
+### Answers to the Eight Specific Questions
 
-New trait `service::week_status::WeekStatusService`:
-- `get(year, week, context, tx) -> Option<WeekStatus>` (returns `WeekStatus::None` if no row exists)
-- `get_by_year(year, context, tx) -> Arc<[WeekStatus]>`
-- `set(year, week, status, context, tx) -> WeekStatus` (upsert — create or update)
-- `delete(year, week, context, tx) -> ()`
-- Convenience: `is_locked(year, week, tx) -> bool` (internal helper, takes `Transaction` not `Option<Transaction>`)
+**1. RebookingBatch + RebookingBatchEntry — one service or two?**
+Two. `RebookingBatchService` (Basic entity-manager) owns the aggregate lifecycle: create batch, add entries, transition state (`pending → approved | rejected`), list by state / by sales_person / by kind. `RebookingReconciliationService` (BL) sits on top and owns the *domain-orchestrated* actions ("decide + persist double-entry + persist batch"). Split matches the precedent `BillingPeriodService` (Basic) vs. `BillingPeriodReportService` (BL) — same shape, verified pattern.
 
-`WeekStatus` domain struct:
+**2. Freiwilliges Soll = `committed_voluntary × Vertragswochen` — WorkingHoursService (Basic) or ReportingService (BL)?**
+Neither directly. Put the pure function `committed_voluntary_target_for_year(&[EmployeeWorkDetails], year: u32) -> f32` next to the existing pure helper `committed_voluntary_for_calendar_week` in `service_impl/src/reporting.rs` (module-level `pub fn`). Then expose it through `VoluntaryStatsService` (new BL). Rationale: pure fn = testable, no auth; the BL service adds auth-gate + DTO assembly. Precedent: `volunteer_surplus_band2` / `volunteer_surplus_above_committed` in `service_impl/src/booking_information.rs` — same shape (pure `pub(crate) fn` + BL service call site).
+
+**3. F1 Statistik — new `VoluntaryStatsService` or extend `ReportingService`?**
+New `VoluntaryStatsService`. `ReportingService` is already heavy (extra_hours + shiftplan_report + employee_work_details + carryover + special_day + toggle + absence — 8 deps). Adding a "Ø-freiwillig/Vertragswoche" concern bloats it and mingles bezahlt / freiwillig axes that Fat Backend deliberately keeps separate (v1.4 D-01 / CVC-05 rationale, D-53-02 precedent in v2.5). `VoluntaryStatsService` reuses `ExtraHoursService` + `WorkingHoursService` + a pure fn — clean single-concern BL. Small enough to justify.
+
+**4. F4 Cron-Job — where in DI graph?**
+Exact analog of `PdfExportSchedulerImpl` (`service_impl/src/pdf_export_scheduler.rs`). In `shifty_bin/src/main.rs`:
+- Basic wave: build `RebookingBatchDao` + `RebookingBatchService` next to other Basic services (e.g. next to `ToggleService` / `WeekStatusService`).
+- BL wave: after `ReportingService` + `ExtraHoursService` + `WorkingHoursService` are built, construct `RebookingReconciliationService`, then `VoluntaryStatsService`, then `VoluntaryRebookingScheduler` (needs Reconciliation as dep).
+- Boot: at the end of `main()`, after `pdf_export_scheduler.start().await`, call `rest_state.voluntary_rebooking_scheduler.start().await`. Use the same `Arc<Mutex<Option<JobScheduler>>>` + `Arc<Mutex<Option<Uuid>>>` shape.
+- **Toggle-Gate** for auto-mode: cron *runs* unconditionally but each invocation reads `voluntary_rebooking_auto_active_from` (analog HCFG-02); if `booking_week < active_from` or toggle unset → skip (kind=`auto_cron` never fires). This protects historical weeks during rollout.
+
+**5. F5 REST-Endpoints — routing + auth.**
+Under a new `rest/src/rebooking.rs` module (Axum) plus `RestStateDef::rebooking_batch_service()` / `.rebooking_reconciliation_service()` accessors on `RestStateImpl`. Endpoints:
+- `GET  /rebooking-suggestions?state=pending&kind=hr_suggestion` → `HR_PRIVILEGE`
+- `GET  /rebooking-suggestions/{id}` → `HR_PRIVILEGE`
+- `POST /rebooking-suggestions/{id}/approve` → `HR_PRIVILEGE`
+- `POST /rebooking-suggestions/{id}/reject` → `HR_PRIVILEGE`
+- `POST /rebooking/manual` (F3) → `HR_PRIVILEGE` (double-entry within one tx)
+- `POST /admin/rebooking/backfill` (F4 rollout) → `check_only_full_authentication` (admin path, like `soft_delete_bulk`)
+
+All handlers wrapped in `error_handler` + annotated with `#[utoipa::path]`. Same shape as `pdf_export_config` REST routes.
+
+**6. Migration order + Snapshot-Bump — confirm or refute.**
+**Confirm.** Additive: two new tables in one migration file (e.g. `20260707000000_create-rebooking-batch.sql`), plus a second additive file to seed the `voluntary_rebooking_auto_active_from` toggle (F4 Stichtag, precedent `20260704000001_seed-shortday-slot-clipping-toggle.sql`). **No Snapshot-Schema-Version bump** because F1–F5 never write a new `BillingPeriodValueType` to `billing_period_sales_person`. F3/F4/F5 persist *only* two ExtraHours rows (VolunteerWork -N / ExtraWork +N) + one rebooking_batch(_entry) row. ExtraHours already flow into the existing snapshot terms (`working_hours`, `absense_hours`), so downstream billing-period-report picks up the effect *without* new value_types.
+  - **BUT** — the `docs/features/F08-billing-period.md` snapshot value-type list should be extended with a *narrative note* that ExtraWork rows created via rebooking flow into `working_hours` unchanged (docs-freshness gate, PROJECT.md).
+  - **AND** — bump the *milestone-close checklist* to grep `service_impl/src/billing_period_report.rs` for accidental value-type additions (Pitfall guard).
+
+**7. Frontend structure.**
+- **New loader (`shifty-dioxus/src/loader.rs`):**
+  - `load_rebooking_suggestions_pending(config)` → `Rc<[RebookingSuggestionTO]>`
+  - `load_voluntary_stats(config, sp_id, year)` → `VoluntaryStatsTO` (Ist + Soll + Konto vom Backend)
+  - `approve_rebooking_suggestion(config, id)` / `reject_rebooking_suggestion(config, id)` (mutations)
+  - `submit_manual_rebooking(config, ManualRebookingRequestTO)`
+- **New state (`shifty-dioxus/src/state/`):** `rebooking.rs` (thin `From<&…TO>`-mapper analog to `state::WeeklySummary::from(&WeeklySummaryTO)` — pure union/rename, no math).
+- **New component (`shifty-dioxus/src/component/`):**
+  - `rebooking_alert_banner.rs` — persistent inline warning row on `page/employees.rs` when a sales_person has negative balance AND has voluntary hours available. Backend flags this in the response, FE only renders.
+  - `rebooking_suggestion_modal.rs` — IST vs. DANN table (Konto, Freiw.-Ist, Freiw.-Soll, Freiw.-Konto), Approve/Reject buttons.
+  - `voluntary_stats_row.rs` — extension to `page/employee_details.rs` under „Freiwillige Stunden" showing Ist + Soll + Konto (HR-only via existing role gate on the parent page).
+- **`Dioxus.toml` proxy** — add `[[web.proxy]]` for `/rebooking-suggestions`, `/rebooking`, `/reporting/employee/**/voluntary-stats` (precedent MEMORY: v1.8 + v2.2 both forgot this and hit 404 in dev).
+- **i18n:** de/en/cs keys for banner text, modal columns, approve/reject buttons, manual-rebooking form.
+- **No math in FE.** Every displayed number arrives pre-computed. `RebookingSuggestionTO` carries: `current_balance`, `voluntary_actual`, `voluntary_committed`, `voluntary_balance`, `proposed_rebooking_hours`, `projected_balance_after`, `projected_voluntary_balance_after` — all `f32`, backend-computed.
+
+**8. Suggested build order (Wave-Empfehlung).**
+Dependencies dictate: statistics computation feeds the modal, modal is the UAT anchor for reconciliation, cron is a wrapper on reconciliation, alerts need the account.
+
+- **Phase 54 — Data-model + statistics (F1 + F2)**
+  - Wave 1: Migration (`rebooking_batch`, `rebooking_batch_entry`) + `RebookingBatchDao` + `RebookingBatchService` (Basic, CRUD only, no logic yet — just the aggregate). Toggle-Seed for `voluntary_rebooking_auto_active_from`.
+  - Wave 2: Pure fn `committed_voluntary_target_for_year` + `VoluntaryStatsService` (BL) + REST `GET /reporting/employee/{y}/{spid}/voluntary-stats` + `VoluntaryStatsTO` in rest-types.
+  - Wave 3: Frontend row „Freiwillige Stunden — Ist / Soll / Konto" in `page/employee_details.rs`. Reads via new loader. F2 sichtbar.
+  - Verify: byte-identical to hand-computed reference on a fixture (property test), HR-only auth-gate.
+- **Phase 55 — Manual rebooking + HR-Alert + Modal (F3 + F5 without cron)**
+  - Wave 1: `RebookingReconciliationService.rebook_manual` — single tx creates 2 ExtraHours + 1 batch (kind=`hr_suggestion`, state=`approved`). Auth: `HR_PRIVILEGE`. `POST /rebooking/manual`.
+  - Wave 2: `RebookingReconciliationService.suggest_for_sales_person` (pure decide-logic) + `.approve` / `RebookingBatchService.reject`. REST: `GET /rebooking-suggestions`, `POST .../approve|reject`.
+  - Wave 3: Frontend alert banner on `page/employees.rs` (Backend liefert `has_rebooking_suggestion` + `suggestion_id` im existing `ShortEmployeeReport` DTO oder in einer neuen kleinen Sammel-API `GET /rebooking-suggestions/summary`). Modal-Komponente.
+  - Verify: Roundtrip create-manual → visible in `EmployeeReport` → visible in banner list. UAT.
+- **Phase 56 — Cron + Backfill (F4)**
+  - Wave 1: `VoluntaryRebookingScheduler` (analog `PdfExportSchedulerImpl`) — `start()`, cron `0 0 3 * * 1` (Monday 03:00, previous week), delegates to `RebookingReconciliationService.run_for_week(year, week)`. Stichtag-Gate via toggle.
+  - Wave 2: `POST /admin/rebooking/backfill?from=YYYY-Www` (admin) — iteriert Wochen und ruft `run_for_week` — creates kind=`auto_cron` batches.
+  - Wave 3: Frontend Admin-Card unter Settings analog `pdf_export_config` — Stichtag setzen / Backfill-Button.
+  - Verify: End-to-end mit fixed clock + fake previous week; historical protection via active_from.
+
+Rationale for the order: F1+F2 deliver visible value (statistics) with lowest risk; F3+F5 need the account numbers to display in the modal; F4 wraps F3-logic in cron with a Stichtag — no new domain logic, just automation.
+
+## Patterns to Follow
+
+### Pattern 1: Basic vs. Business-Logic Split for Aggregate + Orchestration
+**What:** When a new domain object needs *both* CRUD and multi-service orchestration, split into `<Name>Service` (Basic, entity CRUD) + `<Name>OrchestrationService` (BL, wires it into other services).
+**When:** Any milestone that introduces a new persistent aggregate consumed by cross-cutting logic.
+**Example (v2.6):**
 ```rust
-pub enum WeekStatusEnum { None, InPlanning, Planned, Locked }
-pub struct WeekStatus {
-    pub id: Uuid,
-    pub year: u32,
-    pub calendar_week: u8,
-    pub status: WeekStatusEnum,
-    pub version: Uuid,
-}
+// Basic
+pub struct RebookingBatchServiceImpl<Deps: RebookingBatchServiceDeps> { … }
+// BL — consumes Basic + other services
+pub struct RebookingReconciliationServiceImpl<Deps: RebookingReconciliationServiceDeps> { … }
 ```
+**Precedent:** `BillingPeriodService` + `BillingPeriodReportService`; `WeekStatusService` + `ShiftplanEditService`.
 
-Permission gate inside `WeekStatusService::set`: only shiftplanner may change status. Readable by all authenticated users.
-
-New impl `service_impl::week_status::WeekStatusServiceImpl` via `gen_service_impl!`:
+### Pattern 2: Pure Fn in service_impl + Auth-gated BL Wrapper
+**What:** Business calculation lives as `pub fn` (or `pub(crate) fn`) at module top; BL service method loads inputs, calls pure fn, applies auth gate.
+**When:** Any calculation you want unit-testable without mock services.
+**Example:**
 ```rust
-gen_service_impl! {
-    struct WeekStatusServiceImpl: WeekStatusService = WeekStatusServiceDeps {
-        WeekStatusDao: dao::week_status::WeekStatusDao<Transaction = Self::Transaction> = week_status_dao,
-        PermissionService: service::PermissionService<Context = Self::Context> = permission_service,
-        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao,
-        ClockService: service::clock::ClockService = clock_service,
-        UuidService: service::uuid_service::UuidService = uuid_service
-    }
-}
-```
-
-**New ServiceError variant:**
-```rust
-#[error("Week {year}-W{week} is locked")]
-WeekLocked { year: u32, week: u8 },
-```
-
-Maps to HTTP 423 (Locked) in the REST error handler.
-
-**Service layer — Business-Logic tier (modifications to ShiftplanEditService)**
-
-`ShiftplanEditService` gains `WeekStatusService` as a new dependency:
-```rust
-gen_service_impl! {
-    struct ShiftplanEditServiceImpl: ShiftplanEditService = ShiftplanEditServiceDeps {
-        // ... existing deps ...
-        WeekStatusService: service::week_status::WeekStatusService<
-            Context = Self::Context,
-            Transaction = Self::Transaction
-        > = week_status_service,  // NEW
-    }
-}
-```
-
-**REST layer**
-
-New module `rest::week_status` with `#[utoipa::path]` annotations:
-- `GET /week-status/{year}/{week}` → get current status (or None)
-- `PUT /week-status/{year}/{week}` → set status (shiftplanner only)
-- `DELETE /week-status/{year}/{week}` → reset to None (shiftplanner only)
-- `GET /week-status/year/{year}` → all statuses for a year (for frontend bulk-load)
-
-**rest-types (shared DTOs)**
-
-```rust
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, ToSchema)]
-pub enum WeekStatusEnumTO { None, InPlanning, Planned, Locked }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, ToSchema)]
-pub struct WeekStatusTO {
-    #[serde(default)] pub id: Uuid,
-    pub year: u32,
-    pub calendar_week: u8,
-    pub status: WeekStatusEnumTO,
-    #[serde(rename = "$version", default)] pub version: Uuid,
-}
-```
-
-### Lock Gate Injection Sites (exhaustive)
-
-The gate logic pattern (applied at the top of each write method, after acquiring the transaction, before any mutation):
-
-```rust
-// pseudo-code — applied in ShiftplanEditServiceImpl
-let locked = self.week_status_service
-    .is_locked(year, week, tx.clone())
-    .await?;
-if locked && !is_shiftplanner {
-    return Err(ServiceError::WeekLocked { year, week });
-}
-```
-
-**Complete list of write paths and gate injection sites:**
-
-| REST Endpoint | Calls | Gate injection | Gate checks week | Shiftplanner bypass |
-|---|---|---|---|---|
-| `PUT /shiftplan-edit/slot/{year}/{week}` | `ShiftplanEditService::modify_slot` | top of method, before slot lookup | `(change_year, change_week)` | Yes — shiftplanner is the only caller via `shiftplan.edit` permission already |
-| `PUT /shiftplan-edit/slot/{year}/{week}/single-week` | `ShiftplanEditService::modify_slot_single_week` | top of method, after permission check | `(change_year, change_week)` | Yes — same |
-| `DELETE /shiftplan-edit/slot/{slot_id}/{year}/{week}` | `ShiftplanEditService::remove_slot` | top of method, after permission check | `(change_year, change_week)` | Yes — same |
-| `POST /shiftplan-edit/booking` | `ShiftplanEditService::book_slot_with_conflict_check` | after is_shiftplanner check, before slot lookup | `(booking.year, booking.calendar_week as u8)` | Yes — is_shiftplanner already computed |
-| `POST /shiftplan-edit/copy-week` | `ShiftplanEditService::copy_week_with_conflict_check` | top of method, after permission check | `(to_year, to_calendar_week)` | Yes — propagates to inner `book_slot_with_conflict_check` calls which also re-check |
-| `DELETE /booking/{id}` | currently `BookingService::delete` directly | **MUST be re-routed** — see below | `(booking.year, booking.calendar_week as u8)` | Conditional |
-
-**The `DELETE /booking/{id}` bypass — required fix:**
-
-Currently `rest/src/booking.rs::delete_booking` calls `booking_service.delete(id, ...)` directly, bypassing all business-logic gates. This is the only ungated write path that a non-shiftplanner user can reach (they can delete their own bookings).
-
-Fix: Add a new method `ShiftplanEditService::delete_booking(booking_id, context, tx)` that:
-1. Loads the booking via `BookingService::get(booking_id)` to extract `(year, calendar_week)`
-2. Checks lock status for that week
-3. Delegates to `BookingService::delete(booking_id, context, tx)` for the actual deletion
-
-Change `rest/src/booking.rs::delete_booking` to route through `shiftplan_edit_service.delete_booking(...)` instead. The `BookingService::delete` method itself is unchanged (Regression-Lock: service method signature and behavior unmodified). Only the REST routing changes.
-
-**Legacy paths — documented bypass (known gaps):**
-
-| REST Endpoint | Status | Recommendation |
-|---|---|---|
-| `POST /booking` (legacy create) | Unguarded bypass | Document as known gap. Frontend already uses `POST /shiftplan-edit/booking`. Acceptable because: (a) only shiftplanner or self-booking is allowed at service level; (b) Locked-week gate for non-shiftplanners is the critical path; a shiftplanner using the legacy path is explicitly allowed through the lock anyway. |
-| `POST /booking/copy` (legacy copy-week) | Unguarded bypass | Same rationale — only shiftplanner can call copy-week (it checks `shiftplan.edit` permission). No non-shiftplanner bypass risk. |
-
-The conclusion is: only `DELETE /booking/{id}` is a genuine non-shiftplanner bypass that must be fixed. The two legacy `POST /booking` endpoints are shiftplanner-or-self-only at the service level and therefore no non-shiftplanner can bypass the lock via them.
-
-**Note on `copy_week_with_conflict_check` inner loop:** The outer method checks `(to_year, to_calendar_week)` at entry. The inner calls to `book_slot_with_conflict_check` re-check each booking's `(year, calendar_week)`. Since all target bookings share the same `to_year / to_calendar_week`, both checks are consistent. No duplicate-check concern — the inner check is belt-and-suspenders.
-
-### DI Construction Order (shifty_bin/src/main.rs)
-
-```
-1. (existing) permission_service, clock_service, uuid_service
-2. (existing) slot_service, sales_person_service, booking_service  [basic tier]
-3. (NEW) week_status_dao = WeekStatusDaoImpl::new(pool)
-4. (NEW) week_status_service = WeekStatusServiceImpl { week_status_dao, permission_service,
-         clock_service, uuid_service, transaction_dao }            [basic tier]
-5. (existing) absence_service, carryover_service, reporting_service [business-logic tier]
-6. (modified) shiftplan_edit_service = ShiftplanEditServiceImpl { ...,
-         week_status_service }                                      [business-logic tier]
-```
-
----
-
-## AVG-01: Average Attendance — Integration Architecture
-
-### Tier Classification
-
-**Computation: ReportingService (existing business-logic tier)**
-
-Rationale:
-- AVG-01 aggregates data from multiple domain entities: bookings (via `ShiftplanReportService`), worked hours (via `ExtraHoursService`), absence periods (via `AbsenceService`), employee work details (via `EmployeeWorkDetailsService` to identify flexible employees).
-- All these sources are already in `ReportingService`'s existing dependency set.
-- No new domain service dep is required — this is a new method on the existing `ReportingService` trait, not a new service.
-- "Flexible hours" = employees whose active `EmployeeWorkDetails` has `is_dynamic == true` (already a field on the domain struct).
-
-### Snapshot Version Bump: NO
-
-**Verdict: AVG-01 does NOT require a `CURRENT_SNAPSHOT_SCHEMA_VERSION` bump.**
-
-Rationale per CLAUDE.md rules:
-- AVG-01 does not add a new persisted `BillingPeriodValueType` to `billing_period_sales_person`.
-- AVG-01 does not change the computation of any existing persisted `value_type`.
-- AVG-01 is a pure read-aggregate: it computes on-the-fly from existing source data and returns a result via REST. Nothing is written to the billing period snapshot tables.
-- The existing `average_worked_hours_per_week` function in `service/src/reporting.rs` (formula A-22-1) is a pure function returning `EmployeeWeeklyStatistics` — it is already implemented and not persisted.
-- AVG-01 extends this pattern for the filtered set of flexible employees, producing a new read-only endpoint.
-
-CLAUDE.md: "You do NOT need to bump for: purely additive changes that do not touch the snapshot's value_types."
-
-### Data Sources Read by AVG-01
-
-| Source | Service | Purpose |
-|---|---|---|
-| `EmployeeWorkDetails` | `EmployeeWorkDetailsService` | Identify flexible employees (`is_dynamic == true`); get expected-hours contract per week |
-| `SalesPerson` | `SalesPersonService` | Employee identity, `is_paid` filter if needed |
-| Bookings / shiftplan hours | `ShiftplanReportService` | Actual worked hours per week per employee |
-| `ExtraHours` | `ExtraHoursService` | Overtime, sick leave, etc. that count as worked |
-| `AbsencePeriod` | `AbsenceService` | Identify fully-absent weeks to exclude from denominator (vacation / sick-leave / unpaid-leave) |
-
-All these are already in `ReportingServiceImpl`'s dep set. No new dependencies needed.
-
-**Open definition questions (for discuss-phase, noted here for completeness):**
-
-- Which absence categories exclude a week from the denominator? The existing A-22-1 formula (already coded) excludes weeks where `vacation_hours + sick_leave_hours + unpaid_leave_hours + holiday_hours > 0` AND `overall_hours == 0`. Confirm this is the right rule for AVG-01.
-- Report granularity: per-employee or aggregate? The discuss-phase todo says "Schnitt der tatsächlich geleisteten Anwesenheit" but doesn't specify per-employee vs fleet average.
-- Time range: year-to-date, full year, billing period?
-
-### New Components per Layer
-
-**Service layer**
-
-New method on `service::reporting::ReportingService` trait:
-```rust
-async fn get_attendance_average_for_flexible_employees(
-    &self,
+// service_impl/src/reporting.rs (module-level)
+pub fn committed_voluntary_target_for_year(
+    work_details: &[EmployeeWorkDetails],
     year: u32,
-    context: Authentication<Self::Context>,
-    tx: Option<Self::Transaction>,
-) -> Result<Arc<[EmployeeAttendanceAverage]>, ServiceError>;
-```
+) -> f32 { … }
 
-New struct in `service::reporting`:
-```rust
-pub struct EmployeeAttendanceAverage {
-    pub sales_person: Arc<SalesPerson>,
-    pub average_attended_hours_per_week: f32,
-    pub included_weeks: u32,
-    pub total_attended_hours: f32,
-    pub is_dynamic: bool,
+// service_impl/src/voluntary_stats.rs
+async fn get_stats(&self, sp_id: Uuid, year: u32, ctx, tx) -> Result<VoluntaryStats, ServiceError> {
+    self.permission_service.check_permission(HR_PRIVILEGE, ctx).await?;
+    let wd = self.working_hours_service.for_sales_person(...).await?;
+    let target = committed_voluntary_target_for_year(&wd, year);
+    …
 }
 ```
+**Precedent:** `committed_voluntary_for_calendar_week`, `apply_weekly_cap`, `volunteer_surplus_band2`, `derive_hours_for_week_pure`.
 
-No new deps on `ReportingServiceImpl` — delegates to existing `get_report_for_employee` and uses the existing `average_worked_hours_per_week` pure function.
+### Pattern 3: Cron Scheduler as BL Service, Started in main()
+**What:** New scheduler = new struct implementing `SchedulerService`-style trait, `start()` lazy-inits `JobScheduler`, called after `RestStateImpl::new`.
+**When:** Any recurring task.
+**Precedent:** `PdfExportSchedulerImpl` (`service_impl/src/pdf_export_scheduler.rs:60–115`), `SchedulerServiceImpl` (`service_impl/src/scheduler.rs`).
 
-**REST layer**
-
-New endpoint in `rest/src/report.rs`:
-- `GET /report/attendance-average/{year}` → returns `Arc<[EmployeeAttendanceAverageTO]>`, HR-gated
-
-**rest-types (shared DTOs)**
-
-```rust
-#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
-pub struct EmployeeAttendanceAverageTO {
-    pub sales_person_id: Uuid,
-    pub sales_person_name: Arc<str>,
-    pub average_attended_hours_per_week: f32,
-    pub included_weeks: u32,
-    pub total_attended_hours: f32,
-    pub is_dynamic: bool,
-}
-```
-
----
-
-## Dioxus Frontend Wiring Points
-
-### WST-01 Frontend
-
-**api.rs — new functions:**
-```rust
-pub async fn get_week_status(config, year, week) -> Option<WeekStatusTO>
-pub async fn get_week_statuses_for_year(config, year) -> Vec<WeekStatusTO>
-pub async fn set_week_status(config, year, week, status: WeekStatusEnumTO) -> WeekStatusTO
-```
-
-**state/shiftplan.rs — new Signal:**
-```rust
-week_status: Signal<Option<WeekStatusTO>>   // current week's status
-```
-
-**page/shiftplan.rs or component/shiftplan_tab_bar.rs — rendering:**
-- Fetch `week_status` on week-navigation (alongside existing week-message fetch).
-- Render a status badge next to the week header (e.g., coloured pill: grey=None, yellow=InPlanning, green=Planned, red=Locked).
-- For shiftplanners: dropdown/button group to cycle through the four statuses.
-- For non-shiftplanners: badge is read-only.
-- Disable booking buttons and slot-edit triggers when `status == Locked && !is_shiftplanner`.
-- Handle HTTP 423 response from any write endpoint: show non-blocking inline banner "Diese Woche ist gesperrt" (+ de/en/cs i18n keys).
-
-**Error handling pattern (inline banner, per UX constraint from memory):**
-No modal dialogs — the locked-week error uses the existing non-blocking inline warning banner pattern (same as paid-limit warnings).
-
-### AVG-01 Frontend
-
-**api.rs — new function:**
-```rust
-pub async fn get_attendance_averages(config, year) -> Vec<EmployeeAttendanceAverageTO>
-```
-
-**New page or section in existing report:** Either a new page route `Route::AttendanceAverageReport { year }` or a new tab/section in the existing employee view. Exact placement is an open discussion-phase question.
-
-**i18n keys needed (de/en/cs for all):**
-- `attendance_average_report_title`
-- `average_attended_hours_per_week`
-- `included_weeks`
-- `flexible_employees_only`
-- Plus week-status keys: `week_status_none`, `week_status_in_planning`, `week_status_planned`, `week_status_locked`
-
----
-
-## Recommended Build Order
-
-The build order follows data-dependency: schema before DAO, DAO before service, service before REST, REST before frontend.
-
-### WST-01 Build Order
-
-1. **Migration** — `week_status` table, UNIQUE constraint on `(year, calendar_week, deleted IS NULL)`.
-2. **DAO trait + impl** — `dao::week_status` + `dao_impl_sqlite::week_status`. Run `cargo sqlx prepare --workspace`.
-3. **Service trait** — `service::week_status::WeekStatusService` trait + `WeekStatus`/`WeekStatusEnum` structs + `ServiceError::WeekLocked` variant.
-4. **Service impl (Basic tier)** — `service_impl::week_status::WeekStatusServiceImpl`.
-5. **DI wiring in main.rs** — Instantiate in basic-tier block; pass to `ShiftplanEditService` in business-logic block.
-6. **Lock gate injection in ShiftplanEditService** — Add `week_status_service` dep, inject gate into the five methods listed above.
-7. **`DELETE /booking/{id}` re-routing** — Add `ShiftplanEditService::delete_booking` method; update REST handler.
-8. **REST CRUD for week-status** — `rest::week_status` module with `#[utoipa::path]` annotations; register in `ApiDoc`.
-9. **rest-types DTOs** — `WeekStatusTO`, `WeekStatusEnumTO` (with `ToSchema`). Add `From<>` impls (service → DTO).
-10. **Tests** — Unit tests for lock gate (mock WeekStatusService returning Locked; verify write paths return WeekLocked error). Integration tests for CRUD + lock enforcement e2e.
-11. **Frontend** — `api.rs` functions, Signal in shiftplan state, badge rendering, disabled controls, inline banner for 423.
-12. **i18n** — Add week-status keys to de.rs / en.rs / cs.rs.
-
-### AVG-01 Build Order
-
-1. **Service trait method** — `ReportingService::get_attendance_average_for_flexible_employees` + `EmployeeAttendanceAverage` struct. (No new deps or migration needed.)
-2. **Service impl** — Implement on `ReportingServiceImpl` using existing data sources and `average_worked_hours_per_week` pure function.
-3. **rest-types DTO** — `EmployeeAttendanceAverageTO` with `ToSchema`.
-4. **REST endpoint** — `GET /report/attendance-average/{year}` in `rest/src/report.rs` with `#[utoipa::path]`, HR-gated.
-5. **Tests** — Unit tests using existing test data setup patterns in `service_impl/src/test/`.
-6. **Frontend** — `api.rs` function, new page or section, i18n keys.
-
-**Dependency between WST-01 and AVG-01:** Independent. Either can be built first. WST-01 is more impactful (changes existing write paths) and should be built and verified before AVG-01 (which is purely additive/read-only).
-
----
-
-## Component Responsibilities Summary
-
-| Component | Status | Tier | Communicates With |
-|---|---|---|---|
-| `dao::week_status::WeekStatusDao` | NEW | DAO | SQLite via SQLx |
-| `dao_impl_sqlite::week_status::WeekStatusDaoImpl` | NEW | DAO impl | SQLite pool |
-| `service::week_status::WeekStatusService` | NEW | Basic | WeekStatusDao, PermissionService, TransactionDao |
-| `service_impl::week_status::WeekStatusServiceImpl` | NEW | Basic impl | As above |
-| `service_impl::shiftplan_edit::ShiftplanEditServiceImpl` | MODIFIED | Business-Logic | Adds WeekStatusService dep; lock gate in 5 methods + new `delete_booking` |
-| `service::reporting::ReportingService` | MODIFIED (trait) | Business-Logic | Adds new method signature |
-| `service_impl::reporting::ReportingServiceImpl` | MODIFIED (impl) | Business-Logic | Implements AVG-01 using existing deps |
-| `service::ServiceError` | MODIFIED | — | New `WeekLocked` variant → HTTP 423 |
-| `rest::week_status` | NEW | REST | `WeekStatusService` |
-| `rest::booking::delete_booking` handler | MODIFIED | REST | Routes to `ShiftplanEditService::delete_booking` |
-| `rest::report` | MODIFIED | REST | New attendance-average endpoint |
-| `rest-types` | MODIFIED | Shared DTO | New `WeekStatusTO`, `WeekStatusEnumTO`, `EmployeeAttendanceAverageTO` |
-| `shifty_bin::main.rs` | MODIFIED | DI root | WeekStatusServiceImpl instantiation + wiring |
-| `shifty-dioxus::api.rs` | MODIFIED | Frontend API | New week-status + AVG-01 fetch functions |
-| `shifty-dioxus::state::shiftplan` | MODIFIED | Frontend state | `week_status: Signal<Option<WeekStatusTO>>` |
-| `shifty-dioxus::page::shiftplan` / tab bar | MODIFIED | Frontend UI | Status badge, controls, 423 inline banner |
-| `shifty-dioxus::i18n` | MODIFIED | i18n | New keys in de/en/cs for week status + AVG-01 |
-
----
+### Pattern 4: Stichtag-Toggle for Retroactive Behaviour Rollout
+**What:** New behavior is gated by an admin-set `active_from` date in `ToggleService`; unset toggle = feature dormant (default), set toggle = feature applies only to `booking_date >= active_from`.
+**When:** Behavior that changes historical calculations *would* introduce drift.
+**Precedent:** `holiday_auto_credit` (v1.7 HCFG-02), `shortday_slot_clipping_active_from` (v2.4 SHC).
+**v2.6 usage:** `voluntary_rebooking_auto_active_from` — the F4 cron only auto-books for weeks ≥ toggle date. Rollout-safe.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Lock Gate in BasicTier (WeekStatusService or BookingService)
+### Anti-Pattern 1: Frontend computes the rebooking preview
+**What:** FE receives `voluntary_ist`, `expected_hours`, `committed_voluntary`, does the arithmetic to show „Wenn Du zustimmst, wird das Konto von –10h auf –4h steigen".
+**Why bad:** Every future client (mobile, CLI) has to re-implement the same math; drift from BE guaranteed. Violates Fat Backend.
+**Instead:** `RebookingSuggestionTO` carries `projected_balance_after`, `projected_voluntary_balance_after`, `proposed_rebooking_hours` — all backend-computed. FE renders literals.
 
-**What people do:** Put the lock check in `BookingService::create` or `BookingService::delete` by adding `WeekStatusService` as a basic-tier dependency.
+### Anti-Pattern 2: Reconciliation writes ExtraHours directly via DAO
+**What:** Skip `ExtraHoursService.create` and write via `ExtraHoursDao.create`.
+**Why bad:** Loses the `CustomExtraHoursService` lazy-load setup, loses permission gate (though `Authentication::Full` internal-caller pattern applies), and — worst — bypasses whatever validation `ExtraHoursService.create` grows in future milestones. Two entries out-of-sync at DAO level is exactly the bug the batch table exists to prevent.
+**Instead:** Both ExtraHours rows via `ExtraHoursService.create(..., Authentication::Full, tx.into())` (precedent: internal-service pattern used throughout). All three writes (two ExtraHours + one batch entry) in the same tx via the shared `use_transaction` handle.
 
-**Why it's wrong:** CLAUDE.md is explicit: "Basic services konsumieren KEINE anderen Domain-Services." Adding `WeekStatusService` (a domain service, even if also basic) as a dependency of `BookingService` violates the tier rule and creates a potential for cycles. It also breaks the test isolation of basic services (which use simple DAO mocks only).
+### Anti-Pattern 3: Cron modifies weeks locked by `WeekStatus`
+**What:** F4 cron creates ExtraHours for a week whose `WeekStatus` is `Locked`.
+**Why bad:** Violates the v2.1 wochen-sperre TOCTOU guarantee.
+**Instead:** `RebookingReconciliationService.run_for_week` checks `WeekStatusService` before persist and short-circuits with `ValidationError` (records to `rebooking_batch` with state=`skipped_locked`, no ExtraHours).
 
-**Do this instead:** Gate in `ShiftplanEditService` (business-logic tier) and add a new `ShiftplanEditService::delete_booking` method to cover the `DELETE /booking/{id}` REST path.
+### Anti-Pattern 4: Bumping snapshot-schema-version without new value_type
+**What:** Bump `CURRENT_SNAPSHOT_SCHEMA_VERSION` „just in case" because we touched extra_hours.
+**Why bad:** Every bump invalidates every historical snapshot for validators (CLAUDE.md rule). No new `BillingPeriodValueType` = no bump.
+**Instead:** Grep-verify `billing_period_sales_person.value_type` writes are unchanged; document the non-bump in ROADMAP explicitly (v2.5-precedent).
 
-### Anti-Pattern 2: Adding AVG-01 Computation to BillingPeriodReportService
+### Anti-Pattern 5: Rebooking without atomic tx (double-count risk)
+**What:** Create ExtraHours row 1, commit, then create row 2. Between: another tx reads reporting.
+**Why bad:** Reporting sees `-N` in VolunteerWork without the matching `+N` in ExtraWork — balance briefly wrong; if second insert fails, permanently wrong. Precedent in MEMORY: `feedback_atomic_repoint_no_double_count`.
+**Instead:** Single `use_transaction`-tx across both ExtraHours + batch entry writes. Commit only after all three succeed.
 
-**What people do:** Because AVG-01 is an "average" it might seem like billing-period data. Someone might add it as a new `BillingPeriodValueType` and persist it in the snapshot.
+## Scalability Considerations
 
-**Why it's wrong:** AVG-01 is defined as a pure read-aggregate ("reines Read-Aggregat"). Persisting it would: (a) require a snapshot version bump, (b) require the complex snapshot invalidation/re-run machinery, (c) add brittleness for a display-only metric that is cheap to recompute.
+| Concern | At current scale (~30 employees) | At 300 employees | At 3000 |
+|---------|----------------------------------|------------------|---------|
+| F1 stats endpoint | trivial, per-request compute over ~50 weeks | still OK; add per-year cache if needed | precompute nightly into new column |
+| F4 cron weekly run | ~30 checks × ~1s each → <1min, fine | ~5min, still fine | batch in transaction chunks of 100 |
+| F5 alert banner | reads all employees' balance (already done in `page/employees.rs`) | already the existing hot path — reuse | as above |
+| Rebooking batches over years | tiny table growth (~30 rows/week) | ~300/week × 52 = ~15k/year — irrelevant | add `deleted IS NULL` + `state != rejected` filter index |
 
-**Do this instead:** Implement as a new `ReportingService` method that computes on-the-fly. No persistence, no bump.
+Guidance: don't optimize prematurely. Current baseline is `~30 sales_persons`. Existing v2.5 performance work eliminated the hot path (weekly-overview 2.33s → 0.12s). v2.6 endpoints are per-request small aggregates — no year-batch acrobatics needed. Add DB indices `rebooking_batch(state)` and `rebooking_batch_entry(sales_person_id, batch_id)` in the migration file preemptively (cheap, no downside).
 
-### Anti-Pattern 3: Checking Lock Status in the REST Layer Handler
+## Data Model (New Tables)
 
-**What people do:** To avoid adding `WeekStatusService` to `ShiftplanEditService`, add a pre-check in the Axum handler that fetches the week status before calling the service.
+```sql
+-- 20260707000000_create-rebooking-batch.sql
+CREATE TABLE rebooking_batch (
+    id                     BLOB PRIMARY KEY,               -- Uuid
+    kind                   TEXT NOT NULL,                  -- 'auto_cron' | 'hr_suggestion' | 'manual'
+    state                  TEXT NOT NULL,                  -- 'pending' | 'approved' | 'rejected' | 'skipped_locked'
+    booking_year           INTEGER,                        -- NULL for kind='manual'
+    booking_week           INTEGER,                        -- NULL for kind='manual'
+    created                TIMESTAMP NOT NULL,
+    approved               TIMESTAMP,
+    approved_by            TEXT,                           -- username
+    deleted                TIMESTAMP,                       -- soft delete
+    version                BLOB NOT NULL,                  -- Uuid, optimistic lock
+    update_process         TEXT NOT NULL
+);
 
-**Why it's wrong:** The REST layer should not contain business logic. The lock invariant is a business rule. If it lives in the REST handler, it is bypassed by any internal caller that goes directly to the service (e.g., tests, future scheduled jobs). Business rules must live in the service layer.
+CREATE TABLE rebooking_batch_entry (
+    id                     BLOB PRIMARY KEY,
+    batch_id               BLOB NOT NULL REFERENCES rebooking_batch(id),
+    sales_person_id        BLOB NOT NULL,
+    hours                  REAL NOT NULL,                  -- positive: moved from Volunteer to ExtraWork
+    balance_before         REAL NOT NULL,
+    voluntary_actual       REAL NOT NULL,
+    voluntary_committed    REAL NOT NULL,
+    extra_hours_out_id     BLOB,                           -- the -N VolunteerWork row, NULL until approved
+    extra_hours_in_id      BLOB,                           -- the +N ExtraWork row,     NULL until approved
+    deleted                TIMESTAMP,
+    version                BLOB NOT NULL,
+    update_process         TEXT NOT NULL
+);
 
-**Do this instead:** Lock gate in `ShiftplanEditService` where all mutation paths converge.
+CREATE INDEX rebooking_batch_state_idx ON rebooking_batch(state) WHERE deleted IS NULL;
+CREATE INDEX rebooking_batch_entry_sp_idx ON rebooking_batch_entry(sales_person_id) WHERE deleted IS NULL;
+```
 
-### Anti-Pattern 4: Separate "LockGateService" Wrapping ShiftplanEditService
+Precedents for column shape: `week_status` (v2.1), `pdf_export_config` (v2.3), `vacation_entitlement_offset` (v1.8). Same Uuid + version + soft-delete conventions.
 
-**What people do:** Create a new `LockedShiftplanEditService` that wraps `ShiftplanEditService` and adds the gate around each method.
+## Modified DTOs
 
-**Why it's wrong:** Indirection without benefit. `ShiftplanEditService` already is the natural owner; adding a wrapper doubles the mock surface and makes DI more complex.
+| DTO | Change | Reason |
+|-----|--------|--------|
+| `EmployeeReportTO` (rest-types) | +additive fields (`#[serde(default)]`): `voluntary_hours_per_contract_week: f32`, `committed_voluntary_target: f32`, `voluntary_balance: f32` | F1 + F2 in `page/employee_details.rs` |
+| `ShortEmployeeReportTO` (rest-types) | +additive: `has_pending_rebooking: bool`, `pending_rebooking_id: Option<Uuid>` | F5 banner on `page/employees.rs` — Fat Backend flag |
+| **new** `VoluntaryStatsTO` | Ist / Soll / Konto zusammengefasst | F1/F2 dedicated endpoint (alternative to bloating `EmployeeReportTO`) |
+| **new** `RebookingSuggestionTO` | full modal payload (all pre-computed numbers + IST/DANN pair) | F5 modal |
+| **new** `ManualRebookingRequestTO` | `{ sales_person_id, hours, direction, description }` | F3 |
+| **new** `RebookingBatchTO` / `RebookingBatchEntryTO` | mirrors DB tables 1:1 | REST list/detail |
 
-**Do this instead:** Add `WeekStatusService` as a new dep to `ShiftplanEditServiceImpl` and inject the gate inline. This is the exact pattern used for `ToggleService` (D-24-08: paid-limit toggle is checked inline in `book_slot_with_conflict_check`).
-
----
+Additive-only, `#[serde(default)]` on new fields — wire-compat precedent from v2.5 `sales_person_absences`.
 
 ## Sources
 
-- Direct codebase inspection: `service_impl/src/shiftplan_edit.rs`, `service_impl/src/booking.rs`, `rest/src/shiftplan_edit.rs`, `rest/src/booking.rs`, `service/src/shiftplan_edit.rs`, `service/src/toggle.rs`, `service/src/reporting.rs`, `dao/src/week_message.rs`, `shifty_bin/src/main.rs`
-- Project conventions: `CLAUDE.md` (service-tier rules, snapshot versioning rules, transaction pattern)
-- Project charter: `.planning/PROJECT.md` (WST-01/AVG-01 feature descriptions, Regression-Lock references, snapshot version history)
-- Frontend: `shifty-dioxus/src/api.rs`, `shifty-dioxus/CLAUDE.md`
-
----
-*Architecture research for: Shifty v2.1 WST-01 + AVG-01 integration into existing layered Rust + Dioxus monorepo*
-*Researched: 2026-07-01*
+- `CLAUDE.md` (repo root) — Service-Tier-Konvention (Basic vs. Business-Logic), Snapshot-Bump-Kontrakt, Docs-Freshness-Gate. **HIGH confidence** — canonical.
+- `.planning/PROJECT.md` — Fat Backend, Thin Client principle; v2.5 shipped context; snapshot version = 12. **HIGH**.
+- `shifty_bin/src/main.rs` (1466 lines total; DI wiring reference) — every service alias + construction order for the 30+ existing services. Precedents: `PdfExportScheduler` (lines 1307–1315), `ToggleService` (1029–1034), Basic-before-BL discipline. **HIGH**.
+- `service_impl/src/pdf_export_scheduler.rs` — `tokio_cron_scheduler` pattern to copy for `VoluntaryRebookingScheduler`. **HIGH**.
+- `service_impl/src/reporting.rs` — location for the new pure fn `committed_voluntary_target_for_year`; precedent helpers `committed_voluntary_for_calendar_week` / `apply_weekly_cap`. **HIGH**.
+- `service_impl/src/extra_hours.rs` — internal-call pattern via `Authentication::Full` to reuse from reconciliation. **HIGH**.
+- `service_impl/src/booking_information.rs` — precedent for BL-service consuming multiple BL-services (Reporting + Absence) without cycle; per-person weekly loop shape. **HIGH**.
+- `service/src/extra_hours.rs` — `ExtraHoursCategory::VolunteerWork` + `ExtraWork` enum variants (the F3/F4/F5 double-entry pair uses exactly these). **HIGH**.
+- `.planning/milestones/v2.2-ROADMAP.md` line 127+136 — confirms `tokio-cron-scheduler` is already a workspace dep since v2.2; no new Cargo dep needed. **HIGH**.
+- `.planning/milestones/v2.5-ROADMAP.md` — precedent for additive DTO extension + no snapshot bump. **HIGH**.
+- MEMORY `feedback_atomic_repoint_no_double_count` — atomicity rule for re-point/rebooking-style operations. **HIGH**.
+- MEMORY `feedback_dioxus_proxy_for_new_backend_endpoints` — Dioxus.toml proxy checklist. **HIGH**.
+- MEMORY `feedback_stichtag_rollout_legacy_semantics` — Stichtag-Rollout pattern (justifies the F4 active_from gate). **HIGH**.
