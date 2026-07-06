@@ -239,7 +239,7 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
         });
     // Phase 52 (WOP-01): Bulk-Load pro Jahr (In-Memory-Filter im Consumer).
     special_day_service
-        .expect_get_by_year()
+        .expect_get_by_iso_year()
         .returning(move |year, _| {
             if year == YEAR {
                 Ok(Arc::from(holiday_year.clone()))
@@ -270,7 +270,7 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
         .expect_extract_shiftplan_report_for_week()
         .returning(|_, _, _, _| Ok(Arc::from(vec![])));
     shiftplan_report_service
-        .expect_extract_shiftplan_report_for_year()
+        .expect_extract_shiftplan_report_for_iso_year()
         .returning(|_, _, _| Ok(Arc::from(vec![])));
 
     // ── slot_service: no slots (removes slot_hours from the equation) ──

@@ -386,7 +386,7 @@ fn build_service_with(config: FixtureConfig) -> BookingInformationServiceImpl<Te
             ))
         });
     special_day_service
-        .expect_get_by_year()
+        .expect_get_by_iso_year()
         .returning(move |year, _| {
             Ok(Arc::from(sd_by_year.get(&year).cloned().unwrap_or_default()))
         });
@@ -442,7 +442,7 @@ fn build_service_with(config: FixtureConfig) -> BookingInformationServiceImpl<Te
             ))
         });
     shiftplan_report_service
-        .expect_extract_shiftplan_report_for_year()
+        .expect_extract_shiftplan_report_for_iso_year()
         .returning(move |year, _, _| {
             Ok(Arc::from(sr_by_year.get(&year).cloned().unwrap_or_default()))
         });

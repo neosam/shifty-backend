@@ -9,6 +9,10 @@ pub mod booking_information_chain_c;
 #[cfg(test)]
 pub mod booking_information_weekly_summary_year_batch;
 #[cfg(test)]
+pub mod booking_information_weekly_summary_year_boundary;
+#[cfg(test)]
+pub mod booking_information_weekly_summary_year_boundary_2026;
+#[cfg(test)]
 pub mod absence_conversion;
 #[cfg(test)]
 pub mod absence_derive_hours_range;
@@ -46,6 +50,8 @@ pub mod reporting_no_contract_volunteer;
 pub mod reporting_phase2_fixtures;
 #[cfg(test)]
 pub mod reporting_get_year;
+#[cfg(test)]
+pub mod reporting_year_boundary;
 #[cfg(test)]
 pub mod sales_person;
 #[cfg(test)]

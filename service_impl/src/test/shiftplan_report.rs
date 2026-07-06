@@ -626,7 +626,7 @@ fn build_service_for_year(
     let mut shiftplan_report_dao = MockShiftplanReportDao::new();
     let rows_clone = rows_arc.clone();
     shiftplan_report_dao
-        .expect_extract_raw_shiftplan_report_for_year()
+        .expect_extract_raw_shiftplan_report_for_iso_year()
         .returning(move |year, _| {
             if year == YEAR {
                 Ok(rows_clone.clone())
@@ -638,7 +638,7 @@ fn build_service_for_year(
     let sd_year = special_days_year.clone();
     let mut special_day_service = MockSpecialDayService::new();
     special_day_service
-        .expect_get_by_year()
+        .expect_get_by_iso_year()
         .returning(move |year, _| {
             if year == YEAR {
                 Ok(Arc::from(sd_year.clone()))
@@ -693,7 +693,7 @@ async fn test_extract_for_year_multi_week_ungated() {
     let service = build_service_for_year(vec![row_w30, row_w31], vec![], None);
 
     let out = service
-        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .extract_shiftplan_report_for_iso_year(YEAR, Authentication::Full, None)
         .await
         .expect("extract_for_year must succeed");
 
@@ -749,7 +749,7 @@ async fn test_extract_for_year_clips_only_in_shortday_week() {
     );
 
     let out = service
-        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .extract_shiftplan_report_for_iso_year(YEAR, Authentication::Full, None)
         .await
         .expect("extract_for_year must succeed");
 
@@ -785,7 +785,7 @@ async fn test_extract_for_year_matches_for_week_sum() {
     // `_for_year`-Ergebnis.
     let svc_year = build_service_for_year(vec![row.clone()], vec![], None);
     let out_year = svc_year
-        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .extract_shiftplan_report_for_iso_year(YEAR, Authentication::Full, None)
         .await
         .expect("year batch must succeed");
 
@@ -822,12 +822,12 @@ async fn test_extract_for_year_tolerates_toggle_unauthorized() {
     let mut shiftplan_report_dao = MockShiftplanReportDao::new();
     let rows_clone = rows_arc.clone();
     shiftplan_report_dao
-        .expect_extract_raw_shiftplan_report_for_year()
+        .expect_extract_raw_shiftplan_report_for_iso_year()
         .returning(move |_, _| Ok(rows_clone.clone()));
 
     let mut special_day_service = MockSpecialDayService::new();
     special_day_service
-        .expect_get_by_year()
+        .expect_get_by_iso_year()
         .returning(|_, _| Ok(Arc::from(Vec::<SpecialDay>::new())));
 
     let mut toggle_service = MockToggleService::new();
@@ -849,7 +849,7 @@ async fn test_extract_for_year_tolerates_toggle_unauthorized() {
     };
 
     let out = service
-        .extract_shiftplan_report_for_year(YEAR, Authentication::Full, None)
+        .extract_shiftplan_report_for_iso_year(YEAR, Authentication::Full, None)
         .await
         .expect("Unauthorized-Toleranz: _for_year muss Ok liefern (Legacy off)");
 

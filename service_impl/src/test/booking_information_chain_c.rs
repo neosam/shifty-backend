@@ -157,7 +157,7 @@ fn build_service(
     // Phase 52 (WOP-01): Bulk-Load je Jahr — der In-Memory-Filter im
     // Consumer wählt die (year, week)-Rows.
     special_day_service
-        .expect_get_by_year()
+        .expect_get_by_iso_year()
         .returning(move |year, _| {
             if year == YEAR {
                 Ok(Arc::from(sd_year_this.clone()))
@@ -197,7 +197,7 @@ fn build_service(
             >::new()))
         });
     shiftplan_report_service
-        .expect_extract_shiftplan_report_for_year()
+        .expect_extract_shiftplan_report_for_iso_year()
         .returning(|_, _, _| {
             Ok(Arc::from(Vec::<
                 service::shiftplan_report::ShiftplanReportDay,
@@ -579,7 +579,7 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
             }
         });
     special_day_service
-        .expect_get_by_year()
+        .expect_get_by_iso_year()
         .returning(move |year, _| {
             if year == YEAR {
                 Ok(Arc::from(sd_year.clone()))
@@ -611,7 +611,7 @@ async fn test_get_weekly_summary_tolerates_toggle_unauthorized() {
             Ok(Arc::from(Vec::<service::shiftplan_report::ShiftplanReportDay>::new()))
         });
     shiftplan_report_service
-        .expect_extract_shiftplan_report_for_year()
+        .expect_extract_shiftplan_report_for_iso_year()
         .returning(|_, _, _| {
             Ok(Arc::from(Vec::<service::shiftplan_report::ShiftplanReportDay>::new()))
         });

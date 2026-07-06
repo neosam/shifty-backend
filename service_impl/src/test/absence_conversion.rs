@@ -480,7 +480,7 @@ mod integration {
             unimplemented!("not needed in integration test")
         }
 
-        async fn find_by_year(
+        async fn find_by_iso_year(
             &self,
             _year: u32,
             _context: Authentication<Self::Context>,

@@ -770,7 +770,7 @@ fn build_deps_for_find_by_year(
     let mut extra_hours_dao = MockExtraHoursDao::new();
     let rows_clone = year_rows.clone();
     extra_hours_dao
-        .expect_find_by_year()
+        .expect_find_by_iso_year()
         .withf(move |year: &u32, _tx: &MockTransaction| *year == expected_year)
         .returning(move |_year, _tx| Ok(rows_clone.clone()));
 
@@ -788,7 +788,7 @@ fn build_deps_for_find_by_year(
 /// D-52-06 happy path: `find_by_year` reicht die Entities aus dem DAO
 /// unverändert nach `ExtraHours::from` weiter.
 #[tokio::test]
-async fn test_find_by_year_happy_path() {
+async fn test_find_by_iso_year_happy_path() {
     let year = 2026u32;
 
     let entity_a = ExtraHoursEntity {
@@ -824,7 +824,7 @@ async fn test_find_by_year_happy_path() {
     let service = deps.build_service();
 
     let out = service
-        .find_by_year(year, Authentication::Full, None)
+        .find_by_iso_year(year, Authentication::Full, None)
         .await
         .expect("find_by_year must succeed");
 
@@ -839,7 +839,7 @@ async fn test_find_by_year_happy_path() {
 /// T-52-05 Mitigation: Auth-Gate identisch zu `find_by_week`
 /// (`check_only_full_authentication`). Non-Full → Forbidden.
 #[tokio::test]
-async fn test_find_by_year_rejects_non_full_auth() {
+async fn test_find_by_iso_year_rejects_non_full_auth() {
     let year = 2026u32;
     let deps =
         build_deps_for_find_by_year(false, Arc::from(Vec::<ExtraHoursEntity>::new()), year);
@@ -848,7 +848,7 @@ async fn test_find_by_year_rejects_non_full_auth() {
     // Der DAO darf nie aufgerufen werden, wenn das Gate schließt — die Mock
     // hat `.withf` gesetzt, aber ohne `times()`-Constraint. Der eigentliche
     // Check ist das `Err(Forbidden)`.
-    let result = service.find_by_year(year, Authentication::Full, None).await;
+    let result = service.find_by_iso_year(year, Authentication::Full, None).await;
     assert!(
         matches!(result, Err(ServiceError::Forbidden)),
         "non-full auth muss Forbidden werfen, got: {:?}",
@@ -858,14 +858,14 @@ async fn test_find_by_year_rejects_non_full_auth() {
 
 /// D-52-06: Leerer Jahres-Batch → leeres Ergebnis, kein Fehler.
 #[tokio::test]
-async fn test_find_by_year_empty() {
+async fn test_find_by_iso_year_empty() {
     let year = 2027u32;
     let deps =
         build_deps_for_find_by_year(true, Arc::from(Vec::<ExtraHoursEntity>::new()), year);
     let service = deps.build_service();
 
     let out = service
-        .find_by_year(year, Authentication::Full, None)
+        .find_by_iso_year(year, Authentication::Full, None)
         .await
         .expect("empty year must succeed");
     assert_eq!(out.len(), 0);

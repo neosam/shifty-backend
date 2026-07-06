@@ -96,7 +96,7 @@ fn build_service() -> ReportingServiceImpl<TestDeps> {
 
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
-        .expect_extract_shiftplan_report_for_year()
+        .expect_extract_shiftplan_report_for_iso_year()
         .returning(|_, _, _| Ok(Arc::from(Vec::new())));
     shiftplan_report_service
         .expect_extract_shiftplan_report_for_week()
@@ -104,7 +104,7 @@ fn build_service() -> ReportingServiceImpl<TestDeps> {
 
     let mut extra_hours_service = MockExtraHoursService::new();
     extra_hours_service
-        .expect_find_by_year()
+        .expect_find_by_iso_year()
         .returning(|_, _, _| Ok(Arc::from(Vec::new())));
     extra_hours_service
         .expect_find_by_week()
@@ -217,12 +217,12 @@ async fn test_get_year_empty_when_no_work_details() {
 
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
-        .expect_extract_shiftplan_report_for_year()
+        .expect_extract_shiftplan_report_for_iso_year()
         .returning(|_, _, _| Ok(Arc::from(Vec::new())));
 
     let mut extra_hours_service = MockExtraHoursService::new();
     extra_hours_service
-        .expect_find_by_year()
+        .expect_find_by_iso_year()
         .returning(|_, _, _| Ok(Arc::from(Vec::new())));
 
     let mut transaction_dao = dao::MockTransactionDao::new();
