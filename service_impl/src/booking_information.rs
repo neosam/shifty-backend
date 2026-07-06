@@ -704,14 +704,52 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .is_ok();
 
         let mut working_hours_per_sales_person = vec![];
-        let volunteer_ids: Arc<[Uuid]> = self
+        // VAA-01 (D-53-01/06, Pitfall 1): einmal laden, mehrfach nutzen —
+        // `all_sales_persons` traegt Namen fuer den Freiwilligen-Absencen-
+        // Namens-Lookup und wird weiter unten fuer `paid_employees` weiter-
+        // verwendet.
+        let all_sales_persons = self
             .sales_person_service
             .get_all(Authentication::Full, tx.clone().into())
-            .await?
+            .await?;
+        let volunteer_ids: Arc<[Uuid]> = all_sales_persons
             .iter()
             .filter(|sales_person| !sales_person.is_paid.unwrap_or(false))
             .map(|sales_person| sales_person.id)
             .collect();
+        // VAA-01 (D-53-06): `all_absences` fuer die Single-Week-Variante laden —
+        // identisch zu `get_weekly_summary` (Category-agnostisch: Vacation +
+        // SickLeave + UnpaidLeave). Muss geladen werden, weil VFA-01 fuer die
+        // Wochensicht nicht Standard-Input war (D-53-06 Motivation).
+        let all_absences = self
+            .absence_service
+            .find_all(Authentication::Full, tx.clone().into())
+            .await?;
+        // VAA-01 (D-53-01/06, Pitfall 6): `absent_volunteer_ids` inline fuer
+        // diese Woche bauen — identisches Muster wie `get_weekly_summary` (Zeile
+        // 422-442). `volunteer_ids.contains(...)`-Filter ist Pflicht, sonst
+        // leaken bezahlte Mitarbeiter mit Absence ins Freiwilligen-Feld.
+        let absent_volunteer_ids: std::collections::HashSet<Uuid> =
+            if let (Ok(week_monday), Ok(week_sunday)) = (
+                time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday),
+                time::Date::from_iso_week_date(year as i32, week, time::Weekday::Sunday),
+            ) {
+                all_absences
+                    .iter()
+                    .filter(|period| {
+                        volunteer_ids.contains(&period.sales_person_id)
+                            && period_overlaps_week(
+                                period.from_date,
+                                period.to_date,
+                                week_monday,
+                                week_sunday,
+                            )
+                    })
+                    .map(|period| period.sales_person_id)
+                    .collect()
+            } else {
+                std::collections::HashSet::new()
+            };
 
         let week_report = self
             .reporting_service
@@ -798,11 +836,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
         let mut saturday_hours = 0.0;
         let mut sunday_hours = 0.0;
 
-        // Get paid employees and their work details
-        let paid_employees = self
-            .sales_person_service
-            .get_all(Authentication::Full, tx.clone().into())
-            .await?
+        // VAA-01 (D-53-06, Pitfall 1): abgeleitet aus dem oben bereits geladenen
+        // `all_sales_persons` — kein zweiter `get_all`-Aufruf.
+        let paid_employees = all_sales_persons
             .iter()
             .filter(|sales_person| sales_person.is_paid.unwrap_or(false))
             .map(|sp| sp.id)
@@ -812,6 +848,38 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             .employee_work_details_service
             .all(Authentication::Full, tx.clone().into())
             .await?;
+
+        // VAA-01/02 (D-53-01/02/06): Freiwilligen-Absencen fuer die Wochensicht
+        // — dieselbe Formel wie in `get_weekly_summary` (Fill-Site 1). Pitfall 2:
+        // `wh.sales_person_id == sp_id`-Filter ist Pflicht.
+        let sales_person_absences: Arc<
+            [service::booking_information::SalesPersonAbsence],
+        > = absent_volunteer_ids
+            .iter()
+            .filter_map(|&sp_id| {
+                let name = all_sales_persons
+                    .iter()
+                    .find(|sp| sp.id == sp_id)
+                    .map(|sp| sp.name.clone())?;
+                let hours: f32 = find_working_hours_for_calendar_week(
+                    &work_details,
+                    year,
+                    week,
+                )
+                .filter(|wh| {
+                    wh.sales_person_id == sp_id
+                        && (wh.cap_planned_hours_to_expected
+                            || wh.expected_hours == 0.0)
+                })
+                .map(|wh| wh.committed_voluntary)
+                .sum();
+                Some(service::booking_information::SalesPersonAbsence {
+                    sales_person_id: sp_id,
+                    name,
+                    hours,
+                })
+            })
+            .collect();
 
         let unavailable_days = self
             .sales_person_unavailable_service
@@ -950,9 +1018,10 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             // per-person surplus reduction) because this variant feeds a per-day consumer.
             committed_voluntary_hours: 0.0,
             working_hours_per_sales_person: working_hours_per_sales_person.into(),
-            // Plan 02 (VAA-01, D-53-06) fuellt dieses Feld auch in der Single-Week-
-            // Variante, damit beide Endpoints denselben DTO-Vertrag bedienen.
-            sales_person_absences: Arc::from(Vec::<service::booking_information::SalesPersonAbsence>::new()),
+            // VAA-01/02 (D-53-01/02/06): Single-Week-Fill-Site — semantisch
+            // identisch zu `get_weekly_summary` (Anzeige-Bruecke Wochensicht ↔
+            // Jahressicht).
+            sales_person_absences,
             required_hours: slot_hours,
 
             monday_available_hours: monday_hours - required_hours_by_day.0,
