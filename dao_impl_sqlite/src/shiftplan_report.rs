@@ -175,14 +175,17 @@ impl ShiftplanReportDao for ShiftplanReportDaoImpl {
         .collect::<Result<Arc<[_]>, _>>()?)
     }
 
-    async fn extract_raw_shiftplan_report_for_year(
+    async fn extract_raw_shiftplan_report_for_iso_year(
         &self,
         year: u32,
         tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError> {
-        // Phase 52 (WOP-01, D-52-06): Jahres-Batch analog zu `_for_week`,
-        // nur ohne den `calendar_week = ?`-Filter. `calendar_week` bleibt
-        // in der Projektion, damit der Service-Layer bzw. Wave-4-Konsumenten
+        // Phase 52 (WOP-01 / Follow-up #3): ISO-Wochenjahr-Batch analog zu
+        // `_for_week`, nur ohne den `calendar_week = ?`-Filter. `booking.year`
+        // ist bereits das ISO-Wochenjahr (Booking-Create-Pfad benutzt
+        // `ShiftyDate::from_date`); der Filter `WHERE booking.year = ?`
+        // matched daher exakt die ISO-Wochen von `year`. `calendar_week`
+        // bleibt in der Projektion, damit der Service-Layer bzw. Konsumenten
         // pro Woche filtern und aggregieren können.
         Ok(query_as!(
             ShiftplanReportRawRowDb,

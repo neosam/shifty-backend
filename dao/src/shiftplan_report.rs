@@ -61,12 +61,20 @@ pub trait ShiftplanReportDao {
         tx: Self::Transaction,
     ) -> Result<Arc<[ShiftplanReportRawRow]>, DaoError>;
 
-    /// Roh-Zeilen pro Booking für ein ganzes Kalenderjahr
-    /// (Phase 52 WOP-01, D-52-06). Bulk-Load-Fundament für den
+    /// Roh-Zeilen pro Booking für ein ganzes ISO-Wochenjahr
+    /// (Phase 52 WOP-01 / Follow-up #3). Bulk-Load-Fundament für den
     /// Weekly-Overview-Refactor: EINE SQL-Query pro Jahr statt
     /// 55×`_for_week`. `calendar_week` bleibt in der Row erhalten,
     /// damit Service/Consumer pro Woche filtern und aggregieren können.
-    async fn extract_raw_shiftplan_report_for_year(
+    ///
+    /// **ISO-Wochenjahr, nicht Kalender-Jahr:** die DB-Spalte `booking.year`
+    /// speichert das ISO-Wochenjahr (siehe Booking-Create-Pfad, der
+    /// `ShiftyDate::from_date(...)` verwendet). Ein `WHERE booking.year = ?`
+    /// matched daher exakt die ISO-Wochen von `year`. Der Name ist bewusst
+    /// symmetrisch zu `find_by_iso_year` bei `SpecialDayDao` /
+    /// `ExtraHoursDao`, damit der Konsument keine Namens-basierte Fallgrube
+    /// erwischt.
+    async fn extract_raw_shiftplan_report_for_iso_year(
         &self,
         year: u32,
         tx: Self::Transaction,

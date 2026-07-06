@@ -61,17 +61,24 @@ pub trait ShiftplanReportService {
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[ShiftplanReportDay]>, ServiceError>;
 
-    /// Phase 52 (WOP-01, D-52-06) — Jahres-Batch-Variante zu
+    /// Phase 52 Follow-up #3 — ISO-Wochenjahr-Batch-Variante zu
     /// [`extract_shiftplan_report_for_week`].
     ///
     /// Semantisch äquivalent zum Aufsummieren aller `_for_week(year, w)`-Rufe
-    /// für `w ∈ 1..=53`. Liefert alle Report-Tage des Jahres in **einem**
-    /// DAO-Roundtrip; Aggregation, Clip und Stichtag-Gate laufen im
-    /// Service-Layer analog zur Wochenvariante.
+    /// für `w ∈ 1..=weeks_in_year(year)`. Liefert alle Report-Tage des ISO-
+    /// Jahres in **einem** DAO-Roundtrip; Aggregation, Clip und Stichtag-Gate
+    /// laufen im Service-Layer analog zur Wochenvariante.
+    ///
+    /// **ISO-Wochenjahr, nicht Kalender-Jahr:** die DB-Spalte `booking.year`
+    /// speichert das ISO-Wochenjahr. Ein Booking am 2027-01-01 (Fr = ISO-2026-W53-Fri)
+    /// liegt in `iso_year=2026`. Ersetzt das alte `extract_shiftplan_report_for_year`
+    /// (aus Phase 52 Wave 3), das die SpecialDay-Liste kalendarisch geladen und
+    /// dann per ISO-Wochenjahr gefiltert hat — mit dem Ergebnis, dass Feiertage
+    /// an KW 1 / KW 53 nicht auf Bookings dieser Wochen wirkten.
     ///
     /// Rückgabe-Rows tragen `year`, `calendar_week` und `day_of_week` — der
     /// Consumer kann pro Woche weiterfiltern.
-    async fn extract_shiftplan_report_for_year(
+    async fn extract_shiftplan_report_for_iso_year(
         &self,
         year: u32,
         context: Authentication<Self::Context>,

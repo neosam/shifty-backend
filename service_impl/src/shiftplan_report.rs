@@ -309,18 +309,21 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
         Ok(result.into())
     }
 
-    /// Phase 52 (WOP-01, D-52-06) — Jahres-Batch-Variante zu
+    /// Phase 52 Follow-up #3 — ISO-Wochenjahr-Batch-Variante zu
     /// [`Self::extract_shiftplan_report_for_week`].
     ///
     /// Semantik-Äquivalenz: Das Ergebnis ist die Multi-Set-Vereinigung der
-    /// `_for_week(year, w)`-Ergebnisse für alle vorkommenden Wochen. Clip,
+    /// `_for_week(year, w)`-Ergebnisse für alle ISO-Wochen von `year`. Clip,
     /// Stichtag-Gate und Aggregations-Reihenfolge sind identisch.
     ///
-    /// Perf-Motivation: ein `extract_raw_shiftplan_report_for_year`-Call
+    /// Perf-Motivation: ein `extract_raw_shiftplan_report_for_iso_year`-Call
     /// statt bis zu 53 Wochen-Roundtrips; SpecialDays werden EINMAL via
-    /// `special_day_service.get_by_year` geladen und pro Woche in eine
-    /// Map gruppiert (siehe `extract_shiftplan_report` für dasselbe Muster).
-    async fn extract_shiftplan_report_for_year(
+    /// `special_day_service.get_by_iso_year` geladen und pro Woche in eine
+    /// Map gruppiert. Der Wechsel von `get_by_year` (Kalender-Jahr) zu
+    /// `get_by_iso_year` (ISO-Wochenjahr) fixt den Bug an KW 1 / KW 53, bei
+    /// dem ein Feiertag am 2027-01-01 (Fr = ISO-2026-W53) im Kalender-
+    /// gefilterten Bucket für `iso_year=2026` fehlte.
+    async fn extract_shiftplan_report_for_iso_year(
         &self,
         year: u32,
         context: Authentication<Self::Context>,
@@ -332,14 +335,17 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
         let active_from =
             shortday_gate::read_active_from(self.toggle_service.as_ref(), context.clone()).await?;
 
-        // Jahres-Batch für SpecialDays (D-52-06 nutzt bestehende Trait-Method).
+        // ISO-Wochenjahr-Batch für SpecialDays (Follow-up #3): matched direkt
+        // das DB-Feld `year`, ohne Kalender-Datum-Post-Filter.
         let special_days_year = self
             .special_day_service
-            .get_by_year(year, context.clone())
+            .get_by_iso_year(year, context.clone())
             .await?;
 
         // Nach `calendar_week` gruppieren, damit `hours_for_row` pro Row
-        // dieselbe Semantik wie in `_for_week` bekommt.
+        // dieselbe Semantik wie in `_for_week` bekommt. Der `sd.year == year`
+        // Filter ist jetzt redundant (der DAO liefert bereits nur Rows
+        // mit ISO-year == year), bleibt aber als Defense-in-Depth.
         let mut special_days_by_week: HashMap<u8, Vec<SpecialDay>> = HashMap::new();
         for sd in special_days_year.iter() {
             if sd.year == year {
@@ -352,7 +358,7 @@ impl<Deps: ShiftplanReportServiceDeps> ShiftplanReportService for ShiftplanRepor
 
         let raw_rows = self
             .shiftplan_report_dao
-            .extract_raw_shiftplan_report_for_year(year, tx.clone())
+            .extract_raw_shiftplan_report_for_iso_year(year, tx.clone())
             .await?;
 
         // Aggregation pro (sales_person_id, calendar_week, day_of_week_number).
