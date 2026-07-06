@@ -50,7 +50,7 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   1. Jahresansicht in Dev-DB antwortet <500ms (heute mehrere Sekunden), gemessen im PLAN. ✅ (0.12s Median, 4× unter Ziel)
   2. Property-Test grün: neue vs. alte Implementierung bit-exakt identisch über generierte Szenarien (Feiertage, ShortDays, Freiwilligen-Absencen, CVC-06-Cap, `shortday_gate.active_from` on/off). ✅ (8/8 Wave-1-Fixtures)
   3. `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün. ✅
-  4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55). ⚠️ Override: `get_weekly_summary` erreicht 2× (year + year+1 Spillover); `assemble_weeks` behält bewusst ~55× `get_by_week` per (year,week) statt `get_by_year` — Semantik-Divergenz ISO vs Kalenderjahr. Der eigentliche Skalierungs-Bug (N_persons-Multiplikation, ~26 000 Queries) ist eliminiert.
+  4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55). ✅ (Follow-up #3 aufgelöst: neue `_iso_year`-Bulk-Methoden ersetzen `get_by_week` per (year,week); jetzt effektiv 2× für year+year+1 Spillover)
   5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12. ✅
 
   **Plans:** 5 plans (planned 2026-07-05; 5 Waves strikt sequenziell — kein Wave läuft parallel, weil `reporting.rs` und `booking_information.rs` mehrfach angefasst werden)
@@ -61,8 +61,9 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   - [x] 52-05-PLAN.md — **Wave 5**: `get_weekly_summary`-Umbau (7 Bulk-Loads + In-Memory-Loop) — Median 1.13s (2.07×)
   - [x] **Follow-up #1**: `sales_person` load-once + `working_hours` HashMap-Index in `assemble_weeks` (WOP-04) — Median 0.97s (2.40× kumulativ)
   - [x] **Follow-up #2**: `build_derived_holiday_map` + `derive_hours_for_range` Year-Batch (WOP-04) — Median **0.12s** (19.4× kumulativ) ✅
+  - [x] **Follow-up #3**: Jahresübergangs-Bugklasse fix (User-Report 2026-07-06) — drei kalender-jahr-scharfe Bulk-Methoden (extra_hours + special_day + shiftplan_report) verursachten paid_hours/required_hours-Drift in KW 1 / KW 53. Fix: neue `_iso_year`-Varianten mit Range `[ISO-Mo(Y,1), ISO-Su(Y,weeks(Y))+1d]`. Alte kalender-jahr-Methoden bei ExtraHours+ShiftplanReport gelöscht (grep-verifiziert). 16 Regressions-Gates in `reporting_year_boundary.rs` + `booking_information_weekly_summary_year_boundary*.rs`. Latenz **0.09s** unverändert-gut. SC#4-Override formal aufgelöst.
 
-  **Follow-Ups für Milestone-Close-Audit (nicht blockierend):** `SpecialDayService::get_by_iso_year` (ISO-Jahr statt Kalender-Jahr) für saubere SC#4-Semantik; DB-Indices aus RESEARCH.md Q3 (`booking(year,cw)`, `extra_hours(date_time)`, `working_hours(from_year,to_year)`); F07-Doku für neue Pure-Helper.
+  **Follow-Ups für Milestone-Close-Audit (nicht blockierend):** DB-Indices aus RESEARCH.md Q3 (`booking(year,cw)`, `extra_hours(date_time)`, `working_hours(from_year,to_year)`); F07-Doku für neue Pure-Helper.
 
   **Cross-cutting constraints (in ≥2 Plänen):**
   - D-52-04 (Spillover via 2× `get_year(year)` + `get_year(year+1)` — Plans 04, 05)

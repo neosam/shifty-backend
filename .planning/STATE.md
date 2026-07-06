@@ -31,8 +31,8 @@ progress:
 
 Phase: 53 — Freiwilligen-Abwesenheiten in Jahresansicht
 Plan: — (ready to plan)
-Status: Phase 52 VERIFIED PASS (2026-07-06); Phase 53 als nächstes offen. Empfehlung: `/gsd-discuss-phase 53` starten.
-Last activity: 2026-07-06 — Phase 52 komplett + 2 Follow-ups. Kumulativer Speedup **19.4×** (2.33s → 0.12s, WOP-04 <500ms um 4× übertroffen). Byte-Identity via 8/8 Wave-1-Fixtures grün. Ein dokumentierter Override zu SC#4 (special_day.get_by_week ~55×/(year,week) statt „1 pro Endpoint" — ISO-vs-Kalenderjahr-Semantik verhindert `get_by_year`; die eigentliche N_persons-Multiplikation ist eliminiert).
+Status: Phase 52 VERIFIED PASS + Jahresübergangs-Bugklasse gefixt (2026-07-06); Phase 53 als nächstes offen. Empfehlung: `/gsd-discuss-phase 53` starten.
+Last activity: 2026-07-06 — Phase 52 komplett + 3 Follow-ups. Kumulativer Speedup **~19×** (2.33s → 0.09s, WOP-04 <500ms um >5× übertroffen). Byte-Identity via 8/8 Wave-1-Fixtures + 16 Year-Boundary-Regression-Gates grün. **Follow-up #3 fixt eine Klasse Jahresübergangs-Bugs** (User-Report 2026-07-06): drei neue `_iso_year`-Bulk-Methoden (`ExtraHours::find_by_iso_year`, `SpecialDayService::get_by_iso_year`, `ShiftplanReport::_for_iso_year`) ersetzen die kalender-jahr-scharfen Wave-3/FU2-Varianten. Der SC#4-Override aus dem Verify wird durch die neuen `_iso_year`-Methoden formal aufgelöst. Kein Snapshot-Bump, keine Migration, keine neue Dep.
 
 ## Quick Tasks Completed
 
@@ -200,7 +200,7 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 **Resume file:** None
 
 **Phase 52 Follow-Ups (nicht blockierend, für Milestone-Close-Audit):**
-1. `SpecialDayService::get_by_iso_year` erwägen (ISO-Wochen-Jahr statt Kalender-Jahr) → ermöglicht 55→1 Reduktion, kleiner Latenz-Impact, saubere Semantik zu SC#4.
+1. ✅ **Erledigt via Follow-up #3 (2026-07-06):** `SpecialDayService::get_by_iso_year` + `ExtraHoursService::find_by_iso_year` + `ShiftplanReportService::extract_shiftplan_report_for_iso_year` als ISO-Wochenjahr-Bulk-Varianten eingeführt; alte kalender-jahr-Methoden bei ExtraHours+ShiftplanReport gelöscht (grep-verifiziert keine externen Konsumenten); SpecialDay's `get_by_year` bleibt für REST-Endpoint `/special-days/year/{y}`. SC#4-Override formal aufgelöst.
 2. DB-Indices aus RESEARCH.md Q3 (`booking(year, calendar_week)`, `extra_hours(date_time)`, `working_hours(from_year, to_year)`) — separater Task, benötigt Migration.
 3. F07-Doku für neue crate-private In-Memory-Helper (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`) nachziehen — Balance-Formel selbst unverändert.
 
@@ -217,7 +217,7 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 ---
 
-*State updated: 2026-07-06 — **Phase 52 VERIFIED PASS** (5 Pläne + 2 Follow-ups; 5/5 Success-Criteria erfüllt inkl. 1 dokumentierter Override zu SC#4; 9/9 Cross-Cutting-Must-haves grün; kumulativer Speedup 19.4× 2.33s→0.12s; Byte-Identity 8/8 Wave-1-Fixtures grün; Snapshot-Version bleibt 12). VERIFICATION.md geschrieben. ROADMAP.md Phase-52-Checkbox + Plan-Checkboxen aktualisiert. Milestone v2.5 zu 50% (1/2 Phasen, 5/5 Pläne). Phase 53 offen.*
+*State updated: 2026-07-06 — **Phase 52 VERIFIED PASS + Follow-up #3 Jahresübergangs-Fix** (5 Pläne + 3 Follow-ups; 5/5 Success-Criteria erfüllt, SC#4-Override formal aufgelöst durch Follow-up #3; 9/9 Cross-Cutting-Must-haves grün; kumulativer Speedup ~19× 2.33s→0.09s; Byte-Identity 8/8 Wave-1-Fixtures + 16 Year-Boundary-Regression-Gates grün; Snapshot-Version bleibt 12). Follow-up #3 nach User-Report am 2026-07-06: 3 kalender-jahr-scharfe Bulk-Methoden (extra_hours + special_day + shiftplan_report) verursachten paid_hours/required_hours-Drift an KW 1 / KW 53 — gefixt via neue `_iso_year`-Varianten. VERIFICATION.md aus Verify + 2 DIAGNOSIS.md + 3 Follow-up-SUMMARY.md archiviert. Milestone v2.5 zu 50% (1/2 Phasen, 5/5 Pläne). Phase 53 offen.*
 
 ## Operator Next Steps
 
