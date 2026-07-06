@@ -114,6 +114,11 @@ fn build_service() -> ReportingServiceImpl<TestDeps> {
     absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): get_week / get_year bulk-load absences
+    // once via `find_all` and compute per-(person, week) results in-memory.
+    absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     let mut transaction_dao = dao::MockTransactionDao::new();
     transaction_dao
@@ -237,6 +242,12 @@ async fn test_get_year_empty_when_no_work_details() {
         .expect_get_all()
         .returning(|_, _| Ok(Arc::from(Vec::<service::sales_person::SalesPerson>::new())));
 
+    // Phase 52 Follow-Up #2 (WOP-04): absence bulk-load — empty for this test.
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
+
     let service: ReportingServiceImpl<TestDeps> = ReportingServiceImpl {
         extra_hours_service: Arc::new(extra_hours_service),
         shiftplan_report_service: Arc::new(shiftplan_report_service),
@@ -246,7 +257,7 @@ async fn test_get_year_empty_when_no_work_details() {
         permission_service: Arc::new(permission_service),
         clock_service: Arc::new(MockClockService::new()),
         uuid_service: Arc::new(MockUuidService::new()),
-        absence_service: Arc::new(MockAbsenceService::new()),
+        absence_service: Arc::new(absence_service),
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),

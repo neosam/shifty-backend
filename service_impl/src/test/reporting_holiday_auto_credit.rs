@@ -583,6 +583,12 @@ async fn test_holiday_auto_credit_get_week_reduces_soll_bands_unchanged() {
         .absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): assemble_weeks bulk-loads absences via
+    // find_all — empty here, same as derive_hours_for_range returning empty.
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     // NEW (Phase 34): provide SpecialDay mock — 1 Holiday on KW23/2024 Monday (2024-06-03).
     // Expectations without .times() accept 0..n calls — before the fix, get_week does not
@@ -680,6 +686,11 @@ async fn test_hsp04_before_cutoff() {
         .absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): find_all bulk-load — empty.
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     // Same SpecialDay as HOL-03.
     mocks.special_day_service = MockSpecialDayService::new();
@@ -778,6 +789,11 @@ async fn test_hsp04_manual_wins() {
         .absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): find_all bulk-load — empty.
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     // Same SpecialDay as HOL-03.
     mocks.special_day_service = MockSpecialDayService::new();
@@ -888,6 +904,11 @@ async fn test_hsp03_cap_active_holiday_no_band_leak() {
         .absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): find_all bulk-load — empty.
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     // SpecialDay: Holiday on KW23/2024 Monday (2024-06-03).
     mocks.special_day_service = MockSpecialDayService::new();

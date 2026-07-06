@@ -561,8 +561,34 @@ async fn test_get_week_additive_merge() {
     mocks
         .absence_service
         .expect_derive_hours_for_range()
-        .times(1)
         .returning(move |_, _, _, _, _| Ok(derived.clone()));
+    // Phase 52 Follow-Up #2 (WOP-04): assemble_weeks no longer calls
+    // `derive_hours_for_range` — it derives from `find_all` in-memory. Provide
+    // an AbsencePeriod that produces the same 8h SickLeave on 2024-06-05 via
+    // the pure helper (fixture_work_details_8h_mon_fri gives hours_per_day=8).
+    let sick_period = service::absence::AbsencePeriod {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_1005),
+        sales_person_id: fixture_sales_person_id(),
+        category: AbsenceCategory::SickLeave,
+        from_date: date!(2024 - 06 - 05),
+        to_date: date!(2024 - 06 - 05),
+        description: Arc::from("test sick"),
+        created: Some(datetime!(2024 - 06 - 05 08:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+        day_fraction: service::absence::DayFraction::Full,
+    };
+    let periods: Arc<[service::absence::AbsencePeriod]> = Arc::from(vec![sick_period]);
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(move |_, _| Ok(periods.clone()));
+    // Phase 52 Follow-Up #2 (WOP-04): special_day preload runs when absences
+    // are present (needed for holiday-skip filter). No holidays in this test.
+    mocks
+        .special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<service::special_days::SpecialDay>::new())));
 
     let service = mocks.build();
     let reports = service
@@ -1098,8 +1124,12 @@ async fn test_balance_parity_dynamic_get_week() {
     mocks_a
         .absence_service
         .expect_derive_hours_for_range()
-        .times(1)
         .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): Lauf A — no absence_period; find_all empty.
+    mocks_a
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     let service_a = mocks_a.build();
     let reports_a = service_a
@@ -1146,8 +1176,33 @@ async fn test_balance_parity_dynamic_get_week() {
     mocks_b
         .absence_service
         .expect_derive_hours_for_range()
-        .times(1)
         .returning(move |_, _, _, _, _| Ok(derived_b.clone()));
+    // Phase 52 Follow-Up #2 (WOP-04): Lauf B — pure derive from AbsencePeriod
+    // covering 2024-06-03 (Monday). With workdays=5, hours_per_day=8, this
+    // produces 8h Vacation on 2024-06-03 (parity with the previous mocked
+    // BTreeMap return).
+    let vac_period_b = service::absence::AbsencePeriod {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_2005),
+        sales_person_id: fixture_sales_person_id(),
+        category: AbsenceCategory::Vacation,
+        from_date: vacation_day,
+        to_date: vacation_day,
+        description: Arc::from("parity vacation"),
+        created: Some(datetime!(2024 - 06 - 01 09:00:00)),
+        deleted: None,
+        version: Uuid::nil(),
+        day_fraction: service::absence::DayFraction::Full,
+    };
+    let periods_b: Arc<[service::absence::AbsencePeriod]> = Arc::from(vec![vac_period_b]);
+    mocks_b
+        .absence_service
+        .expect_find_all()
+        .returning(move |_, _| Ok(periods_b.clone()));
+    // Phase 52 Follow-Up #2 (WOP-04): special_day preload — no holidays.
+    mocks_b
+        .special_day_service
+        .expect_get_by_week()
+        .returning(|_, _, _| Ok(Arc::from(Vec::<service::special_days::SpecialDay>::new())));
 
     let service_b = mocks_b.build();
     let reports_b = service_b
@@ -1246,6 +1301,12 @@ async fn get_week_skips_unpaid_person() {
         .absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(std::collections::BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): year-batch bulk absence-load in
+    // get_week — empty, same semantic as derive returning empty per person.
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     let service = mocks.build();
     let reports = service
@@ -1339,6 +1400,11 @@ async fn get_week_unpaid_no_paid_hours_leak() {
         .absence_service
         .expect_derive_hours_for_range()
         .returning(|_, _, _, _, _| Ok(std::collections::BTreeMap::new()));
+    // Phase 52 Follow-Up #2 (WOP-04): year-batch bulk absence-load in get_week.
+    mocks
+        .absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::<service::absence::AbsencePeriod>::new())));
 
     let service = mocks.build();
     let reports = service
