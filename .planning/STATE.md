@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.5
 milestone_name: Weekly-Overview Performance & Freiwilligen-Abwesenheiten
-status: Ready to execute
-last_updated: "2026-07-05T20:45:00.000Z"
-last_activity: 2026-07-05
+status: In progress — Phase 52 complete
+last_updated: "2026-07-06T00:00:00.000Z"
+last_activity: 2026-07-06
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 0
-  percent: 0
+  completed_plans: 5
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -29,10 +29,10 @@ progress:
 
 ## Current Position
 
-Phase: 52 — Weekly-Overview Performance-Refactor
-Plan: —
-Status: Ready to execute (5 Pläne, 5 Waves sequenziell)
-Last activity: 2026-07-05 — Phase 52 planning complete (WOP-01..05 mapped, D-52-01..16 in must_haves.truths, PLAN-Checker VERIFIED PASS)
+Phase: 53 — Freiwilligen-Abwesenheiten in Jahresansicht
+Plan: — (ready to plan)
+Status: Phase 52 VERIFIED PASS (2026-07-06); Phase 53 als nächstes offen. Empfehlung: `/gsd-discuss-phase 53` starten.
+Last activity: 2026-07-06 — Phase 52 komplett + 2 Follow-ups. Kumulativer Speedup **19.4×** (2.33s → 0.12s, WOP-04 <500ms um 4× übertroffen). Byte-Identity via 8/8 Wave-1-Fixtures grün. Ein dokumentierter Override zu SC#4 (special_day.get_by_week ~55×/(year,week) statt „1 pro Endpoint" — ISO-vs-Kalenderjahr-Semantik verhindert `get_by_year`; die eigentliche N_persons-Multiplikation ist eliminiert).
 
 ## Quick Tasks Completed
 
@@ -195,9 +195,14 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 
 ## Session Continuity
 
-**Last session:** 2026-07-05
-**Stopped at:** v2.4 milestone archived
+**Last session:** 2026-07-06
+**Stopped at:** Phase 52 verified + committed. 5 Pläne + 2 Follow-ups landed. Verification report: `.planning/phases/52-weekly-overview-performance-refactor/52-VERIFICATION.md`.
 **Resume file:** None
+
+**Phase 52 Follow-Ups (nicht blockierend, für Milestone-Close-Audit):**
+1. `SpecialDayService::get_by_iso_year` erwägen (ISO-Wochen-Jahr statt Kalender-Jahr) → ermöglicht 55→1 Reduktion, kleiner Latenz-Impact, saubere Semantik zu SC#4.
+2. DB-Indices aus RESEARCH.md Q3 (`booking(year, calendar_week)`, `extra_hours(date_time)`, `working_hours(from_year, to_year)`) — separater Task, benötigt Migration.
+3. F07-Doku für neue crate-private In-Memory-Helper (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`) nachziehen — Balance-Formel selbst unverändert.
 
 **To resume work in a new session:**
 
@@ -206,18 +211,18 @@ Close am 2026-06-29; Ursprung v1.5/v1.4:
 3. Read `.planning/PROJECT.md` (Charter + Current State: zwischen Milestones)
 4. Read `.planning/MILESTONES.md` (Index inkl. v1.0–v2.4)
 
-**Aktueller Stand:** Zwischen Milestones. v2.4 (Kurzer-Tag-Slot-Kürzung, Phase 51) am 2026-07-05 geshipt + archiviert. Nächste Iteration via `/gsd-new-milestone`.
+**Aktueller Stand:** Milestone v2.5 in Progress. Phase 52 (Weekly-Overview Performance-Refactor) am 2026-07-06 komplett + verifiziert. Phase 53 (Freiwilligen-Abwesenheiten in Jahresansicht) steht als nächstes offen — baut auf der neuen Assembly (`assemble_weeks` + `get_year`) aus Phase 52 auf.
 
-**Next command**: `/gsd-new-milestone`.
+**Next command**: `/gsd-discuss-phase 53`.
 
 ---
 
-*State updated: 2026-07-05 — **v2.4 geshipt + archiviert** (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..06, Audit `passed`, override_closeout). ROADMAP.md um v2.4-Milestone-Eintrag ergänzt; MILESTONES.md v2.4-Eintrag chronologisch am Ende angehängt; milestones/v2.4-ROADMAP.md + -REQUIREMENTS.md + -MILESTONE-AUDIT.md + -phases/ archiviert; REQUIREMENTS.md gelöscht. Zwischen Milestones.*
+*State updated: 2026-07-06 — **Phase 52 VERIFIED PASS** (5 Pläne + 2 Follow-ups; 5/5 Success-Criteria erfüllt inkl. 1 dokumentierter Override zu SC#4; 9/9 Cross-Cutting-Must-haves grün; kumulativer Speedup 19.4× 2.33s→0.12s; Byte-Identity 8/8 Wave-1-Fixtures grün; Snapshot-Version bleibt 12). VERIFICATION.md geschrieben. ROADMAP.md Phase-52-Checkbox + Plan-Checkboxen aktualisiert. Milestone v2.5 zu 50% (1/2 Phasen, 5/5 Pläne). Phase 53 offen.*
 
 ## Operator Next Steps
 
-- Nächste Iteration mit `/gsd-new-milestone` starten (fresh requirements + roadmap).
-- Optional: `/release-version` für SemVer-Tag ausführen (v2.4 ist internes Planungs-Label).
+- Nächste Phase mit `/gsd-discuss-phase 53` starten (Freiwilligen-Abwesenheiten in Jahresansicht — VAA-01..04).
+- Optional: Follow-ups oben durchsehen und ggf. als Todos in `.planning/todos/pending/` erfassen.
 
 ## Decisions
 

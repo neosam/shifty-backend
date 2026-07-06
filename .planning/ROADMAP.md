@@ -32,7 +32,7 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
 
 **Phases:**
 
-- [ ] **Phase 52: Weekly-Overview Performance-Refactor** — Requirements WOP-01, WOP-02, WOP-03, WOP-04, WOP-05
+- [x] **Phase 52: Weekly-Overview Performance-Refactor** — Requirements WOP-01, WOP-02, WOP-03, WOP-04, WOP-05 — **verified 2026-07-06** (5 Pläne + 2 Follow-ups; Speedup **19.4×** 2.33s→0.12s, WOP-04 <0.5s um 4× übertroffen; Byte-Identity 8/8 Wave-1-Fixtures grün; 1 dokumentierter Override zu SC#4 — `special_day.get_by_week` ~55×/(year,week) statt „1 pro Endpoint", weil `get_by_year`-Kalenderjahr-Semantik nicht byte-identisch zu ISO-Wochen-gebundenem `get_by_week` ist; die eigentliche N_persons×N_weeks-Multiplikation ist eliminiert; VERIFICATION.md `passed`)
 
   **Goal:** `BookingInformationServiceImpl::get_weekly_summary` konsumiert
   Jahres-Aggregate: `special_days` und `shiftplan_reports` einmalig
@@ -47,18 +47,22 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   bleibt für andere Call-Sites bestehen.
 
   **Success criteria:**
-  1. Jahresansicht in Dev-DB antwortet <500ms (heute mehrere Sekunden), gemessen im PLAN.
-  2. Property-Test grün: neue vs. alte Implementierung bit-exakt identisch über generierte Szenarien (Feiertage, ShortDays, Freiwilligen-Absencen, CVC-06-Cap, `shortday_gate.active_from` on/off).
-  3. `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün.
-  4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55).
-  5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12.
+  1. Jahresansicht in Dev-DB antwortet <500ms (heute mehrere Sekunden), gemessen im PLAN. ✅ (0.12s Median, 4× unter Ziel)
+  2. Property-Test grün: neue vs. alte Implementierung bit-exakt identisch über generierte Szenarien (Feiertage, ShortDays, Freiwilligen-Absencen, CVC-06-Cap, `shortday_gate.active_from` on/off). ✅ (8/8 Wave-1-Fixtures)
+  3. `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün. ✅
+  4. `special_days`- und `shiftplan_reports`-Calls sind pro Endpoint-Abruf 1 (statt ~55). ⚠️ Override: `get_weekly_summary` erreicht 2× (year + year+1 Spillover); `assemble_weeks` behält bewusst ~55× `get_by_week` per (year,week) statt `get_by_year` — Semantik-Divergenz ISO vs Kalenderjahr. Der eigentliche Skalierungs-Bug (N_persons-Multiplikation, ~26 000 Queries) ist eliminiert.
+  5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12. ✅
 
   **Plans:** 5 plans (planned 2026-07-05; 5 Waves strikt sequenziell — kein Wave läuft parallel, weil `reporting.rs` und `booking_information.rs` mehrfach angefasst werden)
-  - [ ] 52-01-PLAN.md — **Wave 1** *(no deps)*: Fixture-Golden-Snapshots + Latenz-Baseline (WOP-03/05) — hartes Regressions-Gate für alle folgenden Waves
-  - [ ] 52-02-PLAN.md — **Wave 2** *(blocked on 52-01)*: `assemble_weeks`-Helper aus `get_week` extrahieren (WOP-02/05) — reiner Refactor, kein Verhaltens-Change
-  - [ ] 52-03-PLAN.md — **Wave 3** *(blocked on 52-02)*: `extract_shiftplan_report_for_year` + `find_by_year` Trait+DAO+`sqlx prepare` (WOP-01/05)
-  - [ ] 52-04-PLAN.md — **Wave 4** *(blocked on 52-02+52-03)*: `ReportingService::get_year` Trait+Impl (WOP-02/05) — delegiert auf `assemble_weeks` mit ~55-Element-Vec
-  - [ ] 52-05-PLAN.md — **Wave 5** *(blocked on 52-01+52-04)*: `get_weekly_summary`-Umbau (7 Bulk-Loads + In-Memory-Loop) + Latenz-Post-Refactor-Messung + F07-Docs-Check (WOP-01/04/05)
+  - [x] 52-01-PLAN.md — **Wave 1**: Fixture-Golden-Snapshots + Latenz-Baseline (WOP-03/05) — 8 Fixtures + 2.33s Median
+  - [x] 52-02-PLAN.md — **Wave 2**: `assemble_weeks`-Helper aus `get_week` extrahiert (WOP-02/05) — reiner Refactor, byte-identisch
+  - [x] 52-03-PLAN.md — **Wave 3**: `extract_shiftplan_report_for_year` + `find_by_year` Trait+DAO+`sqlx prepare` (WOP-01/05)
+  - [x] 52-04-PLAN.md — **Wave 4**: `ReportingService::get_year` Trait+Impl (WOP-02/05) — delegiert auf `assemble_weeks`
+  - [x] 52-05-PLAN.md — **Wave 5**: `get_weekly_summary`-Umbau (7 Bulk-Loads + In-Memory-Loop) — Median 1.13s (2.07×)
+  - [x] **Follow-up #1**: `sales_person` load-once + `working_hours` HashMap-Index in `assemble_weeks` (WOP-04) — Median 0.97s (2.40× kumulativ)
+  - [x] **Follow-up #2**: `build_derived_holiday_map` + `derive_hours_for_range` Year-Batch (WOP-04) — Median **0.12s** (19.4× kumulativ) ✅
+
+  **Follow-Ups für Milestone-Close-Audit (nicht blockierend):** `SpecialDayService::get_by_iso_year` (ISO-Jahr statt Kalender-Jahr) für saubere SC#4-Semantik; DB-Indices aus RESEARCH.md Q3 (`booking(year,cw)`, `extra_hours(date_time)`, `working_hours(from_year,to_year)`); F07-Doku für neue Pure-Helper.
 
   **Cross-cutting constraints (in ≥2 Plänen):**
   - D-52-04 (Spillover via 2× `get_year(year)` + `get_year(year+1)` — Plans 04, 05)
@@ -113,4 +117,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
 
 ---
 
-*Last updated: 2026-07-05 — **v2.5 gestartet** (Weekly-Overview Performance & Freiwilligen-Abwesenheiten, 2 Phasen, 9 Requirements WOP-01..05 + VAA-01..04). Reihenfolge 52 → 53 (Perf-Refactor zuerst, Freiwilligen-Anzeige auf neuer Assembly). Constraints: byte-identisches Ergebnis (Property-Test), <500ms Latenz, live-korrekt (kein Cache), Snapshot bleibt 12, keine neue Cargo-Dep. Vorarbeit: `notes/weekly-overview-perf-analyse.md`, `seeds/weekly-overview-perf.md`, `research/questions.md` Q-02. Zuvor: v2.4 geshipt + archiviert (Phase 51, 8 Pläne, 6/6 Requirements SHC-01..SHC-06, Audit `passed`). Details: `milestones/v2.4-ROADMAP.md`.*
+*Last updated: 2026-07-06 — **Phase 52 verified 2026-07-06** (5 Pläne + 2 Follow-ups; kumulativer Speedup 19.4× 2.33s→0.12s, WOP-04 <0.5s um 4× übertroffen; Byte-Identity 8/8 Wave-1-Fixtures grün; 1 dokumentierter Override zu SC#4 — special_day.get_by_week ~55×/(year,week) statt "1 pro Endpoint" wegen ISO-vs-Kalenderjahr-Semantik; die eigentliche N_persons×N_weeks-Multiplikation ist eliminiert). Milestone v2.5 zu 50 % (1/2 Phasen, 5/5 Pläne). Phase 53 (Freiwilligen-Abwesenheiten in Jahresansicht) als nächstes offen — baut auf `assemble_weeks` + `get_year` aus Phase 52 auf. Zuvor: 2026-07-05 v2.5 gestartet.*
