@@ -1,26 +1,21 @@
 ---
 phase: 53-freiwilligen-abwesenheiten-jahresansicht
 verified: 2026-07-06T00:00:00Z
-status: human_needed
-score: 9/9 must-haves verified
-behavior_unverified: 1
+status: passed
+score: 10/10 must-haves verified (9 automated + 1 human INT sightcheck)
+behavior_unverified: 0
 overrides_applied: 0
-behavior_unverified_items:
-  - truth: "Frontend rendert Freiwilligen-Zeilen visuell konsistent mit bezahlten — Union-Liste erscheint sortiert und ohne Farbmarkierung im Browser"
-    test: "Backend starten, FE starten, /weekly_overview/ oeffnen, Woche mit Freiwilligem (aktive Vacation-Period) + Bezahltem mit absence_hours pruefen"
-    expected: "Beide Namen erscheinen in einer alphabetisch sortierten Liste im Format '{name}: {hours} h', keine Farb-/Icon-Unterschiede"
-    why_human: "Dioxus WASM Signal-Rendering kann nur im Browser verifiziert werden. Cargo-Test beweist den Mapper (Union korrekt, sort korrekt), aber ob das DOM-Update live korrekt ausfaellt und die Signals triggern ist nur im Browser beobachtbar (Memory: reference_dioxus_browser_test_date_inputs)."
 human_verification:
   - test: "Browser-Sichtkontrolle der Union-Liste in /weekly_overview/"
     expected: "Freiwilliger mit aktiver Absence-Period + Bezahlter mit absence_hours erscheinen beide in einer alphabetisch sortierten Absencen-Zeile; Format '{name}: {hours} h'; kein Icon/Farb-Unterschied zwischen Freiwilligem und Bezahltem"
-    why_human: "Dioxus WASM live-render ist headless nicht pruefbar. Cargo-Test (sales_person_absences_union_merges_paid_and_volunteers_sorted_by_name) beweist den Mapper, aber der Browser-Render-Path (Signal-Update via LoadYear-Coroutine -> WeeklySummary -> Rendering-Zeile) erfordert Sichtkontrolle."
+    result: "PASSED — INT-Roundtrip 2026-07-06 durch User bestätigt (\"Sieht sehr gut aus!\"). Union-Liste rendert sortiert, Format konsistent, keine visuelle Unterscheidung Freiwillig↔Bezahlt."
 ---
 
 # Phase 53: Freiwilligen-Abwesenheiten in Jahresansicht — Verification Report
 
 **Phase Goal:** Freiwillige mit aktiver Vacation/SickLeave/UnpaidLeave-Period erscheinen in `sales_person_absences` der Jahresansicht zusaetzlich zu bezahlten Mitarbeitern. Backend liefert Name + Stunden-Wert fertig im DTO. Frontend rendert mit bestehender Zeile.
 **Verified:** 2026-07-06
-**Status:** HUMAN_NEEDED (1 behavior-unverified truth — Browser-Sichtkontrolle)
+**Status:** PASSED — INT-Sightcheck bestätigt 2026-07-06 (initial HUMAN_NEEDED für Browser-Union-Liste, User-Roundtrip auf INT bestätigt visuelle Konsistenz Freiwillig↔Bezahlt)
 **Re-verification:** No — initial verification
 
 ---

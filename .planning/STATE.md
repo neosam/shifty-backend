@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.5
-milestone_name: — Weekly-Overview Performance & Freiwilligen-Abwesenheiten
+milestone_name: Weekly-Overview Performance & Freiwilligen-Abwesenheiten
 current_phase: 53
-current_phase_name: freiwilligen-abwesenheiten-jahresansicht
-status: executing
-stopped_at: "Phase 52 verified + committed. 5 Pläne + 2 Follow-ups landed. Verification report: `.planning/phases/52-weekly-overview-performance-refactor/52-VERIFICATION.md`."
-last_updated: "2026-07-06T11:23:32.428Z"
+status: Ready for milestone-close — v2.5 komplett (Phasen 52+53)
+stopped_at: "Phase 53 verified + INT-Sightcheck bestätigt 2026-07-06. Alle 8 Pläne des Milestones landed. Ready für /gsd-ship oder /gsd-complete-milestone."
+last_updated: "2026-07-06T14:35:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Phase 53 execution started
+last_activity_desc: Phase 53 complete (INT-Sightcheck bestätigt)
 progress:
-  total_phases: 3
-  completed_phases: 1
+  total_phases: 2
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 9
-  percent: 33
+  completed_plans: 8
+  percent: 100
+current_phase_name: freiwilligen-abwesenheiten-jahresansicht
 ---
 
 # Project State: Shifty Backend
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 53 (freiwilligen-abwesenheiten-jahresansicht) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
-Last activity: 2026-07-06 — Phase 53 execution started
+Phase: 53 — Freiwilligen-Abwesenheiten in Jahresansicht (COMPLETE)
+Plan: 01-03 alle grün (Wave 1→2→3 sequenziell)
+Status: **Phase 53 VERIFIED + INT-BESTÄTIGT (2026-07-06)** — 3 Pläne + 4 Executor-Commits/Plan (11 feat/test/docs Commits + 1 VERIFICATION-Commit + 1 phase.complete). Alle 4 Requirements (VAA-01..04) und 6 Decisions (D-53-01..06) erfüllt. Gates: `cargo test --workspace` (732 BE + 802 FE, 0 failed), `cargo clippy --workspace -- -D warnings` grün, `cargo build --target wasm32-unknown-unknown` grün. Deviations semantisch-neutral (Import-Style + zusätzliche Test-Fill-Site + WOP-03-Golden-Fix + DAO-Round-Trip-Cleanup + FE-Clippy exkludiert). INT-Roundtrip bestätigt Browser-Union-Liste sortiert + Format-konsistent. **Milestone v2.5 zu 100 % (2/2 Phasen, 8/8 Pläne). Ready für Milestone-Close.**
+Last activity: 2026-07-06 — Phase 53 complete + INT-Sightcheck bestätigt
 
 ## Quick Tasks Completed
 

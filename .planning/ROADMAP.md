@@ -47,6 +47,7 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   bleibt für andere Call-Sites bestehen.
 
   **Success criteria:**
+
   1. Jahresansicht in Dev-DB antwortet <500ms (heute mehrere Sekunden), gemessen im PLAN. ✅ (0.12s Median, 4× unter Ziel)
   2. Property-Test grün: neue vs. alte Implementierung bit-exakt identisch über generierte Szenarien (Feiertage, ShortDays, Freiwilligen-Absencen, CVC-06-Cap, `shortday_gate.active_from` on/off). ✅ (8/8 Wave-1-Fixtures)
   3. `cargo test --workspace` + `cargo clippy --workspace -- -D warnings` grün. ✅
@@ -54,6 +55,7 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   5. Kein Snapshot-Schema-Bump; `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 12. ✅
 
   **Plans:** 5 plans (planned 2026-07-05; 5 Waves strikt sequenziell — kein Wave läuft parallel, weil `reporting.rs` und `booking_information.rs` mehrfach angefasst werden)
+
   - [x] 52-01-PLAN.md — **Wave 1**: Fixture-Golden-Snapshots + Latenz-Baseline (WOP-03/05) — 8 Fixtures + 2.33s Median
   - [x] 52-02-PLAN.md — **Wave 2**: `assemble_weeks`-Helper aus `get_week` extrahiert (WOP-02/05) — reiner Refactor, byte-identisch
   - [x] 52-03-PLAN.md — **Wave 3**: `extract_shiftplan_report_for_year` + `find_by_year` Trait+DAO+`sqlx prepare` (WOP-01/05)
@@ -66,13 +68,14 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   **Follow-Ups für Milestone-Close-Audit (nicht blockierend):** DB-Indices aus RESEARCH.md Q3 (`booking(year,cw)`, `extra_hours(date_time)`, `working_hours(from_year,to_year)`); F07-Doku für neue Pure-Helper.
 
   **Cross-cutting constraints (in ≥2 Plänen):**
+
   - D-52-04 (Spillover via 2× `get_year(year)` + `get_year(year+1)` — Plans 04, 05)
   - D-52-06 (Neue Trait-Methoden: `get_year` + `extract_shiftplan_report_for_year` — Plans 03, 04)
   - D-52-08 (`assemble_weeks`-Helper — Plans 02, 04; RESEARCH Q2 überschreibt CONTEXT-Vereinfachung: `async fn` mit `tx`, NICHT sync)
   - D-52-09 (MUST-preserve: Balance-Formel, CVC-06-Cap, Chain-C-Toggle-Read bleibt in `booking_information`, NICHT im Helper — Plans 02, 04, 05)
   - D-52-10 (`get_week` bleibt public trait method, Signatur unverändert — Plans 02, 04)
 
-- [ ] **Phase 53: Freiwilligen-Abwesenheiten in Jahresansicht** — Requirements VAA-01, VAA-02, VAA-03, VAA-04
+- [x] **Phase 53: Freiwilligen-Abwesenheiten in Jahresansicht** — Requirements VAA-01, VAA-02, VAA-03, VAA-04 (completed 2026-07-06)
 
   **Goal:** In `sales_person_absences` der Jahresansicht erscheinen zusätzlich
   zu bezahlten Mitarbeitern auch Freiwillige mit aktiver
@@ -84,6 +87,7 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   auf.
 
   **Success criteria:**
+
   1. Freiwilliger mit `Vacation`-Period, die Kalenderwoche N überlappt → erscheint in `sales_person_absences` von Woche N (Backend-Test verifiziert).
   2. Freiwilliger ohne aktive Period → nicht in der Liste.
   3. Bezahlter Mitarbeiter bleibt unverändert (keine Regression).
@@ -91,9 +95,10 @@ listet die Abwesenheiten der Freiwilligen sichtbar mit auf.
   5. Frontend rendert Freiwilligen-Zeilen visuell konsistent mit bezahlten (kein Redesign).
 
   **Plans:** 3 plans (planned 2026-07-06; 3 Waves strikt sequenziell — jeder Plan baut auf dem Struct/DTO bzw. Fill-Site des Vorgängers auf)
-  - [ ] 53-01-PLAN.md — **Wave 1**: `SalesPersonAbsence`(+`TO`) Structs + `sales_person_absences`-Feld auf `WeeklySummary`(+`TO`) mit `#[serde(default)]` + From-Impl-Erweiterung (VAA-01 Datenkontrakt)
-  - [ ] 53-02-PLAN.md — **Wave 2 (TDD)**: Backend-Fill-Sites `get_weekly_summary` + `get_summery_for_week` (D-53-02-Formel, D-53-05/06); neue Test-Datei `booking_information_vaa.rs` mit 3 VAA-03-Assertions (VAA-01+02+03)
-  - [ ] 53-03-PLAN.md — **Wave 3 (TDD)**: FE-Union-Merge in `state::WeeklySummary::from(&WeeklySummaryTO)` (Bezahlt-Loop UNVERÄNDERT + Freiwilligen-extend + case-insensitive Sort by name) + Rendering-Lock grep-Guard + WASM-Gate (VAA-04)
+
+  - [x] 53-01-PLAN.md — **Wave 1**: `SalesPersonAbsence`(+`TO`) Structs + `sales_person_absences`-Feld auf `WeeklySummary`(+`TO`) mit `#[serde(default)]` + From-Impl-Erweiterung (VAA-01 Datenkontrakt)
+  - [x] 53-02-PLAN.md — **Wave 2 (TDD)**: Backend-Fill-Sites `get_weekly_summary` + `get_summery_for_week` (D-53-02-Formel, D-53-05/06); neue Test-Datei `booking_information_vaa.rs` mit 3 VAA-03-Assertions (VAA-01+02+03)
+  - [x] 53-03-PLAN.md — **Wave 3 (TDD)**: FE-Union-Merge in `state::WeeklySummary::from(&WeeklySummaryTO)` (Bezahlt-Loop UNVERÄNDERT + Freiwilligen-extend + case-insensitive Sort by name) + Rendering-Lock grep-Guard + WASM-Gate (VAA-04)
 
 ## Backlog
 
