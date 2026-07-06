@@ -34,6 +34,20 @@ pub struct WorkingHoursPerSalesPerson {
     pub custom_absence_hours: Arc<[CustomExtraHours]>,
 }
 
+/// Freiwilligen-Absence-Anzeige-Datensatz fuer die Jahresansicht (VAA-01).
+///
+/// Wird pro Woche vom Backend im Assembly-Loop befuellt (Plan 02) und im DTO
+/// via `SalesPersonAbsenceTO` an das Frontend transportiert (D-53-01). Die
+/// Existenz dieses Eintrags bedeutet: die Person ist in dieser Woche
+/// vollstaendig abwesend (VFA-01 whole-week-out spiegel, D-53-03) und
+/// `hours` ist ihr cap-gated `committed_voluntary`-Wochen-Betrag (D-53-02).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SalesPersonAbsence {
+    pub sales_person_id: Uuid,
+    pub name: Arc<str>,
+    pub hours: f32,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct WeeklySummary {
     pub year: u32,
@@ -53,6 +67,10 @@ pub struct WeeklySummary {
     pub sunday_available_hours: f32,
 
     pub working_hours_per_sales_person: Arc<[WorkingHoursPerSalesPerson]>,
+    /// Freiwilligen-Absencen der Woche (VAA-01, D-53-01). Additiv zu
+    /// `working_hours_per_sales_person` (bezahlten-only Vertrag,
+    /// Regression-Lock VAA-03 #3). Plan 02 fuellt dieses Feld im Assembly.
+    pub sales_person_absences: Arc<[SalesPersonAbsence]>,
 }
 
 pub fn build_booking_information(

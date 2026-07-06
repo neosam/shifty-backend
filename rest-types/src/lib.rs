@@ -2516,6 +2516,7 @@ mod test_weekly_summary_committed_voluntary {
             saturday_available_hours: 0.0,
             sunday_available_hours: 0.0,
             working_hours_per_sales_person: Arc::from([]),
+            sales_person_absences: Arc::from([]),
         }
     }
 

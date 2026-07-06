@@ -625,6 +625,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
                 volunteer_hours,
                 committed_voluntary_hours,
                 working_hours_per_sales_person: working_hours_per_sales_person.into(),
+                // Plan 02 (VAA-01) fuellt dieses Feld im Assembly-Loop mit den
+                // Freiwilligen-Absencen der Woche. Plan 01 legt nur den Traeger an.
+                sales_person_absences: Arc::from(Vec::<service::booking_information::SalesPersonAbsence>::new()),
                 required_hours: slot_hours,
                 monday_available_hours: 0.0,
                 tuesday_available_hours: 0.0,
@@ -909,6 +912,9 @@ impl<Deps: BookingInformationServiceDeps> BookingInformationService
             // per-person surplus reduction) because this variant feeds a per-day consumer.
             committed_voluntary_hours: 0.0,
             working_hours_per_sales_person: working_hours_per_sales_person.into(),
+            // Plan 02 (VAA-01, D-53-06) fuellt dieses Feld auch in der Single-Week-
+            // Variante, damit beide Endpoints denselben DTO-Vertrag bedienen.
+            sales_person_absences: Arc::from(Vec::<service::booking_information::SalesPersonAbsence>::new()),
             required_hours: slot_hours,
 
             monday_available_hours: monday_hours - required_hours_by_day.0,
@@ -973,6 +979,7 @@ mod tests {
             saturday_available_hours: 0.0,
             sunday_available_hours: 0.0,
             working_hours_per_sales_person: Arc::from(vec![]),
+            sales_person_absences: Arc::from(vec![]),
         };
         let cloned = summary.clone();
         assert_eq!(summary, cloned);
