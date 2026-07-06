@@ -328,6 +328,14 @@ DTOs (`rest-types/src/lib.rs`):
 - `BookingConflictTO` (line 937–953): `booking` + `slot` + `sales_person`.
 - `WeeklySummaryTO` (line 989–1036): weekly aggregate with paid,
   volunteer, committed voluntary hours (CVC series) and per-day capacities.
+- `SalesPersonAbsenceTO` (Phase 53, VAA-01): denormalized absence entry
+  `{ sales_person_id, name, hours }` for the yearly overview. Emitted by
+  the backend as `WeeklySummaryTO.sales_person_absences: Arc<[SalesPersonAbsenceTO]>`
+  with `#[serde(default)]` for legacy-wire-compat (Pitfall 3).
+  Union of paid-employees-with-`absence_hours` and volunteers with an
+  active `Vacation`/`SickLeave`/`UnpaidLeave` period in that CW —
+  the frontend renders both in the same row without visual distinction
+  (Fat Backend, Thin Client — no merge in FE).
 
 REST handler files:
 
@@ -414,6 +422,15 @@ All general auth/TX/time edges in
   excluded from Band 1 + Band 2 of that week — not proportionally per
   day (`booking_information.rs:317–343`, `374–402`). Deliberate design,
   not bug.
+- **Volunteer absences visible in yearly overview (VAA-01..04, Phase 53):**
+  `WeeklySummary.sales_person_absences` is a union of paid employees
+  with `absence_hours > 0` and volunteers with an active
+  `Vacation`/`SickLeave`/`UnpaidLeave` period overlapping the CW.
+  Hours-value is `working_hours_per_week / 5.0 * matching_absence_days`
+  (D-53-02). `working_hours_per_sales_person` remains **paid-only**
+  (VAA-03 #3 regression-lock — volunteers do not surface there).
+  Assembled at both fill-sites (`booking_information.rs` `get_weekly_summary`
+  + `get_summery_for_week`). Tests: `service_impl/src/test/booking_information_vaa.rs`.
 - **Special-Day filter:** in `get_weekly_summary`/`get_summery_for_week`
   Slots falling on a `Holiday` are hard-filtered out of the
   capacity calculation; for `ShortDay`, `shortday_gate::clip_slot_for_week`

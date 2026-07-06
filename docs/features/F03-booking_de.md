@@ -329,6 +329,14 @@ DTOs (`rest-types/src/lib.rs`):
 - `BookingConflictTO` (Zeile 937–953): `booking` + `slot` + `sales_person`.
 - `WeeklySummaryTO` (Zeile 989–1036): Wochen-Aggregat mit Paid-,
   Volunteer-, Committed-Voluntary-Hours (CVC-Serie) und Per-Day-Kapazitäten.
+- `SalesPersonAbsenceTO` (Phase 53, VAA-01): denormalisierter Absence-Eintrag
+  `{ sales_person_id, name, hours }` für die Jahresansicht. Backend liefert
+  ihn als `WeeklySummaryTO.sales_person_absences: Arc<[SalesPersonAbsenceTO]>`
+  mit `#[serde(default)]` für Legacy-Wire-Kompatibilität (Pitfall 3).
+  Union aus bezahlten Mitarbeitern mit `absence_hours` und Freiwilligen mit
+  aktiver `Vacation`/`SickLeave`/`UnpaidLeave`-Periode in dieser KW — das
+  Frontend rendert beide in derselben Zeile ohne visuelle Unterscheidung
+  (Fat Backend, Thin Client — kein Merge im FE).
 
 REST-Handler-Files:
 
@@ -415,6 +423,16 @@ Alle allgemeinen Auth-/TX-/Time-Kanten in
   Band 2 dieser Woche komplett ausgeschlossen — pro Tag nicht anteilig
   (`booking_information.rs:317–343`, `374–402`). Bewusstes Design, nicht
   Bug.
+- **Freiwilligen-Abwesenheiten in Jahresansicht (VAA-01..04, Phase 53):**
+  `WeeklySummary.sales_person_absences` ist eine Union aus bezahlten
+  Mitarbeitern mit `absence_hours > 0` und Freiwilligen mit aktiver
+  `Vacation`/`SickLeave`/`UnpaidLeave`-Periode, die die KW überlappt.
+  Stunden-Wert: `working_hours_per_week / 5.0 * matching_absence_days`
+  (D-53-02). `working_hours_per_sales_person` bleibt **paid-only**
+  (VAA-03 #3 Regression-Lock — Freiwillige tauchen dort nicht auf).
+  Assembliert an beiden Fill-Sites (`booking_information.rs`
+  `get_weekly_summary` + `get_summery_for_week`). Tests:
+  `service_impl/src/test/booking_information_vaa.rs`.
 - **Special-Day-Filter:** In `get_weekly_summary`/`get_summery_for_week`
   werden Slots, die auf einen `Holiday` fallen, hart aus der
   Kapazitätsrechnung ausgefiltert; für `ShortDay` wird via
