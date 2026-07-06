@@ -5,9 +5,9 @@ milestone_name: Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 54
 status: planning
 stopped_at: ""
-last_updated: "2026-07-06T18:30:00.000Z"
+last_updated: "2026-07-06T20:00:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Roadmap v2.6 created (Phasen 54-56, 17/17 Requirements mapped)
+last_activity_desc: Phase 54 discuss-phase abgeschlossen (4 Discuss-Points gepinnt, CONTEXT.md geschrieben)
 progress:
   total_phases: 3
   completed_phases: 0
@@ -28,15 +28,15 @@ current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
 - **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (planning; Roadmap 2026-07-06 geschrieben)
-- **Current focus**: Phase 54 discuss-phase — Data-Model + F1 + F2 (Migrations, RebookingBatchService Basic, VoluntaryStatsService BL, FE-Row im Employee-Detail-Report).
+- **Current focus**: Phase 54 planning — Data-Model + F1 + F2. discuss-phase abgeschlossen (2026-07-06); CONTEXT.md gepinnt: F1-Nenner = alle Vertragswochen inkl. `expected_hours=0`; F2-Soll = pro-rata bei Mid-Week-Wechsel (gegen Research-Empfehlung); UNIQUE `(sales_person_id, iso_year, iso_week)` global über alle Kinds; Marker `source TEXT DEFAULT 'manual'` auf `extra_hours`.
 - **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 in **Phase 56** discuss-phase zu pinnen (REB-AUTO-05; Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot).
 
 ## Current Position
 
 Phase: 54 (planning)
 Plan: —
-Status: Roadmap fertig, `/gsd-discuss-phase 54` als nächster Schritt
-Last activity: 2026-07-06 — Roadmap v2.6 created (Phasen 54-56, 17/17 Requirements mapped)
+Status: CONTEXT.md fertig, `/gsd-plan-phase 54` als nächster Schritt
+Last activity: 2026-07-06 — Phase 54 discuss-phase abgeschlossen (4 Discuss-Points gepinnt: D-F1-01 all-contract-weeks, D-F2-01 pro-rata, D-54-DM-01 global-UNIQUE, D-54-DM-02 source-string-enum)
 
 ## Quick Tasks Completed
 
