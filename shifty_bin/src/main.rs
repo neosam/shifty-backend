@@ -322,6 +322,26 @@ impl service_impl::rebooking_batch::RebookingBatchServiceDeps for RebookingBatch
 type RebookingBatchService =
     service_impl::rebooking_batch::RebookingBatchServiceImpl<RebookingBatchServiceDependencies>;
 
+// Phase 54 (VOL-STAT + VOL-ACCT, Plan 03): VoluntaryStatsServiceImpl ist
+// Business-Logic-Tier. Konsumiert ExtraHoursService (Basic) +
+// EmployeeWorkDetailsService (=WorkingHoursService, Basic) +
+// SalesPersonService (Basic) + PermissionService + TransactionDao. Kein
+// Zyklus — dieser Service wird von keinem existierenden Service konsumiert.
+pub struct VoluntaryStatsServiceDependencies;
+impl service_impl::voluntary_stats::VoluntaryStatsServiceDeps
+    for VoluntaryStatsServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type ExtraHoursService = ExtraHoursService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type VoluntaryStatsService =
+    service_impl::voluntary_stats::VoluntaryStatsServiceImpl<VoluntaryStatsServiceDependencies>;
+
 // Phase 48 (EXP-02/EXP-03, D-48-BASIC): PdfExportConfigServiceImpl ist
 // Basic-Tier — konsumiert AUSSCHLIESSLICH PdfExportConfigDao + Permission +
 // Clock + Uuid + Transaction. Kein Domain-Service als Dep.
@@ -728,6 +748,10 @@ pub struct RestStateImpl {
     // Phase 55 von der BL-Reconciliation konsumiert; in Phase 54 nur via
     // RestStateDef exponiert, kein REST-Endpoint.
     rebooking_batch_service: Arc<RebookingBatchService>,
+    // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
+    // HR-only Voluntary-Stundenkonto-Sicht. Kein REST-Endpoint in Phase 54
+    // Plan 03 — der Endpoint kommt in Plan 04.
+    voluntary_stats_service: Arc<VoluntaryStatsService>,
     // Phase 48 (EXP-02/EXP-03): admin-gated REST-CRUD für die PDF-Export-Konfig.
     pdf_export_config_service: Arc<PdfExportConfigService>,
     // Phase 48 Plan 04 (EXP-01/EXP-03): Cron-getriebener Nextcloud-Push.
@@ -772,6 +796,7 @@ impl rest::RestStateDef for RestStateImpl {
     type AbsenceConversionService = AbsenceConversionService;
     type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
     type RebookingBatchService = RebookingBatchService;
+    type VoluntaryStatsService = VoluntaryStatsService;
     type PdfExportConfigService = PdfExportConfigService;
     type PdfExportScheduler = PdfExportSchedulerService;
     type PdfShiftplanService = PdfShiftplanService;
@@ -880,6 +905,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService> {
         self.rebooking_batch_service.clone()
+    }
+    fn voluntary_stats_service(&self) -> Arc<Self::VoluntaryStatsService> {
+        self.voluntary_stats_service.clone()
     }
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService> {
         self.pdf_export_config_service.clone()
@@ -1099,6 +1127,21 @@ impl RestStateImpl {
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+        // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
+        // VoluntaryStatsService — konstruiert NACH extra_hours_service,
+        // working_hours_service, sales_person_service, permission_service,
+        // transaction_dao (Basic-Services-Wave). Kein Zyklus.
+        let voluntary_stats_service = Arc::new(
+            service_impl::voluntary_stats::VoluntaryStatsServiceImpl::<
+                VoluntaryStatsServiceDependencies,
+            > {
+                extra_hours_service: extra_hours_service.clone(),
+                employee_work_details_service: working_hours_service.clone(),
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
                 transaction_dao: transaction_dao.clone(),
             },
         );
@@ -1410,6 +1453,7 @@ impl RestStateImpl {
             absence_conversion_service,
             vacation_entitlement_offset_service,
             rebooking_batch_service,
+            voluntary_stats_service,
             pdf_export_config_service,
             pdf_export_scheduler,
             pdf_shiftplan_service,

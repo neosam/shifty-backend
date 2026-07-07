@@ -422,6 +422,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 54 (VOL-STAT-01/02, VOL-ACCT-01/02/03): Business-Logic-Tier
+    // HR-gated VoluntaryStatsService. In Phase 54 (Plan 03) noch nicht via
+    // REST exponiert — der Endpoint kommt in Plan 04.
+    type VoluntaryStatsService: service::voluntary_stats::VoluntaryStatsService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     // Phase 48 (EXP-02/EXP-03, D-48-ADMIN): Basic-Tier admin-gated Config-
     // Service für den `/pdf-export-config`-Endpoint (GET/PUT).
     type PdfExportConfigService: service::pdf_export_config::PdfExportConfigService<Context = Context>
@@ -481,6 +488,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
     fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService>;
+    fn voluntary_stats_service(&self) -> Arc<Self::VoluntaryStatsService>;
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
