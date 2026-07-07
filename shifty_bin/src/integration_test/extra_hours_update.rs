@@ -46,6 +46,7 @@ async fn create_extra_hours(test_setup: &TestSetup, sales_person_id: Uuid) -> Ex
                 created: None,
                 deleted: None,
                 version: Uuid::nil(),
+                source: service::extra_hours::ExtraHoursSource::Manual,
             },
             Authentication::Full,
             None,
@@ -175,6 +176,7 @@ async fn test_update_with_stale_version_returns_conflict() {
         .update(
             &ExtraHours {
                 version: stale_version,
+                source: service::extra_hours::ExtraHoursSource::Manual,
                 amount: 6.0,
                 ..initial.clone()
             },

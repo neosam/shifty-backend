@@ -131,6 +131,7 @@ pub fn fixture_extra_work_entry() -> ExtraHours {
         created: Some(datetime!(2024 - 06 - 06 09:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
     }
 }
 

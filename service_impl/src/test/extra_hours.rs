@@ -238,6 +238,7 @@ fn fixture_extra_hours(category: ExtraHoursCategory) -> ExtraHours {
         created: None,
         deleted: None,
         version: Uuid::nil(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
     }
 }
 
@@ -385,6 +386,7 @@ async fn test_update_stale_version_returns_conflict() {
 
     let stale_request = ExtraHours {
         version: alternate_version(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
         ..default_update_request()
     };
 

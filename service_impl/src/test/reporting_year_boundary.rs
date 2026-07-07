@@ -177,6 +177,7 @@ fn extra_hours(
         created: Some(datetime!(2020 - 01 - 01 08:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
     }
 }
 

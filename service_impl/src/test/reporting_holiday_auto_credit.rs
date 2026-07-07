@@ -147,6 +147,7 @@ fn make_holiday_extra_hours(amount: f32, day: time::Date) -> ExtraHours {
         created: Some(datetime!(2024 - 01 - 01 09:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
     }
 }
 

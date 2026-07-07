@@ -223,6 +223,7 @@ prop_compose! {
             )),
             deleted: None,
             version: Uuid::new_v4(),
+            source: service::extra_hours::ExtraHoursSource::Manual,
         }
     }
 }
@@ -721,6 +722,7 @@ proptest! {
                 created: Some(time::PrimitiveDateTime::new(date!(2020-01-01), time::Time::MIDNIGHT)),
                 deleted: None,
                 version: Uuid::nil(),
+                source: service::extra_hours::ExtraHoursSource::Manual,
             }, ExtraHours {
                 id: Uuid::nil(),
                 sales_person_id: Uuid::nil(),
@@ -731,6 +733,7 @@ proptest! {
                 created: Some(time::PrimitiveDateTime::new(date!(2020-01-01), time::Time::MIDNIGHT)),
                 deleted: None,
                 version: Uuid::nil(),
+                source: service::extra_hours::ExtraHoursSource::Manual,
             },
             ]];
             let bookings = vec![vec![(2002, 1, 0), (2002, 1, 1)]];
@@ -905,6 +908,7 @@ fn test_vacation_at_end_of_year() {
                     created: None,
                     deleted: None,
                     version: Uuid::nil(),
+                    source: service::extra_hours::ExtraHoursSource::Manual,
                 },
                 Authentication::Full,
                 None,
@@ -928,6 +932,7 @@ fn test_vacation_at_end_of_year() {
                     created: None,
                     deleted: None,
                     version: Uuid::nil(),
+                    source: service::extra_hours::ExtraHoursSource::Manual,
                 },
                 Authentication::Full,
                 None,
@@ -1078,6 +1083,7 @@ fn test_multiple_contracts() {
                     created: None,
                     deleted: None,
                     version: Uuid::nil(),
+                    source: service::extra_hours::ExtraHoursSource::Manual,
                 },
                 Authentication::Full,
                 None,
@@ -1194,6 +1200,7 @@ fn test_extra_hours_beginning_of_year() {
                     created: None,
                     deleted: None,
                     version: Uuid::nil(),
+                    source: service::extra_hours::ExtraHoursSource::Manual,
                 },
                 Authentication::Full,
                 None,

@@ -183,6 +183,7 @@ fn make_extra_hours(category: ExtraHoursCategory, amount: f32, day: time::Date) 
         created: Some(datetime!(2024 - 06 - 01 09:00:00)),
         deleted: None,
         version: Uuid::nil(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
     }
 }
 

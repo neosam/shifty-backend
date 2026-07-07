@@ -62,6 +62,7 @@ async fn seed_vacation_extra_hours(test_setup: &TestSetup) -> (Uuid, Uuid) {
                 created: None,
                 deleted: None,
                 version: Uuid::nil(),
+                source: service::extra_hours::ExtraHoursSource::Manual,
             },
             Authentication::Full,
             None,

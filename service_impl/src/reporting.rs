@@ -2088,6 +2088,7 @@ mod test_dynamic_vacation_days {
             created: Some(datetime!(2024-01-01 10:00:00)),
             deleted: None,
             version: Uuid::new_v4(),
+            source: service::extra_hours::ExtraHoursSource::Manual,
         }
     }
 
@@ -2238,6 +2239,7 @@ mod test_dynamic_vacation_days {
             created: Some(datetime!(2024-01-01 10:00:00)),
             deleted: None,
             version: Uuid::new_v4(),
+            source: service::extra_hours::ExtraHoursSource::Manual,
         }
     }
 
@@ -2399,6 +2401,7 @@ mod test_weekly_planned_hours_cap {
             created: Some(datetime!(2024-01-01 10:00:00)),
             deleted: None,
             version: Uuid::new_v4(),
+            source: service::extra_hours::ExtraHoursSource::Manual,
         }
     }
 

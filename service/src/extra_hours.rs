@@ -56,10 +56,11 @@ pub enum ExtraHoursCategory {
 ///
 /// Bestandsrows landen per SQL-DEFAULT auf `Manual`; Rebooking-Schreiber
 /// folgen ab Phase 55.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ExtraHoursSource {
     /// Row wurde manuell (UI-Add-Extra-Hours, HR-CRUD, Absence-Convert)
     /// erzeugt und zaehlt normal in Balance / F1-Ist / F2-Nutz.
+    #[default]
     Manual,
     /// Row wurde durch Rebooking (F3/F4/F5, ab Phase 55) erzeugt und
     /// MUSS von F1-Ist- + F2-Soll-Aggregatoren gefiltert werden
@@ -84,12 +85,6 @@ impl TryFrom<&str> for ExtraHoursSource {
             "rebooking" => Ok(Self::Rebooking),
             _ => Err(ServiceError::InternalError),
         }
-    }
-}
-
-impl Default for ExtraHoursSource {
-    fn default() -> Self {
-        Self::Manual
     }
 }
 impl ExtraHoursCategory {
