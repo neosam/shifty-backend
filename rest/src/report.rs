@@ -9,10 +9,11 @@ use axum::{
 };
 use rest_types::{
     EmployeeAttendanceStatisticsTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO,
-    ShortEmployeeReportTO, WeekdayAttendanceTO,
+    ShortEmployeeReportTO, VoluntaryStatsTO, WeekdayAttendanceTO,
 };
 use serde::Deserialize;
 use service::reporting::ReportingService;
+use service::voluntary_stats::VoluntaryStatsService;
 use tracing::instrument;
 use utoipa::OpenApi;
 use uuid::Uuid;
@@ -31,6 +32,10 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
             "/{id}/attendance-statistics",
             get(get_attendance_statistics::<RestState>),
         )
+        .route(
+            "/{id}/voluntary-stats",
+            get(get_voluntary_stats::<RestState>),
+        )
         .route("/{id}", get(get_report::<RestState>))
 }
 
@@ -38,6 +43,14 @@ pub fn generate_route<RestState: RestStateDef>() -> Router<RestState> {
 pub struct ReportRequest {
     year: u32,
     until_week: u8,
+}
+
+/// Phase 54 (VOL-STAT-01 / VOL-ACCT-01/02) — Query-Parameter fuer
+/// `GET /report/{id}/voluntary-stats`. Nur `year`, keine `until_week`, weil
+/// die Aggregation ueber das gesamte ISO-Jahr laeuft.
+#[derive(Clone, Debug, Deserialize, utoipa::ToSchema)]
+pub struct VoluntaryStatsRequest {
+    year: u32,
 }
 
 #[instrument(skip(rest_state))]
@@ -241,6 +254,43 @@ pub async fn get_attendance_statistics<RestState: RestStateDef>(
     )
 }
 
+#[instrument(skip(rest_state))]
+#[utoipa::path(
+    get,
+    path = "/{id}/voluntary-stats",
+    tags = ["Report"],
+    params(
+        ("id" = Uuid, Path, description = "Sales person ID"),
+        ("year" = u32, Query, description = "ISO-year for voluntary-stats aggregation")
+    ),
+    responses(
+        (status = 200, description = "HR-only voluntary hours statistics; Non-HR receives all fields as null (API-level redaction)", body = VoluntaryStatsTO, content_type = "application/json"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_voluntary_stats<RestState: RestStateDef>(
+    rest_state: State<RestState>,
+    query: Query<VoluntaryStatsRequest>,
+    Path(sales_person_id): Path<Uuid>,
+    Extension(context): Extension<Context>,
+) -> Response {
+    error_handler(
+        (async {
+            let stats = rest_state
+                .voluntary_stats_service()
+                .get_voluntary_stats(sales_person_id, query.year, context.into(), None)
+                .await?;
+            let to = VoluntaryStatsTO::from(&stats);
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::new(serde_json::to_string(&to).unwrap()))
+                .unwrap())
+        })
+        .await,
+    )
+}
+
 #[derive(OpenApi)]
 #[openapi(
     tags(
@@ -251,7 +301,8 @@ pub async fn get_attendance_statistics<RestState: RestStateDef>(
         get_report,
         get_short_week_report,
         get_weekly_statistics,
-        get_attendance_statistics
+        get_attendance_statistics,
+        get_voluntary_stats
     ),
     components(schemas(
         ShortEmployeeReportTO,
@@ -259,7 +310,9 @@ pub async fn get_attendance_statistics<RestState: RestStateDef>(
         ReportRequest,
         EmployeeWeeklyStatisticsTO,
         EmployeeAttendanceStatisticsTO,
-        WeekdayAttendanceTO
+        WeekdayAttendanceTO,
+        VoluntaryStatsTO,
+        VoluntaryStatsRequest
     ))
 )]
 pub struct ReportApiDoc;
