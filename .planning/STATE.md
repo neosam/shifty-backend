@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.6
-milestone_name: Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
+milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 54
-status: ready-to-execute
-stopped_at: ""
-last_updated: "2026-07-06T21:50:00.000Z"
-last_activity: 2026-07-06
-last_activity_desc: Phase 54 plan-phase abgeschlossen (6 Pläne, Waves 1-4, RESEARCH+VALIDATION+PLANs committet)
+current_phase_name: Data-Model + Voluntary Statistics (F1 + F2
+status: executing
+stopped_at: Phase 54 Plan 01 complete (Wave 1 — Data-Model + DAO-Skeleton).
+last_updated: "2026-07-07T17:20:00.000Z"
+last_activity: 2026-07-07
+last_activity_desc: Phase 54 Plan 01 complete — 3 migrations + RebookingBatchDao + ExtraHoursSource marker; 880 tests green, clippy green
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
-  percent: 0
-current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State: Shifty Backend
@@ -33,10 +33,10 @@ current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
 
 ## Current Position
 
-Phase: 54 (ready-to-execute)
-Plan: 6 Pläne erstellt (54-01..54-06, Waves 1-4)
-Status: RESEARCH+VALIDATION+PLANs committet; `/gsd-execute-phase 54` als nächster Schritt
-Last activity: 2026-07-06 — Phase 54 plan-phase abgeschlossen (6 Pläne: 01 Migrations/DAO, 02 RebookingBatchService Basic, 03 VoluntaryStatsService BL + Property-Test VOL-ACCT-03 [TDD], 04 REST-Endpoint, 05 FE-Row + i18n + Dioxus.toml-Proxy, 06 Docs-Freshness F14/02-service-tiers/03-data-model). Alle 5 REQ-IDs (VOL-STAT-01/02, VOL-ACCT-01/02/03) und alle 4 Decisions (D-F1-01, D-F2-01, D-54-DM-01, D-54-DM-02) coverage-verifiziert. Plan-Checker: VERIFICATION PASSED (12/12 Dimensionen grün).
+Phase: 54 (Data-Model + Voluntary Statistics (F1 + F2)) — EXECUTING
+Plan: 2 of 6 (Wave 2 = Plans 02 + 03 parallel)
+Status: Plan 01 complete; Wave 2 ready
+Last activity: 2026-07-07 — Phase 54 Plan 01 complete (3 migrations + RebookingBatchDao trait + ExtraHoursSource marker; 880 tests green, clippy green)
 
 ## Quick Tasks Completed
 
@@ -256,6 +256,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: Phase 45 D-45-01: FE-Clippy-Gate -D warnings scharfgestellt (177 zu 0 warnings).
 - [Phase ?]: D-49-15/D-49-16 doc audit passed (grep-verified) for REQUIREMENTS.md PDF-03 and ROADMAP.md Phase 49 Goal+SC 3 — no-op regelfall
 - [Phase ?]: Phase 49 Plan 04: Pure-fn visibility gate + <a>-anchor download-attribute pattern for Cookie-Auth file download in Dioxus WASM (sidesteps signal-mocking via cargo-test-only unit-test matrix).
+- [Phase 54]: D-54-DM-01 enforced: partial UNIQUE index on rebooking_batch (sales_person_id, iso_year, iso_week) WHERE deleted IS NULL — global across all kinds (Claim-on-Suggest, blocks second active row per (sp, y, w) verified via sqlite3 constraint test).
+- [Phase 54]: D-54-DM-02 enforced: extra_hours.source TEXT NOT NULL DEFAULT 'manual' + ExtraHoursSource enum in service::extra_hours; F1/F2 aggregators (Plan 03) filter source==Manual.
+- [Phase 54]: Basic-tier RebookingBatchDao consumes only Transaction (no Domain-Service deps); mirrors WeekStatusDao precedent for str<->enum roundtrip.
 
 ## Performance Metrics
 
@@ -279,3 +282,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 49 P01 | 5 | - tasks | - files |
 | Phase 49 P05 | 1min | 2 tasks | 1 files |
 | Phase 49 P04 | 14min | 3 tasks | 5 files |
+| Phase 54 P01 | 38min | 6 tasks | 27 files |

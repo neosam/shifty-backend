@@ -193,7 +193,7 @@ MEMORY `feedback_dioxus_proxy_for_new_backend_endpoints.md`),
 `shifty-dioxus/i18n/{de,en,cs}/*.ftl` (Row-Labels).
 
 **Plans:** 6 plans
-- [ ] 54-01-PLAN.md — Migrations + DAO-Skelett (rebooking_batch/entry, extra_hours.source, toggle-seed)
+- [x] 54-01-PLAN.md — Migrations + DAO-Skelett (rebooking_batch/entry, extra_hours.source, toggle-seed) ✅ 2026-07-07 (SUMMARY: 54-01-SUMMARY.md, 880 tests green)
 - [ ] 54-02-PLAN.md — RebookingBatchService (Basic-Tier, HR-gated CRUD)
 - [ ] 54-03-PLAN.md — VoluntaryStatsService (BL) + pure fns F1/F2 + Property-Test VOL-ACCT-03
 - [ ] 54-04-PLAN.md — REST-Endpoint GET /report/{id}/voluntary-stats + VoluntaryStatsTO
