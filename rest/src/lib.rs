@@ -415,6 +415,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 54 (D-54-DM-01): Basic-Tier HR-gated RebookingBatchService.
+    // In Phase 54 noch nicht via REST exponiert — der Trait wird ab Phase 55
+    // vom Business-Logic RebookingReconciliationService konsumiert.
+    type RebookingBatchService: service::rebooking_batch::RebookingBatchService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     // Phase 48 (EXP-02/EXP-03, D-48-ADMIN): Basic-Tier admin-gated Config-
     // Service für den `/pdf-export-config`-Endpoint (GET/PUT).
     type PdfExportConfigService: service::pdf_export_config::PdfExportConfigService<Context = Context>
@@ -473,6 +480,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn sales_person_shiftplan_service(&self) -> Arc<Self::SalesPersonShiftplanService>;
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
+    fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService>;
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
