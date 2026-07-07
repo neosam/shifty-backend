@@ -57,7 +57,7 @@ Diese Tabelle wird beim Planning-Wrap-Commit pro Task in PLAN.md aktualisiert. D
 | 54-05-01 | 05 | 3 | VOL-STAT-01/02, VOL-ACCT-01/02 | — | FE-Row „Freiwillige Stunden — Ist / Soll / Δ" HR-gated | manual | Browser-Test (get_page_text + find), Memory `reference_dioxus_browser_verify_reports` | ✅ | ✅ green (manual verify pending) |
 | 54-05-02 | 05 | 3 | — | — | `/report` prefix proxy existiert (`localhost:3000/report`, deckt `/voluntary-stats` per prefix-match) | source | `grep -q 'localhost:3000/report' shifty-dioxus/Dioxus.toml` | ✅ | ✅ green |
 | 54-05-03 | 05 | 3 | — | — | i18n de/en/cs Row-Keys vorhanden (VoluntaryHoursIstPerWeek/Soll/Delta) | source | `grep -l VoluntaryHoursIstPerWeek shifty-dioxus/src/i18n/{de,en,cs}.rs` | ✅ | ✅ green |
-| 54-06-01 | 06 | 4 | — | — | Docs-Freshness: `docs/features/F14-rebooking.md` + `_de.md` neu; `02-service-tiers.md` + `03-data-model.md` synchron | source | `test -f docs/features/F14-rebooking.md && test -f docs/features/F14-rebooking_de.md` | ❌ W0 | ⬜ pending |
+| 54-06-01 | 06 | 4 | — | — | Docs-Freshness: `docs/features/F14-rebooking.md` + `_de.md` neu; `02-service-tiers.md` + `03-data-model.md` synchron; F07/F08 tragen F14-Cross-Ref | source | `test $(grep -rl 'F14' docs/features/ \| wc -l) -ge 8 && test $(grep -rl 'RebookingBatchService' docs/architecture/ \| wc -l) -ge 2 && grep -rq 'voluntary-stats' docs/features/` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
