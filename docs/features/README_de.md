@@ -36,6 +36,7 @@ Jedes Feature-Dokument folgt derselben Gliederung:
 | F11 | Export (PDF-Shiftplan, iCal, WebDAV, Scheduler) | [F11-export.md](./F11-export.md) |
 | F12 | Auth & Session (OIDC, Mock, Impersonation, Permissions) | [F12-auth-session.md](./F12-auth-session.md) |
 | F13 | System-Infrastruktur (Feature Flags, Toggles, Scheduler, Clock, UUID) | [F13-system-infrastructure.md](./F13-system-infrastructure.md) |
+| F14 | Voluntary Rebooking (Ø Freiwillig, Soll/Delta, Rebooking-Batch, Source-Marker) | [F14-rebooking.md](./F14-rebooking.md) |
 
 ## Verhältnis zu bestehenden Docs
 
