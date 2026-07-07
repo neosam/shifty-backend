@@ -45,6 +45,7 @@ graph TD
         VacationOffset[Vacation Entitlement<br/>Offset Service]
         PdfExportConfig[PDF Export Config Service]
         UserInvitation[User Invitation Service]
+        RebookingBatch[Rebooking Batch Service<br/>Phase 54, v2.6]
     end
 
     subgraph Business["Business-Logic Services"]
@@ -61,6 +62,7 @@ graph TD
         PdfShiftplan[PDF Shiftplan Service]
         PdfExportScheduler[PDF Export Scheduler]
         Scheduler[Scheduler Service]
+        VoluntaryStats[Voluntary Stats Service<br/>Phase 54, v2.6]
     end
 
     %% Infrastructure edges (session)
@@ -178,3 +180,11 @@ graph TD
 
     %% Cron-Scheduler (recompute-Trigger)
     Scheduler --> ShiftplanEdit
+
+    %% Voluntary Stats Service (Phase 54 — BL-Tier, HR-only F1/F2)
+    VoluntaryStats --> ExtraHours
+    VoluntaryStats --> WorkingHours
+    VoluntaryStats --> SalesPerson
+
+    %% Rebooking Batch Service (Phase 54 — Basic-Tier, no domain-service dep;
+    %% first consumer arrives in Phase 55 as RebookingReconciliationService)

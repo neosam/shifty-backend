@@ -15,6 +15,12 @@ A **Basic Service** manages exactly one domain object:
 **Examples:**
 
 - `BookingService`
+- `RebookingBatchService` — entity manager for `rebooking_batch` +
+  `rebooking_batch_entry` (v2.6 Phase 54). HR-gated CRUD only; the
+  first consumer arrives in Phase 55 (`RebookingReconciliationService`).
+  Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`,
+  `UuidService`, `TransactionDao`. See feature
+  [F14](../features/F14-rebooking.md).
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
 - `SlotService`
@@ -44,6 +50,11 @@ cross-entity invariants:
 - `CarryoverService` — year-end snapshot with cross-year consistency.
 - `WorkingHoursService` — expected-hours calculation.
 - `BillingPeriodReportService` — snapshot creation.
+- `VoluntaryStatsService` — read-only F1/F2 aggregate on top of
+  `ExtraHoursService` + `EmployeeWorkDetailsService` +
+  `SalesPersonService` (v2.6 Phase 54). HR-only via API-level
+  None-redaction (Non-HR receives all-`None` fields, not 403).
+  See feature [F14](../features/F14-rebooking.md).
 
 ## Rules
 

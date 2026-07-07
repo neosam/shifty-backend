@@ -15,6 +15,13 @@ Ein **Basic Service** verwaltet genau ein Fach-Objekt:
 **Beispiele:**
 
 - `BookingService`
+- `RebookingBatchService` — Entity-Manager für `rebooking_batch` +
+  `rebooking_batch_entry` (v2.6 Phase 54). Ausschließlich HR-gated
+  CRUD; erster Konsument folgt in Phase 55
+  (`RebookingReconciliationService`). Deps: `RebookingBatchDao`,
+  `PermissionService`, `ClockService`, `UuidService`,
+  `TransactionDao`. Siehe Feature
+  [F14](../features/F14-rebooking.md).
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
 - `SlotService`
@@ -44,6 +51,11 @@ Cross-Entity-Invarianten:
 - `CarryoverService` — Jahresend-Snapshot mit Cross-Year-Konsistenz.
 - `WorkingHoursService` — Erwartungs-Rechnung.
 - `BillingPeriodReportService` — Snapshot-Erzeugung.
+- `VoluntaryStatsService` — Read-only F1/F2-Aggregat auf Basis von
+  `ExtraHoursService` + `EmployeeWorkDetailsService` +
+  `SalesPersonService` (v2.6 Phase 54). HR-only via API-Level
+  None-Redaktion (Non-HR erhält alle Felder `None`, kein 403).
+  Siehe Feature [F14](../features/F14-rebooking.md).
 
 ## Regeln
 
