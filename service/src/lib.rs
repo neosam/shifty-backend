@@ -46,6 +46,7 @@ pub mod user_service;
 pub mod uuid_service;
 pub mod vacation_balance;
 pub mod vacation_entitlement_offset;
+pub mod voluntary_stats;
 pub mod warning;
 pub mod week_message;
 pub mod week_status;

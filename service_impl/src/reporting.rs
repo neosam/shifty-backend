@@ -11,7 +11,10 @@ use service::{
     carryover::CarryoverService,
     clock::ClockService,
     employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
-    extra_hours::{Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType},
+    extra_hours::{
+        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ExtraHoursSource,
+        ReportType,
+    },
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
         CustomExtraHours, EmployeeReport, ExtraHoursReportCategory, GroupedReportHours,
@@ -115,6 +118,101 @@ pub fn committed_voluntary_for_calendar_week(
 ) -> f32 {
     find_working_hours_for_calendar_week(working_hours, year, week)
         .map(|wh| wh.committed_voluntary)
+        .sum()
+}
+
+/// Phase 54 (VOL-STAT-01 / VOL-ACCT-01-Ist, D-54-DM-02):
+/// Summe der `VolunteerWork`-`ExtraHours` im ISO-Jahr `year`, gefiltert auf
+/// `source == Manual`. Rebooking-Marker-Rows (Pitfall 1: Doppel-Zaehlung
+/// bei +N/-N-Paaren) sind ausgeschlossen (VOL-ACCT-03 Property-Test).
+///
+/// Die ISO-Jahres-Zuordnung erfolgt via `ShiftyDate::from(...).as_shifty_week().year`
+/// — dieselbe Semantik wie im uebrigen `reporting.rs`.
+pub fn voluntary_ist_total_for_year(extra_hours: &[ExtraHours], year: u32) -> f32 {
+    extra_hours
+        .iter()
+        .filter(|eh| eh.deleted.is_none())
+        .filter(|eh| matches!(eh.category, ExtraHoursCategory::VolunteerWork))
+        .filter(|eh| eh.source == ExtraHoursSource::Manual)
+        .filter(|eh| ShiftyDate::from(eh.date_time).as_shifty_week().year == year)
+        .map(|eh| eh.amount)
+        .sum()
+}
+
+/// Phase 54 (VOL-STAT-01-Nenner / VOL-ACCT-01-Ist_per_week Nenner, D-F1-01):
+/// Anzahl ISO-Wochen im Jahr, in denen mindestens eine aktive
+/// `EmployeeWorkDetails`-Row den Kalender-Wochen-Slot abdeckt. Eine Row mit
+/// `expected_hours == 0` zaehlt MIT (D-F1-01, siehe Test
+/// `contract_weeks_zero_expected_counts_d_f1_01`).
+///
+/// Iteriert `1..=weeks_in_year(year)` und pruept jede Woche via
+/// `find_working_hours_for_calendar_week`.
+pub fn contract_weeks_count(working_hours: &[EmployeeWorkDetails], year: u32) -> u32 {
+    let total = time::util::weeks_in_year(year as i32);
+    (1..=total)
+        .filter(|&w| find_working_hours_for_calendar_week(working_hours, year, w).next().is_some())
+        .count() as u32
+}
+
+/// Phase 54 (VOL-ACCT-01-Soll, D-F2-01):
+/// Pro-rata-Verteilung von `committed_voluntary` fuer eine ISO-Woche.
+/// Iteriert Mo..So, waehlt fuer jeden Tag die aktive `EmployeeWorkDetails`
+/// via `find_working_hours_for_calendar_week` (fuer die ISO-Woche des Tages),
+/// summiert (`committed_voluntary / 7.0`) je Tag.
+///
+/// Bei Mid-Week-Vertragswechsel (z.B. Mittwoch=>Donnerstag) ergibt das
+/// 3/7*alt + 4/7*neu (siehe Test `f2_soll_prorata_midweek_change_d_f2_01`).
+///
+/// Guard: Existiert die ISO-Woche fuer das Jahr nicht (z.B. 53 in einem
+/// 52-Wochen-Jahr), gibt die Funktion 0.0 zurueck.
+pub fn committed_voluntary_prorata_for_week(
+    working_hours: &[EmployeeWorkDetails],
+    year: u32,
+    week: u8,
+) -> f32 {
+    if week == 0 || week > time::util::weeks_in_year(year as i32) {
+        return 0.0;
+    }
+    let Ok(monday) = time::Date::from_iso_week_date(year as i32, week, time::Weekday::Monday)
+    else {
+        return 0.0;
+    };
+    (0i64..7)
+        .filter_map(|offset| {
+            let day = monday + time::Duration::days(offset);
+            // Aktiver Vertrag am Tag: matche EmployeeWorkDetails, deren
+            // from_date..=to_date den Tag umschliesst (Mid-Week-Wechsel wird
+            // so korrekt tagesgenau abgebildet).
+            working_hours
+                .iter()
+                .filter(|wh| wh.deleted.is_none())
+                .find(|wh| {
+                    let from = match wh.from_date() {
+                        Ok(d) => d.to_date(),
+                        Err(_) => return false,
+                    };
+                    let to = match wh.to_date() {
+                        Ok(d) => d.to_date(),
+                        Err(_) => return false,
+                    };
+                    from <= day && day <= to
+                })
+                .map(|wh| wh.committed_voluntary / 7.0)
+        })
+        .sum()
+}
+
+/// Phase 54 (VOL-ACCT-01-Soll, D-F2-01):
+/// Summe der pro-rata-Wochen ueber das ISO-Jahr. Fuer ein 53-Wochen-Jahr
+/// werden 53 Wochen aufsummiert, fuer ein 52-Wochen-Jahr entsprechend 52
+/// (siehe Test `f2_soll_iso_week_53_year_boundary_d_f2_01`).
+pub fn committed_voluntary_target_for_year(
+    working_hours: &[EmployeeWorkDetails],
+    year: u32,
+) -> f32 {
+    let total = time::util::weeks_in_year(year as i32);
+    (1..=total)
+        .map(|w| committed_voluntary_prorata_for_week(working_hours, year, w))
         .sum()
 }
 
