@@ -1314,4 +1314,15 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::SettingsPdfExportStatusEmpty,
         "Zatím žádné spuštění",
     );
+
+    // Phase 54: HR-only Dobrovolne-hodiny-konto (VOL-STAT-01/02).
+    // [ASSUMED] cs-Uebersetzung analog EN/DE-Konvention — native-check
+    // als Manual-Verify (RESEARCH §D.4).
+    i18n.add_text(
+        Locale::Cs,
+        Key::VoluntaryHoursIstPerWeek,
+        "Dobrovolné prům. / týden",
+    );
+    i18n.add_text(Locale::Cs, Key::VoluntaryHoursSoll, "Dobrovolné plán");
+    i18n.add_text(Locale::Cs, Key::VoluntaryHoursDelta, "Dobrovolné rozdíl");
 }

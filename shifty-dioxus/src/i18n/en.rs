@@ -1217,4 +1217,13 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::SettingsPdfExportLastSuccess, "Last success:");
     i18n.add_text(Locale::En, Key::SettingsPdfExportLastError, "Last error:");
     i18n.add_text(Locale::En, Key::SettingsPdfExportStatusEmpty, "No runs yet");
+
+    // Phase 54: HR-only voluntary-hours account (VOL-STAT-01/02)
+    i18n.add_text(
+        Locale::En,
+        Key::VoluntaryHoursIstPerWeek,
+        "Voluntary avg / week",
+    );
+    i18n.add_text(Locale::En, Key::VoluntaryHoursSoll, "Voluntary target");
+    i18n.add_text(Locale::En, Key::VoluntaryHoursDelta, "Voluntary delta");
 }

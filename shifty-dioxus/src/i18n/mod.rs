@@ -786,6 +786,14 @@ pub enum Key {
     SettingsPdfExportLastError,
     /// Shown when neither `last_success_at` nor `last_error_at` is set.
     SettingsPdfExportStatusEmpty,
+
+    // ─── Phase 54: HR-only Freiwillig-Stunden-Konto (VOL-STAT-01/02) ────────
+    /// Label fuer den Ist-Wert pro Vertragswoche ("Freiwillig Ø / Woche").
+    VoluntaryHoursIstPerWeek,
+    /// Label fuer den Soll-Wert ("Freiwillig Soll").
+    VoluntaryHoursSoll,
+    /// Label fuer den Delta-Wert ("Freiwillig Delta").
+    VoluntaryHoursDelta,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

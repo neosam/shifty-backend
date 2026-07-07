@@ -1328,4 +1328,13 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::SettingsPdfExportStatusEmpty,
         "Kein Lauf bisher",
     );
+
+    // Phase 54: HR-only Freiwillig-Stunden-Konto (VOL-STAT-01/02)
+    i18n.add_text(
+        Locale::De,
+        Key::VoluntaryHoursIstPerWeek,
+        "Freiwillig \u{00D8} / Woche",
+    );
+    i18n.add_text(Locale::De, Key::VoluntaryHoursSoll, "Freiwillig Soll");
+    i18n.add_text(Locale::De, Key::VoluntaryHoursDelta, "Freiwillig Delta");
 }
