@@ -164,6 +164,7 @@ erDiagram
         text description "nullable"
         text date_time
         blob custom_extra_hours_id FK "nullable, when category=Custom"
+        text source "Phase 54: manual|rebooking, DEFAULT manual"
         text deleted "nullable"
     }
 
@@ -299,6 +300,32 @@ erDiagram
         text last_error_message "nullable"
     }
 
+    REBOOKING_BATCH {
+        blob id PK "Phase 54"
+        blob sales_person_id FK
+        integer iso_year
+        integer iso_week
+        text kind "Manual|HrSuggestion|AutoCron|AutoCronBackfill"
+        text state "Pending|Approved|Rejected|SkippedLocked"
+        text created
+        text approved "nullable, until state=Approved"
+        text approved_by "nullable, until state=Approved"
+        text deleted "nullable"
+    }
+
+    REBOOKING_BATCH_ENTRY {
+        blob id PK "Phase 54"
+        blob batch_id FK "no CASCADE, soft-delete pattern"
+        blob sales_person_id
+        float hours
+        float balance_before
+        float voluntary_actual
+        float voluntary_committed
+        blob extra_hours_out_id FK "nullable, set at state=Approved"
+        blob extra_hours_in_id FK "nullable, set at state=Approved"
+        text deleted "nullable"
+    }
+
     %% ================ Relationships ================
 
     USER ||--o{ USER_ROLE : "has"
@@ -335,6 +362,12 @@ erDiagram
 
     TOGGLE_GROUP ||--o{ TOGGLE_GROUP_TOGGLE : "contains"
     TOGGLE ||--o{ TOGGLE_GROUP_TOGGLE : "member-of"
+
+    %% Rebooking batches (Phase 54, v2.6 — see feature F14)
+    SALES_PERSON ||--o{ REBOOKING_BATCH : "reconciles-voluntary"
+    REBOOKING_BATCH ||--o{ REBOOKING_BATCH_ENTRY : "contains"
+    EXTRA_HOURS ||--o| REBOOKING_BATCH_ENTRY : "paired-out (nullable)"
+    EXTRA_HOURS ||--o| REBOOKING_BATCH_ENTRY : "paired-in  (nullable)"
 
 %% ============================================================================
 %% VIEWS (nicht als Entity im ER-Diagramm — Mermaid erDiagram unterstützt keine Views)
