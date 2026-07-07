@@ -13,7 +13,7 @@ use crate::{
     i18n::Key,
     js, loader,
     state::{
-        employee::{CustomExtraHoursDefinition, Employee, ExtraHours},
+        employee::{CustomExtraHoursDefinition, Employee, ExtraHours, VoluntaryStats},
         shiftplan::SalesPerson,
     },
 };
@@ -34,6 +34,12 @@ pub struct EmployeeStore {
     pub custom_extra_hours_definitions: Rc<[CustomExtraHoursDefinition]>,
     pub weekly_statistics: Option<Rc<EmployeeWeeklyStatisticsTO>>,
     pub attendance_statistics: Option<Rc<EmployeeAttendanceStatisticsTO>>,
+    /// Phase 54 (VOL-STAT-01/02): HR-only Freiwillig-Stunden-Konto.
+    /// Bei Non-HR liefert das Backend alle Felder als `None` (API-Level-
+    /// Redaktion, VAC-OFFSET-01-Praezedenz). Bei fehlgeschlagenem Fetch
+    /// bleibt der Store-Wert `VoluntaryStats::default()` — der Row-Component
+    /// gated ohnehin auf `ist_per_contract_week.is_some()`.
+    pub voluntary_stats: VoluntaryStats,
 }
 
 /// Bumped from `refresh_employee_data` after every successful per-employee
@@ -73,6 +79,13 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
     custom_extra_hours_definitions: Rc::new([]),
     weekly_statistics: None,
     attendance_statistics: None,
+    voluntary_stats: VoluntaryStats {
+        ist_per_contract_week: None,
+        ist_total: None,
+        soll_total: None,
+        delta: None,
+        contract_weeks: None,
+    },
 });
 
 #[derive(Debug)]
@@ -130,6 +143,15 @@ pub async fn load_employee_data(
     .await
     .ok()
     .flatten();
+    // Phase 54 (VOL-STAT-01/02): HR-only Freiwillig-Stunden-Konto.
+    // Backend liefert bei Non-HR alle Felder als None (API-Level-Redaktion,
+    // kein 403) — die Row rendert sich dann nicht. Bei HTTP-Fehler fallen
+    // wir auf `VoluntaryStats::default()` zurueck, damit der Report weiter
+    // funktioniert.
+    let voluntary_stats =
+        loader::load_voluntary_stats(CONFIG.read().clone(), sales_person_id, year)
+            .await
+            .unwrap_or_default();
     *EMPLOYEE_STORE.write() = EmployeeStore {
         employee,
         extra_hours,
@@ -138,6 +160,7 @@ pub async fn load_employee_data(
         until_week,
         weekly_statistics,
         attendance_statistics,
+        voluntary_stats,
     };
     Ok(())
 }

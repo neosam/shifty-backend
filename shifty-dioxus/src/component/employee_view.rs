@@ -16,7 +16,8 @@ use crate::service::{
     employee_work_details::EMPLOYEE_WORK_DETAILS_STORE, i18n::I18N,
 };
 use crate::state::employee::{
-    CustomExtraHours, CustomExtraHoursDefinition, Employee, ExtraHours, WorkingHours,
+    CustomExtraHours, CustomExtraHoursDefinition, Employee, ExtraHours, VoluntaryStats,
+    WorkingHours,
 };
 use crate::state::employee_work_details::EmployeeWorkDetails;
 
@@ -90,6 +91,12 @@ pub struct EmployeeViewPlainProps {
     /// row is then not rendered at all (D-AVG-05).
     #[props(!optional, default = None)]
     pub attendance_statistics: Option<Rc<EmployeeAttendanceStatisticsTO>>,
+    /// Phase 54 (VOL-STAT-01/02): HR-only Freiwillig-Stunden-Konto.
+    /// Nullable-Guard: bei Non-HR liefert das Backend alle Felder als `None`
+    /// (VAC-OFFSET-01-Praezedenz v1.8 — kein 403); die Row rendert sich dann
+    /// nicht. Default = `VoluntaryStats::default()` (alle Felder None).
+    #[props(default = VoluntaryStats::default())]
+    pub voluntary_stats: VoluntaryStats,
 
     pub onupdate: EventHandler<()>,
     pub on_extra_hour_delete: EventHandler<Uuid>,
@@ -368,6 +375,12 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                             {format!("{} {}", format_hours(employee.volunteer_hours, 2), hours_str)}
                         } },
                     }
+                }
+                // Phase 54 (VOL-STAT-01/02): HR-only Freiwillig-Stunden-Konto.
+                // Nullable-Guard sitzt im Component — bei Non-HR (Backend liefert
+                // alle Felder None) rendert es sich nicht.
+                crate::component::voluntary_stats_row::VoluntaryStatsRow {
+                    stats: props.voluntary_stats.clone(),
                 }
                 div { class: "border-t border-border my-2" }
                 TupleRow {
@@ -1156,6 +1169,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
     let custom_extra_hours_definitions = employee_store.custom_extra_hours_definitions.clone();
     let weekly_statistics = employee_store.weekly_statistics.clone();
     let attendance_statistics = employee_store.attendance_statistics.clone();
+    let voluntary_stats = employee_store.voluntary_stats.clone();
     let is_hr = AUTH
         .read()
         .auth_info
@@ -1177,6 +1191,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             is_hr,
             weekly_statistics,
             attendance_statistics,
+            voluntary_stats,
             onupdate: props.onupdate,
             on_extra_hour_delete: props.on_extra_hour_delete,
             on_extra_hour_edit: props.on_extra_hour_edit,

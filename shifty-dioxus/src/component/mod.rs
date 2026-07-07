@@ -47,7 +47,6 @@ pub use footer::Footer;
 pub use form::{Field, SelectInput, TextInput, TextareaInput};
 pub use top_bar::TopBar;
 pub use user_management_tab_bar::{UserManagementTabBar, UserMgmtTab};
-pub use voluntary_stats_row::VoluntaryStatsRow;
 pub use warning_list::{WarningList, WarningsList};
 pub use week_status_dropdown::WeekStatusDropdown;
 pub use week_view::WeekView;
