@@ -52,8 +52,8 @@ Diese Tabelle wird beim Planning-Wrap-Commit pro Task in PLAN.md aktualisiert. D
 | 54-03-02 | 03 | 2 | VOL-ACCT-01 | — | `committed_voluntary_target_for_year` — pro-rata Mid-Week-Wechsel | unit | `cargo test -p service_impl voluntary_stats::f2_soll_prorata_midweek_change_d_f2_01` | ✅ | ✅ green |
 | 54-03-03 | 03 | 2 | VOL-ACCT-03 | — | Property-Test „Rebooking-Neutralität": Marker-Row invariant für F1-Ist + F2-Soll | property | `cargo test -p service_impl voluntary_stats::f1_ist_rebooking_pair_invariant_vol_acct_03` | ✅ | ✅ green |
 | 54-03-04 | 03 | 2 | VOL-STAT-02, VOL-ACCT-02 | — | HR-Only-DTO-Redaction: HR→`Some`, Non-HR→`None` | unit | `cargo test -p service_impl voluntary_stats::service_tests::service_non_hr_returns_all_none_vol_stat_02` | ✅ | ✅ green |
-| 54-04-01 | 04 | 3 | VOL-STAT-01, VOL-ACCT-01 | — | REST-Endpoint liefert `VoluntaryStatsTO` (HR-Auth) / `None`-Redaction (Non-HR) | integration | `cargo test -p rest voluntary_stats` | ❌ W0 | ⬜ pending |
-| 54-04-02 | 04 | 3 | — | — | OpenAPI-Schema aktualisiert; `#[utoipa::path]` präsent | unit | `cargo test -p rest openapi_voluntary_stats` | ❌ W0 | ⬜ pending |
+| 54-04-01 | 04 | 3 | VOL-STAT-01, VOL-ACCT-01 | — | REST-Endpoint liefert `VoluntaryStatsTO` (HR-Auth) / `None`-Redaction (Non-HR) | integration | `cargo test -p shifty_bin voluntary_stats` | ✅ | ✅ green |
+| 54-04-02 | 04 | 3 | — | — | OpenAPI-Schema aktualisiert; `#[utoipa::path]` präsent | source | `grep -q VoluntaryStatsTO rest/src/report.rs && grep -q get_voluntary_stats rest/src/report.rs` | ✅ | ✅ green |
 | 54-05-01 | 05 | 3 | VOL-STAT-01/02, VOL-ACCT-01/02 | — | FE-Row „Freiwillige Stunden — Ist / Soll / Δ" HR-gated | manual | Browser-Test (get_page_text + find), Memory `reference_dioxus_browser_verify_reports` | ❌ W0 | ⬜ pending |
 | 54-05-02 | 05 | 3 | — | — | `Dioxus.toml` `[[web.proxy]]` für neuen Endpoint (falls dediziert) | source | `grep '/voluntary-stats' shifty-dioxus/Dioxus.toml` | ❌ W0 | ⬜ pending |
 | 54-05-03 | 05 | 3 | — | — | i18n de/en/cs Row-Labels vorhanden | source | `grep -l 'voluntary_stats_ist' shifty-dioxus/i18n/{de,en,cs}/*.ftl` | ❌ W0 | ⬜ pending |
