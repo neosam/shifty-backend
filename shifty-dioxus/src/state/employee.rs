@@ -6,7 +6,7 @@ use std::{
 
 use rest_types::{
     EmployeeReportTO, ExtraHoursCategoryTO, ExtraHoursReportCategoryTO, ExtraHoursTO,
-    ReportingCustomExtraHoursTO, ShortEmployeeReportTO, WorkingHoursReportTO,
+    ReportingCustomExtraHoursTO, ShortEmployeeReportTO, VoluntaryStatsTO, WorkingHoursReportTO,
 };
 use uuid::Uuid;
 
@@ -391,6 +391,39 @@ impl From<&ExtraHoursTO> for ExtraHours {
             description: extra_hours.description.as_ref().into(),
             date_time: extra_hours.date_time,
             version: extra_hours.version,
+        }
+    }
+}
+
+/// Phase 54 (VOL-STAT-01/02, VOL-ACCT-01/02): HR-only Freiwillig-Stunden-Konto.
+///
+/// FE-Spiegel des Backend-DTO `rest_types::VoluntaryStatsTO`. Alle Felder sind
+/// `Option<...>`; bei Non-HR liefert das Backend alle Felder `None` (API-Level-
+/// Redaktion, Praezedenz VAC-OFFSET-01 v1.8 — kein 403). Der Row-Component
+/// nutzt den Nullable-Guard als HR-Only-Sichtbarkeit — kein FE-Rollen-Check
+/// (Fat Backend, Thin Client).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct VoluntaryStats {
+    /// F1: Ø Freiwillig-Stunden pro Vertragswoche (`ist_total / contract_weeks`).
+    pub ist_per_contract_week: Option<f32>,
+    /// F2-Ist: absolute Summe der Manual-VolunteerWork-Hours im Jahr.
+    pub ist_total: Option<f32>,
+    /// F2-Soll: Σ `committed_voluntary` × Wochen-in-Kraft (pro-rata ISO-Wochen).
+    pub soll_total: Option<f32>,
+    /// F2-Delta = `ist_total − soll_total`.
+    pub delta: Option<f32>,
+    /// Nenner fuer F1: Anzahl Vertragswochen (D-F1-01).
+    pub contract_weeks: Option<u32>,
+}
+
+impl From<&VoluntaryStatsTO> for VoluntaryStats {
+    fn from(to: &VoluntaryStatsTO) -> Self {
+        VoluntaryStats {
+            ist_per_contract_week: to.ist_per_contract_week,
+            ist_total: to.ist_total,
+            soll_total: to.soll_total,
+            delta: to.delta,
+            contract_weeks: to.contract_weeks,
         }
     }
 }

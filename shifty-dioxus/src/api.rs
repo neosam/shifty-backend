@@ -12,7 +12,7 @@ use rest_types::{
     PdfExportConfigTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO,
     UserRole, UserTO, VacationBalanceTO, VacationEntitlementOffsetTO, VacationPayloadTO,
-    WeekMessageTO, WeekStatusTO, WeeklySummaryTO,
+    VoluntaryStatsTO, WeekMessageTO, WeekStatusTO, WeeklySummaryTO,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -400,6 +400,28 @@ pub async fn get_employee_weekly_statistics(
     let res = response.json().await?;
     info!("Fetched weekly statistics");
     Ok(Rc::new(res))
+}
+
+/// Phase 54 (VOL-STAT-01/02): HR-only voluntary-hours stats.
+///
+/// Backend `GET /report/{id}/voluntary-stats?year=YYYY` liefert bei Non-HR
+/// alle Felder als `null` (API-Level-Redaktion, kein 403); der FE-Row-Component
+/// nutzt den Nullable-Guard als HR-Only-Sichtbarkeit (Fat Backend, Thin Client).
+pub async fn get_voluntary_stats(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+) -> Result<VoluntaryStatsTO, reqwest::Error> {
+    info!("Fetching voluntary stats");
+    let url = format!(
+        "{}/report/{}/voluntary-stats?year={}",
+        config.backend, sales_person_id, year
+    );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched voluntary stats");
+    Ok(res)
 }
 
 pub async fn get_employee_attendance_statistics(

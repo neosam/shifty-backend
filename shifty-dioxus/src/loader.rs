@@ -14,7 +14,7 @@ use crate::{
     state::{
         absence_period::{AbsencePeriod, ExtraHoursMarker},
         booking_log::BookingLog,
-        employee::{Employee, ExtraHours},
+        employee::{Employee, ExtraHours, VoluntaryStats},
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
         feature_flag::FeatureFlag,
         sales_person_available::SalesPersonUnavailable,
@@ -293,6 +293,25 @@ pub async fn load_employee_details(
 ) -> Result<Employee, ShiftyError> {
     let report = api::get_employee_reports(config, employee_id, year, week_until).await?;
     Ok(Employee::from(report.as_ref()))
+}
+
+/// Phase 54 (VOL-STAT-01/02, VOL-ACCT-01/02): HR-only Freiwillig-Stunden-Konto.
+///
+/// Ruft `GET /report/{id}/voluntary-stats?year=YYYY` und maped das DTO 1:1 auf
+/// `state::VoluntaryStats` (Fat Backend, Thin Client — keine FE-Arithmetik).
+/// Bei Backend-Fehler wird `Ok(None)` zurueckgegeben, damit die Row still
+/// bleibt (Report ist noch nutzbar, wenn die Endpoint-Antwort ausbleibt).
+///
+/// Bei Non-HR liefert das Backend alle Felder als `None` (API-Level-Redaktion,
+/// Praezedenz VAC-OFFSET-01 v1.8 — kein 403); der Row-Component nutzt den
+/// Nullable-Guard als HR-Only-Sichtbarkeit — kein FE-Rollen-Check.
+pub async fn load_voluntary_stats(
+    config: Config,
+    sales_person_id: Uuid,
+    year: u32,
+) -> Result<VoluntaryStats, ShiftyError> {
+    let to = api::get_voluntary_stats(config, sales_person_id, year).await?;
+    Ok(VoluntaryStats::from(&to))
 }
 
 pub async fn load_extra_hours_per_year(
