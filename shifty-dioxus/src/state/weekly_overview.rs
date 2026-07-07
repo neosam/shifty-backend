@@ -61,9 +61,9 @@ impl From<&WeeklySummaryTO> for WeeklySummary {
                         absence_hours: a.hours,
                     }),
             );
-            // (3) Sortierung — case-insensitive; Vec::sort_by ist stable,
+            // (3) Sortierung — case-insensitive; Vec::sort_by_key ist stable,
             // Namens-Duplikate behalten Insertion-Order (bezahlt zuerst).
-            v.sort_by(|x, y| x.name.to_lowercase().cmp(&y.name.to_lowercase()));
+            v.sort_by_key(|x| x.name.to_lowercase());
             v
         };
         Self {
