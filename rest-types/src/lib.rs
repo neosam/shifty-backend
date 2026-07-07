@@ -680,6 +680,50 @@ impl From<&service::reporting::EmployeeAttendanceStatistics> for EmployeeAttenda
     }
 }
 
+/// Phase 54 (VOL-STAT-01 / VOL-ACCT-01/02): HR-Only Freiwillig-Stunden-Konto pro
+/// SalesPerson und ISO-Jahr.
+///
+/// Alle Felder sind `Option<...>` und bei Non-HR-Zugriff `None`
+/// (API-Level-Redaktion, Praezedenz VAC-OFFSET-01 v1.8 — kein 403). Der
+/// Service (`VoluntaryStatsService`) liefert bei Non-HR bereits ein
+/// `VoluntaryStats` mit lauter `None`-Feldern; der Handler leitet 1:1 durch.
+///
+/// - F1 = `ist_per_contract_week` = `ist_total / contract_weeks`
+/// - F2-Soll = `soll_total` = Σ (committed_voluntary × Wochen-in-Kraft) pro-rata
+/// - F2-Delta = `delta` = `ist_total − soll_total`
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct VoluntaryStatsTO {
+    /// F1: Ø Freiwillig-Stunden pro Vertragswoche (`ist_total / contract_weeks`).
+    #[serde(default)]
+    pub ist_per_contract_week: Option<f32>,
+    /// F2-Ist: absolute Summe der Manual-VolunteerWork-Hours im Jahr.
+    #[serde(default)]
+    pub ist_total: Option<f32>,
+    /// F2-Soll: Σ `committed_voluntary` × Wochen-in-Kraft (pro-rata ueber ISO-Wochen).
+    #[serde(default)]
+    pub soll_total: Option<f32>,
+    /// F2-Delta = `ist_total − soll_total`.
+    #[serde(default)]
+    pub delta: Option<f32>,
+    /// Nenner fuer F1: Anzahl Vertragswochen mit gueltiger `EmployeeWorkDetails`-Row
+    /// (`expected_hours == 0` zaehlt MIT, D-F1-01).
+    #[serde(default)]
+    pub contract_weeks: Option<u32>,
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&service::voluntary_stats::VoluntaryStats> for VoluntaryStatsTO {
+    fn from(stats: &service::voluntary_stats::VoluntaryStats) -> Self {
+        Self {
+            ist_per_contract_week: stats.ist_per_contract_week,
+            ist_total: stats.ist_total,
+            soll_total: stats.soll_total,
+            delta: stats.delta,
+            contract_weeks: stats.contract_weeks,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmployeeWorkDetailsTO {
     #[serde(default)]
