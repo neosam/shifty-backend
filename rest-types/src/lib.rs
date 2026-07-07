@@ -885,6 +885,10 @@ impl From<&ExtraHoursTO> for service::extra_hours::ExtraHours {
             created: extra_hours.created,
             deleted: extra_hours.deleted,
             version: extra_hours.version,
+            // Phase 54 (D-54-DM-02): Frontend-erzeugte ExtraHours sind immer
+            // manuell (Rebooking-Schreiber leben ausschliesslich im Backend
+            // ab Phase 55). Kein DTO-Feld noetig.
+            source: service::extra_hours::ExtraHoursSource::Manual,
         }
     }
 }

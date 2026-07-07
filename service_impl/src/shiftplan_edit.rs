@@ -497,6 +497,10 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
                     created: None,
                     deleted: None,
                     version: Uuid::nil(),
+                    // Phase 54 (D-54-DM-02): Absence-Convert-Pfad ist ein
+                    // manueller Schreiber; Rebooking-Rows entstehen nur ab
+                    // Phase 55 in dedizierten Rebooking-Services.
+                    source: service::extra_hours::ExtraHoursSource::Manual,
                 };
 
                 let _ = self
@@ -551,6 +555,9 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             created: None,
             deleted: None,
             version: Uuid::nil(),
+            // Phase 54 (D-54-DM-02): Absence-Convert-Pfad ist manuell (siehe
+            // Kommentar im ersten Schreiber oben in dieser Funktion).
+            source: service::extra_hours::ExtraHoursSource::Manual,
         };
 
         let _ = self

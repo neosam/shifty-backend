@@ -326,6 +326,8 @@ impl<Deps: ExtraHoursServiceDeps> ExtraHoursService for ExtraHoursServiceImpl<De
             created: now,
             deleted: None,
             version: new_version,
+            // Phase 54 (D-54-DM-02): manueller HR-Update-Pfad → 'manual'.
+            source: active.source.clone(),
         };
         self.extra_hours_dao
             .create(

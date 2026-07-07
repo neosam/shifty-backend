@@ -305,6 +305,8 @@ async fn seed_extra_hours<RestState: RestStateDef>(
             created: None,
             deleted: None,
             version: Uuid::nil(),
+            // Phase 54 (D-54-DM-02): Dev-Seed ist immer manuell.
+            source: service::extra_hours::ExtraHoursSource::Manual,
         }
     };
 

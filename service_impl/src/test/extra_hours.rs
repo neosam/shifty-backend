@@ -95,6 +95,7 @@ pub fn default_active_entity() -> ExtraHoursEntity {
         created: datetime!(2026-04-12 9:00:00),
         deleted: None,
         version: default_version(),
+        source: "manual".to_string(),
     }
 }
 
@@ -109,6 +110,7 @@ pub fn default_update_request() -> ExtraHours {
         created: None,
         deleted: None,
         version: default_version(),
+        source: service::extra_hours::ExtraHoursSource::Manual,
     }
 }
 
@@ -802,6 +804,7 @@ async fn test_find_by_iso_year_happy_path() {
         created: datetime!(2026-01-15 11:00:00),
         deleted: None,
         version: default_version(),
+        source: "manual".to_string(),
     };
     let entity_b = ExtraHoursEntity {
         id: uuid!("B0000000-0000-0000-0000-000000000002"),
@@ -814,6 +817,7 @@ async fn test_find_by_iso_year_happy_path() {
         created: datetime!(2026-12-30 09:00:00),
         deleted: None,
         version: alternate_version(),
+        source: "manual".to_string(),
     };
 
     let deps = build_deps_for_find_by_year(

@@ -48,6 +48,50 @@ pub enum ExtraHoursCategory {
     VolunteerWork,
     CustomExtraHours(LazyLoad<Uuid, CustomExtraHours>),
 }
+
+/// Phase 54 (D-54-DM-02): Rebooking-Marker auf jeder `ExtraHours`-Row.
+/// F1-Ist- + F2-Soll-Aggregatoren MUESSEN `Rebooking`-Rows herausfiltern
+/// (Pitfall 1: Doppel-Zaehlung), sonst zaehlen +N/-N-Paare bei Rebooking
+/// die freiwilligen Stunden doppelt in Reports / Balance.
+///
+/// Bestandsrows landen per SQL-DEFAULT auf `Manual`; Rebooking-Schreiber
+/// folgen ab Phase 55.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtraHoursSource {
+    /// Row wurde manuell (UI-Add-Extra-Hours, HR-CRUD, Absence-Convert)
+    /// erzeugt und zaehlt normal in Balance / F1-Ist / F2-Nutz.
+    Manual,
+    /// Row wurde durch Rebooking (F3/F4/F5, ab Phase 55) erzeugt und
+    /// MUSS von F1-Ist- + F2-Soll-Aggregatoren gefiltert werden
+    /// (D-54-DM-02, Pitfall 1).
+    Rebooking,
+}
+
+impl ExtraHoursSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Rebooking => "rebooking",
+        }
+    }
+}
+
+impl TryFrom<&str> for ExtraHoursSource {
+    type Error = ServiceError;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "manual" => Ok(Self::Manual),
+            "rebooking" => Ok(Self::Rebooking),
+            _ => Err(ServiceError::InternalError),
+        }
+    }
+}
+
+impl Default for ExtraHoursSource {
+    fn default() -> Self {
+        Self::Manual
+    }
+}
 impl ExtraHoursCategory {
     pub fn as_report_type(&self) -> ReportType {
         match self {
@@ -140,6 +184,11 @@ pub struct ExtraHours {
     pub created: Option<time::PrimitiveDateTime>,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
+    /// Phase 54 (D-54-DM-02): Rebooking-Marker. F1/F2-Aggregatoren filtern
+    /// `Rebooking`-Rows raus. Neue Rows (manuell, HR-CRUD, Absence-Convert)
+    /// muessen `Manual` setzen; Rebooking-Schreiber (F3/F4/F5 ab Phase 55)
+    /// setzen `Rebooking`.
+    pub source: ExtraHoursSource,
 }
 impl From<&dao::extra_hours::ExtraHoursEntity> for ExtraHours {
     fn from(extra_hours: &dao::extra_hours::ExtraHoursEntity) -> Self {
@@ -153,6 +202,8 @@ impl From<&dao::extra_hours::ExtraHoursEntity> for ExtraHours {
             created: Some(extra_hours.created),
             deleted: extra_hours.deleted,
             version: extra_hours.version,
+            source: ExtraHoursSource::try_from(extra_hours.source.as_str())
+                .unwrap_or(ExtraHoursSource::Manual),
         }
     }
 }
@@ -172,6 +223,7 @@ impl TryFrom<&ExtraHours> for dao::extra_hours::ExtraHoursEntity {
                 .ok_or_else(|| ServiceError::InternalError)?,
             deleted: extra_hours.deleted,
             version: extra_hours.version,
+            source: extra_hours.source.as_str().to_string(),
         })
     }
 }

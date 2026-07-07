@@ -53,6 +53,7 @@ fn make_vacation_extra_hours_entity() -> ExtraHoursEntity {
         created: datetime!(2026 - 04 - 01 09:00:00),
         deleted: None,
         version: Uuid::new_v4(),
+        source: "manual".to_string(),
     }
 }
 
