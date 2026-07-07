@@ -46,8 +46,8 @@ Diese Tabelle wird beim Planning-Wrap-Commit pro Task in PLAN.md aktualisiert. D
 | 54-01-02 | 01 | 1 | — | — | Migration `rebooking_batch_entry` schemakonform + FK | integration | `cargo test -p dao_impl_sqlite migration_rebooking_batch_entry` | ❌ W0 | ⬜ pending |
 | 54-01-03 | 01 | 1 | — | — | `ALTER extra_hours ADD source` — Default `'manual'`, alte Rows Backfill | integration | `cargo test -p dao_impl_sqlite migration_extra_hours_source` | ❌ W0 | ⬜ pending |
 | 54-01-04 | 01 | 1 | — | — | Toggle-Seed `voluntary_rebooking_auto_active_from` idempotent | integration | `cargo test -p dao_impl_sqlite seed_voluntary_rebooking_toggle` | ❌ W0 | ⬜ pending |
-| 54-02-01 | 02 | 2 | — | — | `RebookingBatchService` CRUD + Basic-Tier-Contract | unit | `cargo test -p service_impl rebooking_batch::` | ❌ W0 | ⬜ pending |
-| 54-02-02 | 02 | 2 | — | — | UNIQUE-Constraint respektiert (INSERT-ON-CONFLICT) | integration | `cargo test -p dao_impl_sqlite rebooking_batch_unique` | ❌ W0 | ⬜ pending |
+| 54-02-01 | 02 | 2 | — | — | `RebookingBatchService` CRUD + Basic-Tier-Contract | unit | `cargo test -p service_impl rebooking_batch::` | ✅ | ✅ green |
+| 54-02-02 | 02 | 2 | — | — | UNIQUE-Constraint respektiert (Service-Pre-Check → EntityAlreadyExists) | unit | `cargo test -p service_impl rebooking_batch::create_unique_conflict_maps_to_already_exists` | ✅ | ✅ green |
 | 54-03-01 | 03 | 2 | VOL-STAT-01 | — | `voluntary_hours_per_contract_week` — Nenner enthält 0-h-Verträge | unit | `cargo test -p service_impl voluntary_stats::f1_ist` | ❌ W0 | ⬜ pending |
 | 54-03-02 | 03 | 2 | VOL-ACCT-01 | — | `committed_voluntary_target_for_year` — pro-rata Mid-Week-Wechsel | unit | `cargo test -p service_impl voluntary_stats::f2_soll_prorata` | ❌ W0 | ⬜ pending |
 | 54-03-03 | 03 | 2 | VOL-ACCT-03 | — | Property-Test „Rebooking-Neutralität": Marker-Row invariant für F1-Ist + F2-Soll | property | `cargo test -p service_impl voluntary_stats::rebooking_neutral` | ❌ W0 | ⬜ pending |
