@@ -21,7 +21,11 @@ mod my_block;
 mod pdf_export_config;
 mod pdf_shiftplan;
 mod permission;
-mod report;
+// Phase 54 (Plan 04): pub-export so the shifty_bin integration test can reach
+// `report::generate_route` via tower::oneshot to exercise the
+// `/report/{id}/voluntary-stats` HR/Non-HR redaction end-to-end — same pattern
+// as `pub mod feature_flag;` (Plan 08-07 Gap-Closure).
+pub mod report;
 mod sales_person;
 mod sales_person_shiftplan;
 pub mod session;

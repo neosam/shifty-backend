@@ -1473,4 +1473,6 @@ mod employee_work_details_update;
 mod extra_hours_update;
 #[cfg(test)]
 mod feature_flag;
+#[cfg(test)]
+mod voluntary_stats;
 mod dev_seed;
