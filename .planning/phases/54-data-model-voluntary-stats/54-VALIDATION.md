@@ -54,9 +54,9 @@ Diese Tabelle wird beim Planning-Wrap-Commit pro Task in PLAN.md aktualisiert. D
 | 54-03-04 | 03 | 2 | VOL-STAT-02, VOL-ACCT-02 | — | HR-Only-DTO-Redaction: HR→`Some`, Non-HR→`None` | unit | `cargo test -p service_impl voluntary_stats::service_tests::service_non_hr_returns_all_none_vol_stat_02` | ✅ | ✅ green |
 | 54-04-01 | 04 | 3 | VOL-STAT-01, VOL-ACCT-01 | — | REST-Endpoint liefert `VoluntaryStatsTO` (HR-Auth) / `None`-Redaction (Non-HR) | integration | `cargo test -p shifty_bin voluntary_stats` | ✅ | ✅ green |
 | 54-04-02 | 04 | 3 | — | — | OpenAPI-Schema aktualisiert; `#[utoipa::path]` präsent | source | `grep -q VoluntaryStatsTO rest/src/report.rs && grep -q get_voluntary_stats rest/src/report.rs` | ✅ | ✅ green |
-| 54-05-01 | 05 | 3 | VOL-STAT-01/02, VOL-ACCT-01/02 | — | FE-Row „Freiwillige Stunden — Ist / Soll / Δ" HR-gated | manual | Browser-Test (get_page_text + find), Memory `reference_dioxus_browser_verify_reports` | ❌ W0 | ⬜ pending |
-| 54-05-02 | 05 | 3 | — | — | `Dioxus.toml` `[[web.proxy]]` für neuen Endpoint (falls dediziert) | source | `grep '/voluntary-stats' shifty-dioxus/Dioxus.toml` | ❌ W0 | ⬜ pending |
-| 54-05-03 | 05 | 3 | — | — | i18n de/en/cs Row-Labels vorhanden | source | `grep -l 'voluntary_stats_ist' shifty-dioxus/i18n/{de,en,cs}/*.ftl` | ❌ W0 | ⬜ pending |
+| 54-05-01 | 05 | 3 | VOL-STAT-01/02, VOL-ACCT-01/02 | — | FE-Row „Freiwillige Stunden — Ist / Soll / Δ" HR-gated | manual | Browser-Test (get_page_text + find), Memory `reference_dioxus_browser_verify_reports` | ✅ | ✅ green (manual verify pending) |
+| 54-05-02 | 05 | 3 | — | — | `/report` prefix proxy existiert (`localhost:3000/report`, deckt `/voluntary-stats` per prefix-match) | source | `grep -q 'localhost:3000/report' shifty-dioxus/Dioxus.toml` | ✅ | ✅ green |
+| 54-05-03 | 05 | 3 | — | — | i18n de/en/cs Row-Keys vorhanden (VoluntaryHoursIstPerWeek/Soll/Delta) | source | `grep -l VoluntaryHoursIstPerWeek shifty-dioxus/src/i18n/{de,en,cs}.rs` | ✅ | ✅ green |
 | 54-06-01 | 06 | 4 | — | — | Docs-Freshness: `docs/features/F14-rebooking.md` + `_de.md` neu; `02-service-tiers.md` + `03-data-model.md` synchron | source | `test -f docs/features/F14-rebooking.md && test -f docs/features/F14-rebooking_de.md` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
