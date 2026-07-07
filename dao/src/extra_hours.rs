@@ -29,6 +29,11 @@ pub struct ExtraHoursEntity {
     pub created: time::PrimitiveDateTime,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
+    /// Phase 54 (D-54-DM-02): Rebooking-Marker. Werte: `"manual"` (Standard;
+    /// Bestandsrows landen per SQL-DEFAULT hier) oder `"rebooking"` (F1/F2-
+    /// Aggregatoren filtern diese Rows heraus, Pitfall 1). Rebooking-Schreiber
+    /// folgen ab Phase 55.
+    pub source: String,
 }
 
 impl ExtraHoursEntity {

@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version, source FROM extra_hours WHERE logical_id = ? AND deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "logical_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "amount",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "category",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "custom_extra_hours_id",
+        "ordinal": 6,
+        "type_info": "Blob"
+      },
+      {
+        "name": "date_time",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 10,
+        "type_info": "Blob"
+      },
+      {
+        "name": "source",
+        "ordinal": 11,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "bde235f961fde8f09d0001bda721d9755867db20bf7bb50e10086f5f72821e14"
+}

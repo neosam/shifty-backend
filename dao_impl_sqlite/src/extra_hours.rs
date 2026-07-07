@@ -23,6 +23,9 @@ struct ExtraHoursDb {
     created: String,
     deleted: Option<String>,
     update_version: Vec<u8>,
+    /// Phase 54 (D-54-DM-02): 'manual' | 'rebooking'. Filter-Marker fuer
+    /// F1/F2-Aggregatoren; Bestandsrows landen per DEFAULT auf 'manual'.
+    source: String,
 }
 impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
     type Error = DaoError;
@@ -63,6 +66,7 @@ impl TryFrom<&ExtraHoursDb> for ExtraHoursEntity {
                 .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE_TIME))
                 .transpose()?,
             version: Uuid::from_slice(&extra_hours.update_version)?,
+            source: extra_hours.source.clone(),
         })
     }
 }
@@ -88,7 +92,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE id = ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version, source FROM extra_hours WHERE id = ? AND deleted IS NULL",
             id_vec,
         ).fetch_optional(tx.tx.lock().await.as_mut())
             .await
@@ -107,7 +111,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let logical_id_vec = logical_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE logical_id = ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version, source FROM extra_hours WHERE logical_id = ? AND deleted IS NULL",
             logical_id_vec,
         ).fetch_optional(tx.tx.lock().await.as_mut())
             .await
@@ -127,7 +131,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let id_vec = sales_person_id.as_bytes().to_vec();
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) >= ? AND CAST(strftime('%Y', date_time) AS INTEGER) <= ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version, source FROM extra_hours WHERE sales_person_id = ? AND CAST(strftime('%Y', date_time) AS INTEGER) >= ? AND CAST(strftime('%Y', date_time) AS INTEGER) <= ? AND deleted IS NULL",
             id_vec,
             from_year,
             to_year,
@@ -154,7 +158,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let next_monday_str = next_monday.format(&Iso8601::DATE_TIME)?;
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version, source FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
             monday_str,
             next_monday_str,
         ).fetch_all(tx.tx.lock().await.as_mut())
@@ -198,7 +202,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
         let iso_end_str = iso_end_exclusive.format(&Iso8601::DATE_TIME)?;
         Ok(query_as!(
             ExtraHoursDb,
-            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
+            "SELECT id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_version, source FROM extra_hours WHERE date_time >= ? and date_time < ? AND deleted IS NULL",
             iso_start_str,
             iso_end_str,
         ).fetch_all(tx.tx.lock().await.as_mut())
@@ -240,8 +244,9 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
             .transpose()?;
         let version_vec = entity.version.as_bytes().to_vec();
+        let source = entity.source.as_str();
         query!(
-            "INSERT INTO extra_hours (id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_process, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO extra_hours (id, logical_id, sales_person_id, amount, category, description, custom_extra_hours_id, date_time, created, deleted, update_process, update_version, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id_vec,
             logical_id_vec,
             sales_person_id_vec,
@@ -254,6 +259,7 @@ impl ExtraHoursDao for ExtraHoursDaoImpl {
             deleted,
             process,
             version_vec,
+            source,
         ).execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO rebooking_batch\n                   (id, sales_person_id, iso_year, iso_week, kind, state, created,\n                    approved, approved_by, deleted, update_process, update_version)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "48e031f1a6a96c06345be96d351f83632751fbda4e65a19d6d68c6fa9120fbd3"
+}

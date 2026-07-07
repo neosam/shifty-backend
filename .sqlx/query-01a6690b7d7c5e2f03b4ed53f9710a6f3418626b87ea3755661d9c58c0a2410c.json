@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO rebooking_batch_entry\n                       (id, batch_id, sales_person_id, hours, balance_before,\n                        voluntary_actual, voluntary_committed,\n                        extra_hours_out_id, extra_hours_in_id,\n                        created, deleted, update_process, update_version)\n                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "01a6690b7d7c5e2f03b4ed53f9710a6f3418626b87ea3755661d9c58c0a2410c"
+}
