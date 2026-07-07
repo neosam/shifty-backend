@@ -515,6 +515,21 @@ because axis-B only, no persisted `value_type` affected
 Phase 17 (person-set filter `is_paid`) was explicitly **not** bumped
 (`billing_period_report.rs:365-370`).
 
+**Milestone v2.6 Phase 54 — non-bump confirmation.**
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` remains **12**. Rationale: Phase 54
+(voluntary-stats data-model, see feature [F14](./F14-rebooking.md))
+adds only the `extra_hours.source` marker column (values: `manual` \|
+`rebooking`) and two new `rebooking_batch` / `rebooking_batch_entry`
+tables — neither introduces a new persisted `BillingPeriodValueType`,
+nor changes any existing computation. Voluntary-Stats itself is a
+**live-computed HR-only read view**, not a persisted snapshot: no
+`billing_period_sales_person` row, no versioning, no writer touches
+`billing_period_report.rs`. The snapshot-bump decision **12 → 13** is
+deferred to Phase 56 (`REB-AUTO-05`, F4-Cron) when the first
+`Rebooking`-source writer begins to feed the balance chain and reader
+filters (`source = 'manual'`) become semantically load-bearing — see
+`REQUIREMENTS.md`.
+
 ### 7.5 Edge case — validator reads a v11 snapshot with v12 code
 
 Concrete case from the v12 doc comment

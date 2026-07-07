@@ -298,6 +298,16 @@ Chronologically:
   fractions for Absence-derived hours.
 - `20260628000001_seed-holiday-auto-credit-toggle.sql` — toggle row for
   phase 25 holiday auto credit.
+- `20260707000001_add-source-column-to-extra-hours.sql` — Phase 54
+  (milestone v2.6) marker column `extra_hours.source TEXT NOT NULL
+  DEFAULT 'manual'` (values: `manual` \| `rebooking`). See feature
+  [F14](./F14-rebooking.md) for the full rule set. **Reader impact:**
+  Balance-chain aggregates in `service_impl/src/reporting.rs` and
+  its downstream consumers will filter `source = 'manual'` from
+  Phase 55 onward — the first live consumer is
+  `voluntary_ist_total_for_year(..)` (Plan 54-03). In Phase 54 no
+  writer sets `rebooking`, so every existing row continues to enter
+  the Balance identically (backfill via column DEFAULT).
 
 Reporting itself writes into **none** of these tables.
 

@@ -298,6 +298,17 @@ Chronologisch:
   für Absence-derived Stunden.
 - `20260628000001_seed-holiday-auto-credit-toggle.sql` — Toggle-Row für
   Phase 25 Feiertag-Auto-Credit.
+- `20260707000001_add-source-column-to-extra-hours.sql` — Phase 54
+  (Milestone v2.6) Marker-Spalte `extra_hours.source TEXT NOT NULL
+  DEFAULT 'manual'` (Werte: `manual` \| `rebooking`). Volle Regeln
+  siehe Feature [F14](./F14-rebooking.md). **Reader-Impact:**
+  Balance-Ketten-Aggregate in `service_impl/src/reporting.rs` und
+  ihre nachgelagerten Konsumenten filtern ab Phase 55
+  `source = 'manual'` — erster Live-Konsument ist
+  `voluntary_ist_total_for_year(..)` (Plan 54-03). In Phase 54
+  setzt kein Writer `rebooking`, daher gehen alle Bestandszeilen
+  weiterhin identisch in die Balance ein (Backfill via
+  Column-DEFAULT).
 
 Reporting selbst schreibt in **keine** dieser Tabellen.
 

@@ -509,6 +509,22 @@ weil Achse-B-only, kein persistierter `value_type` betroffen
 Phase 17 (Personen-Set-Filter `is_paid`) wurde explizit **nicht** gebumpt
 (`billing_period_report.rs:365-370`).
 
+**Milestone v2.6 Phase 54 — Non-Bump-Bestätigung.**
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **12**. Rationale: Phase 54
+(Voluntary-Stats-Datenmodell, siehe Feature [F14](./F14-rebooking.md))
+ergänzt nur die Marker-Spalte `extra_hours.source` (Werte: `manual` \|
+`rebooking`) und zwei neue Tabellen `rebooking_batch` /
+`rebooking_batch_entry` — weder wird ein neuer persistierter
+`BillingPeriodValueType` eingeführt noch eine bestehende Berechnung
+verändert. Voluntary-Stats selbst ist eine **live berechnete HR-only-
+Read-View**, kein persistierter Snapshot: keine
+`billing_period_sales_person`-Zeile, kein Versioning, kein Writer
+fasst `billing_period_report.rs` an. Die Snapshot-Bump-Entscheidung
+**12 → 13** ist auf Phase 56 verschoben (`REB-AUTO-05`, F4-Cron),
+sobald der erste `Rebooking`-Source-Writer die Balance-Kette bespielt
+und Reader-Filter (`source = 'manual'`) semantisch tragend werden —
+siehe `REQUIREMENTS.md`.
+
 ### 7.5 Randfall — Validator liest v11-Snapshot mit v12-Code
 
 Konkreter Fall aus dem v12-Doc-Comment (`billing_period_report.rs:108-116`):
