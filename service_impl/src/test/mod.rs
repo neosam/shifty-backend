@@ -35,6 +35,8 @@ pub mod feature_flag;
 #[cfg(test)]
 pub mod pdf_export_config;
 #[cfg(test)]
+pub mod rebooking_batch;
+#[cfg(test)]
 pub mod pdf_export_scheduler;
 #[cfg(test)]
 pub mod pdf_shiftplan;
