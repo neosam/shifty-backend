@@ -5,16 +5,16 @@ milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 54
 current_phase_name: Data-Model + Voluntary Statistics (F1 + F2
 status: executing
-stopped_at: Phase 54 Plan 01 complete (Wave 1 — Data-Model + DAO-Skeleton).
-last_updated: "2026-07-07T17:20:00.000Z"
+stopped_at: Completed 54-02 Plan (Basic-Tier RebookingBatchService)
+last_updated: "2026-07-07T17:39:03.625Z"
 last_activity: 2026-07-07
-last_activity_desc: Phase 54 Plan 01 complete — 3 migrations + RebookingBatchDao + ExtraHoursSource marker; 880 tests green, clippy green
+last_activity_desc: Phase 54 Plan 01 complete (3 migrations + RebookingBatchDao trait + ExtraHoursSource marker; 880 tests green, clippy green)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 0
 ---
 
 # Project State: Shifty Backend
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 54 (Data-Model + Voluntary Statistics (F1 + F2)) — EXECUTING
-Plan: 2 of 6 (Wave 2 = Plans 02 + 03 parallel)
+Plan: 3 of 6 (Wave 2 = Plans 02 + 03 parallel)
 Status: Plan 01 complete; Wave 2 ready
 Last activity: 2026-07-07 — Phase 54 Plan 01 complete (3 migrations + RebookingBatchDao trait + ExtraHoursSource marker; 880 tests green, clippy green)
 
@@ -204,8 +204,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-06
-**Stopped at:** Roadmap v2.6 written (Phasen 54–56, 17/17 Requirements mapped).
+**Last session:** 2026-07-07T17:39:03.605Z
+**Stopped at:** Completed 54-02 Plan (Basic-Tier RebookingBatchService)
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -259,6 +259,7 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase 54]: D-54-DM-01 enforced: partial UNIQUE index on rebooking_batch (sales_person_id, iso_year, iso_week) WHERE deleted IS NULL — global across all kinds (Claim-on-Suggest, blocks second active row per (sp, y, w) verified via sqlite3 constraint test).
 - [Phase 54]: D-54-DM-02 enforced: extra_hours.source TEXT NOT NULL DEFAULT 'manual' + ExtraHoursSource enum in service::extra_hours; F1/F2 aggregators (Plan 03) filter source==Manual.
 - [Phase 54]: Basic-tier RebookingBatchDao consumes only Transaction (no Domain-Service deps); mirrors WeekStatusDao precedent for str<->enum roundtrip.
+- [Phase ?]: [54-02] Basic-Tier RebookingBatchService via gen_service_impl! — HR-gated, deps strikt DAO+Permission+Clock+Uuid+Transaction; D-54-DM-01 UNIQUE-Slot via Same-Transaction Pre-Check → EntityAlreadyExists.
 
 ## Performance Metrics
 
@@ -283,3 +284,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 49 P05 | 1min | 2 tasks | 1 files |
 | Phase 49 P04 | 14min | 3 tasks | 5 files |
 | Phase 54 P01 | 38min | 6 tasks | 27 files |
+| Phase 54 P02 | 22m | 6 tasks | 9 files |
