@@ -59,6 +59,8 @@ type ShiftplanDao = dao_impl_sqlite::shiftplan::ShiftplanDaoImpl;
 // Phase 28 (VAC-OFFSET-01): Basic-Offset-DAO für den Urlaubsanspruch-Offset.
 type VacationEntitlementOffsetDao =
     dao_impl_sqlite::vacation_entitlement_offset::VacationEntitlementOffsetDaoImpl;
+// Phase 54 (D-54-DM-01): Basic-Tier Rebooking-Batch-DAO.
+type RebookingBatchDao = dao_impl_sqlite::rebooking_batch::RebookingBatchDaoImpl;
 // Phase 48 (EXP-02/EXP-03): Basic-Config-DAO für den Nextcloud-PDF-Export.
 type PdfExportConfigDao = dao_impl_sqlite::pdf_export_config::PdfExportConfigDaoImpl;
 
@@ -302,6 +304,23 @@ type VacationEntitlementOffsetService =
     service_impl::vacation_entitlement_offset::VacationEntitlementOffsetServiceImpl<
         VacationEntitlementOffsetServiceDependencies,
     >;
+
+// Phase 54 (D-54-DM-01): RebookingBatchServiceImpl ist Basic-Tier
+// (Entity-Manager) — nur DAO + Permission + Clock + Uuid + Transaction.
+// Konsumiert KEINEN Domain-Service, damit kein Zyklus mit dem spaeteren
+// Business-Logic RebookingReconciliationService (Phase 55) entsteht.
+pub struct RebookingBatchServiceDependencies;
+impl service_impl::rebooking_batch::RebookingBatchServiceDeps for RebookingBatchServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type RebookingBatchDao = RebookingBatchDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type RebookingBatchService =
+    service_impl::rebooking_batch::RebookingBatchServiceImpl<RebookingBatchServiceDependencies>;
 
 // Phase 48 (EXP-02/EXP-03, D-48-BASIC): PdfExportConfigServiceImpl ist
 // Basic-Tier — konsumiert AUSSCHLIESSLICH PdfExportConfigDao + Permission +
@@ -705,6 +724,10 @@ pub struct RestStateImpl {
     absence_conversion_service: Arc<AbsenceConversionService>,
     // Phase 28 (VAC-OFFSET-01): HR-gated REST-CRUD für den Urlaubsanspruch-Offset.
     vacation_entitlement_offset_service: Arc<VacationEntitlementOffsetService>,
+    // Phase 54 (D-54-DM-01): Basic-Tier Rebooking-Batch-Manager. Wird ab
+    // Phase 55 von der BL-Reconciliation konsumiert; in Phase 54 nur via
+    // RestStateDef exponiert, kein REST-Endpoint.
+    rebooking_batch_service: Arc<RebookingBatchService>,
     // Phase 48 (EXP-02/EXP-03): admin-gated REST-CRUD für die PDF-Export-Konfig.
     pdf_export_config_service: Arc<PdfExportConfigService>,
     // Phase 48 Plan 04 (EXP-01/EXP-03): Cron-getriebener Nextcloud-Push.
@@ -748,6 +771,7 @@ impl rest::RestStateDef for RestStateImpl {
     type FeatureFlagService = FeatureFlagService;
     type AbsenceConversionService = AbsenceConversionService;
     type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
+    type RebookingBatchService = RebookingBatchService;
     type PdfExportConfigService = PdfExportConfigService;
     type PdfExportScheduler = PdfExportSchedulerService;
     type PdfShiftplanService = PdfShiftplanService;
@@ -854,6 +878,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService> {
         self.vacation_entitlement_offset_service.clone()
     }
+    fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService> {
+        self.rebooking_batch_service.clone()
+    }
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService> {
         self.pdf_export_config_service.clone()
     }
@@ -875,6 +902,8 @@ impl RestStateImpl {
         let carryover_dao = Arc::new(CarryoverDao::new(pool.clone()));
         let vacation_entitlement_offset_dao =
             Arc::new(VacationEntitlementOffsetDao::new(pool.clone()));
+        // Phase 54 (D-54-DM-01): Basic-Tier Rebooking-Batch-DAO.
+        let rebooking_batch_dao = Arc::new(RebookingBatchDao::new(pool.clone()));
         let pdf_export_config_dao = Arc::new(PdfExportConfigDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
@@ -1052,6 +1081,21 @@ impl RestStateImpl {
                 VacationEntitlementOffsetServiceDependencies,
             > {
                 vacation_entitlement_offset_dao,
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+        // Phase 54 (D-54-DM-01): Basic-Tier Rebooking-Batch-Service — nur
+        // DAO + Permission + Clock + Uuid + Transaction. Kein Domain-Service
+        // als Dep; konsumiert wird der Service ab Phase 55 vom BL-
+        // RebookingReconciliationService.
+        let rebooking_batch_service = Arc::new(
+            service_impl::rebooking_batch::RebookingBatchServiceImpl::<
+                RebookingBatchServiceDependencies,
+            > {
+                rebooking_batch_dao,
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),
@@ -1365,6 +1409,7 @@ impl RestStateImpl {
             feature_flag_service,
             absence_conversion_service,
             vacation_entitlement_offset_service,
+            rebooking_batch_service,
             pdf_export_config_service,
             pdf_export_scheduler,
             pdf_shiftplan_service,
