@@ -55,6 +55,27 @@ side, the expectation is reduced by the duration. Effect: A day of unpaid
 leave does not push the Balance into the negative but instead lowers the
 "how much should have been worked" figure.
 
+### Ist/Soll whole-week-out symmetry for voluntary hours (v2.6.1)
+
+Both the Weekly voluntary display
+(`WeeklySummary.committed_voluntary_hours` in
+`service_impl/src/booking_information.rs`) and the range-based
+voluntary target (`committed_voluntary_target_in_range` in
+`service_impl/src/reporting.rs`) treat any calendar week with at least
+one Absence day of the same salesperson as **fully out** — the
+volunteer commitment for that week drops to `0` on **both** sides
+(Ist and Soll). The rule is category-agnostic: Vacation, SickLeave and
+UnpaidLeave all trigger it. In the same rollout, the `contract_weeks`
+denominator behind `ist_per_contract_week` also excludes Absence weeks
+so the average is not diluted by weeks that were unavailable for
+volunteer work.
+
+The Weekly display already had this rule since v2.6.0 (D-26-03 /
+VFA-01); v2.6.1 aligns the range Soll and the contract-weeks
+denominator (D-54.5-01 / D-54.5-02). See
+[F14](../features/F14-rebooking.md) for the range Soll and F03
+(booking_information) for the weekly display.
+
 ## What is `expected`?
 
 Expectation is derived from:

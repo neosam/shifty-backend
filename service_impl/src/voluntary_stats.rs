@@ -29,6 +29,7 @@ use crate::gen_service_impl;
 use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_count_in_range};
 use async_trait::async_trait;
 use dao::TransactionDao;
+use service::absence::AbsenceService;
 use service::employee_work_details::EmployeeWorkDetailsService;
 use service::permission::{Authentication, HR_PRIVILEGE};
 use service::reporting::ReportingService;
@@ -43,6 +44,13 @@ gen_service_impl! {
         ReportingService: ReportingService<Transaction = Self::Transaction, Context = Self::Context> = reporting_service,
         EmployeeWorkDetailsService: EmployeeWorkDetailsService<Transaction = Self::Transaction, Context = Self::Context> = employee_work_details_service,
         SalesPersonService: SalesPersonService<Transaction = Self::Transaction, Context = Self::Context> = sales_person_service,
+        // Phase 54.5 (D-54.5-03): AbsenceService fuer whole-week-out
+        // Soll-Aggregation. Business-Logic → Business-Logic-Konsum, kein
+        // Zyklus (AbsenceService konsumiert keinen VoluntaryStatsService).
+        // Load erfolgt mit `Authentication::Full` als Cross-Service-Bypass
+        // (HR-Gate wurde bereits am Einstieg verifiziert; Praezedenz
+        // `reference_toggle_service_full_context_bypass`).
+        AbsenceService: AbsenceService<Transaction = Self::Transaction, Context = Self::Context> = absence_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
     }
@@ -114,12 +122,31 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             .await?;
         let working_hours_vec: Vec<_> = working_hours.iter().cloned().collect();
 
+        // Phase 54.5 (D-54.5-03): Absence-Perioden des SalesPerson fuer die
+        // whole-week-out-Angleichung an Pfad A (Weekly-Anzeige). Load nur
+        // im HR-Path (Non-HR ist oben schon retourniert). Cross-Service-
+        // Bypass mit `Authentication::Full`, konsistent zu den anderen
+        // internen Loads dieser fn.
+        let absences = self
+            .absence_service
+            .find_by_sales_person(sales_person_id, Authentication::Full, Some(tx.clone()))
+            .await?;
+        let absences_vec: Vec<_> = absences.iter().cloned().collect();
+
         self.transaction_dao.commit(tx).await?;
 
-        let soll_total =
-            committed_voluntary_target_in_range(&working_hours_vec, from_date, to_date);
-        let contract_weeks =
-            contract_weeks_count_in_range(&working_hours_vec, from_date, to_date);
+        let soll_total = committed_voluntary_target_in_range(
+            &working_hours_vec,
+            from_date,
+            to_date,
+            &absences_vec,
+        );
+        let contract_weeks = contract_weeks_count_in_range(
+            &working_hours_vec,
+            from_date,
+            to_date,
+            &absences_vec,
+        );
         let ist_per_contract_week = if contract_weeks == 0 {
             0.0
         } else {

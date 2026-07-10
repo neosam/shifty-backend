@@ -198,10 +198,15 @@ automatisch in diese Kette.
 /// einem Vertragstag im Range. `expected_hours = 0` zählt MIT.
 /// Edge-Weeks zählen als 1 (tages-basierte Verdünnung passiert im
 /// Zähler, nicht hier).
+///
+/// v2.6.1 (D-54.5-02): eine Woche mit mindestens einem Absence-Tag
+/// desselben Freiwilligen wird aus dem Zähler ausgeklammert
+/// (whole-week-out / ganze-Woche-raus).
 pub fn contract_weeks_count_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
     to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
 ) -> u32;
 
 /// D-F2-01 — tages-pro-rata für eine einzelne ISO-Woche mit
@@ -214,10 +219,17 @@ pub fn committed_voluntary_prorata_for_week(
 /// aktivem Vertrag. Edge-Weeks tragen pro-rata für die Tage im Range
 /// bei (D-F2-01 bleibt tages-basiert). (Phase 54 Gap-Closure G1 —
 /// Range-basiert löst die frühere Full-Year-Variante ab.)
+///
+/// v2.6.1 (D-54.5-01): jede ISO-Woche, die mit mindestens einem
+/// aktiven Absence-Tag desselben Freiwilligen überlappt (Vacation,
+/// SickLeave, UnpaidLeave — kategorie-agnostisch), trägt `0` zum
+/// Soll bei (whole-week-out / ganze-Woche-raus, nicht pro-rata pro
+/// Tag).
 pub fn committed_voluntary_target_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
     to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
 ) -> f32;
 ```
 
@@ -227,6 +239,47 @@ tragen pro-rata für die Tage im Range bei. Ohne Cutoff lieferte eine
 5h/Woche-Zusage ab Mai ein Full-Year-Ziel, das den tatsächlichen
 Report-Zeitraum um ~4x überschoss (~177h vs. realistisch ~54h für
 Jan–Juli). Siehe 54-UAT.md Gap G1.
+
+### Absence-bewusstes ganze-Woche-raus (v2.6.1, D-54.5-01 / D-54.5-02 / D-26-03)
+
+Beide Range-basierten pure fns bekommen einen zusätzlichen Parameter
+`absences: &[AbsencePeriod]` — die pro-Freiwilligen gefilterte Liste
+aktiver (`deleted.is_none()`) Absence-Records — und wenden ein
+**whole-week-out** an:
+
+- **Soll (`committed_voluntary_target_in_range`, D-54.5-01):** jede
+  ISO-Woche, deren Mo–So-Kalenderbereich mit mindestens einem
+  Absence-Tag des Freiwilligen überlappt, trägt `0` zum Soll bei —
+  kategorie-agnostisch (Vacation, SickLeave, UnpaidLeave). Nicht
+  pro-rata pro Absence-Tag.
+- **Contract-Weeks-Nenner (`contract_weeks_count_in_range`,
+  D-54.5-02):** derselbe Overlap klammert die Woche aus dem Nenner
+  aus. Damit misst `ist_per_contract_week` den Durchschnitt über die
+  Wochen, die tatsächlich für Freiwilligenarbeit **verfügbar** waren.
+- **Overlap-Helper:** die Prüfung nutzt `period_overlaps_week`
+  (`service_impl/src/booking_information.rs:75`) als Single Source of
+  Truth, geteilt mit der Weekly-Anzeige (VFA-01 / D-26-03).
+- **Rationale — Ist/Soll-Symmetrie:** die Weekly-Anzeige
+  (`WeeklySummary.committed_voluntary_hours`) hat Absence-Wochen
+  bereits seit v2.6.0 auf 0 gesetzt; `EmployeeReport::volunteer_hours`
+  (die Ist-Quelle) ist während Absence-Wochen faktisch auch 0 (kein
+  Shiftplan, kein manuelles VolunteerWork). Die Angleichung der
+  Soll-Aggregation entfernt die systematische Überschätzung, die das
+  Delta wie eine legitime Freiwilligen-Verpflichtungs-Lücke aussehen
+  ließ (~15 h pro 3 Absence-Wochen bei einer 5-h/Woche-Zusage).
+- **Bewusste Revision zu D-F1-01 für diesen Konsumpfad:** die
+  ursprüngliche F1-Regel (`expected_hours = 0` zählt MIT) bleibt
+  intakt; Absence-Wochen fallen zusätzlich raus. Die Revision ist auf
+  `VoluntaryStatsService` beschränkt; andere Konsumenten von
+  `contract_weeks` sind nicht betroffen.
+- **Non-HR-Path lädt niemals Absences.** Der `AbsenceService`-Load
+  läuft nur im HR-Path; die Non-HR-Redaktion (alle Felder `null`)
+  greift vor jedem Datenabruf (`service_non_hr_does_not_load_absences`
+  Regressions-Test).
+
+**Changelog:** v2.6.1 — `committed_voluntary_target_in_range` +
+`contract_weeks_count_in_range` sind Absence-bewusst (whole-week-out,
+D-54.5-01 / D-54.5-02). Siehe Phase `54.5-voluntary-soll-absence-fix`.
 
 ## 6. REST (Phase 54)
 

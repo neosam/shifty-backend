@@ -1,3 +1,4 @@
+use crate::booking_information::period_overlaps_week;
 use crate::gen_service_impl;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -184,21 +185,32 @@ pub fn committed_voluntary_prorata_for_week(
 // ab Phase 55 zentral im ReportingService greifen und trifft dann
 // automatisch auch diese Kette.
 
-/// Phase 54 Gap-Closure G1 (VOL-STAT-01-Nenner, D-F1-01):
-/// Anzahl ISO-Wochen im Range `[from_date ..= to_date]`, in denen mindestens
-/// eine aktive `EmployeeWorkDetails`-Row an mindestens einem Tag der Woche,
-/// der im Range liegt, den Kalender-Wochen-Slot abdeckt. Eine Row mit
+/// Phase 54 Gap-Closure G1 (VOL-STAT-01-Nenner, D-F1-01) +
+/// Phase 54.5 (D-54.5-02): Anzahl ISO-Wochen im Range
+/// `[from_date ..= to_date]`, in denen mindestens eine aktive
+/// `EmployeeWorkDetails`-Row an mindestens einem Tag der Woche, der im
+/// Range liegt, den Kalender-Wochen-Slot abdeckt. Eine Row mit
 /// `expected_hours == 0` zaehlt MIT (D-F1-01).
+///
+/// **Absence-Overlay (D-54.5-02):** Eine ISO-Woche, in der mindestens ein
+/// Absence-Tag desselben SalesPerson (kategorie-agnostisch — Vacation,
+/// SickLeave, UnpaidLeave) mit Mo–So dieser Woche ueberlappt, zaehlt
+/// **nicht** als Vertragswoche. Bewusster Ueberstich zu D-F1-01: 0-h-Vertraege
+/// zaehlen weiterhin mit, aber Absence-Wochen fallen zusaetzlich raus, damit
+/// der `ist_per_contract_week`-Nenner die tatsaechlich fuer Freiwilligenarbeit
+/// verfuegbaren Wochen misst. Overlap-Test via [`period_overlaps_week`]
+/// (Single Source of Truth, siehe `booking_information.rs`).
 ///
 /// Edge-Weeks (Range startet oder endet mitten in einer ISO-Woche) zaehlen
 /// als 1 Woche, sofern mindestens 1 Range-Tag durch aktiven Vertrag gedeckt
-/// ist — die tages-basierte Verduennung findet in
-/// `committed_voluntary_target_in_range` (Zaehler) statt, nicht im
+/// ist und keine Absence die Woche beruehrt — die tages-basierte Verduennung
+/// findet in `committed_voluntary_target_in_range` (Zaehler) statt, nicht im
 /// Wochen-Zaehler.
 pub fn contract_weeks_count_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
     to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
 ) -> u32 {
     if from_date > to_date {
         return 0;
@@ -236,7 +248,13 @@ pub fn contract_weeks_count_in_range(
                 from_d <= d && d <= to_d
             })
         });
-        if has_contract {
+        // D-54.5-02: Absence-Overlay auf Mo..=So dieser ISO-Woche
+        // (kategorie-agnostisch, deleted-Filter, `period_overlaps_week`
+        // ist die Single Source of Truth in booking_information.rs).
+        let has_absence = absences.iter().any(|p| {
+            p.deleted.is_none() && period_overlaps_week(p.from_date, p.to_date, monday, sunday)
+        });
+        if has_contract && !has_absence {
             count += 1;
         }
         // Naechster Loop-Anker: sunday+1 (Anfang der Folgewoche), es sei denn
@@ -249,24 +267,68 @@ pub fn contract_weeks_count_in_range(
     count
 }
 
-/// Phase 54 Gap-Closure G1 (VOL-ACCT-01-Soll, D-F2-01):
+/// Phase 54 Gap-Closure G1 (VOL-ACCT-01-Soll, D-F2-01) +
+/// Phase 54.5 (D-54.5-01, whole-week-out analog VFA-01 / D-26-03):
 /// Summe der pro-rata-Beitraege im Range `[from_date ..= to_date]`. Fuer
 /// jeden Tag im Range wird der aktive Vertrag (tages-basiert) gesucht;
 /// summiert wird `committed_voluntary / 7.0` je Range-Tag mit aktivem
 /// Vertrag. Edge-Weeks tragen so tages-genau bei (D-F2-01 Pro-Rata bleibt).
+///
+/// **Absence-Overlay (D-54.5-01):** Eine ISO-Woche mit mindestens einem
+/// Absence-Tag desselben SalesPerson (kategorie-agnostisch — Vacation,
+/// SickLeave, UnpaidLeave), dessen `[from_date, to_date]` mit Mo–So der
+/// Woche ueberlappt, traegt **0** zum Soll bei (whole-week-out, nicht
+/// pro-rata pro Tag). Die Semantik spiegelt Pfad A (Weekly-Anzeige,
+/// `WeeklySummary.committed_voluntary_hours` in `booking_information.rs`)
+/// und stellt die Ist/Soll-Symmetrie her — Ist ist in Absence-Wochen
+/// faktisch 0, Soll ab v2.6.1 ebenfalls. Overlap-Test via
+/// [`period_overlaps_week`] (Single Source of Truth).
 pub fn committed_voluntary_target_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
     to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
 ) -> f32 {
     if from_date > to_date {
         return 0.0;
     }
     let from = from_date.to_date();
     let to = to_date.to_date();
+    // D-54.5-01: Sammle die (iso_year, iso_week)-Paare der Wochen, in die
+    // mindestens ein aktiver AbsencePeriod hineinragt. Der Set-Lookup im
+    // Tages-Loop haelt die Komplexitaet linear in |range_days| + |absences|
+    // statt |range_days| * |absences|.
+    let mut absent_weeks: HashSet<(i32, u8)> = HashSet::new();
+    if !absences.is_empty() {
+        let mut day = from;
+        while day <= to {
+            let (iso_year, iso_week, _) = day.to_iso_week_date();
+            let monday = time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Monday)
+                .expect("valid ISO week");
+            let sunday = time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Sunday)
+                .expect("valid ISO week");
+            let hit = absences.iter().any(|p| {
+                p.deleted.is_none()
+                    && period_overlaps_week(p.from_date, p.to_date, monday, sunday)
+            });
+            if hit {
+                absent_weeks.insert((iso_year, iso_week));
+            }
+            if sunday >= to {
+                break;
+            }
+            day = sunday + time::Duration::days(1);
+        }
+    }
     let mut total: f32 = 0.0;
     let mut day = from;
     while day <= to {
+        // D-54.5-01: Wochen mit Absence tragen 0 bei (whole-week-out).
+        let (iso_year, iso_week, _) = day.to_iso_week_date();
+        if absent_weeks.contains(&(iso_year, iso_week)) {
+            day += time::Duration::days(1);
+            continue;
+        }
         let active = working_hours.iter().find(|wh| {
             if wh.deleted.is_some() {
                 return false;

@@ -55,6 +55,28 @@ die Erwartung um die Dauer reduziert. Effekt: Ein Tag unbezahlter
 Urlaub bringt die Balance nicht in Minus, sondern verringert die
 "was hätte gearbeitet werden müssen"-Zahl.
 
+### Ist/Soll-whole-week-out-Symmetrie für Freiwilligen-Stunden (v2.6.1)
+
+Sowohl die wöchentliche Freiwilligen-Anzeige
+(`WeeklySummary.committed_voluntary_hours` in
+`service_impl/src/booking_information.rs`) als auch das Range-basierte
+Freiwilligen-Soll (`committed_voluntary_target_in_range` in
+`service_impl/src/reporting.rs`) behandeln jede Kalenderwoche mit
+mindestens einem Absence-Tag desselben Freiwilligen als **komplett
+raus** — der Freiwilligen-Beitrag dieser Woche fällt auf **beiden**
+Seiten (Ist und Soll) auf `0`. Die Regel ist kategorie-agnostisch:
+Vacation, SickLeave und UnpaidLeave lösen sie identisch aus. Im
+selben Rollout klammert auch der `contract_weeks`-Nenner hinter
+`ist_per_contract_week` Absence-Wochen aus, damit der Durchschnitt
+nicht durch Wochen verdünnt wird, die für Freiwilligenarbeit gar
+nicht verfügbar waren.
+
+Die Weekly-Anzeige hatte diese Regel bereits seit v2.6.0 (D-26-03 /
+VFA-01); v2.6.1 gleicht das Range-Soll und den
+Contract-Weeks-Nenner an (D-54.5-01 / D-54.5-02). Siehe
+[F14](../features/F14-rebooking.md) für das Range-Soll und F03
+(booking_information) für die Weekly-Anzeige.
+
 ## Was ist `expected`?
 
 Erwartung ergibt sich aus:

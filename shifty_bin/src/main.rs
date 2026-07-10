@@ -340,6 +340,10 @@ impl service_impl::voluntary_stats::VoluntaryStatsServiceDeps
     type ReportingService = ReportingService;
     type EmployeeWorkDetailsService = WorkingHoursService;
     type SalesPersonService = SalesPersonService;
+    // Phase 54.5 (D-54.5-03): AbsenceService fuer whole-week-out
+    // Soll-Aggregation. AbsenceService wird VOR VoluntaryStatsService
+    // konstruiert (Reihenfolge im main-Body).
+    type AbsenceService = AbsenceService;
     type PermissionService = PermissionService;
     type TransactionDao = TransactionDao;
 }
@@ -1199,6 +1203,10 @@ impl RestStateImpl {
                 reporting_service: reporting_service.clone(),
                 employee_work_details_service: working_hours_service.clone(),
                 sales_person_service: sales_person_service.clone(),
+                // Phase 54.5 (D-54.5-03): AbsenceService (bereits ~Z. 1050
+                // konstruiert, siehe absence_service = Arc::new(...)) fuer
+                // die whole-week-out-Soll-Angleichung.
+                absence_service: absence_service.clone(),
                 permission_service: permission_service.clone(),
                 transaction_dao: transaction_dao.clone(),
             },

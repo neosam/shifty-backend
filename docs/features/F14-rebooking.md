@@ -187,10 +187,14 @@ in `service_impl/src/reporting.rs`:
 /// least one active-contract day inside the range. `expected_hours = 0`
 /// still counts. Edge-weeks count as 1 (day-level dilution happens in
 /// the numerator, not here).
+///
+/// v2.6.1 (D-54.5-02): a week with at least one Absence day for the
+/// same salesperson is excluded from the count (whole-week-out).
 pub fn contract_weeks_count_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
     to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
 ) -> u32;
 
 /// D-F2-01 — day-level pro-rata for a single ISO week using per-day
@@ -204,10 +208,16 @@ pub fn committed_voluntary_prorata_for_week(
 /// the days that fall inside the range (D-F2-01 stays day-based).
 /// (Phase 54 Gap-Closure G1 — Range-based supersedes the earlier
 /// full-year variant.)
+///
+/// v2.6.1 (D-54.5-01): any ISO week that overlaps with at least one
+/// active Absence day of the same salesperson (Vacation, SickLeave,
+/// UnpaidLeave — category-agnostic) contributes `0` to the target
+/// (whole-week-out, not pro-rated per day).
 pub fn committed_voluntary_target_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
     to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
 ) -> f32;
 ```
 
@@ -218,6 +228,45 @@ the cutoff, a 5h/week voluntary commitment starting in May yielded a
 full-year target that overshot the actual reporting range by ~4x
 (~177h vs. the realistic ~54h for a Jan–July window). See 54-UAT.md
 gap G1.
+
+### Absence-aware whole-week-out (v2.6.1, D-54.5-01 / D-54.5-02 / D-26-03)
+
+Both range-based pure fns take an additional `absences: &[AbsencePeriod]`
+parameter — the per-salesperson list of active (`deleted.is_none()`)
+Absence records — and apply a **whole-week-out** overlay:
+
+- **Soll (`committed_voluntary_target_in_range`, D-54.5-01):** any ISO
+  week whose Mo–Su calendar range overlaps with at least one Absence
+  day of the salesperson contributes `0` to the target, regardless of
+  category (Vacation, SickLeave, UnpaidLeave). Not pro-rated per
+  absence day.
+- **Contract-weeks denominator (`contract_weeks_count_in_range`,
+  D-54.5-02):** the same overlap excludes the week from the
+  denominator, so `ist_per_contract_week` measures the average over
+  weeks that were actually available for volunteer work.
+- **Overlap helper:** the check reuses `period_overlaps_week`
+  (`service_impl/src/booking_information.rs:75`), the single source of
+  truth shared with the Weekly display (VFA-01 / D-26-03).
+- **Rationale — Ist/Soll symmetry:** the Weekly display
+  (`WeeklySummary.committed_voluntary_hours`) has zeroed absence weeks
+  since v2.6.0; `EmployeeReport::volunteer_hours` (the Ist source) is
+  factually 0 during absences too (no shiftplan, no manual
+  VolunteerWork). Aligning the Soll aggregation removes the systematic
+  overshoot that made the delta look like a legitimate volunteer
+  shortfall (~15 h per 3 absence weeks with a 5 h/week commitment).
+- **Deliberate reversal of D-F1-01 for this consumer chain:** F1's
+  original `expected_hours = 0`-counts-through rule stays intact;
+  Absence weeks are excluded on top of it. The reversal is scoped to
+  `VoluntaryStatsService`; other consumers of `contract_weeks` are not
+  affected.
+- **Non-HR path never loads Absences.** The `AbsenceService` load runs
+  inside the HR path only; the Non-HR redaction (all fields `null`) is
+  short-circuited before any data read (`service_non_hr_does_not_load_absences`
+  regression-test).
+
+**Changelog:** v2.6.1 — `committed_voluntary_target_in_range` +
+`contract_weeks_count_in_range` are Absence-aware (whole-week-out,
+D-54.5-01 / D-54.5-02). See phase `54.5-voluntary-soll-absence-fix`.
 
 ## 6. REST (Phase 54)
 
