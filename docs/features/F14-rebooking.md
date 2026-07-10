@@ -78,11 +78,12 @@ Phase 55/56.
 **Reader rule:** every aggregate that must remain balance-neutral in
 the presence of future rebooking pairs filters `source = 'manual'`.
 The first consumer is Plan 54-03's
-`voluntary_ist_total_for_year(extra_hours, year)`, which sums the
-Ist voluntary hours for F1/F2 and must exclude the future `rebooking`
-noise; otherwise the same voluntary hour would be counted twice (once
-as its original `Volunteer` row, once as the `Rebooking`-source row
-that neutralises it inside the paid chain).
+`voluntary_ist_total_in_range(extra_hours, from_date, to_date)`
+(renamed from `voluntary_ist_total_for_year` in Plan 54-07 Gap-Closure G1),
+which sums the Ist voluntary hours for F1/F2 and must exclude the future
+`rebooking` noise; otherwise the same voluntary hour would be counted
+twice (once as its original `Volunteer` row, once as the
+`Rebooking`-source row that neutralises it inside the paid chain).
 
 **Audit rule:** `rebooking`-sourced rows stay in the database and stay
 visible in *audit* queries — they are how F5 explains "why did the
@@ -92,7 +93,7 @@ aggregates.
 **Balance-neutrality guarantee (VOL-ACCT-03):** the property test in
 `service_impl/src/test/voluntary_stats.rs` shows that inserting an
 equal-and-opposite pair `(+h, -h)` both stamped `source = 'rebooking'`
-does not change `voluntary_ist_total_for_year(..)` — the F1/F2 numbers
+does not change `voluntary_ist_total_in_range(..)` — the F1/F2 numbers
 stay stable across a rebooking event.
 
 ## 4. Batch Structure
@@ -161,42 +162,75 @@ graph — see [`../architecture/diagrams/service-graph-runtime.mmd`](../architec
 
 ### Pure functions in `service_impl::reporting`
 
-`VoluntaryStatsService` is thin. The math lives in four pure fns beside
-`committed_voluntary_for_calendar_week` in
-`service_impl/src/reporting.rs`:
+`VoluntaryStatsService` is thin. The math lives in three range-based
+pure fns beside `committed_voluntary_prorata_for_week` (internal per-week
+building block) in `service_impl/src/reporting.rs`:
 
 ```rust
 /// VOL-STAT-01 / VOL-ACCT-01-Ist — Manual-only sum of Volunteer hours
-/// for the ISO year. Filters source = Manual + soft-deletes.
-pub fn voluntary_ist_total_for_year(extra_hours: &[ExtraHours], year: u32) -> f32;
+/// in the date range `[from_date ..= to_date]`. Filters source = Manual
+/// + soft-deletes. (Phase 54 Gap-Closure G1 — replaces
+/// `voluntary_ist_total_for_year(_, year)`.)
+pub fn voluntary_ist_total_in_range(
+    extra_hours: &[ExtraHours],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+) -> f32;
 
-/// F1 denominator / D-F1-01 — contract-week count, expected_hours = 0 counts.
-pub fn contract_weeks_count(working_hours: &[EmployeeWorkDetails], year: u32) -> u32;
+/// F1 denominator / D-F1-01 — number of ISO weeks in the range with at
+/// least one active-contract day inside the range. `expected_hours = 0`
+/// still counts. Edge-weeks count as 1 (day-level dilution happens in
+/// the numerator, not here).
+pub fn contract_weeks_count_in_range(
+    working_hours: &[EmployeeWorkDetails],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+) -> u32;
 
-/// D-F2-01 — day-level pro-rata for a single ISO-week using per-day
+/// D-F2-01 — day-level pro-rata for a single ISO week using per-day
 /// active EmployeeWorkDetails (handles mid-week contract changes).
+/// Kept as an internal per-week building block for debug tests.
 pub fn committed_voluntary_prorata_for_week(
     working_hours: &[EmployeeWorkDetails], year: u32, week: u8) -> f32;
 
-/// F2 target = Σ over all ISO-weeks of the year.
-pub fn committed_voluntary_target_for_year(
-    working_hours: &[EmployeeWorkDetails], year: u32) -> f32;
+/// F2 target = Σ (committed_voluntary / 7.0) over every range-day
+/// covered by an active contract. Edge weeks contribute pro-rata for
+/// the days that fall inside the range (D-F2-01 stays day-based).
+/// (Phase 54 Gap-Closure G1 — replaces
+/// `committed_voluntary_target_for_year(_, year)`.)
+pub fn committed_voluntary_target_in_range(
+    working_hours: &[EmployeeWorkDetails],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+) -> f32;
 ```
+
+**Rationale — range-based aggregation (Phase 54 Gap G1):** consistent
+with `ReportingService::get_report_for_employee_range`; edge weeks
+contribute pro-rata for the days that fall inside the range. Without
+the cutoff, a 5h/week voluntary commitment starting in May yielded a
+full-year target that overshot the actual reporting range by ~4x
+(~177h vs. the realistic ~54h for a Jan–July window). See 54-UAT.md
+gap G1.
 
 ## 6. REST (Phase 54)
 
 | Method | Path | DTO In | DTO Out | Auth |
 | --- | --- | --- | --- | --- |
-| `GET` | `/report/{id}/voluntary-stats?year=YYYY` | — | `VoluntaryStatsTO` | any authenticated; HR-only content — Non-HR gets all fields = `null`. |
+| `GET` | `/report/{id}/voluntary-stats?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD` | — | `VoluntaryStatsTO` | any authenticated; HR-only content — Non-HR gets all fields = `null`. |
 
 `VoluntaryStatsTO` (5 fields, all `Option<f32>`/`Option<u32>`, serde
 `#[serde(default)]` for wire compatibility):
 
 - `ist_per_contract_week` — F1 (Ø voluntary / contract-week).
-- `ist_total` — F2 Ist (absolute Manual Volunteer sum for year).
-- `soll_total` — F2 Soll (`committed_voluntary` pro-rata).
+- `ist_total` — F2 Ist (absolute Manual Volunteer sum for the range).
+- `soll_total` — F2 Soll (`committed_voluntary` pro-rata across the range).
 - `delta` — `ist_total − soll_total`.
 - `contract_weeks` — F1 denominator (audit).
+
+**Query contract:** both `from_date` and `to_date` are inclusive
+ISO-8601 dates (`YYYY-MM-DD`). Invalid format or `from_date > to_date`
+returns HTTP 400 (precedent `rest/src/toggle.rs`).
 
 **Redaction rule:** the redaction happens **inside**
 `VoluntaryStatsService::get_voluntary_stats`, not at the REST layer

@@ -1,5 +1,5 @@
-//! Phase 54 Plan 04 — HTTP-Integrationstest fuer
-//! `GET /report/{id}/voluntary-stats?year=YYYY`.
+//! Phase 54 Plan 04 + Gap-Closure G1 (Plan 54-07) — HTTP-Integrationstest fuer
+//! `GET /report/{id}/voluntary-stats?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`.
 //!
 //! Zielsetzung (Plan 54-04 Task 3):
 //!   1. HR-User (`DEVUSER` via `create_admin_user`) → 200 mit Some-Feldern.
@@ -143,7 +143,10 @@ async fn rest_voluntary_stats_hr_returns_populated_fields() {
         .with_state(test_setup.rest_state.clone())
         .layer(Extension(Some(Arc::<str>::from("DEVUSER")) as RestContext));
 
-    let uri = format!("/report/{}/voluntary-stats?year=2026", sales_person_id);
+    let uri = format!(
+        "/report/{}/voluntary-stats?from_date=2026-01-01&to_date=2026-12-31",
+        sales_person_id
+    );
     let req = Request::builder()
         .method("GET")
         .uri(&uri)
@@ -161,21 +164,30 @@ async fn rest_voluntary_stats_hr_returns_populated_fields() {
         Some(4),
         "HR expects contract_weeks = 4 (KW 10..=13/2026)"
     );
-    assert_eq!(
-        to.ist_total,
-        Some(8.0),
-        "HR expects ist_total = 8.0 (Manual VolunteerWork)"
+    // Range = 2026-01-01..=2026-12-31 (Full-Year).
+    // Vertrag KW 10..=13 = 2026-03-02..=2026-03-29 = 28 aktive Tage.
+    // soll_total = 28 * 2.0 / 7.0 = 8.0 (tages-basiert, Float-Toleranz).
+    let ist_total = to.ist_total.expect("HR expects ist_total set");
+    let soll_total = to.soll_total.expect("HR expects soll_total set");
+    let delta = to.delta.expect("HR expects delta set");
+    let ist_per = to
+        .ist_per_contract_week
+        .expect("HR expects ist_per_contract_week set");
+    assert!(
+        (ist_total - 8.0).abs() < 1e-3,
+        "HR expects ist_total = 8.0 (Manual VolunteerWork); got {ist_total}"
     );
-    assert_eq!(
-        to.soll_total,
-        Some(8.0),
-        "HR expects soll_total = 4 KW * 2.0 committed_voluntary"
+    assert!(
+        (soll_total - 8.0).abs() < 1e-3,
+        "HR expects soll_total = 8.0 (28 days * 2.0 / 7 tages-basiert); got {soll_total}"
     );
-    assert_eq!(to.delta, Some(0.0), "HR expects delta = 0.0");
-    assert_eq!(
-        to.ist_per_contract_week,
-        Some(2.0),
-        "HR expects F1 = 8.0 / 4 = 2.0"
+    assert!(
+        delta.abs() < 1e-3,
+        "HR expects delta = 0.0; got {delta}"
+    );
+    assert!(
+        (ist_per - 2.0).abs() < 1e-3,
+        "HR expects F1 = 8.0 / 4 = 2.0; got {ist_per}"
     );
 }
 
@@ -194,7 +206,10 @@ async fn rest_voluntary_stats_non_hr_returns_all_null() {
             Some(Arc::<str>::from("some-non-hr-user")) as RestContext,
         ));
 
-    let uri = format!("/report/{}/voluntary-stats?year=2026", sales_person_id);
+    let uri = format!(
+        "/report/{}/voluntary-stats?from_date=2026-01-01&to_date=2026-12-31",
+        sales_person_id
+    );
     let req = Request::builder()
         .method("GET")
         .uri(&uri)

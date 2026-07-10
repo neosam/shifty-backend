@@ -121,39 +121,6 @@ pub fn committed_voluntary_for_calendar_week(
         .sum()
 }
 
-/// Phase 54 (VOL-STAT-01 / VOL-ACCT-01-Ist, D-54-DM-02):
-/// Summe der `VolunteerWork`-`ExtraHours` im ISO-Jahr `year`, gefiltert auf
-/// `source == Manual`. Rebooking-Marker-Rows (Pitfall 1: Doppel-Zaehlung
-/// bei +N/-N-Paaren) sind ausgeschlossen (VOL-ACCT-03 Property-Test).
-///
-/// Die ISO-Jahres-Zuordnung erfolgt via `ShiftyDate::from(...).as_shifty_week().year`
-/// — dieselbe Semantik wie im uebrigen `reporting.rs`.
-pub fn voluntary_ist_total_for_year(extra_hours: &[ExtraHours], year: u32) -> f32 {
-    extra_hours
-        .iter()
-        .filter(|eh| eh.deleted.is_none())
-        .filter(|eh| matches!(eh.category, ExtraHoursCategory::VolunteerWork))
-        .filter(|eh| eh.source == ExtraHoursSource::Manual)
-        .filter(|eh| ShiftyDate::from(eh.date_time).as_shifty_week().year == year)
-        .map(|eh| eh.amount)
-        .sum()
-}
-
-/// Phase 54 (VOL-STAT-01-Nenner / VOL-ACCT-01-Ist_per_week Nenner, D-F1-01):
-/// Anzahl ISO-Wochen im Jahr, in denen mindestens eine aktive
-/// `EmployeeWorkDetails`-Row den Kalender-Wochen-Slot abdeckt. Eine Row mit
-/// `expected_hours == 0` zaehlt MIT (D-F1-01, siehe Test
-/// `contract_weeks_zero_expected_counts_d_f1_01`).
-///
-/// Iteriert `1..=weeks_in_year(year)` und pruept jede Woche via
-/// `find_working_hours_for_calendar_week`.
-pub fn contract_weeks_count(working_hours: &[EmployeeWorkDetails], year: u32) -> u32 {
-    let total = time::util::weeks_in_year(year as i32);
-    (1..=total)
-        .filter(|&w| find_working_hours_for_calendar_week(working_hours, year, w).next().is_some())
-        .count() as u32
-}
-
 /// Phase 54 (VOL-ACCT-01-Soll, D-F2-01):
 /// Pro-rata-Verteilung von `committed_voluntary` fuer eine ISO-Woche.
 /// Iteriert Mo..So, waehlt fuer jeden Tag die aktive `EmployeeWorkDetails`
@@ -165,6 +132,11 @@ pub fn contract_weeks_count(working_hours: &[EmployeeWorkDetails], year: u32) ->
 ///
 /// Guard: Existiert die ISO-Woche fuer das Jahr nicht (z.B. 53 in einem
 /// 52-Wochen-Jahr), gibt die Funktion 0.0 zurueck.
+///
+/// Phase 54 Gap-Closure G1: bleibt als internal per-week Baustein
+/// (weiterhin von Debug-Tests konsumiert; die Range-fn
+/// `committed_voluntary_target_in_range` implementiert die tages-basierte
+/// D-F2-01-Semantik direkt und nutzt diesen Helper nicht mehr).
 pub fn committed_voluntary_prorata_for_week(
     working_hours: &[EmployeeWorkDetails],
     year: u32,
@@ -202,18 +174,139 @@ pub fn committed_voluntary_prorata_for_week(
         .sum()
 }
 
-/// Phase 54 (VOL-ACCT-01-Soll, D-F2-01):
-/// Summe der pro-rata-Wochen ueber das ISO-Jahr. Fuer ein 53-Wochen-Jahr
-/// werden 53 Wochen aufsummiert, fuer ein 52-Wochen-Jahr entsprechend 52
-/// (siehe Test `f2_soll_iso_week_53_year_boundary_d_f2_01`).
-pub fn committed_voluntary_target_for_year(
-    working_hours: &[EmployeeWorkDetails],
-    year: u32,
+/// Phase 54 Gap-Closure G1 (VOL-STAT-01 / VOL-ACCT-01-Ist, D-54-DM-02):
+/// Summe der `VolunteerWork`-`ExtraHours` im Range `[from_date ..= to_date]`
+/// (kalendarisch, Tag-Vergleich), gefiltert auf `source == Manual` und
+/// `deleted.is_none()`. Rebooking-Marker-Rows sind ausgeschlossen
+/// (VOL-ACCT-03).
+///
+/// Argumentation Range-Cutoff: die Employee-Report-Chain rechnet bis zur
+/// aktuellen KW / Range-Ende — nicht ueber das volle ISO-Jahr. Ohne Cutoff
+/// zeigte 5h/Woche committed seit KW 18 einen Soll-Wert von ~177h
+/// (=~35 Rest-Jahres-Wochen); mit Cutoff nur die tatsaechlichen Range-Wochen.
+pub fn voluntary_ist_total_in_range(
+    extra_hours: &[ExtraHours],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
 ) -> f32 {
-    let total = time::util::weeks_in_year(year as i32);
-    (1..=total)
-        .map(|w| committed_voluntary_prorata_for_week(working_hours, year, w))
+    let from = from_date.to_date();
+    let to = to_date.to_date();
+    extra_hours
+        .iter()
+        .filter(|eh| eh.deleted.is_none())
+        .filter(|eh| matches!(eh.category, ExtraHoursCategory::VolunteerWork))
+        .filter(|eh| eh.source == ExtraHoursSource::Manual)
+        .filter(|eh| {
+            let d = eh.date_time.date();
+            from <= d && d <= to
+        })
+        .map(|eh| eh.amount)
         .sum()
+}
+
+/// Phase 54 Gap-Closure G1 (VOL-STAT-01-Nenner, D-F1-01):
+/// Anzahl ISO-Wochen im Range `[from_date ..= to_date]`, in denen mindestens
+/// eine aktive `EmployeeWorkDetails`-Row an mindestens einem Tag der Woche,
+/// der im Range liegt, den Kalender-Wochen-Slot abdeckt. Eine Row mit
+/// `expected_hours == 0` zaehlt MIT (D-F1-01).
+///
+/// Edge-Weeks (Range startet oder endet mitten in einer ISO-Woche) zaehlen
+/// als 1 Woche, sofern mindestens 1 Range-Tag durch aktiven Vertrag gedeckt
+/// ist — die tages-basierte Verduennung findet in
+/// `committed_voluntary_target_in_range` (Zaehler) statt, nicht im
+/// Wochen-Zaehler.
+pub fn contract_weeks_count_in_range(
+    working_hours: &[EmployeeWorkDetails],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+) -> u32 {
+    if from_date > to_date {
+        return 0;
+    }
+    let from = from_date.to_date();
+    let to = to_date.to_date();
+    let mut count: u32 = 0;
+    let mut day = from;
+    while day <= to {
+        // Bestimme ISO-Woche des aktuellen Tages und deren Mo/So.
+        let (iso_year, iso_week, _) = day.to_iso_week_date();
+        let monday = time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Monday)
+            .expect("valid ISO week");
+        let sunday = time::Date::from_iso_week_date(iso_year, iso_week, time::Weekday::Sunday)
+            .expect("valid ISO week");
+        // Range-Overlap dieser Woche mit [from ..= to].
+        let week_start = if monday > from { monday } else { from };
+        let week_end = if sunday < to { sunday } else { to };
+        // Pruefe, ob irgendein Tag in [week_start ..= week_end] durch aktiven
+        // Vertrag gedeckt ist (D-F1-01: expected_hours=0 zaehlt MIT).
+        let has_contract = (0i64..=((week_end - week_start).whole_days())).any(|off| {
+            let d = week_start + time::Duration::days(off);
+            working_hours.iter().any(|wh| {
+                if wh.deleted.is_some() {
+                    return false;
+                }
+                let from_d = match wh.from_date() {
+                    Ok(x) => x.to_date(),
+                    Err(_) => return false,
+                };
+                let to_d = match wh.to_date() {
+                    Ok(x) => x.to_date(),
+                    Err(_) => return false,
+                };
+                from_d <= d && d <= to_d
+            })
+        });
+        if has_contract {
+            count += 1;
+        }
+        // Naechster Loop-Anker: sunday+1 (Anfang der Folgewoche), es sei denn
+        // sunday >= to (dann sind wir fertig).
+        if sunday >= to {
+            break;
+        }
+        day = sunday + time::Duration::days(1);
+    }
+    count
+}
+
+/// Phase 54 Gap-Closure G1 (VOL-ACCT-01-Soll, D-F2-01):
+/// Summe der pro-rata-Beitraege im Range `[from_date ..= to_date]`. Fuer
+/// jeden Tag im Range wird der aktive Vertrag (tages-basiert) gesucht;
+/// summiert wird `committed_voluntary / 7.0` je Range-Tag mit aktivem
+/// Vertrag. Edge-Weeks tragen so tages-genau bei (D-F2-01 Pro-Rata bleibt).
+pub fn committed_voluntary_target_in_range(
+    working_hours: &[EmployeeWorkDetails],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+) -> f32 {
+    if from_date > to_date {
+        return 0.0;
+    }
+    let from = from_date.to_date();
+    let to = to_date.to_date();
+    let mut total: f32 = 0.0;
+    let mut day = from;
+    while day <= to {
+        let active = working_hours.iter().find(|wh| {
+            if wh.deleted.is_some() {
+                return false;
+            }
+            let from_d = match wh.from_date() {
+                Ok(x) => x.to_date(),
+                Err(_) => return false,
+            };
+            let to_d = match wh.to_date() {
+                Ok(x) => x.to_date(),
+                Err(_) => return false,
+            };
+            from_d <= day && day <= to_d
+        });
+        if let Some(wh) = active {
+            total += wh.committed_voluntary / 7.0;
+        }
+        day += time::Duration::days(1);
+    }
+    total
 }
 
 /// Caps shiftplan hours at expected hours when at least one of the active

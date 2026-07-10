@@ -1,19 +1,23 @@
-//! Phase 54 Plan 03 — Business-Logic-Tier VoluntaryStatsService (VOL-STAT-01/02,
-//! VOL-ACCT-01/02/03).
+//! Phase 54 Plan 03 + Gap-Closure G1 (Plan 54-07) — Business-Logic-Tier
+//! VoluntaryStatsService (VOL-STAT-01/02, VOL-ACCT-01/02/03).
 //!
-//! Kombiniert die vier pure fns aus `crate::reporting`
-//! (`voluntary_ist_total_for_year`, `contract_weeks_count`,
-//! `committed_voluntary_prorata_for_week`, `committed_voluntary_target_for_year`)
-//! mit einem HR-Gate an erster Stelle. Non-HR-Aufrufer erhalten ein
-//! `VoluntaryStats` mit lauter `None`-Feldern (API-Level-Redaktion,
-//! Praezedenz VAC-OFFSET-01 v1.8 — kein 403).
+//! Kombiniert die drei Range-basierten pure fns aus `crate::reporting`
+//! (`voluntary_ist_total_in_range`, `contract_weeks_count_in_range`,
+//! `committed_voluntary_target_in_range`) mit einem HR-Gate an erster Stelle.
+//! Non-HR-Aufrufer erhalten ein `VoluntaryStats` mit lauter `None`-Feldern
+//! (API-Level-Redaktion, Praezedenz VAC-OFFSET-01 v1.8 — kein 403).
 //!
 //! Cross-Service-Calls verwenden `Authentication::Full` (Bypass, Auth wurde
 //! bereits am Einstieg geprueft — Praezedenz `reference_toggle_service_full_context_bypass`).
+//!
+//! Gap-Closure G1: die Methode akzeptiert `(from_date, to_date)` statt
+//! `year`; die ExtraHours werden bei Range-Straddle ueber
+//! `from_year..=to_year` geladen und dann Tag-basiert gefiltert.
 
 use crate::gen_service_impl;
 use crate::reporting::{
-    committed_voluntary_target_for_year, contract_weeks_count, voluntary_ist_total_for_year,
+    committed_voluntary_target_in_range, contract_weeks_count_in_range,
+    voluntary_ist_total_in_range,
 };
 use async_trait::async_trait;
 use dao::TransactionDao;
@@ -23,6 +27,7 @@ use service::permission::{Authentication, HR_PRIVILEGE};
 use service::sales_person::SalesPersonService;
 use service::voluntary_stats::{VoluntaryStats, VoluntaryStatsService};
 use service::{PermissionService, ServiceError};
+use shifty_utils::ShiftyDate;
 use uuid::Uuid;
 
 gen_service_impl! {
@@ -43,7 +48,8 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
     async fn get_voluntary_stats(
         &self,
         sales_person_id: Uuid,
-        year: u32,
+        from_date: ShiftyDate,
+        to_date: ShiftyDate,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<VoluntaryStats, ServiceError> {
@@ -74,16 +80,24 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             .get(sales_person_id, Authentication::Full, Some(tx.clone()))
             .await?;
 
-        // ExtraHours des Jahres laden und auf sales_person filtern.
-        let extra_hours = self
-            .extra_hours_service
-            .find_by_iso_year(year, Authentication::Full, Some(tx.clone()))
-            .await?;
-        let extra_hours_for_sp: Vec<_> = extra_hours
-            .iter()
-            .filter(|eh| eh.sales_person_id == sales_person_id)
-            .cloned()
-            .collect();
+        // ExtraHours ueber die im Range beruehrten ISO-Jahre laden. Wenn
+        // to_date im Folgejahr liegt, iterieren wir from_year..=to_year und
+        // konkatenieren.
+        let from_year = from_date.as_shifty_week().year;
+        let to_year = to_date.as_shifty_week().year;
+        let mut extra_hours_for_sp: Vec<service::extra_hours::ExtraHours> = Vec::new();
+        for year in from_year..=to_year {
+            let extra_hours = self
+                .extra_hours_service
+                .find_by_iso_year(year, Authentication::Full, Some(tx.clone()))
+                .await?;
+            extra_hours_for_sp.extend(
+                extra_hours
+                    .iter()
+                    .filter(|eh| eh.sales_person_id == sales_person_id)
+                    .cloned(),
+            );
+        }
 
         // EmployeeWorkDetails des SalesPerson laden.
         let working_hours = self
@@ -94,9 +108,11 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
 
         self.transaction_dao.commit(tx).await?;
 
-        let ist_total = voluntary_ist_total_for_year(&extra_hours_for_sp, year);
-        let soll_total = committed_voluntary_target_for_year(&working_hours_vec, year);
-        let contract_weeks = contract_weeks_count(&working_hours_vec, year);
+        let ist_total = voluntary_ist_total_in_range(&extra_hours_for_sp, from_date, to_date);
+        let soll_total =
+            committed_voluntary_target_in_range(&working_hours_vec, from_date, to_date);
+        let contract_weeks =
+            contract_weeks_count_in_range(&working_hours_vec, from_date, to_date);
         let ist_per_contract_week = if contract_weeks == 0 {
             0.0
         } else {

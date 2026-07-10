@@ -305,8 +305,9 @@ Chronologisch:
   Balance-Ketten-Aggregate in `service_impl/src/reporting.rs` und
   ihre nachgelagerten Konsumenten filtern ab Phase 55
   `source = 'manual'` — erster Live-Konsument ist
-  `voluntary_ist_total_for_year(..)` (Plan 54-03). In Phase 54
-  setzt kein Writer `rebooking`, daher gehen alle Bestandszeilen
+  `voluntary_ist_total_in_range(..)` (Plan 54-03 eingeführt als
+  `voluntary_ist_total_for_year`; umbenannt in Plan 54-07 Gap G1).
+  In Phase 54 setzt kein Writer `rebooking`, daher gehen alle Bestandszeilen
   weiterhin identisch in die Balance ein (Backfill via
   Column-DEFAULT).
 

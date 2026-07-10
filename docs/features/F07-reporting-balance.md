@@ -305,7 +305,8 @@ Chronologically:
   Balance-chain aggregates in `service_impl/src/reporting.rs` and
   its downstream consumers will filter `source = 'manual'` from
   Phase 55 onward — the first live consumer is
-  `voluntary_ist_total_for_year(..)` (Plan 54-03). In Phase 54 no
+  `voluntary_ist_total_in_range(..)` (Plan 54-03 introduced as
+  `voluntary_ist_total_for_year`; renamed in Plan 54-07 Gap G1). In Phase 54 no
   writer sets `rebooking`, so every existing row continues to enter
   the Balance identically (backfill via column DEFAULT).
 

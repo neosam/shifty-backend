@@ -45,12 +45,19 @@ pub struct ReportRequest {
     until_week: u8,
 }
 
-/// Phase 54 (VOL-STAT-01 / VOL-ACCT-01/02) — Query-Parameter fuer
-/// `GET /report/{id}/voluntary-stats`. Nur `year`, keine `until_week`, weil
-/// die Aggregation ueber das gesamte ISO-Jahr laeuft.
+/// Phase 54 Gap-Closure G1 (VOL-STAT-01 / VOL-ACCT-01/02) — Query-Parameter
+/// fuer `GET /report/{id}/voluntary-stats`. Analog
+/// `ReportingService::get_report_for_employee_range` eine echte Date-Range:
+/// `from_date` und `to_date` als ISO YYYY-MM-DD.
+///
+/// Die Aggregation laeuft ueber alle Tage in `[from_date ..= to_date]`;
+/// Edge-Weeks tragen tages-genau bei (Pro-Rata bleibt Tages-basiert, D-F2-01).
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema)]
 pub struct VoluntaryStatsRequest {
-    year: u32,
+    /// ISO date YYYY-MM-DD (inclusive lower bound).
+    pub from_date: String,
+    /// ISO date YYYY-MM-DD (inclusive upper bound).
+    pub to_date: String,
 }
 
 #[instrument(skip(rest_state))]
@@ -261,10 +268,12 @@ pub async fn get_attendance_statistics<RestState: RestStateDef>(
     tags = ["Report"],
     params(
         ("id" = Uuid, Path, description = "Sales person ID"),
-        ("year" = u32, Query, description = "ISO-year for voluntary-stats aggregation")
+        ("from_date" = String, Query, description = "ISO date YYYY-MM-DD, inclusive lower bound"),
+        ("to_date" = String, Query, description = "ISO date YYYY-MM-DD, inclusive upper bound")
     ),
     responses(
-        (status = 200, description = "HR-only voluntary hours statistics; Non-HR receives all fields as null (API-level redaction)", body = VoluntaryStatsTO, content_type = "application/json"),
+        (status = 200, description = "HR-only voluntary hours statistics for the given date range; Non-HR receives all fields as null (API-level redaction)", body = VoluntaryStatsTO, content_type = "application/json"),
+        (status = 400, description = "Invalid date format (expected YYYY-MM-DD) or from_date > to_date"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -274,11 +283,51 @@ pub async fn get_voluntary_stats<RestState: RestStateDef>(
     Path(sales_person_id): Path<Uuid>,
     Extension(context): Extension<Context>,
 ) -> Response {
+    // Parse ISO YYYY-MM-DD (Praezedenz rest/src/toggle.rs Zeilen 350-377).
+    let parse_iso = |s: &str| -> Option<time::Date> {
+        if s.len() != 10 {
+            return None;
+        }
+        let b = s.as_bytes();
+        if b[4] != b'-' || b[7] != b'-' {
+            return None;
+        }
+        let year: i32 = s[0..4].parse().ok()?;
+        let month: u8 = s[5..7].parse().ok()?;
+        let day: u8 = s[8..10].parse().ok()?;
+        time::Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day).ok()
+    };
+    let (Some(from_naive), Some(to_naive)) =
+        (parse_iso(&query.from_date), parse_iso(&query.to_date))
+    else {
+        return Response::builder()
+            .status(400)
+            .header("Content-Type", "text/plain")
+            .body(Body::new(
+                "Invalid ISO date format. Expected YYYY-MM-DD.".to_string(),
+            ))
+            .unwrap();
+    };
+    if from_naive > to_naive {
+        return Response::builder()
+            .status(400)
+            .header("Content-Type", "text/plain")
+            .body(Body::new("from_date must be <= to_date.".to_string()))
+            .unwrap();
+    }
+    let from_date = shifty_utils::ShiftyDate::from_date(from_naive);
+    let to_date = shifty_utils::ShiftyDate::from_date(to_naive);
     error_handler(
         (async {
             let stats = rest_state
                 .voluntary_stats_service()
-                .get_voluntary_stats(sales_person_id, query.year, context.into(), None)
+                .get_voluntary_stats(
+                    sales_person_id,
+                    from_date,
+                    to_date,
+                    context.into(),
+                    None,
+                )
                 .await?;
             let to = VoluntaryStatsTO::from(&stats);
             Ok(Response::builder()
