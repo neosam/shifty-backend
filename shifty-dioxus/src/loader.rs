@@ -1026,17 +1026,15 @@ pub async fn trigger_pdf_export_now(config: Config) -> Result<(), ShiftyError> {
 // `[[web.proxy]]` fuer `/rebooking` und `/rebooking-suggestions`
 // gemappt (Plan 55-02 Task 2).
 //
-// `#[allow(dead_code)]`: Die pub-Funktionen werden in den Modals
-// aufgerufen (component/rebooking_*_modal.rs), die selbst erst durch
-// Plan 55-05 in eine Page eingebunden werden. Bin-Reachability-Analyse
-// meldet daher false Dead-Code — die Allows verschwinden, sobald die
-// Modals gemounted werden.
+// Plan 55-05 hat die Modals gemounted (Banner/SuggestionModal in
+// page/employees.rs, ManualModal in page/employee_details.rs); die
+// pub-Funktionen sind jetzt reachable — die frueheren Dead-Code-Allows
+// wurden entfernt.
 
 /// Extrahiert das `error`-Feld aus einem strukturierten 409-Body und
 /// mapped auf die passende `RebookingSubmitError`-Variante. Wenn der
 /// Body nicht parsbar ist oder das Feld unbekannt ist, fallen wir auf
 /// `Other(body)` zurueck.
-#[allow(dead_code)] // reason: interner Helper — wird von den 4 pub fn unten verwendet; Bin-Reachability greift erst nach Plan 55-05.
 fn map_conflict_body(body: &str, expected_slot_taken_key: bool) -> RebookingSubmitError {
     #[derive(serde::Deserialize)]
     struct ConflictBody<'a> {
@@ -1059,7 +1057,6 @@ fn map_conflict_body(body: &str, expected_slot_taken_key: bool) -> RebookingSubm
 /// - 200 → `RebookingBatch`.
 /// - 409 mit `{"error":"RebookingErrorSlotTaken"}` → `SlotTaken`.
 /// - 400 / sonstige Fehler → `Other(<body>)`.
-#[allow(dead_code)] // reason: konsumiert von component::ManualRebookingModal; Bin-Mount folgt in Plan 55-05.
 pub async fn submit_manual_rebooking(
     config: Config,
     request: ManualRebookingRequest,
@@ -1096,7 +1093,6 @@ pub async fn submit_manual_rebooking(
 ///
 /// Fehler bleiben als `ShiftyError::Reqwest` durch — die HR-Seite
 /// rendert dann einen leeren State (kein 409-Fall).
-#[allow(dead_code)] // reason: konsumiert von der HR-Alerts-Seite in Plan 55-05.
 pub async fn load_rebooking_suggestions_pending(
     config: Config,
 ) -> Result<Rc<[RebookingSuggestion]>, ShiftyError> {
@@ -1115,7 +1111,6 @@ pub async fn load_rebooking_suggestions_pending(
 /// - 200 → `RebookingBatch` mit `state = Approved`.
 /// - 409 mit `{"error":"RebookingErrorAlreadyResolved"}` → `AlreadyResolved`.
 /// - sonstige Fehler → `Other(<body>)`.
-#[allow(dead_code)] // reason: konsumiert von component::RebookingSuggestionModal; Bin-Mount folgt in Plan 55-05.
 pub async fn approve_rebooking_suggestion(
     config: Config,
     batch_id: Uuid,
@@ -1148,7 +1143,6 @@ pub async fn approve_rebooking_suggestion(
 /// Phase 55 (HR-ALERT-03): `POST /rebooking-suggestions/{id}/reject`.
 ///
 /// Fehlerbehandlung analog `approve_rebooking_suggestion`.
-#[allow(dead_code)] // reason: konsumiert von component::RebookingSuggestionModal; Bin-Mount folgt in Plan 55-05.
 pub async fn reject_rebooking_suggestion(
     config: Config,
     batch_id: Uuid,

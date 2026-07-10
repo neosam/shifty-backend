@@ -6,12 +6,14 @@ use crate::{
         atoms::{use_media_query, Btn, BtnVariant},
         employee_work_details_form::EmployeeWorkDetailsFormType,
         error_view::ErrorView,
-        ContractModal, EmployeeView, EmployeesShell, ExtraHoursModal, TopBar,
+        ContractModal, EmployeeView, EmployeesShell, ExtraHoursModal, ManualRebookingModal, TopBar,
     },
     i18n::Key,
+    js,
     router::Route,
     service::{
-        employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction, i18n::I18N,
+        auth::AUTH, employee::EmployeeAction,
+        employee_work_details::EmployeeWorkDetailsAction, i18n::I18N,
     },
     state::employee::ExtraHours,
 };
@@ -29,6 +31,11 @@ pub enum EmployeeDetailsAction {
     OpenEditExtraHours(ExtraHours),
     CloseExtraHours,
     ExtraHoursSaved,
+    /// Phase 55 (REB-MANUAL-01, D-55-05/06): oeffnet den ManualRebookingModal
+    /// mit der aktuellen ISO-KW als Default; HR-only via AUTH-Gate im Render.
+    OpenManualRebooking,
+    CloseManualRebooking,
+    ManualRebookingSaved,
 }
 
 #[derive(Clone, PartialEq, Props)]
@@ -49,6 +56,8 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     let mut contract_dialog_type = use_signal(|| EmployeeWorkDetailsFormType::New);
     let mut show_extra_hours_dialog = use_signal(|| false);
     let mut editing_extra_hours = use_signal(|| None::<ExtraHours>);
+    // Phase 55 (F3): oeffnet den ManualRebookingModal. Default = closed.
+    let mut show_manual_rebooking_dialog = use_signal(|| false);
 
     // Mirror the route-driven `employee_id` into a signal so the coroutine
     // below reads the CURRENTLY displayed employee at dispatch time. The
@@ -115,6 +124,16 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                         editing_extra_hours.set(None);
                         employee_service.send(EmployeeAction::Refresh);
                     }
+                    EmployeeDetailsAction::OpenManualRebooking => {
+                        show_manual_rebooking_dialog.set(true);
+                    }
+                    EmployeeDetailsAction::CloseManualRebooking => {
+                        show_manual_rebooking_dialog.set(false);
+                    }
+                    EmployeeDetailsAction::ManualRebookingSaved => {
+                        show_manual_rebooking_dialog.set(false);
+                        employee_service.send(EmployeeAction::Refresh);
+                    }
                 }
             }
         },
@@ -136,6 +155,21 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
 
     let is_mobile = *use_media_query("(max-width: 720px)").read();
     let back_label = ImStr::from(i18n.t(Key::BackToList).as_ref());
+    // Phase 55 (D-55-06, T-55-08): F3-Trigger nur fuer HR sichtbar.
+    // Defense-in-Depth — das Backend liefert 403 fuer Non-HR, aber der
+    // Button gehoert gar nicht erst ins DOM. Kein Rollen-Recompute im
+    // Handler-Body; das AUTH-Read hier ist die einzige Gate-Stelle.
+    let is_hr = AUTH
+        .read()
+        .auth_info
+        .as_ref()
+        .map(|a| a.has_privilege("hr"))
+        .unwrap_or(false);
+    let manual_rebooking_label = ImStr::from(i18n.t(Key::RebookingModalTitleManual).as_ref());
+    // Aktuelle ISO-KW als Default fuer das Manual-Modal (D-55-05: HR waehlt
+    // im Modal frei; Default ist die laufende Woche).
+    let current_iso_year = js::get_current_year();
+    let current_iso_week = js::get_current_week();
 
     rsx! {
         TopBar {}
@@ -170,6 +204,21 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             }
         }
 
+        // Phase 55 (F3, REB-MANUAL-01/02/03): ManualRebookingModal
+        // rendert nur, wenn der Trigger gedrueckt wurde. HR-Gate ist
+        // am Button; hier zusaetzlich (`is_hr &&`) als Defense-in-Depth,
+        // damit die Modal-Konstruktion selbst fuer Non-HR nicht laeuft,
+        // falls sich der Signal-Zustand jemals divergent verhaelt.
+        if is_hr && *show_manual_rebooking_dialog.read() {
+            ManualRebookingModal {
+                sales_person_id: employee_id,
+                current_iso_year,
+                current_iso_week,
+                on_close: move |_| cr.send(EmployeeDetailsAction::CloseManualRebooking),
+                on_success: move |_| cr.send(EmployeeDetailsAction::ManualRebookingSaved),
+            }
+        }
+
         EmployeesShell {
             div { class: "px-4 py-4 md:px-8 md:py-6 flex flex-col gap-4",
                 if is_mobile {
@@ -180,6 +229,19 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             nav.push(Route::Employees {});
                         },
                         "{back_label}"
+                    }
+                }
+                // Phase 55 (D-55-06, WARNING #3): Header-Row-Button unter TopBar
+                // und oberhalb der Voluntary-Stats-Zeile (im EmployeeView).
+                // KEIN Einbau in die Voluntary-Stats-Row selbst — die bleibt
+                // reine Lese-Anzeige. HR-only Sichtbarkeit via `is_hr`.
+                if is_hr {
+                    div { class: "flex justify-end",
+                        Btn {
+                            variant: BtnVariant::Secondary,
+                            on_click: move |_| cr.send(EmployeeDetailsAction::OpenManualRebooking),
+                            "{manual_rebooking_label}"
+                        }
                     }
                 }
                 EmployeeView {

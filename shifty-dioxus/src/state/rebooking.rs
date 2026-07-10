@@ -9,12 +9,11 @@
 //! aus Plan 55-02) und der Modal-Component eine inline-Warn-Section
 //! rendert (MEMORY `feedback_warnings_inline_not_dialog`).
 //!
-//! `#![allow(dead_code)]`: Modul liefert die Bausteine fuer Plan 55-05
-//! (Seiten-Integration). Bis dahin werden `RebookingBatch`,
-//! `RebookingBatchState`, `RebookingSubmitError` nur von den Modals in
-//! `component/rebooking_*_modal.rs` verwendet — die selbst noch nicht
-//! in eine Page eingebunden sind. Ohne den Allow triggert `-D warnings`
-//! ein Dead-Code-False-Positive.
+//! `#![allow(dead_code)]`: Manche Felder von `RebookingBatch` /
+//! `RebookingBatchState` werden vom Wire-Vertrag benoetigt (Response-
+//! Deserialisierung + Debug), aber vom FE nicht ausgelesen. Ohne den
+//! Allow triggert `-D warnings` ein Dead-Code-False-Positive fuer die
+//! reinen Wire-Only-Felder.
 #![allow(dead_code)]
 
 use rest_types::{

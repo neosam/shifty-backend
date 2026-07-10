@@ -48,12 +48,10 @@ pub use employees_shell::EmployeesShell;
 pub use extra_hours_modal::ExtraHoursModal;
 pub use footer::Footer;
 pub use form::{Field, SelectInput, TextInput, TextareaInput};
-// Phase 55 F3+F5 — Modal-Bausteine, Page-Mount folgt in Plan 55-05.
-#[allow(unused_imports)]
+// Phase 55 F3+F5 — Modal-Bausteine; gemountet in page/employees.rs
+// (Banner + SuggestionModal) und page/employee_details.rs (ManualModal).
 pub use manual_rebooking_modal::ManualRebookingModal;
-#[allow(unused_imports)]
 pub use rebooking_alert_banner::RebookingAlertBanner;
-#[allow(unused_imports)]
 pub use rebooking_suggestion_modal::RebookingSuggestionModal;
 pub use top_bar::TopBar;
 pub use user_management_tab_bar::{UserManagementTabBar, UserMgmtTab};
