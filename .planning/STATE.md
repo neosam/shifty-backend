@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: 54
-current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
-status: phase_complete
-stopped_at: Completed Plan 54-09 — Gap-Closure Round 2 verified (Range-Cutoff + Ist-Fix + Terminologie); Phase 54 complete
-last_updated: "2026-07-10T09:20:00.000Z"
+current_phase: 55
+current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)
+status: discuss_phase
+stopped_at: Phase 55 discuss-phase startet — Data-Model + Voluntary Stats aus Phase 54 als Dependency-Basis
+last_updated: "2026-07-10T10:00:00.000Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 54 komplett — Gap-Closure Round 2 (Plans 54-07 + 54-08 + 54-09 inkl. Ist-Fix) User-approved ("Jetzt sieht es richtig aus"); Backend + FE Gates alle grün; G1 + G2 resolved
+last_activity_desc: Phase 54 abgeschlossen (ROADMAP-Drift korrigiert 9/9 Complete); Phase 55 discuss-phase gestartet — Verzeichnis .planning/phases/55-manual-rebooking-hr-alert angelegt
 progress:
   total_phases: 3
   completed_phases: 1

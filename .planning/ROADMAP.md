@@ -467,7 +467,7 @@ Dry-Run-Vorschau-Header).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 54. Data-Model + Voluntary Statistics (F1 + F2) | 8/9 | In Progress|  |
+| 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 0/? | Not started | - |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
 
