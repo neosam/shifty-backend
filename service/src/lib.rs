@@ -27,6 +27,7 @@ pub mod pdf_export_config;
 pub mod pdf_shiftplan;
 pub mod permission;
 pub mod rebooking_batch;
+pub mod rebooking_reconciliation;
 pub mod reporting;
 pub mod sales_person;
 pub mod sales_person_shiftplan;
@@ -135,6 +136,12 @@ pub enum ServiceError {
 
     #[error("Week {year}/{week} is locked — changes are not possible")]
     WeekLocked { year: u32, week: u8 },
+
+    /// Phase 55 (HR-ALERT-03, T-55-01): state-conditional UPDATE traf einen
+    /// bereits nicht-mehr-`Pending`-Batch (z. B. zweiter HR-Approve-Klick
+    /// nach dem ersten Erfolg). Approve/Reject sind one-shot (D-55-04).
+    #[error("Rebooking batch already resolved")]
+    BatchAlreadyResolved,
 
     #[error("Internal error")]
     InternalError,
