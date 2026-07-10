@@ -31,6 +31,7 @@ use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::MockShiftplanReportService;
 use service::special_days::MockSpecialDayService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
@@ -56,6 +57,7 @@ impl ReportingServiceDeps for TestDeps {
     type TransactionDao = dao::MockTransactionDao;
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 /// Baut ein ReportingService mit fixed contract (fixture_work_details_8h_mon_fri
@@ -159,6 +161,7 @@ fn build_service_with_extras(
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     }
 }
 

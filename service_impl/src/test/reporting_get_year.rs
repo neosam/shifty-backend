@@ -30,6 +30,7 @@ use service::reporting::{ReportingService, ShortEmployeeReport};
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::MockShiftplanReportService;
 use service::special_days::MockSpecialDayService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
@@ -55,6 +56,7 @@ impl ReportingServiceDeps for TestDeps {
     type TransactionDao = dao::MockTransactionDao;
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 /// Baut ein minimales Mock-Setup fuer `get_year` / `get_week`.
@@ -143,6 +145,7 @@ fn build_service() -> ReportingServiceImpl<TestDeps> {
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     }
 }
 
@@ -261,6 +264,7 @@ async fn test_get_year_empty_when_no_work_details() {
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     };
 
     let result = service

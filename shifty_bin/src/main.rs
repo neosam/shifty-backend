@@ -322,6 +322,28 @@ impl service_impl::rebooking_batch::RebookingBatchServiceDeps for RebookingBatch
 type RebookingBatchService =
     service_impl::rebooking_batch::RebookingBatchServiceImpl<RebookingBatchServiceDependencies>;
 
+// Phase 55 Plan 02 (F3 + F5): Business-Logic RebookingReconciliationService.
+// Konsumiert ExtraHoursService + RebookingBatchService + ReportingService +
+// PermissionService + ClockService + UuidService + TransactionDao.
+// Konstruktions-Reihenfolge: NACH reporting_service (Business-Logic-Dep).
+// Kein Zyklus — kein Service konsumiert diesen Service.
+pub struct RebookingReconciliationServiceDependencies;
+impl service_impl::rebooking_reconciliation::RebookingReconciliationServiceDeps
+    for RebookingReconciliationServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type ExtraHoursService = ExtraHoursService;
+    type RebookingBatchService = RebookingBatchService;
+    type ReportingService = ReportingService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type RebookingReconciliationService = service_impl::rebooking_reconciliation::
+    RebookingReconciliationServiceImpl<RebookingReconciliationServiceDependencies>;
+
 // Phase 54 (VOL-STAT + VOL-ACCT, Plan 03 + Gap-Closure 54-09-Ist-Fix):
 // VoluntaryStatsServiceImpl ist Business-Logic-Tier. Konsumiert
 // ReportingService (Business-Logic, aggregiert volunteer_hours aus allen
@@ -518,6 +540,9 @@ impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependenc
     // Phase 25: holiday derive-on-read deps.
     type SpecialDayService = SpecialDayService;
     type ToggleService = ToggleService;
+    // Phase 55 (HR-ALERT-01, D-55-02): Basic-Tier RebookingBatchService fuer
+    // predicate-gated + HR-gated Enrichment der ShortEmployeeReport-Payload.
+    type RebookingBatchService = RebookingBatchService;
 }
 type ReportingService = service_impl::reporting::ReportingServiceImpl<ReportingServiceDependencies>;
 
@@ -756,6 +781,9 @@ pub struct RestStateImpl {
     // Phase 55 von der BL-Reconciliation konsumiert; in Phase 54 nur via
     // RestStateDef exponiert, kein REST-Endpoint.
     rebooking_batch_service: Arc<RebookingBatchService>,
+    // Phase 55 Plan 02 (F3 + F5): Business-Logic HR-only Reconciliation-Service.
+    // Konsumiert von den vier /rebooking + /rebooking-suggestions-Endpoints.
+    rebooking_reconciliation_service: Arc<RebookingReconciliationService>,
     // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
     // HR-only Voluntary-Stundenkonto-Sicht. Kein REST-Endpoint in Phase 54
     // Plan 03 — der Endpoint kommt in Plan 04.
@@ -804,6 +832,8 @@ impl rest::RestStateDef for RestStateImpl {
     type AbsenceConversionService = AbsenceConversionService;
     type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
     type RebookingBatchService = RebookingBatchService;
+    // Phase 55 Plan 02 (F3 + F5): BL-Tier HR-only Reconciliation.
+    type RebookingReconciliationService = RebookingReconciliationService;
     type VoluntaryStatsService = VoluntaryStatsService;
     type PdfExportConfigService = PdfExportConfigService;
     type PdfExportScheduler = PdfExportSchedulerService;
@@ -913,6 +943,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService> {
         self.rebooking_batch_service.clone()
+    }
+    fn rebooking_reconciliation_service(&self) -> Arc<Self::RebookingReconciliationService> {
+        self.rebooking_reconciliation_service.clone()
     }
     fn voluntary_stats_service(&self) -> Arc<Self::VoluntaryStatsService> {
         self.voluntary_stats_service.clone()
@@ -1188,7 +1221,30 @@ impl RestStateImpl {
             // constructed at ~line 753; toggle_service constructed just above).
             special_day_service: special_day_service.clone(),
             toggle_service: toggle_service.clone(),
+            // Phase 55 (HR-ALERT-01, D-55-02): Basic-Tier RebookingBatchService
+            // (bereits oben konstruiert). Reporting nutzt ihn nur fuer den
+            // predicate-gated + HR-gated Post-Processing-Loop.
+            rebooking_batch_service: rebooking_batch_service.clone(),
         });
+
+        // Phase 55 Plan 02 (F3 + F5): BL-Tier RebookingReconciliationService —
+        // konstruiert NACH reporting_service (Business-Logic-Dep fuer den
+        // IST/DANN-Snapshot in hydrate_pending_to_suggestion), rebooking_batch_
+        // service (Basic, bereits oben) und extra_hours_service (Basic).
+        // Kein Zyklus — kein Service konsumiert diesen Service.
+        let rebooking_reconciliation_service = Arc::new(
+            service_impl::rebooking_reconciliation::RebookingReconciliationServiceImpl::<
+                RebookingReconciliationServiceDependencies,
+            > {
+                extra_hours_service: extra_hours_service.clone(),
+                rebooking_batch_service: rebooking_batch_service.clone(),
+                reporting_service: reporting_service.clone(),
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
 
         // Phase 54 Plan 03 + Gap-Closure 54-09-Ist-Fix (VOL-STAT + VOL-ACCT):
         // Business-Logic-Tier VoluntaryStatsService — konstruiert NACH
@@ -1468,6 +1524,7 @@ impl RestStateImpl {
             absence_conversion_service,
             vacation_entitlement_offset_service,
             rebooking_batch_service,
+            rebooking_reconciliation_service,
             voluntary_stats_service,
             pdf_export_config_service,
             pdf_export_scheduler,

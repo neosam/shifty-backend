@@ -30,6 +30,7 @@ use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
 use service::special_days::MockSpecialDayService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
@@ -57,6 +58,7 @@ impl ReportingServiceDeps for TestDeps {
     // Phase 25: holiday derive-on-read deps.
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 /// 30h Shiftplan-Stunden in KW23/2024, auf drei Tage verteilt.
@@ -155,6 +157,7 @@ fn build_detail_service(
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     }
 }
 
@@ -224,6 +227,7 @@ fn build_summary_service(
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service_b),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     }
 }
 

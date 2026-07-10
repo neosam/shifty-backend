@@ -108,3 +108,9 @@ backend = "http://localhost:3000/admin/cutover"
 backend = "http://localhost:3000/admin/impersonate"
 [[web.proxy]]
 backend = "http://localhost:3000/toggle"
+# Phase 55 Plan 02 (F3 REB-MANUAL): manuelle Rebooking-Buchung.
+[[web.proxy]]
+backend = "http://localhost:3000/rebooking"
+# Phase 55 Plan 02 (F5 HR-ALERT): pending HR-Vorschlaege + approve/reject.
+[[web.proxy]]
+backend = "http://localhost:3000/rebooking-suggestions"

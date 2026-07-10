@@ -28,6 +28,7 @@ use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
 use service::special_days::MockSpecialDayService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
@@ -55,6 +56,7 @@ impl ReportingServiceDeps for TestDeps {
     // Phase 25: holiday derive-on-read deps.
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 /// 8h/Tag Mo-Fr (expected 40h/Woche), KW22-25/2024, cap_planned_hours_to_expected=true.
@@ -149,6 +151,7 @@ fn build_capped_service() -> ReportingServiceImpl<TestDeps> {
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     }
 }
 
@@ -270,6 +273,7 @@ async fn uncapped_overflow_stays_in_overall_hours() {
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     };
 
     let report = service

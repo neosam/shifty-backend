@@ -17,6 +17,8 @@ use service::{
         ReportType,
     },
     permission::{Authentication, HR_PRIVILEGE},
+    rebooking_batch::RebookingBatchService,
+    rebooking_reconciliation::alert_predicate,
     reporting::{
         CustomExtraHours, EmployeeReport, ExtraHoursReportCategory, GroupedReportHours,
         ShortEmployeeReport, WorkingHoursDay,
@@ -85,6 +87,11 @@ gen_service_impl! {
         // is Business-Logic tier and may consume both — no cycle.
         SpecialDayService: SpecialDayService<Context = Self::Context> = special_day_service,
         ToggleService: ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service,
+        // Phase 55 (HR-ALERT-01, D-55-02): Basic-Tier RebookingBatchService —
+        // dient dem predicate-gated + HR-gated Post-Processing der ShortEmployeeReport-
+        // Aggregate. Kein Zyklus: RebookingBatchService bleibt Basic (kennt
+        // ReportingService nicht).
+        RebookingBatchService: RebookingBatchService<Context = Self::Context, Transaction = Self::Transaction> = rebooking_batch_service,
     }
 }
 
@@ -556,6 +563,75 @@ fn build_derived_holiday_map_for_week_pure(
 }
 
 impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
+    /// Phase 55 (HR-ALERT-01, D-55-01 + D-55-02): Post-processing step that
+    /// populates `ShortEmployeeReport.has_pending_rebooking` +
+    /// `pending_rebooking_id` for each report.
+    ///
+    /// Semantik:
+    /// 1. HR-Gate: nur wenn der Caller HR-Kontext hat, wird ueberhaupt etwas
+    ///    ausgefuellt. Non-HR-Kontext laesst beide Felder Default (false/None);
+    ///    das FE sieht nie einen leaked Alert-Zustand (T-55-05 Mitigation).
+    /// 2. Predicate-Micro-Optimierung (D-55-01, D-55-02): der DAO-Call wird nur
+    ///    dann gemacht, wenn `alert_predicate(balance, voluntary_ist,
+    ///    cap_active)` truthy ist — sonst ist ein Pending-Suggestion irrelevant.
+    /// 3. DAO-Lookup: `RebookingBatchService::find_pending_for_sales_person`
+    ///    liefert die aktiven `state=Pending`-Batches; die erste id wandert in
+    ///    `pending_rebooking_id`.
+    ///
+    /// `cap_active` = `any(wh.cap_planned_hours_to_expected)` ueber die
+    /// `EmployeeWorkDetails`-Zeilen der Person — konservativ (wenn irgendeine
+    /// Vertragszeile capped, koennen Ueberlaufsstunden ins Ehrenamt gehen).
+    async fn enrich_reports_with_pending_rebooking(
+        &self,
+        reports: &mut [ShortEmployeeReport],
+        working_hours: &[EmployeeWorkDetails],
+        context: Authentication<Deps::Context>,
+        tx: Option<Deps::Transaction>,
+    ) -> Result<(), ServiceError> {
+        // Internal aggregates rufen ReportingService mit `Authentication::Full`
+        // (`booking_information`, `voluntary_stats`, …). Diese Konsumenten
+        // brauchen den Alert-Flag NICHT — Enrichment wuerde nur Latenz
+        // erzeugen und die HR-Semantik verwaschen. Bleibt beim Default (false/
+        // None); der REST-Handler ruft immer mit `Authentication::Context(...)`.
+        let ctx = match &context {
+            Authentication::Full => return Ok(()),
+            Authentication::Context(_) => context.clone(),
+        };
+        // T-55-05: Non-HR-Kontext sieht nie den Alert-Zustand. Statt jeder Row
+        // einen HR-Check zu geben, machen wir den Check EINMAL — Ergebnis
+        // false laesst die Defaults stehen.
+        let is_hr = self
+            .permission_service
+            .check_permission(HR_PRIVILEGE, ctx)
+            .await
+            .is_ok();
+        if !is_hr {
+            return Ok(());
+        }
+
+        for report in reports.iter_mut() {
+            let sp_id = report.sales_person.id;
+            let cap_active = working_hours
+                .iter()
+                .filter(|wh| wh.sales_person_id == sp_id)
+                .any(|wh| wh.cap_planned_hours_to_expected);
+            // Predicate-first (Micro-Optimierung D-55-01): DAO nur wenn
+            // strukturell moeglich, dass ein Alert relevant ist.
+            if !alert_predicate(report.balance_hours, report.volunteer_hours, cap_active) {
+                continue;
+            }
+            let batches = self
+                .rebooking_batch_service
+                .find_pending_for_sales_person(sp_id, context.clone(), tx.clone())
+                .await?;
+            if let Some(first) = batches.first() {
+                report.has_pending_rebooking = true;
+                report.pending_rebooking_id = Some(first.id);
+            }
+        }
+        Ok(())
+    }
+
     /// Phase 25 (HOL-01/02, HCFG-01/03): Build a per-employee derived-holiday map
     /// for a date range. The map is keyed by the concrete holiday date and
     /// contains the credited hours (= `EmployeeWorkDetails::holiday_hours()`).
@@ -1503,6 +1579,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 pending_rebooking_id: None,
             });
         }
+        // Phase 55 (HR-ALERT-01, D-55-02): predicate-gated + HR-gated
+        // post-processing. Vollstaendige `working_hours`-Slice als Kontext,
+        // damit `enrich_reports_with_pending_rebooking` `cap_active` pro
+        // SalesPerson korrekt bestimmt.
+        self.enrich_reports_with_pending_rebooking(
+            &mut short_employee_report,
+            &working_hours,
+            context,
+            tx,
+        )
+        .await?;
         Ok(short_employee_report.into())
     }
 
@@ -1820,15 +1907,27 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 &all_absences,
                 &sales_person_index,
                 &working_hours_by_sp,
-                context,
-                tx,
+                context.clone(),
+                tx.clone(),
             )
             .await?;
 
-        Ok(assembled
+        // Phase 55 (HR-ALERT-01, D-55-02): predicate-gated + HR-gated
+        // post-processing der Wochenreports. Mutiere in-place die Arc<[...]>-
+        // Payloads: die assembled-Reports werden zu Vec<ShortEmployeeReport>
+        // umgezogen, enriched, und wieder in Arc<[..]> gepackt.
+        let mut result_reports: Vec<ShortEmployeeReport> = assembled
             .pop()
-            .map(|(_, reports)| reports)
-            .unwrap_or_else(|| Arc::from(Vec::<ShortEmployeeReport>::new())))
+            .map(|(_, reports)| reports.iter().cloned().collect())
+            .unwrap_or_default();
+        self.enrich_reports_with_pending_rebooking(
+            &mut result_reports,
+            &work_details,
+            context,
+            tx,
+        )
+        .await?;
+        Ok(Arc::from(result_reports))
     }
 
     async fn get_year(

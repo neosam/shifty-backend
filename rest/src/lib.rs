@@ -25,6 +25,10 @@ mod permission;
 // `report::generate_route` via tower::oneshot to exercise the
 // `/report/{id}/voluntary-stats` HR/Non-HR redaction end-to-end — same pattern
 // as `pub mod feature_flag;` (Plan 08-07 Gap-Closure).
+// Phase 55 Plan 02 (F3 REB-MANUAL + F5 HR-ALERT): REST-Layer fuer die vier
+// neuen Routen (manual + suggestions list + approve/reject). `pub mod` fuer
+// symmetrische Testbarkeit analog zu `pub mod report;` (Phase 54).
+pub mod rebooking;
 pub mod report;
 mod sales_person;
 mod sales_person_shiftplan;
@@ -435,6 +439,15 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 55 Plan 02 (F3 + F5): Business-Logic-Tier HR-gated
+    // RebookingReconciliationService — orchestriert Pair-ExtraHours + Batch/
+    // Entry + Reporting-Snapshot in einer Transaktion. Wird von den vier
+    // /rebooking-Routen konsumiert (POST /rebooking/manual + GET /rebooking-
+    // suggestions + POST /rebooking-suggestions/{id}/approve|reject).
+    type RebookingReconciliationService: service::rebooking_reconciliation::RebookingReconciliationService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     // Phase 54 (VOL-STAT-01/02, VOL-ACCT-01/02/03): Business-Logic-Tier
     // HR-gated VoluntaryStatsService. In Phase 54 (Plan 03) noch nicht via
     // REST exponiert — der Endpoint kommt in Plan 04.
@@ -501,6 +514,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn absence_conversion_service(&self) -> Arc<Self::AbsenceConversionService>;
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
     fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService>;
+    fn rebooking_reconciliation_service(&self) -> Arc<Self::RebookingReconciliationService>;
     fn voluntary_stats_service(&self) -> Arc<Self::VoluntaryStatsService>;
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
@@ -603,6 +617,8 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/sales-person", api = SalesPersonApiDoc),
         (path = "/extra-hours", api = extra_hours::ExtraHoursApiDoc),
         (path = "/blocks", api = my_block::MyBlockApiDoc),
+        (path = "/rebooking", api = rebooking::RebookingManualApiDoc),
+        (path = "/rebooking-suggestions", api = rebooking::RebookingSuggestionsApiDoc),
         (path = "/report", api = report::ReportApiDoc),
         (path = "/shiftplan-catalog", api = shiftplan_catalog::ShiftplanCatalogApiDoc),
         (path = "/shiftplan-edit", api = shiftplan_edit::ShiftplanEditApiDoc),
@@ -676,6 +692,11 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             booking_information::generate_route(),
         )
         .nest("/booking-log", booking_log::generate_route())
+        .nest("/rebooking", rebooking::generate_manual_route())
+        .nest(
+            "/rebooking-suggestions",
+            rebooking::generate_suggestions_route(),
+        )
         .nest("/report", report::generate_route())
         .nest("/working-hours", employee_work_details::generate_route())
         .nest(

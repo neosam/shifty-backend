@@ -25,6 +25,7 @@ use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::{MockShiftplanReportService, ShiftplanReportDay};
 use service::special_days::MockSpecialDayService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::toggle::MockToggleService;
 use service::uuid_service::MockUuidService;
 use service::permission::Authentication;
@@ -53,6 +54,7 @@ struct ReportingMocks {
     transaction_dao: dao::MockTransactionDao,
     special_day_service: MockSpecialDayService,
     toggle_service: MockToggleService,
+    rebooking_batch_service: MockRebookingBatchService,
 }
 
 struct TestDeps;
@@ -71,6 +73,7 @@ impl ReportingServiceDeps for TestDeps {
     type TransactionDao = dao::MockTransactionDao;
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 impl ReportingMocks {
@@ -88,6 +91,7 @@ impl ReportingMocks {
             transaction_dao: dao::MockTransactionDao::new(),
             special_day_service: MockSpecialDayService::new(),
             toggle_service: MockToggleService::new(),
+            rebooking_batch_service: MockRebookingBatchService::new(),
         }
     }
 
@@ -105,6 +109,7 @@ impl ReportingMocks {
             transaction_dao: Arc::new(self.transaction_dao),
             special_day_service: Arc::new(self.special_day_service),
             toggle_service: Arc::new(self.toggle_service),
+            rebooking_batch_service: Arc::new(self.rebooking_batch_service),
         }
     }
 }
