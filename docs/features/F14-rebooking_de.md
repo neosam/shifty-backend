@@ -84,8 +84,8 @@ DEFAULT 'manual'`. Die aktiven Domain-Werte sind `manual` und
 Rebooking-Paare balance-neutral bleiben muss, filtert
 `source = 'manual'`. Erster Konsument ist Plan 54-03's
 `voluntary_ist_total_in_range(extra_hours, from_date, to_date)`
-(umbenannt aus `voluntary_ist_total_for_year` in Plan 54-07
-Gap-Closure G1), das die Ist-Freiwillig-Stunden für F1/F2 aufsummiert
+(als Range-basierter Reader eingeführt in Plan 54-07 Gap-Closure G1),
+das die Ist-Freiwillig-Stunden für F1/F2 aufsummiert
 und das künftige `rebooking`-Rauschen ausschließen muss; sonst würde
 dieselbe Freiwillig-Stunde doppelt gezählt (einmal als
 Original-`Volunteer`, einmal als `Rebooking`-Source-Zeile, die sie in
@@ -180,8 +180,8 @@ Range-basierten pure fns neben `committed_voluntary_prorata_for_week`
 ```rust
 /// VOL-STAT-01 / VOL-ACCT-01-Ist — Manual-only Summe der Volunteer-
 /// Stunden im Range `[from_date ..= to_date]`. Filtert source = Manual
-/// + Soft-Deletes. (Phase 54 Gap-Closure G1 — ersetzt
-/// `voluntary_ist_total_for_year(_, year)`.)
+/// + Soft-Deletes. (Phase 54 Gap-Closure G1 — Range-basiert löst die
+/// frühere Full-Year-Variante ab.)
 pub fn voluntary_ist_total_in_range(
     extra_hours: &[ExtraHours],
     from_date: ShiftyDate,
@@ -207,7 +207,7 @@ pub fn committed_voluntary_prorata_for_week(
 /// F2-Soll = Σ (committed_voluntary / 7.0) über jeden Range-Tag mit
 /// aktivem Vertrag. Edge-Weeks tragen pro-rata für die Tage im Range
 /// bei (D-F2-01 bleibt tages-basiert). (Phase 54 Gap-Closure G1 —
-/// ersetzt `committed_voluntary_target_for_year(_, year)`.)
+/// Range-basiert löst die frühere Full-Year-Variante ab.)
 pub fn committed_voluntary_target_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,

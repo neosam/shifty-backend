@@ -79,7 +79,7 @@ Phase 55/56.
 the presence of future rebooking pairs filters `source = 'manual'`.
 The first consumer is Plan 54-03's
 `voluntary_ist_total_in_range(extra_hours, from_date, to_date)`
-(renamed from `voluntary_ist_total_for_year` in Plan 54-07 Gap-Closure G1),
+(introduced as a Range-based reader in Plan 54-07 Gap-Closure G1),
 which sums the Ist voluntary hours for F1/F2 and must exclude the future
 `rebooking` noise; otherwise the same voluntary hour would be counted
 twice (once as its original `Volunteer` row, once as the
@@ -169,8 +169,8 @@ building block) in `service_impl/src/reporting.rs`:
 ```rust
 /// VOL-STAT-01 / VOL-ACCT-01-Ist — Manual-only sum of Volunteer hours
 /// in the date range `[from_date ..= to_date]`. Filters source = Manual
-/// + soft-deletes. (Phase 54 Gap-Closure G1 — replaces
-/// `voluntary_ist_total_for_year(_, year)`.)
+/// + soft-deletes. (Phase 54 Gap-Closure G1 — Range-based supersedes the
+/// earlier full-year variant.)
 pub fn voluntary_ist_total_in_range(
     extra_hours: &[ExtraHours],
     from_date: ShiftyDate,
@@ -196,8 +196,8 @@ pub fn committed_voluntary_prorata_for_week(
 /// F2 target = Σ (committed_voluntary / 7.0) over every range-day
 /// covered by an active contract. Edge weeks contribute pro-rata for
 /// the days that fall inside the range (D-F2-01 stays day-based).
-/// (Phase 54 Gap-Closure G1 — replaces
-/// `committed_voluntary_target_for_year(_, year)`.)
+/// (Phase 54 Gap-Closure G1 — Range-based supersedes the earlier
+/// full-year variant.)
 pub fn committed_voluntary_target_in_range(
     working_hours: &[EmployeeWorkDetails],
     from_date: ShiftyDate,
