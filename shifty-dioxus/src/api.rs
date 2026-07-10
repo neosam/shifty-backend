@@ -402,26 +402,55 @@ pub async fn get_employee_weekly_statistics(
     Ok(Rc::new(res))
 }
 
-/// Phase 54 (VOL-STAT-01/02): HR-only voluntary-hours stats.
+/// Phase 54 Gap-Closure G1 (VOL-STAT-01/02): HR-only voluntary-hours stats
+/// mit echter Date-Range.
 ///
-/// Backend `GET /report/{id}/voluntary-stats?year=YYYY` liefert bei Non-HR
-/// alle Felder als `null` (API-Level-Redaktion, kein 403); der FE-Row-Component
-/// nutzt den Nullable-Guard als HR-Only-Sichtbarkeit (Fat Backend, Thin Client).
+/// Backend `GET /report/{id}/voluntary-stats?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
+/// liefert bei Non-HR alle Felder als `null` (API-Level-Redaktion, kein 403);
+/// der FE-Row-Component nutzt den Nullable-Guard als HR-Only-Sichtbarkeit
+/// (Fat Backend, Thin Client).
+///
+/// Range wird aus dem Employee-Report-Kontext abgeleitet:
+/// - `from_date` = 1. Januar des Jahres (ISO YYYY-01-01).
+/// - `to_date` = Sonntag der (year, until_week). Falls die ISO-Woche im
+///   Folge-Kalenderjahr endet (Standard), fangen wir das mit
+///   `time::Date::from_iso_week_date` ab. Fallback bei ungueltiger Woche:
+///   `YYYY-12-31`.
 pub async fn get_voluntary_stats(
     config: Config,
     sales_person_id: Uuid,
     year: u32,
+    until_week: u8,
 ) -> Result<VoluntaryStatsTO, reqwest::Error> {
     info!("Fetching voluntary stats");
+    let from_date = format!("{:04}-01-01", year);
+    let to_date = compute_voluntary_stats_to_date(year, until_week);
     let url = format!(
-        "{}/report/{}/voluntary-stats?year={}",
-        config.backend, sales_person_id, year
+        "{}/report/{}/voluntary-stats?from_date={}&to_date={}",
+        config.backend, sales_person_id, from_date, to_date
     );
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;
     info!("Fetched voluntary stats");
     Ok(res)
+}
+
+/// Berechnet das `to_date` (Sonntag der ISO-Woche `until_week` im Jahr `year`)
+/// im Format `YYYY-MM-DD`. Fallback bei ungueltiger Woche: `YYYY-12-31`.
+fn compute_voluntary_stats_to_date(year: u32, until_week: u8) -> String {
+    if let Ok(sunday) =
+        time::Date::from_iso_week_date(year as i32, until_week, time::Weekday::Sunday)
+    {
+        format!(
+            "{:04}-{:02}-{:02}",
+            sunday.year(),
+            sunday.month() as u8,
+            sunday.day()
+        )
+    } else {
+        format!("{:04}-12-31", year)
+    }
 }
 
 pub async fn get_employee_attendance_statistics(

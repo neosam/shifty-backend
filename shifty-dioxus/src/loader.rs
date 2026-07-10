@@ -295,12 +295,14 @@ pub async fn load_employee_details(
     Ok(Employee::from(report.as_ref()))
 }
 
-/// Phase 54 (VOL-STAT-01/02, VOL-ACCT-01/02): HR-only Freiwillig-Stunden-Konto.
+/// Phase 54 Gap-Closure G1 (VOL-STAT-01/02, VOL-ACCT-01/02): HR-only
+/// Freiwillig-Stunden-Konto mit echter Date-Range.
 ///
-/// Ruft `GET /report/{id}/voluntary-stats?year=YYYY` und maped das DTO 1:1 auf
+/// Ruft `GET /report/{id}/voluntary-stats?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
+/// mit einer Range abgeleitet aus (year, until_week) und maped das DTO 1:1 auf
 /// `state::VoluntaryStats` (Fat Backend, Thin Client — keine FE-Arithmetik).
-/// Bei Backend-Fehler wird `Ok(None)` zurueckgegeben, damit die Row still
-/// bleibt (Report ist noch nutzbar, wenn die Endpoint-Antwort ausbleibt).
+/// Bei Backend-Fehler wird die Row still gehalten (siehe `load_employee_data`
+/// -> `unwrap_or_default()`), damit der Report weiter nutzbar bleibt.
 ///
 /// Bei Non-HR liefert das Backend alle Felder als `None` (API-Level-Redaktion,
 /// Praezedenz VAC-OFFSET-01 v1.8 — kein 403); der Row-Component nutzt den
@@ -309,8 +311,9 @@ pub async fn load_voluntary_stats(
     config: Config,
     sales_person_id: Uuid,
     year: u32,
+    until_week: u8,
 ) -> Result<VoluntaryStats, ShiftyError> {
-    let to = api::get_voluntary_stats(config, sales_person_id, year).await?;
+    let to = api::get_voluntary_stats(config, sales_person_id, year, until_week).await?;
     Ok(VoluntaryStats::from(&to))
 }
 

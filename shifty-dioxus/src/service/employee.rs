@@ -149,7 +149,7 @@ pub async fn load_employee_data(
     // wir auf `VoluntaryStats::default()` zurueck, damit der Report weiter
     // funktioniert.
     let voluntary_stats =
-        loader::load_voluntary_stats(CONFIG.read().clone(), sales_person_id, year)
+        loader::load_voluntary_stats(CONFIG.read().clone(), sales_person_id, year, until_week)
             .await
             .unwrap_or_default();
     *EMPLOYEE_STORE.write() = EmployeeStore {
