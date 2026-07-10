@@ -6,14 +6,14 @@ current_phase: 55
 current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5
 status: executing
 stopped_at: Phase 55 plan-phase abgeschlossen — 6 Plaene (Wave 1/2/3/4) geschrieben + plan-checker VERIFICATION PASSED nach 1 Revisions-Iteration. Bereit fuer execute-phase.
-last_updated: "2026-07-10T19:45:51.697Z"
+last_updated: "2026-07-10T20:05:21.782Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 55 execution started
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
   percent: 50
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 55 execution started
 
@@ -267,6 +267,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: D-55-03 proposed_rebooking_hours = min(|balance|, voluntary_ist).max(0) als pure fn (Plan 55-01)
 - [Phase ?]: Task 3 Trade-off: voluntary_soll_before=0.0 im Hydrate; VoluntaryStatsService kommt im REST-Handler-Layer nach (Plan 55-02)
 - [Phase ?]: Reporting-Filter zentral (VOL-ACCT-03 Wave-1-Owner), nicht per-Konsument — Konsistenz-Garantie ueber alle BL-Konsumenten
+- [Phase ?]: D-55-EXEC-04-01 Direct-HTTP-Loader statt api::-Wrapper fuer strukturierte 409-Bodies (RebookingErrorSlotTaken/AlreadyResolved-Mapping)
+- [Phase ?]: D-55-EXEC-04-02 i18n-Keys leben in i18n/mod.rs (nicht i18n/i18n.rs); 21 neue Rebooking-Keys in en/de/cs synchron
+- [Phase ?]: D-55-EXEC-04-03 Dead-Code-Allows mit reason bis Plan 55-05 (Modals gemounted); fallen automatisch weg beim Page-Mount
 
 ## Performance Metrics
 
@@ -299,3 +302,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 55 P01 | 25min | 3 tasks | 12 files |
 | Phase 55 P02 | 16min | 2 tasks | 16 files |
 | Phase 55 P03 | 20 | 1 tasks | 5 files |
+| Phase 55 P55-04 | 30min | 2 tasks | 11 files |
