@@ -4,15 +4,15 @@ milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: "55"
 current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)
-status: discuss_phase
-stopped_at: Phase 55 discuss-phase abgeschlossen — 7 Design-Kalibrierungen gepinnt (D-55-01..07), CONTEXT.md geschrieben. Bereit fuer plan-phase.
-last_updated: "2026-07-10T15:00:00.000Z"
+status: ready_to_execute
+stopped_at: Phase 55 plan-phase abgeschlossen — 6 Plaene (Wave 1/2/3/4) geschrieben + plan-checker VERIFICATION PASSED nach 1 Revisions-Iteration. Bereit fuer execute-phase.
+last_updated: "2026-07-10T19:15:00.000Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 55 discuss-phase — D-F5-01..03 + D-55-UNDO-01 + D-55-F3-01/02 + D-55-F5-04 gepinnt. Nach v2.6.3-Release (Absences-Preselect-Fix). Voluntary-Ehrenamt-Bug bei expected_hours=0 weiter offen (nicht in Phase 55 Scope).
+last_activity_desc: Phase 55 plan-phase — 6 Plaene (55-01 Backend-BL / 55-02 REST+DTOs / 55-03 Property-Test / 55-04 FE-Komponenten / 55-05 FE-Integration / 55-06 Docs-Sync F14). 5 Blocker + 5 Warnings in Iteration 1 (Wave-Contract-Konflikte + Fat-Backend-Verstoss bei Delta) via targeted Revision behoben; Iteration 2 = PASSED.
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 11
+  total_plans: 17
   completed_plans: 11
   percent: 50
 ---
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — DISCUSS COMPLETE
-Plan: 0 of ? (Plans werden in plan-phase erzeugt)
-Status: discuss_phase — 7 Design-Kalibrierungen gepinnt (siehe 55-CONTEXT.md), Planner kann uebernehmen.
-Last activity: 2026-07-10 — Phase 55 discuss-phase abgeschlossen, CONTEXT.md geschrieben
+Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — PLANNED
+Plan: 0 of 6 (Executor uebernimmt Wave 1 → 4)
+Status: ready_to_execute — 6 Plaene geschrieben + plan-checker VERIFICATION PASSED. Wave 1 (55-01 Backend-BL) startet ohne Deps.
+Last activity: 2026-07-10 — Phase 55 plan-phase abgeschlossen (6 Plaene, Wave 1/2/3/4)
 
 ## Quick Tasks Completed
 
