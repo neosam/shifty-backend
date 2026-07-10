@@ -325,12 +325,276 @@ The existing `[[web.proxy]]` entry in `shifty-dioxus/Dioxus.toml` for
   `value = NULL`) will gate the F4 cron in Phase 56. In Phase 54 it
   is dormant.
 
+## 8. Manual Rebooking (F3)
+
+*Introduced Phase 55 (v2.6).* HR-triggered, one-shot pair-write that
+turns some `Volunteer` hours into a balance-neutralising `+/-` pair,
+directly stamped `Approved` — no pending step.
+
+### 8.1 Trigger
+
+HR navigates to `/employees/{id}` (the Employee Details page) and opens
+the *"Manual Rebooking"* menu item in the TopBar / Action-Menu
+([D-55-06]). Explicit design: no button lives inside the read-only
+Voluntary-Stats row — the TopBar keeps the read view uncluttered and
+forces the direction choice to be a conscious modal action.
+
+### 8.2 Modal shape
+
+The `manual_rebooking_modal` component shows four inputs plus a
+preview:
+
+- **ISO week** — `iso_year` (`u32`) + `iso_week` (`u8`), defaulting to
+  the current KW. HR may pick any week, including retrospective ones
+  ([D-55-05]).
+- **Direction** — radio between `VolunteerToExtra` and `ExtraToVolunteer`
+  ([D-55-06] — no delta-sign inference in the trigger context, so the
+  modal MUST offer the direction explicitly).
+- **Hours** — positive `f32`; validated by REB-MANUAL-03 (see 8.5).
+- **Preview** — mirrors the backend-computed pair payloads before
+  submit.
+
+### 8.3 Submit flow
+
+The modal POSTs `ManualRebookingRequestTO` to `POST /rebooking/manual`
+(routed via `/rebooking` in the Axum tree; dev-proxy entry landed in
+Plan 55-02). The REST handler forwards to
+`RebookingReconciliationService::rebook_manual`, which:
+
+1. **HR-gates** as its first `await` — Non-HR gets `Forbidden` without
+   any DAO round-trip.
+2. **Opens a transaction** (`TransactionDao::use_transaction`).
+3. **Builds the paired payloads** via a `Direction`-driven helper
+   (`build_pair_payloads`) — the enum eliminates the sign-bug class
+   that a raw signed `hours` argument would open.
+4. **Writes two `ExtraHours` rows** stamped `ExtraHoursSource::Rebooking`
+   with categories dictated by direction:
+   - `VolunteerToExtra` → `-h Volunteer`, `+h ExtraWork`.
+   - `ExtraToVolunteer` → `-h ExtraWork`, `+h Volunteer`.
+5. **Creates a `rebooking_batch`** (`kind=Manual, state=Approved`,
+   `approved` + `approved_by` set immediately from the auth context).
+6. **Creates one `rebooking_batch_entry`** with the two ExtraHours row
+   ids populated as `extra_hours_out_id` / `extra_hours_in_id` — the
+   invariant of §4 (FKs are `NULL` iff `state = Pending`) is
+   preserved even for the Manual path because the write is atomic and
+   already lands in `Approved`.
+
+### 8.4 State machine
+
+Manual batches never enter `Pending` — they are born `Approved`. The
+only allowed transition is the one the writer performs during creation:
+`⟂ → Approved`. [D-55-04] pins this as one-shot: no undo, no
+`Approved → Rejected` reversal, no delete. The Anti-Feature
+REB-UNDO-01 in `REQUIREMENTS.md` is the normative anchor.
+
+### 8.5 Errors
+
+| HTTP | Body                                                           | When |
+|------|----------------------------------------------------------------|------|
+| 400  | `{"error":"RebookingErrorHoursMustBePositive"}`                 | `hours <= 0` or non-finite (REB-MANUAL-03; validated in `rest/src/rebooking.rs::post_manual` before touching the service). |
+| 409  | `{"error":"RebookingErrorSlotTaken"}`                           | UNIQUE-slot `(sales_person_id, iso_year, iso_week)` already occupied by *any* batch (Manual / HrSuggestion / AutoCron), regardless of state. The BL propagates `ServiceError::EntityAlreadyExists`; the REST handler manually maps it to the i18n key so the batch UUID never leaks into the wire body (T-4 mitigation). |
+| 403  | plain `Forbidden`                                              | Non-HR caller (BL HR-gate). |
+
+On `RebookingErrorSlotTaken` the modal stays open; HR can change the
+week and re-submit. No auto-overwrite — that would silently erase a
+previous manual correction.
+
+### 8.6 Read-aggregate state after success
+
+Two `ExtraHours` rows and one Batch+Entry are persisted. The pair
+carries `source == Rebooking`, so it is invisible to `EmployeeReport::volunteer_hours`,
+`balance_hours`, and `overall_hours` — [VOL-ACCT-03] holds by
+construction. The central `source != Rebooking` filter lives in
+`ReportingService` (Wave-1 owner) and covers every downstream consumer
+(`VoluntaryStatsService`, `BookingInformationService`, F1/F2 rows,
+Balance line). Property-test 55-03 gives the end-to-end guarantee.
+
+---
+
+## 9. HR-Alert + Suggestion Modal (F5)
+
+*Introduced Phase 55 (v2.6).* Two-step, two-actor variant of §8:
+HR-Alert flags the person automatically, and HR resolves it through
+the Suggestion Modal with an Approve or Reject click.
+
+### 9.1 Alert predicate ([D-55-01])
+
+Pure fn in `service/src/rebooking_reconciliation.rs`:
+
+```rust
+pub fn alert_predicate(balance: f32, voluntary_ist: f32, cap_active: bool) -> bool {
+    cap_active && balance <= -0.5 && voluntary_ist > 0.0
+}
+```
+
+- **`cap_active`** — the target's contract has `has_hour_cap = true`.
+  Without cap, the balance chain already reconciles paid hours end-of-year;
+  the alert is meaningless.
+- **`balance <= -0.5`** — Float-Noise-Tolerance. Strict `< 0` would
+  trigger on `-0.0001`-rounding artefacts; the half-hour threshold aligns
+  with the UI's one-decimal granularity and only surfaces real gaps.
+- **`voluntary_ist > 0.0`** — nothing to rebook if the person has zero
+  volunteer hours in the range.
+
+Truth-table test lives in
+`service_impl/src/test/rebooking_reconciliation.rs::predicate_truth_table`
+and pins the boundary triple `balance = -0.49 / -0.5 / -0.51` explicitly.
+
+### 9.2 Backend ripple ([D-55-02])
+
+`ShortEmployeeReportTO` (in `rest-types`) is extended additively:
+
+```rust
+#[serde(default)]
+pub has_pending_rebooking: bool,
+#[serde(default)]
+pub pending_rebooking_id: Option<Uuid>,
+```
+
+Wire-compat is preserved by `#[serde(default)]` (precedent VAA-04). The
+value is set inside `ReportingService::enrich_reports_with_pending_rebooking`
+using a *predicate-first* pattern:
+
+1. Compute `alert_predicate(balance, voluntary_ist, cap_active)` from
+   the already-assembled ShortEmployeeReport aggregates.
+2. Only if `true`, query
+   `RebookingBatchService::list_pending_for_sales_person(Some(sp_id))`
+   via the new DAO verb `find_pending_for_sales_person`.
+3. If a `state = Pending` batch exists, stamp
+   `has_pending_rebooking = true` + `pending_rebooking_id = Some(batch_id)`.
+
+Two guardrails:
+
+- **HR-gate** — enrichment aborts before the DAO call when the caller
+  is Non-HR (`check_permission(HR_PRIVILEGE)`). Non-HR receives the
+  default (`false` / `None`).
+- **Authentication::Full skip** — internal aggregate callers
+  (`BookingInformationService`, `VoluntaryStatsService`, PDF-Scheduler)
+  pass `Authentication::Full` and never need the alert flag; the
+  enrichment early-returns for them so the ~40 `get_week` test-setup
+  call-counts stay intact ([D-55-EXEC-03]).
+
+### 9.3 Alert UI
+
+`shifty-dioxus/src/component/rebooking_alert_banner.rs` (added in Plan
+55-04) renders a **non-blocking inline banner** in the Employees
+overview list — one row per person with `has_pending_rebooking = true`.
+No modal-on-load, no confirmation dialog — deliberately follows the
+project-wide MEMORY rule
+[`feedback_warnings_inline_not_dialog`](../../.planning/PROJECT.md).
+Clicking the banner opens the Suggestion Modal for
+`pending_rebooking_id`.
+
+### 9.4 Suggestion Modal — IST / DANN ([D-55-03])
+
+`shifty-dioxus/src/component/rebooking_suggestion_modal.rs` displays
+the `RebookingSuggestionTO` payload returned by
+`GET /rebooking-suggestions` (or the single `/{id}` fetch). Two columns
+side by side:
+
+| Field                | IST (`_before`) — pre-approve | DANN (`_after`) — post-approve |
+|----------------------|-------------------------------|--------------------------------|
+| Balance              | `balance_before`              | `balance_after`                |
+| Voluntary Ist        | `voluntary_ist_before`        | `voluntary_ist_after`          |
+| Voluntary Soll       | `voluntary_soll_before`       | `voluntary_soll_after`         |
+| Voluntary Delta      | `voluntary_delta_before`      | `voluntary_delta_after`        |
+| Proposed hours       | —                             | `proposed_hours`               |
+
+**Every one** of those numbers is Backend-computed
+([D-55-03], MEMORY `feedback_fat_backend_thin_client`). The FE never
+subtracts, min-caps, or offsets — it only renders. Notably
+`voluntary_delta_before` and `voluntary_delta_after` are **their own
+Backend fields**, not derived on the wire — the FE does not compute
+`ist - soll`.
+
+`proposed_hours = min(|balance|, voluntary_ist).max(0.0)` — the
+central pure fn `proposed_rebooking_hours` from
+`service/src/rebooking_reconciliation.rs`.
+
+The modal exposes exactly two actions: **Approve** and **Reject**.
+
+### 9.5 State machine
+
+```
+                    suggest_for_week          approve_suggestion
+                   ┌──────────────┐          ┌───────────────────┐
+        ⟂  ─────►  │  Pending     │  ─────►  │     Approved      │
+                   │  (Claim held)│          │  (pair written)   │
+                   └──────────────┘          └───────────────────┘
+                            │                            
+                            │ reject_suggestion          
+                            ▼                            
+                   ┌──────────────┐                      
+                   │  Rejected    │                      
+                   │  (slot held) │                      
+                   └──────────────┘                      
+```
+
+**`suggest_for_week`** — creates `rebooking_batch`
+`kind=HrSuggestion, state=Pending`. The two entry FKs
+(`extra_hours_out_id`, `extra_hours_in_id`) are `NULL` per §4
+invariant — **no `ExtraHours` rows are written during Pending**. The
+UNIQUE-slot claim is acquired directly through the partial index
+[D-54-DM-01]; this is Claim-on-Suggest ([HR-ALERT-04]) — it prevents
+double-suggestions for the same person / same ISO week and also
+prevents the F4 AutoCron (Phase 56) from racing in.
+
+**`approve_suggestion`** — state-conditional `UPDATE ... WHERE state='pending'`
+(rows-affected == 1 wins the race, otherwise `BatchAlreadyResolved`).
+On success, the paired `ExtraHours` rows are written **atomically in
+the same transaction** that flips the state, so the §4 FK-invariant
+becomes true exactly when the state becomes `Approved`.
+
+**`reject_suggestion`** — state-conditional `UPDATE ... WHERE state='pending'`
+to `Rejected`. **No `ExtraHours` writes**. UNIQUE-slot stays held
+until the next ISO week ([D-55-07]) — the same person cannot receive
+another suggestion for the same week, and HR does not re-review the
+same rejection.
+
+### 9.6 Alert termination ([D-55-07])
+
+Both terminal states end the alert:
+
+- **Approve** — the pair-write moves `balance` above the -0.5h
+  threshold; the predicate flips to `false`.
+- **Reject** — the slot is claimed by a non-Pending batch; the
+  `find_pending_for_sales_person` query returns none; the DAO-side
+  gate stamps `has_pending_rebooking = false`.
+
+Consistent with `REQUIREMENTS.md` HR-ALERT-03 wording *"sichtbar
+vermerkt"* — the Rejected batch stays in the audit trail, just not in
+the banner.
+
+### 9.7 No-Undo ([D-55-04], Anti-Feature REB-UNDO-01)
+
+Both `Approve` and `Reject` are one-shot. There is no
+`Approved → Rejected` or `Rejected → Approved` transition, no delete,
+no undo endpoint. Reversing a rebooking requires HR to issue a
+fresh Manual-Rebooking (F3) in the *opposite direction* — a distinct
+audit event.
+
+### 9.8 Race semantics ([HR-ALERT-03], T-55-01)
+
+Two HR users clicking Approve at the same instant hit the
+state-conditional UPDATE simultaneously. Exactly one gets
+`rows_affected = 1`; the other gets `rows_affected = 0` which the BL
+maps to `ServiceError::BatchAlreadyResolved`. The REST layer maps that
+to `HTTP 409 { "error": "RebookingErrorAlreadyResolved" }` — the FE
+i18n contract is stable and does not depend on SQL details (T-4 leak
+mitigation). Same protocol for the Approve/Reject cross-race.
+
 ---
 
 **Conclusion.** Phase 54 delivers the read side of F14: HR sees F1/F2
 in the employee report, the audit tables are in place, and the marker
 column tells the future writers where the future rebooking rows will
-live. Milestones v2.6 Phase 55 + Phase 56 attach the writers and the
-cron on top of this baseline without another schema change.
+live. Phase 55 attaches the two user-facing writers (F3 Manual +
+F5 HR-Alert/Suggestion) on top of that baseline without another schema
+change — the entire pair-write invariant, the pending Claim-on-Suggest,
+and the state-machine live in `RebookingReconciliationService`
+(Business-Logic tier) with backend-computed IST/DANN and no undo.
+Phase 56 adds the F4 AutoCron.
 
 *Last verification against code:* see git blame of this file.
+
+_Last updated: 2026-07-10 — Phase 55 F3+F5 sections appended._

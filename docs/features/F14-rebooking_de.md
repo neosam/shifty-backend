@@ -339,12 +339,285 @@ bestehende `[[web.proxy]]`-Eintrag in `shifty-dioxus/Dioxus.toml` für
   `enabled = 0`, `value = NULL` geseedet) gattet in Phase 56 den
   F4-Cron. In Phase 54 ist er inaktiv.
 
+## 8. Manuelle Umbuchung (F3)
+
+*Eingeführt Phase 55 (v2.6).* HR-getriggerter One-Shot-Pair-Write, der
+einige `Volunteer`-Stunden in ein Balance-neutralisierendes `+/-`-Paar
+umsetzt — direkt im Zustand `Approved`, ohne Pending-Zwischenschritt.
+
+### 8.1 Trigger
+
+HR navigiert zu `/employees/{id}` (Employee-Details-Seite) und öffnet
+den Menu-Punkt *"Manuelle Umbuchung"* in der TopBar / im Action-Menu
+([D-55-06]). Explizite Design-Wahl: KEIN Button in der reinen
+Lese-Zeile „Voluntary-Stats" — die TopBar hält die Read-Ansicht sauber
+und erzwingt, dass die Richtungswahl eine bewusste Modal-Aktion ist.
+
+### 8.2 Modal-Aufbau
+
+Die Komponente `manual_rebooking_modal` zeigt vier Eingaben plus eine
+Vorschau:
+
+- **ISO-Woche** — `iso_year` (`u32`) + `iso_week` (`u8`), Default:
+  aktuelle KW. HR darf jede Woche wählen, auch retrospektiv
+  ([D-55-05]).
+- **Richtung** — Radio zwischen `VolunteerToExtra` und
+  `ExtraToVolunteer` ([D-55-06] — im TopBar-Trigger gibt es keinen
+  Delta-Vorzeichen-Kontext, deshalb MUSS das Modal die Richtung
+  explizit anbieten).
+- **Stunden** — positives `f32`; validiert per REB-MANUAL-03 (siehe
+  8.5).
+- **Vorschau** — spiegelt die Backend-berechneten Pair-Payloads vor
+  dem Submit.
+
+### 8.3 Submit-Flow
+
+Das Modal POSTet `ManualRebookingRequestTO` an
+`POST /rebooking/manual` (im Axum-Tree unter `/rebooking`; Dev-Proxy-
+Eintrag in Plan 55-02 nachgezogen). Der REST-Handler ruft
+`RebookingReconciliationService::rebook_manual`, das:
+
+1. **HR-gate** als erster `await` — Non-HR bekommt `Forbidden` ohne
+   DAO-Round-Trip.
+2. **Öffnet Transaktion** (`TransactionDao::use_transaction`).
+3. **Baut die Paar-Payloads** über einen `Direction`-getriebenen Helper
+   (`build_pair_payloads`) — das Enum eliminiert die Vorzeichen-Bug-
+   Klasse, die ein rohes signiertes `hours`-Argument öffnen würde.
+4. **Schreibt zwei `ExtraHours`-Zeilen** mit Marker
+   `ExtraHoursSource::Rebooking` und Kategorien je Richtung:
+   - `VolunteerToExtra` → `-h Volunteer`, `+h ExtraWork`.
+   - `ExtraToVolunteer` → `-h ExtraWork`, `+h Volunteer`.
+5. **Erzeugt einen `rebooking_batch`** (`kind=Manual, state=Approved`;
+   `approved` + `approved_by` werden sofort aus dem Auth-Context
+   gesetzt).
+6. **Erzeugt einen `rebooking_batch_entry`** mit den beiden
+   ExtraHours-Row-IDs als `extra_hours_out_id` / `extra_hours_in_id` —
+   die §4-Invariante (FKs sind `NULL` gdw. `state = Pending`) hält
+   auch im Manual-Pfad, weil der Write atomar ist und direkt in
+   `Approved` landet.
+
+### 8.4 State-Machine
+
+Manuelle Batches durchlaufen niemals `Pending` — sie werden direkt als
+`Approved` geboren. Der einzig erlaubte Übergang ist der, den der
+Writer bei der Anlage vornimmt: `⟂ → Approved`. [D-55-04] pinnt das
+als One-Shot: kein Undo, keine `Approved → Rejected`-Rückwärtsrichtung,
+kein Delete. Das Anti-Feature REB-UNDO-01 in `REQUIREMENTS.md` ist der
+normative Anker.
+
+### 8.5 Fehler
+
+| HTTP | Body                                                           | Wann |
+|------|----------------------------------------------------------------|------|
+| 400  | `{"error":"RebookingErrorHoursMustBePositive"}`                 | `hours <= 0` oder nicht endlich (REB-MANUAL-03; validiert in `rest/src/rebooking.rs::post_manual` vor dem Service-Aufruf). |
+| 409  | `{"error":"RebookingErrorSlotTaken"}`                           | UNIQUE-Slot `(sales_person_id, iso_year, iso_week)` bereits belegt durch *irgendeinen* Batch (Manual / HrSuggestion / AutoCron), unabhängig vom State. Die BL propagiert `ServiceError::EntityAlreadyExists`; der REST-Handler mapped manuell auf den i18n-Key, damit die Batch-UUID nicht in den Wire-Body leakt (T-4-Mitigation). |
+| 403  | plain `Forbidden`                                              | Non-HR-Aufrufer (BL-HR-Gate). |
+
+Bei `RebookingErrorSlotTaken` bleibt das Modal offen; HR kann die
+Woche ändern und neu senden. Kein Auto-Overwrite — das würde eine
+frühere manuelle Korrektur still überschreiben.
+
+### 8.6 Zustand der Read-Aggregate nach Erfolg
+
+Zwei `ExtraHours`-Zeilen und ein Batch+Entry sind persistiert. Das
+Paar trägt `source == Rebooking`, ist damit unsichtbar für
+`EmployeeReport::volunteer_hours`, `balance_hours` und `overall_hours`
+— [VOL-ACCT-03] hält durch Konstruktion. Der zentrale
+`source != Rebooking`-Filter lebt im `ReportingService` (Wave-1-Owner)
+und deckt jeden nachgelagerten Konsumenten ab (`VoluntaryStatsService`,
+`BookingInformationService`, F1/F2-Zeilen, Balance-Zeile). Property-
+Test 55-03 liefert die End-to-End-Garantie.
+
+---
+
+## 9. HR-Alert + Vorschlags-Modal (F5)
+
+*Eingeführt Phase 55 (v2.6).* Zwei-Schritt-, Zwei-Akteur-Variante von
+§8: HR-Alert markiert die Person automatisch, HR löst den Alert per
+Klick auf Approve oder Reject im Vorschlags-Modal auf.
+
+### 9.1 Alert-Predicate ([D-55-01])
+
+Pure fn in `service/src/rebooking_reconciliation.rs`:
+
+```rust
+pub fn alert_predicate(balance: f32, voluntary_ist: f32, cap_active: bool) -> bool {
+    cap_active && balance <= -0.5 && voluntary_ist > 0.0
+}
+```
+
+- **`cap_active`** — der/die Zielperson hat `has_hour_cap = true`. Ohne
+  Cap reconciliert die Balance-Kette schon zum Jahresende; der Alert
+  wäre bedeutungslos.
+- **`balance <= -0.5`** — Float-Noise-Tolerance. Strikte `< 0`-Regel
+  triggerte auf `-0.0001`-Rundungsartefakte; die Halb-Stunden-Schwelle
+  passt zur UI-Granularität (eine Nachkommastelle) und zeigt nur
+  echte Lücken.
+- **`voluntary_ist > 0.0`** — nichts umzubuchen, wenn die Person null
+  Freiwilligen-Stunden im Range hat.
+
+Der Truth-Table-Test liegt in
+`service_impl/src/test/rebooking_reconciliation.rs::predicate_truth_table`
+und pinnt das Rand-Tripel `balance = -0.49 / -0.5 / -0.51` explizit.
+
+### 9.2 Backend-Ripple ([D-55-02])
+
+`ShortEmployeeReportTO` (in `rest-types`) wird additiv erweitert:
+
+```rust
+#[serde(default)]
+pub has_pending_rebooking: bool,
+#[serde(default)]
+pub pending_rebooking_id: Option<Uuid>,
+```
+
+Wire-Kompatibilität bleibt via `#[serde(default)]` gewahrt (Präzedenz
+VAA-04). Der Wert wird in
+`ReportingService::enrich_reports_with_pending_rebooking` per
+*Predicate-first*-Muster gesetzt:
+
+1. Berechne `alert_predicate(balance, voluntary_ist, cap_active)` aus
+   den bereits assemblierten ShortEmployeeReport-Aggregaten.
+2. Nur bei `true` wird
+   `RebookingBatchService::list_pending_for_sales_person(Some(sp_id))`
+   via des neuen DAO-Verbs `find_pending_for_sales_person` abgefragt.
+3. Existiert ein `state = Pending`-Batch, wird
+   `has_pending_rebooking = true` + `pending_rebooking_id = Some(batch_id)`
+   gestempelt.
+
+Zwei Guardrails:
+
+- **HR-Gate** — Enrichment bricht vor dem DAO-Call ab, wenn der
+  Caller Non-HR ist (`check_permission(HR_PRIVILEGE)`). Non-HR
+  erhält die Defaults (`false` / `None`).
+- **Authentication::Full-Skip** — interne Aggregat-Aufrufer
+  (`BookingInformationService`, `VoluntaryStatsService`, PDF-
+  Scheduler) übergeben `Authentication::Full` und brauchen das
+  Alert-Flag nicht; die Enrichment-Funktion returned für sie
+  frühzeitig, damit die ~40 `get_week`-Test-Setup-Call-Counts intakt
+  bleiben ([D-55-EXEC-03]).
+
+### 9.3 Alert-UI
+
+`shifty-dioxus/src/component/rebooking_alert_banner.rs` (angelegt in
+Plan 55-04) rendert ein **nicht-blockierendes Inline-Banner** in der
+Employees-Übersichts-Liste — eine Zeile pro Person mit
+`has_pending_rebooking = true`. Kein Modal-on-load, kein Confirmation-
+Dialog — folgt bewusst der projektweiten MEMORY-Regel
+[`feedback_warnings_inline_not_dialog`](../../.planning/PROJECT.md).
+Klick auf das Banner öffnet das Suggestion-Modal für
+`pending_rebooking_id`.
+
+### 9.4 Vorschlags-Modal — IST / DANN ([D-55-03])
+
+`shifty-dioxus/src/component/rebooking_suggestion_modal.rs` zeigt die
+`RebookingSuggestionTO`-Payload, die `GET /rebooking-suggestions` (bzw.
+der Einzel-Fetch `/{id}`) liefert. Zwei Spalten nebeneinander:
+
+| Feld                 | IST (`_before`) — vor Approve | DANN (`_after`) — nach Approve |
+|----------------------|-------------------------------|--------------------------------|
+| Balance              | `balance_before`              | `balance_after`                |
+| Voluntary Ist        | `voluntary_ist_before`        | `voluntary_ist_after`          |
+| Voluntary Soll       | `voluntary_soll_before`       | `voluntary_soll_after`         |
+| Voluntary Delta      | `voluntary_delta_before`      | `voluntary_delta_after`        |
+| Vorgeschlagene Std.  | —                             | `proposed_hours`               |
+
+**Jede** dieser Zahlen ist Backend-berechnet ([D-55-03], MEMORY
+`feedback_fat_backend_thin_client`). Das FE subtrahiert nicht, kappt
+nicht, verrechnet nicht — es rendert nur. Insbesondere
+`voluntary_delta_before` und `voluntary_delta_after` sind **eigene
+Backend-Felder**, keine FE-Ableitung — das FE rechnet nicht `ist - soll`.
+
+`proposed_hours = min(|balance|, voluntary_ist).max(0.0)` — die
+zentrale Pure-fn `proposed_rebooking_hours` aus
+`service/src/rebooking_reconciliation.rs`.
+
+Das Modal exposet exakt zwei Aktionen: **Approve** und **Reject**.
+
+### 9.5 State-Machine
+
+```
+                    suggest_for_week          approve_suggestion
+                   ┌──────────────┐          ┌───────────────────┐
+        ⟂  ─────►  │  Pending     │  ─────►  │     Approved      │
+                   │  (Claim held)│          │  (Paar geschrieben)│
+                   └──────────────┘          └───────────────────┘
+                            │                            
+                            │ reject_suggestion          
+                            ▼                            
+                   ┌──────────────┐                      
+                   │  Rejected    │                      
+                   │  (Slot held) │                      
+                   └──────────────┘                      
+```
+
+**`suggest_for_week`** — erzeugt `rebooking_batch`
+`kind=HrSuggestion, state=Pending`. Die zwei Entry-FKs
+(`extra_hours_out_id`, `extra_hours_in_id`) sind `NULL` gemäß §4-
+Invariante — **es werden KEINE `ExtraHours`-Zeilen im Pending
+geschrieben**. Der UNIQUE-Slot-Claim wird direkt über den partiellen
+Index [D-54-DM-01] gehalten; das ist Claim-on-Suggest ([HR-ALERT-04])
+— verhindert Doppelvorschläge für dieselbe Person / dieselbe ISO-Woche
+und blockiert auch den F4-AutoCron (Phase 56) vor einem Race.
+
+**`approve_suggestion`** — state-conditional `UPDATE ... WHERE state='pending'`
+(rows-affected == 1 gewinnt den Race, sonst `BatchAlreadyResolved`).
+Bei Erfolg werden die gepaarten `ExtraHours`-Zeilen **atomar in
+derselben Transaktion** geschrieben, die den State flippt — damit
+gilt die §4-FK-Invariante genau dann als erfüllt, wenn der State auf
+`Approved` steht.
+
+**`reject_suggestion`** — state-conditional `UPDATE ... WHERE state='pending'`
+auf `Rejected`. **Kein `ExtraHours`-Write**. Der UNIQUE-Slot bleibt
+belegt bis zur nächsten ISO-Woche ([D-55-07]) — dieselbe Person kann
+in derselben Woche keinen neuen Vorschlag bekommen, und HR muss
+denselben Reject nicht zweimal drücken.
+
+### 9.6 Alert-Terminierung ([D-55-07])
+
+Beide terminalen States beenden den Alert:
+
+- **Approve** — der Paar-Write hebt `balance` über die -0.5h-Schwelle;
+  der Predicate wird `false`.
+- **Reject** — der Slot ist von einem Nicht-Pending-Batch belegt; die
+  Query `find_pending_for_sales_person` liefert nichts; der DAO-Gate
+  stempelt `has_pending_rebooking = false`.
+
+Konsistent zur `REQUIREMENTS.md`-HR-ALERT-03-Formulierung *„sichtbar
+vermerkt"* — der Rejected-Batch bleibt im Audit-Trail, nur nicht im
+Banner.
+
+### 9.7 Kein Undo ([D-55-04], Anti-Feature REB-UNDO-01)
+
+Sowohl `Approve` als auch `Reject` sind One-Shot. Es gibt keinen
+`Approved → Rejected`- oder `Rejected → Approved`-Übergang, kein
+Delete, keinen Undo-Endpoint. Ein Rebooking rückgängig zu machen
+erfordert von HR ein frisches Manual-Rebooking (F3) *in
+Gegenrichtung* — ein eigenes Audit-Event.
+
+### 9.8 Race-Semantik ([HR-ALERT-03], T-55-01)
+
+Zwei HR-User klicken gleichzeitig Approve — beide treffen das
+state-conditional UPDATE. Genau einer bekommt `rows_affected = 1`; der
+andere bekommt `rows_affected = 0`, was die BL auf
+`ServiceError::BatchAlreadyResolved` mapped. Der REST-Layer bildet das
+auf `HTTP 409 { "error": "RebookingErrorAlreadyResolved" }` ab — der
+FE-i18n-Vertrag ist stabil und hängt nicht an SQL-Details (T-4 Leak-
+Mitigation). Gleiches Protokoll gilt für den Approve/Reject-Cross-
+Race.
+
 ---
 
 **Fazit.** Phase 54 liefert die Lese-Seite von F14: HR sieht F1/F2
 im Employee-Report, die Audit-Tabellen stehen, und die Marker-Spalte
 sagt den zukünftigen Writern, wo die zukünftigen Rebooking-Zeilen
-landen werden. Milestones v2.6 Phase 55 + Phase 56 hängen die Writer
-und den Cron ohne weitere Schema-Änderung darauf.
+landen werden. Phase 55 hängt die zwei User-facing-Writer (F3 Manual
++ F5 HR-Alert/Vorschlag) auf diese Basis, ohne weitere Schema-
+Änderung — die gesamte Pair-Write-Invariante, das Pending-Claim-on-
+Suggest und die State-Machine leben in `RebookingReconciliationService`
+(Business-Logic-Schicht) mit Backend-berechneten IST/DANN und ohne
+Undo. Phase 56 hängt den F4-AutoCron oben drauf.
 
 *Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
+
+_Letztes Update: 2026-07-10 — Phase 55 F3+F5-Sektionen angehängt._
