@@ -10,7 +10,7 @@ let
 in
   rustPlatform.buildRustPackage {
     pname = "shifty-service";
-    version = "2.6.2";
+    version = "2.6.3-dev";
     src = src;
     nativeBuildInputs = with specificPkgs; [curl pkg-config openssl clippy];
     buildInputs = with specificPkgs; [sqlite openssl];
