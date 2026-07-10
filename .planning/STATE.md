@@ -4,11 +4,11 @@ milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: "55"
 current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)
-status: planning
-stopped_at: v2.6.1 released — Voluntary-Soll Absence-Aware-Fix ge-shippt (Tag v2.6.1 auf main + shifty-nix-Pin auf v2.6.1). Nächste Phase 55 (F3+F5) noch nicht gestartet.
-last_updated: "2026-07-10T13:30:00.000Z"
+status: discuss_phase
+stopped_at: Phase 55 discuss-phase abgeschlossen — 7 Design-Kalibrierungen gepinnt (D-55-01..07), CONTEXT.md geschrieben. Bereit fuer plan-phase.
+last_updated: "2026-07-10T15:00:00.000Z"
 last_activity: 2026-07-10
-last_activity_desc: v2.6.1 Hotfix ge-shippt — voluntary_stats Soll now whole-week-out on absence weeks (D-54.5-01/02); shifty-nix pinned to v2.6.1. Deployment bleibt manuell.
+last_activity_desc: Phase 55 discuss-phase — D-F5-01..03 + D-55-UNDO-01 + D-55-F3-01/02 + D-55-F5-04 gepinnt. Nach v2.6.3-Release (Absences-Preselect-Fix). Voluntary-Ehrenamt-Bug bei expected_hours=0 weiter offen (nicht in Phase 55 Scope).
 progress:
   total_phases: 4
   completed_phases: 2
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — NOT STARTED
+Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — DISCUSS COMPLETE
 Plan: 0 of ? (Plans werden in plan-phase erzeugt)
-Status: planning — Phase 55 wartet auf discuss-phase (F3-Manual-Rebooking + F5-HR-Alert-Modal); v2.6.1 ist ge-shippt.
-Last activity: 2026-07-10 — v2.6.1 Hotfix ge-shippt (voluntary_stats Soll now whole-week-out on absence weeks)
+Status: discuss_phase — 7 Design-Kalibrierungen gepinnt (siehe 55-CONTEXT.md), Planner kann uebernehmen.
+Last activity: 2026-07-10 — Phase 55 discuss-phase abgeschlossen, CONTEXT.md geschrieben
 
 ## Quick Tasks Completed
 
